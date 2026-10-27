@@ -1530,6 +1530,8 @@ export const pl: Catalogue = {
     'senderMark.why.trustedSender':
         '{authenticated} uwierzytelniła tę wiadomość, a nadawca jest na liście zaufanych nadawców tego konta.',
     'senderMark.why.trustedOrganizationMember':
+        'Nadawca jest członkiem Twojej organizacji, {organization}, a podpis organizacji potwierdza, że ta wiadomość pochodzi z tego adresu.',
+    'senderMark.why.trustedOrganizationMemberDeleted':
         'Nadawca jest członkiem Twojej organizacji, a podpis organizacji potwierdza, że ta wiadomość pochodzi z tego adresu.',
     'senderMark.why.verified':
         'Ma podpis, który się zweryfikował, złożony przez {address} – adres, z którego pochodzi.',
@@ -1593,7 +1595,9 @@ export const pl: Catalogue = {
     'senderMark.trust.ownDomain': '{domain} to domena Twoich własnych kont.',
     'senderMark.trust.trustedSenders': 'Nadawca jest na liście zaufanych nadawców tego konta.',
     'senderMark.trust.organizationMember':
-        'Członek Twojej organizacji. Podpis organizacji potwierdza, że wiadomość pochodzi z adresu {address}.',
+        'Członek Twojej organizacji, {organization}. Podpis organizacji potwierdza, że wiadomość pochodzi z adresu {address}.',
+    'senderMark.trust.organizationMemberDeleted':
+        'Członek Twojej organizacji. Podpis organizacji potwierdza, że wiadomość pochodzi z adresu {address}; organizacja została od tego czasu usunięta, więc jej nazwa nie jest pokazywana.',
     'senderMark.trust.unrecognized':
         'To konto nie rozpoznaje adresu {address}: nie ma go na liście zaufanych nadawców konta, a {domain} nie jest domeną Twoich własnych kont.',
     'senderMark.signed.not':

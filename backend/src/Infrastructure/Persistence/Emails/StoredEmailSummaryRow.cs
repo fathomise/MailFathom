@@ -12,6 +12,7 @@ using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Spam;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Folders;
+using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Emails;
 
@@ -77,6 +78,7 @@ internal sealed record StoredEmailSummaryRow(
     string? DkimSignerDomain,
     string? SpfMailFromDomain,
     SenderTrustSource SenderTrustGrantedBy,
+    Guid? SenderTrustOrganizationId,
     MachineAuthorshipBand MachineAuthorshipBand,
     double MachineAuthorshipLikelihood,
     MachineAuthorshipSignals MachineAuthorshipSignals,
@@ -128,6 +130,7 @@ internal sealed record StoredEmailSummaryRow(
             email.DkimSignerDomain,
             email.SpfMailFromDomain,
             email.SenderTrustGrantedBy,
+            email.SenderTrustOrganizationId,
             email.MachineAuthorshipBand,
             email.MachineAuthorshipLikelihood,
             email.MachineAuthorshipSignals,
@@ -164,86 +167,127 @@ internal sealed record StoredEmailSummaryRow(
             email.SpamClassification == null ? null : email.SpamClassification.PhishingRequest,
             email.SpamClassification == null ? null : email.SpamClassification.ImpersonatedParty);
 
-    /// <summary>Rebuilds the summaries of a set of rows, naming each one's folder by its path.</summary>
+    /// <summary>Rebuilds the summaries of a set of rows, naming each one's folder by its path and the organization that recognized its author by its current name.</summary>
     /// <param name="rows">The rows, in the order the summaries are wanted in.</param>
-    /// <param name="folders">The folder rows the paths are read from, untracked.</param>
+    /// <param name="dbContext">The context the folder paths and the organization names are read through, untracked.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>One summary per row, in the same order.</returns>
     /// <remarks>
+    /// <para>
     /// The paths are one more query, over the folders of the accounts the rows came from, rather than columns of the
     /// summary projection: a path is a walk up a parent chain of any depth, which no single translated expression reads.
+    /// </para>
+    /// <para>
+    /// The organization names are another, asked only where a row names an organization, so a page of mail nobody's
+    /// organization signed costs nothing more. The name is read live rather than copied onto the message, which is what
+    /// lets a rename reach mail already stored and a deletion leave the reason standing without one.
+    /// </para>
     /// </remarks>
     public static async Task<IReadOnlyList<EmailSummary>> ToSummariesAsync(
         IReadOnlyCollection<StoredEmailSummaryRow> rows,
-        IQueryable<MailFolderEntity> folders,
+        MailFathomDbContext dbContext,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(rows);
+        ArgumentNullException.ThrowIfNull(dbContext);
 
         var paths = await StoredMailFolderPaths.ReadAsync(
-            folders,
+            dbContext.MailFolders,
             [.. rows.Select(static row => row.MailboxAccountId)],
             cancellationToken);
+        var organizationNames = await ReadOrganizationNamesAsync(dbContext.Organizations, rows, cancellationToken);
 
-        return [.. rows.Select(row => row.ToSummary(paths))];
+        return [.. rows.Select(row => row.ToSummary(paths, organizationNames))];
     }
 
     /// <summary>Turns the returned columns into the application read model.</summary>
     /// <param name="folderPaths">The path of every folder of the row's account, keyed by folder identity, which names the row's folder.</param>
+    /// <param name="organizationNames">The current display name of every organization the rows name, keyed by its identity; one deleted since is absent.</param>
     /// <returns>The summary, with every domain value object built by its own factory.</returns>
-    internal EmailSummary ToSummary(IReadOnlyDictionary<Guid, IReadOnlyList<string>> folderPaths) => new()
+    internal EmailSummary ToSummary(
+        IReadOnlyDictionary<Guid, IReadOnlyList<string>> folderPaths,
+        IReadOnlyDictionary<Guid, string> organizationNames) => new()
+        {
+            StoredEmailId = StoredEmailId.Create(this.Id),
+            Account = MailAccountId.Create(this.MailboxAccountId),
+            Folder = StoredMailFolderPaths.Describe(this.FolderId, this.FolderAlias, folderPaths),
+            ThreadId = this.ThreadId is { } threadId ? EmailThreadId.Create(threadId) : null,
+            InternetMessageId = this.InternetMessageId,
+            Subject = this.Subject,
+            SentAt = this.SentAt,
+            ReceivedAt = this.ReceivedAt,
+            SizeOctets = this.SizeOctets,
+            SenderDisplayName = this.SenderDisplayName,
+            SenderAddress = this.SenderAddress,
+            // A read-only view rather than the array itself, which a caller could cast back and write through.
+            ToAddresses = Array.AsReadOnly(this.ToAddresses),
+            Attachments = new StoredEmailAttachmentSummary(
+                this.AttachmentCount,
+                this.AttachmentTotalSizeOctets,
+                this.InlineResourceCount,
+                this.IsEncrypted,
+                this.CarriesUnverifiedSignature,
+                this.ContainsUnexpandedTnefPart),
+            ContentAvailability = this.ContentAvailability,
+            RemoteFlags = new RemoteEmailFlagSnapshot(
+                this.RemoteFlagsObservedAt,
+                this.IsRemotelySeen,
+                this.IsRemotelyAnswered,
+                this.IsRemotelyFlagged,
+                this.IsRemotelyDraft,
+                this.IsRemotelyDeleted,
+                // Rebuilt through the factory rather than wrapped, because the column is what an earlier build's
+                // normalization left behind and this one's rules are the ones a caller's filter is folded by.
+                RemoteEmailKeywords.Create(this.RemoteKeywords)),
+            SenderVerification = new SenderVerification
+            {
+                AuthorAuthentication = this.AuthorAuthenticationOutcome,
+                DeploymentTrust = this.SenderTrustLevel,
+                DeploymentTrustGrantedBy = this.SenderTrustGrantedBy,
+                RecognizingOrganizationName = this.SenderTrustOrganizationId is { } organizationId
+                    ? organizationNames.GetValueOrDefault(organizationId)
+                    : null,
+                Signature = this.Signature.ToSignature(),
+            },
+            SenderAuthenticationEvidence = new SenderAuthenticationEvidence
+            {
+                AuthenticatedDomain = StoredDomain(this.AuthenticatedSenderDomain),
+                DisplayedAuthorDomain = StoredDomain(this.DisplayedAuthorDomain),
+                DkimDomain = StoredDomain(this.DkimSignerDomain),
+                SpfDomain = StoredDomain(this.SpfMailFromDomain),
+                AuthenticatedBy = this.SenderAuthenticationMethod,
+                Dmarc = this.DmarcOutcome,
+                Source = this.SenderAuthenticationSource,
+            },
+            MachineAuthorship = this.StoredAuthorship(),
+            Spam = this.StoredSpamVerdict(),
+        };
+
+    /// <summary>Reads the current display name of every organization the rows name.</summary>
+    private static async Task<IReadOnlyDictionary<Guid, string>> ReadOrganizationNamesAsync(
+        IQueryable<OrganizationEntity> organizations,
+        IReadOnlyCollection<StoredEmailSummaryRow> rows,
+        CancellationToken cancellationToken)
     {
-        StoredEmailId = StoredEmailId.Create(this.Id),
-        Account = MailAccountId.Create(this.MailboxAccountId),
-        Folder = StoredMailFolderPaths.Describe(this.FolderId, this.FolderAlias, folderPaths),
-        ThreadId = this.ThreadId is { } threadId ? EmailThreadId.Create(threadId) : null,
-        InternetMessageId = this.InternetMessageId,
-        Subject = this.Subject,
-        SentAt = this.SentAt,
-        ReceivedAt = this.ReceivedAt,
-        SizeOctets = this.SizeOctets,
-        SenderDisplayName = this.SenderDisplayName,
-        SenderAddress = this.SenderAddress,
-        // A read-only view rather than the array itself, which a caller could cast back and write through.
-        ToAddresses = Array.AsReadOnly(this.ToAddresses),
-        Attachments = new StoredEmailAttachmentSummary(
-            this.AttachmentCount,
-            this.AttachmentTotalSizeOctets,
-            this.InlineResourceCount,
-            this.IsEncrypted,
-            this.CarriesUnverifiedSignature,
-            this.ContainsUnexpandedTnefPart),
-        ContentAvailability = this.ContentAvailability,
-        RemoteFlags = new RemoteEmailFlagSnapshot(
-            this.RemoteFlagsObservedAt,
-            this.IsRemotelySeen,
-            this.IsRemotelyAnswered,
-            this.IsRemotelyFlagged,
-            this.IsRemotelyDraft,
-            this.IsRemotelyDeleted,
-            // Rebuilt through the factory rather than wrapped, because the column is what an earlier build's
-            // normalization left behind and this one's rules are the ones a caller's filter is folded by.
-            RemoteEmailKeywords.Create(this.RemoteKeywords)),
-        SenderVerification = new SenderVerification
+        Guid[] organizationIds = [.. rows
+            .Select(static row => row.SenderTrustOrganizationId)
+            .OfType<Guid>()
+            .Distinct()];
+
+        if (organizationIds.Length == 0)
         {
-            AuthorAuthentication = this.AuthorAuthenticationOutcome,
-            DeploymentTrust = this.SenderTrustLevel,
-            DeploymentTrustGrantedBy = this.SenderTrustGrantedBy,
-            Signature = this.Signature.ToSignature(),
-        },
-        SenderAuthenticationEvidence = new SenderAuthenticationEvidence
-        {
-            AuthenticatedDomain = StoredDomain(this.AuthenticatedSenderDomain),
-            DisplayedAuthorDomain = StoredDomain(this.DisplayedAuthorDomain),
-            DkimDomain = StoredDomain(this.DkimSignerDomain),
-            SpfDomain = StoredDomain(this.SpfMailFromDomain),
-            AuthenticatedBy = this.SenderAuthenticationMethod,
-            Dmarc = this.DmarcOutcome,
-            Source = this.SenderAuthenticationSource,
-        },
-        MachineAuthorship = this.StoredAuthorship(),
-        Spam = this.StoredSpamVerdict(),
-    };
+            return new Dictionary<Guid, string>();
+        }
+
+        return await organizations
+            .AsNoTracking()
+            .Where(organization => organizationIds.Contains(organization.Id))
+            .Select(static organization => new { organization.Id, organization.DisplayName })
+            .ToDictionaryAsync(
+                static organization => organization.Id,
+                static organization => organization.DisplayName,
+                cancellationToken);
+    }
 
     /// <summary>Reads the classification columns back into the verdict a screen draws, or reports that none is recorded.</summary>
     /// <remarks>

@@ -315,6 +315,57 @@ public sealed class ClientMailMessageEndpointTests
         Assert.Equal(published, sender.TrustSource);
     }
 
+    /// <summary>
+    /// A member an organization's signature recognized publishes that organization's name beside the source, and none
+    /// where the organization has since been deleted.
+    /// </summary>
+    /// <param name="organizationName">The organization's current name, or <see langword="null" /> where it was deleted.</param>
+    [Theory]
+    [InlineData("Nordwind")]
+    [InlineData(null)]
+    public void For_AnOrganizationMember_PublishesTheOrganizationsCurrentName(string? organizationName)
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with
+            {
+                DeploymentTrust = SenderTrustLevel.Trusted,
+                DeploymentTrustGrantedBy = SenderTrustSource.OrganizationMember,
+                RecognizingOrganizationName = organizationName,
+            },
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message).Sender;
+
+        // Assert
+        Assert.Equal("OrganizationMember", sender.TrustSource);
+        Assert.Equal(organizationName, sender.TrustOrganization);
+    }
+
+    /// <summary>Only the organization source names an organization, so no other trust source carries a name.</summary>
+    [Fact]
+    public void For_AnAuthorATrustedSenderRecognized_PublishesNoOrganization()
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with
+            {
+                DeploymentTrust = SenderTrustLevel.Trusted,
+                DeploymentTrustGrantedBy = SenderTrustSource.StoredTrustedSender,
+                RecognizingOrganizationName = "Nordwind",
+            },
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message).Sender;
+
+        // Assert
+        Assert.Null(sender.TrustOrganization);
+    }
+
     /// <summary>An author nothing recognized publishes no trust source, which is the ordinary state rather than missing data.</summary>
     [Fact]
     public void For_AnAuthorNothingRecognized_PublishesNoTrustSource()

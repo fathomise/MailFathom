@@ -23,6 +23,7 @@ const verdict = {
     spfDomain: 'BOUNCES.EXAMPLE.INVALID',
     dmarc: 'Pass',
     trustSource: 'ConfiguredTrustedSender',
+    trustOrganization: null,
 };
 
 const unsigned = {
@@ -242,6 +243,18 @@ describe('readMailMessage', () => {
         },
     );
 
+    it.each([
+        ['its organization by the name it carries now', 'Nordwind', 'Nordwind'],
+        ['no organization where it has since been deleted', null, null],
+        ['no organization where the verdict leaves it out', undefined, null],
+    ])('reads an organization member with %s', async (_shape, trustOrganization, read) => {
+        const message = await readingOf(
+            described({ sender: { ...verdict, trustSource: 'OrganizationMember', trustOrganization } }),
+        );
+
+        expect(message?.sender).toMatchObject({ trustSource: 'OrganizationMember', trustOrganization: read });
+    });
+
     it('reads a signed message’s signature whole, with every step and the signer it names', async () => {
         const message = await readingOf(described({ signature: verified }));
 
@@ -315,6 +328,11 @@ describe('readMailMessage', () => {
         ['a verdict with no DMARC result', senderWith({ dmarc: undefined })],
         ['a DMARC result this build does not publish', senderWith({ dmarc: 'Quarantine' })],
         ['a trust source this build does not publish', senderWith({ trustSource: 'Address' })],
+        [
+            'an organization name that is not text',
+            senderWith({ trustSource: 'OrganizationMember', trustOrganization: ['Nordwind'] }),
+        ],
+        ['an organization named beside another trust source', senderWith({ trustOrganization: 'Nordwind' })],
         ['a message saying nothing about its signature', described({ signature: undefined })],
         ['a signature that is not a record', described({ signature: 'Verified' })],
         ['a signature outcome this build does not publish', signatureWith({ outcome: 'Forged' })],

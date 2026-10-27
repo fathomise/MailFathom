@@ -1508,6 +1508,8 @@ export const en = {
     'senderMark.why.trustedSender':
         "{authenticated} authenticated this message, and the sender is on this account's trusted senders.",
     'senderMark.why.trustedOrganizationMember':
+        "The sender is a member of your organization, {organization}, and the organization's signature proves this message comes from this address.",
+    'senderMark.why.trustedOrganizationMemberDeleted':
         "The sender is a member of your organization, and the organization's signature proves this message comes from this address.",
     'senderMark.why.verified': 'It carries a signature that verified, made by {address}, the address it is from.',
     'senderMark.why.verifiedDespiteAuthentication':
@@ -1570,7 +1572,9 @@ export const en = {
     'senderMark.trust.ownDomain': '{domain} is a domain of your own accounts.',
     'senderMark.trust.trustedSenders': "The sender is on this account's trusted senders.",
     'senderMark.trust.organizationMember':
-        "A member of your organization. The organization's signature proves the message comes from {address}.",
+        "A member of your organization, {organization}. The organization's signature proves the message comes from {address}.",
+    'senderMark.trust.organizationMemberDeleted':
+        "A member of your organization. The organization's signature proves the message comes from {address}; the organization has since been deleted, so its name is not shown.",
     'senderMark.trust.unrecognized':
         "This account does not recognize {address}: it is not on the account's trusted senders, and {domain} is not a domain of your own accounts.",
     'senderMark.signed.not':

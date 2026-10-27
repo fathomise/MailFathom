@@ -293,7 +293,10 @@ is never read and nothing is asked of DNS.
 *organization member*, and the lists below are not consulted: a colleague on a server publishing no DKIM key is still
 recognized, and one on the organization's own domain is named as a member rather than by that domain. The verdict also
 stores which organization recognized the author, as a reference to it; deleting the organization clears the reference
-and leaves the reason standing without it.
+and leaves the reason standing without it. A reader is shown the organization by its name as it reads now, looked up
+through that reference whenever the message is read
+([the message route](../operations/client-endpoint.md)), so a rename reaches mail already stored and a deleted
+organization leaves the reason with no name beside it.
 
 **A signature that fails, names no key of the organization, or names a revoked one contributes nothing, and is never a
 warning.** Relays legitimately alter messages — a disclaimer footer breaks the body hash — so the message is judged by

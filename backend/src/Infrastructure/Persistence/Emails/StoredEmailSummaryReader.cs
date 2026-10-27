@@ -37,7 +37,7 @@ internal sealed class StoredEmailSummaryReader(MailFathomDbContext dbContext) : 
 
         return row is null
             ? null
-            : (await StoredEmailSummaryRow.ToSummariesAsync([row], dbContext.MailFolders, cancellationToken))[0];
+            : (await StoredEmailSummaryRow.ToSummariesAsync([row], dbContext, cancellationToken))[0];
     }
 
     /// <inheritdoc />
@@ -61,7 +61,7 @@ internal sealed class StoredEmailSummaryReader(MailFathomDbContext dbContext) : 
             .Select(StoredEmailSummaryRow.Projection)
             .ToArrayAsync(cancellationToken);
 
-        return (await StoredEmailSummaryRow.ToSummariesAsync(rows, dbContext.MailFolders, cancellationToken))
+        return (await StoredEmailSummaryRow.ToSummariesAsync(rows, dbContext, cancellationToken))
             .ToDictionary(static summary => summary.StoredEmailId);
     }
 }

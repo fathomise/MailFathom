@@ -263,7 +263,7 @@ internal sealed class StoredEmailSearchIndexReader(
             .Select(StoredEmailSummaryRow.Projection)
             .ToArrayAsync(cancellationToken);
 
-        return (await StoredEmailSummaryRow.ToSummariesAsync(rows, dbContext.MailFolders, cancellationToken))
+        return (await StoredEmailSummaryRow.ToSummariesAsync(rows, dbContext, cancellationToken))
             .ToDictionary(static summary => summary.StoredEmailId.Value);
     }
 

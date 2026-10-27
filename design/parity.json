@@ -580,6 +580,62 @@
         }
       ]
     },
+    "mail-sender-organization": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Hiring summary - Frontend"
+          }
+        },
+        {
+          "click": {
+            "text": "Trusted"
+          }
+        },
+        {
+          "expect": {
+            "text": "Sender authentication"
+          }
+        }
+      ]
+    },
+    "mail-sender-organization-deleted": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Handover - supplier contracts"
+          }
+        },
+        {
+          "click": {
+            "text": "Trusted"
+          }
+        },
+        {
+          "expect": {
+            "text": "Sender authentication"
+          }
+        }
+      ]
+    },
     "mail-sender-badge": {
       "file": "prototype.dc.html",
       "properties": {

@@ -17,6 +17,8 @@ import {
 import { newsletterId, newsletterMessage } from '../../../../tests/fixtures/messages';
 import { messageSenderEvidence, type SenderKind } from '../../../../tests/fixtures/senders';
 import { LocalizationProvider } from '../localization/Localization';
+import { storeLocale } from '../localization/locale';
+import { pl } from '../localization/pl';
 import { MessageSenderDetails, SenderDetails, type AskedSender } from './SenderDetails';
 
 // What the harness's own control says, held as a value rather than written into the markup.
@@ -156,6 +158,60 @@ describe('SenderDetails', () => {
             ),
         ).toBeDefined();
         expect(screen.getByText('news@example.invalid')).toBeDefined();
+    });
+
+    it('names the reader’s organization a member is trusted through, in the reason and in the trust step', async () => {
+        explain(() => Promise.resolve(answering('organizationMember')));
+
+        expect(
+            await screen.findByText(
+                "The sender is a member of your organization, Nordwind, and the organization's signature proves this message comes from this address.",
+            ),
+        ).toBeDefined();
+        expect(
+            screen.getByText(
+                "A member of your organization, Nordwind. The organization's signature proves the message comes from news@example.invalid.",
+            ),
+        ).toBeDefined();
+    });
+
+    it('says a member’s organization has since been deleted rather than naming it', async () => {
+        explain(() => Promise.resolve(answering('deletedOrganizationMember')));
+
+        expect(await screen.findByRole('heading', { name: 'Trusted sender' })).toBeDefined();
+        expect(
+            screen.getByText(
+                "A member of your organization. The organization's signature proves the message comes from news@example.invalid; the organization has since been deleted, so its name is not shown.",
+            ),
+        ).toBeDefined();
+    });
+
+    it('names the organization in Polish', async () => {
+        storeLocale('pl');
+        explain(() => Promise.resolve(answering('organizationMember')));
+
+        expect(
+            await screen.findByText(
+                pl['senderMark.trust.organizationMember']
+                    .replace('{organization}', 'Nordwind')
+                    .replace('{address}', 'news@example.invalid'),
+            ),
+        ).toBeDefined();
+        expect(
+            screen.getByText(pl['senderMark.why.trustedOrganizationMember'].replace('{organization}', 'Nordwind')),
+        ).toBeDefined();
+    });
+
+    it('says in Polish that a member’s organization was deleted', async () => {
+        storeLocale('pl');
+        explain(() => Promise.resolve(answering('deletedOrganizationMember')));
+
+        expect(
+            await screen.findByText(
+                pl['senderMark.trust.organizationMemberDeleted'].replace('{address}', 'news@example.invalid'),
+            ),
+        ).toBeDefined();
+        expect(screen.getByText(pl['senderMark.why.trustedOrganizationMemberDeleted'])).toBeDefined();
     });
 
     it('unfolds the certificate’s details from the step that names its authority', async () => {

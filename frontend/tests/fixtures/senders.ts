@@ -7,12 +7,20 @@
 // per message, so a row and the message it opens never disagree about one sender.
 //
 // The kinds are the four marks a screen draws and the two ways a warning is reached, each on a message the first
-// screen of the folder shows, so every mark can be looked at without scrolling.
+// screen of the folder shows, so every mark can be looked at without scrolling. A member of the reader's organization
+// is trusted twice over: once naming the organization, and once where it has since been deleted and no name is left.
 
 import { markupOnlyId, newsletterId } from './messages';
 
 /** Which of the sender states a message of the corpus is in. */
-export type SenderKind = 'trusted' | 'verified' | 'forgedSignature' | 'failedAuthentication' | 'unrecognized';
+export type SenderKind =
+    | 'trusted'
+    | 'verified'
+    | 'forgedSignature'
+    | 'failedAuthentication'
+    | 'unrecognized'
+    | 'organizationMember'
+    | 'deletedOrganizationMember';
 
 const kindsById: Readonly<Record<string, SenderKind>> = {
     [newsletterId]: 'trusted',
@@ -21,6 +29,8 @@ const kindsById: Readonly<Record<string, SenderKind>> = {
     'message-1': 'verified',
     'message-2': 'forgedSignature',
     'message-4': 'failedAuthentication',
+    'message-5': 'deletedOrganizationMember',
+    'message-6': 'organizationMember',
 };
 
 /** The sender state of the message the corpus holds under that identity; anything not named is an unrecognized one. */
@@ -98,9 +108,28 @@ const authenticated = {
     spfDomain: authorDomain,
     dmarc: 'Pass',
     trustSource: null,
+    trustOrganization: null,
 };
 
 const trusted = { ...authenticated, deploymentTrust: 'Trusted', trustSource: 'ConfiguredTrustedSender' };
+
+// The organization's signature proves the address itself, so the member whose organization was deleted is one no
+// receiving server established anything about and is trusted all the same.
+const organizationMember = {
+    ...authenticated,
+    deploymentTrust: 'Trusted',
+    trustSource: 'OrganizationMember',
+    trustOrganization: 'Nordwind',
+};
+const deletedOrganizationMember = {
+    ...organizationMember,
+    authorAuthentication: 'NotEstablished',
+    authenticatedDomain: null,
+    dkimDomain: null,
+    spfDomain: null,
+    dmarc: 'NotReported',
+    trustOrganization: null,
+};
 
 const evidence = {
     trusted: { sender: trusted, signature: notSigned },
@@ -118,6 +147,8 @@ const evidence = {
         signature: notSigned,
     },
     unrecognized: { sender: authenticated, signature: notSigned },
+    organizationMember: { sender: organizationMember, signature: notSigned },
+    deletedOrganizationMember: { sender: deletedOrganizationMember, signature: notSigned },
 } as const;
 
 /** What the message route answers about who sent a message of that kind: its `sender` and its `signature`. */

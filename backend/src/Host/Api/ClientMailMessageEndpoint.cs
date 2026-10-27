@@ -247,6 +247,7 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// <param name="SpfDomain">The domain whose SPF check passed, or <see langword="null" /> where none did or none was evaluated.</param>
 /// <param name="Dmarc">The DMARC result the verdict was reached with, as the outcome's own name.</param>
 /// <param name="TrustSource">What recognized the author — <c>OwnAccountDomain</c>, <c>ConfiguredTrustedSender</c>, <c>StoredTrustedSender</c>, or <c>OrganizationMember</c> — or <see langword="null" /> where nothing did.</param>
+/// <param name="TrustOrganization">The current display name of the organization whose signature recognized the author, present only where <paramref name="TrustSource" /> is <c>OrganizationMember</c> and that organization still exists.</param>
 /// <remarks>
 /// <para>
 /// The two outcomes are published side by side and are never collapsed into one value, because a screen drawing a single
@@ -273,7 +274,10 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// checked the message, the DKIM and SPF domains that passed, the DMARC result, and what recognized a trusted author.
 /// None of it changes what a reader acts on, which stays the two outcomes, and a verdict MailFathom reached itself names
 /// no SPF domain and reports no DMARC result because its own check reads DKIM alone. Trust is the source in force when
-/// the message was extracted, so a change to the trusted senders since reaches mail extracted after it.
+/// the message was extracted, so a change to the trusted senders since reaches mail extracted after it. The organization
+/// a member was recognized by is the one exception to reading everything as stored: the verdict recorded which
+/// organization it was, and its name is read as it is now, so a rename reaches stored mail and a deletion leaves the
+/// source standing without a name.
 /// </para>
 /// </remarks>
 internal sealed record ClientMailSenderVerdictResponse(
@@ -284,7 +288,8 @@ internal sealed record ClientMailSenderVerdictResponse(
     string? DkimDomain,
     string? SpfDomain,
     string Dmarc,
-    string? TrustSource)
+    string? TrustSource,
+    string? TrustOrganization)
 {
     /// <summary>Describes one message's sender verdict for the wire.</summary>
     /// <param name="verification">The verdict the read carried.</param>
@@ -308,7 +313,10 @@ internal sealed record ClientMailSenderVerdictResponse(
             evidence.Dmarc.ToString(),
             verification.DeploymentTrustGrantedBy is SenderTrustSource.None
                 ? null
-                : verification.DeploymentTrustGrantedBy.ToString());
+                : verification.DeploymentTrustGrantedBy.ToString(),
+            verification.DeploymentTrustGrantedBy is SenderTrustSource.OrganizationMember
+                ? verification.RecognizingOrganizationName
+                : null);
     }
 }
 

@@ -304,6 +304,7 @@ const describedMessage: Answer = {
             spfDomain: null,
             dmarc: 'NotReported',
             trustSource: null,
+            trustOrganization: null,
         },
         signature: {
             outcome: 'NotSigned',

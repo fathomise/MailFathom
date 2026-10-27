@@ -131,6 +131,13 @@ export interface MailSenderVerdict {
 
     /** What recognized the author, or `null` where nothing did. */
     readonly trustSource: MailTrustSource | null;
+
+    /**
+     * The current name of the organization whose signature recognized the author, or `null` where it has since been
+     * deleted. Only `OrganizationMember` ever carries one, and it is the name as it reads now rather than when the
+     * message arrived.
+     */
+    readonly trustOrganization: string | null;
 }
 
 /** The result of each step a signature verification takes, in the order a reader is shown them. */
@@ -529,6 +536,7 @@ function parseSenderVerdict(value: unknown): MailSenderVerdict | null {
     const spfDomain = record['spfDomain'] ?? null;
     const dmarc = record['dmarc'];
     const trustSource = record['trustSource'] ?? null;
+    const trustOrganization = record['trustOrganization'] ?? null;
 
     if (!isOneOf(authorAuthentication, authorAuthentications) || !isOneOf(deploymentTrust, deploymentTrusts)) {
         return null;
@@ -546,6 +554,11 @@ function parseSenderVerdict(value: unknown): MailSenderVerdict | null {
         return null;
     }
 
+    // Only the organization source names an organization, so a name beside any other is not a verdict the service sent.
+    if (!isOptionalText(trustOrganization) || (trustOrganization !== null && trustSource !== 'OrganizationMember')) {
+        return null;
+    }
+
     return {
         authorAuthentication,
         deploymentTrust,
@@ -555,6 +568,7 @@ function parseSenderVerdict(value: unknown): MailSenderVerdict | null {
         spfDomain,
         dmarc,
         trustSource,
+        trustOrganization,
     };
 }
 

@@ -599,14 +599,15 @@ a signature that does not match, drawn as a warning: `finanse`. A verified signa
 drawn as Verified: `piotr`, through a list that broke DKIM. Verified alone: `klient3` (OpenPGP). Trusted by the
 domain on the list (`contoso`, `anna2`), by an address on it (`finanse`), as a domain of the owner's own accounts with
 a certificate authority the operator configured and a CRL (`devops1`), and as a member of the account's organization:
-named, *Nordwind* (`rekrutacja1`), and nameless because the organization has since been deleted, from a server that
-passed neither DKIM nor SPF and reported no DMARC result, so no author domain is established (`handover1`). A warning from
+named, *Nordwind* (`rekrutacja1`), and nameless because the organization has since been deleted, on a message nobody
+checked on the personal account, so no author domain is established and only the organization's signature vouches for
+it (`handover1`). A warning from
 authentication: `bank1`, `spamDesk`, `spamThreat`. Neutral, authenticated and not recognized: `jacek`, `spamPayroll`, `spamParcel`;
 signed by somebody else: `hr1`, an opaque S/MIME message; not verifiable here because the certificate chains to no
 trusted authority (`prawnik2`), expired (`fabrikam1`), is not meant for email (`audyt1`), was revoked (`marta`), or
 its revocation could not be checked (`travel1`); an unknown OpenPGP key (`marketing1`) and an expired one
 (`north1`). Who checked: the account's trusted server on the work account, MailFathom's own DKIM check on the personal
-account (`travel1`, `spamChairs`), and nobody (`spamEstate`, `spamSignals`). DMARC: pass, fail, no policy published
+account (`travel1`, `spamChairs`), and nobody (`spamEstate`, `spamSignals`, `handover1`). DMARC: pass, fail, no policy published
 (`jacek`, `prawnik2`), not reported, a temporary error (`north1`) and a permanent one (`spamSupplier`).
 
 ### Composing

@@ -46,7 +46,7 @@ internal sealed class StoredEmailTimelineReader(MailFathomDbContext dbContext) :
         var rows = await Page(dbContext.StoredEmails.AsNoTracking(), filter, continueAfter, limit)
             .ToArrayAsync(cancellationToken);
 
-        return await StoredEmailSummaryRow.ToSummariesAsync(rows, dbContext.MailFolders, cancellationToken);
+        return await StoredEmailSummaryRow.ToSummariesAsync(rows, dbContext, cancellationToken);
     }
 
     /// <summary>Composes the one query a page is read from, over a scope naming any number of accounts.</summary>

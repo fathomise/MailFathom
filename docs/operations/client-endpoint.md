@@ -1489,7 +1489,8 @@ of its body exist to be asked for:
     "dkimDomain": "EXAMPLE.TEST",
     "spfDomain": "BOUNCES.EXAMPLE.TEST",
     "dmarc": "Pass",
-    "trustSource": "ConfiguredTrustedSender"
+    "trustSource": "ConfiguredTrustedSender",
+    "trustOrganization": null
   },
   "signature": {
     "outcome": "Verified",
@@ -1589,6 +1590,7 @@ combined into them here.
 | `spfDomain` | The domain whose SPF check passed, or `null` where none did or none was evaluated |
 | `dmarc` | `NotReported`, `Pass`, `Fail`, `NoPolicyPublished`, `TemporaryError`, `PermanentError` |
 | `trustSource` | `OwnAccountDomain`, `ConfiguredTrustedSender`, `StoredTrustedSender`, `OrganizationMember`, or `null` where nothing recognized the author |
+| `trustOrganization` | The current display name of the organization whose signature recognized the author, present only where `trustSource` is `OrganizationMember` and that organization still exists; `null` otherwise |
 
 `authenticationSource` names which reading produced the verdict rather than asserting that a server established
 something, so `ReceivingServer` is also what a message carries when nothing was read at all. A reader concludes that
@@ -1602,10 +1604,15 @@ account this deployment synchronizes, `ConfiguredTrustedSender` an entry on the 
 trusted-sender list, `StoredTrustedSender` one somebody added to its stored list, and `OrganizationMember` a signature
 of the receiving account's organization proving the author a member of it, which holds whatever `authorAuthentication`
 says ([Sender authentication](../features/sender-authentication.md)); where both lists name the author the configured
-one is reported. Which address or domain on a list matched is not recorded, so it is not published, and neither is the
-organization's name. It
-is the source in force when the message was extracted, so a change to the trusted senders since reaches mail extracted
-after it.
+one is reported. Which address or domain on a list matched is not recorded, so it is not published. It is the source
+in force when the message was extracted, so a change to the trusted senders since reaches mail extracted after it.
+
+**`trustOrganization` is the organization's name as it reads now, not as it read when the message arrived.** The
+verdict records which organization's signature proved the member, never its name, so the name is read through that
+organization on every request: a rename reaches mail already stored, and an organization deleted since leaves
+`trustSource` at `OrganizationMember` with `trustOrganization` at `null`, the reason standing without a name. Every
+other source carries `null`. A list row publishes neither field, because the mark it chooses is *Trusted* whatever
+recognized the author. The name is personal data like the rest of `sender`.
 
 **`signature` is what the message's own S/MIME or OpenPGP signature proves, and it is never folded into `sender`.**
 `sender` is what was established about the domain a message came from; `signature` is what the

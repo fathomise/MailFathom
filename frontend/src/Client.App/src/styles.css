@@ -187,6 +187,11 @@
     --text-7xl: 2.125rem;
     --text-7xl--line-height: 1.15;
 
+    /* The line box the typeface draws when the design sets no line height at all, which is what a label, a step's name
+       and the line under a title read at in the sender details. Geist's ascender and descender add up to 1.3 em, and
+       the step Tailwind calls `normal` is 1.5, so neither of its stock steps reproduces it. */
+    --leading-natural: 1.3;
+
     /* The one step off the scale: the claim a reading makes, which the design sets between `2xl` and `3xl` so it reads
        as the line a reading is about rather than as a heading over it. */
     --text-claim: 1.1875rem;
