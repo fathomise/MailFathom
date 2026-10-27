@@ -8,7 +8,7 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Shows everything the books one user reads hold about one person.</summary>
+/// <summary>Shows everything the books one user reads, or one organization's book, hold about one person.</summary>
 /// <remarks>
 /// The two ways an operator arrives at a contact. By identity is how every other command names one; by address is the
 /// question "who is this from", which is answered with one person rather than with a match: an address is unique within
@@ -112,6 +112,6 @@ internal static class ShowContactCommand
     /// operator has the address in front of them either way.
     /// </remarks>
     private static string DescribeAbsence(Guid? contactId) => contactId is { } identity
-        ? $"The books that user reads hold no contact {identity:D}."
-        : "The books that user reads hold nobody using that address.";
+        ? $"The books named hold no contact {identity:D}."
+        : "The books named hold nobody using that address.";
 }

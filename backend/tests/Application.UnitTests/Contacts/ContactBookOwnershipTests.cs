@@ -578,7 +578,62 @@ public sealed class ContactBookOwnershipTests
         Assert.Equal(0, store.ContactCount);
     }
 
-    /// <summary>The sender trust step finds the organization's contact by an address in any casing, and nothing a member wrote.</summary>
+    /// <summary>Promoting into an organization copies the mailbox's record into the organization's book and leaves the mailbox's own.</summary>
+    [Fact]
+    public async Task PromoteAsync_IntoAnOrganizationsBook_CopiesTheCollectedRecordAsTheOrganizations()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var collected = CollectedContactOf("Anna Kowalska", "anna@example.test");
+        store.Hold(SyntheticMailAccount.Deployment, collected);
+
+        var book = BookOf(
+            store,
+            AccessAuthorizations.ForAdministratorScopedAt(AssignmentScope.Deployment, MailFathomPermission.AdminOperate));
+
+        // Act
+        var result = await book.PromoteAsync(
+            ContactBookScope.OfOrganization(Organization, [SyntheticMailAccount.Deployment]),
+            collected.Id,
+            ContactOrigin.Asserted,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ContactWriteOutcome.Written, result.Outcome);
+        var copy = Assert.Single(store.Contacts, contact => contact.Id != collected.Id);
+        Assert.Equal(Organization, copy.Organization);
+        Assert.Equal(ContactOrigin.Asserted, copy.Origin);
+        Assert.Equal(collected.Id, Assert.Single(store.ContactsOf(SyntheticMailAccount.Deployment)).Id);
+    }
+
+    /// <summary>A contact the organization already holds is reported as asserted rather than copied into its book again.</summary>
+    [Fact]
+    public async Task PromoteAsync_AContactTheOrganizationAlreadyHolds_IsAnsweredAsAlreadyAsserted()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var recorded = OrganizationContactOf("Biuro Rachunkowe", "biuro@example.test");
+        store.Hold(ContactBookHolder.OfOrganization(Organization), recorded);
+
+        var book = BookOf(
+            store,
+            AccessAuthorizations.ForAdministratorScopedAt(
+                AssignmentScope.Organization(Organization),
+                MailFathomPermission.AdminOperate));
+
+        // Act
+        var result = await book.PromoteAsync(
+            ContactBookScope.OfOrganization(Organization, []),
+            recorded.Id,
+            ContactOrigin.Asserted,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ContactWriteOutcome.AlreadyAsserted, result.Outcome);
+        Assert.Equal(1, store.ContactCount);
+    }
+
+    /// <summary>MailFathom's own work finds the organization's contact by an address in any casing, and nothing a member wrote.</summary>
     [Fact]
     public async Task FindOrganizationHolderAsync_AnAddressInAnotherCasing_NamesTheOrganizationsContactAlone()
     {
@@ -610,7 +665,7 @@ public sealed class ContactBookOwnershipTests
         Assert.Null(elsewhere);
     }
 
-    /// <summary>The lookup serves the trust step MailFathom runs for nobody, so a caller cannot ask it.</summary>
+    /// <summary>The lookup serves work MailFathom runs for nobody, so a caller cannot ask it.</summary>
     [Fact]
     public async Task FindOrganizationHolderAsync_ReachedByACaller_IsRefused()
     {

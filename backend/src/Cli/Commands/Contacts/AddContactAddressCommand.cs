@@ -8,11 +8,11 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Adds one more address to a person one user's own book already holds.</summary>
+/// <summary>Adds one more address to a person one user's own book, or an organization's, already holds.</summary>
 /// <remarks>
 /// A convenience over the amendment beneath it rather than an operation of its own: the book takes the whole record, so
-/// this reads the contact, appends the address, and sends the result. An address another contact of that user's own
-/// book already holds is refused by the deployment naming which contact holds it, because one address belongs to one
+/// this reads the contact, appends the address, and sends the result. An address another contact of the same book
+/// already holds is refused by the deployment naming which contact holds it, because one address belongs to one
 /// person within one book. An address one of their mailboxes collected is not a conflict: the two books may both hold
 /// it, and the user's own record is the one their reads answer with.
 /// </remarks>
@@ -38,7 +38,7 @@ internal static class AddContactAddressCommand
                 "The address to use by default afterwards, which is the one being added or one the contact already holds.",
         };
 
-        Command command = new("add-address", "Add one address to a contact the user's own book already holds.")
+        Command command = new("add-address", "Add one address to a contact the user's own book, or an organization's, already holds.")
         {
             userOption,
             organizationOption,

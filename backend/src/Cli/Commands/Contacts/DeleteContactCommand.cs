@@ -9,7 +9,7 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Erases one person from whichever of the books a user reads holds them, and everything that book derived from them.</summary>
+/// <summary>Erases one person from the books named — those a user reads, or one organization's — and everything that book derived from them.</summary>
 /// <remarks>
 /// <para>
 /// The data-subject erasure path, reached by somebody who means it. It removes rather than marks and it cannot be
@@ -48,7 +48,7 @@ internal static class DeleteContactCommand
 
         var confirmedOption = CliOptions.Confirmed("erasure");
 
-        Command command = new("delete", "Erase one person from the books a user reads. This cannot be undone.")
+        Command command = new("delete", "Erase one person from the books a user reads, or from an organization's book. This cannot be undone.")
         {
             userOption,
             organizationOption,
@@ -95,7 +95,7 @@ internal static class DeleteContactCommand
         if (lookup.Contact is not { } held)
         {
             context.Console.WriteLine(
-                $"The books that user reads hold no contact {contactId:D}, so nothing was erased.");
+                $"The books named hold no contact {contactId:D}, so nothing was erased.");
 
             return CliExitCode.Success;
         }
@@ -106,7 +106,9 @@ internal static class DeleteContactCommand
                 context,
                 confirmedUpFront,
                 "There is nobody at the terminal to agree to this, and erasing a contact cannot be undone. Pass --yes to erase without being asked.",
-                "Erase that contact and everything derived from it? [y/N] "))
+                book.Organization is null
+                    ? "Erase that contact and everything derived from it? [y/N] "
+                    : "Erase that contact from the organization's book, and so from what every member reads? [y/N] "))
         {
             context.Console.WriteError("Nothing was erased.");
 
@@ -117,7 +119,7 @@ internal static class DeleteContactCommand
 
         context.Console.WriteLine(erasure.WasHeld
             ? $"Erased contact {erasure.Contact:D} and {DescribeAddresses(erasure.AddressesErased)}. Nothing in MailFathom can put the record back."
-            : $"The books that user reads held no contact {erasure.Contact:D} by the time the erasure ran, so nothing was erased.");
+            : $"The books named held no contact {erasure.Contact:D} by the time the erasure ran, so nothing was erased.");
 
         return CliExitCode.Success;
     }

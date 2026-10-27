@@ -7,6 +7,7 @@ using MailFathom.Application.Access.Organizations;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -331,13 +332,17 @@ internal static class OrganizationContactEndpoints
     /// <param name="book">Performs the write.</param>
     /// <param name="organizations">Answers whether this deployment holds the named organization.</param>
     /// <param name="accounts">Reports the accounts this deployment serves, which the named one is resolved against.</param>
+    /// <param name="placements">Answers which organization the named account belongs to.</param>
     /// <param name="authorization">Answers whether the caller's scope covers the organization and the account.</param>
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
     /// <returns><c>200</c> with the outcome and no record, including for a contact that was already asserted.</returns>
     /// <remarks>
     /// The route names the account the record is copied out of, because an organization reads no collected book of its
     /// own: a collected record is a mailbox's, and the administrator promoting it has to be able to reach that mailbox.
-    /// The copy is a new record in the organization's book, and the mailbox keeps its own.
+    /// The mailbox has to be one of the organization's own as well, and one of another organization's is refused exactly as
+    /// one the deployment does not serve: otherwise an administrator covering two organizations could hand every member of
+    /// one a correspondent learned from the other's mail. The copy is a new record in the organization's book, and the
+    /// mailbox keeps its own.
     /// </remarks>
     internal static async Task<Results<Ok<ContactWriteResponse>, ProblemHttpResult>> PromoteAsync(
         Guid organizationId,
@@ -346,10 +351,12 @@ internal static class OrganizationContactEndpoints
         [FromServices] ContactBook book,
         [FromServices] IOrganizationStore organizations,
         [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] IAdministrativeTargets placements,
         [FromServices] AccessAuthorization authorization,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(book);
+        ArgumentNullException.ThrowIfNull(placements);
 
         if (await RefuseWriterAsync(
                 organizationId,
@@ -371,7 +378,8 @@ internal static class OrganizationContactEndpoints
                 MailFathomPermission.AdminOperate,
                 accounts,
                 authorization,
-                cancellationToken) is not { } servedAccount)
+                cancellationToken) is not { } servedAccount
+            || !await BelongsToAsync(servedAccount, organizationId, placements, cancellationToken))
         {
             return AdminAccountRequest.Refuse(account);
         }
@@ -493,6 +501,17 @@ internal static class OrganizationContactEndpoints
         }
 
         return null;
+    }
+
+    private static async Task<bool> BelongsToAsync(
+        MailAccountId account,
+        Guid organizationId,
+        IAdministrativeTargets placements,
+        CancellationToken cancellationToken)
+    {
+        var placed = await placements.PlaceMailAccountsAsync([account], cancellationToken);
+
+        return placed.TryGetValue(account, out var target) && target.Organization == organizationId;
     }
 
     private static Task<bool> Covers(

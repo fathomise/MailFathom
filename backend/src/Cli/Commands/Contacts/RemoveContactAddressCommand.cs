@@ -8,7 +8,7 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Takes one address off a person one user's own book holds.</summary>
+/// <summary>Takes one address off a person one user's own book, or an organization's, holds.</summary>
 /// <remarks>
 /// The address is removed from the record rather than marked, which is also what frees it for another contact to claim.
 /// A contact holds at least one address, so the last one cannot be removed: what removes a person from the book is
@@ -36,7 +36,7 @@ internal static class RemoveContactAddressCommand
                 "The address to use by default afterwards. Required when the one being removed is the preferred one.",
         };
 
-        Command command = new("remove-address", "Take one address off a contact the user's own book holds.")
+        Command command = new("remove-address", "Take one address off a contact the user's own book, or an organization's, holds.")
         {
             userOption,
             organizationOption,

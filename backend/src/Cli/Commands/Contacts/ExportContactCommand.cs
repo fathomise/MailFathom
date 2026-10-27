@@ -37,7 +37,7 @@ internal static class ExportContactCommand
         var organizationOption = ContactOptions.Organization();
         var identityOption = ContactOptions.Identity();
 
-        Command command = new("export", "Produce everything the books a user reads hold about one person, as JSON.")
+        Command command = new("export", "Produce everything the books a user reads, or an organization's book, hold about one person, as JSON.")
         {
             userOption,
             organizationOption,
@@ -80,7 +80,7 @@ internal static class ExportContactCommand
         if (export.Contact is null)
         {
             context.Console.WriteError(
-                $"The books that user reads hold no contact {contactId:D}, so there was nothing to export.");
+                $"The books named hold no contact {contactId:D}, so there was nothing to export.");
 
             return CliExitCode.Failure;
         }

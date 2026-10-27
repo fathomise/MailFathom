@@ -256,12 +256,15 @@ internal sealed class PersistedOrganizations(
     /// <para>
     /// The organization's contact book goes with it by cascade. Before it does, the deletion takes the address lock
     /// <see cref="ContactAddressLocks" /> describes for every address that book held, like any other act removing a
-    /// contact, so a reader serializing on an address sees the book wholly before the deletion or wholly after it.
+    /// contact, so a reader serializing on an address sees the book wholly before the deletion or wholly after it. Those
+    /// locks are taken before the organization row is, in the order a contact write takes them.
     /// </para>
     /// </remarks>
     public async Task<OrganizationWriteResult> DeleteAsync(Guid organizationId, CancellationToken cancellationToken)
     {
         await using var removal = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var lockedAddresses = await this.LockBookAddressesAsync(organizationId, [], cancellationToken);
 
         await dbContext.Database.ExecuteSqlAsync(
             $"""SELECT 1 FROM organizations WHERE "Id" = {organizationId} FOR UPDATE""",
@@ -287,13 +290,7 @@ internal sealed class PersistedOrganizations(
                 RemainingMailAccounts: mailAccounts);
         }
 
-        var organizationBook = ContactBookHolder.OfOrganization(organizationId).Key;
-        var bookAddresses = await dbContext.ContactAddresses
-            .Where(address => address.BookHolderId == organizationBook)
-            .Select(address => address.NormalizedAddress)
-            .ToArrayAsync(cancellationToken);
-
-        await ContactAddressLocks.TakeAsync(dbContext, bookAddresses, cancellationToken);
+        await this.LockBookAddressesAsync(organizationId, lockedAddresses, cancellationToken);
 
         await dbContext.Organizations
             .Where(organization => organization.Id == organizationId)
@@ -305,6 +302,30 @@ internal sealed class PersistedOrganizations(
         await grantChanges.AnnounceAsync();
 
         return OrganizationWriteResult.Of(OrganizationWriteOutcome.Written);
+    }
+
+    /// <summary>Takes the address lock for every address the organization's book now holds that is not among those already locked.</summary>
+    /// <returns>Every address locked so far.</returns>
+    /// <remarks>
+    /// Called once before the organization row is locked and once after. A contact write takes its address locks before
+    /// its foreign key reads the organization row, so locking the row first would leave each of the two waiting on the
+    /// other. The second call reaches only addresses a write committed in between, whose locks are already released, so
+    /// it waits on nobody; a write still in flight is invisible to it and meets the deleted organization at its key.
+    /// </remarks>
+    private async Task<IReadOnlyCollection<string>> LockBookAddressesAsync(
+        Guid organizationId,
+        IReadOnlyCollection<string> alreadyLocked,
+        CancellationToken cancellationToken)
+    {
+        var organizationBook = ContactBookHolder.OfOrganization(organizationId).Key;
+        var bookAddresses = await dbContext.ContactAddresses
+            .Where(address => address.BookHolderId == organizationBook)
+            .Select(address => address.NormalizedAddress)
+            .ToArrayAsync(cancellationToken);
+
+        await ContactAddressLocks.TakeAsync(dbContext, bookAddresses.Except(alreadyLocked, StringComparer.Ordinal), cancellationToken);
+
+        return [.. alreadyLocked.Union(bookAddresses, StringComparer.Ordinal)];
     }
 
     /// <inheritdoc />

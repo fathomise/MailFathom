@@ -8,7 +8,7 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Reads one bounded page of the books one user reads.</summary>
+/// <summary>Reads one bounded page of the books one user reads, or of one organization's book.</summary>
 /// <remarks>
 /// <para>
 /// One page per invocation, and the operator asks for the next. There is deliberately no command that walks the whole
@@ -20,9 +20,9 @@ namespace MailFathom.Cli.Commands.Contacts;
 /// every contact exactly once. The cursor a page prints is what continues it.
 /// </para>
 /// <para>
-/// A page is read over every book that user reads at once: their own, and the collected book of each mail account they
-/// are assigned. Where two of those hold one address the page serves it once, from the user's own book first and then
-/// from the accounts in the order of their identifiers. The hiding is applied as the page is read rather than to a page
+/// A page is read over every book that user reads at once: their own, their organization's, and the collected book of
+/// each mail account they are assigned. Where two of those hold one address the page serves it once, from the user's own
+/// book first, then the organization's, and then the accounts in the order of their identifiers. The hiding is applied as the page is read rather than to a page
 /// already served, so the cursor rather than the count is what says whether more is waiting.
 /// </para>
 /// </remarks>
@@ -49,7 +49,7 @@ internal static class ListContactsCommand
         var pageSizeOption = CliOptions.PageSize("contacts");
         var cursorOption = CliOptions.Cursor();
 
-        Command command = new("list", "Read one page of the books one user reads.")
+        Command command = new("list", "Read one page of the books one user reads, or of one organization's book.")
         {
             userOption,
             organizationOption,
@@ -108,7 +108,7 @@ internal static class ListContactsCommand
 
         if (page.Contacts is not { Count: > 0 } contacts)
         {
-            context.Console.WriteLine(DescribeEmptyPage(origin, cursor));
+            context.Console.WriteLine(DescribeEmptyPage(origin, cursor, book.Organization is not null));
 
             return CliExitCode.Success;
         }
@@ -129,9 +129,11 @@ internal static class ListContactsCommand
     /// A continued walk reaching an empty page is the end of the book rather than an empty book, and telling the two
     /// apart is what stops an operator from reading a completed walk as a deployment that lost its contacts.
     /// </remarks>
-    private static string DescribeEmptyPage(string? origin, string? cursor) => (origin, cursor) switch
+    private static string DescribeEmptyPage(string? origin, string? cursor, bool ofOrganization) => (origin, cursor) switch
     {
         (_, { Length: > 0 }) => "That cursor reached the end of the books, so there was nothing further to read.",
+        _ when ofOrganization =>
+            "That organization's book is empty. It holds nobody until an administrator records somebody in it.",
         ({ Length: > 0 } narrowed, _) =>
             $"The books that user reads hold no {narrowed} contacts. Nothing is written down unless somebody writes it, and nothing is collected unless an account they are assigned has collection switched on.",
         _ =>

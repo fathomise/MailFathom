@@ -9,12 +9,13 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Records a person one user's own book does not yet hold.</summary>
+/// <summary>Records a person one user's own book, or an organization's, does not yet hold.</summary>
 /// <remarks>
 /// A contact written from here is asserted and goes into one user's own book: somebody wrote this person down. That is
 /// what distinguishes it from a record a mail account collected out of the mail that arrived on it, and it is what makes
 /// it amendable from here afterwards. It also takes precedence: where the user's own record and a collected one hold one
-/// address, every read of theirs answers with the one they wrote.
+/// address, every read of theirs answers with the one they wrote. With <c>--organization</c> the record goes into that
+/// organization's book instead, which every member reads beside their own and which only an administrator writes.
 /// </remarks>
 internal static class CreateContactCommand
 {
@@ -54,7 +55,7 @@ internal static class CreateContactCommand
             Description = "What you want recorded about the person beyond their name and addresses.",
         };
 
-        Command command = new("create", "Record a person in one user's own contact book.")
+        Command command = new("create", "Record a person in one user's own contact book, or in an organization's.")
         {
             userOption,
             organizationOption,

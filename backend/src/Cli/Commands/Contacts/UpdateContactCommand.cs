@@ -8,7 +8,7 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Corrects what one user's own book holds about one person.</summary>
+/// <summary>Corrects what one user's own book, or an organization's, holds about one person.</summary>
 /// <remarks>
 /// <para>
 /// What is not named is kept. The book itself takes the whole record rather than the difference, so this command reads
@@ -63,7 +63,7 @@ internal static class UpdateContactCommand
             Description = "Hold no note about the person afterwards.",
         };
 
-        Command command = new("update", "Correct what one user's own book holds about one person.")
+        Command command = new("update", "Correct what one user's own book, or an organization's, holds about one person.")
         {
             userOption,
             organizationOption,

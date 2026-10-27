@@ -4,11 +4,14 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Access.Organizations;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Synchronization;
 using MailFathom.Host.Api;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.TestSupport;
@@ -30,6 +33,8 @@ public sealed class OrganizationContactEndpointsTests
     private static readonly Guid Organization = AccessAuthorizations.ScopedOrganization;
 
     private static readonly Guid AnotherOrganization = new("0198f0aa-0000-7000-8000-00000000f003");
+
+    private static readonly MailAccountId Account = SyntheticMailAccount.Deployment;
 
     private readonly IContactStore store = Substitute.For<IContactStore>();
     private readonly IContactDirectory directory = Substitute.For<IContactDirectory>();
@@ -132,6 +137,107 @@ public sealed class OrganizationContactEndpointsTests
         var page = Assert.IsType<Ok<ContactPageResponse>>(result.Result);
         Assert.Empty(page.Value!.Contacts);
         await this.directory.DidNotReceiveWithAnyArgs().ReadPageAsync(default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A record one of the organization's own mailboxes collected is copied into the organization's book, asserted.</summary>
+    [Fact]
+    public async Task PromoteAsync_ACollectedContactOfOneOfTheOrganizationsMailboxes_CopiesItIntoTheOrganizationsBook()
+    {
+        // Arrange
+        this.Holds(Organization);
+        var collected = this.HoldsCollected(Account);
+        var placements = new StatedAdministrativeTargets().WithMailAccount(Account, Organization);
+
+        // Act
+        var result = await OrganizationContactEndpoints.PromoteAsync(
+            Organization,
+            collected.Id.Value,
+            Account.Value,
+            this.Book(AdministrativeGrant.WholeSurface),
+            this.organizations,
+            CatalogServing(Account),
+            placements,
+            AdministrativeGrant.WholeSurface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var promoted = Assert.IsType<Ok<ContactWriteResponse>>(result.Result);
+        Assert.Equal(nameof(ContactWriteOutcome.Written), promoted.Value!.Outcome);
+        await this.store.Received(1).AddAsync(
+            Arg.Any<IPersistenceSession>(),
+            ContactBookHolder.OfOrganization(Organization),
+            Arg.Is<Contact>(copy => copy.Organization == Organization
+                && copy.Origin == ContactOrigin.Asserted
+                && copy.Id != collected.Id),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// A mailbox of another organization is refused exactly as one the deployment does not serve, so an administrator
+    /// covering two organizations cannot hand one of them a correspondent learned from the other's mail.
+    /// </summary>
+    [Fact]
+    public async Task PromoteAsync_AMailboxOfAnotherOrganization_IsRefusedWithoutWriting()
+    {
+        // Arrange
+        this.Holds(Organization);
+        var collected = this.HoldsCollected(Account);
+        var placements = new StatedAdministrativeTargets().WithMailAccount(Account, AnotherOrganization);
+
+        // Act
+        var result = await OrganizationContactEndpoints.PromoteAsync(
+            Organization,
+            collected.Id.Value,
+            Account.Value,
+            this.Book(AdministrativeGrant.WholeSurface),
+            this.organizations,
+            CatalogServing(Account),
+            placements,
+            AdministrativeGrant.WholeSurface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<ProblemHttpResult>(result.Result);
+        await this.store.DidNotReceiveWithAnyArgs().AddAsync(default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    private static IDeploymentMailAccountCatalog CatalogServing(MailAccountId account)
+    {
+        var catalog = Substitute.For<IDeploymentMailAccountCatalog>();
+        IReadOnlyList<ServedMailAccount> served =
+        [
+            new ServedMailAccount(account, MailAccountDisplayName.Create(account.Value), MailSynchronizationMode.Polling),
+        ];
+
+        catalog.ReadServedAccountsAsync(Arg.Any<CancellationToken>()).Returns(served);
+        catalog.ReadServedAccountsAsync(Arg.Any<IReadOnlyCollection<MailAccountId>>(), Arg.Any<CancellationToken>())
+            .Returns(served);
+
+        return catalog;
+    }
+
+    /// <summary>Holds one collected contact in an account's book, and answers that none of its addresses is held elsewhere.</summary>
+    private Contact HoldsCollected(MailAccountId account)
+    {
+        _ = EmailAddress.TryCreate(displayName: null, "anna@example.test", out var address);
+        var collected = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(this.clock.GetUtcNow())),
+            ContactDisplayName.Create("Anna Kowalska"),
+            [address!],
+            address!,
+            note: null,
+            ContactOrigin.Collected,
+            this.clock.GetUtcNow(),
+            this.clock.GetUtcNow());
+
+        this.directory
+            .FindAsync(Arg.Is<ContactBookScope>(scope => scope.Accounts.Contains(account)), collected.Id, Arg.Any<CancellationToken>())
+            .Returns(collected);
+        this.directory
+            .FindHoldersOfAsync(Arg.Any<ContactBookHolder>(), Arg.Any<IReadOnlyCollection<EmailAddress>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<EmailAddress, ContactId>());
+
+        return collected;
     }
 
     private void Holds(Guid organization) =>

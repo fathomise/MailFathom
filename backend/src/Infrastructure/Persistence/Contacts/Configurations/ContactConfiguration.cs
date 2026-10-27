@@ -10,21 +10,23 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace MailFathom.Infrastructure.Persistence.Contacts.Configurations;
 
-/// <summary>Declares the people a contact book holds, whether the book is a user's own or a mail account's.</summary>
+/// <summary>Declares the people a contact book holds, whether the book is a user's own, an organization's, or a mail account's.</summary>
 /// <remarks>
 /// <para>
 /// The holder is a column rather than a property of the surface that reads the table, so every read leads with it, and
 /// it is an alternate key beside the identity, which is what lets an address row's foreign key carry the book and
-/// therefore be unable to name a different one. The two columns beside it are what makes each half erasable with its
-/// holder, and each is a foreign key that cascades: a user's own book goes with the user record, and a mail account's
-/// collected book goes with the account record beside that account's folders, threads, and jobs.
+/// therefore be unable to name a different one. The three columns beside it are what makes each book erasable with its
+/// holder, and each is a foreign key that cascades: a user's own book goes with the user record, an organization's book
+/// goes with the organization record, and a mail account's collected book goes with the account record beside that
+/// account's folders, threads, and jobs.
 /// </para>
 /// <para>
-/// The check constraint is what stops the three from disagreeing. Exactly one of the two holders is present, the
-/// holder column is that one prefixed with the kind of book it is, and the origin agrees with that kind — so a
-/// collected contact filed under a user, an asserted one under a mailbox, or a row filed under a key its own holder
-/// columns do not produce, is a row the database refuses rather than a state every reader has to reason about. The
-/// prefix is where the two namespaces are kept apart, and <see cref="ContactBookHolder" /> holds why that matters.
+/// The check constraint is what stops the holder columns and the origin from disagreeing. Exactly one of the three
+/// holders is present, the holder column is that one prefixed with the kind of book it is, and the origin agrees with
+/// that kind — asserted for a user's or an organization's, collected for a mailbox's — so a collected contact filed under
+/// a user or an organization, an asserted one under a mailbox, or a row filed under a key its own holder columns do not
+/// produce, is a row the database refuses rather than a state every reader has to reason about. The prefix is where the
+/// three namespaces are kept apart, and <see cref="ContactBookHolder" /> holds why that matters.
 /// </para>
 /// <para>
 /// The default address is a column on the person instead of a flag on each address. A flag would need a filtered unique
