@@ -1882,6 +1882,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     /* A bar standing over a passage would be left behind by the scroll; one docked above the field is not. */
     closeFloatingSelBar = () => { if (this.state.selBar && !this.state.selBar.answer && !this._passageDocked) { this.dropSelection(); this.setState({ selBar: null }); } };
     onStartScroll = () => this.closeFloatingSelBar();
+    openWatched = (w) => { this.setState(s2 => ({ watched: (s2.watched || []).map(x => (x.id === w.id && x.state === "changed" ? Object.assign({}, x, { state: "same", note: "opened just now" }) : x)) })); this.run(w.q); };
     onAgentScroll = (e) => {
       const el = e.target;
       this.closeFloatingSelBar();
@@ -3171,9 +3172,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return { stepsGone: gone, stepAt: Math.max(0, Math.min(left.length - 1, to)) };
       });
       /* Start's frame: the header and the day share one left and one right edge, so the field, the watched cards, the
-         columns and the cards in them all end on the same lines. Past the frame's width the space stays on the right. */
+         columns and the cards in them all end on the same lines. The asides grow with the window within their bounds and
+         the main column takes the rest, so a large screen is filled rather than left dark on the right; only past
+         2400 px does the frame stop growing. The header's carousel and the day read the same widths, so they agree. */
       const frameX = isMobile ? 14 : narrow ? 18 : 28;
-      const frameMax = startWide ? 1760 : 1240;
+      const frameMax = 2400;
+      const asideX = compact ? "300px" : startWide ? "clamp(340px, 17%, 460px)" : "clamp(340px, 25%, 400px)";
+      const asideY = "clamp(400px, 21%, 560px)";
       const framePad = (top, bottom) => (isMobile || narrow || compact)
         ? "padding:" + top + "px " + frameX + "px " + bottom + "px;"
         : "padding:" + top + "px max(" + frameX + "px, calc(100% - " + (frameMax + frameX) + "px)) " + bottom + "px " + frameX + "px;";
@@ -4125,6 +4130,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:flex;flex-direction:column;gap:22px;" + framePad(20, 28)
           : narrow
           ? "display:flex;flex-direction:column;gap:22px;" + framePad(24, 32)
+          : startWide
+          ? "display:grid;grid-template-columns:minmax(0,1fr) " + asideX + " " + asideY + ";gap:28px;align-items:start;" + framePad(26, 40)
           : "display:flex;gap:28px;" + framePad(26, 40)),
         idleTitleStyle: isMobile
           ? "font-size:24px;font-weight:600;letter-spacing:-0.015em;text-wrap:pretty"
@@ -4268,8 +4275,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         dayAsideStyle: isMobile || narrow
           ? "display:flex;flex-direction:column;gap:22px;min-width:0"
           : startWide
-          ? "flex:0 0 auto;display:grid;grid-template-columns:340px 400px;gap:28px;align-items:start"
-          : "width:" + (compact ? 300 : 340) + "px;flex:0 0 " + (compact ? 300 : 340) + "px;display:flex;flex-direction:column;gap:22px",
+          ? "display:contents"
+          : "width:" + asideX + ";flex:0 0 " + asideX + ";display:flex;flex-direction:column;gap:22px",
         sectionHeadStyle: "display:flex;align-items:baseline;gap:9px",
         sectionLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap",
 
@@ -4406,15 +4413,30 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         watchChangedAny: (st.watched || []).some(w => w.state === "changed"),
         watchChangedText: (() => { const n = (st.watched || []).filter(w => w.state === "changed").length; return n === 1 ? "1 answer moved" : n + " answers moved"; })(),
         watchChangedStyle: "display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--accent-d);white-space:nowrap",
+        /* Folded by default: the head alone, and what moved named in it, so news is seen without the strip being open. */
+        watchOpen: !!st.watchOpen && watchList.length > 0,
+        watchShut: !st.watchOpen && watchList.length > 0,
+        watchPaging: !!st.watchOpen && watchList.length > 0,
+        watchToggle: () => this.setState(s2 => ({ watchOpen: !s2.watchOpen })),
+        watchToggleLabel: st.watchOpen ? (isMobile ? "" : "Hide") : (isMobile ? "" : "Show all"),
+        watchToggleIcon: st.watchOpen ? "unfold_less" : "unfold_more",
+        watchToggleAria: st.watchOpen ? "Hide the watched questions" : "Show all watched questions",
+        watchToggleStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--accent-d);white-space:nowrap;border-radius:8px;box-sizing:border-box;" + (touch ? "min-height:44px;min-width:44px;padding:0 8px;" : "padding:4px 8px;"),
+        watchMoved: isMobile ? [] : watchList.filter(w => w.state === "changed").slice(0, startWide ? 3 : 2).map(w => ({ q: w.q, open: () => this.openWatched(w) })),
+        watchMovedRowStyle: "flex:1;min-width:0;display:flex;align-items:center;gap:8px;overflow:hidden",
+        watchMovedStyle: "flex:0 1 auto;min-width:0;max-width:340px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--text);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:999px;box-sizing:border-box;" + (touch ? "min-height:36px;padding:0 12px 0 10px;" : "padding:4px 11px 4px 9px;"),
+        watchMovedDotStyle: "width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--accent)",
+        watchQuiet: !isMobile && !watchList.some(w => w.state === "changed"),
+        watchQuietText: "nothing moved since you last looked",
         watchHint: isMobile ? "" : "refreshed when new mail matches · each refresh counts against your allowance",
-        watchHintStyle: "flex:1;text-align:right;font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+        watchHintStyle: "flex:1;min-width:0;text-align:right;font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
         /* A carousel of fixed cards: the same count per page at each width, each card the same size whatever its question,
            and the arrows in the head, so the strip never changes shape as questions come and go. On two panes the cards
            take the day's columns - the two halves of the main one, then each aside - so their edges continue its lines. */
         watchRowStyle: "display:grid;min-width:0;" + (isMobile ? "grid-template-columns:minmax(0,1fr)"
           : narrow ? "grid-template-columns:repeat(2,minmax(0,1fr));gap:12px"
-          : compact ? "grid-template-columns:minmax(0,1fr) 300px;gap:28px"
-          : "grid-template-columns:minmax(0,1fr) minmax(0,1fr) 340px" + (startWide ? " 400px" : "") + ";gap:28px"),
+          : compact ? "grid-template-columns:minmax(0,1fr) " + asideX + ";gap:28px"
+          : "grid-template-columns:minmax(0,1fr) minmax(0,1fr) " + asideX + (startWide ? " " + asideY : "") + ";gap:28px"),
         watchPageText: watchList.length <= watchPer ? (watchList.length === 1 ? "1 question" : watchList.length + " questions")
           : (watchAt * watchPer + 1) + (watchPer > 1 ? "–" + Math.min(watchList.length, (watchAt + 1) * watchPer) : "") + " of " + watchList.length,
         watchPageStyle: "font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;margin-right:2px",
@@ -4431,7 +4453,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         noWatched: !(st.watched || []).length,
         watchedPage: watchList.slice(watchAt * watchPer, (watchAt + 1) * watchPer).map(w => ({
           q: w.q, note: w.note,
-          open: () => { this.setState(s2 => ({ watched: (s2.watched || []).map(x => (x.id === w.id && x.state === "changed" ? Object.assign({}, x, { state: "same", note: "opened just now" }) : x)) })); this.run(w.q); },
+          open: () => this.openWatched(w),
           stop: (e) => {
             if (e && e.stopPropagation) e.stopPropagation();
             this.setState(s2 => ({ watched: (s2.watched || []).filter(x => x.id !== w.id) }));

@@ -377,30 +377,46 @@ MailFathomDesign.fathomUi = (() => {
     const sl = HOME.sinceLast;
     Object.assign(v, {
       hasHeadsUp: heads.length > 0,
-      /* Most urgent first, whatever the kind: the order is how soon the harm lands. The first one carries the warn edge
-         and the rest stand plain, so the list says where to start without every card shouting. */
-      headsUp: heads.map((h, i) => ({
-        title: h.title, why: h.why, check: h.check, rule: h.rule, icon: h.icon, tid: h.tid, when: h.when,
-        kindLabel: h.kind === "security" ? "Security" : "Deadline",
-        open: () => self.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: h.tid, cameFrom: false }),
-        safe: () => {
-          self.setState(s => ({ headsHidden: (s.headsHidden || []).concat([h.id]) }));
-          self.notify("“" + h.title + "” will not be raised again.", { title: h.kind === "security" ? "Marked as safe" : "Dismissed", actionLabel: "Undo", onAction: () => { self.hideToast(); self.setState(s => ({ headsHidden: (s.headsHidden || []).filter(x => x !== h.id) })); } });
-        },
-        safeLabel: h.kind === "security" ? "It is safe" : "Dismiss",
-        cardStyle: "display:flex;gap:12px;align-items:flex-start;border-radius:12px;background:var(--panel);border:1px solid var(--line);" +
-          (i === 0 ? "box-shadow:inset 3px 0 0 var(--warn),0 1px 2px var(--sh-1);" : "box-shadow:0 1px 2px var(--sh-1);") + "padding:" + (isMobile ? "13px 13px 13px 15px" : "14px 16px 14px 18px"),
-        tileStyle: "flex:0 0 30px;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;" + GLYPH + "font-size:18px;" +
-          (i === 0 ? "background:var(--warn-soft);color:var(--warn-text)" : "background:var(--sub);color:var(--muted)"),
-        whenStyle: "flex:0 0 auto;font-size:11px;font-weight:600;white-space:nowrap;border-radius:999px;padding:3px 9px;" +
-          (i === 0 ? "background:var(--warn-soft);color:var(--warn-text)" : "background:var(--sub);color:var(--text2)"),
-        kindStyle: "display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:" + (h.kind === "security" ? "var(--err-text)" : "var(--warn-text)"),
-        kindGlyph: GLYPH + "font-size:13px",
-        kindIcon: h.kind === "security" ? "shield" : "event_busy",
-        ruleStyle: "display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px 2px 6px;white-space:nowrap",
-      })),
-      headsBtnStyle: "display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:9px;font-size:13px;font-weight:600;white-space:nowrap;box-sizing:border-box;color:var(--text);background:var(--panel);border:1px solid var(--border2);" + (touch ? "min-height:44px;padding:0 14px;" : "min-height:32px;padding:0 12px;"),
-      headsQuietStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:9px;font-size:13px;color:var(--muted);white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:44px;padding:0 12px;" : "min-height:32px;padding:0 10px;"),
+      /* Most urgent first, whatever the kind: the order is how soon the harm lands. Each risk is one row of a ledger -
+         its kind, what it is, how long is left, and what to check - with the reasons, the rule and *It is safe* under
+         the row when it is unfolded. The first one carries the warn edge, so the list says where to start. */
+      headsNote: isMobile ? "most urgent first" : "most urgent first · raised by rules from the messages themselves",
+      headsListStyle: "display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px var(--sh-1)",
+      headsUp: heads.map((h, i) => {
+        const open = (st.headsOpen || null) === h.id;
+        return {
+          title: h.title, why: h.why, check: h.check, rule: h.rule, tid: h.tid, when: h.when,
+          kindLabel: h.kind === "security" ? "Security" : "Deadline",
+          kindIcon: h.kind === "security" ? "shield" : "event_busy",
+          isOpen: open,
+          chevron: open ? "expand_less" : "expand_more",
+          toggleAria: (open ? "Fold " : "Why this was raised: ") + h.title,
+          toggle: () => self.setState(s => ({ headsOpen: s.headsOpen === h.id ? null : h.id })),
+          open: () => self.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: h.tid, cameFrom: false }),
+          safe: () => {
+            self.setState(s => ({ headsHidden: (s.headsHidden || []).concat([h.id]) }));
+            self.notify("“" + h.title + "” will not be raised again.", { title: h.kind === "security" ? "Marked as safe" : "Dismissed", actionLabel: "Undo", onAction: () => { self.hideToast(); self.setState(s => ({ headsHidden: (s.headsHidden || []).filter(x => x !== h.id) })); } });
+          },
+          safeLabel: h.kind === "security" ? "It is safe" : "Dismiss",
+          rowStyle: "display:flex;flex-direction:column;gap:10px;min-width:0;" + (i > 0 ? "border-top:1px solid var(--line2);" : "") +
+            (i === 0 ? "box-shadow:inset 3px 0 0 var(--warn);" : "") + "padding:" + (isMobile ? "11px 8px 11px 13px" : "11px 10px 11px 16px") + (open ? ";background:var(--sub)" : ""),
+          tileStyle: "flex:0 0 28px;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;" + GLYPH + "font-size:17px;" +
+            (i === 0 ? "background:var(--warn-soft);color:var(--warn-text)" : h.kind === "security" ? "background:var(--sub);color:var(--err-text)" : "background:var(--sub);color:var(--muted)"),
+          titleStyle: "min-width:0;font-size:14px;font-weight:600;line-height:1.35;" + (isMobile ? "text-wrap:pretty" : "overflow:hidden;text-overflow:ellipsis;white-space:nowrap"),
+          lineStyle: "min-width:0;font-size:12.5px;line-height:1.4;color:var(--text2);" + (open ? "display:none" : "overflow:hidden;text-overflow:ellipsis;white-space:nowrap"),
+          whenStyle: "flex:0 0 auto;font-size:11px;font-weight:600;white-space:nowrap;border-radius:999px;padding:2px 8px;" +
+            (i === 0 ? "background:var(--warn-soft);color:var(--warn-text)" : "background:var(--sub);color:var(--text2)"),
+          kindStyle: "font-weight:600;color:" + (h.kind === "security" ? "var(--err-text)" : "var(--warn-text)"),
+          ruleStyle: "display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--muted);background:var(--panel);border-radius:999px;padding:2px 8px 2px 6px;white-space:nowrap",
+        };
+      }),
+      headsOpenInline: !isMobile,
+      headsOpenBelow: isMobile,
+      headsTitleRowStyle: "display:flex;align-items:center;gap:6px 8px;min-width:0;" + (isMobile ? "flex-wrap:wrap" : ""),
+      headsMoreStyle: "display:flex;flex-direction:column;gap:8px;padding-left:" + (isMobile ? 0 : 39) + "px",
+      headsChevronStyle: "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;color:var(--muted);" + GLYPH + "line-height:1;" + (touch ? "width:44px;height:44px;font-size:22px;" : "width:30px;height:30px;font-size:20px;"),
+      headsBtnStyle: "display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:9px;font-size:13px;font-weight:600;white-space:nowrap;box-sizing:border-box;color:var(--text);background:var(--panel);border:1px solid var(--border2);" + (touch ? "min-height:44px;padding:0 14px;" : "min-height:30px;padding:0 11px;"),
+      headsQuietStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:9px;font-size:13px;color:var(--muted);white-space:nowrap;box-sizing:border-box;border:1px solid var(--border2);background:var(--panel);" + (touch ? "min-height:44px;padding:0 12px;" : "min-height:30px;padding:0 11px;"),
       sinceAt: sl.at,
       sinceArrived: sl.arrived + " arrived",
       sinceGroups: sl.groups.map(g => {

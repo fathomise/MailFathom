@@ -253,20 +253,33 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="font-size:12.5px;font-weight:600;color:var(--text)">Watching</div>
               <span style="{{ watchCountStyle }}">{{ watchCount }}</span>
               <sc-if value="{{ watchChangedAny }}" hint-placeholder-val="{{ true }}"><span style="{{ watchChangedStyle }}"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></span>{{ watchChangedText }}</span></sc-if>
-              <div style="{{ watchHintStyle }}">{{ watchHint }}</div>
-              <sc-if value="{{ hasWatched }}" hint-placeholder-val="{{ true }}">
+              <sc-if value="{{ watchShut }}" hint-placeholder-val="{{ true }}">
+                <div style="{{ watchMovedRowStyle }}">
+                  <sc-for list="{{ watchMoved }}" as="wm" hint-placeholder-count="2">
+                    <div role="button" tabIndex="0" onClick="{{ wm.open }}" title="{{ wm.q }}" data-smart="start.watch" data-smart-label="{{ wm.q }}" style="{{ watchMovedStyle }}" style-hover="cursor:pointer;border-color:var(--accent)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="{{ watchMovedDotStyle }}"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ wm.q }}</span></div>
+                  </sc-for>
+                  <sc-if value="{{ watchQuiet }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ watchQuietText }}</span></sc-if>
+                </div>
+              </sc-if>
+              <sc-if value="{{ watchOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="{{ watchHintStyle }}">{{ watchHint }}</div>
+              </sc-if>
+              <sc-if value="{{ watchPaging }}" hint-placeholder-val="{{ false }}">
                 <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
                   <span style="{{ watchPageStyle }}">{{ watchPageText }}</span>
                   <div role="button" tabIndex="0" aria-label="Previous watched questions" title="Previous" aria-disabled="{{ watchPrevOff }}" onClick="{{ watchPrev }}" style="{{ watchPrevStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">chevron_left</div>
                   <div role="button" tabIndex="0" aria-label="Next watched questions" title="Next" aria-disabled="{{ watchNextOff }}" onClick="{{ watchNext }}" style="{{ watchNextStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">chevron_right</div>
                 </div>
               </sc-if>
+              <sc-if value="{{ hasWatched }}" hint-placeholder-val="{{ true }}">
+                <div role="button" tabIndex="0" aria-expanded="{{ watchOpen }}" aria-label="{{ watchToggleAria }}" onClick="{{ watchToggle }}" style="{{ watchToggleStyle }}" style-hover="cursor:pointer;background:var(--accent-soft)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1">{{ watchToggleIcon }}</span>{{ watchToggleLabel }}</div>
+              </sc-if>
             </div>
             <sc-if value="{{ noWatched }}" hint-placeholder-val="{{ false }}">
               <div style="{{ watchEmptyStyle }}">Ask something above, then press <span style="font-weight:600;color:var(--text2)">Watch</span> on the answer: the question stays here and refreshes when new mail matches it.</div>
             </sc-if>
-            <sc-if value="{{ hasWatched }}" hint-placeholder-val="{{ true }}">
-              <div style="{{ watchRowStyle }}">
+            <sc-if value="{{ watchOpen }}" hint-placeholder-val="{{ false }}">
+              <div data-motion="fade" style="{{ watchRowStyle }}">
                 <sc-for list="{{ watchedPage }}" as="w" hint-placeholder-count="3">
                   <div role="button" tabIndex="0" onClick="{{ w.open }}" data-smart="start.watch" data-smart-label="{{ w.q }}" style="{{ w.rowStyle }}" style-hover="border-color:var(--accent);cursor:pointer" style-focus="outline:2px solid var(--accent);outline-offset:2px">
                     <div style="display:flex;align-items:flex-start;gap:6px;min-width:0">
@@ -342,23 +355,35 @@ Project repository: https://github.com/fathomise/MailFathom
 
             <sc-if value="{{ hasHeadsUp }}" hint-placeholder-val="{{ true }}">
               <div style="display:flex;flex-direction:column;gap:10px">
-                <div style="{{ sectionHeadStyle }}"><div style="{{ sectionLabelStyle }}">Heads up</div><div style="font-size:11px;color:var(--faint)">most urgent first · raised by rules from the messages themselves</div></div>
-                <sc-for list="{{ headsUp }}" as="hu" hint-placeholder-count="2">
-                  <div role="alert" data-smart="start.headsUp" data-smart-label="{{ hu.title }}" data-smart-text="{{ hu.why }}" data-smart-ref="{{ hu.tid }}" style="{{ hu.cardStyle }}">
-                    <span aria-hidden="true" style="{{ hu.tileStyle }}">{{ hu.icon }}</span>
-                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
-                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="{{ hu.kindStyle }}"><span aria-hidden="true" style="{{ hu.kindGlyph }}">{{ hu.kindIcon }}</span>{{ hu.kindLabel }}</span><span style="{{ hu.whenStyle }}">{{ hu.when }}</span></div>
-                      <div style="font-size:15px;font-weight:600;line-height:1.35;text-wrap:pretty">{{ hu.title }}</div>
-                      <div style="font-size:13px;line-height:1.45;color:var(--text2);text-wrap:pretty">{{ hu.why }}</div>
-                      <div style="font-size:13px;line-height:1.45;color:var(--text);font-weight:500;text-wrap:pretty">{{ hu.check }}</div>
-                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">
-                        <div role="button" tabIndex="0" onClick="{{ hu.open }}" style="{{ headsBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Open the message</div>
-                        <div role="button" tabIndex="0" onClick="{{ hu.safe }}" style="{{ headsQuietStyle }}" style-hover="cursor:pointer;color:var(--text);background:var(--hover)">{{ hu.safeLabel }}</div>
-                        <span style="{{ hu.ruleStyle }};margin-left:auto"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:13px">rule</span>{{ hu.rule }}</span>
+                <div style="{{ sectionHeadStyle }}"><div style="{{ sectionLabelStyle }}">Heads up</div><div style="font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ headsNote }}</div></div>
+                <div style="{{ headsListStyle }}">
+                  <sc-for list="{{ headsUp }}" as="hu" hint-placeholder-count="2">
+                    <div role="alert" data-smart="start.headsUp" data-smart-label="{{ hu.title }}" data-smart-text="{{ hu.why }}" data-smart-ref="{{ hu.tid }}" style="{{ hu.rowStyle }}">
+                      <div style="display:flex;align-items:flex-start;gap:11px;min-width:0">
+                        <span aria-hidden="true" style="{{ hu.tileStyle }}">{{ hu.kindIcon }}</span>
+                        <div role="button" tabIndex="0" aria-expanded="{{ hu.isOpen }}" aria-label="{{ hu.toggleAria }}" onClick="{{ hu.toggle }}" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px" style-hover="cursor:pointer" style-focus="outline:2px solid var(--accent);outline-offset:3px;border-radius:6px">
+                          <div style="{{ headsTitleRowStyle }}"><span style="{{ hu.titleStyle }}">{{ hu.title }}</span><span style="{{ hu.whenStyle }}">{{ hu.when }}</span></div>
+                          <div style="{{ hu.lineStyle }}"><span style="{{ hu.kindStyle }}">{{ hu.kindLabel }}</span> · {{ hu.check }}</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:4px;flex:0 0 auto">
+                          <sc-if value="{{ headsOpenInline }}" hint-placeholder-val="{{ true }}"><div role="button" tabIndex="0" onClick="{{ hu.open }}" style="{{ headsBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Open the message</div></sc-if>
+                          <div role="button" tabIndex="0" aria-expanded="{{ hu.isOpen }}" aria-label="{{ hu.toggleAria }}" title="{{ hu.toggleAria }}" onClick="{{ hu.toggle }}" style="{{ headsChevronStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ hu.chevron }}</div>
+                        </div>
                       </div>
+                      <sc-if value="{{ hu.isOpen }}" hint-placeholder-val="{{ false }}">
+                        <div data-motion="fade" style="{{ headsMoreStyle }}">
+                          <div style="font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty">{{ hu.why }}</div>
+                          <div style="font-size:13px;line-height:1.5;color:var(--text);font-weight:500;text-wrap:pretty">{{ hu.check }}</div>
+                          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                            <sc-if value="{{ headsOpenBelow }}" hint-placeholder-val="{{ false }}"><div role="button" tabIndex="0" onClick="{{ hu.open }}" style="{{ headsBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Open the message</div></sc-if>
+                            <div role="button" tabIndex="0" onClick="{{ hu.safe }}" style="{{ headsQuietStyle }}" style-hover="cursor:pointer;color:var(--text);background:var(--hover)">{{ hu.safeLabel }}</div>
+                            <span style="{{ hu.ruleStyle }};margin-left:auto"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:13px">rule</span>{{ hu.rule }}</span>
+                          </div>
+                        </div>
+                      </sc-if>
                     </div>
-                  </div>
-                </sc-for>
+                  </sc-for>
+                </div>
               </div>
             </sc-if>
 
