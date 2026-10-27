@@ -73,11 +73,13 @@ MailFathomDesign.data.home.dayPlan = [
   { time: "17:00", end: "", title: "Approve invoice 08/2026", kind: "task", state: "later", note: "due today", go: "tasks" },
 ];
 
-// Who is waiting on the reader, longest first. Rule-derived: a question asked of them and not yet answered.
+// Who is waiting on the reader, longest first. Rule-derived: a question asked of them and not yet answered. `ask` is
+// what they asked for, `days` how long it has waited (it fills the meter), `asked` how many times, `due` a date the
+// thread names.
 MailFathomDesign.data.home.waiting = [
-  { initials: "AK", name: "Anna Kowalska", org: "Contoso", what: "the counter-proposal", since: "2 days", tid: "contoso" },
-  { initials: "TB", name: "Tomasz Bąk", org: "Fabrikam", what: "a Q4 date", since: "yesterday", tid: "fabrikam1" },
-  { initials: "MN", name: "Marta Nowak", org: "Finance", what: "a look at the calculation", since: "today", tid: "marta" },
+  { name: "Anna Kowalska", org: "Contoso", ask: "Send the counter-proposal on the 2027 terms", since: "2 days", days: 2, asked: 2, due: "due tomorrow", tid: "contoso" },
+  { name: "Tomasz Bąk", org: "Fabrikam", ask: "Confirm a Q4 delivery date", since: "yesterday", days: 1, asked: 1, due: "", tid: "fabrikam1" },
+  { name: "Marta Nowak", org: "Finance", ask: "Look at the August calculation", since: "today", days: 0, asked: 1, due: "", tid: "marta" },
 ];
 
 // One step each, drawn with the Agent's proposal blocks and taken with one press that can be undone.
@@ -117,20 +119,21 @@ MailFathomDesign.data.home.sinceLast = {
   at: "08:12",
   arrived: 14,
   groups: [
-    { key: "needs", icon: "person_alert", n: 3, label: "need you", note: "below, in Needs you today" },
+    { key: "needs", icon: "person_alert", n: 3, label: "need you", note: "in Needs you today" },
     { key: "fyi", icon: "visibility", n: 5, label: "to read when you like", note: "Marta, Piotr, HR" },
     { key: "leave", icon: "inventory_2", n: 6, label: "need nothing", note: "newsletters and notifications" },
   ],
 };
 
-// Heads up: what could hurt if it went unnoticed, raised by rules from the messages themselves. `level` is `danger`
-// (money, credentials, a sender pretending to be someone) or `warn` (a deadline about to pass). Each one says why it
-// was raised and what to check, and goes away when it is marked safe or dealt with.
+// Heads up: what could hurt if it went unnoticed, raised by rules from the messages themselves, most urgent first.
+// `rank` is that order: how soon the harm lands, whatever its kind. `kind` is `deadline` (a date about to pass with
+// nothing sent) or `security` (money, credentials, a sender pretending to be someone); `when` is the time left, read
+// off the thread. Each one says why it was raised and what to check, and goes away when it is marked safe or dealt with.
 MailFathomDesign.data.home.headsUp = [
-  { id: "h-bank", level: "danger", icon: "gpp_maybe", title: "An invoice asks to pay a new bank account",
+  { id: "h-bank", rank: 2, kind: "security", icon: "gpp_maybe", when: "before you pay · 29.08", title: "An invoice asks to pay a new bank account",
     why: "It comes from fabrikam-billing.co, not fabrikam.com, and the account number differs from the last three invoices.",
     check: "Confirm by phone with Tomasz Bąk before anything is paid.", tid: "fabrikam1", rule: "payment details changed" },
-  { id: "h-contoso", level: "warn", icon: "schedule", title: "The Contoso decision is due tomorrow",
+  { id: "h-contoso", rank: 1, kind: "deadline", icon: "schedule", when: "due tomorrow", title: "The Contoso decision is due tomorrow",
     why: "Anna Kowalska asked twice; without an answer the 2027 terms renew at Contoso's proposal.",
-    check: "The draft below proposes a 5% cap.", tid: "contoso", rule: "deadline without a reply" },
+    check: "The step at the top proposes a 5% cap.", tid: "contoso", rule: "deadline without a reply" },
 ];

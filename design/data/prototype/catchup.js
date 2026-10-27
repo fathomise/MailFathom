@@ -2,12 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-// The catch-up: what Start shows the first time the reader opens it after an absence, as a run of cards they step
-// through. Two things start it: more than two days since the reader last opened MailFathom, or an all-day *Holiday*
-// (or *Out of office*) on their own calendar that ended since. It stays on Start for 24 hours from the moment it is
-// first opened, or for good once it is saved. The absence is 11 to 26 August; today is Thursday 27 August.
+// The catch-up: what Start shows the first time the reader opens it after an absence, as one page of panels read in
+// any order. Two things start it: more than two days since the reader last opened MailFathom, or an all-day *Holiday*
+// (or *Out of office*) on their own calendar that ended since. It stays on Start until the reader is done with it, or
+// until the next absence replaces it. The absence is 11 to 26 August; today is Thursday 27 August.
 //
-// Every item on a card can be pressed, and every sentence selected, for the quick actions its kind carries
+// Every item on a panel can be pressed, and every sentence selected, for the quick actions its kind carries
 // (`MailFathomDesign.data.fathom.itemActions`). `more` is what *Give me more* and *Context* answer with, `short` what
 // *Summarize* answers with, and `pl` what *Translate* answers with; an item without them gets the action's own line.
 MailFathomDesign.data.catchup = {
@@ -22,7 +22,7 @@ MailFathomDesign.data.catchup = {
       id: "hello", layout: "stats", tone: "accent", icon: "waving_hand",
       eyebrow: "While you were away",
       title: "Welcome back, Karolina",
-      lede: "Here is what happened, in eight cards. Press anything for more.",
+      lede: "Here is what happened, on one page. Press anything for more.",
       items: [
         { id: "s-mail", kind: "stat", n: "284", label: "messages arrived", go: "mail",
           short: "284 messages in 37 conversations. 221 of them need nothing from you.",
@@ -78,13 +78,13 @@ MailFathomDesign.data.catchup = {
       id: "risks", layout: "list", tone: "warn", icon: "warning",
       eyebrow: "Worth a careful look",
       title: "Two things look risky",
-      lede: "Raised by rules from the messages themselves, not by a guess.",
+      lede: "Most urgent first, raised by rules from the messages themselves, not by a guess.",
       items: [
+        { id: "k-contoso", kind: "risk", level: "warn", icon: "schedule", label: "The Contoso decision is due tomorrow", sub: "Asked twice, still unanswered", tid: "contoso",
+          short: "Missing it means the 2027 terms renew at Contoso's proposal." },
         { id: "k-bank", kind: "risk", level: "danger", icon: "gpp_maybe", label: "An invoice asks to pay a new bank account", sub: "From fabrikam-billing.co, not fabrikam.com · 22 August", tid: "fabrikam1",
           short: "The sender's domain is one letter group away from Fabrikam's, and the account number changed.",
           more: "Fabrikam's real billing address wrote last on 3 July from fabrikam.com. Confirm by phone with Tomasz before anything is paid." },
-        { id: "k-contoso", kind: "risk", level: "warn", icon: "schedule", label: "The Contoso decision is due tomorrow", sub: "Asked twice, still unanswered", tid: "contoso",
-          short: "Missing it means the 2027 terms renew at Contoso's proposal." },
       ],
     },
     {
@@ -140,19 +140,11 @@ MailFathomDesign.data.catchup = {
           short: "Each ended with a thank-you or a confirmation." },
       ],
     },
-    {
-      id: "done", layout: "end", tone: "accent", icon: "flag",
-      eyebrow: "That is all of it",
-      title: "You are caught up",
-      lede: "Three decisions are left, and they are on Start. This catch-up stays there for 24 hours, or for good once you save it.",
-      cta: { id: "close", label: "Back to your day", icon: "arrow_forward" },
-      items: [],
-    },
   ],
   // Exporting writes a file on this device and nothing else: no model reads it and nothing is sent.
   exportFormats: [
-    { id: "pdf", icon: "picture_as_pdf", label: "PDF, one page per card" },
-    { id: "png", icon: "image", label: "Images, one per card" },
+    { id: "pdf", icon: "picture_as_pdf", label: "PDF of the page" },
+    { id: "png", icon: "image", label: "Images, one per panel" },
     { id: "md", icon: "description", label: "Text with links to the threads" },
   ],
 };

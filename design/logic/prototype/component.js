@@ -3156,6 +3156,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const tall = h >= 960;
       /* The framed previews are the three touch devices; anything else asks the pointer, as the client does. */
       const touch = FR ? true : mode === "desktop" ? false : !!st.coarse;
+      const startWide = !isMobile && w >= 1680;
+      const agentCorner = (isMobile ? 20 : 24) + (touch ? 56 : 52) + 12 - (isMobile ? 14 : 26);
+      /* Start's deck of steps: what is still to take, plus a step just taken or declined until the reader moves on. */
+      const stepSettled = (i) => ((st.bkPhase || {})["start#" + i] || "pending") !== "pending";
+      const stepDeck = HOME.steps.map((b, i) => i).filter(i => !(stepSettled(i) && (st.stepsGone || []).indexOf(i) >= 0));
+      const stepAt = Math.max(0, Math.min(stepDeck.length - 1, st.stepAt || 0));
+      const moveStep = (by) => this.setState(s2 => {
+        const gone = (s2.stepsGone || []).concat(stepDeck.filter(stepSettled));
+        const left = HOME.steps.map((b, i) => i).filter(i => !(stepSettled(i) && gone.indexOf(i) >= 0));
+        const pos = left.indexOf(stepDeck[stepAt]);
+        const before = stepDeck.slice(0, stepAt).filter(i => left.indexOf(i) >= 0).length;
+        const to = pos >= 0 ? pos + by : by > 0 ? before : before - 1;
+        return { stepsGone: gone, stepAt: Math.max(0, Math.min(left.length - 1, to)) };
+      });
+      const stepNav = (on) => "display:inline-flex;align-items:center;justify-content:center;border-radius:9px;border:1px solid var(--border2);color:" + (on ? "var(--text2)" : "var(--faint)") + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
+        (touch ? "width:44px;height:44px;font-size:22px;" : "width:30px;height:30px;font-size:19px;") + (on ? "" : "opacity:0.5;");
       const railW = compact ? 66 : 96;
       this._low = low;
       this._isMobile = isMobile;
@@ -3876,12 +3892,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         agentScrollStyle: isMobile
           ? "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:16px 14px"
           : "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:22px max(26px, calc((100% - 1290px) / 2))",
-        agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 8 : 12) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:10px 13px"),
-        /* The composer keeps Fathom's corner free (its disc, its edge and 12 px of air), so the button never stands over
-           Send, Cancel or the line under them. */
+        /* The field and the line under it keep Fathom's corner free (its disc, its edge and 12 px of air), so the button
+           never stands over Send or Cancel; the context, the quote and the suggestions above them run the full width. */
+        agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 8 : 12) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:10px 13px") + ";margin-right:" + agentCorner + "px",
+        agentHintStyle: "font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:" + agentCorner + "px",
         agentInputWrapStyle: isMobile
-          ? "display:flex;flex-direction:column;gap:9px;background:var(--panel);border-top:1px solid var(--line);padding:12px " + ((touch ? 56 : 52) + 20 + 12) + "px 12px 14px"
-          : "display:flex;flex-direction:column;gap:10px;background:var(--panel);border-top:1px solid var(--line);padding:14px max(" + ((touch ? 56 : 52) + 24 + 12) + "px, calc((100% - 1290px) / 2)) 16px max(26px, calc((100% - 1290px) / 2))",
+          ? "display:flex;flex-direction:column;gap:9px;background:var(--panel);border-top:1px solid var(--line);padding:12px 14px"
+          : "display:flex;flex-direction:column;gap:10px;background:var(--panel);border-top:1px solid var(--line);padding:14px max(26px, calc((100% - 1290px) / 2)) 16px",
         agentHint: isMobile ? "Nothing is sent without your approval." : "The agent proposes actions - nothing is sent without your approval.",
         agentThinking: !!st.agentThinking,
         agentScrollRef: this.agentScrollRef,
@@ -4058,6 +4075,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         isMail: st.screen === "mail" && !emptyApp,
         goStart: () => this.goScreen("start"),
         goMail: () => this.goScreen("mail", { cameFrom: false, mailPane: "list" }),
+        /* Whether every account is current stands once, beside the profile it belongs to, rather than in a space's header. */
+        railSyncStyle: "display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;font-weight:500;line-height:1.2;color:var(--muted);text-align:center;border-radius:8px;" + (touch ? "min-height:44px;justify-content:center;" : "padding:3px 2px;"),
+        railSyncDot: "width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in oklch, var(--ok) 22%, transparent)",
+        railSyncLabel: "Synced",
         railStartStyle: railBase + (st.screen === "start" ? activeStyle : idleColor),
         railMailStyle: railBase + (st.screen === "mail" ? activeStyle : idleColor),
 
@@ -4083,14 +4104,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         askBtnStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;" +
           (touch ? "min-height:44px;padding:0 18px" : "padding:8px 16px"),
         searchBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 10 : 12) + "px;border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:11px 14px") + (isMobile ? "" : narrow ? "" : compact ? ";max-width:780px" : ";max-width:1520px"),
-        searchWrapStyle: isMobile
-          ? "flex:0 0 auto;display:flex;flex-direction:column;gap:9px;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line)"
-          : "flex:0 0 auto;display:flex;flex-direction:column;gap:10px;padding:18px 26px;background:var(--panel);border-bottom:1px solid var(--line)",
-        idleStyle: isMobile
-          ? "flex:1;display:flex;flex-direction:column;gap:22px;padding:20px 14px;overflow:auto;min-height:0"
+        /* Start's header: the field, its suggestions and what is watched stay put; the band under them (Up next and
+           one step each) scrolls with the day and shares their surface, so the header reads as one piece cut off from
+           the day below. */
+        searchWrapStyle: (isMobile
+          ? "flex:0 0 auto;display:flex;flex-direction:column;gap:9px;padding:12px 14px;background:var(--panel);"
+          : "flex:0 0 auto;display:flex;flex-direction:column;gap:12px;padding:18px 26px 14px;background:var(--panel);") + (st.phase === "idle" ? "" : "border-bottom:1px solid var(--line)"),
+        idleStyle: "flex:1;display:flex;flex-direction:column;overflow:auto;min-height:0",
+        startBandStyle: "flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 6px 14px -12px var(--sh-3);" +
+          (isMobile ? "display:flex;flex-direction:column;gap:18px;padding:2px 14px 18px" : narrow ? "display:flex;flex-direction:column;gap:18px;padding:2px 18px 22px"
+            : "display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px 18px;align-items:start;box-sizing:border-box;padding:2px " + (compact ? "26px" : "max(26px, calc(100% - 1546px))") + " 24px 26px"),
+        startBodyStyle: isMobile
+          ? "display:flex;flex-direction:column;gap:22px;padding:20px 14px 28px"
           : narrow
-          ? "flex:1;display:flex;flex-direction:column;gap:22px;padding:24px 18px 32px 18px;overflow:auto;min-height:0"
-          : "flex:1;display:flex;gap:34px;padding:32px 30px 40px 30px;overflow:auto;min-height:0",
+          ? "display:flex;flex-direction:column;gap:22px;padding:24px 18px 32px 18px"
+          : "display:flex;gap:34px;padding:28px 30px 40px 30px",
         idleTitleStyle: isMobile
           ? "font-size:24px;font-weight:600;letter-spacing:-0.015em;text-wrap:pretty"
           : "font-size:28px;font-weight:600;letter-spacing:-0.015em",
@@ -4169,7 +4197,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.setState({ screen: "agent" });
         },
         reset: () => { this.timers.forEach(clearTimeout); this.setState({ phase: "idle", query: "", planKey: null, ready: {}, ev: null }); },
-        todoGridStyle: isMobile || !compact ? "display:flex;flex-direction:column;gap:10px" : "display:grid;grid-template-columns:repeat(3,1fr);gap:11px;align-items:start",
+        todoGridStyle: "display:flex;flex-direction:column;gap:10px",
         homeRowStyle: "display:flex;flex-direction:column;gap:12px",
         homeCardStyle: "flex:1;min-width:0;display:flex;flex-direction:column;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px",
         todayItems: HOME.todayItems.filter(t2 => (st.todayHidden || []).indexOf(t2.id) < 0).slice(0, isMobile ? 2 : 3).map(t2 => ({
@@ -4225,11 +4253,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             style: "display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--line);border-radius:999px;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:36px;padding:0 13px 0 10px;" : "padding:5px 12px 5px 9px;") };
         }),
         dayCountsStyle: "display:flex;gap:8px;" + (isMobile ? "flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px" : "flex-wrap:wrap"),
+        /* From 1680 px Start takes a third column, so a large screen holds the people waiting and what needs the reader
+           beside the day instead of below it; under that the two stand in one aside. */
         dayMainStyle: isMobile || narrow
           ? "display:flex;flex-direction:column;gap:22px;min-width:0"
-          : "flex:1;display:flex;flex-direction:column;gap:24px;min-width:0;max-width:820px",
+          : "flex:1;display:flex;flex-direction:column;gap:24px;min-width:0;max-width:" + (startWide ? 900 : 820) + "px",
         dayAsideStyle: isMobile || narrow
           ? "display:flex;flex-direction:column;gap:22px;min-width:0"
+          : startWide
+          ? "flex:0 0 auto;display:grid;grid-template-columns:340px 400px;gap:34px;align-items:start"
           : "width:" + (compact ? 300 : 340) + "px;flex:0 0 " + (compact ? 300 : 340) + "px;display:flex;flex-direction:column;gap:22px",
         sectionHeadStyle: "display:flex;align-items:baseline;gap:9px",
         sectionLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600",
@@ -4278,15 +4310,40 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         dayNowStyle: "display:flex;align-items:center;gap:8px;padding:2px 10px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d)",
         dayCardStyle: "display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px",
 
-        /* Who waits on the reader: one row each, and the row opens the thread they wait in. */
-        waiting: HOME.waiting.map(w => ({
-          initials: w.initials, name: w.name, org: w.org, what: "waiting for " + w.what, since: w.since,
-          open: () => this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: w.tid, cameFrom: false }),
-          rowStyle: "display:flex;align-items:center;gap:11px;border-radius:10px;padding:" + (touch ? "10px" : "8px 10px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : ""),
-        })),
+        /* Who waits on the reader, led by what they asked for rather than by who they are: a ledger of debts, each with
+           how long it has waited (the meter) and a reply one press away, longest first. */
+        waiting: HOME.waiting.map(w => {
+          const old = w.days >= 2;
+          return {
+            ask: w.ask, who: w.name + " · " + w.org + (w.asked > 1 ? " · asked " + (w.asked === 2 ? "twice" : w.asked + " times") : ""),
+            since: w.since, due: w.due, hasDue: !!w.due, name: w.name,
+            open: () => this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: w.tid, cameFrom: false }),
+            reply: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.goAgentWith("a reply to " + w.name + " · " + w.ask.toLowerCase()); },
+            replyAria: "Draft a reply to " + w.name,
+            rowStyle: "display:flex;flex-direction:column;gap:7px;border-radius:10px;padding:" + (touch ? "12px 10px" : "11px 10px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : ""),
+            meter: [0, 1, 2].map(k => ({ style: "width:14px;height:5px;border-radius:3px;background:" + (k <= w.days ? (old ? "var(--warn)" : "var(--accent)") : "var(--line)") })),
+            sinceStyle: "font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap;color:" + (old ? "var(--warn-text);font-weight:600" : "var(--muted)"),
+            dueStyle: "font-size:11px;font-weight:600;white-space:nowrap;border-radius:999px;padding:2px 8px;background:var(--warn-soft);color:var(--warn-text)",
+          };
+        }),
+        waitingCardStyle: "display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px",
+        waitingSepStyle: "height:1px;background:var(--line2);margin:0 10px",
+        waitReplyStyle: "display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--accent-d);white-space:nowrap;border-radius:8px;" + (touch ? "min-height:44px;padding:0 6px;" : "padding:3px 6px;"),
 
-        /* One step each: the Agent's proposal blocks with Start's controls - pressed, and undone from the toast. */
-        startSteps: HOME.steps.map((b, i) => this.bkView(b, "start#" + i, isMobile, "start", touch)),
+        /* One step each: the Agent's proposal blocks with Start's controls - pressed, and undone from the toast. They
+           stand as a deck, one at a time: a step taken or declined stays where it is with its result and Undo, and
+           leaves the deck when the reader moves on. */
+        startSteps: stepDeck.slice(stepAt, stepAt + 1).map(i => this.bkView(HOME.steps[i], "start#" + i, isMobile, "start", touch)),
+        stepDeckAny: stepDeck.length > 0,
+        stepDeckEmpty: stepDeck.length === 0,
+        stepDeckCount: stepDeck.length ? (stepAt + 1) + " of " + stepDeck.length : "",
+        stepDeckNote: stepDeck.length ? (stepAt + 1) + " of " + stepDeck.length + (isMobile ? "" : " · a taken step leaves the deck") : "",
+        stepDeckMany: stepDeck.length > 1,
+        stepPrev: () => moveStep(-1),
+        stepNext: () => moveStep(1),
+        stepPrevStyle: stepNav(stepAt > 0),
+        stepNextStyle: stepNav(stepAt < stepDeck.length - 1),
+        stepDots: stepDeck.map((i, k) => ({ style: "height:4px;border-radius:2px;transition:width 160ms ease;background:" + (k === stepAt ? "var(--accent);width:18px" : "var(--border2);width:8px") })),
 
         /* Under the answer, the messages it came from - the find half of *Ask or find*. */
         foundRows: plan && plan.sources ? plan.sources.map(id => THREADS.find(t2 => t2.id === id)).filter(Boolean).map(t2 => ({
@@ -4299,15 +4356,36 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The counters are counts; the written briefing is the model's and stays off until it is turned on. */
         todayCounts: HOME.todayCounts,
         todayEmpty: HOME.todayItems.every(t2 => (st.todayHidden || []).indexOf(t2.id) >= 0),
-        briefOn: !!st.briefOn,
-        briefOffer: !st.briefOn && !st.briefOfferHidden,
+        /* Today: the counts, and the written briefing as their extension. Folded, the card is the counts alone; unfolded,
+           the same counts head it and the briefing (or the offer to turn it on) reads on beneath them. */
+        todayOpen: !!st.todayOpen,
+        todayToggle: () => this.setState(s2 => ({ todayOpen: !s2.todayOpen })),
+        todayToggleLabel: st.todayOpen ? (isMobile ? "Less" : "Counts only") : st.briefOn ? (isMobile ? "Briefing" : "Read the briefing") : (isMobile ? "Briefing · off" : "Written briefing · off"),
+        todayToggleIcon: st.todayOpen ? "unfold_less" : "unfold_more",
+        todayCardStyle: "display:flex;flex-direction:column;gap:12px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;" +
+          (st.todayOpen ? "box-shadow:inset 3px 0 0 var(--accent);" : "") + (isMobile ? "padding:12px 13px 13px 14px" : "padding:13px 16px 14px 17px"),
+        todayToggleStyle: "margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--accent-d);white-space:nowrap;border-radius:8px;" + (touch ? "min-height:44px;padding:0 8px;" : "padding:4px 8px;"),
+        briefOn: !!st.briefOn && !!st.todayOpen,
+        briefOffer: !st.briefOn && !!st.todayOpen,
         briefOfferText: HOME.briefingOffer,
-        turnBriefOn: () => { this.setState({ briefOn: true }); this.notify("It appears here each morning. Turn it off from the card.", { kind: "success", title: "Written briefing on" }); },
-        hideBriefOffer: () => this.setState({ briefOfferHidden: true }),
-        turnBriefOff: () => { this.setState({ briefOn: false, briefOfferHidden: true }); this.notify("Settings › Start turns it back on.", { title: "Written briefing off" }); },
+        turnBriefOn: () => { this.setState({ briefOn: true, todayOpen: true }); this.notify("It appears here each morning, under the counts.", { kind: "success", title: "Written briefing on" }); },
+        hideBriefOffer: () => this.setState({ todayOpen: false }),
+        turnBriefOff: () => { this.setState({ briefOn: false, todayOpen: false }); this.notify("Unfold the counts to turn it back on.", { title: "Written briefing off" }); },
         briefNotUseful: () => this.notify("Thanks - tomorrow's briefing weighs that.", { title: "Marked not useful" }),
 
         hasWatched: (st.watched || []).length > 0,
+        /* Watching sits under the field it came from: one strip of the questions kept, each a card that says whether
+           its answer moved, scrolling sideways when there are more than fit. */
+        watchBandStyle: "grid-column:1 / -1;display:flex;flex-direction:column;gap:8px;min-width:0;padding-bottom:2px",
+        watchEyeStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;color:var(--accent-d)",
+        watchCount: String((st.watched || []).length),
+        watchCountStyle: "font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted);background:var(--sub);border-radius:999px;padding:1px 7px",
+        watchChangedAny: (st.watched || []).some(w => w.state === "changed"),
+        watchChangedText: (() => { const n = (st.watched || []).filter(w => w.state === "changed").length; return n === 1 ? "1 answer moved" : n + " answers moved"; })(),
+        watchChangedStyle: "display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--accent-d);white-space:nowrap",
+        watchHint: isMobile ? "" : "refreshed when new mail matches · each refresh counts against your allowance",
+        watchHintStyle: "margin-left:auto;font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+        watchRowStyle: "display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;" + (isMobile ? "margin:0 -14px;padding-left:14px;padding-right:14px;" : ""),
         noWatched: !(st.watched || []).length,
         watched: (st.watched || []).map(w => ({
           q: w.q, note: w.note,
@@ -4319,8 +4397,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           },
           stopAria: "Stop watching: " + w.q,
           isChanged: w.state === "changed", isPaused: w.state === "paused", isFailed: w.state === "failed",
-          /* A row whose answer moved carries the accent edge, so it is found before it is read. */
-          rowStyle: "display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid " + (w.state === "changed" ? "var(--accent-line)" : "var(--line)") + ";border-radius:10px;padding:" + (isMobile ? "12px 10px 12px 14px" : "12px 10px 12px 16px") + (w.state === "changed" ? ";box-shadow:inset 3px 0 0 var(--accent)" : ""),
+          /* A card whose answer moved carries the accent edge, so it is found before it is read. */
+          rowStyle: "flex:0 0 " + (isMobile ? 248 : 290) + "px;display:flex;align-items:flex-start;gap:8px;box-sizing:border-box;background:var(--bg);border:1px solid " + (w.state === "changed" ? "var(--accent-line)" : "var(--line)") + ";border-radius:11px;padding:" + (touch ? "10px 4px 10px 12px" : "9px 4px 9px 12px") + (w.state === "changed" ? ";box-shadow:inset 3px 0 0 var(--accent)" : ""),
           stateStyle: "display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:1.4;" + (w.state === "changed" ? "color:var(--accent-d);font-weight:600;"
             : w.state === "paused" || w.state === "failed" ? "color:var(--warn-text);" : "color:var(--muted);"),
           dotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + (w.state === "changed" ? "var(--accent)" : w.state === "paused" || w.state === "failed" ? "var(--warn)" : "var(--border2)"),
@@ -6181,7 +6259,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       /* What back calls for a surface whose own close does more than empty its key: asking before a draft is thrown
          away, and closing the tab the surface stands in. */
-      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, thread, person }));
+      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, thread, person }));
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml };
       return vals;
     }

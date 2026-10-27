@@ -7,13 +7,7 @@
 // into what the template reads; the sample content is `data/prototype/fathom.js` and `data/prototype/catchup.js`.
 MailFathomDesign.fathomUi = (() => {
   const D = () => MailFathomDesign.data;
-  const DAY_MS = 24 * 60 * 60 * 1000;
   const GLYPH = "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;";
-  const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  /* A catch-up stands on Start for 24 hours from the moment it was first opened, and for good once saved. */
-  const catchupLive = (c) => !!c && (c.saved || Date.now() - c.openedAt < DAY_MS);
-  const hoursLeft = (c) => Math.max(1, Math.ceil((DAY_MS - (Date.now() - c.openedAt)) / 3600000));
 
   const fill = (s, label) => String(s || "").replace("{label}", label || "this");
 
@@ -26,27 +20,21 @@ MailFathomDesign.fathomUi = (() => {
   };
 
   function install(self) {
-    /* Opening the catch-up: what Start does the first time it is opened after an absence. */
+    /* Opening the catch-up: what Start does the first time it is opened after an absence. It stays on Start until the
+       reader is done with it, or until the next absence replaces it. */
     self.startCatchup = (reason) => {
       self.timers.forEach(clearTimeout);
       self.setState({
-        catchup: { reason: reason, openedAt: Date.now(), saved: false, seenAll: false },
-        catchupOpen: true, catchupIdx: 0, catchupPaused: false, catchupArchived: false,
+        catchup: { reason: reason }, catchupOpen: true, catchupArchived: false,
         screen: "start", phase: "idle", fathomMenu: false, fathomSmart: false, fathomAnswer: null, ctxMenu: null, more: false,
       });
     };
-    self.openCatchup = () => self.setState({ catchupOpen: true, catchupIdx: 0, catchupPaused: false, fathomMenu: false, fathomSmart: false, fathomAnswer: null });
+    self.openCatchup = () => self.setState({ catchupOpen: true, fathomMenu: false, fathomSmart: false, fathomAnswer: null });
     self.closeCatchup = () => self.setState({ catchupOpen: false, fathomAnswer: null });
-    self.stepCatchup = (by) => {
-      const n = D().catchup.slides.length;
-      const i = Math.max(0, Math.min(n - 1, (self.state.catchupIdx || 0) + by));
-      self.setState(s => ({ catchupIdx: i, fathomAnswer: null, catchup: i === n - 1 && s.catchup ? Object.assign({}, s.catchup, { seenAll: true }) : s.catchup }));
-    };
-    self.saveCatchup = () => {
-      const saved = !(self.state.catchup && self.state.catchup.saved);
-      self.setState(s => ({ catchup: Object.assign({}, s.catchup, { saved: saved }) }));
-      self.notify(saved ? "It stays on Start after the 24 hours, until you remove it." : "It goes from Start 24 hours after you first opened it.",
-        { kind: saved ? "success" : "neutral", title: saved ? "Catch-up saved" : "No longer saved" });
+    self.doneCatchup = () => {
+      const was = self.state.catchup;
+      self.setState({ catchup: null, catchupOpen: false, fathomAnswer: null });
+      self.notify("It is gone from Start. Nothing in your mail changed.", { title: "Catch-up done", actionLabel: "Undo", onAction: () => { self.hideToast(); self.setState({ catchup: was }); } });
     };
     self.exportCatchup = (x, y) => {
       self.armCtx(false);
@@ -82,7 +70,7 @@ MailFathomDesign.fathomUi = (() => {
         return;
       }
       if (a.do === "catchup") { self.setState(closeAll); self.openCatchup(); return; }
-      if (a.do === "catchupSave") { self.setState(closeAll); self.saveCatchup(); return; }
+      if (a.do === "catchupDone") { self.setState(closeAll); self.doneCatchup(); return; }
       if (a.do === "catchupExport") { self.setState(closeAll); self.exportCatchup(t.x || 200, t.y || 200); return; }
       if (a.do === "go") {
         const go = a.go || t.go || (t.tid ? "thread" : t.pid ? "people" : "mail");
@@ -161,7 +149,6 @@ MailFathomDesign.fathomUi = (() => {
         else if (st.catchupOpen) self.closeCatchup();
         return;
       }
-      if (st.catchupOpen && !st.ctxMenu && (e.key === "ArrowRight" || e.key === "ArrowLeft")) self.stepCatchup(e.key === "ArrowRight" ? 1 : -1);
     };
     /* In the Agent, Fathom stands level with the field it sits beside: its centre on the field's centre, kept in step
        as the field moves (a context chip, a quote, the suggestions folding away). */
@@ -181,7 +168,7 @@ MailFathomDesign.fathomUi = (() => {
   }
 
   function vals(self, c) {
-    const { st, isMobile, touch, singlePane, thread, person } = c;
+    const { st, isMobile, touch, singlePane, narrow, thread, person } = c;
     const F = D().fathom, CU = D().catchup;
     const barH = isMobile ? self.barH() : 0;
 
@@ -215,10 +202,10 @@ MailFathomDesign.fathomUi = (() => {
         self.setState(s => ({ fathomMenu: !s.fathomMenu, fathomAnswer: null }));
       },
       fathomFabSmart: smartOn ? "1" : "0",
-      /* A disc whose glyph alone names it; its gradient, gloss and sheen live in prototype.css. */
+      /* A disc whose glyph alone names it; its surface lives in prototype.css. */
       fathomFabStyle: "position:fixed;z-index:88;right:" + fabEdge + "px;bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
-        "display:flex;align-items:center;justify-content:center;border-radius:50%;color:oklch(0.86 0.07 250)",
-      fathomFabGlyph: GLYPH + "position:relative;z-index:1;font-size:" + (touch ? 26 : 24) + "px;font-variation-settings:'FILL' 1,'wght' 400",
+        "display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--accent-d)",
+      fathomFabGlyph: GLYPH + "position:relative;z-index:1;font-size:" + (touch ? 26 : 24) + "px;font-variation-settings:'FILL' 0,'wght' 400",
       fathomMenuOpen: !!st.fathomMenu,
       closeFathomMenu: () => self.setState({ fathomMenu: false }),
       fathomMenuWhere: space + " · " + where,
@@ -274,33 +261,13 @@ MailFathomDesign.fathomUi = (() => {
       fathomAnswerCloseStyle: "margin-left:auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--faint);" + GLYPH + (touch ? "width:44px;height:44px;font-size:20px;margin-right:-10px;" : "width:28px;height:28px;font-size:18px;margin-right:-6px;"),
     });
 
-    /* ——— The catch-up on Start: the ring that reopens it ——— */
+    /* ——— The catch-up: a card on Start, and one page of panels it opens ——— */
     const cu = st.catchup;
-    const live = catchupLive(cu);
     const reason = cu ? CU.reasons[cu.reason] || CU.reasons.away : CU.reasons.away;
-    Object.assign(v, {
-      cuRingShown: live && st.phase === "idle",
-      cuRingTitle: "While you were away",
-      cuRingSub: cu ? reason.label + " · " + CU.slides.length + " cards · " + (cu.saved ? "kept until you remove it" : "reopen for " + hoursLeft(cu) + " h") : "",
-      cuRingSaved: !!(cu && cu.saved),
-      cuRingIcon: cu && cu.reason === "holiday" ? "beach_access" : "flight_land",
-      openCatchup: self.openCatchup,
-      cuRingRowStyle: "display:flex;align-items:center;gap:13px;box-sizing:border-box;border-radius:14px;background:var(--panel);border:1px solid var(--line);" + (touch ? "padding:10px 12px;min-height:64px;" : "padding:9px 12px 9px 10px;"),
-      cuRingStyle: "flex:0 0 46px;width:46px;height:46px;border-radius:50%;padding:2.5px;box-sizing:border-box;background:" +
-        (cu && cu.seenAll ? "var(--border2)" : "conic-gradient(from 210deg, var(--accent), var(--accent-2), var(--hl-line), var(--accent))"),
-      cuRingInnerStyle: "width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--panel);box-shadow:inset 0 0 0 2px var(--panel);color:var(--accent-d);" + GLYPH + "font-size:21px",
-    });
-
-    /* ——— The catch-up's cards ——— */
-    const n = CU.slides.length;
-    const idx = Math.max(0, Math.min(n - 1, st.catchupIdx || 0));
-    const slide = CU.slides[idx];
-    const filled = slide.layout === "stats" && slide.tone === "accent" || slide.layout === "end";
-    const paused = !!st.catchupPaused || !!st.ctxMenu || !!st.fathomAnswer;
-    const inkSoft = filled ? "color-mix(in oklch, var(--onaccent) 78%, transparent)" : "var(--text2)";
-    const stageBg = filled ? "var(--accent)" : slide.tone === "ok" ? "var(--ok-soft)" : slide.tone === "warn" ? "var(--warn-soft)" : slide.tone === "neutral" ? "var(--sub)" : "var(--accent-soft)";
-    const itemBg = filled ? "background:color-mix(in oklch, var(--onaccent) 14%, transparent);border:1px solid color-mix(in oklch, var(--onaccent) 22%, transparent);"
-      : "background:var(--panel);border:1px solid var(--line);box-shadow:0 1px 2px var(--sh-1);";
+    const hello = CU.slides.find(sl => sl.id === "hello");
+    const PANEL_ORDER = ["needs", "risks", "settled", "people", "topics", "archive"];
+    const panels = CU.slides.filter(sl => sl.id !== "hello").sort((a, b) => PANEL_ORDER.indexOf(a.id) - PANEL_ORDER.indexOf(b.id));
+    const needN = (CU.slides.find(sl => sl.id === "needs") || { items: [] }).items.length;
     const target = (it, e) => {
       const p = e && e.clientX != null ? self.localPt(e.clientX, e.clientY) : { x: 200, y: 200 };
       return Object.assign({}, it, { x: p.x, y: p.y });
@@ -312,46 +279,55 @@ MailFathomDesign.fathomUi = (() => {
       const title = it.kind === "stat" ? it.n + " " + it.label : it.label;
       self.fathomMenuFor(title, it.kind === "stat" ? "While you were away" : it.sub || "", F.itemActions[it.kind] || [], Object.assign({}, t, { label: title }), t.x, t.y);
     };
-    const maxN = Math.max.apply(null, slide.items.map(i => i.n || 0).concat([1]));
-    const btn = (primary) => "display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;font-weight:600;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:48px;padding:0 20px;font-size:15px;" : "min-height:42px;padding:0 18px;font-size:14px;") +
-      (primary ? (filled ? "color:var(--accent-d);background:var(--onaccent);" : "color:var(--onaccent);background:var(--accent);") : (filled ? "color:var(--onaccent);border:1px solid color-mix(in oklch, var(--onaccent) 40%, transparent);" : "color:var(--text);background:var(--panel);border:1px solid var(--border2);"));
-    const iconBtn = "display:inline-flex;align-items:center;justify-content:center;border-radius:50%;" + GLYPH + (touch ? "width:44px;height:44px;font-size:22px;" : "width:34px;height:34px;font-size:19px;");
+    const toneTile = (tone) => "flex:0 0 30px;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;" + GLYPH + "font-size:18px;" +
+      (tone === "ok" ? "background:var(--ok-soft);color:var(--ok-text)" : tone === "warn" ? "background:var(--warn-soft);color:var(--warn-text)" : tone === "neutral" ? "background:var(--sub);color:var(--muted)" : "background:var(--accent-soft);color:var(--accent-d)");
+    const quietBtn = "display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:9px;font-size:13px;font-weight:600;white-space:nowrap;box-sizing:border-box;color:var(--text);background:var(--panel);border:1px solid var(--border2);" + (touch ? "min-height:44px;padding:0 14px;" : "min-height:32px;padding:0 12px;");
+    const primaryBtn = "display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:9px;font-size:13px;font-weight:600;white-space:nowrap;box-sizing:border-box;color:var(--onaccent);background:var(--accent);" + (touch ? "min-height:44px;padding:0 16px;" : "min-height:32px;padding:0 14px;");
+    const iconBtn = "display:inline-flex;align-items:center;justify-content:center;border-radius:9px;color:var(--muted);" + GLYPH + (touch ? "width:44px;height:44px;font-size:22px;" : "width:32px;height:32px;font-size:19px;");
+    const rowLine = (touch ? "min-height:52px;box-sizing:border-box;" : "") + "border-radius:10px;";
+    const itemView = (sl, it, maxN) => ({
+      n: it.n, label: it.label, sub: it.sub || "", badge: it.badge || "", hasBadge: !!it.badge, initials: it.initials || "", icon: it.icon || "",
+      open: openItem(it),
+      aria: (it.kind === "stat" ? it.n + " " + it.label : it.label) + " - actions",
+      statStyle: "display:flex;flex-direction:column;gap:3px;border-radius:12px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);text-align:left",
+      statNStyle: "font-size:" + (isMobile ? 26 : 30) + "px;line-height:1;font-weight:650;letter-spacing:-0.02em;font-variant-numeric:tabular-nums",
+      statLabelStyle: "font-size:12.5px;line-height:1.35;color:var(--text2)",
+      rowStyle: "display:flex;align-items:flex-start;gap:11px;padding:10px 8px;" + rowLine,
+      rowIconStyle: GLYPH + "font-size:19px;padding-top:1px;color:" + (it.level === "danger" ? "var(--err-text)" : sl.tone === "warn" ? "var(--warn-text)" : sl.tone === "ok" ? "var(--ok-text)" : "var(--accent-d)"),
+      badgeStyle: "flex:0 0 auto;font-size:11px;font-weight:600;border-radius:999px;padding:3px 8px;white-space:nowrap;background:var(--hl);color:var(--text)",
+      barRowStyle: "display:flex;align-items:center;gap:11px;padding:9px 8px;" + rowLine,
+      barStyle: "height:6px;border-radius:3px;background:var(--accent);width:" + Math.round(((it.n || 0) / maxN) * 100) + "%",
+      avatarStyle: "flex:0 0 30px;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-d)",
+      chipStyle: "display:inline-flex;align-items:baseline;gap:7px;border-radius:999px;font-weight:600;background:var(--sub);border:1px solid var(--line2);" +
+        (it.size === 3 ? "font-size:20px;padding:9px 17px;" : it.size === 2 ? "font-size:16px;padding:8px 14px;" : "font-size:14px;padding:6px 12px;") + (touch ? "min-height:44px;box-sizing:border-box;" : ""),
+      chipNStyle: "font-size:12px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums",
+    });
     Object.assign(v, {
+      cuCardShown: !!cu && st.phase === "idle",
+      cuCardTitle: "While you were away",
+      cuCardSub: reason.label + " · " + needN + " still need you · on one page",
+      cuCardIcon: cu && cu.reason === "holiday" ? "beach_access" : "flight_land",
+      cuCardIconStyle: toneTile("accent"),
+      cuCardStyle: "display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-sizing:border-box;border-radius:14px;background:var(--panel);border:1px solid var(--accent-line);box-shadow:inset 3px 0 0 var(--accent);" + (isMobile ? "padding:12px 12px 12px 15px;" : "padding:12px 14px 12px 17px;"),
+      cuOpenBtnStyle: primaryBtn,
+      cuQuietBtnStyle: quietBtn,
+      openCatchup: self.openCatchup,
+      cuDone: (e) => { if (e && e.stopPropagation) e.stopPropagation(); self.doneCatchup(); },
+
       cuOpen: !!st.catchupOpen && !!cu,
-      cuScrimStyle: "position:fixed;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;gap:18px;background:" + (isMobile ? stageBg : "color-mix(in oklch, var(--bg) 70%, black 30%)") + ";" + (isMobile ? "" : "padding:24px"),
-      cuStageStyle: "position:relative;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;color:" + (filled ? "var(--onaccent)" : "var(--text)") + ";background:" + stageBg + ";transition:background 260ms var(--ease-out);" +
-        (isMobile ? "width:100%;height:100%;padding:14px 16px 16px;" : "width:min(460px,100%);min-height:min(660px,100%);max-height:min(800px,100%);border-radius:24px;padding:16px 22px 20px;box-shadow:0 30px 80px rgba(0,0,0,0.35);"),
-      cuSideShown: !isMobile,
-      cuPrevStyle: iconBtn + "color:var(--onaccent);background:color-mix(in oklch, var(--onaccent) 14%, transparent);" + (idx === 0 ? "opacity:0.35;" : ""),
-      cuNextStyle: iconBtn + "color:var(--onaccent);background:color-mix(in oklch, var(--onaccent) 14%, transparent);" + (idx === n - 1 ? "opacity:0.35;" : ""),
-      cuPrev: (e) => { if (e && e.stopPropagation) e.stopPropagation(); self.stepCatchup(-1); },
-      cuNext: (e) => { if (e && e.stopPropagation) e.stopPropagation(); self.stepCatchup(1); },
-      cuBars: CU.slides.map((s, i) => ({
-        trackStyle: "flex:1;height:3px;border-radius:3px;overflow:hidden;background:color-mix(in oklch, currentColor 22%, transparent)",
-        fillStyle: "height:100%;border-radius:3px;background:currentColor;" + (i < idx ? "width:100%;" : i > idx ? "width:0;" :
-          "width:0;animation:mfstory 12s linear forwards;animation-play-state:" + (paused ? "paused" : "running") + ";"),
-        end: i === idx ? () => { if (!reducedMotion() && i < n - 1) self.stepCatchup(1); } : null,
-      })),
-      cuHeadText: "Catch-up",
-      cuHeadSub: reason.label,
-      cuIcon: GLYPH + "font-size:20px",
-      cuIconBtn: iconBtn + "color:inherit;",
-      cuPauseIcon: st.catchupPaused ? "play_arrow" : "pause",
-      cuPauseTitle: st.catchupPaused ? "Play" : "Pause",
-      cuTogglePause: (e) => { e.stopPropagation(); self.setState(s => ({ catchupPaused: !s.catchupPaused })); },
-      cuSaveIcon: cu && cu.saved ? "bookmark_added" : "bookmark",
-      cuSaveTitle: cu && cu.saved ? "Saved - press to unsave" : "Save, so it stays after 24 hours",
-      cuSave: (e) => { e.stopPropagation(); self.saveCatchup(); },
+      cuScrimStyle: "position:fixed;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;background:" + (isMobile ? "var(--bg)" : "var(--scrim)") + ";" + (isMobile ? "" : "padding:24px"),
+      cuSheetStyle: "display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;background:var(--bg);color:var(--text);" +
+        (isMobile ? "width:100%;height:100%;" : "width:min(1180px,100%);height:min(920px,100%);border-radius:18px;border:1px solid var(--line);box-shadow:0 30px 80px var(--sh-3);"),
+      cuHeadStyle: "display:flex;align-items:center;gap:10px;flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--line);" + (isMobile ? "padding:10px 10px 10px 14px;" : "padding:14px 16px 14px 22px;"),
+      cuHeadIconStyle: toneTile("accent"),
+      cuHeadTitle: "While you were away",
+      cuHeadSub: reason.label + " · " + CU.range,
+      cuHeadLabels: !isMobile,
+      cuIconBtn: iconBtn,
+      cuQuiet: quietBtn,
       cuExport: (e) => { e.stopPropagation(); const p = self.localPt(e.clientX, e.clientY); self.exportCatchup(p.x - 220, p.y + 16); },
       cuClose: (e) => { if (e && e.stopPropagation) e.stopPropagation(); self.closeCatchup(); },
-      /* A tap on a card's left third goes back and anywhere else goes on, as a story does; a press on an item or a
-         control is that item's, and a press that ends a text selection is the selection's. */
-      cuTap: (e) => {
-        if (e.target && e.target.closest && e.target.closest("[data-cu-skip]")) return;
-        if (typeof window !== "undefined" && String(window.getSelection && window.getSelection()).trim()) return;
-        const r = e.currentTarget.getBoundingClientRect();
-        self.stepCatchup(e.clientX - r.left < r.width / 3 ? -1 : 1);
-      },
+      cuBodyStyle: "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:18px;" + (isMobile ? "padding:16px 14px 28px;" : "padding:24px 26px 32px;"),
       cuSelect: (e) => {
         setTimeout(() => {
           const sel = typeof window !== "undefined" && window.getSelection ? window.getSelection() : null;
@@ -363,77 +339,64 @@ MailFathomDesign.fathomUi = (() => {
           self.fathomMenuFor("Selected text", "“" + shown + "”", F.selection, { label: shown, sel: shown }, p.x, p.y);
         }, 0);
       },
-      cuSlideKey: slide.id,
-      cuEyebrow: slide.eyebrow,
-      cuTitle: slide.title,
-      cuLede: slide.id === "hello" ? reason.line + " " + slide.lede : slide.lede,
-      cuSlideIcon: slide.icon,
-      cuEyebrowStyle: "display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:" + (filled ? "var(--onaccent)" : slide.tone === "ok" ? "var(--ok-text)" : slide.tone === "warn" ? "var(--warn-text)" : "var(--accent-d)"),
-      cuTitleStyle: "font-size:" + (isMobile ? 30 : 34) + "px;line-height:1.08;font-weight:650;letter-spacing:-0.025em;text-wrap:balance;user-select:text",
-      cuLedeStyle: "font-size:16px;line-height:1.5;color:" + inkSoft + ";text-wrap:pretty;user-select:text",
-      cuBodyStyle: "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:" + (isMobile ? "26px 2px 10px" : "34px 2px 10px") + ";" + (slide.layout === "end" ? "justify-content:center;" : ""),
-      cuIsStats: slide.layout === "stats",
-      cuIsList: slide.layout === "list",
-      cuIsBars: slide.layout === "bars",
-      cuIsChips: slide.layout === "chips",
-      cuStatsStyle: "display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px",
-      cuItems: slide.items.map(it => ({
-        n: it.n, label: it.label, sub: it.sub || "", badge: it.badge || "", hasBadge: !!it.badge, initials: it.initials || "", icon: it.icon || "",
-        open: openItem(it),
-        aria: (it.kind === "stat" ? it.n + " " + it.label : it.label) + " - actions",
-        statStyle: "display:flex;flex-direction:column;gap:4px;border-radius:16px;padding:14px 14px 13px;text-align:left;" + itemBg,
-        statNStyle: "font-size:" + (isMobile ? 34 : 40) + "px;line-height:1;font-weight:650;letter-spacing:-0.03em;font-variant-numeric:tabular-nums",
-        statLabelStyle: "font-size:13px;line-height:1.35;color:" + inkSoft,
-        rowStyle: "display:flex;align-items:flex-start;gap:12px;border-radius:14px;padding:12px 13px;" + itemBg + (touch ? "min-height:56px;box-sizing:border-box;" : ""),
-        rowIconStyle: GLYPH + "font-size:20px;padding-top:1px;color:" + (it.level === "danger" ? "var(--err-text)" : slide.tone === "warn" ? "var(--warn-text)" : slide.tone === "ok" ? "var(--ok-text)" : "var(--accent-d)"),
-        badgeStyle: "flex:0 0 auto;font-size:11px;font-weight:600;border-radius:999px;padding:3px 8px;white-space:nowrap;background:var(--hl);color:var(--text)",
-        barRowStyle: "display:flex;align-items:center;gap:12px;border-radius:14px;padding:10px 12px;" + itemBg + (touch ? "min-height:56px;box-sizing:border-box;" : ""),
-        barStyle: "height:8px;border-radius:4px;background:var(--accent);width:" + Math.round(((it.n || 0) / maxN) * 100) + "%",
-        avatarStyle: "flex:0 0 34px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:var(--accent-soft);color:var(--accent-d);box-shadow:inset 0 0 0 1px var(--accent-line)",
-        chipStyle: "display:inline-flex;align-items:baseline;gap:7px;border-radius:999px;font-weight:600;" + itemBg +
-          (it.size === 3 ? "font-size:24px;padding:12px 20px;" : it.size === 2 ? "font-size:19px;padding:10px 17px;" : "font-size:15px;padding:8px 14px;") + (touch ? "min-height:44px;box-sizing:border-box;" : ""),
-        chipNStyle: "font-size:12px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums",
-      })),
-      cuHasCta: !!slide.cta,
-      cuCtaLabel: slide.cta ? (slide.cta.id === "archive" && st.catchupArchived ? "Archived · Undo" : slide.cta.label) : "",
-      cuCtaIcon: slide.cta ? (slide.cta.id === "archive" && st.catchupArchived ? "undo" : slide.cta.icon) : "",
-      cuCtaStyle: btn(true),
-      cuCta: (e) => {
-        e.stopPropagation();
-        if (slide.cta.id === "close") { self.closeCatchup(); return; }
-        const was = !!self.state.catchupArchived;
-        self.setState({ catchupArchived: !was });
-        if (!was) self.notify("They are in Archive, and the threads that need you are untouched.", { title: "221 messages archived", actionLabel: "Undo", onAction: () => { self.hideToast(); self.setState({ catchupArchived: false }); } });
-      },
-      cuIsEnd: slide.layout === "end",
-      cuEndSave: (e) => { e.stopPropagation(); self.saveCatchup(); },
-      cuEndSaveLabel: cu && cu.saved ? "Saved" : "Save",
-      cuEndExport: (e) => { e.stopPropagation(); const p = self.localPt(e.clientX, e.clientY); self.exportCatchup(p.x - 120, p.y - 190); },
-      cuGhostStyle: btn(false),
-      cuFootStyle: "display:flex;align-items:center;gap:10px;padding-top:12px;font-size:12px;white-space:nowrap;color:" + inkSoft,
-      cuFootText: (idx + 1) + " of " + n + " · " + (cu && cu.saved ? "saved" : cu ? "on Start for " + hoursLeft(cu) + " h" : ""),
-      cuHint: isMobile ? "Tap an edge to move" : touch ? "Tap an edge to move, hold text to select" : "Press anything, or select text, for more",
-      cuHintStyle: "margin-left:auto;text-align:right;color:" + inkSoft,
+      cuHelloTitle: hello.title,
+      cuHelloLede: reason.line + " " + hello.lede,
+      cuHelloTitleStyle: "font-size:" + (isMobile ? 24 : 28) + "px;line-height:1.15;font-weight:600;letter-spacing:-0.015em;text-wrap:balance;user-select:text",
+      cuHelloLedeStyle: "font-size:14px;line-height:1.5;color:var(--text2);text-wrap:pretty;user-select:text;max-width:70ch",
+      cuStatsStyle: "display:grid;grid-template-columns:" + (isMobile ? "1fr 1fr" : "repeat(4,1fr)") + ";gap:10px",
+      cuStats: hello.items.map(it => itemView(hello, it, 1)),
+      cuHint: isMobile ? "Tap anything, or hold text, for more" : touch ? "Tap anything, or hold text, for more" : "Press anything, or select text, for more",
+      cuGridStyle: isMobile ? "display:flex;flex-direction:column;gap:12px" : "column-count:" + (narrow ? 1 : 2) + ";column-gap:14px",
+      cuPanels: panels.map(sl => {
+        const maxN = Math.max.apply(null, sl.items.map(i => i.n || 0).concat([1]));
+        const archived = sl.cta && sl.cta.id === "archive" && !!st.catchupArchived;
+        return {
+          key: sl.id, eyebrow: sl.eyebrow, title: sl.title, lede: sl.lede, icon: sl.icon,
+          tileStyle: toneTile(sl.tone),
+          panelStyle: "display:flex;flex-direction:column;gap:10px;break-inside:avoid;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;" + (isMobile ? "padding:14px;" : "padding:16px 16px 14px;margin:0 0 14px;"),
+          isList: sl.layout === "list", isBars: sl.layout === "bars", isChips: sl.layout === "chips", isStats: sl.layout === "stats",
+          items: sl.items.map(it => itemView(sl, it, maxN)),
+          hasCta: !!sl.cta,
+          ctaLabel: sl.cta ? (archived ? "Archived · Undo" : sl.cta.label) : "",
+          ctaIcon: sl.cta ? (archived ? "undo" : sl.cta.icon) : "",
+          ctaStyle: archived ? quietBtn : primaryBtn,
+          cta: (e) => {
+            e.stopPropagation();
+            const was = !!self.state.catchupArchived;
+            self.setState({ catchupArchived: !was });
+            if (!was) self.notify("They are in Archive, and the threads that need you are untouched.", { title: "221 messages archived", actionLabel: "Undo", onAction: () => { self.hideToast(); self.setState({ catchupArchived: false }); } });
+          },
+        };
+      }),
+      cuPanelStatsStyle: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px",
     });
 
     /* ——— Start: what could hurt, and what arrived since the reader last looked ——— */
     const HOME = D().home;
-    const heads = HOME.headsUp.filter(h => (st.headsHidden || []).indexOf(h.id) < 0);
+    const heads = HOME.headsUp.filter(h => (st.headsHidden || []).indexOf(h.id) < 0).sort((x, y) => x.rank - y.rank);
     const sl = HOME.sinceLast;
     Object.assign(v, {
       hasHeadsUp: heads.length > 0,
-      headsUp: heads.map(h => ({
-        title: h.title, why: h.why, check: h.check, rule: h.rule, icon: h.icon, tid: h.tid,
+      /* Most urgent first, whatever the kind: the order is how soon the harm lands. The first one carries the warn edge
+         and the rest stand plain, so the list says where to start without every card shouting. */
+      headsUp: heads.map((h, i) => ({
+        title: h.title, why: h.why, check: h.check, rule: h.rule, icon: h.icon, tid: h.tid, when: h.when,
+        kindLabel: h.kind === "security" ? "Security" : "Deadline",
         open: () => self.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: h.tid, cameFrom: false }),
         safe: () => {
           self.setState(s => ({ headsHidden: (s.headsHidden || []).concat([h.id]) }));
-          self.notify("“" + h.title + "” will not be raised again.", { title: h.level === "danger" ? "Marked as safe" : "Dismissed", actionLabel: "Undo", onAction: () => { self.hideToast(); self.setState(s => ({ headsHidden: (s.headsHidden || []).filter(x => x !== h.id) })); } });
+          self.notify("“" + h.title + "” will not be raised again.", { title: h.kind === "security" ? "Marked as safe" : "Dismissed", actionLabel: "Undo", onAction: () => { self.hideToast(); self.setState(s => ({ headsHidden: (s.headsHidden || []).filter(x => x !== h.id) })); } });
         },
-        safeLabel: h.level === "danger" ? "It is safe" : "Dismiss",
-        cardStyle: "display:flex;gap:12px;align-items:flex-start;border-radius:12px;background:var(--panel);border:1px solid " + (h.level === "danger" ? "color-mix(in oklch, var(--err) 45%, var(--line))" : "var(--line)") + ";" +
-          "box-shadow:inset 3px 0 0 " + (h.level === "danger" ? "var(--err)" : "var(--warn)") + ",0 1px 2px var(--sh-1);padding:" + (isMobile ? "13px 13px 13px 15px" : "14px 16px 14px 18px"),
+        safeLabel: h.kind === "security" ? "It is safe" : "Dismiss",
+        cardStyle: "display:flex;gap:12px;align-items:flex-start;border-radius:12px;background:var(--panel);border:1px solid var(--line);" +
+          (i === 0 ? "box-shadow:inset 3px 0 0 var(--warn),0 1px 2px var(--sh-1);" : "box-shadow:0 1px 2px var(--sh-1);") + "padding:" + (isMobile ? "13px 13px 13px 15px" : "14px 16px 14px 18px"),
         tileStyle: "flex:0 0 30px;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;" + GLYPH + "font-size:18px;" +
-          (h.level === "danger" ? "background:var(--err-soft);color:var(--err-text)" : "background:var(--warn-soft);color:var(--warn-text)"),
+          (i === 0 ? "background:var(--warn-soft);color:var(--warn-text)" : "background:var(--sub);color:var(--muted)"),
+        whenStyle: "flex:0 0 auto;font-size:11px;font-weight:600;white-space:nowrap;border-radius:999px;padding:3px 9px;" +
+          (i === 0 ? "background:var(--warn-soft);color:var(--warn-text)" : "background:var(--sub);color:var(--text2)"),
+        kindStyle: "display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:" + (h.kind === "security" ? "var(--err-text)" : "var(--warn-text)"),
+        kindGlyph: GLYPH + "font-size:13px",
+        kindIcon: h.kind === "security" ? "shield" : "event_busy",
         ruleStyle: "display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px 2px 6px;white-space:nowrap",
       })),
       headsBtnStyle: "display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:9px;font-size:13px;font-weight:600;white-space:nowrap;box-sizing:border-box;color:var(--text);background:var(--panel);border:1px solid var(--border2);" + (touch ? "min-height:44px;padding:0 14px;" : "min-height:32px;padding:0 12px;"),
@@ -464,7 +427,6 @@ MailFathomDesign.fathomUi = (() => {
       { icon: "flight_land", label: "Back after 16 days away", run: () => self.startCatchup("away") },
       { icon: "beach_access", label: "Back from a Holiday in the calendar", run: () => self.startCatchup("holiday") },
     ].concat(self.state.catchup ? [
-      { icon: "hourglass_bottom", label: "Let 24 hours pass", run: () => self.setState(s => ({ catchup: Object.assign({}, s.catchup, { openedAt: Date.now() - DAY_MS - 1000 }) })) },
       { icon: "delete", label: "Forget the catch-up", run: () => self.setState({ catchup: null, catchupOpen: false }) },
     ] : []);
     Object.assign(v, {

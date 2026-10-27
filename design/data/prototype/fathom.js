@@ -63,9 +63,9 @@ MailFathomDesign.data.fathom = {
       { id: "archive-rest", icon: "archive", label: "Archive what needs nothing", do: "toast", toast: "Six newsletters and notifications archived." },
     ] },
     "start.catchup": { name: "Catch-up", what: "while you were away", actions: [
-      { id: "replay", icon: "replay", label: "Play it again", do: "catchup" },
+      { id: "open", icon: "open_in_full", label: "Open it", do: "catchup" },
       { id: "decisions", icon: "rule", label: "Only the decisions left", do: "answer", line: "Three: the Contoso counter-proposal (due tomorrow), Fabrikam's Q4 date (02.09) and the audit register (03.09)." },
-      { id: "save", icon: "bookmark", label: "Save it", do: "catchupSave" },
+      { id: "done", icon: "done_all", label: "Done with it", do: "catchupDone" },
       { id: "export", icon: "ios_share", label: "Export", do: "catchupExport" },
     ] },
     "start.briefing": { name: "Morning briefing", what: "written from today's new mail", actions: [
@@ -109,6 +109,10 @@ MailFathomDesign.data.fathom = {
       { id: "why", icon: "help", label: "Why this step?", do: "answer", line: "Contoso is due tomorrow and you have no free block before the 15:00 call except this one." },
       { id: "another", icon: "alt_route", label: "Suggest another", do: "answer", line: "A 30-minute block tomorrow at 09:00 would also make the deadline, with less room to write the reply." },
       { id: "agent", icon: "forum", label: "Talk it through", do: "agent", ctx: "this step" },
+    ] },
+    "start.watching": { name: "Watching", what: "the questions you keep", actions: [
+      { id: "moved", icon: "difference", label: "What moved since this morning?", do: "answer", line: "One answer moved: Contoso's terms - the cap is now the only open term. The other two read as they did at 08:12." },
+      { id: "refresh-all", icon: "refresh", label: "Refresh them all now", do: "toast", toast: "Three questions refreshed. Each counted against your allowance." },
     ] },
     "start.watch": { name: "Watching", what: "a watched question", actions: [
       { id: "changed", icon: "difference", label: "What changed?", do: "answer", line: "One new message from Contoso on 24 August moves the answer: the cap is now the only open term." },

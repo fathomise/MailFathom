@@ -30,25 +30,19 @@ input { font-family: inherit; }
 @keyframes mfrowarc { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 28% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } }
 @keyframes mfrowmoved { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 14% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 62% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } }
 @keyframes mfrowedit { 0% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 55% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 40px transparent } }
-/* The catch-up's progress: one segment fills while its card stands, and a pause holds it. */
-@keyframes mfstory { from { width: 0 } to { width: 100% } }
 
-/* Fathom's button: a disc in the accent's blues, lighter at its top left, with a soft gloss across its upper half and a
-   blue glow beneath it. Its glyph is a pale blue rather than white, so the corner does not outshine the page. */
+/* Fathom's button: a disc of the app's own floating surface - the panel, its edge and its shadow - holding the glyph in
+   the accent, so it reads as part of the app rather than as something laid over it. */
 [data-fathom-fab] {
-  background: linear-gradient(150deg, oklch(0.64 0.16 256) 0%, oklch(0.53 0.18 262) 55%, oklch(0.45 0.17 266) 100%);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 -4px 10px oklch(0.28 0.10 266 / 0.45),
-    0 10px 24px -8px oklch(0.50 0.17 262 / 0.7), 0 2px 6px var(--sh-2);
-  transition: transform 160ms ease, box-shadow 160ms ease, bottom 120ms ease;
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  box-shadow: 0 1px 0 var(--inset) inset, 0 6px 18px var(--sh-2), 0 1px 3px var(--sh-1);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease, bottom 120ms ease;
 }
-[data-fathom-fab]::before {
-  content: ""; position: absolute; left: 18%; right: 18%; top: 6%; height: 40%; border-radius: 50%; pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
-}
-[data-fathom-fab]:hover { transform: translateY(-1px) scale(1.04); box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4),
-  inset 0 -4px 10px oklch(0.28 0.10 266 / 0.45), 0 14px 30px -8px oklch(0.52 0.17 262 / 0.8), 0 3px 8px var(--sh-2); }
-[data-fathom-fab]:active { transform: scale(0.95); }
+[data-fathom-fab]:hover { transform: translateY(-1px); border-color: var(--accent-line); background: var(--hover);
+  box-shadow: 0 1px 0 var(--inset) inset, 0 10px 24px var(--sh-2), 0 1px 3px var(--sh-1); }
+[data-fathom-fab]:active { transform: scale(0.96); }
 [data-fathom-fab]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+[data-fathom-fab][aria-expanded="true"], [data-fathom-fab][data-smart-on="1"] { border-color: var(--accent); background: var(--accent-soft); }
 /* Smart is on: a ring in the accent stands off the disc, so the button reads as the way out. */
-[data-fathom-fab][data-smart-on="1"] { box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 0 0 3px var(--panel),
-  0 0 0 6px var(--accent), 0 10px 24px -8px oklch(0.50 0.17 262 / 0.7); }
+[data-fathom-fab][data-smart-on="1"] { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent), 0 6px 18px var(--sh-2); }
