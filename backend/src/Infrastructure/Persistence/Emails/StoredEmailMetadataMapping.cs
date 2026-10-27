@@ -94,6 +94,7 @@ internal static class StoredEmailMetadataMapping
         entity.DisplayedAuthorDomain = authentication.FromDomain?.NormalizedValue;
         entity.DmarcOutcome = authentication.Dmarc;
         entity.AuthorAuthenticationOutcome = authentication.AuthorAuthentication;
+        entity.AuthorAuthenticationRoute = authentication.AuthorAuthenticationRoute;
         entity.AuthenticatedAuthorDomain = authentication.AuthenticatedAuthorDomain?.NormalizedValue;
         entity.SenderAuthenticationSource = authentication.Source;
     }

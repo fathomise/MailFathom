@@ -993,10 +993,14 @@ public static class ServiceCollectionExtensions
         // The resolver is registered only where nothing supplied one, so the one place this system reaches the network
         // to judge a sender can be replaced without the parse changing — which is what a test that must not resolve
         // anything relies on.
-        services.AddSingleton(provider => new DkimPublicKeyRecordCache(provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton(provider => new DnsRecordCache(provider.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IDkimPublicKeyRecordResolver>(provider => new DnsDkimPublicKeyRecordResolver(
             DnsDkimPublicKeyRecordResolver.CreateLookupClient(),
-            provider.GetRequiredService<DkimPublicKeyRecordCache>(),
+            provider.GetRequiredService<DnsRecordCache>(),
+            provider.GetRequiredService<TimeProvider>()));
+        services.TryAddSingleton<IDmarcRecordResolver>(provider => new DnsDmarcRecordResolver(
+            DnsDkimPublicKeyRecordResolver.CreateLookupClient(),
+            provider.GetRequiredService<DnsRecordCache>(),
             provider.GetRequiredService<TimeProvider>()));
         // The revocation answers and the client they are fetched through are process-wide for the reason the DKIM cache
         // is: a cache per scope would ask the same responder about the same certificate once per folder run. The
@@ -1021,11 +1025,13 @@ public static class ServiceCollectionExtensions
         {
             // The local verification is handed to the parse only where this deployment verifies for itself, so a
             // deployment that switched it off makes no lookup rather than making one whose result is discarded. Where
-            // it is on it is still a fallback: the parse asks it only for a message no trusted header was found for.
+            // it is on, its signature check is still a fallback: the parse asks it for that only for a message no
+            // trusted header was found for, and otherwise only for the DMARC record a trusted verdict leaves open.
             var extractionOptions = provider.GetRequiredService<EmailMimeExtractionOptions>();
             var localSenderVerifier = extractionOptions.VerifyDkimLocally
                 ? new DkimLocalSenderVerifier(
                     provider.GetRequiredService<IDkimPublicKeyRecordResolver>(),
+                    provider.GetRequiredService<IDmarcRecordResolver>(),
                     provider.GetRequiredService<TimeProvider>())
                 : null;
 

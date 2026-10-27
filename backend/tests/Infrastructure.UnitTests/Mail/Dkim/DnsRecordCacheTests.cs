@@ -8,7 +8,7 @@ using Xunit;
 
 namespace MailFathom.Infrastructure.UnitTests.Mail.Dkim;
 
-public sealed class DkimPublicKeyRecordCacheTests
+public sealed class DnsRecordCacheTests
 {
     private const string Name = "MAILFATHOM._DOMAINKEY.SIGNER.EXAMPLE.TEST";
     private const string Record = "v=DKIM1; k=rsa; p=key";
@@ -19,7 +19,7 @@ public sealed class DkimPublicKeyRecordCacheTests
     {
         // Arrange
         var clock = new FakeTimeProvider();
-        var cache = new DkimPublicKeyRecordCache(clock);
+        var cache = new DnsRecordCache(clock);
         cache.Store(Name, Record, TimeSpan.FromHours(1));
 
         // Act
@@ -36,7 +36,7 @@ public sealed class DkimPublicKeyRecordCacheTests
     {
         // Arrange
         var clock = new FakeTimeProvider();
-        var cache = new DkimPublicKeyRecordCache(clock);
+        var cache = new DnsRecordCache(clock);
         cache.Store(Name, Record, TimeSpan.FromMinutes(5));
 
         // Act
@@ -52,7 +52,7 @@ public sealed class DkimPublicKeyRecordCacheTests
     {
         // Arrange
         var clock = new FakeTimeProvider();
-        var cache = new DkimPublicKeyRecordCache(clock);
+        var cache = new DnsRecordCache(clock);
 
         // Act
         cache.Store(Name, Record, TimeSpan.FromSeconds(1));
@@ -68,7 +68,7 @@ public sealed class DkimPublicKeyRecordCacheTests
     {
         // Arrange
         var clock = new FakeTimeProvider();
-        var cache = new DkimPublicKeyRecordCache(clock);
+        var cache = new DnsRecordCache(clock);
 
         // Act
         cache.Store(Name, Record, TimeSpan.FromDays(30));
@@ -84,7 +84,7 @@ public sealed class DkimPublicKeyRecordCacheTests
     {
         // Arrange
         var clock = new FakeTimeProvider();
-        var cache = new DkimPublicKeyRecordCache(clock);
+        var cache = new DnsRecordCache(clock);
 
         // Act
         cache.StoreAbsence(Name);
@@ -101,7 +101,7 @@ public sealed class DkimPublicKeyRecordCacheTests
     {
         // Arrange
         var clock = new FakeTimeProvider();
-        var cache = new DkimPublicKeyRecordCache(clock);
+        var cache = new DnsRecordCache(clock);
         cache.StoreAbsence(Name);
 
         // Act
@@ -122,7 +122,7 @@ public sealed class DkimPublicKeyRecordCacheTests
     {
         // Arrange
         var clock = new FakeTimeProvider();
-        var cache = new DkimPublicKeyRecordCache(clock);
+        var cache = new DnsRecordCache(clock);
         cache.Store(Name, Record, TimeSpan.FromHours(1));
 
         // Act
@@ -141,7 +141,7 @@ public sealed class DkimPublicKeyRecordCacheTests
     {
         // Arrange
         var clock = new FakeTimeProvider();
-        var cache = new DkimPublicKeyRecordCache(clock);
+        var cache = new DnsRecordCache(clock);
         cache.StoreAbsence(Name);
 
         // Act
@@ -157,7 +157,7 @@ public sealed class DkimPublicKeyRecordCacheTests
     public void TryRead_ANameNothingWasStoredFor_IsNotAnswered()
     {
         // Arrange
-        var cache = new DkimPublicKeyRecordCache(new FakeTimeProvider());
+        var cache = new DnsRecordCache(new FakeTimeProvider());
 
         // Act, Assert
         Assert.False(cache.TryRead(Name, out _));

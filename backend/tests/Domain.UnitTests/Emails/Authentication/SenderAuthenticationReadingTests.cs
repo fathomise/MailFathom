@@ -25,7 +25,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Failed, authentication.Outcome);
@@ -44,7 +44,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "news@newsletter.test");
+        var authentication = Read(headers, ["news@newsletter.test"]);
 
         // Assert
         Assert.Equal("NEWSLETTER.TEST", authentication.AuthenticatedDomain?.NormalizedValue);
@@ -58,7 +58,7 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header("someone.else.test", Dkim("pass", "bank.test")) };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.NotEstablished, authentication.Outcome);
@@ -71,7 +71,7 @@ public sealed class SenderAuthenticationReadingTests
     public void Read_MessageCarriedNoHeaders_IsNotEstablished()
     {
         // Act
-        var authentication = SenderAuthenticationReading.Read([], TrustedAuthority, "alerts@bank.test");
+        var authentication = Read([], ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.NotEstablished, authentication.Outcome);
@@ -89,7 +89,8 @@ public sealed class SenderAuthenticationReadingTests
         var authentication = SenderAuthenticationReading.Read(
             headers,
             TrustedAuthenticationAuthority.None,
-            "alerts@bank.test");
+            ["alerts@bank.test"],
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.NotEstablished, authentication.Outcome);
@@ -104,7 +105,7 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header(TrustedIdentifier, Dkim("pass", "sender-relay.test")) };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Authenticated, authentication.Outcome);
@@ -121,7 +122,7 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header(TrustedIdentifier, Dkim("pass", "Bank.Test")) };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "Alerts@BANK.test");
+        var authentication = Read(headers, ["Alerts@BANK.test"]);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, authentication.AuthorAuthentication);
@@ -136,7 +137,7 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header(TrustedIdentifier, Spf("pass", "bounce@bank.test")) };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, authentication.AuthorAuthentication);
@@ -159,7 +160,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal("PROVIDER.TEST", authentication.DkimDomain?.NormalizedValue);
@@ -181,7 +182,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Authenticated, authentication.Outcome);
@@ -204,7 +205,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, authentication.AuthorAuthentication);
@@ -225,7 +226,7 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header(TrustedIdentifier, Dkim("pass", "mail.bank.test")) };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, authentication.AuthorAuthentication);
@@ -244,7 +245,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "news@signer.test");
+        var authentication = Read(headers, ["news@signer.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationMethod.DomainKeysIdentifiedMail, authentication.AuthenticatedBy);
@@ -261,7 +262,7 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header(TrustedIdentifier, Dkim("fail", "signer.test"), Spf("pass", "bounce@relay.test")) };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "news@relay.test");
+        var authentication = Read(headers, ["news@relay.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Authenticated, authentication.Outcome);
@@ -287,7 +288,7 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header(TrustedIdentifier, Spf(result, "bounce@relay.test")) };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "news@relay.test");
+        var authentication = Read(headers, ["news@relay.test"]);
 
         // Assert
         Assert.Equal(expectedOutcome, authentication.Outcome);
@@ -304,7 +305,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "news@relay.test");
+        var authentication = Read(headers, ["news@relay.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.NotEstablished, authentication.Outcome);
@@ -321,7 +322,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "news@relay.test");
+        var authentication = Read(headers, ["news@relay.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.NotEstablished, authentication.Outcome);
@@ -348,7 +349,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(expected, authentication.Dmarc);
@@ -368,7 +369,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Failed, authentication.Outcome);
@@ -388,7 +389,7 @@ public sealed class SenderAuthenticationReadingTests
         };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, "alerts@bank.test");
+        var authentication = Read(headers, ["alerts@bank.test"]);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Authenticated, authentication.Outcome);
@@ -403,7 +404,7 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header(TrustedIdentifier, Dkim("pass", "bank.test")) };
 
         // Act
-        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, displayedSenderAddress: null);
+        var authentication = Read(headers, fromAddresses: []);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Authenticated, authentication.Outcome);
@@ -411,6 +412,225 @@ public sealed class SenderAuthenticationReadingTests
         Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, authentication.AuthorAuthentication);
         Assert.Null(authentication.AuthenticatedAuthorDomain);
     }
+
+    /// <summary>A DMARC result other than a failure counts only where it is about the first <c>From</c> mailbox's domain.</summary>
+    [Theory]
+    [InlineData("pass", "bank.test", DmarcOutcome.Pass)]
+    [InlineData("pass", "Bank.Test", DmarcOutcome.Pass)]
+    [InlineData("pass", "other.test", DmarcOutcome.NotReported)]
+    [InlineData("pass", "mail.bank.test", DmarcOutcome.NotReported)]
+    [InlineData("pass", null, DmarcOutcome.NotReported)]
+    [InlineData("none", "other.test", DmarcOutcome.NotReported)]
+    [InlineData("temperror", null, DmarcOutcome.NotReported)]
+    [InlineData("permerror", "bank.test", DmarcOutcome.PermanentError)]
+    public void Read_DmarcResultOtherThanAFailure_CountsOnlyForTheDisplayedDomain(
+        string result,
+        string? headerFrom,
+        DmarcOutcome expected)
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Dmarc(result, headerFrom)) };
+
+        // Act
+        var authentication = Read(headers, ["alerts@bank.test", "news@second.test"]);
+
+        // Assert
+        Assert.Equal(expected, authentication.Dmarc);
+    }
+
+    /// <summary>A failure counts for any <c>From</c> mailbox's domain, or naming none, so a refusal is never discarded.</summary>
+    [Theory]
+    [InlineData("bank.test", DmarcOutcome.Fail)]
+    [InlineData("second.test", DmarcOutcome.Fail)]
+    [InlineData(null, DmarcOutcome.Fail)]
+    [InlineData("other.test", DmarcOutcome.NotReported)]
+    public void Read_DmarcFailure_CountsForAnyDisplayedDomainOrNone(string? headerFrom, DmarcOutcome expected)
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Dmarc("fail", headerFrom)) };
+
+        // Act
+        var authentication = Read(headers, ["alerts@bank.test", "news@second.test"]);
+
+        // Assert
+        Assert.Equal(expected, authentication.Dmarc);
+    }
+
+    /// <summary>A counting failure beside a counting pass is the failure, whichever the header listed first.</summary>
+    [Fact]
+    public void Read_CountingPassBesideACountingFailure_ReadsAsAFailure()
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Dmarc("pass", "bank.test"), Dmarc("fail", null)) };
+
+        // Act
+        var authentication = Read(headers, ["alerts@bank.test"]);
+
+        // Assert
+        Assert.Equal(DmarcOutcome.Fail, authentication.Dmarc);
+        Assert.Equal(AuthorAuthenticationOutcome.Failed, authentication.AuthorAuthentication);
+    }
+
+    /// <summary>A result that does not count is passed over for the first one that does.</summary>
+    [Fact]
+    public void Read_ResultAboutAnotherDomainFirst_TakesTheFirstThatCounts()
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Dmarc("pass", "other.test"), Dmarc("none", "bank.test")) };
+
+        // Act
+        var authentication = Read(headers, ["alerts@bank.test"]);
+
+        // Assert
+        Assert.Equal(DmarcOutcome.NoPolicyPublished, authentication.Dmarc);
+    }
+
+    /// <summary>Where several routes hold, the strongest is recorded, so the record names what the author rests on.</summary>
+    [Theory]
+    [InlineData(true, true, true, AuthorAuthenticationRoute.DmarcPass)]
+    [InlineData(false, true, true, AuthorAuthenticationRoute.AlignedDkim)]
+    [InlineData(false, false, true, AuthorAuthenticationRoute.AlignedSpf)]
+    [InlineData(true, false, false, AuthorAuthenticationRoute.DmarcPass)]
+    public void Read_RoutesThatHold_RecordsTheStrongest(
+        bool dmarcPass,
+        bool alignedDkim,
+        bool alignedSpf,
+        AuthorAuthenticationRoute expected)
+    {
+        // Arrange
+        var headers = new[]
+        {
+            Header(
+                TrustedIdentifier,
+                Dkim("pass", alignedDkim ? "bank.test" : "provider.test"),
+                Spf("pass", alignedSpf ? "bounce@bank.test" : "bounce@provider.test"),
+                Dmarc(dmarcPass ? "pass" : "temperror", "bank.test")),
+        };
+
+        // Act
+        var authentication = Read(headers, ["alerts@bank.test"]);
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationOutcome.Authenticated, authentication.AuthorAuthentication);
+        Assert.Equal(expected, authentication.AuthorAuthenticationRoute);
+        Assert.Equal("BANK.TEST", authentication.AuthenticatedAuthorDomain?.NormalizedValue);
+    }
+
+    /// <summary>A domain asking for strict alignment refuses a signature from a name beneath it, which SPF may still carry.</summary>
+    [Fact]
+    public void Read_StrictRecordAndASignatureFromBeneath_FallsToSpfAlone()
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Dkim("pass", "mail.bank.test"), Spf("pass", "bounce@bank.test")) };
+        var strict = DmarcRecordLookup.Found(new DmarcRecord(DkimAlignmentMode.Strict));
+
+        // Act
+        var authentication = SenderAuthenticationReading.Read(headers, TrustedAuthority, ["alerts@bank.test"], strict);
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationRoute.AlignedSpf, authentication.AuthorAuthenticationRoute);
+    }
+
+    /// <summary>A record that could not be read aligns no signature, and leaves the author not established rather than failed.</summary>
+    [Fact]
+    public void Read_RecordThatCouldNotBeRead_EstablishesNoAuthorByDkim()
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Dkim("pass", "bank.test")) };
+
+        // Act
+        var authentication = SenderAuthenticationReading.Read(
+            headers,
+            TrustedAuthority,
+            ["alerts@bank.test"],
+            DmarcRecordLookup.NotReadable);
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, authentication.AuthorAuthentication);
+        Assert.Equal(AuthorAuthenticationRoute.None, authentication.AuthorAuthenticationRoute);
+    }
+
+    /// <summary>A server that found no record, or an unusable one, has answered the lookup: DKIM aligns by the relation.</summary>
+    [Theory]
+    [InlineData("none")]
+    [InlineData("permerror")]
+    public void Read_ServerFoundNoUsableRecord_AlignsDkimWithoutALookup(string result)
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Dkim("pass", "mail.bank.test"), Dmarc(result, "bank.test")) };
+
+        // Act
+        var authentication = SenderAuthenticationReading.Read(
+            headers,
+            TrustedAuthority,
+            ["alerts@bank.test"],
+            DmarcRecordLookup.NotReadable);
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationRoute.AlignedDkim, authentication.AuthorAuthenticationRoute);
+    }
+
+    /// <summary>The record is asked for where the server left DKIM alignment open and a verified signature could align.</summary>
+    [Theory]
+    [InlineData(null, "bank.test", "BANK.TEST")]
+    [InlineData("temperror", "mail.bank.test", "BANK.TEST")]
+    [InlineData("pass", "bank.test", null)]
+    [InlineData("fail", "bank.test", null)]
+    [InlineData("none", "bank.test", null)]
+    [InlineData("permerror", "bank.test", null)]
+    [InlineData(null, "provider.test", null)]
+    [InlineData("pass", "other.test", null)]
+    public void DomainWhoseDmarcRecordDecides_ServerVerdict_AsksOnlyWhereItLeftAlignmentOpen(
+        string? dmarcResult,
+        string signingDomain,
+        string? expected)
+    {
+        // Arrange
+        ReportedAuthenticationMethod[] methods = dmarcResult is null
+            ? [Dkim("pass", signingDomain)]
+            : [Dkim("pass", signingDomain), Dmarc(dmarcResult, "bank.test")];
+        var headers = new[] { Header(TrustedIdentifier, methods) };
+
+        // Act
+        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(headers, TrustedAuthority, ["alerts@bank.test"]);
+
+        // Assert
+        Assert.Equal(expected, domain?.NormalizedValue);
+    }
+
+    /// <summary>A pass about another domain does not count, so the record still decides and is asked for.</summary>
+    [Fact]
+    public void DomainWhoseDmarcRecordDecides_PassAboutAnotherDomain_AsksForTheDisplayedDomainsRecord()
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Dkim("pass", "bank.test"), Dmarc("pass", "other.test")) };
+
+        // Act
+        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(headers, TrustedAuthority, ["alerts@bank.test"]);
+
+        // Assert
+        Assert.Equal("BANK.TEST", domain?.NormalizedValue);
+    }
+
+    /// <summary>A message no trusted server spoke about leaves nothing for the record to decide here.</summary>
+    [Fact]
+    public void DomainWhoseDmarcRecordDecides_NoTrustedHeader_AsksForNothing()
+    {
+        // Arrange
+        var headers = new[] { Header("someone.else.test", Dkim("pass", "bank.test")) };
+
+        // Act
+        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(headers, TrustedAuthority, ["alerts@bank.test"]);
+
+        // Assert
+        Assert.Null(domain);
+    }
+
+    private static SenderAuthentication Read(AuthenticationResultsHeader[] headers, string[] fromAddresses) =>
+        SenderAuthenticationReading.Read(headers, TrustedAuthority, fromAddresses, DmarcRecordLookup.NotPublished);
+
+    private static ReportedAuthenticationMethod Dmarc(string result, string? headerFrom) =>
+        new("dmarc", result, headerFrom is null ? [] : [Property("header", "from", headerFrom)]);
 
     private static TrustedAuthenticationAuthority CreateAuthority(string identifier)
     {

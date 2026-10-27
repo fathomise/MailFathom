@@ -9,8 +9,10 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// <para>
 /// This is the whole of MailFathom's reasoning about who sent a message, and it is deliberately small. It selects the
 /// one header the account's configured authority produced, reads the identities that header states, and records them.
-/// It resolves no DNS, verifies no signature, evaluates no policy, and reads no <c>Received</c> chain — a message's
-/// authenticity was decided by the server that observed the connection, and nothing after delivery can decide it again.
+/// It verifies no signature, evaluates no policy, and reads no <c>Received</c> chain — a message's authenticity was
+/// decided by the server that observed the connection, and nothing after delivery can decide it again. The one thing it
+/// may need from outside is the displayed domain's DMARC record, for its alignment mode where the server reported no
+/// DMARC result that counts; <see cref="DomainWhoseDmarcRecordDecides" /> says when, and the caller looks it up.
 /// </para>
 /// <para>
 /// The selection rule is the security property rather than a detail of it. Every other <c>Authentication-Results</c>
@@ -51,25 +53,33 @@ public static class SenderAuthenticationReading
     /// <summary>The property naming the domain a DKIM signature was made for.</summary>
     private const string DkimDomainProperty = "d";
 
+    /// <summary>The property naming the domain a DMARC evaluation was about.</summary>
+    private const string HeaderFromProperty = "from";
+
     /// <summary>The property naming the envelope sender an SPF check evaluated.</summary>
     private const string SpfMailFromProperty = "mailfrom";
 
     /// <summary>Reads the verdict one message's headers support.</summary>
     /// <param name="headers">Every <c>Authentication-Results</c> header the message carried, topmost first.</param>
     /// <param name="authority">The one server this account believes, which may name none.</param>
-    /// <param name="displayedSenderAddress">The address the message's <c>From</c> header wrote, where it wrote one.</param>
+    /// <param name="fromAddresses">Every address the message's <c>From</c> header wrote, in order; the first is the displayed author.</param>
+    /// <param name="dmarcRecord">
+    /// What looking for the displayed domain's DMARC record found, where <see cref="DomainWhoseDmarcRecordDecides" />
+    /// asked for it, and <see cref="DmarcRecordLookup.NotReadable" /> where nothing was looked up.
+    /// </param>
     /// <returns>The verdict, which is the not-established one wherever nothing trusted could be read.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="headers" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     public static SenderAuthentication Read(
         IReadOnlyList<AuthenticationResultsHeader> headers,
         TrustedAuthenticationAuthority authority,
-        string? displayedSenderAddress)
+        IReadOnlyList<string> fromAddresses,
+        DmarcRecordLookup dmarcRecord)
     {
         ArgumentNullException.ThrowIfNull(headers);
+        ArgumentNullException.ThrowIfNull(fromAddresses);
+        ArgumentNullException.ThrowIfNull(dmarcRecord);
 
-        var fromDomain = SenderDomain.TryCreateFromMailbox(displayedSenderAddress, out var displayed)
-            ? displayed
-            : default(SenderDomain?);
+        var fromDomain = DisplayedDomainOf(fromAddresses);
 
         // An account that trusts no server believes no header, so the search below is skipped rather than run against
         // an authority that matches nothing. The two paths reach the same verdict; separating them is what keeps the
@@ -79,18 +89,52 @@ public static class SenderAuthenticationReading
             return SenderAuthentication.NotEstablished(fromDomain);
         }
 
-        var dmarc = ReadDmarcOutcome(trustedHeader.Methods);
+        var dmarc = ReadDmarcOutcome(trustedHeader.Methods, fromAddresses);
         var dkimDomains = ReadVerifiedDkimDomains(trustedHeader.Methods);
         var spfDomains = ReadPassedSpfDomains(trustedHeader.Methods);
 
         if (dkimDomains.Count > 0 || spfDomains.Count > 0)
         {
-            return SenderAuthentication.Authenticated(dkimDomains, spfDomains, fromDomain, dmarc);
+            return SenderAuthentication.Authenticated(dkimDomains, spfDomains, fromDomain, dmarc, dmarcRecord);
         }
 
         return WasIdentityAttempted(trustedHeader.Methods)
             ? SenderAuthentication.Failed(fromDomain, dmarc)
             : SenderAuthentication.NotEstablished(fromDomain, dmarc);
+    }
+
+    /// <summary>Names the domain whose DMARC record the verdict depends on, where it depends on one.</summary>
+    /// <param name="headers">Every <c>Authentication-Results</c> header the message carried, topmost first.</param>
+    /// <param name="authority">The one server this account believes, which may name none.</param>
+    /// <param name="fromAddresses">Every address the message's <c>From</c> header wrote, in order.</param>
+    /// <returns>
+    /// The displayed domain, where the server reported no DMARC result that counts or only a temporary error and a DKIM
+    /// signature it verified could align; otherwise <see langword="null" />, and no lookup is made.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="headers" /> or <paramref name="fromAddresses" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// A server's <c>pass</c> and <c>fail</c> settle the author without the record, and its <c>none</c> and
+    /// <c>permerror</c> say it already found no usable one. A signature on another branch of the naming tree could not
+    /// align under any record, so it buys no lookup either.
+    /// </remarks>
+    public static SenderDomain? DomainWhoseDmarcRecordDecides(
+        IReadOnlyList<AuthenticationResultsHeader> headers,
+        TrustedAuthenticationAuthority authority,
+        IReadOnlyList<string> fromAddresses)
+    {
+        ArgumentNullException.ThrowIfNull(headers);
+        ArgumentNullException.ThrowIfNull(fromAddresses);
+
+        if (DisplayedDomainOf(fromAddresses) is not { } fromDomain
+            || FindTrustedHeader(headers, authority) is not { } trustedHeader
+            || ReadDmarcOutcome(trustedHeader.Methods, fromAddresses) is not (DmarcOutcome.NotReported or DmarcOutcome.TemporaryError))
+        {
+            return null;
+        }
+
+        return ReadVerifiedDkimDomains(trustedHeader.Methods).Any(signing => signing.SharesBranchWith(fromDomain))
+            ? fromDomain
+            : null;
     }
 
     /// <summary>Answers whether the account's trusted server wrote a statement about this message at all.</summary>
@@ -179,19 +223,64 @@ public static class SenderAuthenticationReading
             && !Is(candidate.Result, PassResult)
             && !Is(candidate.Result, NoneResult));
 
-    /// <summary>Reads what the server reported for DMARC, or that it reported nothing.</summary>
-    private static DmarcOutcome ReadDmarcOutcome(IReadOnlyList<ReportedAuthenticationMethod> methods) =>
-        methods
+    /// <summary>Reads the first address of a <c>From</c> header as the domain alignment is defined against.</summary>
+    private static SenderDomain? DisplayedDomainOf(IReadOnlyList<string> fromAddresses) =>
+        fromAddresses.Count > 0 && SenderDomain.TryCreateFromMailbox(fromAddresses[0], out var displayed)
+            ? displayed
+            : null;
+
+    /// <summary>Reads what the server reported for DMARC about the displayed author, or that it reported nothing that counts.</summary>
+    /// <remarks>
+    /// <para>
+    /// Each result is held to the domain its <c>header.from</c> property names, because a header may carry results about
+    /// several domains and only one of them is the author a reader is shown. A <c>pass</c>, <c>none</c>,
+    /// <c>temperror</c>, or <c>permerror</c> counts only where it names the domain of the first <c>From</c> mailbox; a
+    /// <c>pass</c> naming nothing would let a result about some other domain stand in for the author's.
+    /// </para>
+    /// <para>
+    /// A <c>fail</c> counts where it names the domain of any <c>From</c> mailbox, or names none, because discarding a
+    /// refusal over a missing property would turn a warning into silence. Any counting <c>fail</c> wins over a counting
+    /// <c>pass</c> beside it; otherwise the first result that counts is the answer.
+    /// </para>
+    /// </remarks>
+    private static DmarcOutcome ReadDmarcOutcome(
+        IReadOnlyList<ReportedAuthenticationMethod> methods,
+        IReadOnlyList<string> fromAddresses)
+    {
+        var fromDomains = fromAddresses
+            .Select(static address => SenderDomain.TryCreateFromMailbox(address, out var domain) ? domain : default(SenderDomain?))
+            .ToArray();
+        var displayed = fromDomains.FirstOrDefault();
+
+        var counted = methods
             .Where(candidate => Is(candidate.Method, DmarcMethod))
-            .Select(static candidate => candidate.Result?.Trim().ToUpperInvariant() switch
-            {
-                "PASS" => DmarcOutcome.Pass,
-                "FAIL" => DmarcOutcome.Fail,
-                "NONE" => DmarcOutcome.NoPolicyPublished,
-                "TEMPERROR" => DmarcOutcome.TemporaryError,
-                "PERMERROR" => DmarcOutcome.PermanentError,
-                _ => DmarcOutcome.NotReported,
-            })
+            .Select(candidate => (Outcome: DmarcOutcomeOf(candidate.Result), EvaluatedDomain: HeaderFromOf(candidate)))
+            .Where(result => result.Outcome == DmarcOutcome.Fail
+                ? result.EvaluatedDomain is not { } named || fromDomains.Contains(named)
+                : result.Outcome != DmarcOutcome.NotReported && displayed is { } author && result.EvaluatedDomain == author)
+            .Select(static result => result.Outcome)
+            .ToArray();
+
+        return counted.Contains(DmarcOutcome.Fail) ? DmarcOutcome.Fail : counted.FirstOrDefault();
+    }
+
+    /// <summary>Reads one DMARC result token, mapping one this reading does not know to nothing reported.</summary>
+    private static DmarcOutcome DmarcOutcomeOf(string? result) =>
+        result?.Trim().ToUpperInvariant() switch
+        {
+            "PASS" => DmarcOutcome.Pass,
+            "FAIL" => DmarcOutcome.Fail,
+            "NONE" => DmarcOutcome.NoPolicyPublished,
+            "TEMPERROR" => DmarcOutcome.TemporaryError,
+            "PERMERROR" => DmarcOutcome.PermanentError,
+            _ => DmarcOutcome.NotReported,
+        };
+
+    /// <summary>Reads the domain a DMARC result names as evaluated, or nothing where it names none it can be compared on.</summary>
+    private static SenderDomain? HeaderFromOf(ReportedAuthenticationMethod method) =>
+        method.Properties
+            .Where(property => Is(property.Type, HeaderPropertyType) && Is(property.Name, HeaderFromProperty))
+            .Select(property => TryReadDomain(property.Value))
             .FirstOrDefault();
 
     /// <summary>Compares one RFC 8601 token with the token it is expected to be, which the grammar makes case-insensitive.</summary>

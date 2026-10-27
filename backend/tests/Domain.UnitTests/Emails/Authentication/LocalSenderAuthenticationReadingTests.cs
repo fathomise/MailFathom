@@ -17,7 +17,11 @@ public sealed class LocalSenderAuthenticationReadingTests
         var signingDomain = DomainOf("signer.example.test");
 
         // Act
-        var verdict = LocalSenderAuthenticationReading.Read([signingDomain], anySignatureRejected: false, "anna@signer.example.test");
+        var verdict = LocalSenderAuthenticationReading.Read(
+            [signingDomain],
+            anySignatureRejected: false,
+            "anna@signer.example.test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Authenticated, verdict.Outcome);
@@ -33,7 +37,11 @@ public sealed class LocalSenderAuthenticationReadingTests
     public void Read_AnyOutcome_NamesLocalVerificationAsTheSource(bool anySignatureRejected)
     {
         // Act
-        var verdict = LocalSenderAuthenticationReading.Read([], anySignatureRejected, "anna@example.test");
+        var verdict = LocalSenderAuthenticationReading.Read(
+            [],
+            anySignatureRejected,
+            "anna@example.test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(SenderAuthenticationSource.LocalVerification, verdict.Source);
@@ -47,7 +55,8 @@ public sealed class LocalSenderAuthenticationReadingTests
         var verdict = LocalSenderAuthenticationReading.Read(
             [DomainOf("signer.example.test")],
             anySignatureRejected: false,
-            "anna@signer.example.test");
+            "anna@signer.example.test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Null(verdict.SpfDomain);
@@ -62,7 +71,8 @@ public sealed class LocalSenderAuthenticationReadingTests
         var verdict = LocalSenderAuthenticationReading.Read(
             [DomainOf("signer.example.test")],
             anySignatureRejected: false,
-            "anna@signer.example.test");
+            "anna@signer.example.test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, verdict.AuthorAuthentication);
@@ -81,7 +91,8 @@ public sealed class LocalSenderAuthenticationReadingTests
         var verdict = LocalSenderAuthenticationReading.Read(
             [DomainOf("mail.signer.example.test")],
             anySignatureRejected: false,
-            "anna@signer.example.test");
+            "anna@signer.example.test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, verdict.AuthorAuthentication);
@@ -96,7 +107,8 @@ public sealed class LocalSenderAuthenticationReadingTests
         var verdict = LocalSenderAuthenticationReading.Read(
             [DomainOf("tenant.provider.example.test")],
             anySignatureRejected: false,
-            "anna@signer.example.test");
+            "anna@signer.example.test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, verdict.AuthorAuthentication);
@@ -111,7 +123,8 @@ public sealed class LocalSenderAuthenticationReadingTests
         var verdict = LocalSenderAuthenticationReading.Read(
             [DomainOf("relay.example.test"), DomainOf("bank.example.test")],
             anySignatureRejected: false,
-            "anna@bank.example.test");
+            "anna@bank.example.test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal("RELAY.EXAMPLE.TEST", verdict.AuthenticatedDomain?.NormalizedValue);
@@ -124,7 +137,11 @@ public sealed class LocalSenderAuthenticationReadingTests
     public void Read_ASignatureCheckedAndRejected_RecordsAFailure()
     {
         // Act
-        var verdict = LocalSenderAuthenticationReading.Read([], anySignatureRejected: true, "anna@signer.example.test");
+        var verdict = LocalSenderAuthenticationReading.Read(
+            [],
+            anySignatureRejected: true,
+            "anna@signer.example.test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Failed, verdict.Outcome);
@@ -136,7 +153,11 @@ public sealed class LocalSenderAuthenticationReadingTests
     public void Read_NothingCheckedAtAll_LeavesTheVerdictNotEstablished()
     {
         // Act
-        var verdict = LocalSenderAuthenticationReading.Read([], anySignatureRejected: false, "anna@signer.example.test");
+        var verdict = LocalSenderAuthenticationReading.Read(
+            [],
+            anySignatureRejected: false,
+            "anna@signer.example.test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.NotEstablished, verdict.Outcome);
@@ -148,7 +169,11 @@ public sealed class LocalSenderAuthenticationReadingTests
     public void Read_AMessageDisplayingAnAuthor_RecordsTheDisplayedDomain()
     {
         // Act
-        var verdict = LocalSenderAuthenticationReading.Read([], anySignatureRejected: true, "anna@Bank.Example.Test");
+        var verdict = LocalSenderAuthenticationReading.Read(
+            [],
+            anySignatureRejected: true,
+            "anna@Bank.Example.Test",
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal("BANK.EXAMPLE.TEST", verdict.FromDomain?.NormalizedValue);
@@ -159,7 +184,11 @@ public sealed class LocalSenderAuthenticationReadingTests
     public void Read_AMessageWritingNoUsableAuthor_RecordsNoDisplayedDomain()
     {
         // Act
-        var verdict = LocalSenderAuthenticationReading.Read([], anySignatureRejected: false, displayedSenderAddress: null);
+        var verdict = LocalSenderAuthenticationReading.Read(
+            [],
+            anySignatureRejected: false,
+            displayedSenderAddress: null,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Null(verdict.FromDomain);
@@ -171,7 +200,70 @@ public sealed class LocalSenderAuthenticationReadingTests
     {
         // Act, Assert
         Assert.Throws<ArgumentNullException>(() =>
-            LocalSenderAuthenticationReading.Read(null!, anySignatureRejected: false, "anna@example.test"));
+            LocalSenderAuthenticationReading.Read(
+                null!,
+                anySignatureRejected: false,
+                "anna@example.test",
+                DmarcRecordLookup.NotPublished));
+    }
+
+    /// <summary>An aligned signature records that DKIM established the author, and a local reading reports no DMARC result.</summary>
+    [Fact]
+    public void Read_AnAlignedSignature_RecordsAlignedDkim()
+    {
+        // Act
+        var verdict = LocalSenderAuthenticationReading.Read(
+            [DomainOf("signer.example.test")],
+            anySignatureRejected: false,
+            "anna@signer.example.test",
+            DmarcRecordLookup.Found(new DmarcRecord(DkimAlignmentMode.Strict)));
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationRoute.AlignedDkim, verdict.AuthorAuthenticationRoute);
+        Assert.Equal(DmarcOutcome.NotReported, verdict.Dmarc);
+    }
+
+    /// <summary>
+    /// A local reading never fails an author, under any record: a signature the record refuses, or a record that could not
+    /// be read, leaves the author not established.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Read_ASignatureTheRecordDoesNotAlign_LeavesTheAuthorNotEstablishedRatherThanFailed(bool recordReadable)
+    {
+        // Act
+        var verdict = LocalSenderAuthenticationReading.Read(
+            [DomainOf("mail.signer.example.test")],
+            anySignatureRejected: false,
+            "anna@signer.example.test",
+            recordReadable ? DmarcRecordLookup.Found(new DmarcRecord(DkimAlignmentMode.Strict)) : DmarcRecordLookup.NotReadable);
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, verdict.AuthorAuthentication);
+        Assert.Equal(AuthorAuthenticationRoute.None, verdict.AuthorAuthenticationRoute);
+        Assert.Null(verdict.AuthenticatedAuthorDomain);
+    }
+
+    /// <summary>The record is worth asking for only where a verified signing name lies on the displayed domain's branch.</summary>
+    [Theory]
+    [InlineData("signer.example.test", "anna@signer.example.test", "SIGNER.EXAMPLE.TEST")]
+    [InlineData("mail.signer.example.test", "anna@signer.example.test", "SIGNER.EXAMPLE.TEST")]
+    [InlineData("example.test", "anna@signer.example.test", "SIGNER.EXAMPLE.TEST")]
+    [InlineData("other.example.test", "anna@signer.example.test", null)]
+    [InlineData("signer.example.test", null, null)]
+    public void DomainWhoseDmarcRecordDecides_AVerifiedSignature_NamesTheDisplayedDomainOnlyWhereItCouldAlign(
+        string signingDomain,
+        string? displayedSenderAddress,
+        string? expected)
+    {
+        // Act
+        var domain = LocalSenderAuthenticationReading.DomainWhoseDmarcRecordDecides(
+            [DomainOf(signingDomain)],
+            displayedSenderAddress);
+
+        // Assert
+        Assert.Equal(expected, domain?.NormalizedValue);
     }
 
     private static SenderDomain DomainOf(string value)

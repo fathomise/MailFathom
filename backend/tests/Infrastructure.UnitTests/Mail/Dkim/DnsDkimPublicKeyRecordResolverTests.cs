@@ -137,7 +137,7 @@ public sealed class DnsDkimPublicKeyRecordResolverTests
         var timeProvider = new FakeTimeProvider();
         var resolver = new DnsDkimPublicKeyRecordResolver(
             lookup,
-            new DkimPublicKeyRecordCache(timeProvider),
+            new DnsRecordCache(timeProvider),
             timeProvider,
             TimeSpan.FromSeconds(5));
 
@@ -203,7 +203,7 @@ public sealed class DnsDkimPublicKeyRecordResolverTests
     {
         var timeProvider = new FakeTimeProvider();
 
-        return new DnsDkimPublicKeyRecordResolver(lookup, new DkimPublicKeyRecordCache(timeProvider), timeProvider);
+        return new DnsDkimPublicKeyRecordResolver(lookup, new DnsRecordCache(timeProvider), timeProvider);
     }
 
     /// <summary>Answers every query with the records a test named, or with none at all.</summary>

@@ -200,7 +200,13 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     /// The displayed sender is taken from <c>From</c> alone and never from <c>Sender</c>, unlike the participant a
     /// timeline names. The two headers answer different questions: the timeline wants whoever the message is from for a
     /// reader, while alignment is defined against the domain a mail client shows, which is <c>From</c>'s. The first
-    /// mailbox wins where the header carried several, because a message can display only one sender.
+    /// mailbox is the author where the header carried several, because a message can display only one sender; the rest
+    /// are handed over because a server's DMARC <c>fail</c> about any of them still counts.
+    /// </para>
+    /// <para>
+    /// Where the server's verdict leaves DKIM alignment open, the displayed domain's DMARC record is read for it through
+    /// the same verifier, so a deployment that switched local verification off asks DNS nothing on either path and DKIM
+    /// aligns only where the server reported a DMARC result that settles it.
     /// </para>
     /// </remarks>
     private async Task<SenderAuthentication> ReadSenderAuthenticationAsync(
@@ -210,14 +216,22 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     {
         var headers = AuthenticationResultsHeaderReader.Read(message);
         var authority = await this.trustedAuthorities.GetTrustedAuthorityAsync(accountId, cancellationToken);
-        var displayedSenderAddress = message.From.Mailboxes.FirstOrDefault()?.Address;
+        string[] fromAddresses = [.. message.From.Mailboxes.Select(static mailbox => mailbox.Address)];
 
-        if (this.localSenderVerifier is { } verifier
-            && !SenderAuthenticationReading.FindsTrustedStatement(headers, authority))
+        if (this.localSenderVerifier is not { } verifier)
         {
-            return await verifier.VerifyAsync(message, displayedSenderAddress, cancellationToken);
+            return SenderAuthenticationReading.Read(headers, authority, fromAddresses, DmarcRecordLookup.NotReadable);
         }
 
-        return SenderAuthenticationReading.Read(headers, authority, displayedSenderAddress);
+        if (!SenderAuthenticationReading.FindsTrustedStatement(headers, authority))
+        {
+            return await verifier.VerifyAsync(message, fromAddresses.FirstOrDefault(), cancellationToken);
+        }
+
+        var dmarcRecord = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(headers, authority, fromAddresses) is { } fromDomain
+            ? await verifier.ReadDmarcRecordAsync(fromDomain, cancellationToken)
+            : DmarcRecordLookup.NotReadable;
+
+        return SenderAuthenticationReading.Read(headers, authority, fromAddresses, dmarcRecord);
     }
 }

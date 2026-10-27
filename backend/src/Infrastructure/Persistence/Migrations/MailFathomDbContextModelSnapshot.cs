@@ -3758,6 +3758,13 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasDefaultValue("NotEstablished");
 
+                    b.Property<string>("AuthorAuthenticationRoute")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("None");
+
                     b.Property<DateTimeOffset?>("AuthoredDeleteFlaggedAt")
                         .HasColumnType("timestamp with time zone");
 

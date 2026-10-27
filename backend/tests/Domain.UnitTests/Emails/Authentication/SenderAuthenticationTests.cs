@@ -18,7 +18,8 @@ public sealed class SenderAuthenticationTests
             dkimDomains: [],
             spfDomains: [],
             fromDomain: null,
-            DmarcOutcome.NotReported);
+            DmarcOutcome.NotReported,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Throws<ArgumentException>(creating);
@@ -80,7 +81,8 @@ public sealed class SenderAuthenticationTests
             [signingDomain],
             spfDomains: [],
             displayed,
-            DmarcOutcome.Pass);
+            DmarcOutcome.Pass,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, authentication.AuthorAuthentication);
@@ -111,7 +113,8 @@ public sealed class SenderAuthenticationTests
             throughDkim ? [displayed] : [relay],
             throughDkim ? [] : [displayed],
             displayed,
-            dmarc);
+            dmarc,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, authentication.AuthorAuthentication);
@@ -136,7 +139,8 @@ public sealed class SenderAuthenticationTests
             [provider, displayed],
             spfDomains: [],
             displayed,
-            DmarcOutcome.NotReported);
+            DmarcOutcome.NotReported,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, authentication.AuthorAuthentication);
@@ -165,7 +169,8 @@ public sealed class SenderAuthenticationTests
             throughDkim ? [displayed] : [relay],
             throughDkim ? [] : [displayed],
             displayed,
-            DmarcOutcome.Fail);
+            DmarcOutcome.Fail,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Failed, authentication.AuthorAuthentication);
@@ -190,7 +195,7 @@ public sealed class SenderAuthenticationTests
         SenderDomain.TryCreate("bank.test", out var displayed);
 
         // Act
-        var authentication = SenderAuthentication.Authenticated([attacker], [attacker], displayed, dmarc);
+        var authentication = SenderAuthentication.Authenticated([attacker], [attacker], displayed, dmarc, DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Authenticated, authentication.Outcome);
@@ -222,7 +227,8 @@ public sealed class SenderAuthenticationTests
             [signer],
             spfDomains: [],
             displayed,
-            DmarcOutcome.NotReported);
+            DmarcOutcome.NotReported,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, authentication.AuthorAuthentication);
@@ -247,7 +253,8 @@ public sealed class SenderAuthenticationTests
             [signer],
             spfDomains: [],
             displayed,
-            DmarcOutcome.NotReported);
+            DmarcOutcome.NotReported,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, authentication.AuthorAuthentication);
@@ -272,7 +279,8 @@ public sealed class SenderAuthenticationTests
             [signer],
             spfDomains: [],
             displayed,
-            DmarcOutcome.NotReported);
+            DmarcOutcome.NotReported,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, authentication.AuthorAuthentication);
@@ -296,7 +304,8 @@ public sealed class SenderAuthenticationTests
             [signer],
             spfDomains: [],
             displayed,
-            DmarcOutcome.Fail);
+            DmarcOutcome.Fail,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.Failed, authentication.AuthorAuthentication);
@@ -334,7 +343,8 @@ public sealed class SenderAuthenticationTests
             [signer],
             spfDomains: [],
             fromDomain: null,
-            DmarcOutcome.Pass);
+            DmarcOutcome.Pass,
+            DmarcRecordLookup.NotPublished);
 
         // Assert
         Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, authentication.AuthorAuthentication);

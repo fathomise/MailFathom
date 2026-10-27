@@ -211,7 +211,11 @@ internal static class SpamClassificationScenario
             Sender = new SenderVerification
             {
                 AuthorAuthentication = SenderAuthenticationReading
-                    .Read(AuthenticationResultsHeaderReader.Read(message), Authority, scenario.Mail.SenderAddress)
+                    .Read(
+                        AuthenticationResultsHeaderReader.Read(message),
+                        Authority,
+                        [scenario.Mail.SenderAddress],
+                        DmarcRecordLookup.NotPublished)
                     .AuthorAuthentication,
                 DeploymentTrust = scenario.Mail.IsSenderTrusted ? SenderTrustLevel.Trusted : SenderTrustLevel.Unknown,
             },

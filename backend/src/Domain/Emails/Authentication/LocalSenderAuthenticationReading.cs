@@ -15,15 +15,17 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// <para>
 /// A locally reached verdict is narrower than a server-written one and the narrowing is structural rather than
 /// incidental. SPF authenticates an envelope sender against a connecting address and after delivery there is neither,
-/// so no SPF identity is ever produced here; a DMARC result needs the displayed domain's published policy and its
-/// alignment mode, so none is reported either. What is left is the one check the stored bytes still answer, and it is
-/// the stronger of the two: a key the signing domain publishes signed exactly these octets.
+/// so no SPF identity is ever produced here; a DMARC result needs SPF as well, so none is reported either. What is left
+/// is the one check the stored bytes still answer, and it is the stronger of the two: a key the signing domain
+/// publishes signed exactly these octets.
 /// </para>
 /// <para>
 /// The author conclusion follows from the same rule the trusted reading uses and is neither relaxed nor tightened for
 /// running here. An author is established by a verified signature whose domain is the displayed one or is one within
-/// the other at a label boundary, which is a delegation in the naming tree rather than a policy — and a policy is what
-/// MailFathom still has none of, so a signer outside that branch establishes nothing.
+/// the other at a label boundary, narrowed to equality where the displayed domain's DMARC record asks for
+/// <c>adkim=s</c>, and not at all where that record could not be read. It is never failed, under any policy the
+/// record states: a receiving server that enforces DMARC never delivers a <c>reject</c> failure, so a message here that
+/// does not align almost always passed at the server through SPF, or was rewritten after delivery.
 /// </para>
 /// </remarks>
 public static class LocalSenderAuthenticationReading
@@ -45,26 +47,53 @@ public static class LocalSenderAuthenticationReading
     /// is not a rejection and must not be reported as one.
     /// </param>
     /// <param name="displayedSenderAddress">The address the message's <c>From</c> header wrote, where it wrote one.</param>
+    /// <param name="dmarcRecord">
+    /// What looking for the displayed domain's DMARC record found, where <see cref="DomainWhoseDmarcRecordDecides" />
+    /// asked for it, and <see cref="DmarcRecordLookup.NotReadable" /> where nothing was looked up.
+    /// </param>
     /// <returns>The verdict, which names <see cref="SenderAuthenticationSource.LocalVerification" /> whatever it says.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="verifiedSigningDomains" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="verifiedSigningDomains" /> or <paramref name="dmarcRecord" /> is <see langword="null" />.</exception>
     public static SenderAuthentication Read(
         IReadOnlyList<SenderDomain> verifiedSigningDomains,
         bool anySignatureRejected,
-        string? displayedSenderAddress)
+        string? displayedSenderAddress,
+        DmarcRecordLookup dmarcRecord)
     {
         ArgumentNullException.ThrowIfNull(verifiedSigningDomains);
+        ArgumentNullException.ThrowIfNull(dmarcRecord);
 
-        var fromDomain = SenderDomain.TryCreateFromMailbox(displayedSenderAddress, out var displayed)
-            ? displayed
-            : default(SenderDomain?);
+        var fromDomain = DisplayedDomainOf(displayedSenderAddress);
 
         if (verifiedSigningDomains.Count > 0)
         {
-            return SenderAuthentication.LocallyVerified(verifiedSigningDomains, fromDomain);
+            return SenderAuthentication.LocallyVerified(verifiedSigningDomains, fromDomain, dmarcRecord);
         }
 
         return anySignatureRejected
             ? SenderAuthentication.LocalVerificationFailed(fromDomain)
             : SenderAuthentication.LocalVerificationNotEstablished(fromDomain);
     }
+
+    /// <summary>Names the domain whose DMARC record decides whether a verified signature aligns, where one could.</summary>
+    /// <param name="verifiedSigningDomains">The domain of every signature that verified, in the order the message carried them.</param>
+    /// <param name="displayedSenderAddress">The address the message's <c>From</c> header wrote, where it wrote one.</param>
+    /// <returns>
+    /// The displayed domain, where a verified signing name lies on its branch of the naming tree; otherwise
+    /// <see langword="null" />, since no record could make any of them aligned and no lookup is worth making.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="verifiedSigningDomains" /> is <see langword="null" />.</exception>
+    public static SenderDomain? DomainWhoseDmarcRecordDecides(
+        IReadOnlyList<SenderDomain> verifiedSigningDomains,
+        string? displayedSenderAddress)
+    {
+        ArgumentNullException.ThrowIfNull(verifiedSigningDomains);
+
+        return DisplayedDomainOf(displayedSenderAddress) is { } fromDomain
+            && verifiedSigningDomains.Any(signing => signing.SharesBranchWith(fromDomain))
+            ? fromDomain
+            : null;
+    }
+
+    private static SenderDomain? DisplayedDomainOf(string? displayedSenderAddress) =>
+        SenderDomain.TryCreateFromMailbox(displayedSenderAddress, out var displayed) ? displayed : null;
 }
