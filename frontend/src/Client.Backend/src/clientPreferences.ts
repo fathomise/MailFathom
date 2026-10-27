@@ -132,12 +132,17 @@ export function readClientPreferences(
  * `telemetryEnabled` is `null` wherever the value a caller holds is not one the person gave it. A read answers the
  * switch as it is applied, which under a settings policy is the policy's answer rather than theirs — so a caller that
  * sent back what it read would state the policy's answer as the person's, and the deployment would keep it for them
- * after the policy is gone. Stating nothing leaves what the deployment holds for them exactly as it is, which is the
- * one preference whose omission is not its unset answer.
+ * after the policy is gone. Stating nothing leaves what the deployment holds for them exactly as it is. The trusted
+ * link domains are the other preference whose omission is not its unset answer, and this type leaves them out.
  */
-export type StatedClientPreferences = Omit<ClientPreferences, 'telemetryEnabled'> & {
+export type StatedClientPreferences = Omit<ClientPreferences, 'telemetryEnabled' | 'trustedLinkDomains'> & {
     readonly telemetryEnabled: boolean | null;
 };
+
+// The trusted list is never stated, whatever a caller hands over. No control edits it, so the client has nothing of
+// the person's to say about it, and the deployment keeps what it holds for a write that says nothing — where restating
+// a list this session never read, or read before it changed, would erase one set through the deployment's own route.
+const unstated = new Set(['trustedLinkDomains']);
 
 /**
  * States the whole document, and answers with what is now stored.
@@ -158,7 +163,9 @@ export function writeClientPreferences(
                 method: 'POST',
                 path: routeFor(session, clientPreferencesRoute),
                 headers: { ...headersFor(session), 'Content-Type': 'application/json' },
-                body: JSON.stringify(stated),
+                body: JSON.stringify(
+                    Object.fromEntries(Object.entries(stated).filter(([preference]) => !unstated.has(preference))),
+                ),
                 longestAnswer: longestPreferencesAnswer,
             }),
         );
@@ -205,7 +212,10 @@ function parsePreferences(body: string): ClientPreferences | null {
     const messageView = record['messageView'];
     const aiFiltersShown = record['aiFiltersShown'];
     const notificationSeconds = record['notificationSeconds'];
-    const trustedLinkDomains = record['trustedLinkDomains'];
+    // Absent is an answer from a replica built before the list existed, which a rolling upgrade puts beside one built
+    // after it. It holds no list to report, so it reads as the unset one; refusing it would leave the screen on a
+    // document of nothing but defaults for every other preference too.
+    const trustedLinkDomains = record['trustedLinkDomains'] ?? unsetClientPreferences.trustedLinkDomains;
 
     if (!isNotificationTime(notificationSeconds) || !isTrustedLinkDomainList(trustedLinkDomains)) {
         return null;

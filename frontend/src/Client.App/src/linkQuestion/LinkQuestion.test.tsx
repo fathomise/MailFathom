@@ -10,9 +10,11 @@ import { LinkOpenerContext, useLinkOpener, type FollowedLink, type OpenLink } fr
 import { LinkQuestion } from './LinkQuestion';
 
 const pressTheLink = 'Press the link';
+const pressEarlier = 'Press the earlier link';
+const pressLater = 'Press the later link';
 
 // A surface that opens one link the way every surface does, and says how the press settled.
-function Pressing({ link }: { readonly link: FollowedLink }) {
+function Pressing({ link, name = pressTheLink }: { readonly link: FollowedLink; readonly name?: string }) {
     const openLink = useLinkOpener();
     const [settled, setSettled] = useState('waiting');
 
@@ -31,7 +33,7 @@ function Pressing({ link }: { readonly link: FollowedLink }) {
                     );
                 }}
             >
-                {pressTheLink}
+                {name}
             </button>
             <p>{settled}</p>
         </>
@@ -89,17 +91,31 @@ describe('LinkQuestion', () => {
 
     it('settles a press another one replaced while it was asked, and opens only the later one', async () => {
         const opened = vi.fn<OpenLink>(() => Promise.resolve());
-        const followed = pressing({ target: 'https://nordwind-billing.example/' }, opened);
+        const earlier: FollowedLink = { target: 'https://earlier.example/', picture: false, words: null, warnings: [] };
+        const later: FollowedLink = { target: 'https://later.example/', picture: false, words: null, warnings: [] };
 
-        fireEvent.click(screen.getByRole('button', { name: pressTheLink }));
+        render(
+            <LocalizationProvider>
+                <LinkOpenerContext value={opened}>
+                    <LinkQuestion trustedDomains={[]}>
+                        <Pressing link={earlier} name={pressEarlier} />
+                        <Pressing link={later} name={pressLater} />
+                    </LinkQuestion>
+                </LinkOpenerContext>
+            </LocalizationProvider>,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: pressEarlier }));
+        fireEvent.click(screen.getByRole('button', { name: pressLater }));
 
         await waitFor(() => {
-            expect(screen.getByText('settled')).toBeDefined();
+            expect(screen.getAllByText('settled')).toHaveLength(1);
         });
+        expect(screen.getByRole('alertdialog').textContent).toContain('later.example');
         fireEvent.click(screen.getByRole('button', { name: 'Open link' }));
 
         expect(opened).toHaveBeenCalledTimes(1);
-        expect(opened).toHaveBeenCalledWith(followed);
+        expect(opened).toHaveBeenCalledWith(later);
     });
 
     it('opens the link once Open link is pressed, and settles the press', async () => {

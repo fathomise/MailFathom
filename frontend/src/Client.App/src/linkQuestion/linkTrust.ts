@@ -25,6 +25,7 @@ export interface LinkAsked {
 }
 
 const leavesTheApplication = /^https?:/i;
+const webProtocols = new Set(['http:', 'https:']);
 
 // An address written as the words of a link — `travel.example`, `https://travel.example/check-in` — and nothing else, so
 // a sentence that happens to contain a dot names no host.
@@ -42,13 +43,16 @@ export function isTrustedHost(hostname: string, trustedDomains: readonly string[
  * otherwise.
  */
 export function askingFor(link: FollowedLink, trustedDomains: readonly string[]): LinkAsked | null {
-    if (!leavesTheApplication.test(link.target)) {
+    // Decided on what the address parses to, because that is what a browser goes to: the parser drops the spaces and
+    // controls around a scheme that a test of the raw text would read as some other scheme and wave through. An address
+    // no parser reads still asks where its text names the web, naming itself: it is a press the person made, and
+    // whatever the head does with it is somewhere the person was not told about.
+    const url = URL.canParse(link.target) ? new URL(link.target) : null;
+    const leaves = url === null ? leavesTheApplication.test(link.target) : webProtocols.has(url.protocol);
+
+    if (!leaves) {
         return null;
     }
-
-    // An address no parser reads still asks, naming itself: it is a press the person made, and whatever the head does
-    // with it is somewhere the person was not told about.
-    const url = URL.canParse(link.target) ? new URL(link.target) : null;
 
     if (url !== null && isTrustedHost(url.hostname, trustedDomains)) {
         return null;

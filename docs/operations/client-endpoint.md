@@ -2795,7 +2795,13 @@ client asks before following any `http` or `https` link — in a message, its or
 else it draws one — naming the host and the whole address, and a link whose host is on this list, or is a subdomain of
 an entry on it, opens at once instead. So `nordwind.example` covers `files.nordwind.example`, and a name that only
 borrows its letters, such as `nordwind-billing.example`, still asks. **No screen edits the list yet**: it is set through
-this route alone, and the client reads it and sends it back unchanged with every other preference it writes.
+this route alone, and the client reads it and never states it.
+
+**A write that omits `trustedLinkDomains`, or states it as `null`, leaves the stored list as it was**, and `[]` is how
+the list is emptied. It is the second preference, beside the telemetry switch, whose omission is not its unset answer,
+and for the same kind of reason: a client has nothing of the person's to say about a list no control of its own edits,
+and a write composed before its first read answered would otherwise erase a list set here with nothing on any screen to
+show it went.
 
 Each entry is a bare domain name, validated when it is written:
 
@@ -2814,12 +2820,20 @@ with it, and nothing is stored. The same domain written twice — in two cases, 
 punycode — is kept once. A stored entry this build would refuse, written by an earlier one or by hand, is left out of
 the answer, which only means a link to it asks.
 
+**While a rolling upgrade runs a build without the list beside one with it, a stored list can be lost.** A replica of
+the older build reads a document without the key and answers without it, which the newer client reads as a list
+trusting none, so links ask; and a write that replica commits renders the document without the key, which empties a
+list stored through a newer replica. Nothing is lost but the list, and nothing about it is refused, so what is left to
+do once every replica runs the newer build is to set the list again.
+
 **A write states the whole document.** It is a closed set rather than a patch: a key nothing binds is refused rather
 than stored, a theme this deployment does not publish is refused naming the three that are, and a preference the body
-omits is committed as its own default rather than left at whatever was there. The body is bounded like every other on
+omits is committed as its own default rather than left at whatever was there — except the telemetry switch and the
+trusted link domains, each of which an omission leaves as it was stored. The body is bounded like every other on
 this surface, and one past the bound is answered `413`.
 
-**`telemetryEnabled` is the one preference whose omission is not its default.** A body that leaves it out, or states it
+**`telemetryEnabled` is one of the two preferences whose omission is not its default**, the trusted link domains
+[above](#the-preferences-routes) being the other. A body that leaves it out, or states it
 as `null`, says nothing about the switch, and the write keeps the answer the person stored. Both halves of the reason
 are about them: the default is on, so a writer with nothing to say about telemetry would otherwise opt somebody in,
 and a read answers the switch [as it is applied](#a-settings-policy-may-hold-the-telemetry-switch) rather than as it

@@ -133,7 +133,7 @@ internal static class ClientPreferencesEndpoint
     /// <param name="preferences">The acting person's own preferences.</param>
     /// <param name="authorization">Names the acting person, whose served composition holds what a policy forces.</param>
     /// <param name="servedUsers">The served-user cache this request's acting person was read into when its scope was prepared.</param>
-    /// <param name="request">The whole document, with an omitted preference stored as its unset answer and an omitted telemetry switch left as it was stored.</param>
+    /// <param name="request">The whole document, with an omitted preference stored as its unset answer, and an omitted telemetry switch or trusted list left as it was stored.</param>
     /// <param name="cancellationToken">Cancels the commit.</param>
     /// <returns>
     /// <c>200</c> with what is now in force, <c>404</c> when this deployment holds no record for the caller, or
@@ -159,6 +159,12 @@ internal static class ClientPreferencesEndpoint
     /// client that read a forced value has no answer of theirs to state — restating what it read would store the
     /// policy's answer as the person's once the policy is gone. A client therefore states the switch only when the
     /// person moved it.
+    /// </para>
+    /// <para>
+    /// A body stating no trusted link domains leaves the stored list as it was too, and <c>[]</c> is how one empties
+    /// it. No control in the client edits the list, so a client has nothing of the person's to say about it, and a
+    /// write composed before any read answered — or by a build that predates the list — would otherwise erase a list
+    /// set through this route with nothing on any screen to show it went.
     /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<ClientPreferencesResponse>, NotFound<ProblemDetails>, ProblemHttpResult>> SaveAsync(
@@ -199,9 +205,18 @@ internal static class ClientPreferencesEndpoint
             return Refusal(held.DescribeRefusal());
         }
 
-        if (served is null || held is not null || request.TelemetryEnabled is null)
+        var carriesTelemetry = served is null || held is not null || request.TelemetryEnabled is null;
+        var carriesTrustedLinkDomains = request.TrustedLinkDomains is null;
+
+        if (carriesTelemetry || carriesTrustedLinkDomains)
         {
-            stated = stated with { TelemetryEnabled = await OwnTelemetryAnswerAsync(preferences, cancellationToken) };
+            var carried = await StoredToCarryAsync(preferences, cancellationToken);
+
+            stated = stated with
+            {
+                TelemetryEnabled = carriesTelemetry ? carried.TelemetryEnabled : stated.TelemetryEnabled,
+                TrustedLinkDomains = carriesTrustedLinkDomains ? carried.TrustedLinkDomains : stated.TrustedLinkDomains,
+            };
         }
 
         return await preferences.SaveAsync(stated, cancellationToken)
@@ -218,23 +233,24 @@ internal static class ClientPreferencesEndpoint
     private static ForcedClientTelemetry? HeldTelemetryOf(AccessAuthorization authorization, ServedUsers servedUsers) =>
         servedUsers.Peek(authorization.RequireUser())?.ForcedClientTelemetry;
 
-    /// <summary>Reads the answer the person stored for the telemetry switch, which a write that may not decide the switch carries forward unchanged.</summary>
+    /// <summary>Reads what the person stored, which a write carries forward for the telemetry switch it may not decide and for a trusted list the body did not state.</summary>
     /// <remarks>
-    /// A row that is not a document of preferences holds no answer to keep, and the write replacing it states a
-    /// refusal rather than the unset answer, which is on. That is how the telemetry routes read the same row, and
-    /// storing on would leave its holder opted in, once the policy is gone, by a write made while it held the switch.
+    /// A row that is not a document of preferences holds nothing to keep, and the write replacing it states a refusal
+    /// of telemetry rather than the unset answer, which is on, beside no trusted domain. That is how the telemetry
+    /// routes read the same row, and storing on would leave its holder opted in, once the policy is gone, by a write
+    /// made while it held the switch.
     /// </remarks>
-    private static async Task<bool> OwnTelemetryAnswerAsync(
+    private static async Task<ClientPreferences> StoredToCarryAsync(
         OwnClientPreferences preferences,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await preferences.ReadTelemetryAnswerToCarryAsync(cancellationToken);
+            return await preferences.ReadToCarryAsync(cancellationToken);
         }
         catch (JsonException)
         {
-            return false;
+            return ClientPreferences.Unset with { TelemetryEnabled = false };
         }
     }
 
@@ -251,7 +267,7 @@ internal static class ClientPreferencesEndpoint
 /// <param name="MessageView">The name of which of the three renderings an open message is drawn on, or nothing for the unset answer.</param>
 /// <param name="AiFiltersShown">Whether the folder tree carries the standing views of what a derivation read, or nothing for the unset answer.</param>
 /// <param name="NotificationSeconds">How long one of the client's own notifications stands, in whole seconds, or nothing for the unset answer.</param>
-/// <param name="TrustedLinkDomains">The domains whose links open without the client asking first, each a bare domain name, or nothing for the unset answer, which trusts none.</param>
+/// <param name="TrustedLinkDomains">The domains whose links open without the client asking first, each a bare domain name, or nothing to leave the list they stored as it is.</param>
 /// <remarks>
 /// <para>
 /// Bound strictly: a key nothing here binds fails the bind rather than being stored, which is what keeps the document
@@ -303,7 +319,7 @@ internal sealed record ClientPreferencesRequest(
     }
 
     /// <summary>Reads the request as the whole set the write commits.</summary>
-    /// <returns>The preferences, with every one the body omitted answered as unset — the telemetry switch included, which the write then replaces with the stored answer — or <see langword="null" /> when the body names a theme or a message view this build does not publish.</returns>
+    /// <returns>The preferences, with every one the body omitted answered as unset — the telemetry switch and the trusted list included, which the write then replaces with what is stored — or <see langword="null" /> when the body names a theme or a message view this build does not publish.</returns>
     internal ClientPreferences? Stated()
     {
         var theme = ClientPreferences.Unset.Theme;

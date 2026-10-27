@@ -749,6 +749,48 @@ public sealed class ClientPreferencesEndpointTests
         Assert.Equal(expected, answered.TrustedLinkDomains);
     }
 
+    /// <summary>No control in the client edits the list, so a write that says nothing about it keeps the stored one rather than erasing it.</summary>
+    [Fact]
+    public async Task SaveAsync_ABodyStatingNoTrustedLinkDomains_KeepsTheStoredList()
+    {
+        // Arrange
+        var stored = ClientPreferences.Unset with { TrustedLinkDomains = [Trusted("nordwind.example")] };
+        var store = Holding(stored);
+
+        // Act
+        var result = await ClientPreferencesEndpoint.SaveAsync(
+            SignedIn(store),
+            Acting(),
+            Serving(),
+            new ClientPreferencesRequest(Theme: "dark"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<ClientPreferencesResponse>>(result.Result).Value!;
+
+        Assert.Equal(["nordwind.example"], store.Stored!.TrustedLinkDomains.Select(static domain => domain.Name));
+        Assert.Equal(["nordwind.example"], answered.TrustedLinkDomains);
+    }
+
+    /// <summary>An empty list is a statement, and it is the one that empties a stored list.</summary>
+    [Fact]
+    public async Task SaveAsync_ABodyStatingAnEmptyList_EmptiesTheStoredList()
+    {
+        // Arrange
+        var store = Holding(ClientPreferences.Unset with { TrustedLinkDomains = [Trusted("nordwind.example")] });
+
+        // Act
+        await ClientPreferencesEndpoint.SaveAsync(
+            SignedIn(store),
+            Acting(),
+            Serving(),
+            new ClientPreferencesRequest(TrustedLinkDomains: []),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(store.Stored!.TrustedLinkDomains);
+    }
+
     /// <summary>One bad entry refuses the whole save, naming where it is, so nobody is told their list was stored and handed back a shorter one.</summary>
     [Fact]
     public async Task SaveAsync_ABodyListingAnEntryThatIsNoDomain_RefusesNamingItsPosition()
@@ -819,6 +861,9 @@ public sealed class ClientPreferencesEndpointTests
         new ServedUser(SyntheticUser.Deployment, "alex", []) { ForcedClientTelemetry = forced });
 
     private static RememberedPreferences Holding(ClientPreferences stored) => new() { Stored = stored };
+
+    private static TrustedLinkDomain Trusted(string name) =>
+        TrustedLinkDomain.TryRead(name, out var domain, out _) ? domain : throw new ArgumentException(name, nameof(name));
 
     /// <summary>One person's preferences held in memory, so a test can read back what a write left.</summary>
     private sealed class RememberedPreferences : IClientPreferencesStore

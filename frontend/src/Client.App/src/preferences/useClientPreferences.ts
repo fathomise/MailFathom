@@ -89,7 +89,8 @@ export interface ClientPreferencesInForce {
      * The domains whose links open without the client asking first, as the deployment holds them.
      *
      * Read here and offered by no control: the list is set through the deployment's own route, and a write composed by
-     * any of the choices below sends it back exactly as it was read. Unset reads as none, so every link asks.
+     * any of the choices below says nothing about it, so the deployment keeps what it holds. Unset reads as none, so
+     * every link asks.
      */
     readonly trustedLinkDomains: readonly string[];
 

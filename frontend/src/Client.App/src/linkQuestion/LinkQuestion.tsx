@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { mannerDrawn } from '../confirmation/wayOutShapes';
+import { backOutlined, mannerDrawn } from '../confirmation/wayOutShapes';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
@@ -184,7 +184,7 @@ function LinkAsking({
                     <button
                         ref={cancel}
                         type="button"
-                        className="rounded-md border border-line-strong px-3.75 py-2 text-base text-text-soft transition hover:bg-hover"
+                        className={backOutlined}
                         onClick={() => {
                             asked.current?.close();
                         }}

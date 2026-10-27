@@ -29,6 +29,16 @@ describe('askingFor', () => {
         expect(askingFor(pressed(target), trusted)).toMatchObject({ target, host: new URL(target).host });
     });
 
+    // A browser parses the address before it goes anywhere, and the parser drops what surrounds or splits a scheme, so
+    // these leave for the web however their text begins.
+    it.each([
+        ['a space in front of it', ' https://evil.example/'],
+        ['a control character in front of it', '\u0001https://evil.example/'],
+        ['a tab inside its scheme', 'ht\ttps://evil.example/'],
+    ])('asks about an address with %s, which still leaves for the web', (_, target) => {
+        expect(askingFor(pressed(target), [])).toMatchObject({ target, host: 'evil.example' });
+    });
+
     it('opens a link that does not leave for the web without asking', () => {
         expect(askingFor(pressed('mailto:someone@example.invalid'), [])).toBeNull();
     });
