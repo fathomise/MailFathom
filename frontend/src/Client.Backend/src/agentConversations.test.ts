@@ -10,6 +10,7 @@ import {
     askAgent,
     deleteAgentConversation,
     listAgentConversations,
+    markAgentConversationRead,
     readAgentConversation,
     restoreAgentConversation,
     steerAgentRun,
@@ -72,7 +73,7 @@ describe('agentConversationRoute', () => {
 });
 
 describe('listAgentConversations', () => {
-    it('reads each conversation the history lists, a title not yet given as none, and whether it is archived', async () => {
+    it('reads each conversation the history lists, a title not yet given as none, whether it is archived, running and unread', async () => {
         const answered = await listAgentConversations(
             session,
             answering({
@@ -85,6 +86,19 @@ describe('listAgentConversations', () => {
                             startedAt: '2026-08-31T09:40:00+00:00',
                             lastActivityAt: '2026-08-31T09:42:00+00:00',
                             archived: true,
+                            running: false,
+                            status: null,
+                            unread: true,
+                        },
+                        {
+                            id: 'running',
+                            title: 'Overdue invoices',
+                            startedAt: '2026-08-31T09:40:00+00:00',
+                            lastActivityAt: '2026-08-31T09:43:00+00:00',
+                            archived: false,
+                            running: true,
+                            status: 'Searching your mail',
+                            unread: false,
                         },
                     ],
                 }),
@@ -100,9 +114,79 @@ describe('listAgentConversations', () => {
                     startedAt: '2026-08-31T09:40:00+00:00',
                     lastActivityAt: '2026-08-31T09:42:00+00:00',
                     archived: true,
+                    running: false,
+                    status: null,
+                    unread: true,
+                },
+                {
+                    id: 'running',
+                    title: 'Overdue invoices',
+                    startedAt: '2026-08-31T09:40:00+00:00',
+                    lastActivityAt: '2026-08-31T09:43:00+00:00',
+                    archived: false,
+                    running: true,
+                    status: 'Searching your mail',
+                    unread: false,
                 },
             ],
         });
+    });
+
+    it.each([
+        ['whether it is archived', { archived: 'yes' }],
+        ['whether an answer is running', { running: undefined }],
+        ['whether it is unread', { unread: 'no' }],
+        ['a status line it could read', { status: 7 }],
+        ['a status line within the bound a title has', { status: 'x'.repeat(1025) }],
+    ])('refuses a conversation that does not say %s', async (_, wrong) => {
+        const answered = await listAgentConversations(
+            session,
+            answering({
+                status: 200,
+                body: JSON.stringify({
+                    conversations: [
+                        {
+                            id: conversation,
+                            title: null,
+                            startedAt: '2026-08-31T09:40:00+00:00',
+                            lastActivityAt: '2026-08-31T09:42:00+00:00',
+                            archived: false,
+                            running: true,
+                            status: null,
+                            unread: false,
+                            ...wrong,
+                        },
+                    ],
+                }),
+            }),
+        );
+
+        expect(answered).toMatchObject({ outcome: 'failed', failure: { reason: 'unreadable' } });
+    });
+
+    it('lets go of a status line a conversation names while nothing in it runs', async () => {
+        const answered = await listAgentConversations(
+            session,
+            answering({
+                status: 200,
+                body: JSON.stringify({
+                    conversations: [
+                        {
+                            id: conversation,
+                            title: 'Overdue invoices',
+                            startedAt: '2026-08-31T09:40:00+00:00',
+                            lastActivityAt: '2026-08-31T09:42:00+00:00',
+                            archived: false,
+                            running: false,
+                            status: 'Searching your mail',
+                            unread: false,
+                        },
+                    ],
+                }),
+            }),
+        );
+
+        expect(answered).toMatchObject({ outcome: 'read', value: [{ running: false, status: null }] });
     });
 
     it('refuses a conversation that does not say whether it is archived', async () => {
@@ -586,6 +670,7 @@ describe('every Agent operation', () => {
         ['stopping', () => stopAgentRun(session, unreachable, conversation, question)],
         ['archiving', () => archiveAgentConversation(session, unreachable, conversation)],
         ['restoring', () => restoreAgentConversation(session, unreachable, conversation)],
+        ['marking read', () => markAgentConversationRead(session, unreachable, conversation)],
         ['answering a proposal', () => answerAgentProposal(session, unreachable, conversation, 7, 'accepted')],
         ['deleting', () => deleteAgentConversation(session, unreachable, conversation)],
     ])('reports a deployment it could not reach while %s', async (_, operation) => {
@@ -605,6 +690,23 @@ describe('archiveAgentConversation', () => {
 
     it('reads a conversation this person does not hold as missing', async () => {
         const answered = await archiveAgentConversation(session, answering({ status: 404, body: '' }), conversation);
+
+        expect(answered).toMatchObject({ outcome: 'failed', failure: { reason: 'missing' } });
+    });
+});
+
+describe('markAgentConversationRead', () => {
+    it('says the conversation is in front of the person', async () => {
+        const { transport, requests } = recording({ status: 204, body: '' });
+
+        const answered = await markAgentConversationRead(session, transport, conversation);
+
+        expect(answered).toEqual({ outcome: 'read', value: undefined });
+        expect(requests[0]).toMatchObject({ method: 'PUT', path: `${base}/${conversation}/read` });
+    });
+
+    it('reads a conversation this person does not hold as missing', async () => {
+        const answered = await markAgentConversationRead(session, answering({ status: 404, body: '' }), conversation);
 
         expect(answered).toMatchObject({ outcome: 'failed', failure: { reason: 'missing' } });
     });

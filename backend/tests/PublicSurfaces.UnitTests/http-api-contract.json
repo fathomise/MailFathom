@@ -846,15 +846,27 @@
             "format": "date-time",
             "type": "string"
           },
+          "running": {
+            "type": "boolean"
+          },
           "startedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "status": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "title": {
             "type": [
               "null",
               "string"
             ]
+          },
+          "unread": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -862,7 +874,10 @@
           "title",
           "startedAt",
           "lastActivityAt",
-          "archived"
+          "archived",
+          "running",
+          "status",
+          "unread"
         ],
         "type": "object"
       },
@@ -17459,6 +17474,37 @@
               }
             },
             "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/agent/conversations/{conversationId}/read": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
           }
         },
         "security": [

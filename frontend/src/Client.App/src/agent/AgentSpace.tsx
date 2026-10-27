@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
     answerAgentProposal,
     archiveAgentConversation,
@@ -35,7 +35,7 @@ import { ConversationThread } from './ConversationThread';
 import { answerInFlight, threadOf } from './threadTurns';
 import { newIdentifier } from './newIdentifier';
 import { ProposalAnswersContext } from './proposalAnswers';
-import { useConversationHistory } from './useConversationHistory';
+import type { ConversationHistory as History } from './useConversationHistory';
 import { useFollowedConversation } from './useFollowedConversation';
 
 // The Agent: several conversations held open as tabs, the history beside them, and the thread in front with the field
@@ -107,22 +107,36 @@ const deletingCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'agent.deleteMany.other',
 };
 
+/** A conversation somebody asked to open from outside the Agent space. Each ask is a value of its own. */
+export interface AgentOpening {
+    readonly conversation: string;
+}
+
 /**
  * @param handOver What another space last handed to the agent, and `null` before any has. Each hand-over is a new
  * value, and a new one opens a new conversation carrying it as the context, whatever was open before.
  * @param schedule How the follower waits, which a test replaces so nothing polls in it.
  * @param onLook Opens what a proposal points at in the space that shows it, and nothing where the frame offers none.
+ * @param history The person's conversations, which the frame reads because the rail reports on them from every space.
+ * @param inFront Whether the Agent is the space in front, which is what makes the conversation shown one being read.
+ * @param opening A conversation another surface asked to open, a new value for each ask, and `null` before any has.
  */
 export function AgentSpace({
     session,
     transport,
+    history,
+    inFront,
     handOver = null,
+    opening = null,
     schedule = whileTheConversationIsSilent,
     onLook = null,
 }: {
     readonly session: ClientSession | null;
     readonly transport: MailFathomTransport;
+    readonly history: History;
+    readonly inFront: boolean;
     readonly handOver?: AgentHandOver | null;
+    readonly opening?: AgentOpening | null;
     readonly schedule?: RunFollowingSchedule;
     readonly onLook?: ((where: ProposalLook) => void) | null;
 }) {
@@ -164,6 +178,22 @@ export function AgentSpace({
     const [asking, setAsking] = useState<AgentHandOver | null>(null);
     const questionAsked = useRef<AgentHandOver | null>(null);
 
+    // A conversation another surface asked to open — the rail's peek — joins the tabs and comes to the front, adjusted
+    // while rendering for the reason a hand-over is. The frame keeps the last ask for the whole session, so an ask
+    // already standing when this space is drawn again under a new session was answered before and is not answered twice.
+    const [openedFrom, setOpenedFrom] = useState(opening);
+
+    if (opening !== openedFrom) {
+        setOpenedFrom(opening);
+
+        if (opening !== null) {
+            setCurrent(opening.conversation);
+            setOpen((before) => (before.includes(opening.conversation) ? before : [...before, opening.conversation]));
+            setUnsent(null);
+            setFollowing((before) => before + 1);
+        }
+    }
+
     // Adjusted while rendering rather than in an effect, so the conversation that was open is never drawn under the
     // context of the one being opened.
     if (handOver !== handedOver) {
@@ -189,15 +219,37 @@ export function AgentSpace({
         shown.current = current;
     }, [current]);
 
-    // A conversation the deployment no longer holds is put down where it was held, and what is left is the empty state.
-    const letGo = useCallback((conversation: string): void => {
-        setOpen((before) => before.filter((held) => held !== conversation));
-        setCurrent((now) => (now === conversation ? null : now));
+    // Every write reads again both what is in front and the history, which is read for the whole frame because the
+    // rail reports on it from every space.
+    const { reread: rereadHistory, markRead } = history;
+    const wrote = useCallback((): void => {
         setRevision((before) => before + 1);
-    }, []);
+        rereadHistory();
+    }, [rereadHistory]);
 
-    const history = useConversationHistory(session, transport, revision);
+    // A conversation the deployment no longer holds is put down where it was held, and what is left is the empty state.
+    const letGo = useCallback(
+        (conversation: string): void => {
+            setOpen((before) => before.filter((held) => held !== conversation));
+            setCurrent((now) => (now === conversation ? null : now));
+            wrote();
+        },
+        [wrote],
+    );
+
     const followed = useFollowedConversation(session, transport, current, revision, schedule, letGo);
+
+    // The conversation in front of the reader is read, as an open message is, and that includes a reply that lands
+    // while they are looking at it. Laid out rather than painted first, so the rail never draws a dot for the one
+    // conversation the reader is reading.
+    const unreadInFront =
+        inFront && current !== null && history.conversations.some((listed) => listed.id === current && listed.unread);
+
+    useLayoutEffect(() => {
+        if (unreadInFront) {
+            markRead(current);
+        }
+    }, [unreadInFront, current, markRead]);
 
     // Folded once per arrival rather than per render, because the thread re-measures whenever the turns change.
     const turns = useMemo(() => threadOf(followed.entries), [followed.entries]);
@@ -321,7 +373,7 @@ export function AgentSpace({
             setFollowing((before) => before + 1);
         }
 
-        setRevision((before) => before + 1);
+        wrote();
 
         return conversation;
     }
@@ -357,7 +409,7 @@ export function AgentSpace({
 
         const answered = await answerAgentProposal(session, transport, current, proposedAt, decision);
 
-        setRevision((before) => before + 1);
+        wrote();
 
         return answered.outcome === 'failed' ? answered.failure.reason : null;
     }
@@ -382,7 +434,7 @@ export function AgentSpace({
         // What the stop wrote reaches the thread through the follower, which the conversation's own signal or its
         // interval reads — so nothing is drawn here on the stop's say-so, and a stop that failed leaves Cancel standing.
         void stopAgentRun(session, transport, current, inFlight.run).then(() => {
-            setRevision((before) => before + 1);
+            wrote();
         });
     }
 
@@ -415,7 +467,7 @@ export function AgentSpace({
 
         setCurrent((now) => (now !== null && gone.includes(now) ? null : now));
 
-        setRevision((before) => before + 1);
+        wrote();
     }
 
     async function setArchived(conversations: readonly string[], archived: boolean): Promise<void> {
@@ -451,7 +503,7 @@ export function AgentSpace({
             setCurrent((now) => (now !== null && moved.includes(now) ? null : now));
         }
 
-        setRevision((before) => before + 1);
+        wrote();
     }
 
     function closeDrawer(): void {
@@ -470,7 +522,7 @@ export function AgentSpace({
             }}
             onAskDeletion={askDeletion}
             onReadAgain={() => {
-                setRevision((before) => before + 1);
+                wrote();
             }}
             onClose={inDrawer ? closeDrawer : null}
         />

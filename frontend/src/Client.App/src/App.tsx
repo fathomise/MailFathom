@@ -43,7 +43,9 @@ import {
 import type { PortraitExchange } from './deployment/portraitExchange';
 import type { DeploymentTransport } from './deployment/sendToDeployment';
 import { telemetryForwardedBy } from './deployment/telemetryForwarding';
-import { AgentSpace } from './agent/AgentSpace';
+import { agentReport } from './agent/agentReport';
+import { AgentSpace, type AgentOpening } from './agent/AgentSpace';
+import { useConversationHistory } from './agent/useConversationHistory';
 import type { ProposalLook } from './answerCanvas/proposalAnswering';
 import { DiscoverSpace } from './discover/DiscoverSpace';
 import { FolderTree } from './folders/FolderTree';
@@ -62,6 +64,7 @@ import { MessageList } from './messageList/MessageList';
 import { forgetListings } from './messageList/rememberedListings';
 import { NotificationBell } from './notifications/NotificationBell';
 import { failureOf } from './notifications/failures';
+import { useCurrentMinute } from './notifications/notificationAge';
 import { followTarget } from './notifications/notificationDestination';
 import { NotificationCentre } from './notifications/NotificationCentre';
 import { usePanelSwipe } from './notifications/usePanelSwipe';
@@ -702,7 +705,24 @@ export function App({
     );
 
     const toasts = useToasts();
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
+
+    // The conversations with the agent, read for the whole frame rather than by the Agent space alone: the rail's Agent
+    // tile reports what is running and what waits unread from every space, and the space reads the same list.
+    const agentHistory = useConversationHistory(asksMail ? session : null, readMail, signalledChanges);
+    const [agentOpening, setAgentOpening] = useState<AgentOpening | null>(null);
+    const openAgentConversation = useCallback((conversation: string): void => {
+        setAgentOpening({ conversation });
+        window.location.hash = addressOf('agent');
+    }, []);
+    // The frame stays for the whole session, so the peek words when a reply landed against the minute it is now rather
+    // than against the one the frame was drawn in.
+    const currentMinute = useCurrentMinute();
+    const agentTile = agentReport(
+        agentHistory.conversations,
+        { locale, timeZone: profile.timeZone, now: currentMinute, translate },
+        openAgentConversation,
+    );
 
     // A decision about a send asked from its notification, held until the Outbox that draws the send has read it.
     const [outboxAsked, setOutboxAsked] = useState<OutboxDecisionAsked | null>(null);
@@ -1278,6 +1298,16 @@ export function App({
                                                                                                             handOver={
                                                                                                                 handedToAgent
                                                                                                             }
+                                                                                                            history={
+                                                                                                                agentHistory
+                                                                                                            }
+                                                                                                            inFront={
+                                                                                                                space ===
+                                                                                                                'agent'
+                                                                                                            }
+                                                                                                            opening={
+                                                                                                                agentOpening
+                                                                                                            }
                                                                                                             onLook={
                                                                                                                 lookFromAgent
                                                                                                             }
@@ -1726,6 +1756,13 @@ export function App({
                                                                                 <SpaceNavigation
                                                                                     offered={offeredSpaces}
                                                                                     current={space}
+                                                                                    // What the Agent reports on its tile, on the grant its conversations are read
+                                                                                    // under: a credential that may not ask is told nothing about a run.
+                                                                                    reports={
+                                                                                        asksMail
+                                                                                            ? { agent: agentTile }
+                                                                                            : {}
+                                                                                    }
                                                                                     onPointerDown={
                                                                                         swipe.onNavigationPointerDown
                                                                                     }

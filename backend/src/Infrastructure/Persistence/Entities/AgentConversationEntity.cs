@@ -66,6 +66,9 @@ internal sealed class AgentConversationEntity
     /// <summary>The column saying whether the person has put the conversation away, named here for the same reason the table is.</summary>
     internal const string ArchivedColumnName = "Archived";
 
+    /// <summary>The column holding how far the person has read the conversation, named here for the same reason the table is.</summary>
+    internal const string ReadThroughColumnName = "ReadThrough";
+
     /// <summary>The longest name the column takes, which is the bound the contract already states.</summary>
     internal const int TitleLengthLimit = AgentConversationBounds.MaximumTitleLength;
 
@@ -113,4 +116,12 @@ internal sealed class AgentConversationEntity
     /// and the conversation reads, answers and deletes exactly as it did.
     /// </remarks>
     public bool Archived { get; set; }
+
+    /// <summary>Gets or sets the place the person had reached when they last had the conversation in front of them.</summary>
+    /// <remarks>
+    /// The person's own state rather than one screen's, so a conversation read on one machine reads as read on the next.
+    /// A conversation holds a reply they have not read while nothing is being composed in it and an entry of the visible
+    /// history stands past this place — which is what a run that ended while they were elsewhere leaves behind.
+    /// </remarks>
+    public long ReadThrough { get; set; }
 }

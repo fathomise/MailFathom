@@ -44,9 +44,9 @@ const mostFollowUps = 3;
 const longestFollowUp = 120;
 const longestWriteAnswer = 4 * 1024;
 
-// A hundred summaries, each an identifier, a title and two instants, with room to spare — so a listing that is not one
-// is refused before it is read.
-const longestListing = 256 * 1024;
+// A hundred summaries, each an identifier, a title, a status line and two instants, with room to spare — so a listing
+// that is not one is refused before it is read.
+const longestListing = 512 * 1024;
 
 // One page of a conversation: entries are mostly a status line or a block, and a page of them is sized the way a
 // Discover run's whole answer is, with a question's full text on top.
@@ -64,6 +64,15 @@ export interface AgentConversationSummary {
 
     /** Whether the person has put it away, which is what the archive section of the history is drawn from. */
     readonly archived: boolean;
+
+    /** Whether an answer is being composed in it right now. */
+    readonly running: boolean;
+
+    /** What that answer last said it is doing, in the person's language, and `null` while it has said nothing. */
+    readonly status: string | null;
+
+    /** Whether it holds a finished reply the person has not had in front of them, on this machine or any other. */
+    readonly unread: boolean;
 }
 
 /** What a person's question was about, where they asked it from a screen that carries one. */
@@ -298,6 +307,23 @@ export function archiveAgentConversation(
 }
 
 /**
+ * Says the person has a conversation in front of them, which reads everything it holds as read on every machine they
+ * sign in on. An answer still being composed leaves it unread again when it ends, so a screen still showing it then
+ * says so again.
+ *
+ * @returns Nothing where it is marked, or why not.
+ */
+export function markAgentConversationRead(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    conversationId: string,
+): Promise<ClientResult<void>> {
+    return spanned('PUT /agent/conversations/{conversationId}/read', () =>
+        acknowledged(session, transport, 'PUT', `${agentConversationRoute(conversationId)}/read`),
+    );
+}
+
+/**
  * Takes a conversation back out of the archive, into the history the person is working in.
  *
  * @returns Nothing where it is restored, or why not. One that was never archived is nothing as well.
@@ -452,18 +478,33 @@ function parseSummaries(body: string): readonly AgentConversationSummary[] | nul
         const startedAt = instant(record?.['startedAt']);
         const lastActivityAt = instant(record?.['lastActivityAt']);
         const archived = record?.['archived'];
+        const running = record?.['running'];
+        const status = record?.['status'];
+        const unread = record?.['unread'];
 
         if (
             id === null ||
             startedAt === null ||
             lastActivityAt === null ||
             !isTitle(title) ||
-            typeof archived !== 'boolean'
+            !isTitle(status) ||
+            typeof archived !== 'boolean' ||
+            typeof running !== 'boolean' ||
+            typeof unread !== 'boolean'
         ) {
             return null;
         }
 
-        conversations.push({ id, title: title ?? null, startedAt, lastActivityAt, archived });
+        conversations.push({
+            id,
+            title: title ?? null,
+            startedAt,
+            lastActivityAt,
+            archived,
+            running,
+            status: running ? (status ?? null) : null,
+            unread,
+        });
     }
 
     return conversations;

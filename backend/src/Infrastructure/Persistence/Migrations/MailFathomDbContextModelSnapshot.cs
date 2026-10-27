@@ -98,6 +98,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("LastActivityAt");
 
+                    b.Property<long>("ReadThrough")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ReadThrough");
+
                     b.Property<long>("Sequence")
                         .HasColumnType("bigint")
                         .HasColumnName("Sequence");

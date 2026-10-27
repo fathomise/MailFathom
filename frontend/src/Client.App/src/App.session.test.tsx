@@ -144,8 +144,8 @@ describe('App session', () => {
         await waitFor(() => {
             expect(routesAsked()).toEqual([
                 'https://mail.example.invalid/api/client/session',
-                'https://mail.example.invalid/api/client/agent/conversations',
                 'https://mail.example.invalid/api/client/replies/drafting',
+                'https://mail.example.invalid/api/client/agent/conversations',
             ]);
         });
         expect(screen.queryByText(/The accounts could not be read/)).toBeNull();

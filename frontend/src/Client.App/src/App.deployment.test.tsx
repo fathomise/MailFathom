@@ -77,11 +77,6 @@ describe('App deployment', () => {
             expect(routesAsked()).toEqual([
                 'https://elsewhere.example.invalid/api/client/session',
                 'https://elsewhere.example.invalid/api/client/accounts',
-
-                // The Agent space reads its history on landing for the reason the Mail space below it does, and reads first
-                // because it stands before Mail in the rail.
-                'https://elsewhere.example.invalid/api/client/agent/conversations',
-
                 'https://elsewhere.example.invalid/api/client/folders',
                 'https://elsewhere.example.invalid/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=100&folder=role%3AInbox',
                 'https://elsewhere.example.invalid/api/client/emails/search/phrasing',
@@ -103,6 +98,10 @@ describe('App deployment', () => {
                 'https://elsewhere.example.invalid/api/client/display-name',
                 'https://elsewhere.example.invalid/api/client/time-zone',
                 'https://elsewhere.example.invalid/api/client/signals/ticket',
+
+                // The frame reads the Agent's history for the rail's tile from every space, beside the signals that
+                // tell it to read again, rather than the Agent space reading it on landing.
+                'https://elsewhere.example.invalid/api/client/agent/conversations',
                 'https://elsewhere.example.invalid/api/client/notifications/unread-count',
             ]);
         });
@@ -183,7 +182,6 @@ describe('App deployment', () => {
                 'https://mail.example.test/api/client/session',
                 'https://mail.example.test/api/client/session/token',
                 'https://mail.example.test/api/client/accounts',
-                'https://mail.example.test/api/client/agent/conversations',
                 'https://mail.example.test/api/client/folders',
                 'https://mail.example.test/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=100&folder=role%3AInbox',
                 'https://mail.example.test/api/client/emails/search/phrasing',
@@ -200,6 +198,7 @@ describe('App deployment', () => {
                 'https://mail.example.test/api/client/display-name',
                 'https://mail.example.test/api/client/time-zone',
                 'https://mail.example.test/api/client/signals/ticket',
+                'https://mail.example.test/api/client/agent/conversations',
                 'https://mail.example.test/api/client/notifications/unread-count',
             ]);
         });
@@ -377,7 +376,6 @@ describe('App deployment', () => {
             expect(routesAsked()).toEqual([
                 'https://first.example.invalid/api/client/session',
                 'https://first.example.invalid/api/client/accounts',
-                'https://first.example.invalid/api/client/agent/conversations',
                 'https://first.example.invalid/api/client/folders',
                 'https://first.example.invalid/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=100&folder=role%3AInbox',
                 'https://first.example.invalid/api/client/emails/search/phrasing',
@@ -394,6 +392,7 @@ describe('App deployment', () => {
                 'https://first.example.invalid/api/client/display-name',
                 'https://first.example.invalid/api/client/time-zone',
                 'https://first.example.invalid/api/client/signals/ticket',
+                'https://first.example.invalid/api/client/agent/conversations',
                 'https://first.example.invalid/api/client/notifications/unread-count',
                 'https://first.example.invalid/api/client/session/token/revocation',
 
@@ -407,7 +406,6 @@ describe('App deployment', () => {
                 'https://second.example.invalid/api/client/session',
                 'https://second.example.invalid/api/client/session/token',
                 'https://second.example.invalid/api/client/accounts',
-                'https://second.example.invalid/api/client/agent/conversations',
                 'https://second.example.invalid/api/client/folders',
                 'https://second.example.invalid/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=100&folder=role%3AInbox',
                 'https://second.example.invalid/api/client/emails/search/phrasing',
@@ -424,6 +422,7 @@ describe('App deployment', () => {
                 'https://second.example.invalid/api/client/display-name',
                 'https://second.example.invalid/api/client/time-zone',
                 'https://second.example.invalid/api/client/signals/ticket',
+                'https://second.example.invalid/api/client/agent/conversations',
                 'https://second.example.invalid/api/client/notifications/unread-count',
             ]);
         });

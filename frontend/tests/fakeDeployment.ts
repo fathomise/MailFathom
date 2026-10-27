@@ -303,6 +303,9 @@ export class FakeDeployment {
             .map(({ id }) => [id, this.corpusConversation(id, 'answered')] as const),
     ]);
 
+    /** Conversations somebody opened since the corpus said they were unread, which every later listing reads as read. */
+    private readonly conversationsRead = new Set<string>();
+
     /**
      * Events written or amended here, by identity, which every window they fall in answers with.
      *
@@ -1652,6 +1655,12 @@ export class FakeDeployment {
             return nothing;
         }
 
+        if (method === 'PUT' && part === 'read' && parameter === undefined) {
+            this.conversationsRead.add(id);
+
+            return nothing;
+        }
+
         if (part === 'archive' && (method === 'PUT' || method === 'DELETE')) {
             conversation.archived = method === 'PUT';
 
@@ -1676,14 +1685,30 @@ export class FakeDeployment {
         const corpus = new Map(agent.agentHistory.conversations.map((listed) => [listed.id, listed]));
 
         return [...this.conversations]
-            .map(([id, held]) => ({
-                id,
-                title: held.title,
-                startedAt: held.startedAt,
-                lastActivityAt: corpus.get(id)?.lastActivityAt ?? held.startedAt,
-                archived: held.archived,
-            }))
+            .map(([id, held]) => {
+                const running = this.composing(held);
+
+                return {
+                    id,
+                    title: held.title,
+                    startedAt: held.startedAt,
+                    lastActivityAt: corpus.get(id)?.lastActivityAt ?? held.startedAt,
+                    archived: held.archived,
+                    running,
+                    status: running ? (corpus.get(id)?.status ?? null) : null,
+                    unread: !running && (corpus.get(id)?.unread ?? false) && !this.conversationsRead.has(id),
+                };
+            })
             .sort((one, other) => Number(corpus.has(one.id)) - Number(corpus.has(other.id)));
+    }
+
+    /** Whether an answer is being composed in a conversation, which its listing and its read both say. */
+    private composing(conversation: Conversation): boolean {
+        const base = conversation.reads === 'composing' ? agent.composingConversation : agent.answeredConversation;
+
+        return (
+            ((conversation.startsRunning && conversation.readsTaken === 0) || base.composing) && !conversation.stopped
+        );
     }
 
     private conversationRead(conversation: Conversation, since: number) {

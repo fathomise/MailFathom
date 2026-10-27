@@ -57,6 +57,8 @@ internal sealed class AgentConversationConfiguration : IEntityTypeConfiguration<
             .HasColumnName(AgentConversationEntity.ComposingMessageIdColumnName);
         entity.Property(conversation => conversation.Archived)
             .HasColumnName(AgentConversationEntity.ArchivedColumnName);
+        entity.Property(conversation => conversation.ReadThrough)
+            .HasColumnName(AgentConversationEntity.ReadThroughColumnName);
 
         entity.HasIndex(conversation => new { conversation.UserId, conversation.LastActivityAt })
             .IsDescending(false, true)

@@ -790,6 +790,63 @@ public sealed class OrchestratedAgentConversationTests(MailFathomOrchestrationFi
         }
     }
 
+    /// <summary>
+    /// A listed conversation says while an answer is composed in it what that answer last reported, turns unread once
+    /// the answer ends, and reads as read once the person marks it — which nobody else can do for them.
+    /// </summary>
+    [Fact]
+    public async Task ListAsync_AnAnswerRunningThenEnding_ReportsItsStatusThenUnreadUntilMarkedRead()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var host = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var user = Guid.NewGuid();
+        var somebodyElse = Guid.NewGuid();
+
+        await OrchestratedForeignUser.ProvisionAsync(host, user, cancellationToken);
+        await OrchestratedForeignUser.ProvisionAsync(host, somebodyElse, cancellationToken);
+
+        try
+        {
+            // Arrange
+            var store = await StoreOfAsync(host, cancellationToken);
+            var person = UserId.Create(user);
+            var conversation = AgentConversationId.New();
+            var earlier = AgentMessageId.New();
+            var answer = AgentMessageId.New();
+
+            await store.AskAsync(conversation, person, Question(), earlier, Instant, cancellationToken);
+            await store.AppendAsync(conversation, person, new AgentStatusReported(earlier, PresentationText.Create("Reading the thread")), Instant, cancellationToken);
+            await store.AppendAsync(conversation, person, new AgentAnswerEnded(earlier, AgentAnswerOutcome.Completed), Instant, cancellationToken);
+            await store.TryMarkReadAsync(conversation, person, cancellationToken);
+            await store.AskAsync(conversation, person, Question(), answer, Instant.AddMinutes(1), cancellationToken);
+
+            // Act
+            var startedRunning = Assert.Single(await store.ListAsync(person, limit: 10, cancellationToken));
+            await store.AppendAsync(conversation, person, new AgentStatusReported(answer, PresentationText.Create("Searching your mail")), Instant, cancellationToken);
+            var reporting = Assert.Single(await store.ListAsync(person, limit: 10, cancellationToken));
+            await store.AppendAsync(conversation, person, Composed(answer), Instant, cancellationToken);
+            await store.AppendAsync(conversation, person, new AgentAnswerEnded(answer, AgentAnswerOutcome.Completed), Instant, cancellationToken);
+            var ended = Assert.Single(await store.ListAsync(person, limit: 10, cancellationToken));
+            var markedBySomebodyElse = await store.TryMarkReadAsync(conversation, UserId.Create(somebodyElse), cancellationToken);
+            var marked = await store.TryMarkReadAsync(conversation, person, cancellationToken);
+            var read = Assert.Single(await store.ListAsync(person, limit: 10, cancellationToken));
+
+            // Assert
+            Assert.Equal((true, (string?)null, false), (startedRunning.Running, startedRunning.Status, startedRunning.Unread));
+            Assert.Equal((true, "Searching your mail", false), (reporting.Running, reporting.Status, reporting.Unread));
+            Assert.Equal((false, (string?)null, true), (ended.Running, ended.Status, ended.Unread));
+            Assert.False(markedBySomebodyElse);
+            Assert.True(marked);
+            Assert.Equal((false, (string?)null, false), (read.Running, read.Status, read.Unread));
+            Assert.Equal(ended.LastActivityAt, read.LastActivityAt);
+        }
+        finally
+        {
+            await OrchestratedForeignUser.EraseAsync(host, user);
+            await OrchestratedForeignUser.EraseAsync(host, somebodyElse);
+        }
+    }
+
     /// <summary>A person erased takes their conversations and everything said in them, through the cascade alone.</summary>
     [Fact]
     public async Task TryStartAsync_AConversationOfAnErasedPerson_GoesWithTheirRecord()

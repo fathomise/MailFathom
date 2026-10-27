@@ -626,7 +626,8 @@ test('holds the page still while each space the navigation reaches arrives', asy
     for (const space of ['Tasks', 'Calendar', 'Agent', 'Discover', 'Mail']) {
         const offsets = page.evaluate<number[]>(pageOffsetsOverTheArrival);
 
-        await navigation.getByRole('link', { name: space, exact: true }).click();
+        // A tile reporting something carries its counts after its name, as the Agent's does while a run is under way.
+        await navigation.getByRole('link', { name: new RegExp(`^${space}(?: - .+)?$`, 'u') }).click();
 
         expect(new Set(await offsets)).toStrictEqual(new Set([0]));
     }

@@ -12,7 +12,8 @@ import { useLocalization } from '../localization/useLocalization';
 
 /**
  * One conversation in the history: its title and when it last moved, tinted with an accent title where it is the one
- * open, and tinted and outlined where it is picked out — a readable row rather than a card, with no edge marking it.
+ * open, and tinted and outlined where it is picked out — a readable row rather than a card, with no edge marking it. A
+ * finished reply nobody has read sets its title and time heavier, and a run under way says what it is doing under it.
  *
  * Its quiet `more_horiz` control opens the same menu a right-click or a long press does. It is the pointer's way in
  * and hidden from the accessibility tree, because an option holds no focusable descendant; the menu key and Shift+F10
@@ -53,6 +54,15 @@ export function ConversationRow({
 }) {
     const { translate } = useLocalization();
     const press = useRowPress(onPress);
+
+    // Unread as mail is: a reply landed while the conversation was not in front, and the title carries the weight. The
+    // one open is being read, so it never reads as unread.
+    const unread = conversation.unread && !open;
+    const titleWeight = open
+        ? 'font-semibold text-accent-deep'
+        : unread
+          ? 'font-bold text-text'
+          : 'font-medium text-text';
 
     function pressed(event: KeyboardEvent<HTMLLIElement>): void {
         if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
@@ -109,15 +119,12 @@ export function ConversationRow({
             <span className="flex items-baseline gap-2">
                 {selected ? <Icon name="check" className="size-icon-xs shrink-0 self-center text-accent-deep" /> : null}
 
-                <span
-                    className={`min-w-0 flex-1 truncate text-lg/snug workspace:text-base/snug ${
-                        open ? 'font-semibold text-accent-deep' : 'font-medium text-text'
-                    }`}
-                >
+                <span className={`min-w-0 flex-1 truncate text-lg/snug workspace:text-base/snug ${titleWeight}`}>
                     {conversation.title ?? translate('agent.newConversation')}
                 </span>
+                {unread ? <span className="sr-only">{translate('list.unread')}</span> : null}
 
-                <ReceivedAt at={conversation.lastActivityAt} />
+                <ReceivedAt at={conversation.lastActivityAt} emphasized={unread} />
 
                 <span
                     aria-hidden="true"
@@ -138,6 +145,15 @@ export function ConversationRow({
                     <Icon name="more_horiz" className="size-icon-md" />
                 </span>
             </span>
+
+            {/* What a run under way is doing stands where the conversation's last line would, as the design draws it. */}
+            {conversation.running ? (
+                <span className="truncate text-base text-accent-deep workspace:text-sm">
+                    {translate('agent.runningStatus', {
+                        status: conversation.status ?? translate('agent.statusFallback'),
+                    })}
+                </span>
+            ) : null}
         </li>
     );
 }

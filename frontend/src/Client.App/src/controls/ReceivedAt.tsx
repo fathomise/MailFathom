@@ -12,8 +12,12 @@ import { useReadingZone } from '../localization/useReadingZone';
 // render is pure and the clock is not — so a row that stays on the screen across midnight words yesterday as today
 // until it is drawn again, which a windowed list does for every row it scrolls back to.
 
-/** The instant a message was recorded, or nothing at all where the message carries none this client can read. */
-export function ReceivedAt({ at }: { readonly at: string | null }) {
+/**
+ * The instant a message was recorded, or nothing at all where the message carries none this client can read.
+ *
+ * @param emphasized Whether the row it stands on is unread, which sets the time in the text's own colour and heavier.
+ */
+export function ReceivedAt({ at, emphasized = false }: { readonly at: string | null; readonly emphasized?: boolean }) {
     const { locale } = useLocalization();
     const timeZone = useReadingZone();
     const [now] = useState(() => Date.now());
@@ -24,7 +28,10 @@ export function ReceivedAt({ at }: { readonly at: string | null }) {
     }
 
     return (
-        <time dateTime={at} className="shrink-0 text-xs tabular-nums text-faint">
+        <time
+            dateTime={at}
+            className={`shrink-0 text-xs tabular-nums ${emphasized ? 'font-semibold text-text' : 'text-faint'}`}
+        >
             {when}
         </time>
     );
