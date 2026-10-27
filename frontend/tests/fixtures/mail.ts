@@ -619,6 +619,7 @@ function spamRow(
     return {
         ...folderRow(0),
         id,
+        sender: listedSender(senderKindOf(id)),
         folder: 'JUNK',
         subject,
         receivedAt,

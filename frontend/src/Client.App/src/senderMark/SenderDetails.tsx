@@ -85,17 +85,26 @@ export function SenderDetails({
     const { translate } = useLocalization();
     const names = useId();
 
+    // A surface asks afresh on every press, so each question is its own opening, and each opening its own read: a
+    // second look at the same message shows a trust change made since, and leaves behind a failure no retry is offered
+    // for, rather than drawing the last answer again.
+    const [shown, setShown] = useState({ asked, opening: 0 });
+
+    if (shown.asked !== asked) {
+        setShown({ asked, opening: shown.opening + 1 });
+    }
+
     return (
         <DetailsDialog dialog={dialog} anchor={asked?.anchor ?? null} names={names}>
-            {/* Keyed by the message, so asking about a second sender starts its own read rather than drawing the
-                first one's answer under the second one's mark. */}
+            {/* Keyed by the opening, so asking again — about this sender or another — starts its own read rather than
+                drawing an earlier answer under the mark that was just pressed. */}
             {asked === null ? (
                 <h2 id={names} className="sr-only">
                     {translate('senderMark.details')}
                 </h2>
             ) : (
                 <AskedSenderDetails
-                    key={asked.storedEmailId}
+                    key={shown.opening}
                     asked={asked}
                     session={session}
                     transport={transport}

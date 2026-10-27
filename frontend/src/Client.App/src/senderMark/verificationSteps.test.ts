@@ -179,6 +179,14 @@ describe('senderVerificationOf', () => {
         });
     });
 
+    // No SPF domain is published both where a check failed and where none was evaluated, so the step names no cause.
+    it('says no SPF check passed, and nothing about why, where none is published as passing', () => {
+        const spf = stepNamed(message({ ...authenticated, spfDomain: null }), 'senderMark.step.spf');
+
+        expect(spf?.result).toBe('Failed');
+        expect(spf?.detail).toEqual({ key: 'senderMark.spf.failed' });
+    });
+
     it('skips the trust step where the author was not authenticated', () => {
         expect(
             stepNamed(message({ ...authenticated, authorAuthentication: 'Failed' }), 'senderMark.step.trustedSender'),

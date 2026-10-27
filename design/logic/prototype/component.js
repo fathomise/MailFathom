@@ -330,7 +330,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       step("SPF", nobody ? notRun
         : own ? ["unchecked", "Not checked: MailFathom's own check reads DKIM only, and SPF needs the server that received the message."]
         : r.spf ? ["pass", r.spf + " allows the server that handed the message over."]
-        : ["fail", "No SPF check passed: " + fromDom + " does not list the server that handed the message over."]),
+        : ["fail", "No SPF check passed."]),
       step("DMARC", nobody ? notRun
         : own ? ["unchecked", "Not reported: MailFathom's own check does not evaluate DMARC."]
         : r.dmarc === "pass" ? ["pass", fromDom + " publishes a DMARC policy, and the message meets it."]

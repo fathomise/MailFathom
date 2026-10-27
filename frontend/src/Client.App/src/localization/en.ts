@@ -1550,7 +1550,7 @@ export const en = {
     'senderMark.spf.locally':
         "Not checked: MailFathom's own check reads DKIM only, and SPF needs the server that received the message.",
     'senderMark.spf.passed': '{domain} allows the server that handed the message over.',
-    'senderMark.spf.failed': 'No SPF check passed: {domain} does not list the server that handed the message over.',
+    'senderMark.spf.failed': 'No SPF check passed.',
     'senderMark.dmarc.locally': "Not reported: MailFathom's own check does not evaluate DMARC.",
     'senderMark.dmarc.pass': '{domain} publishes a DMARC policy, and the message meets it.',
     'senderMark.dmarc.fail': 'The message fails the DMARC policy {domain} publishes.',

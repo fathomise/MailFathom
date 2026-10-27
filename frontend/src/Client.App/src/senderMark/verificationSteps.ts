@@ -213,7 +213,7 @@ function authenticationSteps(sender: MailSenderVerdict, domain: string): readonl
         locally
             ? step('senderMark.step.spf', 'NotChecked', 'senderMark.spf.locally')
             : sender.spfDomain === null
-              ? step('senderMark.step.spf', 'Failed', 'senderMark.spf.failed', { domain })
+              ? step('senderMark.step.spf', 'Failed', 'senderMark.spf.failed')
               : step('senderMark.step.spf', 'Passed', 'senderMark.spf.passed', { domain: spoken(sender.spfDomain) }),
         locally
             ? step('senderMark.step.dmarc', 'NotChecked', 'senderMark.dmarc.locally')

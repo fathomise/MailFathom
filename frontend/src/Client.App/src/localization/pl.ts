@@ -1573,8 +1573,7 @@ export const pl: Catalogue = {
     'senderMark.spf.locally':
         'Niesprawdzone: własne sprawdzenie MailFathom czyta tylko DKIM, a SPF wymaga serwera, który odebrał wiadomość.',
     'senderMark.spf.passed': '{domain} dopuszcza serwer, który przekazał wiadomość.',
-    'senderMark.spf.failed':
-        'Żadne sprawdzenie SPF nie zostało zaliczone: {domain} nie wymienia serwera, który przekazał wiadomość.',
+    'senderMark.spf.failed': 'Żadne sprawdzenie SPF nie zostało zaliczone.',
     'senderMark.dmarc.locally': 'Nie zgłoszono: własne sprawdzenie MailFathom nie ocenia DMARC.',
     'senderMark.dmarc.pass': '{domain} publikuje politykę DMARC, a wiadomość ją spełnia.',
     'senderMark.dmarc.fail': 'Wiadomość nie spełnia polityki DMARC, którą publikuje {domain}.',

@@ -232,6 +232,31 @@ test('answers a later read with the flags a change left, and filters on them', (
     expect(listed(deployment, 'folder=INBOX&flagged=true')).toStrictEqual(['message-0']);
 });
 
+// A row's mark and the details it opens are chosen from two answers, so the two have to state one sender.
+test('lists each message with the sender facts its own answer states, the Spam folder and the Inbox alike', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const rows = ['folder=JUNK', 'folder=INBOX'].flatMap(
+        (query) =>
+            (
+                ask(deployment, 'GET', `/emails?${query}`) as {
+                    emails: { id: string; sender: { authorAuthentication: string; deploymentTrust: string } }[];
+                }
+            ).emails,
+    );
+
+    for (const row of rows.slice(0, 8)) {
+        const message = ask(deployment, 'GET', `/messages/${row.id}`) as {
+            sender: { authorAuthentication: string; deploymentTrust: string };
+        };
+
+        expect({ id: row.id, ...row.sender }).toMatchObject({
+            id: row.id,
+            authorAuthentication: message.sender.authorAuthentication,
+            deploymentTrust: message.sender.deploymentTrust,
+        });
+    }
+});
+
 test('answers every later read with the spam verdict a mark left, the Spam folder listing what arrived there', () => {
     const deployment = new FakeDeployment('0.0.0');
 

@@ -2,7 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -73,6 +74,30 @@ function explain(transport: MailFathomTransport): void {
     );
 
     fireEvent.click(screen.getByRole('button', { name: opening }));
+}
+
+// Asks the way a list does: every press builds the question afresh, though it is about the same message.
+function ExplainingEachPress({ transport }: { readonly transport: MailFathomTransport }) {
+    const dialog = useRef<HTMLDialogElement>(null);
+    const [asked, setAsked] = useState<AskedSender | null>(null);
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => {
+                    flushSync(() => {
+                        setAsked({ ...fromRow });
+                    });
+                    dialog.current?.showModal();
+                }}
+            >
+                {opening}
+            </button>
+
+            <SenderDetails asked={asked} session={session} transport={transport} dialog={dialog} />
+        </>
+    );
 }
 
 function ExplainingInHand({ message }: { readonly message: MailMessage }) {
@@ -153,6 +178,28 @@ describe('SenderDetails', () => {
         explain(transport);
 
         fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+
+        expect(await screen.findByRole('heading', { name: 'Trusted sender' })).toBeDefined();
+        expect(transport).toHaveBeenCalledTimes(2);
+    });
+
+    // A trust change made since, or a failure no retry is offered for, is only seen by reading again.
+    it('reads the message again each time it is opened, rather than drawing the last answer', async () => {
+        const transport = vi
+            .fn<MailFathomTransport>()
+            .mockResolvedValueOnce(answering('unrecognized'))
+            .mockResolvedValueOnce(answering('trusted'));
+
+        render(
+            <LocalizationProvider>
+                <ExplainingEachPress transport={transport} />
+            </LocalizationProvider>,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: opening }));
+        await screen.findByRole('heading', { name: 'Sender not recognized' });
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+        fireEvent.click(screen.getByRole('button', { name: opening }));
 
         expect(await screen.findByRole('heading', { name: 'Trusted sender' })).toBeDefined();
         expect(transport).toHaveBeenCalledTimes(2);
