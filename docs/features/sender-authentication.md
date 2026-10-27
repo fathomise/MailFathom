@@ -222,8 +222,9 @@ configuration](../operations/configuration-mail.md#mailsynchronization) states w
 An author who authenticated is still a stranger until something says otherwise, so a third answer is recorded beside
 the two above: **trusted** or **unknown**. The rule is deliberately narrow. An author is trusted when [a signature of the
 receiving account's organization](#a-colleague-in-the-receiving-accounts-organization) proves them a member of it, when
-their domain belongs to an account this deployment synchronizes, or when an entry on the receiving account's
-trusted-sender list names them.
+they write as [one of the receiving account owner's own addresses](#a-users-own-addresses), when the receiving account
+[opted into its owner's domains](#a-users-own-domains-on-an-account-that-opts-in) and theirs is one of them, or when an
+entry on the receiving account's trusted-sender list names them.
 Everything else is unknown — including most legitimate mail, and that is the intended outcome. The claim being made is
 *this deployment does not know who wrote this*, never *this is suspicious*; whether a message is wanted is [spam
 classification](spam-classification.md)'s question and is reached by other means entirely.
@@ -309,30 +310,46 @@ revocation, or a member leaving; [re-deriving stored mail](#re-deriving-what-is-
 keys, the membership, and the send records as they stand then, so a re-derivation after a revocation leaves no verdict
 that key reached.
 
-### A user's own domains
+### A user's own addresses
 
-Mail whose author writes from a domain one of a user's own accounts uses is trusted, on every account of that user
-rather than on the account that owns the domain. An instance synchronizing a work mailbox and a personal one is
-synchronizing one person's correspondence, and mail that person sends from the first to the second is the least
-suspicious mail in the mailbox; recognizing it only against the receiving account's own domain would leave the user's
-own mail unknown.
+Mail whose author writes as exactly one of a user's own addresses is trusted, with the source *own account address*,
+on every account of that user rather than only on the account the address belongs to, and with nothing to configure.
+An instance synchronizing a work mailbox and a personal one is synchronizing one person's correspondence, and mail that
+person sends from the first to the second is the least suspicious mail in the mailbox.
+
+The addresses are what the accounts state: each account's IMAP user name where it is an address, and the address an
+account that configures a submission endpoint sends as (`Delivery:FromAddress`). They are held against an
+**authenticated author** exactly as an address entry on [the trusted-sender list](#the-trusted-sender-list) is: the
+author's domain was established — by a trusted DMARC result, a DKIM or SPF identity matching the displayed domain, or a
+locally verified DKIM signature naming it — and `From` shows exactly that address. Where nothing authenticated the
+author, `From` is not evidence and the owner's address in it recognizes nothing; what such a match rests on, and what it
+does not establish, is what the address entry below states.
 
 The set stops at that person. A deployment serving several users holds several such sets, one per user, because two
 users are two correspondents: one of them writing to the other is ordinary mail from outside, and trusting it as the
 recipient's own would hand one person's identity to a message the other wrote.
 
-The set is derived from the configured accounts rather than restated in configuration, so adding an account extends it
-and removing one narrows it without a second edit. It is read from each account's IMAP user name, which is the only
-mailbox identity an IMAP account states — a server is reached at a host that is rarely the mail domain, and the account
-identifier is a key an operator invented. **An account whose user name is a bare login therefore contributes nothing**,
-and a deployment in that position names its domains on the accounts' own lists instead. Only the domain itself counts
-and never the names beneath it.
+### A user's own domains, on an account that opts in
 
-`MailSynchronization:TrustOwnAccountDomains` is what turns the whole set off, and it defaults to on because that mail is
-either the user's own or somebody who has taken their mailbox, and the first is far more common. **The case for turning
-it off is an account on a large shared provider**: every user of that provider writes from the same domain, so the set
-would recognize all of them. A deployment that turns it off names the domains it does mean on the per-account list
-below.
+An account that sets `TrustOwnAccountDomains` also trusts every author writing from a domain one of its owner's
+accounts uses, with the source *own account domain*. It is off by default and per account. **The case for leaving it off
+is an account on a large shared provider** — `gmail.com`, `outlook.com`, `wp.pl` — where every user of that provider
+writes from the same domain and the set would recognize all of them. The case for turning it on is an account whose
+domain is the owner's own, where a colleague writing from it is somebody the owner knows; turning it on for that account
+leaves the owner's other accounts as they were. A colleague in the receiving account's organization is recognized on
+any provider by [their organization's signature](#a-colleague-in-the-receiving-accounts-organization) instead, which
+needs no setting at all.
+
+The set is derived from the user's configured accounts rather than restated in configuration, so adding an account
+extends it and removing one narrows it without a second edit, and like the addresses it stops at that person. It is
+read from each account's IMAP user name, which is the only mailbox identity an IMAP account states — a server is reached
+at a host that is rarely the mail domain, and the account identifier is a key an operator invented. **An account whose
+user name is a bare login therefore contributes no domain**, and a deployment in that position names its domains on the
+accounts' own lists instead. Only the domain itself counts and never the names beneath it. Where the owner writing as
+themselves matches both, the verdict names the address.
+
+Changing either set judges new mail only. A verdict outlives the policy it was reached under by design, so mail already
+stored keeps its verdict until [re-deriving it](#re-deriving-what-is-already-stored) judges it again.
 
 ### The trusted-sender list
 

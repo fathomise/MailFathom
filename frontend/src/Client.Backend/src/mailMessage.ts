@@ -44,11 +44,11 @@ export type MailDmarcOutcome =
     'NotReported' | 'Pass' | 'Fail' | 'NoPolicyPublished' | 'TemporaryError' | 'PermanentError';
 
 /**
- * What recognized a trusted author: a domain of the owner's own accounts, the trusted senders, or the signature of the
- * receiving account's organization, which proves the author a member of it.
+ * What recognized a trusted author: one of the owner's own addresses, a domain of the owner's own accounts, the trusted
+ * senders, or the signature of the receiving account's organization, which proves the author a member of it.
  */
 export type MailTrustSource =
-    'OwnAccountDomain' | 'ConfiguredTrustedSender' | 'StoredTrustedSender' | 'OrganizationMember';
+    'OwnAccountDomain' | 'ConfiguredTrustedSender' | 'StoredTrustedSender' | 'OrganizationMember' | 'OwnAccountAddress';
 
 /** How a signed message arrived. */
 export type MailSignatureFormat = 'SecureMimeDetached' | 'SecureMimeOpaque' | 'OpenPgpMime';
@@ -267,6 +267,7 @@ const trustSources: readonly MailTrustSource[] = [
     'ConfiguredTrustedSender',
     'StoredTrustedSender',
     'OrganizationMember',
+    'OwnAccountAddress',
 ];
 
 const signatureFormats: readonly MailSignatureFormat[] = ['SecureMimeDetached', 'SecureMimeOpaque', 'OpenPgpMime'];

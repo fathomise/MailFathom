@@ -463,7 +463,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
     {
         // Arrange
         var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], []));
+        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], [], []));
 
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
@@ -510,7 +510,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         // Arrange
         Assert.True(TrustedSenderEntry.TryCreateForDomain("partner.example", includeSubdomains: false, out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var policies = Substitute.For<ISenderTrustPolicyReader>();
         policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(policy);
 
@@ -725,7 +725,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         // an empty policy digests to None, which is exactly what the undecorated reader would leave behind.
         Assert.True(TrustedSenderEntry.TryCreateForDomain("partner.example", includeSubdomains: false, out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var policies = Substitute.For<ISenderTrustPolicyReader>();
         policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(policy);
 
@@ -837,7 +837,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
     private static ISenderTrustPolicyReader TrustPolicyReader()
     {
         var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], []));
+        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], [], []));
 
         return policies;
     }

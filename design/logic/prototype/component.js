@@ -306,7 +306,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     if (k === "warnAuth") return fromDom + " did not authenticate this message, so it may not come from who it names.";
     if (k === "trusted" && r.trust.source === "org") return "The sender is a member of your organization" +
       (r.trust.org ? ", " + r.trust.org : "") + ", and the organization's signature proves this message comes from this address.";
-    if (k === "trusted") return r.authDomain + " authenticated this message, and " + (r.trust.source === "own"
+    if (k === "trusted") return r.authDomain + " authenticated this message, and " + (r.trust.source === "ownAddress"
+      ? r.from + " is one of your own addresses."
+      : r.trust.source === "own"
       ? r.trust.match + " is a domain of your own accounts."
       : "the sender is on this account's trusted senders.");
     if (k === "verified") return "It carries a signature that verified, made by " + r.from + ", the address it is from" +
@@ -354,9 +356,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (r.trust.org ? "." : "; the organization has since been deleted, so its name is not shown.")]
         : r.author !== "authenticated"
         ? ["skip", "Skipped, because the author was not authenticated."]
+        : r.trust && r.trust.source === "ownAddress" ? ["pass", r.from + " is one of your own addresses."]
         : r.trust && r.trust.source === "own" ? ["pass", r.trust.match + " is a domain of your own accounts."]
         : r.trust ? ["pass", "The sender is on this account's trusted senders."]
-        : ["fail", "This account does not recognize " + r.from + ": it is not on the account's trusted senders, and " + fromDom + " is not a domain of your own accounts."]),
+        : ["fail", "This account does not recognize " + r.from + ": it is not one of your own addresses, and it is not on the account's trusted senders."]),
     ];
     const s = r.sig;
     if (!s) return { auth, trust, sig: [step("Signed", ["skip", "Not signed: the message carries no S/MIME or OpenPGP signature, so there is nothing to verify."])] };

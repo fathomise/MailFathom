@@ -213,6 +213,28 @@ describe('senderVerificationOf', () => {
         });
     });
 
+    it('says one of the reader’s own addresses recognized an author who wrote as it', () => {
+        const own = message({ ...authenticated, deploymentTrust: 'Trusted', trustSource: 'OwnAccountAddress' });
+
+        expect(senderVerificationOf(own, asSent).why).toEqual({
+            key: 'senderMark.why.trustedOwnAddress',
+            values: { authenticated: 'contoso.example', address: 'a.kowalska@contoso.example' },
+        });
+        expect(stepNamed(own, 'senderMark.step.trustedSender')).toMatchObject({
+            result: 'Passed',
+            detail: { key: 'senderMark.trust.ownAddress', values: { address: 'a.kowalska@contoso.example' } },
+        });
+    });
+
+    it('fails the trust step for an authenticated author nothing recognized, naming the address alone', () => {
+        const stranger = message({ ...authenticated, deploymentTrust: 'Unknown', trustSource: null });
+
+        expect(stepNamed(stranger, 'senderMark.step.trustedSender')).toMatchObject({
+            result: 'Failed',
+            detail: { key: 'senderMark.trust.unrecognized', values: { address: 'a.kowalska@contoso.example' } },
+        });
+    });
+
     // The organization's signature proves the address rather than a domain, so it holds where no author was established.
     it('passes the trust step for a member of the reader’s organization, naming it, whatever sender authentication found', () => {
         const member = message({

@@ -447,7 +447,6 @@ MailSynchronization:SignatureVerification:TrustedOpenPgpKeys:<index>:Lifetime = 
 MailSynchronization:SignatureVerification:TrustedOpenPgpKeys:<index>:Name = string (optional)
 MailSynchronization:SignatureVerification:TrustedOpenPgpKeys:<index>:Password = <recursive ConfiguredSecret> (optional)
 MailSynchronization:SignatureVerification:TrustedOpenPgpKeys:<index>:SecretReference = string (optional)
-MailSynchronization:TrustOwnAccountDomains = bool (optional)
 MailSynchronization:UnknownMutationOutcomeGrace = TimeSpan (optional)
 MailSynchronization:VerifyDkimLocally = bool (optional)
 MailSynchronization:WriteConnectionIdlePeriod = TimeSpan (optional)

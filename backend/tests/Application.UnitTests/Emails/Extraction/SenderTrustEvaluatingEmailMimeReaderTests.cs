@@ -64,7 +64,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         // Arrange
         Assert.True(TrustedSenderEntry.TryCreateForAddress("alice@partner.example", out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var reader = new SenderTrustEvaluatingEmailMimeReader(
             ReaderYielding(WrittenBy("partner.example"), from: "alice@partner.example", sender: "relay@partner.example"),
             PolicyReaderFor("primary", policy));
@@ -83,7 +83,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         // Arrange
         Assert.True(TrustedSenderEntry.TryCreateForAddress("relay@partner.example", out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var reader = new SenderTrustEvaluatingEmailMimeReader(
             ReaderYielding(WrittenBy("partner.example"), from: "alice@partner.example", sender: "relay@partner.example"),
             PolicyReaderFor("primary", policy));
@@ -109,7 +109,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
                     new EmailParticipant(EmailAddressRole.From, AddressOf("alice@partner.example")),
                     new EmailParticipant(EmailAddressRole.From, AddressOf("mallory@partner.example")),
                 ]),
-            PolicyReaderFor("primary", SenderTrustPolicy.Create([], [entry], [])));
+            PolicyReaderFor("primary", SenderTrustPolicy.Create([], [], [entry], [])));
 
         // Act
         var extraction = await reader.ReadMetadataAsync(Account, Content(), TestContext.Current.CancellationToken);
@@ -125,7 +125,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         // Arrange
         Assert.True(TrustedSenderEntry.TryCreateForAddress("alice@partner.example", out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var reader = new SenderTrustEvaluatingEmailMimeReader(
             ReaderYielding(
                 WrittenBy("partner.example"),
@@ -214,7 +214,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         Assert.True(TrustedSenderEntry.TryCreateForDomain(domain, includeSubdomains: false, out var entry));
         Assert.NotNull(entry);
 
-        return SenderTrustPolicy.Create([], [entry], []);
+        return SenderTrustPolicy.Create([], [], [entry], []);
     }
 
     /// <summary>Builds the verdict of a message whose displayed author the receiving server established.</summary>
