@@ -632,7 +632,7 @@ internal static class ContactEndpoints
     /// like any other. Refusing it here is what keeps a caller that wrote one out by hand meeting a stated refusal
     /// rather than an unhandled guard reported as a fault in the deployment.
     /// </remarks>
-    private static bool TryReadContactId(Guid contactId, out ContactId identity)
+    internal static bool TryReadContactId(Guid contactId, out ContactId identity)
     {
         identity = default;
 
@@ -647,7 +647,7 @@ internal static class ContactEndpoints
     }
 
     /// <summary>States that the route named the one identifier no contact can carry.</summary>
-    private static ProblemHttpResult EmptyIdentity() => Refused("A contact identifier cannot be empty.");
+    internal static ProblemHttpResult EmptyIdentity() => Refused("A contact identifier cannot be empty.");
 
     /// <summary>Reads the user a request named, refusing the one value the binder still admits.</summary>
     /// <remarks>
@@ -704,7 +704,7 @@ internal static class ContactEndpoints
     }
 
     /// <summary>Reads one address a caller supplied, keeping the addr-spec alone.</summary>
-    private static bool TryReadAddress(string? address, out EmailAddress resolved)
+    internal static bool TryReadAddress(string? address, out EmailAddress resolved)
     {
         resolved = default;
 
@@ -727,7 +727,7 @@ internal static class ContactEndpoints
     /// the pair of rules only it can state — which characters carry no glyph — and each is translated into a sentence of
     /// its own rather than into the exception's text.
     /// </remarks>
-    private static ContactRecordReading ReadRecord(ContactRecordRequest? request)
+    internal static ContactRecordReading ReadRecord(ContactRecordRequest? request)
     {
         if (request is null)
         {
@@ -858,18 +858,18 @@ internal static class ContactEndpoints
     }
 
     /// <summary>States what a caller has to change, without echoing anything about the person it was writing.</summary>
-    private static ProblemHttpResult Refused(string stated) =>
+    internal static ProblemHttpResult Refused(string stated) =>
         TypedResults.Problem(stated, statusCode: StatusCodes.Status400BadRequest);
 
     /// <summary>The validated parts of a contact record a request stated.</summary>
-    private sealed record ContactRecord(
+    internal sealed record ContactRecord(
         ContactDisplayName DisplayName,
         IReadOnlyCollection<EmailAddress> Addresses,
         EmailAddress PreferredAddress,
         ContactNote? Note);
 
     /// <summary>What reading a request's record produced: the record, or the one rule it broke.</summary>
-    private sealed record ContactRecordReading(ContactRecord? Record, string? Refusal)
+    internal sealed record ContactRecordReading(ContactRecord? Record, string? Refusal)
     {
         /// <summary>Reports a record every rule admits.</summary>
         internal static ContactRecordReading Read(ContactRecord record) => new(record, Refusal: null);

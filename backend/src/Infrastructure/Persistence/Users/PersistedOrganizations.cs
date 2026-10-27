@@ -4,9 +4,11 @@
 
 using MailFathom.Application.Access.Grants;
 using MailFathom.Application.Access.Organizations;
+using MailFathom.Application.Contacts;
 using MailFathom.Application.Paging;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
+using MailFathom.Infrastructure.Persistence.Contacts;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Policies.MailAccounts;
 using MailFathom.Infrastructure.Security.SigningKeys;
@@ -241,16 +243,28 @@ internal sealed class PersistedOrganizations(
     }
 
     /// <inheritdoc />
+    public Task<bool> ExistsAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        dbContext.Organizations.AsNoTracking().AnyAsync(organization => organization.Id == organizationId, cancellationToken);
+
+    /// <inheritdoc />
     /// <remarks>
     /// The organization row is locked before its members and its mail accounts are counted, and the counts and the delete
     /// commit together. A move of a user or an account into it checks the restricting foreign key, which waits on that
     /// lock, and a move out that committed first is already seen by the count — so the numbers a refusal names are the
     /// numbers that refused it, and a delete that goes ahead leaves a concurrent move to meet a missing organization
     /// rather than a dangling member or account.
+    /// <para>
+    /// The organization's contact book goes with it by cascade. Before it does, the deletion takes the address lock
+    /// <see cref="ContactAddressLocks" /> describes for every address that book held, like any other act removing a
+    /// contact, so a reader serializing on an address sees the book wholly before the deletion or wholly after it. Those
+    /// locks are taken before the organization row is, in the order a contact write takes them.
+    /// </para>
     /// </remarks>
     public async Task<OrganizationWriteResult> DeleteAsync(Guid organizationId, CancellationToken cancellationToken)
     {
         await using var removal = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var lockedAddresses = await this.LockBookAddressesAsync(organizationId, [], cancellationToken);
 
         await dbContext.Database.ExecuteSqlAsync(
             $"""SELECT 1 FROM organizations WHERE "Id" = {organizationId} FOR UPDATE""",
@@ -276,6 +290,8 @@ internal sealed class PersistedOrganizations(
                 RemainingMailAccounts: mailAccounts);
         }
 
+        await this.LockBookAddressesAsync(organizationId, lockedAddresses, cancellationToken);
+
         await dbContext.Organizations
             .Where(organization => organization.Id == organizationId)
             .ExecuteDeleteAsync(cancellationToken);
@@ -286,6 +302,30 @@ internal sealed class PersistedOrganizations(
         await grantChanges.AnnounceAsync();
 
         return OrganizationWriteResult.Of(OrganizationWriteOutcome.Written);
+    }
+
+    /// <summary>Takes the address lock for every address the organization's book now holds that is not among those already locked.</summary>
+    /// <returns>Every address locked so far.</returns>
+    /// <remarks>
+    /// Called once before the organization row is locked and once after. A contact write takes its address locks before
+    /// its foreign key reads the organization row, so locking the row first would leave each of the two waiting on the
+    /// other. The second call reaches only addresses a write committed in between, whose locks are already released, so
+    /// it waits on nobody; a write still in flight is invisible to it and meets the deleted organization at its key.
+    /// </remarks>
+    private async Task<IReadOnlyCollection<string>> LockBookAddressesAsync(
+        Guid organizationId,
+        IReadOnlyCollection<string> alreadyLocked,
+        CancellationToken cancellationToken)
+    {
+        var organizationBook = ContactBookHolder.OfOrganization(organizationId).Key;
+        var bookAddresses = await dbContext.ContactAddresses
+            .Where(address => address.BookHolderId == organizationBook)
+            .Select(address => address.NormalizedAddress)
+            .ToArrayAsync(cancellationToken);
+
+        await ContactAddressLocks.TakeAsync(dbContext, bookAddresses.Except(alreadyLocked, StringComparer.Ordinal), cancellationToken);
+
+        return [.. alreadyLocked.Union(bookAddresses, StringComparer.Ordinal)];
     }
 
     /// <inheritdoc />

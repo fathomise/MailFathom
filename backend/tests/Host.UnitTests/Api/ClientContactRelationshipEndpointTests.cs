@@ -234,7 +234,7 @@ public sealed class ClientContactRelationshipEndpointTests
     /// <summary>Builds the book the route reads the contact from, over a substituted directory and a caller granted every half.</summary>
     private ContactBookReader Contacts() => new(
         this.directory,
-        new ContactBookOwnership(Granted(), new ContactBookScopes(new StubMailAccountAssignments())),
+        new ContactBookOwnership(Granted(), new ContactBookScopes(new StubMailAccountAssignments(), new StatedAdministrativeTargets())),
         Granted());
 
     /// <summary>Builds the use case the route derives through, over the substituted index and deriver this class arranges.</summary>

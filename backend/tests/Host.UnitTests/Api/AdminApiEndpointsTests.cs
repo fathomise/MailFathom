@@ -158,6 +158,8 @@ public sealed class AdminApiEndpointsTests
         // path, which is the listing and the creation, three times at one account's path for the reading, the saving,
         // and the erasure, and once at each of the assignment paths, because assigning an account and ending an
         // assignment are published under different grants.
+        // An organization's contact book appears beneath the organization exactly as the deployment's appears beneath
+        // the prefix, without the collected half, which an organization does not hold.
         // An organization's signing keys are listed at one path, rotated at one beneath it, and one key is revoked at a
         // path naming it, because rotating ahead of schedule and revoking a leaked key are different decisions.
         // The settings policy appears twice at the deployment's path and twice at an organization's, which is the
@@ -231,6 +233,14 @@ public sealed class AdminApiEndpointsTests
                 $"{AdminEndpointOptions.RoutePrefix}{OrganizationEndpoints.OrganizationsRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{OrganizationEndpoints.OrganizationsRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{OrganizationEndpoints.OrganizationRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationContactEndpoints.OrganizationContactsRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationContactEndpoints.OrganizationContactsRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationContactEndpoints.OrganizationContactByAddressRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationContactEndpoints.OrganizationContactRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationContactEndpoints.OrganizationContactRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationContactEndpoints.OrganizationContactRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationContactEndpoints.OrganizationContactExportRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationContactEndpoints.OrganizationContactPromotionRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{OrganizationEndpoints.OrganizationDisplayNameRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{SettingsPolicyEndpoints.OrganizationPolicyRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{SettingsPolicyEndpoints.OrganizationPolicyRoute}",
@@ -412,6 +422,14 @@ public sealed class AdminApiEndpointsTests
                 $"GET {prefix}{OrganizationSigningKeyEndpoints.SigningKeysRoute} -> {MailFathomPermission.AdminRead.Name} over its target",
                 $"POST {prefix}{OrganizationSigningKeyEndpoints.RotationRoute} -> {MailFathomPermission.AdminCredentialsWrite.Name}",
                 $"POST {prefix}{OrganizationSigningKeyEndpoints.RevocationRoute} -> {MailFathomPermission.AdminCredentialsWrite.Name}",
+                $"GET {prefix}{OrganizationContactEndpoints.OrganizationContactsRoute} -> {MailFathomPermission.AdminAuditRead.Name} over its target",
+                $"POST {prefix}{OrganizationContactEndpoints.OrganizationContactsRoute} -> {MailFathomPermission.AdminOperate.Name} over its target",
+                $"GET {prefix}{OrganizationContactEndpoints.OrganizationContactByAddressRoute} -> {MailFathomPermission.AdminAuditRead.Name} over its target",
+                $"GET {prefix}{OrganizationContactEndpoints.OrganizationContactRoute} -> {MailFathomPermission.AdminAuditRead.Name} over its target",
+                $"PUT {prefix}{OrganizationContactEndpoints.OrganizationContactRoute} -> {MailFathomPermission.AdminOperate.Name} over its target",
+                $"DELETE {prefix}{OrganizationContactEndpoints.OrganizationContactRoute} -> {MailFathomPermission.AdminErase.Name} over its target",
+                $"POST {prefix}{OrganizationContactEndpoints.OrganizationContactPromotionRoute} -> {MailFathomPermission.AdminOperate.Name} over its target",
+                $"GET {prefix}{OrganizationContactEndpoints.OrganizationContactExportRoute} -> {MailFathomPermission.AdminAuditRead.Name} over its target",
                 $"GET {prefix}{KnownAuthenticationProviderEndpoints.KnownAuthenticationProvidersRoute} -> {MailFathomPermission.AdminRead.Name}",
                 $"POST {prefix}{KnownAuthenticationProviderEndpoints.KnownAuthenticationProvidersRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name}",
                 $"DELETE {prefix}{KnownAuthenticationProviderEndpoints.KnownAuthenticationProviderRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name}",
@@ -850,7 +868,7 @@ public sealed class AdminApiEndpointsTests
         var timeProvider = new FakeTimeProvider();
 
         services.AddScoped(_ => directory);
-        services.AddScoped(_ => new ContactBookScopes(new StubMailAccountAssignments()));
+        services.AddScoped(_ => new ContactBookScopes(new StubMailAccountAssignments(), new StatedAdministrativeTargets()));
         services.AddScoped(_ => new ContactBook(
             Substitute.For<IContactStore>(),
             directory,

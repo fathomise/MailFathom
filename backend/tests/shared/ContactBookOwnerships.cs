@@ -55,5 +55,16 @@ internal static class ContactBookOwnerships
     internal static ContactBookOwnership For(
         AccessAuthorization authorization,
         IMailAccountAssignments assignments) =>
-        new(authorization, new ContactBookScopes(assignments));
+        For(authorization, assignments, new StatedAdministrativeTargets());
+
+    /// <summary>Builds the resolution over an assignment relation and a membership relation a test states in full.</summary>
+    /// <param name="authorization">The authorization the use case beside it was given.</param>
+    /// <param name="assignments">Who reaches which mailbox.</param>
+    /// <param name="placements">Which organization each user is a member of.</param>
+    /// <returns>The resolution that use case consults.</returns>
+    internal static ContactBookOwnership For(
+        AccessAuthorization authorization,
+        IMailAccountAssignments assignments,
+        IAdministrativeTargets placements) =>
+        new(authorization, new ContactBookScopes(assignments, placements));
 }

@@ -34,11 +34,13 @@ internal static class ExportContactCommand
 
         var endpointOption = CliOptions.Endpoint();
         var userOption = UserOptions.User();
+        var organizationOption = ContactOptions.Organization();
         var identityOption = ContactOptions.Identity();
 
-        Command command = new("export", "Produce everything the books a user reads hold about one person, as JSON.")
+        Command command = new("export", "Produce everything the books a user reads, or an organization's book, hold about one person, as JSON.")
         {
             userOption,
+            organizationOption,
             identityOption,
             endpointOption,
         };
@@ -46,6 +48,7 @@ internal static class ExportContactCommand
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
+            result.GetValue(organizationOption),
             result.GetValue(identityOption),
             CliOptions.RequestedDeployment(result.GetValue(endpointOption), context.Variable(CliOptions.EndpointVariable)),
             cancellationToken));
@@ -56,6 +59,7 @@ internal static class ExportContactCommand
     private static async Task<int> RunAsync(
         CliContext context,
         Guid? requestedUser,
+        Guid? requestedOrganization,
         Guid contactId,
         string? requestedDeployment,
         CancellationToken cancellationToken)
@@ -65,13 +69,18 @@ internal static class ExportContactCommand
         using var transport = context.OpenTransport(profile.Endpoint, profile.Trust);
         var deployment = new AdminApiClient(transport, context.Console);
 
-        var user = await UserOptions.ResolveUserAsync(deployment, profile.Token, requestedUser, cancellationToken);
-        var export = await deployment.ExportContactAsync(profile.Token, contactId, user, cancellationToken);
+        var book = await ContactOptions.ResolveBookAsync(
+            deployment,
+            profile.Token,
+            requestedUser,
+            requestedOrganization,
+            cancellationToken);
+        var export = await deployment.ExportContactAsync(profile.Token, contactId, book, cancellationToken);
 
         if (export.Contact is null)
         {
             context.Console.WriteError(
-                $"The books that user reads hold no contact {contactId:D}, so there was nothing to export.");
+                $"The books named hold no contact {contactId:D}, so there was nothing to export.");
 
             return CliExitCode.Failure;
         }

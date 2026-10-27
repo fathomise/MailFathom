@@ -8,7 +8,7 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Corrects what one user's own book holds about one person.</summary>
+/// <summary>Corrects what one user's own book, or an organization's, holds about one person.</summary>
 /// <remarks>
 /// <para>
 /// What is not named is kept. The book itself takes the whole record rather than the difference, so this command reads
@@ -33,6 +33,7 @@ internal static class UpdateContactCommand
 
         var endpointOption = CliOptions.Endpoint();
         var userOption = UserOptions.User();
+        var organizationOption = ContactOptions.Organization();
         var identityOption = ContactOptions.Identity();
 
         Option<string?> nameOption = new("--name")
@@ -62,9 +63,10 @@ internal static class UpdateContactCommand
             Description = "Hold no note about the person afterwards.",
         };
 
-        Command command = new("update", "Correct what one user's own book holds about one person.")
+        Command command = new("update", "Correct what one user's own book, or an organization's, holds about one person.")
         {
             userOption,
+            organizationOption,
             identityOption,
             nameOption,
             addressOption,
@@ -77,6 +79,7 @@ internal static class UpdateContactCommand
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
+            result.GetValue(organizationOption),
             result.GetValue(identityOption),
             new ContactCorrection(
                 result.GetValue(nameOption),
@@ -93,6 +96,7 @@ internal static class UpdateContactCommand
     private static Task<int> RunAsync(
         CliContext context,
         Guid? requestedUser,
+        Guid? requestedOrganization,
         Guid contactId,
         ContactCorrection correction,
         string? requestedDeployment,
@@ -104,6 +108,7 @@ internal static class UpdateContactCommand
             context,
             contactId,
             requestedUser,
+            requestedOrganization,
             requestedDeployment,
             correction.ApplyTo,
             "Corrected",

@@ -1,6 +1,6 @@
 # Contacts
 
-<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
+<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
 
 MailFathom holds a contact book of its own: people, the addresses they use, and what a user recorded about them, in
 the same PostgreSQL database the mail is in. This page describes the record and the rules every writer of it obeys —
@@ -24,19 +24,21 @@ Addressing a message by naming a contact](mail-delivery.md#addressing-a-message-
 becomes an address, which name refuses to, and what the record then keeps. Nothing about that writes the book: addressing
 somebody is not a fact about them, so no contact is created, amended, or promoted by being written to.
 
-## Two books, and a read of both
+## Three books, and a read of them
 
-**What a person wrote down belongs to them; what a mailbox picked up belongs to the mailbox.** Those are two books,
-with two holders:
+**What a person wrote down belongs to them; what an administrator wrote down for an organization belongs to the
+organization; what a mailbox picked up belongs to the mailbox.** Those are three books, with three holders:
 
 | Book | Holder | What is in it |
 | --- | --- | --- |
-| A user's own | The user | Everything anybody wrote down for them — every asserted contact |
+| A user's own | The user | Everything anybody wrote down for them — asserted contacts |
+| An organization's | The organization | Everything an administrator wrote down for every member to read — asserted contacts |
 | A mail account's collected | The mail account | Everything collection picked up out of the mail that arrived on that account — every collected contact |
 
-A contact record names exactly one of the two, the record's origin agrees with which it named, and the database refuses
-a row where the three disagree rather than leaving every reader to reason about it. So a collected record filed under a
-user, or an asserted one filed under a mailbox, is not a state this system has.
+A contact record names exactly one of the three, the record's origin agrees with which it named — asserted for a user's
+or an organization's, collected for a mailbox's — and the database refuses a row where they disagree rather than leaving
+every reader to reason about it. So a collected record filed under a user or an organization, or an asserted one filed
+under a mailbox, is not a state this system has.
 
 The split is what a shared mailbox costs and what it buys. Two people assigned one account are two users and one
 mailbox: the account collects a correspondent **once**, both of them read that one record, and neither of them holds a
@@ -45,14 +47,20 @@ the mailbox's stays for whoever is still assigned it. [Single-tenant multi-user
 ownership](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0014-single-tenant-multi-user-ownership-on-the-mail-account.md)
 is the decision the second half of that follows from.
 
-**A user reads both, as one book.** Every read a user makes — a listing, a lookup by address, a lookup by name, an MCP
-tool, addressing a message by naming a contact — covers their own book and the collected book of every mail account
-they are assigned. That set is resolved from who the caller was admitted to act for, exactly as the mail beside it is,
-and no request of theirs can name another user's.
+**A user reads all of theirs, as one book.** Every read a user makes — a listing, a lookup by address, a lookup by
+name, an MCP tool, addressing a message by naming a contact — covers their own book, the book of the organization they
+are a member of, and the collected book of every mail account they are assigned. That set is resolved from who the
+caller was admitted to act for and which organization they are a member of, asked before the books are read, exactly as
+the mail beside it is, and no request of theirs can name another user's or another organization's. A user who is a
+member of no organization reads no organization's book. Every contact a read serves states the organization holding it
+where one does, as `organization` on the administrative and client routes and on every contact an MCP tool returns, so a
+reader tells the organization's contacts apart from their own: both are asserted, so the origin cannot.
 
 **The order between those books is fixed and stated, because two of them may hold one address.** It is the user's own
-book first, then the accounts by the ordinal order of their identifiers, and **a record is hidden when a book earlier in
-that order holds one of its addresses**. Two things follow. A contact the user wrote down hides a collected one carrying
+book first, then their organization's, then the accounts by the ordinal order of their identifiers, and **a record is
+hidden when a book earlier in that order holds one of its addresses**. A member who writes down somebody the
+organization already recorded reads their own record of them, and every other member goes on reading the
+organization's. Two more things follow. A contact the user wrote down hides a collected one carrying
 the same address — which is the point of writing somebody down: their name and their note are what the user sees, and it
 hides it for that user alone, because the other users of the mailbox never saw their record. And an address two of their
 accounts both collected is answered once, from the first of the two in that order — the same answer on every read, and
@@ -71,13 +79,47 @@ address they share still answers from the record a listing shows.
 **Which book an act writes is never the same question as which books it reads.** A caller's writes go into their own
 book: recording a person, amending one, promoting one. Collection writes into the book of the account it is
 synchronizing and into no other. Erasure is the exception and deliberately so — see [§ Erasing and exporting a
-person](#erasing-and-exporting-a-person).
+person](#erasing-and-exporting-a-person) — and even erasure reached through a user's books never reaches the
+organization's: a member reads the organization's contacts and writes none of them, so an amendment, a promotion, or an
+erasure a member asks for answers an organization's contact as one they do not hold.
 
 Each book keys onto its holder and is erased with it, by the schema rather than by a statement somebody remembers to
-write. Erasing a user takes their own book, and erasing a mail account takes the book it collected, beside that
-account's folders and mail; `contact_addresses` keys onto `contacts` through `(ContactId, BookHolderId)` either way, so
-the cascade reaches an address through the person holding it. A collected book therefore goes when its account does,
-which is when the last user assigned it is erased.
+write. Erasing a user takes their own book, deleting an organization takes the organization's book, and erasing a mail
+account takes the book it collected, beside that account's folders and mail; `contact_addresses` keys onto `contacts`
+through `(ContactId, BookHolderId)` in every case, so the cascade reaches an address through the person holding it. A
+collected book therefore goes when its account does, which is when the last user assigned it is erased.
+
+## The organization's book
+
+An organization's book is what its administrators record for every member at once — a supplier, a firm of accountants,
+the people every member's mailbox should recognize. It holds the same record every other book holds, under the same
+limits, and an address belongs to at most one contact of it. Every contact in it is asserted, because an administrator
+writing a person down is somebody writing a person down.
+
+**Only the administrative surface writes it.** It is reached beneath the organization's own route on the administrative
+endpoint and with `mfctl contact … --organization <id>`; [administering a
+deployment](../operations/admin-endpoint.md#administering-the-contact-book) holds the routes and the commands. Recording,
+amending, and promoting into it need `mailfathom.admin.operate`, erasing from it `mailfathom.admin.erase`, and reading or
+exporting it `mailfathom.admin.audit.read`, each held at the organization's scope or the deployment's. An administrator
+whose scope is another organization is answered as if the deployment held no such organization, so a refusal does not
+tell them another organization exists. The client endpoint and the MCP tools read it beside the caller's own book and
+write none of it: `mailfathom.contacts.write` is what a member's client and an agent hold, and neither of them writes what
+every member's mailbox recognizes.
+
+**Promoting into it names the mailbox the record is copied out of.** An organization reads no collected book of its
+own, so a promotion into it names the mail account that collected the person, under the same scope rule a collected book
+is read under everywhere else.
+
+**Every write and the deletion of the organization serialize on the addresses they touch.** Each single-contact write —
+into any of the three books — and each deletion of an organization takes a transaction-scoped advisory lock keyed by
+each address it adds, keeps, or removes, in one sorted order so two of them never wait on each other. Two writes that
+reach one address therefore run one after the other rather than interleaving, whichever books they write, and so does
+the deletion of an organization against a write into its book. Erasing everything one account collected takes no such
+lock, because it is a sweep over a mailbox's whole book rather than a write about one person.
+
+**MailFathom's own work finds the organization's contact by address.** It is one indexed seek on the book and the
+address's comparison form, so it ignores case like every other match in the book, and it answers with the contact's
+identity alone rather than anything the contact says. Nothing but MailFathom's own identity may ask it.
 
 ## A contact is a person, not an address
 
@@ -148,9 +190,10 @@ person, and refusing would ask a user to resolve a difference nothing else makes
 ## Two origins, and who may write which
 
 A contact is either **asserted** — somebody wrote this person down — or **collected**, an address that appeared in mail
-that arrived. The origin is not a flag beside the record: it says which of the two books holds it, and the database
-refuses a row whose origin and holder disagree. A user reads both at once, so searching for somebody never requires
-knowing which half they are in. What the difference decides is who may change the record without anybody asking:
+that arrived. The origin is not a flag beside the record: it says which kind of book holds it — a user's or an
+organization's for an asserted one, a mailbox's for a collected one — and the database refuses a row whose origin and
+holder disagree. A user reads all of their books at once, so searching for somebody never requires knowing which half
+they are in. What the difference decides is who may change the record without anybody asking:
 
 - A writer amends the contacts of its own origin and no others, and an amendment writes into the writer's own book
   alone. Collection never touches what a user wrote down, and a user amending a record their mailbox collected is
@@ -409,11 +452,15 @@ first inside the same transaction so it can answer with what it removed — the 
 it — and a user asking for one gets an answer rather than a call that returned without complaint. Erasing somebody the books do not hold is a completed erasure, not
 a failure: the state the user asked for is the state the books are in.
 
-**It reaches every book the caller reads, not only their own.** That is the one act over the books that does, and it is
-what a person asking to be taken out of a contact book is owed: no origin gates it, and somebody making that request is
-not answered with which half of which book they happen to be in. So **erasing a collected contact takes it out for every
-user assigned that mailbox**, because it was one record rather than a copy each — which is the honest reading of the
-request and the cost of the mailbox holding one record for everybody.
+**It reaches every book the caller reads except an organization's, not only their own.** That is the one act over the
+books that does, and it is what a person asking to be taken out of a contact book is owed: neither asserted nor collected
+gates it, and somebody making that request is not answered with which half of which book they happen to be in. So
+**erasing a collected contact takes it out for every user assigned that mailbox**, because it was one record rather than
+a copy each — which is the honest reading of the request and the cost of the mailbox holding one record for everybody.
+The organization's book is the one a member reads and does not reach: its contacts are erased only by an administrator,
+through the administrative surface or `mfctl contact delete --organization`, under `mailfathom.admin.erase`, and a
+member's erasure answers one of them as a contact the books do not hold — see [§ The organization's
+book](#the-organizations-book).
 
 **Erasing a user erases their own book.** It is the cascade rather than an erasure of its own, and it runs in two
 hops: the asserted half of `contacts` keys onto the user record and `contact_addresses` keys onto `contacts` through

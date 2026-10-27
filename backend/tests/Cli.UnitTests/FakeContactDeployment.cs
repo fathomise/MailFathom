@@ -28,6 +28,13 @@ internal static class FakeContactDeployment
     /// </remarks>
     internal static readonly Guid UserIdentity = new("66666666-7777-8888-9999-aaaaaaaaaaaa");
 
+    /// <summary>The organization a command naming one acts on.</summary>
+    internal static readonly Guid OrganizationIdentity = new("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
+    /// <summary>Where that organization's book is reached.</summary>
+    internal static readonly string OrganizationContactsPath =
+        AdminEndpointRoutes.OrganizationContactsPath(OrganizationIdentity);
+
     /// <summary>Builds a deployment answering the contact routes with the bodies given.</summary>
     /// <param name="lookup">What a read of one contact answers, or <see langword="null" /> to answer that the book holds none.</param>
     /// <param name="write">What a write answers, or <see langword="null" /> where the test asks for none.</param>
@@ -228,6 +235,12 @@ internal static class FakeContactDeployment
                  """;
     }
 
+    /// <summary>Answers an organization's book exactly as the users' books are answered, since only where it is reached differs.</summary>
+    private static string? OnTheUsersBook(string? path) =>
+        path is not null && path.StartsWith(OrganizationContactsPath, StringComparison.Ordinal)
+            ? AdminEndpointRoutes.ContactsPath + path[OrganizationContactsPath.Length..]
+            : path;
+
     private static HttpResponseMessage Answer(
         HttpRequestMessage request,
         string? lookup,
@@ -237,7 +250,7 @@ internal static class FakeContactDeployment
         string? export,
         string? version)
     {
-        var path = request.RequestUri?.AbsolutePath;
+        var path = OnTheUsersBook(request.RequestUri?.AbsolutePath);
 
         // Answered before the contact routes, because every contact command settles which user it acts for first and a
         // double that refused the roster would have each of them fail before reaching the route under test.
@@ -253,7 +266,7 @@ internal static class FakeContactDeployment
                 : FakeAdminEndpoint.Json(HttpStatusCode.OK, write ?? Written());
         }
 
-        if (path == AdminEndpointRoutes.ContactByAddressPath)
+        if (path == $"{AdminEndpointRoutes.ContactsPath}/by-address")
         {
             return FakeAdminEndpoint.Json(HttpStatusCode.OK, lookup ?? """{"contact":null}""");
         }

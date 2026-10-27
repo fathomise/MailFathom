@@ -79,6 +79,59 @@ public sealed class ContactBookOwnershipsTests
             scope.Keys);
     }
 
+    /// <summary>The organization a user is a member of adds its book between theirs and the collected ones.</summary>
+    /// <remarks>
+    /// The membership overload is what every suite asserting an organization's book reaches for, so a helper that
+    /// dropped the placements, or read them for the wrong user, would leave each of those suites seeing no organization
+    /// book and asserting its absence as the behaviour.
+    /// </remarks>
+    [Fact]
+    public async Task For_AMemberOfAnOrganization_ReadsTheOrganizationsBookBetweenTheirOwnAndTheAccounts()
+    {
+        // Arrange
+        var organization = new Guid("0198f0aa-0000-7000-8000-00000000f001");
+        var authorization = AccessAuthorizations.ForUserGranted(
+            SyntheticUser.Another,
+            MailFathomPermission.ContactsRead);
+        var assignments = new StubMailAccountAssignments()
+            .Assigning(SyntheticUser.Another, [MailAccountId.Create("first-account")]);
+        var placements = new StatedAdministrativeTargets().WithUser(SyntheticUser.Another, organization);
+
+        // Act
+        var ownership = ContactBookOwnerships.For(authorization, assignments, placements);
+
+        var scope = await ownership.ReadScopeAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [
+                ContactBookHolder.UserKeyPrefix + SyntheticUser.Another.Value.ToString("D"),
+                ContactBookHolder.OrganizationKeyPrefix + organization.ToString("D"),
+                ContactBookHolder.AccountKeyPrefix + "first-account",
+            ],
+            scope.Keys);
+    }
+
+    /// <summary>The overloads that state no membership resolve as a user in no organization.</summary>
+    [Fact]
+    public async Task For_AnAssignmentRelationAlone_ReadsNoOrganizationsBook()
+    {
+        // Arrange
+        var authorization = AccessAuthorizations.ForUserGranted(
+            SyntheticUser.Another,
+            MailFathomPermission.ContactsRead);
+        var assignments = new StubMailAccountAssignments()
+            .Assigning(SyntheticUser.Another, [MailAccountId.Create("first-account")]);
+
+        // Act
+        var ownership = ContactBookOwnerships.For(authorization, assignments);
+
+        var scope = await ownership.ReadScopeAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(scope.Keys, key => key.StartsWith(ContactBookHolder.OrganizationKeyPrefix, StringComparison.Ordinal));
+    }
+
     /// <summary>The two principals that reach the books by naming one, which is why neither may be attributed to a user.</summary>
     /// <remarks>
     /// Both once resolved to the single user a deployment served, and a deployment now holds several. What replaced

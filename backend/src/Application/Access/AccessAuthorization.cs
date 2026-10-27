@@ -343,6 +343,26 @@ public sealed class AccessAuthorization
         return this.PermitsOverAsync(permission, token => this.PlaceScopeAsync(scope, token), cancellationToken);
     }
 
+    /// <summary>Requires that an admitted caller holding one named capability at a scope covering another scope is what reached this use case.</summary>
+    /// <param name="permission">The capability the operation is published under.</param>
+    /// <param name="scope">The scope the operation is bounded by: the deployment, an organization it names, or a user.</param>
+    /// <param name="cancellationToken">Cancels placing the user a user scope names.</param>
+    /// <returns>A task that completes once the caller is admitted.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> is <see langword="null" />.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the work was reached under no principal, under a principal that is not a caller, or by a caller holding the permission at no scope covering the one named.</exception>
+    public Task RequirePermissionOverScopeAsync(
+        MailFathomPermission permission,
+        AssignmentScope scope,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+
+        return this.RequirePermissionOverAsync(
+            permission,
+            token => this.PlaceScopeAsync(scope, token),
+            cancellationToken);
+    }
+
     /// <summary>Reports the scopes the caller holds one capability at, which is what a listing answers within.</summary>
     /// <param name="permission">The capability the listing is published under.</param>
     /// <returns>The scopes, empty for a caller that does not hold it and for every principal that is not a caller.</returns>

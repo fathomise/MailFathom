@@ -33,9 +33,11 @@ internal sealed record ContactRecordRequest(
 /// <param name="Origin">How the contact came to be in the book, which decides who may amend it.</param>
 /// <param name="RecordedAt">When the contact entered the book.</param>
 /// <param name="AmendedAt">When it was last amended, which equals <paramref name="RecordedAt" /> until one happens.</param>
+/// <param name="Organization">The organization whose book holds the contact, or nothing where a person or a mailbox holds it. A member reads such a contact and cannot change it.</param>
 /// <remarks>
-/// Every field but the identity and the origin is personal data about a third party. It travels to the caller that
-/// asked for this person and reaches nothing else — no log line, no metric dimension, and no failure message.
+/// Every field but the identity, the origin, and the organization is personal data about a third party. It travels to
+/// the caller that asked for this person and reaches nothing else — no log line, no metric dimension, and no failure
+/// message.
 /// </remarks>
 internal sealed record ContactResponse(
     Guid Id,
@@ -45,7 +47,8 @@ internal sealed record ContactResponse(
     string? Note,
     string Origin,
     DateTimeOffset RecordedAt,
-    DateTimeOffset AmendedAt)
+    DateTimeOffset AmendedAt,
+    Guid? Organization)
 {
     /// <summary>Describes one contact for a caller.</summary>
     /// <param name="contact">The contact as the book holds it.</param>
@@ -63,7 +66,8 @@ internal sealed record ContactResponse(
             contact.Note?.Value,
             contact.Origin.ToString(),
             contact.RecordedAt,
-            contact.AmendedAt);
+            contact.AmendedAt,
+            contact.Organization);
     }
 }
 

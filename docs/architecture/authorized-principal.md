@@ -98,14 +98,16 @@ question that names the identifier alone has no single answer, and whoever holds
 decision and grants nothing — a worker was already admitted by name — and it is deliberately not a way for a caller to
 act for somebody else, because nothing published to a caller consults it.
 
-**The contact book is two books, and which of them a principal reaches follows from the user it acts for.** A caller
-reads their own book beside the collected book of each mail account assigned to them, so `ContactBookOwnership` resolves
-the caller's user with `RequireUser` and composes the scope from the assignment relation — a principal acting for nobody
-reaches no book rather than falling back to whoever the deployment serves. The two principals that legitimately maintain
-a book without being a caller are outside that reading rather than exceptions to it: an administrative route names the
-user, or the mail account, it acts for, and MailFathom's own synchronization writes the collected book of the account it
-is synchronizing and reads no user at all. [Contacts § Two books, and a read of
-both](../features/contacts.md#two-books-and-a-read-of-both) is where what that decides is described.
+**The contact book is three books, and which of them a principal reaches follows from the user it acts for.** A caller
+reads their own book, then the book of the organization they are a member of, then the collected book of each mail
+account assigned to them, so `ContactBookOwnership` resolves the caller's user with `RequireUser` and composes the scope
+from the organization membership and the assignment relation — a principal acting for nobody reaches no book rather than
+falling back to whoever the deployment serves. A caller writes their own book alone and reads the organization's without
+writing it. The principals that legitimately maintain a book without being a caller are outside that reading rather than
+exceptions to it: an administrative route names the user, the organization, or the mail account it acts for, and is
+admitted over that target's scope, and MailFathom's own synchronization writes the collected book of the account it is
+synchronizing and reads no user at all. [Contacts § Three books, and a read of
+them](../features/contacts.md#three-books-and-a-read-of-them) is where what that decides is described.
 
 The signed capability is what `GET /mcp/attachments/{capability}` runs under. That route authenticates nobody by design: the
 URL carries a ticket verified against the deployment's key ring, and what it names is one attachment of one email rather

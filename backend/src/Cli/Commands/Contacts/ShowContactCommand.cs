@@ -8,7 +8,7 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Shows everything the books one user reads hold about one person.</summary>
+/// <summary>Shows everything the books one user reads, or one organization's book, hold about one person.</summary>
 /// <remarks>
 /// The two ways an operator arrives at a contact. By identity is how every other command names one; by address is the
 /// question "who is this from", which is answered with one person rather than with a match: an address is unique within
@@ -26,6 +26,7 @@ internal static class ShowContactCommand
 
         var endpointOption = CliOptions.Endpoint();
         var userOption = UserOptions.User();
+        var organizationOption = ContactOptions.Organization();
 
         Option<Guid?> identityOption = new("--id")
         {
@@ -40,6 +41,7 @@ internal static class ShowContactCommand
         Command command = new("show", "Show one contact, by its identifier or by an address it holds.")
         {
             userOption,
+            organizationOption,
             identityOption,
             addressOption,
             endpointOption,
@@ -48,6 +50,7 @@ internal static class ShowContactCommand
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
+            result.GetValue(organizationOption),
             result.GetValue(identityOption),
             result.GetValue(addressOption),
             CliOptions.RequestedDeployment(result.GetValue(endpointOption), context.Variable(CliOptions.EndpointVariable)),
@@ -59,6 +62,7 @@ internal static class ShowContactCommand
     private static async Task<int> RunAsync(
         CliContext context,
         Guid? requestedUser,
+        Guid? requestedOrganization,
         Guid? contactId,
         string? address,
         string? requestedDeployment,
@@ -78,11 +82,16 @@ internal static class ShowContactCommand
         using var transport = context.OpenTransport(profile.Endpoint, profile.Trust);
         var deployment = new AdminApiClient(transport, context.Console);
 
-        var user = await UserOptions.ResolveUserAsync(deployment, profile.Token, requestedUser, cancellationToken);
+        var book = await ContactOptions.ResolveBookAsync(
+            deployment,
+            profile.Token,
+            requestedUser,
+            requestedOrganization,
+            cancellationToken);
 
         var lookup = contactId is { } identity
-            ? await deployment.ReadContactAsync(profile.Token, identity, user, cancellationToken)
-            : await deployment.ReadContactByAddressAsync(profile.Token, user, address!, cancellationToken);
+            ? await deployment.ReadContactAsync(profile.Token, identity, book, cancellationToken)
+            : await deployment.ReadContactByAddressAsync(profile.Token, book, address!, cancellationToken);
 
         if (lookup.Contact is not { } held)
         {
@@ -103,6 +112,6 @@ internal static class ShowContactCommand
     /// operator has the address in front of them either way.
     /// </remarks>
     private static string DescribeAbsence(Guid? contactId) => contactId is { } identity
-        ? $"The books that user reads hold no contact {identity:D}."
-        : "The books that user reads hold nobody using that address.";
+        ? $"The books named hold no contact {identity:D}."
+        : "The books named hold nobody using that address.";
 }

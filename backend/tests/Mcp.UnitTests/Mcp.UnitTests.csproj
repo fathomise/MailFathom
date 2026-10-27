@@ -21,6 +21,7 @@
          compose a book over a caller arrange that relation the same way. -->
     <Compile Include="..\shared\StubMailAccountAssignments.cs" Link="StubMailAccountAssignments.cs" />
     <Compile Include="..\shared\ContactBookOwnerships.cs" Link="ContactBookOwnerships.cs" />
+    <Compile Include="..\shared\StatedAdministrativeTargets.cs" Link="StatedAdministrativeTargets.cs" />
     <Compile Include="..\shared\OutgoingMailGovernors.cs" Link="OutgoingMailGovernors.cs" />
     <Compile Include="..\shared\AuthoredSendGovernors.cs" Link="AuthoredSendGovernors.cs" />
     <Compile Include="..\shared\RecordingLoggerProvider.cs" Link="RecordingLoggerProvider.cs" />

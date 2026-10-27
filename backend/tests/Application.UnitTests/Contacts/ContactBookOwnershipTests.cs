@@ -29,6 +29,11 @@ public sealed class ContactBookOwnershipTests
 {
     private static readonly DateTimeOffset Now = new(2026, 3, 1, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The organization whose book the organization tests write and read, which is the one a scoped administrator is arranged over.</summary>
+    private static readonly Guid Organization = AccessAuthorizations.ScopedOrganization;
+
+    private static readonly Guid AnotherOrganization = new("0198f0aa-0000-7000-8000-00000000f003");
+
     /// <summary>A listing is one user's own books, so nobody else's correspondents are served with it.</summary>
     [Fact]
     public async Task ReadPageAsync_ABookEachOfTwoUsersHolds_ServesTheCallersOwnAndNoOther()
@@ -384,7 +389,7 @@ public sealed class ContactBookOwnershipTests
         var book = BookOf(store, SyntheticUser.Deployment, MailFathomPermission.AdminErase);
 
         // Act
-        var scope = await new ContactBookScopes(assignments)
+        var scope = await new ContactBookScopes(assignments, new StatedAdministrativeTargets())
             .ReadScopeAsync(SyntheticUser.Deployment, TestContext.Current.CancellationToken);
         var erasure = await book.EraseAsync(
             scope,
@@ -397,6 +402,310 @@ public sealed class ContactBookOwnershipTests
         Assert.True(erasure.WasHeld);
         Assert.Empty(theOther.Contacts);
     }
+
+    /// <summary>A member reads the organization's contacts beside their own, and a user of another organization reads none of them.</summary>
+    [Fact]
+    public async Task ReadPageAsync_AnOrganizationsBook_IsServedToItsMembersAlone()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var recorded = OrganizationContactOf("Biuro Rachunkowe", "biuro@example.test");
+        store.Hold(ContactBookHolder.OfOrganization(Organization), recorded);
+        store.Hold(SyntheticUser.Deployment, ContactOf("Anna Kowalska", "anna@example.test"));
+
+        var placements = new StatedAdministrativeTargets()
+            .WithUser(SyntheticUser.Deployment, Organization)
+            .WithUser(SyntheticUser.Another, AnotherOrganization);
+
+        // Act
+        var member = await ReaderOf(store, SyntheticUser.Deployment, placements)
+            .ReadPageAsync(new ContactPageRequest(), TestContext.Current.CancellationToken);
+        var outsider = await ReaderOf(store, SyntheticUser.Another, placements)
+            .ReadPageAsync(new ContactPageRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(2, member.Contacts.Count);
+        Assert.Contains(member.Contacts, contact => contact.Id == recorded.Id && contact.Organization == Organization);
+        Assert.Empty(outsider.Contacts);
+    }
+
+    /// <summary>A member's own record wins over the organization's for an address both hold, for that member alone.</summary>
+    [Fact]
+    public async Task FindByAddressAsync_AnAddressTheMemberAndTheOrganizationBothHold_AnswersWithTheMembersOwn()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var theOrganizations = OrganizationContactOf("Anna Kowalska", "anna@example.test");
+        var theirOwn = ContactOf("Ania", "anna@example.test");
+        store.Hold(ContactBookHolder.OfOrganization(Organization), theOrganizations);
+        store.Hold(SyntheticUser.Deployment, theirOwn);
+
+        var placements = new StatedAdministrativeTargets()
+            .WithUser(SyntheticUser.Deployment, Organization)
+            .WithUser(SyntheticUser.Another, Organization);
+
+        // Act
+        var forTheWriter = await ReaderOf(store, SyntheticUser.Deployment, placements)
+            .FindByAddressAsync(Address("anna@example.test"), TestContext.Current.CancellationToken);
+        var forAnotherMember = await ReaderOf(store, SyntheticUser.Another, placements)
+            .FindByAddressAsync(Address("anna@example.test"), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(theirOwn.Id, forTheWriter?.Id);
+        Assert.Equal(theOrganizations.Id, forAnotherMember?.Id);
+    }
+
+    /// <summary>An administrator whose scope covers the organization records into its book.</summary>
+    [Fact]
+    public async Task RecordInOrganizationAsync_AnAdministratorOverTheOrganization_WritesIntoItsBook()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var book = BookOf(
+            store,
+            AccessAuthorizations.ForAdministratorScopedAt(
+                AssignmentScope.Organization(Organization),
+                MailFathomPermission.AdminOperate));
+
+        // Act
+        var result = await book.RecordInOrganizationAsync(
+            Organization,
+            NewContactOf("Biuro Rachunkowe", "biuro@example.test"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ContactWriteOutcome.Written, result.Outcome);
+        Assert.Equal(Organization, Assert.Single(store.Contacts).Organization);
+    }
+
+    /// <summary>An administrator whose scope is another organization is answered as if the book held nothing to write.</summary>
+    [Fact]
+    public async Task RecordInOrganizationAsync_AnAdministratorOverAnotherOrganization_WritesNothing()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var book = BookOf(
+            store,
+            AccessAuthorizations.ForAdministratorScopedAt(
+                AssignmentScope.Organization(AnotherOrganization),
+                MailFathomPermission.AdminOperate));
+
+        // Act
+        var result = await book.RecordInOrganizationAsync(
+            Organization,
+            NewContactOf("Biuro Rachunkowe", "biuro@example.test"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ContactWriteOutcome.NotFound, result.Outcome);
+        Assert.Equal(0, store.ContactCount);
+    }
+
+    /// <summary>A member's client and an agent hold the contact grant, and neither writes what every member's mailbox recognizes.</summary>
+    [Fact]
+    public async Task RecordInOrganizationAsync_ACallerHoldingTheContactGrantAlone_IsRefused()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var book = BookOf(store, SyntheticUser.Deployment, MailFathomPermission.ContactsWrite);
+
+        // Act
+        var refusal = await Record.ExceptionAsync(() => book.RecordInOrganizationAsync(
+            Organization,
+            NewContactOf("Biuro Rachunkowe", "biuro@example.test"),
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.IsType<PrincipalNotAuthorizedException>(refusal);
+        Assert.Equal(0, store.ContactCount);
+    }
+
+    /// <summary>A member writing through their own scope cannot amend or erase the organization's contact, which they only read.</summary>
+    [Fact]
+    public async Task AmendAndEraseAsync_AMemberReachingTheOrganizationsContact_AnswerItAsNotHeld()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var recorded = OrganizationContactOf("Biuro Rachunkowe", "biuro@example.test");
+        store.Hold(ContactBookHolder.OfOrganization(Organization), recorded);
+
+        var book = BookOf(store, SyntheticUser.Deployment, MailFathomPermission.ContactsWrite);
+        var scope = ContactBookScope.Of(SyntheticUser.Deployment, Organization, []);
+
+        // Act
+        var amendment = await book.AmendAsync(
+            scope,
+            new ContactAmendment
+            {
+                ContactId = recorded.Id,
+                Writer = ContactOrigin.Asserted,
+                DisplayName = ContactDisplayName.Create("Someone Else"),
+                Addresses = [Address("biuro@example.test")],
+                PreferredAddress = Address("biuro@example.test"),
+            },
+            TestContext.Current.CancellationToken);
+        var erasure = await book.EraseAsync(scope, recorded.Id, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ContactWriteOutcome.NotFound, amendment.Outcome);
+        Assert.False(erasure.WasHeld);
+        Assert.Equal("Biuro Rachunkowe", Assert.Single(store.Contacts).DisplayName.Value);
+    }
+
+    /// <summary>An administrator erasing over the organization's own scope reaches its contact.</summary>
+    [Fact]
+    public async Task EraseAsync_AnAdministratorOverTheOrganizationsBook_ErasesItsContact()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var recorded = OrganizationContactOf("Biuro Rachunkowe", "biuro@example.test");
+        store.Hold(ContactBookHolder.OfOrganization(Organization), recorded);
+
+        var book = BookOf(
+            store,
+            AccessAuthorizations.ForAdministratorScopedAt(
+                AssignmentScope.Organization(Organization),
+                MailFathomPermission.AdminErase));
+
+        // Act
+        var erasure = await book.EraseAsync(
+            ContactBookScope.OfOrganization(Organization, []),
+            recorded.Id,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(erasure.WasHeld);
+        Assert.Equal(0, store.ContactCount);
+    }
+
+    /// <summary>Promoting into an organization copies the mailbox's record into the organization's book and leaves the mailbox's own.</summary>
+    [Fact]
+    public async Task PromoteAsync_IntoAnOrganizationsBook_CopiesTheCollectedRecordAsTheOrganizations()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var collected = CollectedContactOf("Anna Kowalska", "anna@example.test");
+        store.Hold(SyntheticMailAccount.Deployment, collected);
+
+        var book = BookOf(
+            store,
+            AccessAuthorizations.ForAdministratorScopedAt(AssignmentScope.Deployment, MailFathomPermission.AdminOperate));
+
+        // Act
+        var result = await book.PromoteAsync(
+            ContactBookScope.OfOrganization(Organization, [SyntheticMailAccount.Deployment]),
+            collected.Id,
+            ContactOrigin.Asserted,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ContactWriteOutcome.Written, result.Outcome);
+        var copy = Assert.Single(store.Contacts, contact => contact.Id != collected.Id);
+        Assert.Equal(Organization, copy.Organization);
+        Assert.Equal(ContactOrigin.Asserted, copy.Origin);
+        Assert.Equal(collected.Id, Assert.Single(store.ContactsOf(SyntheticMailAccount.Deployment)).Id);
+    }
+
+    /// <summary>A contact the organization already holds is reported as asserted rather than copied into its book again.</summary>
+    [Fact]
+    public async Task PromoteAsync_AContactTheOrganizationAlreadyHolds_IsAnsweredAsAlreadyAsserted()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var recorded = OrganizationContactOf("Biuro Rachunkowe", "biuro@example.test");
+        store.Hold(ContactBookHolder.OfOrganization(Organization), recorded);
+
+        var book = BookOf(
+            store,
+            AccessAuthorizations.ForAdministratorScopedAt(
+                AssignmentScope.Organization(Organization),
+                MailFathomPermission.AdminOperate));
+
+        // Act
+        var result = await book.PromoteAsync(
+            ContactBookScope.OfOrganization(Organization, []),
+            recorded.Id,
+            ContactOrigin.Asserted,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ContactWriteOutcome.AlreadyAsserted, result.Outcome);
+        Assert.Equal(1, store.ContactCount);
+    }
+
+    /// <summary>MailFathom's own work finds the organization's contact by an address in any casing, and nothing a member wrote.</summary>
+    [Fact]
+    public async Task FindOrganizationHolderAsync_AnAddressInAnotherCasing_NamesTheOrganizationsContactAlone()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var recorded = OrganizationContactOf("Biuro Rachunkowe", "biuro@example.test");
+        store.Hold(ContactBookHolder.OfOrganization(Organization), recorded);
+        store.Hold(SyntheticUser.Deployment, ContactOf("Anna Kowalska", "anna@example.test"));
+
+        var book = CollectingBookOf(store);
+
+        // Act
+        var found = await book.FindOrganizationHolderAsync(
+            Organization,
+            Address("Biuro@Example.TEST"),
+            TestContext.Current.CancellationToken);
+        var unknown = await book.FindOrganizationHolderAsync(
+            Organization,
+            Address("anna@example.test"),
+            TestContext.Current.CancellationToken);
+        var elsewhere = await book.FindOrganizationHolderAsync(
+            AnotherOrganization,
+            Address("biuro@example.test"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(recorded.Id, found);
+        Assert.Null(unknown);
+        Assert.Null(elsewhere);
+    }
+
+    /// <summary>The lookup serves work MailFathom runs for nobody, so a caller cannot ask it.</summary>
+    [Fact]
+    public async Task FindOrganizationHolderAsync_ReachedByACaller_IsRefused()
+    {
+        // Arrange
+        var book = BookOf(new InMemoryContactBookStore(), SyntheticUser.Deployment, MailFathomPermission.ContactsRead);
+
+        // Act
+        var refusal = await Record.ExceptionAsync(() => book.FindOrganizationHolderAsync(
+            Organization,
+            Address("biuro@example.test"),
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.IsType<PrincipalNotAuthorizedException>(refusal);
+    }
+
+    private static ContactBookReader ReaderOf(
+        InMemoryContactBookStore store,
+        UserId user,
+        StatedAdministrativeTargets placements)
+    {
+        var authorization = AccessAuthorizations.ForUserGranted(user, MailFathomPermission.ContactsRead);
+
+        return new ContactBookReader(
+            store,
+            ContactBookOwnerships.For(authorization, new StubMailAccountAssignments(), placements),
+            authorization);
+    }
+
+    private static Contact OrganizationContactOf(string displayName, string address) =>
+        Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(Now)),
+            ContactDisplayName.Create(displayName),
+            [Address(address)],
+            Address(address),
+            note: null,
+            ContactOrigin.Asserted,
+            Now,
+            Now,
+            Organization);
 
     private static ContactBookReader ReaderOf(
         InMemoryContactBookStore store,

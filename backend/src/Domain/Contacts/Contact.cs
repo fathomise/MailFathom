@@ -60,7 +60,8 @@ public sealed class Contact
         ContactNote? note,
         ContactOrigin origin,
         DateTimeOffset recordedAt,
-        DateTimeOffset amendedAt)
+        DateTimeOffset amendedAt,
+        Guid? organization)
     {
         this.Id = id;
         this.DisplayName = displayName;
@@ -70,6 +71,7 @@ public sealed class Contact
         this.Origin = origin;
         this.RecordedAt = recordedAt;
         this.AmendedAt = amendedAt;
+        this.Organization = organization;
     }
 
     /// <summary>Gets what addresses this person, which no amendment and no promotion ever changes.</summary>
@@ -101,6 +103,14 @@ public sealed class Contact
     /// <summary>Gets when this contact was last amended, which equals <see cref="RecordedAt" /> until one happens.</summary>
     public DateTimeOffset AmendedAt { get; }
 
+    /// <summary>Gets the organization whose book holds this contact, or <see langword="null" /> when a person or a mailbox holds it.</summary>
+    /// <remarks>
+    /// What tells a member the organization's contacts apart from their own: both are written down, so the origin cannot,
+    /// and an organization's contact is read-only to every member. It is the organization's identifier rather than
+    /// anything about the person, so it is no more personal data than <see cref="Id" />.
+    /// </remarks>
+    public Guid? Organization { get; }
+
     /// <summary>Builds a contact from what a user or collection supplied, enforcing every invariant the book rests on.</summary>
     /// <param name="id">The identity this contact keeps for as long as it is held.</param>
     /// <param name="displayName">The name to record.</param>
@@ -110,9 +120,10 @@ public sealed class Contact
     /// <param name="origin">How this contact came to be in the book.</param>
     /// <param name="recordedAt">When this contact entered the book.</param>
     /// <param name="amendedAt">When it was last amended, which is <paramref name="recordedAt" /> for a new contact.</param>
+    /// <param name="organization">The organization whose book holds it, or <see langword="null" /> when a person or a mailbox holds it.</param>
     /// <returns>A contact whose addresses are deduplicated and ordered, with the preferred one first.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="addresses" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when no address is supplied, when more than <see cref="MaximumAddressCount" /> remain after two spellings of one address are merged, or when <paramref name="preferredAddress" /> is not among them.</exception>
+    /// <exception cref="ArgumentException">Thrown when no address is supplied, when more than <see cref="MaximumAddressCount" /> remain after two spellings of one address are merged, when <paramref name="preferredAddress" /> is not among them, or when an organization's contact is not asserted.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> names no declared value.</exception>
     /// <remarks>
     /// Two spellings of one address inside one record are one address, so they are merged rather than refused: they name
@@ -128,13 +139,19 @@ public sealed class Contact
         ContactNote? note,
         ContactOrigin origin,
         DateTimeOffset recordedAt,
-        DateTimeOffset amendedAt)
+        DateTimeOffset amendedAt,
+        Guid? organization = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
 
         if (!Enum.IsDefined(origin))
         {
             throw new ArgumentOutOfRangeException(nameof(origin), "A contact origin must name a declared value.");
+        }
+
+        if (organization is { } holder && (holder == Guid.Empty || origin != ContactOrigin.Asserted))
+        {
+            throw new ArgumentException("An organization's contact names its organization and is asserted.", nameof(organization));
         }
 
         if (addresses.Count == 0)
@@ -166,7 +183,8 @@ public sealed class Contact
             note,
             origin,
             recordedAt,
-            amendedAt);
+            amendedAt,
+            organization);
     }
 
     /// <summary>Answers whether this person uses the given address.</summary>
@@ -193,7 +211,7 @@ public sealed class Contact
     /// </remarks>
     public bool IsPromotableBy(ContactOrigin writer) => writer == ContactOrigin.Asserted;
 
-    /// <summary>Produces this contact with the parts an amendment replaced, keeping its identity, origin, and arrival.</summary>
+    /// <summary>Produces this contact with the parts an amendment replaced, keeping its identity, origin, organization, and arrival.</summary>
     /// <param name="displayName">The name to record instead.</param>
     /// <param name="addresses">Every address this person uses after the amendment.</param>
     /// <param name="preferredAddress">The address to use by default after the amendment.</param>
@@ -221,7 +239,8 @@ public sealed class Contact
             note,
             this.Origin,
             this.RecordedAt,
-            amendedAt);
+            amendedAt,
+            this.Organization);
 
     /// <summary>Keeps the addr-spec alone, because the person's name is the contact's rather than one sender's spelling of it.</summary>
     /// <remarks>

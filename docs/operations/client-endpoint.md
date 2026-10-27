@@ -3400,6 +3400,14 @@ assigned, resolved from the session rather than from the request, so a contact s
 one nobody holds. That is the whole difference from [the administrative contact routes](admin-endpoint.md), which name
 the user they act for and are read under the administrative grants.
 
+**The organization's contacts are read beside the user's own and written through none of these routes.** A user who is
+a member of an organization reads its book too, in the listing of what was written down, after their own book and
+before their mailboxes' — so an address both hold answers from their own record. Every such contact carries
+`organization`, the organization's identifier, which a contact of the user's own book or of a mailbox's carries as
+`null`; that field is how a screen tells the two asserted halves apart. Amending, promoting, or erasing one of them is
+answered as a person the books do not hold, because [only an administrator writes an organization's
+book](../features/contacts.md#the-organizations-book).
+
 **Every write records somebody the user wrote down.** What a person types into their own client is a person they wrote
 down, so a write here is asserted rather than collected — which is why amending a record one of their mailboxes
 collected is answered `OriginRefusesWriter` rather than performed. Promotion is the act that resolves it: it writes

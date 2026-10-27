@@ -248,7 +248,7 @@ Nothing keys onto this row and nothing cascades from it. It describes the deploy
 `settings_accounts` holds one row per user, and `mail_account_assignments` says which mailboxes each of them is
 served. The mail graph hangs on the mailbox rather than on a person: a folder cascades from the account, a message
 from the folder, and everything derived from a message from the message, so one mailbox is one copy of the mail
-however many people read it. [ADR 0014](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0014-single-tenant-multi-user-ownership-on-the-mail-account.md) is the decision. The [contact book](#the-contact-book) follows the same division in one pair of tables: a contact somebody wrote down is an assembled record rather than mail an account brought in, so it keys onto its user and cascades from that row, while a contact an account collected keys onto the account exactly as the mail it came from does and is read by every user assigned it. `contact_addresses` repeats the holder despite hanging on `contacts` through `(ContactId, BookHolderId)`, because the reads it answers lead with the holder in an index and an index cannot reach through the contact to find one.
+however many people read it. [ADR 0014](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0014-single-tenant-multi-user-ownership-on-the-mail-account.md) is the decision. The [contact book](#the-contact-book) follows the same division in one pair of tables: a contact somebody wrote down is an assembled record rather than mail an account brought in, so it keys onto its user — or onto its organization, for one an administrator wrote down for every member — and cascades from that row, while a contact an account collected keys onto the account exactly as the mail it came from does and is read by every user assigned it. `contact_addresses` repeats the holder despite hanging on `contacts` through `(ContactId, BookHolderId)`, because the reads it answers lead with the holder in an index and an index cannot reach through the contact to find one.
 
 | Column of `settings_accounts` | What it records |
 |---|---|
@@ -1853,8 +1853,9 @@ are MailFathom's own names for things.
 ## The contact book
 
 `contacts` holds one row per person a book knows, and `contact_addresses` one row per address that person uses. **There
-are two kinds of book and one pair of tables holds both**: a user's own, holding the people somebody wrote down, and a
-mail account's, holding the addresses its arriving mail picked up. `BookHolderId` is which, and `Origin` agrees with it
+are three kinds of book and one pair of tables holds them all**: a user's own, holding the people somebody wrote down,
+an organization's, holding the people an administrator wrote down for every member, and a mail account's, holding the
+addresses its arriving mail picked up. `BookHolderId` is which, and `Origin` agrees with it
 by a check constraint — a row the user wrote down is the one record on this page derived from no message at all, while a
 row [collection](../features/contacts.md#collecting-contacts-from-arriving-mail) recorded is an address that arrived in
 mail on the account it is filed under, written by the pass that stored the message rather than by a worker of its own.
@@ -1864,8 +1865,9 @@ the schema itself decides is below.
 | Column | What it records |
 |---|---|
 | `Id` | MailFathom's own UUIDv7, minted when the contact is recorded. Never an address, because an address is a thing a person has rather than a thing they are |
-| `BookHolderId` | Which book holds this person, as text, led by the kind of holder: `user:` and the user's identifier where the book is a user's own, `account:` and the mail account's where it is an account's. The prefix is what keeps the two namespaces apart — both identifiers are UUIDs minted independently, nothing checks either against the other's table, and a mail account whose identifier equalled some user's would otherwise name that user's own book. It leads the two indexes a read would otherwise walk the table for — the listing and the address uniqueness below — so a read over several books seeks into each of them rather than scanning. It never changes: a contact is written in a book rather than moved between them, which is why promotion copies |
+| `BookHolderId` | Which book holds this person, as text, led by the kind of holder: `user:` and the user's identifier where the book is a user's own, `organization:` and the organization's where it is an organization's, `account:` and the mail account's where it is an account's. The prefix is what keeps the three namespaces apart — the identifiers are minted independently, nothing checks one against another's table, and a mail account whose identifier equalled some user's would otherwise name that user's own book. It leads the two indexes a read would otherwise walk the table for — the listing and the address uniqueness below — so a read over several books seeks into each of them rather than scanning. It never changes: a contact is written in a book rather than moved between them, which is why promotion copies |
 | `UserId` | The user whose own book this is, keyed onto `settings_accounts` and cascading from it, or null on a collected row. The cascade is what takes a user's own book with the user |
+| `OrganizationId` | The organization whose book this is, keyed onto `organizations` and cascading from it, or null on any other row. The cascade is what takes an organization's book with the organization, and it is indexed so that cascade does not scan the table |
 | `MailboxAccountId` | The mail account whose collected book this is, or null on an asserted row. Keyed onto `mailbox_accounts` and cascading from it, beside that account's folders, threads, and jobs, so a collected book goes with the mailbox that assembled it |
 | `DisplayName`, `DisplayNameSortKey` | The name as the user wrote it, and the upper-cased comparison form the listing is ordered and paginated by. The form is stored rather than derived in the query and its column is pinned to the `C` collation, so the order is the ordinal one that form was derived to produce instead of whichever collation the database was created with |
 | `PreferredNormalizedAddress` | Which of the person's addresses to use by default, as its comparison form. A column on the person rather than a flag on each address, because changing the choice is then one update instead of two that pass through a state where nobody, or everybody, is preferred |
@@ -1874,11 +1876,11 @@ the schema itself decides is below.
 | `RecordedAt`, `AmendedAt` | When the contact entered the book, and when it was last changed |
 | `ConcurrencyVersion` | The `xmin` token, because a contact is amended in place. What it settles is a row that changed or disappeared between the read an amendment is applied to and the commit — above all an amendment racing an erasure, which then writes nothing rather than putting the person back |
 
-**The three holder columns cannot disagree.** A check constraint requires exactly one of `UserId` and `MailboxAccountId`
-to be present, requires `BookHolderId` to be whichever it is under that kind's prefix, and requires `Origin` to be
-`Collected` on a mailbox's row and `Asserted` on a user's. A collected contact filed under a user, an asserted one under
-a mailbox, or a row filed under a key its own holder columns do not produce, is therefore a row the database refuses
-rather than a state every reader has to reason about.
+**The holder columns cannot disagree.** A check constraint requires exactly one of `UserId`, `OrganizationId`, and
+`MailboxAccountId` to be present, requires `BookHolderId` to be whichever it is under that kind's prefix, and requires
+`Origin` to be `Collected` on a mailbox's row and `Asserted` on a user's or an organization's. A collected contact filed
+under a user or an organization, an asserted one under a mailbox, or a row filed under a key its own holder columns do
+not produce, is therefore a row the database refuses rather than a state every reader has to reason about.
 
 `contact_addresses` carries the address as written beside its comparison form, the contact it belongs to, and the book
 that contact belongs to. It is rows rather than an array column, and that is what makes both rules over it structural.

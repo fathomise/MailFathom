@@ -4,7 +4,6 @@
 
 using MailFathom.Cli.Administration;
 using MailFathom.Cli.Administration.Contacts;
-using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
@@ -33,6 +32,7 @@ internal static class ContactRecordEdit
     /// <param name="context">What the command needs from its surroundings.</param>
     /// <param name="contactId">The contact to amend.</param>
     /// <param name="requestedUser">The user whose own book holds the contact, or <see langword="null" /> where the invocation named none.</param>
+    /// <param name="requestedOrganization">The organization whose book holds the contact, or <see langword="null" /> where the invocation named none.</param>
     /// <param name="requestedDeployment">The deployment the operator named for this invocation, or <see langword="null" />.</param>
     /// <param name="change">Produces the record the contact is to have, from the one it has.</param>
     /// <param name="performed">What the command did, as a sentence's opening.</param>
@@ -44,6 +44,7 @@ internal static class ContactRecordEdit
         CliContext context,
         Guid contactId,
         Guid? requestedUser,
+        Guid? requestedOrganization,
         string? requestedDeployment,
         Func<ContactRecord, ContactRecordRequest> change,
         string performed,
@@ -57,20 +58,25 @@ internal static class ContactRecordEdit
         using var transport = context.OpenTransport(profile.Endpoint, profile.Trust);
         var deployment = new AdminApiClient(transport, context.Console);
 
-        var user = await UserOptions.ResolveUserAsync(deployment, profile.Token, requestedUser, cancellationToken);
+        var book = await ContactOptions.ResolveBookAsync(
+            deployment,
+            profile.Token,
+            requestedUser,
+            requestedOrganization,
+            cancellationToken);
 
-        var lookup = await deployment.ReadContactAsync(profile.Token, contactId, user, cancellationToken);
+        var lookup = await deployment.ReadContactAsync(profile.Token, contactId, book, cancellationToken);
 
         if (lookup.Contact is not { } held)
         {
             throw new CliFailure(
-                $"The books that user reads hold no contact {contactId:D}, so there was nothing to amend.");
+                $"The books named hold no contact {contactId:D}, so there was nothing to amend.");
         }
 
         var amended = await deployment.AmendContactAsync(
             profile.Token,
             contactId,
-            user,
+            book,
             change(held),
             cancellationToken);
 

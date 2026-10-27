@@ -55,6 +55,10 @@ internal sealed record PublishedContact
     [Description("When this contact was last changed, as an ISO 8601 timestamp. Equal to recordedAt until the record is amended.")]
     public required DateTimeOffset AmendedAt { get; init; }
 
+    /// <summary>Gets the organization whose book holds this contact, or <see langword="null" /> when the user's own book or a mailbox's does.</summary>
+    [Description("The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact, promote_contact, and delete_contact answer it as one this book does not hold.")]
+    public string? Organization { get; init; }
+
     /// <summary>Publishes one contact the book holds.</summary>
     /// <param name="contact">The contact to publish.</param>
     /// <returns>The wire representation of <paramref name="contact" />.</returns>
@@ -73,6 +77,7 @@ internal sealed record PublishedContact
             Origin = ContactOriginMapping.Published(contact.Origin),
             RecordedAt = contact.RecordedAt,
             AmendedAt = contact.AmendedAt,
+            Organization = contact.Organization?.ToString("D"),
         };
     }
 }

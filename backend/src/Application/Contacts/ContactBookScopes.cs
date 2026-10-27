@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Domain.Access;
 
@@ -10,10 +11,15 @@ namespace MailFathom.Application.Contacts;
 /// <summary>Answers which books one named user reads.</summary>
 /// <remarks>
 /// <para>
-/// A contact scope is a user plus the accounts assigned to them, and reading the assignment relation is the only work
-/// in composing one. It is here rather than repeated at each surface so that the operator's own surface, which names
-/// the user it acts for, and the caller-facing surfaces, which derive it from the principal, compose the same scope
-/// from the same relation — a user reading their book and an operator reading it on their behalf see one thing.
+/// A contact scope is a user, the organization they are a member of, and the accounts assigned to them, and reading
+/// those two relations is the only work in composing one. It is here rather than repeated at each surface so that the
+/// operator's own surface, which names the user it acts for, and the caller-facing surfaces, which derive it from the
+/// principal, compose the same scope from the same relations — a user reading their book and an operator reading it on
+/// their behalf see one thing.
+/// </para>
+/// <para>
+/// Both relations are read at the moment the scope is composed rather than from anything a replica keeps, so a user who
+/// leaves an organization stops reading its book on the very next read.
 /// </para>
 /// <para>
 /// It answers about the user it is asked about rather than about the caller, which is what
@@ -24,22 +30,31 @@ namespace MailFathom.Application.Contacts;
 public sealed class ContactBookScopes
 {
     private readonly IMailAccountAssignments assignments;
+    private readonly IAdministrativeTargets placements;
 
-    /// <summary>Initializes the resolution over the assignment relation.</summary>
+    /// <summary>Initializes the resolution over the assignment and membership relations.</summary>
     /// <param name="assignments">Answers which accounts a user is assigned.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="assignments" /> is <see langword="null" />.</exception>
-    public ContactBookScopes(IMailAccountAssignments assignments)
+    /// <param name="placements">Answers which organization a user is a member of.</param>
+    /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
+    public ContactBookScopes(IMailAccountAssignments assignments, IAdministrativeTargets placements)
     {
         ArgumentNullException.ThrowIfNull(assignments);
+        ArgumentNullException.ThrowIfNull(placements);
 
         this.assignments = assignments;
+        this.placements = placements;
     }
 
-    /// <summary>Composes the books one user reads: their own, and the collected book of each account assigned to them.</summary>
+    /// <summary>Composes the books one user reads: their own, their organization's, and the collected book of each account assigned to them.</summary>
     /// <param name="user">The user.</param>
-    /// <param name="cancellationToken">Cancels the read of the user's assignments.</param>
+    /// <param name="cancellationToken">Cancels the reads of the user's membership and assignments.</param>
     /// <returns>The scope.</returns>
-    /// <remarks>A user the deployment holds no record for is assigned nothing, so the scope is their own book — empty until somebody writes in it — rather than a refusal.</remarks>
-    public async Task<ContactBookScope> ReadScopeAsync(UserId user, CancellationToken cancellationToken) =>
-        ContactBookScope.Of(user, await this.assignments.ReadAccountsAssignedToAsync(user, cancellationToken));
+    /// <remarks>A user the deployment holds no record for is a member of nothing and assigned nothing, so the scope is their own book — empty until somebody writes in it — rather than a refusal.</remarks>
+    public async Task<ContactBookScope> ReadScopeAsync(UserId user, CancellationToken cancellationToken)
+    {
+        var placement = await this.placements.PlaceUserAsync(user, cancellationToken);
+        var assignedAccounts = await this.assignments.ReadAccountsAssignedToAsync(user, cancellationToken);
+
+        return ContactBookScope.Of(user, placement.Organization, assignedAccounts);
+    }
 }

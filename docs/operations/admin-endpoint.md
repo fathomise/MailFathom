@@ -437,6 +437,9 @@ These routes accept a grant held at any of the three, and check it against the t
 | `GET /api/admin/spam/classifications` | The mail account `account` names |
 | `GET /api/admin/outbox/{id}` | The mail account the message was queued from |
 | `GET /api/admin/contacts`, `GET /api/admin/contacts/by-address`, `GET /api/admin/contacts/{id}`, `GET /api/admin/contacts/{id}/export` | The user `user` names, and each mail account whose collected book that user reads |
+| `GET /api/admin/organizations/{organizationId}/contacts`, `GET …/contacts/by-address`, `GET …/contacts/{id}`, `GET …/contacts/{id}/export` | The organization the route names |
+| `POST /api/admin/organizations/{organizationId}/contacts`, `PUT` and `DELETE …/contacts/{id}` | The organization the route names |
+| `POST /api/admin/organizations/{organizationId}/contacts/{id}/promotion` | The organization the route names, and the mail account `account` names |
 | `POST /api/admin/contacts`, `PUT` and `DELETE /api/admin/contacts/{id}`, `POST /api/admin/contacts/{id}/promotion` | The user `user` names, and each mail account whose collected book the act would reach |
 | `DELETE /api/admin/contacts/collected` | The mail account `account` names |
 | `POST /api/admin/mailbox/refresh-token` | The mail account the request names |
@@ -642,15 +645,23 @@ and a request with none is refused as any other.
 | `POST /api/admin/exports/{exportId}/cancellation` | `mailfathom.admin.export` | Stops an export still being written and deletes whatever it had produced. One that has already finished is answered as it stands rather than cancelled. |
 | `GET /api/admin/exports/{exportId}/archive` | `mailfathom.admin.export` | Serves the finished archive as `application/zip`, streamed from the object store rather than held in this process. Refused with `409` once the archive has expired, been deleted, or never finished. |
 | `DELETE /api/admin/exports/{exportId}` | `mailfathom.admin.export` | Deletes a finished archive before its retention ends. Repeating it on one already gone succeeds, because the caller asked for a state the deployment is already in. |
-| `GET /api/admin/contacts` | `mailfathom.admin.audit.read` | Reads one bounded, keyset-paginated page of the books `user` reads — their own beside the collected book of each mail account assigned to them — optionally narrowed to one origin. [The contact book](../features/contacts.md) holds which book answers where two of them carry one address. |
+| `GET /api/admin/contacts` | `mailfathom.admin.audit.read` | Reads one bounded, keyset-paginated page of the books `user` reads — their own, the book of the organization they are a member of, and the collected book of each mail account assigned to them — optionally narrowed to one origin. [The contact book](../features/contacts.md) holds which book answers where two of them carry one address. |
 | `POST /api/admin/contacts` | `mailfathom.admin.operate` | Records a person into the own book of `user`, as a contact they asserted. It never writes a mail account's collected book. A `user` this deployment holds no record for is refused with `400`, as it is on every contact route that acts under the user the request names. |
 | `GET /api/admin/contacts/by-address` | `mailfathom.admin.audit.read` | Reads whoever uses one address across the books `user` reads, in whichever casing the book that answers recorded it. |
 | `GET /api/admin/contacts/{id}` | `mailfathom.admin.audit.read` | Reads one contact by the identity its book gave it, from the books `user` reads. |
 | `PUT /api/admin/contacts/{id}` | `mailfathom.admin.operate` | Amends one contact of the own book of `user` to the whole record the body states. A collected record is not amended in place; it is promoted first. A `user` this deployment holds no record for is refused with `400` rather than answered that the books hold no such contact. |
 | `POST /api/admin/contacts/{id}/promotion` | `mailfathom.admin.operate` | Writes an asserted copy of a collected contact into the own book of `user`, under a new identity. The mail account's own record stays where it is, because the account's other users still read it. A `user` this deployment holds no record for is refused with `400`. |
-| `DELETE /api/admin/contacts/{id}` | `mailfathom.admin.erase` | Erases one person, from whichever of the books `user` reads holds them, and everything that book derived from them. A collected record leaves for every user assigned that mail account. A `user` this deployment holds no record for is refused with `400` rather than answered that nothing was erased. **This is the one route that disposes of a contact, and it cannot be undone.** |
+| `DELETE /api/admin/contacts/{id}` | `mailfathom.admin.erase` | Erases one person, from whichever of the books `user` reads holds them other than their organization's, and everything that book derived from them. A contact of the organization's book is answered as not held; it is erased through the organization's own route. A collected record leaves for every user assigned that mail account. A `user` this deployment holds no record for is refused with `400` rather than answered that nothing was erased. **This is the one route that disposes of a contact, and it cannot be undone.** |
 | `DELETE /api/admin/contacts/collected` | `mailfathom.admin.erase` | Erases the whole collected book of the mail account `account` names, leaving every user's own book where it is. It names an account rather than a user, because collection is switched on per account. An `account` this deployment does not serve is refused with `400` rather than answered with nothing erased, which would read exactly like a mistyped identifier succeeding. **This cannot be undone either.** |
 | `GET /api/admin/contacts/{id}/export` | `mailfathom.admin.audit.read` | Produces everything the books `user` reads hold about one person, as of the instant it was taken. A `user` this deployment holds no record for is refused with `400` rather than answered that the books hold nobody. |
+| `GET /api/admin/organizations/{organizationId}/contacts` | `mailfathom.admin.audit.read` | Reads one bounded, keyset-paginated page of [the organization's book](../features/contacts.md#the-organizations-book), the people its administrators wrote down for every member. It takes `pageSize` and `cursor` and no origin, because the book holds asserted contacts alone. An organization the caller's scope does not cover is answered with an empty page rather than told apart from one this deployment does not hold. |
+| `POST /api/admin/organizations/{organizationId}/contacts` | `mailfathom.admin.operate` | Records a person into the organization's book, as an asserted contact. An organization this deployment does not hold and one the caller's scope does not cover are both refused with `400`, naming the organization and nothing else. |
+| `GET /api/admin/organizations/{organizationId}/contacts/by-address` | `mailfathom.admin.audit.read` | Reads whoever in the organization's book uses one address, compared without regard to case. |
+| `GET /api/admin/organizations/{organizationId}/contacts/{id}` | `mailfathom.admin.audit.read` | Reads one contact of the organization's book by the identity the book gave it. |
+| `PUT /api/admin/organizations/{organizationId}/contacts/{id}` | `mailfathom.admin.operate` | Amends one contact of the organization's book to the whole record the body states, refusing an organization not held or not covered as `POST` does. |
+| `POST /api/admin/organizations/{organizationId}/contacts/{id}/promotion` | `mailfathom.admin.operate` | Writes an asserted copy of a contact the mail account `account` collected into the organization's book, under a new identity. An `account` this deployment does not serve and one that belongs to another organization are refused alike with `400`, so one organization's book never takes on a correspondent learned from another's mail. |
+| `DELETE /api/admin/organizations/{organizationId}/contacts/{id}` | `mailfathom.admin.erase` | Erases one person from the organization's book, and so from what every member reads, refusing an organization not held or not covered as `POST` does. A contact the book does not hold is a completed erasure rather than a failure. **This cannot be undone.** |
+| `GET /api/admin/organizations/{organizationId}/contacts/{id}/export` | `mailfathom.admin.audit.read` | Produces everything the organization's book holds about one person, as of the instant it was taken. |
 | `GET /api/admin/configuration` | `mailfathom.admin.read` | Reports the settings at or beneath a path as this deployment reads them, each with the layer that decided it, and the persisted version they were composed over. Secret-bearing values read back as the redaction marker. This is what [`mfctl config get` and `mfctl config show`](#reading-and-changing-the-deployments-own-configuration) ask. |
 | `POST /api/admin/configuration` | `mailfathom.admin.configuration.write` | Applies keyed changes to the persisted configuration document, together or not at all, over the version the body states. |
 | `GET /api/admin/configuration/document` | `mailfathom.admin.read` | Hands over the persisted document itself, secrets redacted, with the version it was read at. This is what an editing session opens. |
@@ -677,7 +688,7 @@ and a request with none is refused as any other.
 | `POST /api/admin/organizations` | `mailfathom.admin.configuration.write` | Records an organization from the display name and short name the body carries, and answers with the identifier it was minted under. It answers `409` for a short name another organization holds, and `400` naming what was wrong with either name. |
 | `PUT /api/admin/organizations/{organizationId}/display-name` | `mailfathom.admin.configuration.write` | Replaces the name an operator reads the organization by. It answers `204`, `404` for an organization this deployment does not hold, and `400` for a name it does not accept. |
 | `PUT /api/admin/organizations/{organizationId}/short-name` | `mailfathom.admin.credentials.write` | Replaces the short name its members sign in under, which moves every member's login with it. It answers `204`, `404`, `409` for a short name another organization holds, and `400`. |
-| `DELETE /api/admin/organizations/{organizationId}` | `mailfathom.admin.configuration.write` | Removes an organization with neither members nor mail accounts. It answers `204`, `404`, and `409` naming how many members and how many mail accounts it still has. |
+| `DELETE /api/admin/organizations/{organizationId}` | `mailfathom.admin.configuration.write` | Removes an organization with neither members nor mail accounts, and its contact book with it. It answers `204`, `404`, and `409` naming how many members and how many mail accounts it still has. |
 | `GET /api/admin/policy` | `mailfathom.admin.read` | Hands over [the settings policy](#settings-policies) the deployment holds, as the JSON an editing session opens, with the version it was read at. A deployment that has stored none answers `{}` at version `0`. |
 | `POST /api/admin/policy` | `mailfathom.admin.configuration.write` | Takes that policy back edited and commits it as one change against the version it was opened over. It is what `mfctl policy edit` sends when the editor exits; a policy that does not validate, and one another writer moved past, are refused in the answer rather than merged or written in part. |
 | `GET /api/admin/organizations/{organizationId}/policy` | `mailfathom.admin.read` | Hands over the settings policy one organization holds, the same way. It answers `404` for an organization this deployment does not hold. |
@@ -1654,11 +1665,13 @@ refusal. An archive is a second full copy of the mailbox, and there is nowhere t
 what you recorded about them. The book's own rules — what identifies a person, when two addresses are the same address,
 who may change what — are that page's; this is the command group over them.
 
-**Every command here names the book it reaches.** There are two kinds of book — a user's own, holding the people they
-wrote down, and a mail account's, holding the addresses its mail picked up — and this surface acts for nobody in
-particular: it is the deployment's administrator rather than somebody whose mail is being served, so nothing about the
-credential says whose book is meant. Every command but one therefore takes `--user` and acts on what that user reads,
-their own book beside the collected book of each mail account assigned to them; `contact delete-collected` takes
+**Every command here names the book it reaches.** There are three kinds of book — a user's own, holding the people they
+wrote down, an organization's, holding the people an administrator wrote down for every member, and a mail account's,
+holding the addresses its mail picked up — and this surface acts for nobody in particular: it is the deployment's
+administrator rather than somebody whose mail is being served, so nothing about the credential says whose book is
+meant. Every command but one therefore takes `--user` and acts on what that user reads, their own book beside their
+organization's and the collected book of each mail account assigned to them — writing their own alone — or
+`--organization` and acts on that organization's book; naming both is refused. `contact delete-collected` takes
 `--account` instead, because emptying what one mailbox picked up is not emptying what another did. `--user` is optional
 where the deployment holds one person — the command asks which users exist and acts on the single one — and an
 invocation on a deployment holding several without it is refused with the identifiers to choose between rather than
@@ -1691,6 +1704,20 @@ Amended:    2026-08-16 09:00:00Z
 | `contact delete` | Erases the person from whichever of the books `--user` reads holds them. **This cannot be undone**; see below |
 | `contact delete-collected` | Erases the whole collected book of the mail account `--account` names, keeping every user's own. **This cannot be undone**; see below |
 | `contact export` | Writes everything the books `--user` reads hold about the person to standard output, as JSON |
+
+**`--organization` writes the book every member of that organization reads.** `contact create`, `update`,
+`add-address`, `remove-address`, `promote`, `delete`, `show`, `list`, and `export` take it in place of `--user`, and
+each reaches the organization's book beneath `/api/admin/organizations/{organizationId}/contacts` rather than the
+deployment's `/api/admin/contacts` routes. It is the only place that book is written: no member's client and no agent
+writes it, and `--user` never reaches it for a write, so correcting what every member reads is an administrative act on
+the organization rather than on any one member. Recording, amending, and promoting need `mailfathom.admin.operate`,
+erasing needs `mailfathom.admin.erase`, and reading or exporting needs `mailfathom.admin.audit.read`, each at the
+organization's scope or the deployment's; a write naming an organization your scope does not cover, or one the
+deployment does not hold, is refused alike, and a read of one answers as an empty book. An organization reads no
+collected book of its own, so `contact promote --organization` also takes `--account`, naming the mail account whose
+collected record is copied, and is refused without it; `contact list --organization` takes no `--origin`, because the
+book holds asserted contacts alone. [Contacts § The organization's
+book](../features/contacts.md#the-organizations-book) holds what the book is and how it is read.
 
 **Amendments state the whole record.** The book replaces what it is given rather than merging a difference, so
 `update`, `add-address`, and `remove-address` each read the contact first and send back what it is to become. Two
@@ -2072,7 +2099,7 @@ method's](mcp-endpoint.md#passwords) to state.
 | `mfctl organization add --short-name <name> --display-name <name>` | Records an organization, and reports the identifier it was minted under |
 | `mfctl organization rename --organization <id> --display-name <name>` | Replaces the name an operator reads it by |
 | `mfctl organization set-short-name --organization <id> --short-name <name>` | Replaces the short name its members sign in under |
-| `mfctl organization remove --organization <id>` | Removes an organization with neither members nor mail accounts |
+| `mfctl organization remove --organization <id>` | Removes an organization with neither members nor mail accounts, and its [contact book](#administering-the-contact-book) with it |
 | `mfctl organization signing-key list --organization <id>` | Reads every one of the organization's [signing keys](organization-signing-keys.md), oldest first, with each one's state and dates and never its material |
 | `mfctl organization signing-key rotate --organization <id>` | Mints a fresh active signing key now and retires the one the organization signed with |
 | `mfctl organization signing-key revoke --organization <id> --key <id>` | Revokes one signing key after asking, minting a replacement in the same act when it was the active one |

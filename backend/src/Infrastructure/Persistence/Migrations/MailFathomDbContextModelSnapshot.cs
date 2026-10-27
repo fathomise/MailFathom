@@ -489,6 +489,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Origin")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -509,6 +512,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("MailboxAccountId");
 
+                    b.HasIndex("OrganizationId");
+
                     b.HasIndex("UserId");
 
                     b.HasIndex("BookHolderId", "DisplayNameSortKey", "Id")
@@ -516,7 +521,7 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.ToTable("contacts", null, t =>
                         {
-                            t.HasCheckConstraint("ck_contacts_book_holder", "((\"UserId\" IS NOT NULL)::int + (\"MailboxAccountId\" IS NOT NULL)::int) = 1\nAND \"BookHolderId\" = CASE WHEN \"UserId\" IS NULL THEN 'account:' || \"MailboxAccountId\" ELSE 'user:' || \"UserId\"::text END\nAND \"Origin\" = CASE WHEN \"UserId\" IS NULL THEN 'Collected' ELSE 'Asserted' END");
+                            t.HasCheckConstraint("ck_contacts_book_holder", "((\"UserId\" IS NOT NULL)::int + (\"OrganizationId\" IS NOT NULL)::int + (\"MailboxAccountId\" IS NOT NULL)::int) = 1\nAND \"BookHolderId\" = CASE WHEN \"UserId\" IS NOT NULL THEN 'user:' || \"UserId\"::text WHEN \"OrganizationId\" IS NOT NULL THEN 'organization:' || \"OrganizationId\"::text ELSE 'account:' || \"MailboxAccountId\" END\nAND \"Origin\" = CASE WHEN \"MailboxAccountId\" IS NULL THEN 'Asserted' ELSE 'Collected' END");
                         });
                 });
 
@@ -4667,6 +4672,11 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailboxAccountEntity", null)
                         .WithMany()
                         .HasForeignKey("MailboxAccountId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.UserAccountEntity", null)

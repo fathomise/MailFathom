@@ -2045,8 +2045,9 @@ a writer of it obeys — what identifies a person, when two addresses are the sa
 an erasure removes. Nothing of that is restated here; what this section holds is what the tools publish and refuse.
 
 **A caller reads the books of the user it was admitted to act for** — that user's own, holding the people they wrote
-down, beside the collected book of each mail account assigned to them — and no argument of any of the six names another
-user. Its writes reach the user's own book alone. A person another user wrote down is answered as somebody these books
+down, beside the book of the organization they are a member of and the collected book of each mail account assigned to
+them — and no argument of any of the six names another user or an organization. Its writes reach the user's own book
+alone, so an organization's contact, which carries `organization`, is one the writing tools answer as not held. A person another user wrote down is answered as somebody these books
 do not hold, and an address another user's contact holds is free for this one; an address a mail account collected is
 answered once even where two of the caller's accounts picked it up, and the user's own contact is what answers where
 both books carry the address.
@@ -2086,9 +2087,10 @@ It is the tool for reading the book as a book — who is in it, what the caller'
 fragment of a name. Resolving one address to the person using it is `get_contact`, which is an index lookup rather than
 a page of the book.
 
-The page is read over every book the caller reads at once, in the order [contacts](contacts.md#two-books-and-a-read-of-both)
-documents: the user's own book first, then the collected book of each of their mail accounts by the account's
-identifier. An address two of those books hold is served once, from the first of them, and that hiding is applied as
+The page is read over every book the caller reads at once, in the order [contacts](contacts.md#three-books-and-a-read-of-them)
+documents: the user's own book first, then their organization's, then the collected book of each of their mail
+accounts by the account's identifier. An address two of those books hold is served once, from the first of them, and
+that hiding is applied as
 the page is read rather than to a page already served — so **a page holds the size asked for until the walk runs out**,
 and `nextCursor` rather than the count is what says whether more is waiting.
 
@@ -2108,7 +2110,7 @@ which is the same rule every listing on this surface follows.
 
 | Field | Meaning |
 |---|---|
-| `contacts` | The page, ordered by the name's comparison form and then by identity, each entry carrying `contactId`, `displayName`, `addresses`, `preferredAddress`, `note`, `origin`, `recordedAt`, and `amendedAt` |
+| `contacts` | The page, ordered by the name's comparison form and then by identity, each entry carrying `contactId`, `displayName`, `addresses`, `preferredAddress`, `note`, `origin`, `recordedAt`, `amendedAt`, and `organization` — the organization whose book holds the contact, absent for a contact of the caller's own book or of a mailbox's. A contact carrying it is read-only here: `update_contact`, `promote_contact`, and `delete_contact` answer it as a contact the caller does not hold |
 | `nextCursor` | The cursor of the following page, or absent when the walk is done |
 
 **A contact cursor is not bound to the filters.** The book is walked in one order whatever narrows it, so continuing a
@@ -2196,7 +2198,7 @@ The same shape `create_contact` answers with, and two more states it can carry:
 | State | What it means |
 |---|---|
 | `written` | The book holds the record, published in `contact` |
-| `notFound` | No contact of that identifier is in the book |
+| `notFound` | No contact of that identifier is in the books the caller reads, or the one that is carries `organization`, which this tool does not amend |
 | `addressHeldByAnotherContact` | One of the addresses belongs to somebody else, named by `addressHolderContactId` |
 | `contactWasCollected` | The record is one of the caller's mail accounts' rather than one somebody wrote down |
 
@@ -2214,10 +2216,12 @@ What is different here is that nothing of the person survives: the record is del
 here brings it back. It removes the contact record alone: no mail is deleted, and no mail server is
 contacted.
 
-It reaches every book the caller reads rather than their own alone, because no origin gates an erasure — somebody asking
-to be taken out of a contact book is not answered with which book they happen to be in. So **erasing a collected record
-takes it out of the mail account's book for every user assigned that account**, the record having been one record rather
-than a copy each. Emptying a whole account's collected book is `mfctl contact delete-collected`, which no tool here
+It reaches every book the caller reads except the organization's, rather than their own alone, because neither asserted
+nor collected gates an erasure — somebody asking to be taken out of a contact book is not answered with which book they
+happen to be in. So **erasing a collected record takes it out of the mail account's book for every user assigned that
+account**, the record having been one record rather than a copy each. A contact carrying `organization` is the
+exception: its book is written by administrators alone, so this tool answers it with `wasHeld` false and leaves it where
+it is. Emptying a whole account's collected book is `mfctl contact delete-collected`, which no tool here
 publishes.
 
 ### Arguments

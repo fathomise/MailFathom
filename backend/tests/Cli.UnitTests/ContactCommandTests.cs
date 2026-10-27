@@ -905,6 +905,164 @@ public sealed class ContactCommandTests : IDisposable
         Assert.Contains(named, export, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>A command naming an organization reaches that organization's book, and names no user beside it.</summary>
+    /// <remarks>
+    /// The organization's book is written beneath the organization's own path and nowhere else, so a command that
+    /// reached the users' routes with it would write the member's own book instead — or, with no user to settle, refuse
+    /// for a reason that has nothing to do with what was asked.
+    /// </remarks>
+    [Fact]
+    public async Task ContactCommands_NamingAnOrganization_ReachItsBookAndNameNoUser()
+    {
+        // Arrange
+        var organization = FakeContactDeployment.OrganizationIdentity.ToString("D");
+
+        // Act
+        var record = await this.PathAndQueryOfAsync(
+            HttpMethod.Post,
+            "contact",
+            "create",
+            "--organization",
+            organization,
+            "--name",
+            "Anna Kowalska",
+            "--address",
+            "anna@example.test");
+        var amendment = await this.PathAndQueryOfAsync(
+            HttpMethod.Put,
+            "contact",
+            "update",
+            "--organization",
+            organization,
+            "--id",
+            Identity,
+            "--name",
+            "Anna Nowak");
+        var erasure = await this.PathAndQueryOfAsync(
+            HttpMethod.Delete,
+            "contact",
+            "delete",
+            "--organization",
+            organization,
+            "--id",
+            Identity,
+            "--yes");
+        var export = await this.PathAndQueryOfAsync(
+            HttpMethod.Get,
+            "contact",
+            "export",
+            "--organization",
+            organization,
+            "--id",
+            Identity);
+
+        // Assert
+        Assert.All(
+            [record, amendment, erasure, export],
+            reached => Assert.StartsWith(FakeContactDeployment.OrganizationContactsPath, reached, StringComparison.Ordinal));
+        Assert.All(
+            [record, amendment, erasure, export],
+            reached => Assert.DoesNotContain("user=", reached, StringComparison.Ordinal));
+    }
+
+    /// <summary>A book is one user's or one organization's, so naming both is refused before anything is reached.</summary>
+    [Fact]
+    public async Task ContactCommands_NamingAUserAndAnOrganization_RefuseWithoutReachingTheBook()
+    {
+        // Arrange
+        using var deployment = FakeContactDeployment.Holding(lookup: FakeContactDeployment.Lookup());
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "contact",
+            "list",
+            "--user",
+            FakeContactDeployment.UserIdentity.ToString("D"),
+            "--organization",
+            FakeContactDeployment.OrganizationIdentity.ToString("D"),
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.NotEqual(CliExitCode.Success, exitCode);
+        Assert.DoesNotContain(
+            deployment.RecordedRequests,
+            request => request.RequestUri?.AbsolutePath.Contains("/contacts", StringComparison.Ordinal) == true);
+    }
+
+    /// <summary>An organization's book holds no collected half, so narrowing its listing by origin is refused rather than ignored.</summary>
+    [Fact]
+    public async Task List_AnOrganizationNarrowedByOrigin_RefusesWithoutReachingTheDeployment()
+    {
+        // Arrange
+        using var deployment = FakeContactDeployment.Holding();
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "contact",
+            "list",
+            "--organization",
+            FakeContactDeployment.OrganizationIdentity.ToString("D"),
+            "--origin",
+            "Collected",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.NotEqual(CliExitCode.Success, exitCode);
+        Assert.Empty(deployment.RecordedRequests);
+    }
+
+    /// <summary>An organization reads no collected book, so promoting into one without the account that collected it is refused.</summary>
+    [Fact]
+    public async Task Promote_IntoAnOrganizationWithNoAccountNamed_RefusesWithoutReachingTheDeployment()
+    {
+        // Arrange
+        using var deployment = FakeContactDeployment.Holding(write: FakeContactDeployment.Promoted());
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "contact",
+            "promote",
+            "--organization",
+            FakeContactDeployment.OrganizationIdentity.ToString("D"),
+            "--id",
+            Identity,
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.NotEqual(CliExitCode.Success, exitCode);
+        Assert.Empty(deployment.RecordedRequests);
+    }
+
+    /// <summary>Promoting into an organization names the account the record is copied out of, beneath the organization's book.</summary>
+    [Fact]
+    public async Task Promote_IntoAnOrganization_AsksTheOrganizationsPromotionPathNamingTheAccount()
+    {
+        // Act
+        var promotion = await this.PathAndQueryOfAsync(
+            HttpMethod.Post,
+            "contact",
+            "promote",
+            "--organization",
+            FakeContactDeployment.OrganizationIdentity.ToString("D"),
+            "--account",
+            Account,
+            "--id",
+            Identity);
+
+        // Assert
+        Assert.StartsWith(
+            $"{FakeContactDeployment.OrganizationContactsPath}/{Identity}/promotion?",
+            promotion,
+            StringComparison.Ordinal);
+        Assert.Contains($"account={Account}", promotion, StringComparison.OrdinalIgnoreCase);
+    }
+
     public void Dispose() => this.harness.Dispose();
 
     /// <summary>Reads the record a write carried, as the deployment would.</summary>
@@ -938,5 +1096,20 @@ public sealed class ContactCommandTests : IDisposable
         Assert.Equal(CliExitCode.Success, await this.RunAsync(deployment, [.. arguments, "--endpoint", Endpoint]));
 
         return deployment.LastContactQuery(method) ?? string.Empty;
+    }
+
+    /// <summary>Runs one command against a deployment answering every route, and reads the path and query it last reached with the verb given.</summary>
+    private async Task<string> PathAndQueryOfAsync(HttpMethod method, params string[] arguments)
+    {
+        using var deployment = FakeContactDeployment.Holding(
+            lookup: FakeContactDeployment.Lookup(),
+            write: FakeContactDeployment.Written(),
+            erasure: FakeContactDeployment.Erasure(wasHeld: true, addressesErased: 1),
+            export: FakeContactDeployment.Export());
+
+        Assert.Equal(CliExitCode.Success, await this.RunAsync(deployment, [.. arguments, "--endpoint", Endpoint]));
+
+        return deployment.RecordedRequests.LastOrDefault(request => request.Method == method)?.RequestUri?.PathAndQuery
+            ?? string.Empty;
     }
 }

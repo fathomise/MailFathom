@@ -73,7 +73,13 @@ public interface IOrganizationStore
         OrganizationShortName shortName,
         CancellationToken cancellationToken);
 
-    /// <summary>Removes an organization that has neither members nor mail accounts.</summary>
+    /// <summary>Answers whether the deployment holds an organization, for an act that writes under one and must refuse an unknown one rather than fail on its key.</summary>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns><see langword="true" /> when the organization exists.</returns>
+    Task<bool> ExistsAsync(Guid organizationId, CancellationToken cancellationToken);
+
+    /// <summary>Removes an organization that has neither members nor mail accounts, together with its contact book.</summary>
     /// <param name="organizationId">The organization.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns><see cref="OrganizationWriteOutcome.Written" />, <see cref="OrganizationWriteOutcome.UnknownOrganization" />, <see cref="OrganizationWriteOutcome.StillHasMembers" /> carrying how many members and accounts, or <see cref="OrganizationWriteOutcome.StillHoldsMailAccounts" /> carrying how many accounts.</returns>

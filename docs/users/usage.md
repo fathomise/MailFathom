@@ -567,9 +567,11 @@ maintain it. The
 record is a person with the addresses they use rather than an address with a name attached, which is what lets an agent
 answer "who is this from" for somebody who writes from three of them.
 
-**There are two books and a read of both.** Your own holds the people somebody wrote down; each mailbox you are assigned
-holds the addresses its own arriving mail picked up, which everybody assigned that mailbox reads. Every read here merges
-them — your own book first, then your mailboxes in the order of their identifiers — and an address held in more than one
+**There are up to three books and a read of all of them.** Your own holds the people somebody wrote down; your
+organization's, if you are a member of one, holds the people an administrator wrote down for every member, and an agent
+reads it and cannot change it; each mailbox you are assigned holds the addresses its own arriving mail picked up, which
+everybody assigned that mailbox reads. Every read here merges them — your own book first, then your organization's, then
+your mailboxes in the order of their identifiers — and an address held in more than one
 of them is answered once, from the first, so your own record is what an agent sees where you have written one. The hiding
 is applied as the page is read, so a page holds the size asked for until the walk runs out; read `nextCursor` rather
 than the count.

@@ -22,8 +22,8 @@ namespace MailFathom.Infrastructure.Persistence.Contacts;
 /// handed down — so the domain type stays free of a column that names a caller's own scope.
 /// </para>
 /// <para>
-/// The holder decides three columns rather than one: the key the row and its addresses are filed under, and whichever
-/// of the user and the mail account the book belongs to. They are written together here so the check constraint
+/// The holder decides four columns rather than one: the key the row and its addresses are filed under, and whichever
+/// of the user, the organization, and the mail account the book belongs to. They are written together here so the check constraint
 /// beneath them has nothing to refuse.
 /// </para>
 /// </remarks>
@@ -48,6 +48,7 @@ internal static class ContactMapping
             Id = contact.Id.Value,
             BookHolderId = holder.Key,
             UserId = holder.User?.Value,
+            OrganizationId = holder.Organization,
             MailboxAccountId = holder.Account?.Value,
             DisplayName = contact.DisplayName.Value,
             DisplayNameSortKey = contact.DisplayName.SortKey,
@@ -124,7 +125,8 @@ internal static class ContactMapping
             entity.Note is null ? null : ContactNote.Create(entity.Note),
             entity.Origin,
             entity.RecordedAt,
-            entity.AmendedAt);
+            entity.AmendedAt,
+            entity.OrganizationId);
     }
 
     /// <summary>Rebuilds one stored address, which the write path already validated.</summary>

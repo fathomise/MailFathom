@@ -158,6 +158,54 @@ public sealed class ContactTests
             RecordedAt));
     }
 
+    /// <summary>An organization's book holds what an administrator wrote down, so a collected contact cannot name one, nor can the empty identity.</summary>
+    [Theory]
+    [InlineData(ContactOrigin.Collected, "0198f0aa-0000-7000-8000-00000000f001")]
+    [InlineData(ContactOrigin.Asserted, "00000000-0000-0000-0000-000000000000")]
+    public void Create_AnOrganizationsContactThatIsNotAssertedOrNamesNone_IsRefused(ContactOrigin origin, string organization)
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentException>(() => Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(RecordedAt)),
+            ContactDisplayName.Create("Anna Kowalska"),
+            [Address("anna@example.test")],
+            Address("anna@example.test"),
+            note: null,
+            origin,
+            RecordedAt,
+            RecordedAt,
+            new Guid(organization)));
+    }
+
+    /// <summary>An amendment never moves a contact between books, so the organization holding it survives one.</summary>
+    [Fact]
+    public void AmendedWith_AnOrganizationsContact_KeepsTheOrganization()
+    {
+        // Arrange
+        var organization = new Guid("0198f0aa-0000-7000-8000-00000000f001");
+        var contact = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(RecordedAt)),
+            ContactDisplayName.Create("Anna Kowalska"),
+            [Address("anna@example.test")],
+            Address("anna@example.test"),
+            note: null,
+            ContactOrigin.Asserted,
+            RecordedAt,
+            RecordedAt,
+            organization);
+
+        // Act
+        var amended = contact.AmendedWith(
+            ContactDisplayName.Create("Anna Nowak"),
+            [Address("anna@example.test")],
+            Address("anna@example.test"),
+            note: null,
+            RecordedAt.AddDays(1));
+
+        // Assert
+        Assert.Equal(organization, amended.Organization);
+    }
+
     /// <summary>An amendment states the record the user wants, and keeps everything identity is made of.</summary>
     [Fact]
     public void AmendedWith_ANewNamePreferredAddressAndNote_KeepsIdentityOriginAndArrival()
