@@ -3,9 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useRef, type PointerEvent, type ReactNode } from 'react';
-import type { MailTimelineEntry } from '@mailfathom/client-backend';
+import { isSpam, type MailTimelineEntry } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
+import { swipeEngages } from '../controls/swipeAcross';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
 import { MessageMarkers } from '../controls/MessageMarkers';
@@ -21,14 +22,18 @@ import {
     actPending,
     changesAFlag,
     drawnFlagged,
+    drawnSpam,
     flagPending,
     useMailboxActs,
     type AskedAct,
     type FilingAct,
 } from '../mailboxActs/useMailboxActs';
 import { drawnUnread, useReadMarking } from '../readMarking/useReadMarking';
+import { SpamBadge } from '../spamMarking/SpamBadge';
+import { spamRowName } from '../spamMarking/spamWords';
 import { correspondent } from './rowContents';
-import { useRowSwipe, type RowSwipeAct } from './rowSwipe';
+import { senderMarkInk, senderMarkOf, senderMarksDrawn } from '../senderMark/senderMarks';
+import { useRowSwipe, type RowSwipeDirection } from '../controls/rowSwipe';
 
 // One row of mail, which is its own component for the reason a tree's row is: it is what carries state, a keyboard
 // path, and a test. What it draws is what the page answered with — nothing here reads anything of its own, so a row
@@ -86,15 +91,37 @@ const carriedMailType = 'application/x-mailfathom-message';
 // `mailboxActs/drawnActs.ts` rather than from a second table here, so a swipe says what the row's menu and the toolbar
 // say; answering is not one of the five acts and names its own.
 const swipeDrawn: Readonly<
-    Record<RowSwipeAct, { readonly icon: IconName; readonly said: MessageKey; readonly tint: string }>
+    Record<RowSwipeDirection, { readonly icon: IconName; readonly said: MessageKey; readonly tint: string }>
 > = {
-    answer: { icon: 'reply', said: 'mail.reply', tint: 'justify-end pe-5.5 bg-accent-soft text-accent-strong' },
-    archive: {
+    leftward: { icon: 'reply', said: 'mail.reply', tint: 'justify-end pe-5.5 bg-accent-soft text-accent-strong' },
+    rightward: {
         icon: actsDrawn.archive.icon,
         said: actsDrawn.archive.label,
         tint: 'justify-start ps-5.5 bg-warning-soft text-warning-text',
     },
 };
+
+// Weight and ink together, because 600 against 400 in one colour read as the same row at a glance.
+function unreadInk(unread: boolean): string {
+    return unread ? 'font-bold text-text' : 'font-normal text-text-soft';
+}
+
+/**
+ * Whether a finger lifted here went further up or down the list than across it, past where a gesture engages — a
+ * scroll or a pull of the list rather than a tap. A swipe that sprang back short is still a tap.
+ */
+function travelledAlongList(
+    landed: { readonly x: number; readonly y: number } | null,
+    lifted: { readonly clientX: number; readonly clientY: number },
+): boolean {
+    if (landed === null) {
+        return false;
+    }
+
+    const down = Math.abs(lifted.clientY - landed.y);
+
+    return down >= swipeEngages && down > Math.abs(lifted.clientX - landed.x);
+}
 
 export function MessageRow({
     email,
@@ -105,7 +132,9 @@ export function MessageRow({
     arrived,
     changed,
     note,
+    inSpamFolder = false,
     onReadings,
+    onSenderDetails,
     onOpen,
     onPoint,
     onPress,
@@ -138,10 +167,22 @@ export function MessageRow({
     readonly note?: ReactNode;
 
     /**
+     * Whether the list is an account's Spam folder, where a spam row keeps its shape and names its kind. Everywhere
+     * else a spam row folds to one muted line, its verdict in its accessible name and its menu rather than in a badge.
+     */
+    readonly inSpamFolder?: boolean;
+
+    /**
      * Opens what MailFathom read from this message, or absent where it read nothing from it and where the list offers
      * no such surface at all.
      */
     readonly onReadings?: (() => void) | undefined;
+
+    /**
+     * Opens what was established about who sent this message, anchored under the mark that asked — or absent for a
+     * row that marks no sender, which is a row in Sent or Drafts, whose writer is the reader themselves.
+     */
+    readonly onSenderDetails?: ((anchor: DOMRect) => void) | undefined;
     readonly onOpen: () => void;
 
     /**
@@ -213,11 +254,81 @@ export function MessageRow({
     const folded = useListFold()?.folded === true;
 
     // A strip of senders is too narrow to carry a row across, so folded it answers a tap and its menu alone.
-    const swipe = useRowSwipe(press, folded ? {} : { answer: onAnswer, archive: onArchive });
-    const stripName = translate('list.stripRow', {
+    const swipe = useRowSwipe(press, folded ? {} : { leftward: onAnswer, rightward: onArchive });
+    // What spam classification concluded, with the person's own mark from this session counted first. A row of spam
+    // offers nothing that reads it for the person, so it carries no reading and no AI line.
+    const spam = drawnSpam(acts, email);
+    const spamName = spam !== null && isSpam(spam) ? spamRowName(spam, translate) : null;
+    const foldedSpam = spamName !== null && !inSpamFolder;
+
+    // The mark on who sent the message, chosen by the one rule every surface draws it by, or none on a row whose
+    // writer is the reader.
+    const mark = onSenderDetails === undefined ? null : senderMarkOf(email.sender);
+    const markDrawn = mark === null ? null : senderMarksDrawn[mark];
+    const markName = markDrawn === null ? null : translate(markDrawn.name);
+    const markAnchor = useRef<HTMLElement | null>(null);
+    const markSaid = useTip({
+        says: markName ?? '',
+        describes: true,
+        onPress: () => {
+            const at = markAnchor.current?.getBoundingClientRect();
+
+            if (at !== undefined) {
+                onSenderDetails?.(at);
+            }
+        },
+    });
+
+    // The mark on who sent it, beside the name it judges. A pointer's shortcut to the details for the reason the
+    // readings mark below is one: a row is an `option` and holds no focusable descendant, so the keyboard reaches the
+    // same details through the row's menu, and the state itself is said to a screen reader in words. Its own press
+    // stops at it, so pressing it neither opens nor selects the message, and holding it reads its name rather than
+    // opening the row's menu.
+    const senderMark =
+        markDrawn === null || markName === null ? null : (
+            <>
+                <span
+                    {...markSaid.anchor}
+                    ref={(element) => {
+                        markAnchor.current = element;
+                        markSaid.anchor.ref(element);
+                    }}
+                    aria-hidden="true"
+                    className={`-mx-0.75 -my-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-hover pointer-coarse:-mx-2.5 pointer-coarse:-my-3 pointer-coarse:size-11 ${
+                        senderMarkInk[markDrawn.tone]
+                    }`}
+                    onPointerDown={(event) => {
+                        event.stopPropagation();
+                        markSaid.anchor.onPointerDown(event);
+                    }}
+                    onPointerUp={(event) => {
+                        event.stopPropagation();
+                        markSaid.anchor.onPointerUp();
+                    }}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        markSaid.anchor.onClick(event);
+                    }}
+                    onDoubleClick={(event) => {
+                        event.stopPropagation();
+                    }}
+                >
+                    <Icon name={markDrawn.icon} className="size-icon-md pointer-coarse:size-icon-lg" />
+                </span>
+                {markSaid.tip}
+
+                <span className="sr-only">{markName}</span>
+            </>
+        );
+
+    const stripSubject = {
         sender: correspondent(email) ?? translate('list.senderUnknown'),
         subject: email.subject ?? translate('list.noSubject'),
-    });
+    };
+    const stripName =
+        markName === null
+            ? translate('list.stripRow', stripSubject)
+            : translate('list.stripRowMarked', { ...stripSubject, mark: markName });
     // Folded, the sender is an avatar: a mouse resting on it reads who it is, and a finger reads it in the row's menu,
     // since a tap on the strip opens the message and holding it opens that menu.
     const stripSaid = useTip({ says: stripName, tapReveals: false });
@@ -232,6 +343,11 @@ export function MessageRow({
     // Whether the primary button went down on this row and has neither left it as a drag nor been let go elsewhere,
     // which is what makes letting it go here a press on the row.
     const mousePressed = useRef(false);
+
+    // Where a finger landed on this row, because one that travelled along the list before lifting is not a tap. The
+    // browser usually says so itself by cancelling the pointer as the list pans, but a pull of the list keeps the pan
+    // from starting, and its lift then arrives here as an ordinary one.
+    const landed = useRef<{ readonly x: number; readonly y: number } | null>(null);
 
     // The act this row is still waiting on. It is what the reserved line says while it stands, ahead of whatever the
     // screen would otherwise put there: a message on its way out of the folder is the more urgent fact about the row
@@ -254,7 +370,9 @@ export function MessageRow({
     // marked read is drawn read from it, which is the same rule in both directions.
     const reading = flagPending(acts, email, 'seen');
     const unread =
-        reading?.act === 'markUnread' || (reading?.act !== 'markRead' && drawnUnread(marking, email.id, email.unread));
+        !foldedSpam &&
+        (reading?.act === 'markUnread' ||
+            (reading?.act !== 'markRead' && drawnUnread(marking, email.id, email.unread)));
 
     // The flag the row draws, which is the mark either flag act reports and the whole of what it reports.
     const flagged = drawnFlagged(acts, email);
@@ -284,12 +402,15 @@ export function MessageRow({
     // would otherwise put there. Worked out here rather than in the markup, because the line is also hidden from the
     // accessibility tree where it holds nothing, and two readings of *nothing* is how one of them comes to be wrong.
     const pendingSaid = acting === null ? null : actPendingWording(acting);
-    const said = pendingSaid === null ? note : translate(pendingSaid);
+    // A spam row names its kind there instead of whatever the screen would have said about it.
+    const kind = spamName === null ? null : (spam?.spamSubcategory ?? null);
+    const spamLine = kind === null ? undefined : <SpamBadge subcategory={kind} />;
+    const said = pendingSaid !== null ? translate(pendingSaid) : spamName === null ? note : spamLine;
 
     // What is showing behind the row while a finger carries it, or nothing for a row standing where the list drew it.
     // Which of the two it is is the direction alone: what the threshold decides is how firmly it is drawn rather than
     // which act it names, so somebody who has begun a swipe can read what it is for before they have finished it.
-    const carrying = swipe.carried === 0 ? undefined : swipeDrawn[swipe.carried < 0 ? 'answer' : 'archive'];
+    const carrying = swipe.carried === 0 ? undefined : swipeDrawn[swipe.carried < 0 ? 'leftward' : 'rightward'];
 
     return (
         <li
@@ -327,6 +448,7 @@ export function MessageRow({
                 // The primary button alone acts. The second one is what asks the row what it offers, and a row that
                 // also selected the message and opened it under the menu would be answering a question with an act.
                 mousePressed.current = !pressedByFinger(event.pointerType) && event.button === 0;
+                landed.current = { x: event.clientX, y: event.clientY };
             }}
             onPointerMove={(event) => {
                 // The press first, because it is the one that gives way: it is off at a shorter travel than the swipe
@@ -338,9 +460,12 @@ export function MessageRow({
                 // The tap this lift amounts to, read before the press is cleared so that a lift ending a press which
                 // has opened the menu acts on nothing. The swipe is asked afterwards rather than before, because the
                 // lift is what finishes one — and a lift that has just filed the message away is not also a tap on it.
-                const tapped = pressedByFinger(event.pointerType) ? !press.tapSuppressed() : mousePressed.current;
+                const tapped = pressedByFinger(event.pointerType)
+                    ? !travelledAlongList(landed.current, event) && !press.tapSuppressed()
+                    : mousePressed.current;
 
                 mousePressed.current = false;
+                landed.current = null;
 
                 press.onPointerUp();
                 swipe.onPointerUp(event);
@@ -403,9 +528,19 @@ export function MessageRow({
                         selected || open ? 'bg-accent-soft ring-2 ring-accent-line ring-inset' : 'hover:bg-hover'
                     }`}
                 >
-                    <SenderAvatar displayName={email.senderDisplayName} address={email.senderAddress} place="strip" />
+                    {spamName === null ? (
+                        <SenderAvatar
+                            displayName={email.senderDisplayName}
+                            address={email.senderAddress}
+                            place="strip"
+                        />
+                    ) : (
+                        <span className="flex size-9 items-center justify-center rounded-full bg-rail text-faint">
+                            <Icon name="report" className="size-icon-md" />
+                        </span>
+                    )}
 
-                    <span className="sr-only">{stripName}</span>
+                    <span className="sr-only">{spamName === null ? stripName : `${spamName} ${stripName}`}</span>
 
                     {unread ? (
                         <>
@@ -416,6 +551,19 @@ export function MessageRow({
                             <span className="sr-only">{translate('list.unread')}</span>
                         </>
                     ) : null}
+
+                    {/* The mark rides on the avatar where it says something, which is the design's own; the neutral
+                        one would be a badge on every strip, and its name is in the strip's own all the same. */}
+                    {markDrawn === null || mark === 'neutral' ? null : (
+                        <span
+                            aria-hidden="true"
+                            className={`absolute end-1.5 bottom-1.5 flex size-4.5 items-center justify-center rounded-full bg-panel ring-2 ring-sunken ${
+                                senderMarkInk[markDrawn.tone]
+                            }`}
+                        >
+                            <Icon name={markDrawn.icon} className="size-3.25" />
+                        </span>
+                    )}
 
                     {stripSaid.tip}
                 </span>
@@ -460,98 +608,150 @@ export function MessageRow({
                 // decided rather than a decision the theme took.
                 style={swipe.carried === 0 ? undefined : { transform: `translateX(${String(swipe.carried)}px)` }}
             >
-                <div className="flex items-center gap-2">
-                    <SenderAvatar displayName={email.senderDisplayName} address={email.senderAddress} place="row" />
+                {foldedSpam ? (
+                    <FoldedSpam email={email} spamName={spamName} mark={senderMark} />
+                ) : (
+                    <>
+                        <div className="flex items-center gap-2">
+                            <SenderAvatar
+                                displayName={email.senderDisplayName}
+                                address={email.senderAddress}
+                                place="row"
+                            />
 
-                    {/* Who wrote is read before where they wrote from, so the name keeps up to half the line and the
+                            {/* Who wrote is read before where they wrote from, so the name keeps up to half the line and the
                         host is what gives way. Half rather than more because the marks and the time hold their own
                         width: a name allowed past it would push the time out of a row that clips rather than wraps. */}
-                    <span
-                        className={`max-w-1/2 shrink-0 truncate text-lg workspace:text-md ${unread ? 'font-semibold' : 'font-normal'}`}
-                    >
-                        {correspondent(email) ?? translate('list.senderUnknown')}
-                    </span>
+                            <span
+                                className={`max-w-1/2 shrink-0 truncate text-lg workspace:text-md ${unreadInk(unread)}`}
+                            >
+                                {correspondent(email) ?? translate('list.senderUnknown')}
+                            </span>
 
-                    <Organisation address={email.senderAddress} />
+                            {senderMark}
 
-                    <MessageMarkers email={email} flagged={flagged} />
+                            <Organisation address={email.senderAddress} />
 
-                    {/* Unread is drawn as the weight of the sender and the subject, as the design draws it and as
-                        every mail client has taught its readers to scan for, so no mark of its own stands among the
-                        others. These words are what says so to a reader who is not looking at the weight. */}
-                    {unread ? <span className="sr-only">{translate('list.unread')}</span> : null}
+                            <MessageMarkers email={email} flagged={flagged} />
 
-                    {/* How long the correspondence is, drawn where it is longer than the one message. The design
+                            {/* Unread is drawn as the weight and ink of the sender and the subject, as the design draws it
+                        and as every mail client has taught its readers to scan for, so no mark of its own stands among
+                        the others. These words are what says so to a reader who is not looking at the weight. */}
+                            {unread ? <span className="sr-only">{translate('list.unread')}</span> : null}
+
+                            {/* How long the correspondence is, drawn where it is longer than the one message. The design
                         puts it between the flag and the time and draws nothing at all for a message
                         standing alone, so the pill says this row stands for an exchange rather than repeating what
                         every row already is. The number is the deployment's count over the whole conversation — a
                         client counting the rows it holds would answer differently depending on where the page was
                         cut — and the words beside it are for a reader who is not looking at it, which the design has
                         no way to draw. */}
-                    {email.threadMessageCount !== null && email.threadMessageCount > 1 ? (
-                        <span className="shrink-0 rounded-md border border-line-soft bg-rail px-1.5 py-px text-xs text-text-soft">
-                            <span aria-hidden="true">{email.threadMessageCount}</span>
+                            {email.threadMessageCount !== null && email.threadMessageCount > 1 ? (
+                                <span className="shrink-0 rounded-md border border-line-soft bg-rail px-1.5 py-px text-xs text-text-soft">
+                                    <span aria-hidden="true">{email.threadMessageCount}</span>
 
-                            <span className="sr-only">
-                                {translate('list.threadMessages', {
-                                    count: String(email.threadMessageCount),
-                                })}
-                            </span>
-                        </span>
-                    ) : null}
+                                    <span className="sr-only">
+                                        {translate('list.threadMessages', {
+                                            count: String(email.threadMessageCount),
+                                        })}
+                                    </span>
+                                </span>
+                            ) : null}
 
-                    {/* What MailFathom read from this message, opened from the row the design draws it on and
+                            {/* What MailFathom read from this message, opened from the row the design draws it on and
                         offered only where there is a reading to open. It is a mark rather than a control, and that is
                         an accessibility obligation rather than a shortcut: a row is an `option` of a listbox and holds
                         no focusable descendant, so a button here would take the keyboard path off the list. The
                         announced path to the same surface is the row's own menu, which a pointer, a finger and a
                         keyboard each reach — this is the pointer's shortcut to it and is hidden from everything that
                         would otherwise announce a second, unreachable copy of it. */}
-                    {onReadings === undefined ? null : (
-                        <>
-                            {/* Its own press stops at it rather than reaching the row, so holding it reads its name
+                            {onReadings === undefined || spamName !== null ? null : (
+                                <>
+                                    {/* Its own press stops at it rather than reaching the row, so holding it reads its name
                                 and never also opens the row's menu or starts a swipe. */}
-                            <span
-                                {...readingsName.anchor}
-                                aria-hidden="true"
-                                className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-accent-soft hover:text-accent-deep pointer-coarse:size-8"
-                                onPointerDown={(event) => {
-                                    event.stopPropagation();
-                                    readingsName.anchor.onPointerDown(event);
-                                }}
-                                onPointerUp={(event) => {
-                                    event.stopPropagation();
-                                    readingsName.anchor.onPointerUp();
-                                }}
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    readingsName.anchor.onClick(event);
-                                }}
-                            >
-                                <Icon name="auto_awesome" className="size-icon-sm pointer-coarse:size-icon-lg" />
-                            </span>
-                            {readingsName.tip}
-                        </>
-                    )}
+                                    <span
+                                        {...readingsName.anchor}
+                                        aria-hidden="true"
+                                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-accent-soft hover:text-accent-deep pointer-coarse:size-8"
+                                        onPointerDown={(event) => {
+                                            event.stopPropagation();
+                                            readingsName.anchor.onPointerDown(event);
+                                        }}
+                                        onPointerUp={(event) => {
+                                            event.stopPropagation();
+                                            readingsName.anchor.onPointerUp();
+                                        }}
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            readingsName.anchor.onClick(event);
+                                        }}
+                                    >
+                                        <Icon
+                                            name="auto_awesome"
+                                            className="size-icon-sm pointer-coarse:size-icon-lg"
+                                        />
+                                    </span>
+                                    {readingsName.tip}
+                                </>
+                            )}
 
-                    <ReceivedAt at={email.receivedAt} />
-                </div>
+                            <ReceivedAt at={email.receivedAt} />
+                        </div>
 
-                <div
-                    className={`truncate text-md text-text-soft workspace:text-text ${unread ? 'font-semibold' : 'font-normal'}`}
-                >
-                    {email.subject ?? translate('list.noSubject')}
-                </div>
+                        <div className={`truncate text-md ${unreadInk(unread)}`}>
+                            {email.subject ?? translate('list.noSubject')}
+                        </div>
 
-                {/* The reserved line. Hidden from the accessibility tree where it holds nothing, so a row with nothing
+                        {/* The reserved line. Hidden from the accessibility tree where it holds nothing, so a row with nothing
                     to say about itself is not announced as one with an empty line in it. */}
-                <div
-                    aria-hidden={said === undefined ? 'true' : undefined}
-                    className="h-4.5 overflow-hidden text-base leading-4.5 text-muted workspace:text-sm"
-                >
-                    {said}
-                </div>
+                        <div
+                            aria-hidden={said === undefined ? 'true' : undefined}
+                            className="h-4.5 overflow-hidden text-base leading-4.5 text-muted workspace:text-sm"
+                        >
+                            {said}
+                        </div>
+                    </>
+                )}
             </div>
         </li>
+    );
+}
+
+// A spam row outside the Spam folder, folded to one muted line: the report glyph where the avatar stands, who wrote it,
+// the subject, and the time. No preview, no AI line, and no unread weight; what it is said in words to a reader who
+// cannot see the glyph, and in its menu's header to a finger.
+function FoldedSpam({
+    email,
+    spamName,
+    mark,
+}: {
+    readonly email: MailTimelineEntry;
+    readonly spamName: string;
+
+    /** The mark on who sent it, which a folded row keeps after the sender as the design draws it. */
+    readonly mark: ReactNode;
+}) {
+    const { translate } = useLocalization();
+
+    return (
+        <div className="flex min-w-0 items-center gap-2.25">
+            <span aria-hidden="true" className="flex w-8.5 shrink-0 justify-center workspace:w-5.5">
+                <Icon name="report" className="size-icon-sm text-faint" />
+            </span>
+
+            <span className="sr-only">{spamName}</span>
+
+            <span className="max-w-2/5 shrink-0 truncate text-base text-muted">
+                {correspondent(email) ?? translate('list.senderUnknown')}
+            </span>
+
+            {mark}
+
+            <span className="min-w-0 flex-1 truncate text-base text-muted">
+                {email.subject ?? translate('list.noSubject')}
+            </span>
+
+            <ReceivedAt at={email.receivedAt} />
+        </div>
     );
 }

@@ -6,6 +6,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.Threads;
 
@@ -37,22 +38,26 @@ public sealed class EmailThreadContexts
     private UserSensitiveContentPosture? actingPosture;
     private readonly UserId actingUser;
     private readonly SensitiveContentEgressGuard egressGuard;
+    private readonly MailboxReaderKind reader;
     private readonly Dictionary<EmailThreadId, AssembledThread> assembled = [];
 
     /// <summary>Initializes the per-read assembly.</summary>
     /// <param name="threadReader">Reads the messages one conversation holds.</param>
-    /// <param name="scopeResolver">Names the accounts and folders a tool may read, which every read here runs under.</param>
+    /// <param name="scopeResolver">Names the accounts and folders the reader may reach, which every read here runs under.</param>
+    /// <param name="reader">Who the conversations are assembled for, which decides whether folders withheld from AI are in them.</param>
     /// <param name="egressGuard">Scans the subjects before any of them becomes a caller's.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     /// <remarks>
     /// The scope is resolved once, by the first conversation assembled, rather than per conversation: it is configuration rather than a caller's
     /// filter, and one read of several emails must not be able to see two answers to the same question. Junk mail is
     /// included, because a conversation is threaded across the folders it reached and a reply that landed in junk is
-    /// part of the exchange the caller is reading rather than a listing they asked for.
+    /// part of the exchange the caller is reading rather than a listing they asked for. An agent's conversation still
+    /// leaves out every message judged spam, and the junk folder's mail the person did not mark not spam.
     /// </remarks>
     public EmailThreadContexts(
         IEmailThreadReader threadReader,
         MailboxScopeResolver scopeResolver,
+        MailboxReaderKind reader,
         SensitiveContentEgressGuard egressGuard)
     {
         ArgumentNullException.ThrowIfNull(threadReader);
@@ -61,6 +66,7 @@ public sealed class EmailThreadContexts
 
         this.threadReader = threadReader;
         this.scopeResolver = scopeResolver;
+        this.reader = reader;
         this.actingUser = scopeResolver.User;
         this.egressGuard = egressGuard;
     }
@@ -83,6 +89,7 @@ public sealed class EmailThreadContexts
         using var actingFor = this.egressGuard.ActingFor(this.actingPosture);
 
         this.readableScope ??= await this.scopeResolver.ReadableScopeAsync(
+            this.reader,
             [],
             [],
             JunkMailInclusion.Included,

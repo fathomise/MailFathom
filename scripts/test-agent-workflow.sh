@@ -732,6 +732,67 @@ verify_full_runs_both_flows_for_a_change_above_both_stacks() {
   assert_contains '--dir frontend run build' "$client_invocation_log"
 }
 
+# `ci.yml` is named by both filters, and by them alone it would run both flows and, naming no unit
+# suite, widen the service flow to the whole solution. No gate runs a workflow, so neither flow could
+# verify the edit, and the matcher passes over the path instead.
+# A workflow and a composite action beside it, because the client's filter names both and both are
+# passed over: neither path may earn a flow on its own.
+stage_workflow_change() {
+  mkdir -p "$repository_root/.github/workflows" "$repository_root/.github/actions/install"
+  printf 'name: CI\n' > "$repository_root/.github/workflows/ci.yml"
+  printf 'name: Install\n' > "$repository_root/.github/actions/install/action.yml"
+  git -C "$repository_root" add .github/workflows/ci.yml .github/actions/install/action.yml
+}
+
+discard_workflow_change() {
+  git -C "$repository_root" rm --quiet --force --cached .github/workflows/ci.yml .github/actions/install/action.yml
+  rm -rf "$repository_root/.github"
+}
+
+# On the fixture branch, so the C# file it carries is what earns the service flow: the run is the one
+# that file alone earns, narrowed to the one suite naming it, and the client flow does not run.
+verify_fast_passes_over_a_workflow_when_it_decides_the_stacks() {
+  : > "$invocation_log"
+  : > "$client_invocation_log"
+  stage_workflow_change
+
+  (
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$test_directory/verify-fast-workflow-output" 2>&1
+
+  discard_workflow_change
+  assert_file_content \
+    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs' \
+    "$invocation_log"
+  assert_file_content '' "$client_invocation_log"
+}
+
+# Detached at the base, so the workflow is the whole change: the contract suite is what answers for
+# it, and no stack's flow runs.
+verify_full_runs_no_stack_flow_for_a_workflow_only_change() {
+  local gate_output="$test_directory/verify-full-workflow-output"
+
+  : > "$invocation_log"
+  : > "$client_invocation_log"
+  : > "$workflow_invocation_log"
+  git -C "$repository_root" checkout --quiet --detach origin/main
+  stage_workflow_change
+
+  (
+    cd "$repository_root"
+    "$scripts_directory/verify-full.sh"
+  ) > "$gate_output" 2>&1
+
+  discard_workflow_change
+  git -C "$repository_root" checkout --quiet "$fixture_branch"
+
+  assert_file_content 'workflow-contracts' "$workflow_invocation_log"
+  assert_file_content '' "$invocation_log"
+  assert_file_content '' "$client_invocation_log"
+  assert_contains 'This change reaches neither stack' "$gate_output"
+}
+
 # The fixture branch changes one C# file and nothing else, which is also the case the scoped
 # verification below is about: the gate verifies the file the branch wrote rather than the 1113 the
 # solution holds, because formatting is a property of a file and every other one was verified by
@@ -4802,6 +4863,11 @@ board_state_green_checks='[
   {"workflow": "", "name": "license/cla", "status": "COMPLETED", "conclusion": "SUCCESS"}
 ]'
 
+# The contexts the branch rules require, as `read-pull-request-state.sh` copies them onto every pull
+# request. Every fixture requires both of the checks above, so a check a fixture adds beside them is
+# one the rules do not require.
+board_state_required_checks='["Required CI", "license/cla"]'
+
 # The state a rule reads, written as a fixture rather than fetched. Every condition in that script is
 # a question about these fields alone, which is what lets a board rule be tested without a token and
 # without a pull request to reproduce it on. `approval` is `none`, `current`, `stale`, `commented`,
@@ -4821,6 +4887,7 @@ write_pull_request_state() {
   jq -n --arg mergeable "$mergeable" --arg approval "$approval" \
     --argjson checks "$checks" --argjson draft "$draft" \
     --argjson queued "$queued" --arg removed "$removed_at" \
+    --argjson required "$board_state_required_checks" \
     '{number: 1, mergeable: $mergeable, isDraft: $draft, state: "OPEN", labels: [],
       headRefOid: "head-commit", inMergeQueue: $queued,
       removedFromMergeQueueAt: (if $removed == "" then null else $removed end),
@@ -4833,7 +4900,8 @@ write_pull_request_state() {
                        submittedAt: "2026-10-17T10:00:00Z",
                        commit: (if $approval == "stale" then "older-commit" else "head-commit" end)}]
                 end),
-      checks: $checks}' \
+      checks: $checks,
+      requiredChecks: $required}' \
     > "$state_file"
 }
 
@@ -5081,16 +5149,20 @@ select_board_status_earns_nothing_from_a_withheld_approval_of_an_older_head() {
   assert_file_content '' "$output_file"
 }
 
-# Neither of those is a pipeline the merge waits on. `CodeQL` is not a required check on `main`, and
-# this workflow's own checks publish a label and a board write rather than anything about whether the
-# change builds — a rule that read them would be deciding partly from its own run.
-select_board_status_reads_neither_codeql_nor_its_own_checks() {
-  local output_file="$test_directory/select-board-status-ignored-checks"
+# A check the branch rules do not require is one the merge does not wait on, so the column waits on
+# none of them either — running or red. A documentation build running long held an item in `In merge`
+# after the queue had already let its pull request go, which is the case this exists for.
+select_board_status_reads_only_the_checks_the_rules_require() {
+  local output_file="$test_directory/select-board-status-unrequired-checks"
   local checks
 
   checks="$(
     jq -c '. + [{"workflow": "CodeQL", "name": "Analyze C#", "status": "COMPLETED", "conclusion": "FAILURE"},
                 {"workflow": "", "name": "CodeQL", "status": "COMPLETED", "conclusion": "FAILURE"},
+                {"workflow": "Publish the documentation", "name": "Build latest",
+                 "status": "IN_PROGRESS", "conclusion": ""},
+                {"workflow": "Fathom review", "name": "Fathom review",
+                 "status": "COMPLETED", "conclusion": "FAILURE"},
                 {"workflow": "Apply pull request rules",
                  "name": "Apply the board statuses the open pull requests earn",
                  "status": "IN_PROGRESS", "conclusion": ""}]' \
@@ -5100,6 +5172,40 @@ select_board_status_reads_neither_codeql_nor_its_own_checks() {
   run_select_board_status 'MERGEABLE' "$output_file" 'current' "$checks"
 
   assert_file_content $'Ready to merge\t\tDone,Blocked' "$output_file"
+
+  output_file="$test_directory/select-board-status-unrequired-checks-removed"
+
+  run_select_board_status 'MERGEABLE' "$output_file" 'current' "$checks" 'false' 'false' \
+    '2026-10-17T11:00:00Z'
+
+  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+}
+
+# A required check reports on every pull request, or nothing could merge, so one missing from the
+# head has not started yet. Reading the absence as green would publish a verdict before `Required CI`
+# had even been queued.
+select_board_status_waits_for_a_required_check_that_has_not_appeared() {
+  local output_file
+  local checks
+  local approval
+
+  checks="$(jq -c '[.[] | select(.name != "Required CI")]' <<< "$board_state_green_checks")"
+
+  for approval in current commented; do
+    output_file="$test_directory/select-board-status-required-check-missing-${approval}"
+
+    run_select_board_status 'MERGEABLE' "$output_file" "$approval" "$checks"
+
+    assert_file_content '' "$output_file"
+  done
+
+  # GitHub starts no pull request workflow on a head that conflicts, so there the missing check is one
+  # that will not start, and the conflict is answered without it.
+  output_file="$test_directory/select-board-status-required-check-missing-conflicting"
+
+  run_select_board_status 'CONFLICTING' "$output_file" 'none' "$checks"
+
+  assert_file_content $'Changes requested\tReady to merge\t' "$output_file"
 }
 
 # A draft is work being written rather than a change asking for anything, and its checks are red as
@@ -5193,10 +5299,19 @@ done
 
 arguments="$*"
 
+# The branch rules the collecting script reads the required checks from. A contract states them as a
+# JSON array of contexts and this puts them back into the shape the API answers in.
+if [[ "$arguments" == *'/rules/branches/'* ]]; then
+  response="$(
+    jq -nc --argjson contexts "$(cat "$FAKE_BOARD_DIRECTORY/required-checks.json" 2>/dev/null || printf '["Required CI"]')" \
+      '[{type: "pull_request", parameters: {}},
+        {type: "required_status_checks",
+         parameters: {required_status_checks: ($contexts | map({context: ., integration_id: 15368}))}}]'
+  )"
 # `statusCheckRollup` rather than the enclosing selection, because `collect-closing-issues.sh` asks
 # for `pullRequest(number:` as well and answering it from here would hand it a pull request with no
 # closing references at all.
-if [[ "$arguments" == *'statusCheckRollup'* ]]; then
+elif [[ "$arguments" == *'statusCheckRollup'* ]]; then
   # A countdown of `UNKNOWN` answers before the settled one, which is what GitHub does after a merge:
   # it computes mergeability when asked and reports `UNKNOWN` until it has. A fake that answered at
   # once would pass whether or not the step waited at all.
@@ -5449,6 +5564,17 @@ pull_request_rules_follow_a_pull_request_into_and_out_of_the_merge_queue() {
 
   ((board_status == 0))
   assert_contains 'option=option-changes' "$board_mutations_file"
+  assert_contains 'Issue 12 moved from In merge to Changes requested' "$output_file"
+
+  # The removal is answered while a check nothing requires is still running on the head, because the
+  # merge did not wait on that check and the column does not either.
+  output_file="$test_directory/pull-request-rules-dequeued-beside-an-unrequired-run-output"
+  checks_json='[{"workflow": "CI", "name": "Required CI", "status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"workflow": "Publish the documentation", "name": "Build latest", "status": "IN_PROGRESS", "conclusion": ""}]'
+
+  run_pull_request_rules_board 'MERGEABLE' 'In merge' '0' "$output_file"
+
+  ((board_status == 0))
   assert_contains 'Issue 12 moved from In merge to Changes requested' "$output_file"
 }
 
@@ -9008,7 +9134,7 @@ workflow_files() {
 # Adding a name here is a supply-chain decision, so it fails here first and is argued in the pull
 # request rather than discovered in a run.
 every_external_action_names_an_approved_owner() {
-  local approved_owners=' actions github Krzysztof318 dorny anthropics docker crate-ci aquasecurity oras-project peter-evans '
+  local approved_owners=' actions github Krzysztof318 dorny anthropics docker crate-ci aquasecurity oras-project peter-evans vegardit '
   local owner
   local unapproved=''
 
@@ -9019,8 +9145,9 @@ every_external_action_names_an_approved_owner() {
       unapproved+="$owner "
     fi
   done < <(
-    grep -rhoE '^[[:space:]]+uses:[[:space:]]+[^./][^@[:space:]]+' "$source_repository_root/.github/workflows" |
-      sed -E 's#^[[:space:]]+uses:[[:space:]]+##; s#/.*##' |
+    grep -rhoE '^[[:space:]]+(- )?uses:[[:space:]]+[^./][^@[:space:]]+' \
+      "$source_repository_root/.github/workflows" "$source_repository_root/.github/actions" |
+      sed -E 's#^[[:space:]]+(- )?uses:[[:space:]]+##; s#/.*##' |
       sort --unique
   )
 
@@ -9073,6 +9200,106 @@ unbounded = [
 if unbounded:
     print(f"Workflow jobs run on GitHub's six-hour default: {' '.join(unbounded)}", file=sys.stderr)
 sys.exit(1 if unbounded else 0)
+PYTHON
+}
+
+# A package install waits on the runner's mirror, which has held one for a job's whole budget while
+# the install ordinarily takes half a minute, and that mirror stalls rather than fails, which apt's own
+# fallback does not see. So a step that installs from apt is bounded on its own rather than left to
+# whatever the job allows, and the step before it chooses a fast mirror under a bound of its own,
+# since it waits on the mirrors it probes. Both contracts read the same steps: one running `apt-get`,
+# a Playwright install that reaches apt itself, and one using a local action that does either —
+# directly or through another — because a composite step takes no `timeout-minutes`, so the bound
+# and the mirror choice have to sit around the step that uses it.
+check_apt_install_steps() {
+  python3 - "$source_repository_root" "$1" <<'PYTHON'
+import glob
+import re
+import sys
+import yaml
+
+root, check = sys.argv[1], sys.argv[2]
+installs_from_apt = re.compile(r"apt-get|install-deps|--with-deps")
+mirror_action = "vegardit/fast-apt-mirror.sh@"
+
+
+def jobs_of(path):
+    document = yaml.safe_load(open(path, encoding="utf-8"))
+    if "jobs" in document:
+        return [(job_id, job.get("steps", [])) for job_id, job in document["jobs"].items()]
+    return [("runs", document.get("runs", {}).get("steps", []))]
+
+
+actions = {
+    "./" + path[len(root) + 1:].rsplit("/", 1)[0]: [step for _, steps in jobs_of(path) for step in steps]
+    for path in glob.glob(f"{root}/.github/actions/*/action.yml")
+}
+installing = set()
+while True:
+    found = {
+        action
+        for action, steps in actions.items()
+        if any(installs_from_apt.search(step.get("run", "")) or step.get("uses") in installing for step in steps)
+    }
+    if found <= installing:
+        break
+    installing |= found
+
+problems = []
+for path in sorted(glob.glob(f"{root}/.github/workflows/*.yml")):
+    for job_id, steps in jobs_of(path):
+        for index, step in enumerate(steps):
+            where = f"{path.rsplit('/', 1)[-1]}:{job_id}:{step.get('name', '<unnamed>')}"
+            installs = installs_from_apt.search(step.get("run", "")) or step.get("uses") in installing
+            if check == "timeout" and installs and "timeout-minutes" not in step:
+                problems.append(f"{where} installs from apt on its job's timeout alone")
+            if check == "mirror":
+                if step.get("uses", "").startswith(mirror_action) and "timeout-minutes" not in step:
+                    problems.append(f"{where} chooses a mirror on its job's timeout alone")
+                previous = steps[index - 1] if index > 0 else {}
+                if installs and not previous.get("uses", "").startswith(mirror_action):
+                    problems.append(f"{where} installs from apt without choosing a mirror in the step before it")
+if problems:
+    print("; ".join(problems), file=sys.stderr)
+sys.exit(1 if problems else 0)
+PYTHON
+}
+
+every_apt_step_declares_its_timeout() {
+  check_apt_install_steps timeout
+}
+
+every_apt_step_follows_a_bounded_mirror_choice() {
+  check_apt_install_steps mirror
+}
+
+# A cache entry saved on the default branch is readable by every run, and one saved on any other ref
+# by that ref's later runs alone, so an entry a pull request, a merge-queue entry, or a release tag
+# saves is read by nothing else and only spends the repository's cache budget. Every cache is therefore restored with
+# `actions/cache/restore` and saved with `actions/cache/save` under a condition naming `main`, and the
+# combined `actions/cache`, which saves wherever it runs, appears nowhere.
+every_cache_is_saved_from_main_alone() {
+  python3 - "$source_repository_root" <<'PYTHON'
+import glob
+import sys
+import yaml
+
+root = sys.argv[1]
+problems = []
+for path in sorted(glob.glob(f"{root}/.github/workflows/*.yml") + glob.glob(f"{root}/.github/actions/*/action.yml")):
+    document = yaml.safe_load(open(path, encoding="utf-8"))
+    jobs = document.get("jobs") or {"runs": document.get("runs", {})}
+    for job_id, job in jobs.items():
+        for step in job.get("steps", []):
+            uses = step.get("uses", "")
+            where = f"{path[len(root) + 1:]}:{job_id}:{step.get('name', '<unnamed>')}"
+            if uses.startswith("actions/cache@"):
+                problems.append(f"{where} saves wherever it runs")
+            elif uses.startswith("actions/cache/save@") and "github.ref == 'refs/heads/main'" not in str(step.get("if", "")):
+                problems.append(f"{where} saves off main")
+if problems:
+    print(f"Caches saved where no other run can read them: {'; '.join(problems)}", file=sys.stderr)
+sys.exit(1 if problems else 0)
 PYTHON
 }
 
@@ -11091,6 +11318,41 @@ no_tracked_text_file_carries_a_nul_byte() {
   (( failures == 0 ))
 }
 
+# Two kinds of string the root `AGENTS.md` keeps out of every tracked file: the shortcut marker a
+# coding-assistant plugin writes in front of a comment, and an address on Claude's own web surfaces,
+# which names a session, an artifact, or a design project nobody reading the repository can open.
+# Each pattern is assembled from two halves so this file never carries the string it refuses, and the
+# root `AGENTS.md` is the one exemption, being where the rule is stated.
+#
+# That statement is also the floor: it carries every pattern, so a pattern that stopped matching fails
+# there instead of reading as a clean tree. `git grep` exits 1 when nothing matched and above 1 when it
+# could not search, and only the first is a pass.
+no_tracked_file_carries_a_forbidden_string() {
+  local patterns=('pony''tail' 'claude''\.ai' 'claude''usercontent\.com')
+  local pattern matches status=0 failures=0 arguments=()
+
+  for pattern in "${patterns[@]}"; do
+    arguments+=(-e "$pattern")
+    if ! grep -qiE "$pattern" "$source_repository_root/AGENTS.md"; then
+      printf 'AGENTS.md no longer states %s, so the sweep cannot show it still matches\n' "$pattern" >&2
+      failures=$(( failures + 1 ))
+    fi
+  done
+
+  matches="$(git -C "$source_repository_root" grep -n -I -i -E "${arguments[@]}" -- ':(top,exclude)AGENTS.md')" ||
+    status=$?
+
+  if (( status == 0 )); then
+    printf '%s\n' "$matches" | sed 's/^/a string AGENTS.md forbids: /' >&2
+    failures=$(( failures + 1 ))
+  elif (( status > 1 )); then
+    printf 'git grep could not sweep the tracked files (exit %s)\n' "$status" >&2
+    failures=$(( failures + 1 ))
+  fi
+
+  (( failures == 0 ))
+}
+
 # A workflow GitHub cannot parse never runs, and what it leaves instead is a failed push-event run
 # with no job on every branch that carries the file — `main` included — which attaches no check to a
 # pull request and so reaches no review and no gate. Every assertion above reads a workflow as text
@@ -11525,9 +11787,12 @@ deployment.ts troubledAccounts GET /api/client/accounts
 deployment.ts inbox GET /api/client/folders
 deployment.ts archive2024 GET /api/client/folders
 deployment.ts draftsFolder GET /api/client/folders
+deployment.ts sentFolder GET /api/client/folders
+deployment.ts waitingOutbox GET /api/client/folders
 deployment.ts emptyFolder GET /api/client/folders
 deployment.ts trash GET /api/client/folders
 deployment.ts filed GET /api/client/folders
+deployment.ts spamFolder GET /api/client/folders
 deployment.ts mailFolders GET /api/client/folders
 deployment.ts troubledFolders GET /api/client/folders
 deployment.ts ownTimeZone GET /api/client/time-zone
@@ -11554,7 +11819,12 @@ discovery.ts runWithAnUnknownBlock GET /api/client/discovery/runs/{runId}
 discovery.ts runAheadOfTheClient GET /api/client/discovery/runs/{runId}
 drafts.ts draft GET /api/client/drafts/{draftId}
 drafts.ts answeringDraft GET /api/client/drafts/{draftId}
-drafts.ts drafts - -
+drafts.ts outOfStepDraft GET /api/client/drafts
+drafts.ts draftList GET /api/client/drafts
+drafts.ts reopenedDraft GET /api/client/drafts/{draftId}
+drafts.ts reopenedSend POST /api/client/outbox/reopening
+drafts.ts reopenedDraftReading GET /api/client/drafts/{draftId}
+drafts.ts outOfStepDraftReading GET /api/client/drafts/{draftId}
 drafts.ts savedDraft POST /api/client/drafts
 drafts.ts queuedSend POST /api/client/drafts/{draftId}/send
 drafts.ts withdrawnSend POST /api/client/outbox/cancellation
@@ -11581,6 +11851,9 @@ mail.ts conversation GET /api/client/threads/{threadId}
 mail.ts conversationEmail GET /api/client/threads/{threadId}
 mail.ts conversationContent GET /api/client/threads/{threadId}
 mail.ts conversationState GET /api/client/threads/{threadId}/state
+mail.ts spamRow GET /api/client/emails
+mail.ts spamRows GET /api/client/emails
+mail.ts spamFolderPage GET /api/client/emails
 messages.ts run GET /api/client/messages/{storedEmailId}/body
 messages.ts cell GET /api/client/messages/{storedEmailId}/body
 messages.ts newsletterBlocks GET /api/client/messages/{storedEmailId}/body
@@ -11588,6 +11861,30 @@ messages.ts newsletterBody GET /api/client/messages/{storedEmailId}/body
 messages.ts markupOnlyBody GET /api/client/messages/{storedEmailId}/body
 messages.ts newsletterMessage GET /api/client/messages/{storedEmailId}
 messages.ts markupOnlyMessage GET /api/client/messages/{storedEmailId}
+messages.ts spamMessage GET /api/client/messages/{storedEmailId}
+messages.ts spamBody GET /api/client/messages/{storedEmailId}/body
+senders.ts notSigned GET /api/client/messages/{storedEmailId}
+senders.ts signer GET /api/client/messages/{storedEmailId}
+senders.ts verifiedSignature GET /api/client/messages/{storedEmailId}
+senders.ts failedSignature GET /api/client/messages/{storedEmailId}
+senders.ts authenticated GET /api/client/messages/{storedEmailId}
+senders.ts trusted GET /api/client/messages/{storedEmailId}
+senders.ts organizationMember GET /api/client/messages/{storedEmailId}
+senders.ts deletedOrganizationMember GET /api/client/messages/{storedEmailId}
+senders.ts evidence - -
+senders.ts listedSender GET /api/client/emails
+outbox.ts waitingSend GET /api/client/outbox
+outbox.ts sendingSend GET /api/client/outbox
+outbox.ts retryingSend GET /api/client/outbox
+outbox.ts unknownSend GET /api/client/outbox
+outbox.ts refusedOutgoingSend GET /api/client/outbox
+outbox.ts outboxPage GET /api/client/outbox
+outbox.ts emptyOutboxPage GET /api/client/outbox
+outbox.ts outgoingMailPreview - -
+outbox.ts outboxDecisionTaken POST /api/client/outbox/requeue
+notifications.ts refusedSendNotification GET /api/client/notifications
+notifications.ts abandonedChangeNotification GET /api/client/notifications
+notifications.ts draftCopyNotification GET /api/client/notifications
 notifications.ts notificationPage GET /api/client/notifications
 notifications.ts arrivingNotification GET /api/client/notifications
 notifications.ts emptyNotificationPage GET /api/client/notifications
@@ -11623,6 +11920,11 @@ BINDINGS
 #   the refusal by. The contract records no failure body for the send route, and an extension is not
 #   something an OpenAPI document carries at all, so what would be compared is a shape nothing wrote
 #   down. That is a gap in what the service declares rather than a defect in the fixture.
+# - `outbox.ts outgoingMailPreview` is what `GET /api/client/outbox/{outgoingEmailId}` answers
+#   to a credential that may read the Outbox. The same route answers a credential that may only send
+#   with the send's delivery record instead, and the recording keeps only the last of the two `Ok`
+#   bodies the endpoint declares, so the vocabulary it publishes for the route is the delivery
+#   record's — and every field the preview carries would read as one the contract never heard of.
 # - `mail.ts conversationRows` is the table the conversation is assembled from, and `answersRow` in
 #   it is a position in that list rather than anything the service answers with.
 # - `deployment.ts protectedResource` is the RFC 9728 document the client surface publishes at the
@@ -11904,6 +12206,8 @@ run_test verify_fast_runs_the_client_flow_for_a_change_under_frontend
 run_test verify_fast_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_both_flows_for_a_change_above_both_stacks
+run_test verify_fast_passes_over_a_workflow_when_it_decides_the_stacks
+run_test verify_full_runs_no_stack_flow_for_a_workflow_only_change
 run_test verify_full_runs_tests_once_through_coverage
 run_test verify_full_runs_the_client_flow_for_a_change_under_frontend
 run_test verify_full_runs_workflow_contracts_for_a_change_beyond_csharp
@@ -12071,7 +12375,8 @@ run_test select_board_status_earns_changes_requested_from_a_failed_check
 run_test select_board_status_earns_changes_requested_from_a_withheld_approval
 run_test select_board_status_reads_a_no_findings_comment_as_a_clean_verdict
 run_test select_board_status_earns_nothing_from_a_withheld_approval_of_an_older_head
-run_test select_board_status_reads_neither_codeql_nor_its_own_checks
+run_test select_board_status_reads_only_the_checks_the_rules_require
+run_test select_board_status_waits_for_a_required_check_that_has_not_appeared
 run_test select_board_status_asks_a_draft_only_whether_it_still_merges
 run_test select_board_status_earns_in_merge_while_the_queue_holds_the_pull_request
 run_test select_board_status_earns_changes_requested_for_a_head_the_queue_removed
@@ -12214,6 +12519,9 @@ run_test quick_start_says_it_is_an_evaluation_rather_than_a_recommended_deployme
 run_test every_external_action_names_an_approved_owner
 run_test every_workflow_job_declares_its_permissions
 run_test every_workflow_job_declares_its_timeout
+run_test every_apt_step_declares_its_timeout
+run_test every_apt_step_follows_a_bounded_mirror_choice
+run_test every_cache_is_saved_from_main_alone
 run_test every_write_scope_is_one_the_policy_records
 run_test every_checkout_refuses_to_persist_credentials
 run_test the_release_restores_the_annotated_tag_before_asserting_it
@@ -12257,6 +12565,7 @@ run_test the_design_capture_refuses_a_design_with_no_runtime
 run_test the_comparison_reports_where_a_pair_differs_before_any_image_is_opened
 run_test every_skill_declares_its_license
 run_test no_tracked_text_file_carries_a_nul_byte
+run_test no_tracked_file_carries_a_forbidden_string
 run_test every_workflow_parses_as_yaml
 run_test no_two_tracked_paths_differ_only_by_case
 run_test the_client_corpus_states_what_the_contract_records

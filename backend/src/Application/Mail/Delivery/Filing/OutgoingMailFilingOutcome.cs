@@ -20,8 +20,8 @@ public enum OutgoingMailFilingOutcome
 
     /// <summary>The account asked for no copy in this place, so nothing was attempted.</summary>
     /// <remarks>
-    /// It covers an account that switched the sent copy off and a deployment that mapped no folder to the outbox role,
-    /// which are the same thing to read: this deployment does not want a copy here, and that is not a failure.
+    /// It is an account that switched the sent copy off: this deployment does not want a copy here, and that is not a
+    /// failure.
     /// </remarks>
     NotRequested = 2,
 

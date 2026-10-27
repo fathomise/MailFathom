@@ -52,7 +52,13 @@ internal sealed class StoredEmailMetadataRepository(
                 account,
                 occurrenceId.FolderResolutionId,
                 cancellationToken);
+            var arrivalFolderId = await MailFolderBindingResolver.FolderForArrivalAsync(
+                dbContext,
+                folder,
+                this.MintFolderId,
+                cancellationToken);
 
+            // Stored settling: nothing reads it until its verdict and its moving rules have placed it.
             entity = new StoredEmailEntity
             {
                 Id = Guid.CreateVersion7(timeProvider.GetUtcNow()),
@@ -62,11 +68,8 @@ internal sealed class StoredEmailMetadataRepository(
                 // resolution wrote from the account. Nothing re-reads the account: the folder already says whose
                 // mailbox this is, and taking the pair from one place is what keeps them from ever disagreeing.
                 MailFolderBinding = folder,
-                FolderId = await MailFolderBindingResolver.FolderForArrivalAsync(
-                    dbContext,
-                    folder,
-                    this.MintFolderId,
-                    cancellationToken),
+                FolderId = arrivalFolderId,
+                ArrivalFolderId = arrivalFolderId,
                 UidValidity = occurrenceId.UidValidity.Value,
                 Uid = occurrenceId.Uid.Value,
                 StoredAt = timeProvider.GetUtcNow(),
@@ -80,6 +83,7 @@ internal sealed class StoredEmailMetadataRepository(
         if (extractedMetadata is not null)
         {
             StoredEmailMetadataMapping.ApplyExtractedMetadata(entity, extractedMetadata);
+            await StoredEmailSignerKeyWriter.SaveAsync(dbContext, entity, extractedMetadata.Signature, cancellationToken);
 
             // The search document is written from the same extraction in the same session, so an email's indexed text
             // can never describe a different reading of its MIME than its own metadata columns do. The stamp travels
@@ -190,6 +194,25 @@ internal sealed class StoredEmailMetadataRepository(
                 $"No stored email carries the identifier {storedEmailId}, so no outgoing record can be joined to it.");
 
         entity.FiledFromOutgoingEmailId = outgoingEmailId.Value;
+
+        // The person's own message: nothing to wait for and nothing to announce.
+        entity.SettledAt ??= entity.StoredAt;
+    }
+
+    /// <inheritdoc />
+    public async Task RecordSettledOnArrivalAsync(
+        IPersistenceSession session,
+        StoredEmailId storedEmailId,
+        CancellationToken cancellationToken)
+    {
+        var dbContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+
+        // Inserted by this same session, as above.
+        var entity = await dbContext.StoredEmails.FindAsync([storedEmailId.Value], cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"No stored email carries the identifier {storedEmailId}, so it cannot be settled.");
+
+        entity.SettledAt ??= entity.StoredAt;
     }
 
     /// <inheritdoc />
@@ -316,6 +339,10 @@ internal sealed class StoredEmailMetadataRepository(
                 this.MintFolderId,
                 cancellationToken),
             StoredAt = storedAt,
+
+            // Settled as it is stored, because nothing arrived: the message is this deployment's own act and is
+            // already where that act put it.
+            SettledAt = storedAt,
             SizeOctets = sizeOctets,
             ContentAvailability = StoredEmailContentAvailability.Available,
             RemoteFlagsObservedAt = storedAt,
@@ -328,6 +355,7 @@ internal sealed class StoredEmailMetadataRepository(
         if (extractedMetadata is not null)
         {
             StoredEmailMetadataMapping.ApplyExtractedMetadata(entity, extractedMetadata);
+            await StoredEmailSignerKeyWriter.SaveAsync(sessionContext, entity, extractedMetadata.Signature, cancellationToken);
 
             await EmailSearchDocumentWriter.SaveAsync(
                 sessionContext,

@@ -10,6 +10,7 @@ import { ComposingContext, type Composing } from '../composer/useComposing';
 import { swipeDistance } from '../controls/swipeAcross';
 import { MailboxActsContext, nothingActed, type AskedAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { LocalizationProvider } from '../localization/Localization';
+import { ToastsProvider } from '../toasts/Toasts';
 import { ListedMailProvider } from './ListedMail';
 import {
     SignalledChangesContext,
@@ -26,6 +27,8 @@ import { openingListing, rowsPerPage } from './listing';
 import { MessageList } from './MessageList';
 import { rememberedListing, rememberListing } from './rememberedListings';
 import { ListedMailContext, nothingListed, type ListedMailbox } from './useListedMail';
+import { newsletterMessage } from '../../../../tests/fixtures/messages';
+import { listedSender, messageSenderEvidence } from '../../../../tests/fixtures/senders';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -35,6 +38,7 @@ const work: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 function message(at: number, carried: Record<string, unknown> = {}): Record<string, unknown> {
@@ -56,6 +60,7 @@ function message(at: number, carried: Record<string, unknown> = {}): Record<stri
         attachmentCount: 0,
         sizeOctets: 1_024,
         preview: `The opening of message ${String(at)}.`,
+        sender: listedSender('unrecognized'),
         ...carried,
     };
 }
@@ -166,23 +171,25 @@ function listUnder(
 ): ReactElement {
     return (
         <LocalizationProvider>
-            <ComposingContext value={composing}>
-                <MailboxActsContext value={acts}>
-                    <WorkspaceProvider>
-                        <SignalledChangesContext value={changes}>
-                            <ListOpeningIntoTheWorkspace
-                                session={session}
-                                transport={transport}
-                                scope={scope}
-                                accounts={accounts}
-                                online={online}
-                            />
-                        </SignalledChangesContext>
+            <ToastsProvider>
+                <ComposingContext value={composing}>
+                    <MailboxActsContext value={acts}>
+                        <WorkspaceProvider>
+                            <SignalledChangesContext value={changes}>
+                                <ListOpeningIntoTheWorkspace
+                                    session={session}
+                                    transport={transport}
+                                    scope={scope}
+                                    accounts={accounts}
+                                    online={online}
+                                />
+                            </SignalledChangesContext>
 
-                        <SelectionProbe />
-                    </WorkspaceProvider>
-                </MailboxActsContext>
-            </ComposingContext>
+                            <SelectionProbe />
+                        </WorkspaceProvider>
+                    </MailboxActsContext>
+                </ComposingContext>
+            </ToastsProvider>
         </LocalizationProvider>
     );
 }
@@ -803,7 +810,7 @@ describe('MessageList', () => {
 
         await rows();
 
-        expect(screen.queryByLabelText('Include junk')).toBeNull();
+        expect(screen.queryByLabelText('Include spam')).toBeNull();
     });
 
     it('opens a message when it is pointed at, and picks nothing out, so the toolbar stays over the list', async () => {
@@ -1206,7 +1213,7 @@ describe('MessageList', () => {
     it.each([
         ['Only flagged', 'flagged=true'],
         ['Only with attachments', 'hasAttachments=true'],
-        ['Include junk', 'includeJunk=true'],
+        ['Include spam', 'includeJunk=true'],
     ])('reads the folder again under %s', async (control, asked) => {
         const { transport, requests } = recording(wholeFolder);
 
@@ -1656,6 +1663,68 @@ describe('MessageList', () => {
     });
 });
 
+// A folder whose first message a model judged phishing, beside two that nothing judged.
+const phishingFirst = pageOf([
+    message(0, {
+        spam: {
+            verdict: 'Spam',
+            decidedBy: 'Model',
+            spamSubcategory: 'Phishing',
+            spamSubcategoryNamedBy: 'Model',
+            phishingRequest: 'Credentials',
+            impersonatedParty: 'OnlineService',
+        },
+    }),
+    message(1),
+    message(2),
+]);
+
+/** The phishing row, the first the list draws. */
+async function phishingRow(): Promise<HTMLElement> {
+    const [first] = await rows();
+
+    if (first === undefined) {
+        throw new Error('The list drew no rows.');
+    }
+
+    return first;
+}
+
+// The Spam folder is told apart two ways — a scope naming the role, and a folder the acts know to be that role — and
+// each reaches it by its own path, so each is proven rather than one standing for both.
+describe('MessageList, holding a message judged spam', () => {
+    it.each<[string, Partial<Drawn>]>([
+        ['the Spam folder of every account', { scope: { kind: 'role', role: 'Junk' } }],
+        [
+            "one account's Spam folder",
+            {
+                scope: { kind: 'folder', accountId: 'work', folderId: 'Spam' },
+                acts: { ...nothingActed, folderRoleOf: () => 'Junk' },
+            },
+        ],
+    ])('keeps the row in its shape and names its kind in %s', async (_, drawn) => {
+        renderList(answering(phishingFirst), drawn);
+
+        const spam = await phishingRow();
+
+        expect(within(spam).getByText('Phishing')).toBeDefined();
+        expect(within(spam).getByText('Message 0')).toBeDefined();
+        expect(spam.textContent).not.toMatch(/^Spam:/u);
+    });
+
+    it.each<[string, MailScope]>([
+        ['the Inbox', { kind: 'role', role: 'Inbox' }],
+        ['every account at once', everything],
+    ])('folds the row to one line naming the verdict in %s', async (_, scope) => {
+        renderList(answering(phishingFirst), { scope });
+
+        const spam = await phishingRow();
+
+        expect(spam.textContent).toMatch(/^Spam: Phishing, judged by a model\.Writer 0/u);
+        expect(within(spam).queryByText('Phishing')).toBeNull();
+    });
+});
+
 // What a finger carrying a row aside reaches. The gesture itself — the threshold, the cancellation, the suppression —
 // belongs to the row and is proven there; what is proven here is that the list hands the row the two acts it already
 // performs from the same row's menu, rather than a second way of archiving mail.
@@ -1669,11 +1738,12 @@ describe('MessageList, under a finger carried across a row', () => {
             folder: 'INBOX',
             unread: false,
             flagged: false,
+            spam: null,
         }),
     };
 
-    function listWithPlaces(drawn: Partial<Drawn> = {}): RenderResult {
-        return render(<ListedMailContext value={listed}>{listUnder(answering(wholeFolder), drawn)}</ListedMailContext>);
+    function listWithPlaces(drawn: Partial<Drawn> = {}, transport = answering(wholeFolder)): RenderResult {
+        return render(<ListedMailContext value={listed}>{listUnder(transport, drawn)}</ListedMailContext>);
     }
 
     /** A finger landing on the row, travelling far enough to have asked, and lifting there. */
@@ -1695,7 +1765,7 @@ describe('MessageList, under a finger carried across a row', () => {
         carry(row(0), swipeDistance);
 
         expect(performed).toHaveBeenCalledWith('archive', [
-            { storedEmailId: 'message-0', account: 'work', folder: 'INBOX', unread: false, flagged: false },
+            { storedEmailId: 'message-0', account: 'work', folder: 'INBOX', unread: false, flagged: false, spam: null },
         ]);
     });
 
@@ -1714,6 +1784,18 @@ describe('MessageList, under a finger carried across a row', () => {
         expect(carried().selection).toBe('message-0');
     });
 
+    // The composer is shared by every test in the file, so what it recorded before this one is let go of first.
+    it('says why spam cannot be answered rather than opening it or starting an answer when the finger goes left', async () => {
+        vi.mocked(composing.compose).mockClear();
+        listWithPlaces({}, answering(phishingFirst));
+
+        carry(await phishingRow(), -swipeDistance);
+
+        expect(await screen.findByText('Spam cannot be answered. Mark it not spam first.')).toBeDefined();
+        expect(composing.compose).not.toHaveBeenCalled();
+        expect(carried().selection).toBeNull();
+    });
+
     it('files nothing away where the deployment refuses to, the row springing back instead', async () => {
         const performed = vi.fn();
 
@@ -1724,4 +1806,59 @@ describe('MessageList, under a finger carried across a row', () => {
 
         expect(performed).not.toHaveBeenCalled();
     });
+});
+
+// What the deployment answers about the one message a row's sender details are asked for.
+const explainedMessage = JSON.stringify({
+    ...newsletterMessage,
+    ...messageSenderEvidence('unrecognized'),
+    storedEmailId: 'message-1',
+});
+
+function explaining(page: string): { transport: MailFathomTransport; requests: ClientRequest[] } {
+    const requests: ClientRequest[] = [];
+
+    return {
+        requests,
+        transport: (request) => {
+            requests.push(request);
+
+            return Promise.resolve({
+                status: 200,
+                body: request.path.includes('/messages/') ? explainedMessage : page,
+                headers: {},
+            });
+        },
+    };
+}
+
+describe('MessageList, the sender mark', () => {
+    it('opens a sender’s details from the row’s menu, reading the message they explain and opening nothing', async () => {
+        const { transport, requests } = explaining(wholeFolder);
+
+        renderList(transport);
+
+        await rows();
+        chooseFromMenu(row(1), 'Sender details');
+
+        expect(await screen.findByRole('heading', { name: 'Sender not recognized' })).toBeDefined();
+        expect(requests.map((asked) => asked.path)).toContain(
+            'https://mail.example.invalid/api/client/messages/message-1',
+        );
+        expect(carried().selection).toBeNull();
+    });
+
+    it.each(['Sent', 'Drafts'] as const)(
+        'marks no sender and offers no sender details in %s, where a row stands for what was sent',
+        async (role) => {
+            renderList(answering(wholeFolder), { acts: { ...nothingActed, folderRoleOf: () => role } });
+
+            await rows();
+            fireEvent.contextMenu(row(1));
+
+            expect(await screen.findByRole('menuitem', { name: 'Select messages' })).toBeDefined();
+            expect(screen.queryByRole('menuitem', { name: 'Sender details' })).toBeNull();
+            expect(screen.queryByText('Sender not recognized')).toBeNull();
+        },
+    );
 });

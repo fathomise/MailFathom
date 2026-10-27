@@ -2,10 +2,17 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import type {
+    ClientRequest,
+    ClientResponse,
+    ClientSession,
+    MailFathomTransport,
+    MailSpamVerdict,
+} from '@mailfathom/client-backend';
+import { MailboxActsContext, useMailboxActs, type MarkedSpam } from '../mailboxActs/useMailboxActs';
 import { AttachmentExchangeContext, type AttachmentExchange } from '../deployment/attachmentExchange';
 import { OpenAttachmentContext, type OpenedAttachment } from '../workspace/openAttachment';
 import { LocalizationProvider } from '../localization/Localization';
@@ -68,7 +75,39 @@ function description(overrides: Readonly<Record<string, unknown>> = {}): string 
             references: [],
         },
         body: { availability: 'Readable', plainText: true, html: true },
-        sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            authenticatedDomain: null,
+            authenticationSource: 'ReceivingServer',
+            dkimDomain: null,
+            spfDomain: null,
+            dmarc: 'NotReported',
+            trustSource: null,
+            trustOrganization: null,
+        },
+        signature: {
+            outcome: 'NotSigned',
+            format: null,
+            secureMimeType: null,
+            unverifiableReason: null,
+            signedAt: null,
+            steps: {
+                content: 'NotChecked',
+                authority: 'NotChecked',
+                validity: 'NotChecked',
+                revocation: 'NotChecked',
+                signer: 'NotChecked',
+            },
+            trustAnchor: null,
+            chainEnd: null,
+            validityFailure: null,
+            revocationMethod: null,
+            revocationCheckedAt: null,
+            revokedAt: null,
+            signerMatchesAuthor: false,
+            signer: null,
+        },
         attachments: [],
         carried: null,
         unread: true,
@@ -871,7 +910,11 @@ const followTheCitation = 'Follow the citation, as a search result would write i
 describe('ReadingPane following a cited file', () => {
     // The citation is written the way a search row writes it — through the workspace, before the pane has read the
     // message — rather than by seeding a store, which `rememberWorkspace` deliberately never keeps it in.
-    function citing(cited: Workspace['citedAttachment']): { opened: OpenedAttachment[]; cite: () => void } {
+    function citing(
+        cited: Workspace['citedAttachment'],
+        spam: MailSpamVerdict | null = null,
+        marked: ReadonlyMap<string, MarkedSpam> = new Map(),
+    ): { opened: OpenedAttachment[]; cite: () => void } {
         const opened: OpenedAttachment[] = [];
 
         // A control the test presses rather than a function captured out of the render: writing to a variable declared
@@ -895,6 +938,13 @@ describe('ReadingPane following a cited file', () => {
             );
         }
 
+        // The person's own marks, laid over whatever the provider above would have held.
+        function Marking({ children }: { readonly children: ReactNode }) {
+            const acts = useMailboxActs();
+
+            return <MailboxActsContext value={{ ...acts, spamMarked: marked }}>{children}</MailboxActsContext>;
+        }
+
         render(
             <LocalizationProvider>
                 <ToastsProvider>
@@ -906,16 +956,18 @@ describe('ReadingPane following a cited file', () => {
                                         opened.push(opening);
                                     }}
                                 >
-                                    <Citing />
-                                    <ReadingPane
-                                        session={session}
-                                        transport={deploymentDescribing(
-                                            description({ attachments: [invoice, photograph] }),
-                                        )}
-                                        storedEmailId={messageId}
-                                        online
-                                        onShowFullHtml={() => undefined}
-                                    />
+                                    <Marking>
+                                        <Citing />
+                                        <ReadingPane
+                                            session={session}
+                                            transport={deploymentDescribing(
+                                                description({ attachments: [invoice, photograph], spam }),
+                                            )}
+                                            storedEmailId={messageId}
+                                            online
+                                            onShowFullHtml={() => undefined}
+                                        />
+                                    </Marking>
                                 </OpenAttachmentContext>
                             </AttachmentExchangeContext>
                         </LinkOpenerContext>
@@ -1005,6 +1057,62 @@ describe('ReadingPane following a cited file', () => {
         act(cite);
         await screen.findByRole('heading', { name: 'Quarterly invoice', level: 2 });
 
+        expect(opened).toStrictEqual([]);
+    });
+
+    const scam: MailSpamVerdict = {
+        verdict: 'Spam',
+        decidedBy: 'Model',
+        spamSubcategory: 'Scam',
+        spamSubcategoryNamedBy: 'Model',
+        phishingRequest: null,
+        impersonatedParty: null,
+    };
+
+    const personal = (verdict: MailSpamVerdict['verdict']): ReadonlyMap<string, MarkedSpam> =>
+        new Map([
+            [
+                messageId,
+                {
+                    verdict: {
+                        verdict,
+                        decidedBy: 'Person',
+                        spamSubcategory: null,
+                        spamSubcategoryNamedBy: null,
+                        phishingRequest: null,
+                        impersonatedParty: null,
+                    },
+                    from: 'INBOX',
+                    leaves: false,
+                },
+            ],
+        ]);
+
+    it('refuses the cited file of a message the deployment judged spam, saying why', async () => {
+        const { opened, cite } = citing({ storedEmailId: messageId, position: 1 }, scam);
+
+        act(cite);
+
+        expect(await screen.findByText(/Mark it not spam first\./u)).toBeDefined();
+        expect(opened).toStrictEqual([]);
+    });
+
+    it('opens the cited file of a message the person has since marked not spam', async () => {
+        const { opened, cite } = citing({ storedEmailId: messageId, position: 1 }, scam, personal('NotSpam'));
+
+        act(cite);
+
+        await waitFor(() => {
+            expect(opened).toStrictEqual([{ storedEmailId: messageId, attachment: photograph }]);
+        });
+    });
+
+    it('refuses the cited file of a message the person has since marked spam', async () => {
+        const { opened, cite } = citing({ storedEmailId: messageId, position: 1 }, null, personal('Spam'));
+
+        act(cite);
+
+        expect(await screen.findByText(/Mark it not spam first\./u)).toBeDefined();
         expect(opened).toStrictEqual([]);
     });
 });

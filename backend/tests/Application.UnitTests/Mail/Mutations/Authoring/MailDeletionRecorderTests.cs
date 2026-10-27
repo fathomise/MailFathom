@@ -65,7 +65,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(target);
 
         // Act
-        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailDeletionOutcome.Recorded, result.Outcome);
@@ -94,7 +94,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(TargetIn(Trash));
 
         // Act
-        await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(configured, Assert.Single(this.records.OpenedRequests).LocalDisposition);
@@ -112,7 +112,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(TargetIn(Trash));
 
         // Act
-        await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
         this.dispositions.GetAuthoredDeleteServerDisposition(Account).Returns(AuthoredDeleteServerDisposition.Expunge);
 
         // Assert
@@ -135,27 +135,42 @@ public sealed class MailDeletionRecorderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken));
+            recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailDelete, refusal.RequiredPermission);
         Assert.Equal(0, this.records.OpenedRecordCount);
     }
 
-    /// <summary>A folder no tool may read is a folder no tool may delete mail out of, or the write surface would be the way round the withholding.</summary>
+    /// <summary>A folder no agent may read is a folder no agent may delete mail out of, or the write surface would be the way round the withholding.</summary>
     [Fact]
-    public async Task RecordAsync_AnEmailInAFolderWithheldFromTools_ReportsTheMessageAsNotFound()
+    public async Task RecordAsync_AnEmailInAFolderWithheldFromAIAskedByAnAgent_ReportsTheMessageAsNotFound()
     {
         // Arrange
         var recorder = this.Recorder(TargetIn(Withheld));
 
         // Act
-        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailDeletionOutcome.MessageNotFound, result.Outcome);
         Assert.Null(result.RecordId);
         Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A folder withheld from AI is still the person's, so deleting its mail through the client is recorded like any other delete.</summary>
+    [Fact]
+    public async Task RecordAsync_AnEmailInAFolderWithheldFromAIAskedByThePerson_OpensTheRecord()
+    {
+        // Arrange
+        var recorder = this.Recorder(TargetIn(Withheld));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result.RecordId);
+        Assert.Equal(1, this.records.OpenedRecordCount);
     }
 
     /// <summary>An email no row carries answers exactly as a withheld one does, so asking cannot reveal which identifiers exist.</summary>
@@ -166,7 +181,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(target: null);
 
         // Act
-        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailDeletionOutcome.MessageNotFound, result.Outcome);
@@ -187,7 +202,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(TargetIn(Trash));
 
         // Act
-        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailDeletionOutcome.AccountNoLongerConfigured, result.Outcome);
@@ -202,8 +217,8 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(TargetIn(Trash));
 
         // Act
-        var first = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
-        var second = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        var first = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
+        var second = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, this.records.OpenedRecordCount);
@@ -218,7 +233,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(TargetIn(MailFolderAlias.Create("INBOX")));
 
         // Act
-        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailDeletionOutcome.Recorded, result.Outcome);
@@ -234,7 +249,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(TargetIn(Trash), runSignal: runSignal);
 
         // Act
-        await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         using var waiting = runSignal.Register(Account, TestContext.Current.CancellationToken);
@@ -258,6 +273,7 @@ public sealed class MailDeletionRecorderTests
             LocalEmail,
             Requester,
             TimeSpan.FromSeconds(15),
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -277,7 +293,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(TargetIn(Trash));
 
         // Act
-        await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(this.records.HeldUntilOf(Assert.Single(this.records.OpenedRequests)));
@@ -295,7 +311,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.Recorder(TargetIn(Trash), runSignal: runSignal);
 
         // Act
-        await recorder.RecordAsync(LocalEmail, Requester, TimeSpan.Zero, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(LocalEmail, Requester, TimeSpan.Zero, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         using var waiting = runSignal.Register(Account, TestContext.Current.CancellationToken);
@@ -317,7 +333,7 @@ public sealed class MailDeletionRecorderTests
         var recorder = this.RestoringRecorder(runSignal);
 
         // Act
-        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         using var waiting = runSignal.Register(Account, TestContext.Current.CancellationToken);
@@ -343,6 +359,7 @@ public sealed class MailDeletionRecorderTests
             LocalEmail,
             Requester,
             TimeSpan.FromSeconds(15),
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -371,6 +388,7 @@ public sealed class MailDeletionRecorderTests
             LocalEmail,
             Requester,
             TimeSpan.FromSeconds(-1),
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken));
 
         // Assert

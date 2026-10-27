@@ -7,8 +7,8 @@ namespace MailFathom.Application.Spam;
 /// <summary>Says what an attempt does about an occurrence that already carries a classification.</summary>
 /// <remarks>
 /// The distinction exists because reclassification is an explicit operation rather than something a configuration reload
-/// sets off. A newer rule corpus, a moved threshold, or a scanner switched on all change what a classification would
-/// say, and none of them is a reason for the deployment to start re-reading mail it already decided about — that is a
+/// sets off. A junk folder mapped differently or a change to the terms a verdict is reached under both change what a
+/// classification would say, and neither of them is a reason for the deployment to start re-reading mail it already decided about — that is a
 /// choice an operator makes, and this is where it is expressed.
 /// </remarks>
 public enum SpamClassificationMode

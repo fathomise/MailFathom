@@ -35,8 +35,10 @@ public sealed class MailOutboxDeliveryTests
         MailAccountId.Create("work");
     private static readonly DateTimeOffset ClaimedAt = new(2026, 8, 18, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The message as the outbox stored it, carrying the organization's signature, which every copy of it has to keep.</summary>
     private static readonly ReadOnlyMemory<byte> RawMime =
-        Encoding.ASCII.GetBytes("Message-ID: <one@example.test>\r\n\r\nHello.").AsMemory();
+        Encoding.ASCII.GetBytes(
+            "MailFathom-Organization-Signature: v=1; a=ed25519-sha256; b=AAAA\r\nMessage-ID: <one@example.test>\r\n\r\nHello.").AsMemory();
 
     /// <summary>A server that took the message for everybody it was offered to finishes the send and gives the record back.</summary>
     [Fact]
@@ -92,6 +94,39 @@ public sealed class MailOutboxDeliveryTests
         Assert.Equal(claimed.Record.Id, filed.FiledFrom);
         Assert.Equal(AppendedMailFlags.Seen, filed.Flags);
         Assert.Equal(MailFolderSpecialUse.Sent, placedIn.Role);
+    }
+
+    /// <summary>A held account's sent copy is the stored, signed bytes the recipients received, filed locally rather than appended to the source.</summary>
+    [Fact]
+    public async Task DeliverAsync_HeldAccountThatFilesSentCopies_FilesTheStoredMimeItSent()
+    {
+        // Arrange
+        var held = new HeldLocalMailbox(Account, new FakeTimeProvider(ClaimedAt));
+        held.MapRole(MailFolderSpecialUse.Sent, "sent");
+        IEmailContentStore? contents = null;
+        var context = new DeliveryContext(localFiler: store =>
+        {
+            contents = store;
+
+            return held.FilerOver(store);
+        });
+        var claimed = await context.ClaimAsync("anna@example.test");
+        context.Transmit = (request, envelope, _) =>
+        {
+            AcceptEveryRecipient(request, envelope);
+
+            return Task.FromResult(new MailTransmission(MailTransmissionOutcome.Accepted, 250));
+        };
+
+        // Act
+        await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Single(held.Stored);
+        await contents!.Received(1).PlaceContentAsync(
+            EmailContentKind.IncomingMessage,
+            Arg.Is<ReadOnlyMemory<byte>>(filed => filed.ToArray().SequenceEqual(RawMime.ToArray())),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>A sent copy filed for a held account is announced to its clients in the sent folder once the delivery commits.</summary>
@@ -206,6 +241,36 @@ public sealed class MailOutboxDeliveryTests
             claimed.Record.Id,
             MailFathomErrorCode.OutgoingEmailFilingDestinationUnavailable,
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A send that left or was refused moved in its account's outbox, so an open client is told the outbox changed.</summary>
+    [Theory]
+    [InlineData(MailTransmissionOutcome.Accepted)]
+    [InlineData(MailTransmissionOutcome.RefusedPermanently)]
+    public async Task DeliverAsync_AnAttemptThatEndsTheSend_TellsAnOpenClientTheAccountsOutboxChanged(
+        MailTransmissionOutcome outcome)
+    {
+        // Arrange
+        var context = new DeliveryContext();
+        var claimed = await context.ClaimAsync("anna@example.test");
+        context.Transmit = (request, envelope, _) =>
+        {
+            if (outcome == MailTransmissionOutcome.Accepted)
+            {
+                AcceptEveryRecipient(request, envelope);
+            }
+
+            return Task.FromResult(new MailTransmission(outcome, outcome == MailTransmissionOutcome.Accepted ? 250 : 550));
+        };
+
+        // Act
+        await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+        var published = await context.PublishedSignalsAsync();
+
+        // Assert
+        var signal = Assert.Single(published);
+        Assert.Equal(ClientSignalKind.OutboxChanged, signal.Kind);
+        Assert.Equal(claimed.Record.AccountId, signal.Account);
     }
 
     /// <summary>A permanent refusal ends the send at the server's first answer, with nothing left to attempt.</summary>
@@ -761,6 +826,7 @@ public sealed class MailOutboxDeliveryTests
                 return session;
             });
 
+            this.Signals = new ClientSignals([this.SignalChannel], this.clock);
             this.delivery = new MailOutboxDelivery(
                 this.Session,
                 this.Store,
@@ -776,12 +842,26 @@ public sealed class MailOutboxDeliveryTests
                     TimeSpan.FromMinutes(1),
                     TimeSpan.FromHours(1),
                     allowedLateness ?? TimeSpan.FromHours(8)),
-                this.clock);
+                this.clock,
+                this.Signals);
         }
 
         internal InMemoryOutgoingEmailStore Store { get; }
 
         internal ScriptedMailDeliverySession Session { get; }
+
+        internal RecordingClientSignalChannel SignalChannel { get; } = new();
+
+        internal ClientSignals Signals { get; }
+
+        /// <summary>Lets the publisher's folding window pass and returns what an open client was told.</summary>
+        internal async Task<IReadOnlyList<ClientSignal>> PublishedSignalsAsync()
+        {
+            this.clock.Advance(ClientSignals.FoldingWindow);
+            await this.Signals.DrainAsync();
+
+            return this.SignalChannel.Published;
+        }
 
         /// <summary>Gets or sets the exchange with the submission server, which every test writes for itself.</summary>
         internal Func<MailTransmissionRequest, MailEnvelopeLedger, CancellationToken, Task<MailTransmission>> Transmit

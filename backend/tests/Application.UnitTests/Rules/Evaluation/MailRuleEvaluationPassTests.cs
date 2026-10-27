@@ -5,7 +5,6 @@
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Jobs.Scheduling;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
@@ -811,19 +810,17 @@ public sealed class MailRuleEvaluationPassTests
             .ListFoldersAsync(Arg.Any<MailAccountId>(), Arg.Any<MailTransportSecurityPolicy>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<RemoteFolder>>([]));
 
-        return new MailboxDestinationResolver(
-            this.folderMappings.Resolver,
-            this.folders,
-            new MailFolderResolver(
-                remoteFolderCatalog,
-                Substitute.For<IRemoteFolderCreator>(),
-                this.folders,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                Substitute.For<IPersistenceSessionFactory>(),
-                ClientSignalPublishers.ReachingNobody,
-                this.timeProvider),
-            Substitute.For<IMailTransportSecurityPolicyReader>(),
-            Substitute.For<ILocalMailFolderStore>());
+        return new MailboxCustodianComposition(this.timeProvider)
+        {
+            Mappings = this.folderMappings,
+            FolderResolutions = this.folders,
+            RemoteFolderCatalog = remoteFolderCatalog,
+            RemoteFolderCreator = Substitute.For<IRemoteFolderCreator>(),
+            MappingChangeAuditor = Substitute.For<IMailFolderMappingChangeAuditor>(),
+            PersistenceSessions = Substitute.For<IPersistenceSessionFactory>(),
+            Signals = ClientSignalPublishers.ReachingNobody,
+            TransportPolicies = Substitute.For<IMailTransportSecurityPolicyReader>(),
+        }.Destinations;
     }
 
     private MailRuleEvaluationPass CreatePass(

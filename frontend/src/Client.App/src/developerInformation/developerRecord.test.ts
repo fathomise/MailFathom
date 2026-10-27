@@ -8,9 +8,11 @@ import {
     developerRecord,
     keptEntries,
     pathOf,
+    previewOf,
     startWatching,
     stopWatching,
     traceIdOf,
+    visibleHeaders,
     watchedByDeveloperRecord,
     watchedSignalChannel,
     watchedSignalSchedule,
@@ -32,7 +34,7 @@ describe('what the record holds while nothing is watching', () => {
         expect(developerRecord().requests).toEqual([]);
     });
 
-    it('lets go of what it held once the surface closes', () => {
+    it('lets go of what it held once developer mode is forgotten', () => {
         startWatching();
         writeClientEvent({ event: 'signals_opened' });
 
@@ -86,6 +88,46 @@ describe('a request, as the transport reports it', () => {
         ]);
     });
 
+    it('keeps the headers it went out with and the ones its answer carried, withholding every credential', () => {
+        startWatching();
+
+        const watch = watchedByDeveloperRecord('https://mail.example/api/client/accounts', {
+            headers: { Accept: 'application/json', Authorization: 'Bearer secret-token', ...traced },
+        });
+
+        watch.answered(
+            new Response(null, {
+                status: 200,
+                headers: { 'Content-Type': 'application/json', 'Set-Cookie': 'session=abc' },
+            }),
+        );
+
+        expect(developerRecord().requests[0]).toMatchObject({
+            sentHeaders: [
+                { name: 'accept', value: 'application/json' },
+                { name: 'authorization', value: null },
+                { name: 'traceparent', value: traced.traceparent },
+            ],
+            receivedHeaders: [
+                { name: 'content-type', value: 'application/json' },
+                { name: 'set-cookie', value: null },
+            ],
+        });
+        expect(JSON.stringify(developerRecord().requests)).not.toMatch(/secret-token|session=abc/u);
+    });
+
+    it.each([
+        ['a credential', 'Authorization', 'Basic QWxhZGRpbjpvcGVu'],
+        ['a proxy credential', 'Proxy-Authorization', 'Basic QWxhZGRpbjpvcGVu'],
+        ['a cookie', 'Cookie', 'session=abc'],
+        ['a header named for a token', 'X-Access-Token', 'abc'],
+        ['a header named for a key', 'X-Api-Key', 'abc'],
+        ['a header named for a session', 'X-Session-Id', 'abc'],
+        ['the file name of an attachment', 'Content-Disposition', 'attachment; filename="contract.pdf"'],
+    ])('withholds the value of %s and keeps its name', (_, name, value) => {
+        expect(visibleHeaders({ [name]: value })).toEqual([{ name: name.toLowerCase(), value: null }]);
+    });
+
     it('keeps a request still on its way when the bound gives way, and lets the oldest finished one go', () => {
         startWatching();
 
@@ -102,6 +144,19 @@ describe('a request, as the transport reports it', () => {
         expect(paths).not.toContain('/api/client/done/0');
 
         waiting.ended('abandoned');
+    });
+
+    it('holds the bound when every request is still on its way, letting the oldest go', () => {
+        startWatching();
+
+        for (let made = 0; made <= keptEntries; made += 1) {
+            watchedByDeveloperRecord(`https://mail.example/api/client/waiting/${String(made)}`, {});
+        }
+
+        const paths = developerRecord().requests.map((request) => request.path);
+
+        expect(paths).toHaveLength(keptEntries);
+        expect(paths[0]).toBe('/api/client/waiting/1');
     });
 });
 
@@ -145,7 +200,45 @@ describe('the signal hub, as the events and the stream report it', () => {
         expect(arrived).toHaveBeenCalledTimes(1);
     });
 
-    it('says the hub stands to a surface opened after it connected', async () => {
+    it('keeps every signal the hub delivered with what it carried, up to the bound', async () => {
+        startWatching();
+
+        let opening: SignalChannelOpening | undefined;
+        const channel = watchedSignalChannel((handed) => {
+            opening = handed;
+
+            return Promise.resolve({ close: () => Promise.resolve() });
+        });
+
+        await channel({ url: 'https://mail.example/signals', ticket: 't', arrived: vi.fn(), dropped: vi.fn() });
+
+        for (let delivered = 0; delivered <= keptEntries; delivered += 1) {
+            opening?.arrived({ kind: 'folders.changed', account: `account-${String(delivered)}` });
+        }
+
+        opening?.arrived({ kind: 'telepathy', thought: 'something nobody should read' });
+
+        const { deliveries } = developerRecord();
+
+        expect(deliveries).toHaveLength(keptEntries);
+        expect(deliveries[0]?.preview).toEqual({ kind: 'folders.changed', account: 'account-2' });
+        expect(deliveries.at(-1)).toMatchObject({ kind: 'telepathy', preview: null });
+        expect(JSON.stringify(deliveries)).not.toContain('something nobody should read');
+    });
+
+    it('shows a notification signal without the two lines it is read by', () => {
+        const preview = previewOf({
+            kind: 'notification.raised',
+            notificationKind: 'Mail',
+            headline: 'Anna Kowalska',
+            secondLine: 'The contract is attached',
+            unreadCount: 3,
+        });
+
+        expect(preview).toEqual({ kind: 'notification.raised', notificationKind: 'Mail', unreadCount: 3 });
+    });
+
+    it('says the hub stands to a record begun after it connected', async () => {
         const channel = watchedSignalChannel(() => Promise.resolve({ close: () => Promise.resolve() }));
         const handle = await channel({
             url: 'https://mail.example/signals',

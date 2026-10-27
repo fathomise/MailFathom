@@ -3,7 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Calendar;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Tasks;
 
 namespace MailFathom.Domain.Notifications;
@@ -11,8 +14,8 @@ namespace MailFathom.Domain.Notifications;
 /// <summary>Where opening a notification leads.</summary>
 /// <remarks>
 /// <para>
-/// The five shapes are closed and each is reached through its own factory, so a target can never half exist — a
-/// message target with no message, or a screen target that also names one. Which of the five a producer chose is what
+/// The shapes are closed and each is reached through its own factory, so a target can never half exist — a
+/// message target with no message, or a screen target that also names one. Which of them a producer chose is what
 /// a reader switches on, and <see cref="NotificationTargetKind" /> is that answer without unwrapping anything.
 /// </para>
 /// <para>
@@ -28,19 +31,25 @@ public sealed record NotificationTarget
         StoredEmailId? message,
         NotificationScreen? screen,
         CalendarEventId? calendarEvent,
-        PersonalTaskId? personalTask)
+        PersonalTaskId? personalTask,
+        OutgoingEmailId? outgoingEmail = null,
+        MailboxMutationRecordId? mailboxChange = null,
+        MailDraftId? mailDraft = null)
     {
         this.Kind = kind;
         this.Message = message;
         this.Screen = screen;
         this.CalendarEvent = calendarEvent;
         this.PersonalTask = personalTask;
+        this.OutgoingEmail = outgoingEmail;
+        this.MailboxChange = mailboxChange;
+        this.MailDraft = mailDraft;
     }
 
-    /// <summary>Gets which of the five shapes this target is.</summary>
+    /// <summary>Gets which of the shapes this target is.</summary>
     public NotificationTargetKind Kind { get; }
 
-    /// <summary>Gets the stored message the notification leads to, and <see langword="null" /> for every other shape.</summary>
+    /// <summary>Gets the stored message the notification leads to, which a message target and a change target carry, and <see langword="null" /> for every other shape.</summary>
     public StoredEmailId? Message { get; }
 
     /// <summary>Gets the screen the notification leads to, and <see langword="null" /> for every other shape.</summary>
@@ -51,6 +60,15 @@ public sealed record NotificationTarget
 
     /// <summary>Gets the task the notification leads to, and <see langword="null" /> for every other shape.</summary>
     public PersonalTaskId? PersonalTask { get; }
+
+    /// <summary>Gets the send the notification leads to, and <see langword="null" /> for every other shape.</summary>
+    public OutgoingEmailId? OutgoingEmail { get; }
+
+    /// <summary>Gets the change the notification reports, and <see langword="null" /> for every other shape.</summary>
+    public MailboxMutationRecordId? MailboxChange { get; }
+
+    /// <summary>Gets the draft the notification leads to, and <see langword="null" /> for every other shape.</summary>
+    public MailDraftId? MailDraft { get; }
 
     /// <summary>Gets the target of a notification that has nothing to open.</summary>
     public static NotificationTarget Nothing { get; } =
@@ -134,5 +152,81 @@ public sealed record NotificationTarget
             screen: null,
             calendarEvent: null,
             personalTask);
+    }
+
+    /// <summary>Creates a target that leads to one send in its account's outbox.</summary>
+    /// <param name="outgoingEmail">The send the notification is about.</param>
+    /// <returns>An outgoing email target.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="outgoingEmail" /> names no send.</exception>
+    /// <remarks>
+    /// The send rather than the outbox, because a refusal is about one message somebody has to decide about, and its
+    /// entry in the outbox is where that decision is offered.
+    /// </remarks>
+    public static NotificationTarget ToOutgoingEmail(OutgoingEmailId outgoingEmail)
+    {
+        if (outgoingEmail.Value == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A notification leading to a send names the send it leads to.",
+                nameof(outgoingEmail));
+        }
+
+        return new NotificationTarget(
+            NotificationTargetKind.OutgoingEmail,
+            message: null,
+            screen: null,
+            calendarEvent: null,
+            personalTask: null,
+            outgoingEmail: outgoingEmail);
+    }
+
+    /// <summary>Creates a target that leads to one stored message and names the change asked of it.</summary>
+    /// <param name="mailboxChange">The change that never reached the mail server.</param>
+    /// <param name="message">The message the change was asked of.</param>
+    /// <returns>A mailbox change target.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="mailboxChange" /> names no change.</exception>
+    /// <remarks>
+    /// Both, because they answer two questions: the message is where opening the row leads, and the change is what
+    /// asking for it again acts on. Carrying the message is also what erases the row with it, as every message target
+    /// is erased.
+    /// </remarks>
+    public static NotificationTarget ToMailboxChange(MailboxMutationRecordId mailboxChange, StoredEmailId message)
+    {
+        if (mailboxChange.Value == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A notification about a change names the change it is about.",
+                nameof(mailboxChange));
+        }
+
+        return new NotificationTarget(
+            NotificationTargetKind.MailboxChange,
+            message,
+            screen: null,
+            calendarEvent: null,
+            personalTask: null,
+            mailboxChange: mailboxChange);
+    }
+
+    /// <summary>Creates a target that leads to one of the person's drafts.</summary>
+    /// <param name="mailDraft">The draft the notification is about.</param>
+    /// <returns>A draft target.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="mailDraft" /> names no draft.</exception>
+    public static NotificationTarget ToMailDraft(MailDraftId mailDraft)
+    {
+        if (mailDraft.Value == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A notification leading to a draft names the draft it leads to.",
+                nameof(mailDraft));
+        }
+
+        return new NotificationTarget(
+            NotificationTargetKind.MailDraft,
+            message: null,
+            screen: null,
+            calendarEvent: null,
+            personalTask: null,
+            mailDraft: mailDraft);
     }
 }

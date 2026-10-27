@@ -74,7 +74,7 @@ public sealed class EmbeddingGenerationUpkeep
         // on an instance that had never served one leaves a superseded generation and no sibling, and its partial
         // vectors are personal data that has to go whether or not anything is being embedded now.
         var sweep = generations.Target is { } target
-            ? await this.backfill.RunAsync(target, cancellationToken)
+            ? await this.backfill.RunAsync(target, generations.Serving, cancellationToken)
             : StoredEmailEmbeddingBackfillResult.NoActiveProfile;
 
         var transition = await this.CompleteBuiltGenerationAsync(generations, sweep, cancellationToken);

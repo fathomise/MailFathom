@@ -19,9 +19,9 @@ namespace MailFathom.Host.UnitTests.Configuration.Mail;
 /// <summary>Covers which authors configuration says an account recognizes, and what an unusable entry costs.</summary>
 public sealed class SenderTrustPolicyConfigurationTests
 {
-    /// <summary>An instance synchronizing two mailboxes is synchronizing one person's correspondence.</summary>
+    /// <summary>Mail from one of the owner's accounts to another is theirs, and is recognized with nothing configured.</summary>
     [Fact]
-    public void GetTrustPolicy_MailFromOneConfiguredAccountToAnother_IsRecognized()
+    public void GetTrustPolicy_MailFromAnOwnAddressToAnotherOwnAccount_IsRecognizedAsOwnAddress()
     {
         // Arrange
         var options = OptionsFor(
@@ -35,34 +35,76 @@ public sealed class SenderTrustPolicyConfigurationTests
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
-        Assert.Equal(SenderTrustSource.OwnAccountDomain, trust.GrantedBy);
+        Assert.Equal(SenderTrustSource.OwnAccountAddress, trust.GrantedBy);
     }
 
-    /// <summary>A deployment whose accounts sit on a shared provider turns the set off, and the same mail is unrecognized.</summary>
+    /// <summary>The address an account sends as is the owner's as well, even where it is not the account's user name.</summary>
     [Fact]
-    public void GetTrustPolicy_OwnAccountDomainsTurnedOff_LeavesTheSameMailUnrecognized()
+    public void GetTrustPolicy_MailFromTheAddressAnAccountSendsAs_IsRecognizedAsOwnAddress()
+    {
+        // Arrange
+        var work = AccountAt("work", "login");
+        work.Delivery = new MailAccountDeliveryOptions { Host = "smtp.example.test", FromAddress = "user@work.example" };
+        var options = OptionsFor(work);
+
+        // Act
+        var trust = options
+            .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
+            .Evaluate(WrittenBy("work.example"), AddressOf("user@work.example"));
+
+        // Assert
+        Assert.Equal(SenderTrustSource.OwnAccountAddress, trust.GrantedBy);
+    }
+
+    /// <summary>The owner's domains are opt-in, so by default a colleague at the owner's domain is judged by the other sources alone.</summary>
+    [Fact]
+    public void GetTrustPolicy_NoAccountOptedIntoOwnDomains_LeavesAnotherAuthorAtThatDomainUnrecognized()
     {
         // Arrange
         var options = OptionsFor(
             AccountAt("work", "user@work.example"),
             AccountAt("personal", "user@personal.example"));
-        options.TrustOwnAccountDomains = false;
 
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
-            .Evaluate(WrittenBy("work.example"), AddressOf("user@work.example"));
+            .Evaluate(WrittenBy("work.example"), AddressOf("colleague@work.example"));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
     }
 
-    /// <summary>An IMAP user name that is a bare login names no mail domain, so the account contributes none.</summary>
+    /// <summary>An account that opts in recognizes every author at its owner's domains, and the owner's other accounts stay as they were.</summary>
+    [Fact]
+    public void GetTrustPolicy_OneAccountOptedIntoOwnDomains_RecognizesThereAndNowhereElse()
+    {
+        // Arrange
+        var personal = AccountAt("personal", "user@personal.example");
+        personal.TrustOwnAccountDomains = true;
+        var options = OptionsFor(AccountAt("work", "user@work.example"), personal);
+
+        // Act
+        var onPersonal = options
+            .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
+            .Evaluate(WrittenBy("work.example"), AddressOf("colleague@work.example"));
+        var onWork = options
+            .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
+            .Evaluate(WrittenBy("work.example"), AddressOf("colleague@work.example"));
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Trusted, onPersonal.Level);
+        Assert.Equal(SenderTrustSource.OwnAccountDomain, onPersonal.GrantedBy);
+        Assert.Equal(SenderTrustLevel.Unknown, onWork.Level);
+    }
+
+    /// <summary>An IMAP user name that is a bare login names no mail domain, so an account that opted in still contributes none.</summary>
     [Fact]
     public void GetTrustPolicy_AccountWhoseUserNameIsALogin_ContributesNoOwnDomain()
     {
         // Arrange
-        var options = OptionsFor(AccountAt("work", "mailfathom"));
+        var account = AccountAt("work", "mailfathom");
+        account.TrustOwnAccountDomains = true;
+        var options = OptionsFor(account);
 
         // Act
         var trust = options
@@ -200,14 +242,16 @@ public sealed class SenderTrustPolicyConfigurationTests
         Assert.DoesNotContain(messages, message => message!.Contains("trusted sender", StringComparison.Ordinal));
     }
 
-    /// <summary>Two served users are two people, so one person's mail domain is not correspondence the other recognizes.</summary>
+    /// <summary>Two served users are two people, so one person's address and domain are not correspondence the other recognizes.</summary>
     [Fact]
-    public void GetTrustPolicy_AnotherUsersAccountDomain_IsNotRecognizedInsideThisUsersMailbox()
+    public void GetTrustPolicy_AnotherUsersAccountAddressAndDomain_AreNotRecognizedInsideThisUsersMailbox()
     {
         // Arrange
+        var work = AccountAt("work", "user@work.example");
+        work.TrustOwnAccountDomains = true;
         var options = new MailSynchronizationOptions().WithServedUsers(
         [
-            User(SyntheticUser.Deployment, AccountAt("work", "user@work.example")),
+            User(SyntheticUser.Deployment, work),
             User(SyntheticUser.Another, AccountAt("theirs", "other@elsewhere.example")),
         ]);
 

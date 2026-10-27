@@ -379,14 +379,14 @@ public sealed class ServedUsersTests
     /// <remarks>
     /// The whole of what makes a document actually take over: an account still answering with no block reads as
     /// classification off for that mailbox, which is not what a record stating a posture says either — a commit
-    /// switching the scanner on would go on classifying nothing.
+    /// switching classification on would go on classifying nothing.
     /// </remarks>
     [Fact]
     public void UserDocumentPublished_ARecordCarryingAClassificationBlock_ServesThatAccountFromIt()
     {
         // Arrange
         var servedUsers = this.Cache();
-        var classification = new MailAccountSpamClassificationOptions { Enabled = true, UseScanner = true };
+        var classification = new MailAccountSpamClassificationOptions { Enabled = true, ScannedFolders = ["INBOX"] };
         var account = new MailSynchronizationAccountOptions { AccountId = "primary", SpamClassification = classification };
 
         // Act
@@ -429,6 +429,26 @@ public sealed class ServedUsersTests
         Assert.Equal(
             new ForcedClientTelemetry(Enabled: true, SettingsPolicyScope.Deployment),
             servedUsers.Peek(Alex)?.ForcedClientTelemetry);
+    }
+
+    /// <summary>A record committed on this replica is held with the organization whose policy layer it was resolved under.</summary>
+    [Fact]
+    public void UserDocumentPublished_ARecordOfAnOrganizationMember_ServesThatUserWithTheOrganization()
+    {
+        // Arrange
+        var servedUsers = this.Cache();
+        var organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f");
+
+        // Act
+        servedUsers.UserDocumentPublished(
+            Alex,
+            "user",
+            new UserAccountOptions(),
+            2,
+            GoverningSettingsPolicies.Unwritten with { Organization = SettingsPolicyDocument.Unwritten(organization) });
+
+        // Assert
+        Assert.Equal(organization, servedUsers.Peek(Alex)?.Organization);
     }
 
     /// <summary>

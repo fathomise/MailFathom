@@ -13,7 +13,6 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Accounts;
-using MailFathom.Domain.Emails;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -23,8 +22,10 @@ namespace MailFathom.AI.ThreadStates;
 /// <remarks>
 /// <para>
 /// One call, no tools, and one conversation. What leaves this deployment is the subject, and for each message the name
-/// it was written under, when it was written, and what it added — every one of them guarded first. No address, no
-/// folder, and no account travels with it.
+/// it was written under, when it was written, and what it added — every one of them guarded first — beside its
+/// provenance: the sender verdict, whether the deployment trusts the author, whether the message sits in junk, and
+/// whether the mailbox had corresponded with its sender before. No address, no folder name, and no account travels with
+/// it.
 /// </para>
 /// <para>
 /// It opens no chat call of its own. The agent is composed by <see cref="AgentComposition" /> like every other
@@ -167,22 +168,22 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
             return this.Withhold(ThreadStateWithholding.ProviderUnavailable, answer?.Alias);
         }
 
-        var entries = ThreadStateReading.Read(answerText, thread.Messages);
+        var derivation = ThreadStateReading.Read(answerText, thread.Messages);
 
-        if (entries.Count is 0)
-        {
-            ThreadStateEvents.LogAnswerUnreadable(this.logger, answer.Alias);
-        }
-        else
+        if (derivation.IsSettled)
         {
             ThreadStateEvents.LogDerived(
                 this.logger,
                 answer.Alias,
-                entries.Count,
+                derivation.Entries.Count,
                 thread.Messages.Count);
         }
+        else
+        {
+            ThreadStateEvents.LogAnswerUnreadable(this.logger, answer.Alias);
+        }
 
-        return ThreadStateDerivation.Settled(entries);
+        return derivation;
     }
 
     /// <summary>Composes the turn one derivation sends: the conversation, guarded and cut to what one call may carry.</summary>
@@ -196,27 +197,13 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
         SensitiveContentEgressGuard egressGuard,
         ChatGenerationPlan plan,
         CancellationToken cancellationToken) =>
-        Bounded(
-            ThreadStateInstructions.ComposeThreadTurn(
-                await egressGuard.GuardOptionalAsync(
-                    SensitiveContentEgressPoint.ChatPrompt,
-                    thread.Subject,
-                    cancellationToken),
-                await GuardedMessagesAsync(thread.Messages, egressGuard, cancellationToken)),
+        ThreadStateInstructions.ComposeThreadTurn(
+            await egressGuard.GuardOptionalAsync(
+                SensitiveContentEgressPoint.ChatPrompt,
+                thread.Subject,
+                cancellationToken),
+            await GuardedMessagesAsync(thread.Messages, egressGuard, cancellationToken),
             plan.MaximumRequestCharacters);
-
-    /// <summary>Cuts a turn down to what one call may carry, without splitting a character in half.</summary>
-    /// <remarks>
-    /// A bound rather than a refusal, and it is the same trade the enrichment derivation makes: a refusal here would be
-    /// permanent for this shape of the conversation, so an endpoint declared narrower than a long exchange would leave
-    /// it outstanding forever. What a bounded turn costs is the tail of the last message, and a statement citing a
-    /// message the model saw only part of is still a statement somebody can check. A conversation long enough for that
-    /// to matter has already been answered by <see cref="ThreadStateDerivation.TooLarge" /> above.
-    /// </remarks>
-    private static string Bounded(string turn, int maximumCharacters) =>
-        turn.Length <= maximumCharacters
-            ? turn
-            : MailTextBounds.TruncateAtTextElementBoundary(turn, maximumCharacters);
 
     /// <summary>Puts every message of the conversation through the egress guard before any of it is composed into a turn.</summary>
     /// <remarks>
@@ -243,7 +230,8 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
                 await egressGuard.GuardAsync(
                     SensitiveContentEgressPoint.ChatPrompt,
                     message.Text,
-                    cancellationToken)));
+                    cancellationToken),
+                message.Provenance));
         }
 
         return guarded;

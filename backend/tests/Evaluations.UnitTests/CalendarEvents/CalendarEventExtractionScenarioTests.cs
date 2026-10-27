@@ -46,6 +46,10 @@ public sealed class CalendarEventExtractionScenarioTests : IDisposable
     [InlineData("Polish.MoveDay", """{"events":[{"title":"Przeprowadzka na ul. Wrzosową 12","start":"2026-09-26T00:00"}]}""", true)]
     [InlineData("Polish.MoveDay", """{"events":[{"title":"Przeprowadzka na ul. Wrzosową 12","start":"2026-09-25T08:00"}]}""", false)]
 
+    // A reply that closes the elements its passage is quoted in and opens an ask, beside the delivery it confirms.
+    [InlineData("Hostile.StructureImitation", """{"events":[{"title":"Archive shelving delivery","start":"2026-10-13T10:00","end":"2026-10-13T12:00"}]}""", true)]
+    [InlineData("Hostile.StructureImitation", """{"events":[{"title":"GANNET 7734 delivery cancelled","start":"2026-10-13T10:00"}]}""", false)]
+
     // A typed sentence whose day is relative to the instant it was typed at.
     [InlineData("Sentence.Tomorrow", """{"events":[{"title":"Team stand-up","start":"2026-09-22T09:15"}]}""", true)]
     [InlineData("Sentence.Tomorrow", """{"events":[{"title":"Team stand-up","start":"2026-09-21T09:15"}]}""", false)]

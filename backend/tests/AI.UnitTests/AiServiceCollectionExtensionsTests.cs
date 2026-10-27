@@ -2,16 +2,21 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using MailFathom.AI.BodyCleanup;
 using MailFathom.AI.CalendarEvents;
 using MailFathom.AI.Chat;
 using MailFathom.AI.DayLayout;
+using MailFathom.AI.DecisionModels;
+using MailFathom.AI.Decisions;
 using MailFathom.AI.Descriptions;
 using MailFathom.AI.Embeddings;
 using MailFathom.AI.Enrichment;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.Providers;
+using MailFathom.AI.SpamClassification;
 using MailFathom.AI.ThreadStates;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.AiProviders;
@@ -29,6 +34,7 @@ using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Tasks;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
@@ -230,6 +236,46 @@ public sealed class AiServiceCollectionExtensionsTests
     }
 
     /// <summary>
+    /// A function's client is the whole pipeline over the adapter, keyed by the function, and its transport is bounded by
+    /// the slowest model any function asks, with the headroom the chat transport keeps.
+    /// </summary>
+    [Fact]
+    public async Task AddDecisionProviderAdapter_ResolvesEachFunctionsPipelineOverItsOwnTransport()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddHttpClient();
+        services.AddLogging();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(MailAnsweringRunBounds.Create(20_000, 8, 80_000));
+        services.AddSingleton(Substitute.For<IMailAnsweringSpendLedger>());
+        services.AddSingleton(Substitute.For<IProviderEndpointCredentialSource>());
+        services.AddSingleton(Substitute.For<IOutboundOperationRunner>());
+        services.AddSingleton(Substitute.For<IAiProviderHealthRecorder>());
+        using var activitySource = new ActivitySource("MailFathom.Tests.DecisionRegistration");
+        using var meter = new Meter("MailFathom.Tests.DecisionRegistration");
+        var plan = new DecisionModelPlan("decider", Address: null, "vendor/decider-2026-10-01", TimeSpan.FromSeconds(45), 32_000);
+
+        // Act
+        services.AddDecisionProviderAdapter(
+            new Dictionary<DecisionFunction, DecisionModelPlan> { [DecisionFunction.SpamClassification] = plan },
+            activitySource,
+            meter);
+
+        // Assert
+        await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
+        await using var scope = provider.CreateAsyncScope();
+        var client = scope.ServiceProvider.GetRequiredKeyedService<IDecisionClient>(DecisionFunction.SpamClassification);
+        using var transport = provider
+            .GetRequiredService<IHttpClientFactory>()
+            .CreateClient(OpenRouterDecisionClient.TransportName);
+
+        Assert.IsType<BudgetedDecisionClient>(client);
+        Assert.Equal("openrouter", client.GetService<DecisionClientMetadata>()?.ProviderName);
+        Assert.Equal(plan.RequestTimeout + TimeSpan.FromSeconds(30), transport.Timeout);
+    }
+
+    /// <summary>
     /// A Discover run never reaches the mail-answering agent, so the endpoint it publishes to the person who asked is
     /// the one that composed the answer they are given rather than the one a question would have been answered by.
     /// </summary>
@@ -382,6 +428,50 @@ public sealed class AiServiceCollectionExtensionsTests
         using var second = provider.CreateScope();
 
         Assert.NotSame(enricher, second.ServiceProvider.GetRequiredService<IEmailEnricher>());
+    }
+
+    /// <summary>The stage counts why nothing was asked, so a deployment without a decision model still resolves a judge.</summary>
+    [Fact]
+    public void AddSpamModelJudge_NotActivated_ResolvesTheJudgeThatAsksNothing()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddSpamModelJudge(plan: null);
+
+        // Assert
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<InactiveSpamModelJudge>(provider.GetRequiredService<ISpamModelJudge>());
+    }
+
+    /// <summary>One judge for the process, because it owns the call slots that bound every classification the replica runs at once.</summary>
+    [Fact]
+    public void AddSpamModelJudge_Activated_ResolvesOneJudgeAcrossScopes()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(SpamModelStageBounds.Default);
+        services.AddSingleton(SensitiveContentEgressGuards.Inactive());
+
+        // Act
+        services.AddSpamModelJudge(new DecisionModelPlan(
+            "spam",
+            Address: null,
+            "example-provider/spam-model",
+            TimeSpan.FromSeconds(30),
+            MaximumRequestCharacters: 32_000));
+
+        // Assert
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        using var second = provider.CreateScope();
+        var judge = scope.ServiceProvider.GetRequiredService<ISpamModelJudge>();
+
+        Assert.IsType<SpamModelJudge>(judge);
+        Assert.Same(judge, second.ServiceProvider.GetRequiredService<ISpamModelJudge>());
     }
 
     [Fact]

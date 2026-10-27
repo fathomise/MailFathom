@@ -3,8 +3,8 @@
 # Project repository: https://github.com/fathomise/MailFathom
 
 # An object store beside MailFathom, for a deployment that has selected the object-storage backend and does not already
-# operate one. It is optional in the way the analyzer and the scanner units are: Quadlet has no equivalent of Compose's
-# profiles, so an operator who wants none of this copies the other files and never this one — and then no image is
+# operate one. It is optional in the way the analyzer unit is: Quadlet has no equivalent of Compose's profiles, so an
+# operator who wants none of this copies the other files and never this one — and then no image is
 # pulled, no container exists, and no volume is held. Installing it is half of the arrangement; the other half is the
 # ContentStorage lines in mailfathom.container, and either one alone is a deployment that does not work.
 # docs/operations/deployment-quadlet.md states the order and the provisioning that goes between the two.

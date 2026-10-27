@@ -105,6 +105,6 @@ public sealed class LocalMailFolderArrivalsTests
     private static StoredEmailId Email(int number) =>
         StoredEmailId.Create(Guid.Parse($"0199a0c0-0000-7000-8000-{number:D12}"));
 
-    private static LocalMailFolderArrivals ArrivalsOver(ILocalMailFolderStore store) =>
-        new(store, ClientSignalPublishers.ReachingNobody, new FakeTimeProvider());
+    private static LocalMailFolderArrivals ArrivalsOver(InMemoryLocalMailFolderStore store) =>
+        new(store, store.Composing(new FakeTimeProvider()).Custodians, ClientSignalPublishers.ReachingNobody, new FakeTimeProvider());
 }

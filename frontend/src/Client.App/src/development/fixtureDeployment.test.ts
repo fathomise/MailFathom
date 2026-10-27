@@ -14,6 +14,7 @@ import * as drafts from '../../../../tests/fixtures/drafts';
 import * as mail from '../../../../tests/fixtures/mail';
 import * as messages from '../../../../tests/fixtures/messages';
 import * as notifications from '../../../../tests/fixtures/notifications';
+import * as outbox from '../../../../tests/fixtures/outbox';
 import * as tasks from '../../../../tests/fixtures/tasks';
 import {
     fixtureAnswer,
@@ -78,6 +79,8 @@ const readRoutes: readonly (readonly [string, unknown])[] = [
     ['/contacts/collected', contacts.collectedContactPage],
     [`/contacts/${contacts.assertedContact.id}/correspondence`, contacts.contactCorrespondence],
     ['/tasks/today/layout', tasks.daysArranged],
+    [`/outbox?account=${deployment.workAccount.id}&pageSize=200`, outbox.outboxPage],
+    [`/outbox/${outbox.refusedOutgoingSend.outgoingEmail}`, outbox.outgoingMailPreview(outbox.refusedOutgoingSend)],
 ];
 
 const writtenRoutes: readonly (readonly [string, unknown])[] = [
@@ -99,6 +102,9 @@ const writtenRoutes: readonly (readonly [string, unknown])[] = [
     ['/tasks', tasks.taskWritten],
     ['/tasks/task-tender/completion', tasks.taskCompleted],
     ['/tasks/task-signatures/acceptance', tasks.taskAccepted],
+    ['/outbox/cancellation', outbox.outboxDecisionTaken],
+    ['/outbox/requeue', outbox.outboxDecisionTaken],
+    ['/outbox/dismissal', outbox.outboxDecisionTaken],
 ];
 
 afterEach(() => {
@@ -112,6 +118,14 @@ describe('fixtureAnswer', () => {
 
         expect(page['emails']).toHaveLength(100);
         expect(page['previousCursor']).toBe('200');
+    });
+
+    it('answers a message as it arrived, and the one it fails to serve as unavailable', () => {
+        expect(answered(`/messages/${messages.newsletterId}/source`)).toMatchObject({
+            status: 200,
+            body: messages.newsletterSource,
+        });
+        expect(answered(`/messages/${messages.unavailableSourceId}/source`).status).toBe(503);
     });
 
     it('answers a message with the identity that was asked for rather than the corpus own', () => {
@@ -316,6 +330,14 @@ describe('fixtureAnswer', () => {
         expect(stated(answered('/tasks/task-racking', {}, 1, 'DELETE'))).toStrictEqual(tasks.taskErased);
     });
 
+    it('answers an empty Outbox where the deployment is set to hold nothing', () => {
+        expect(stated(answered('/outbox', { emptyCollections: true }))).toStrictEqual(outbox.emptyOutboxPage);
+    });
+
+    it('answers the preview of a send its Outbox does not hold as nothing being there', () => {
+        expect(answered('/outbox/00000000-0000-4000-8000-00000000ffff').status).toBe(404);
+    });
+
     it('answers a route the corpus states nothing for as nothing being there', () => {
         expect(answered('/cases').status).toBe(404);
     });
@@ -516,6 +538,31 @@ describe('fixtureDeployment', () => {
 
         await vi.advanceTimersByTimeAsync(1);
         await expect(answering).resolves.toMatchObject({ status: 200 });
+    });
+
+    it('never answers the source held on the wire, until the screen that asked for it walks away', async () => {
+        const abandoning = new AbortController();
+        const transport = fixtureDeployment(() => 1)(abandoning.signal);
+        const answering = transport(asking(`/messages/${messages.waitingSourceId}/source`));
+        let settled = false;
+
+        void answering.then(
+            () => {
+                settled = true;
+            },
+            () => {
+                settled = true;
+            },
+        );
+
+        await expect(transport(asking(`/messages/${messages.newsletterId}/source`))).resolves.toMatchObject({
+            status: 200,
+        });
+        expect(settled).toBe(false);
+
+        abandoning.abort();
+
+        await expect(answering).rejects.toThrow('abandoned');
     });
 
     it('gives up on a request the screen that started it abandoned', async () => {

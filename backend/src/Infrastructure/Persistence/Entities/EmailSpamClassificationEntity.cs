@@ -23,8 +23,8 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 [RequiresIntegrationCoverage]
 internal sealed class EmailSpamClassificationEntity
 {
-    /// <summary>The greatest length a stored corpus revision has, which the domain value already refuses to exceed.</summary>
-    internal const int MaximumCorpusRevisionLength = SpamClassification.MaximumCorpusRevisionLength;
+    /// <summary>The greatest length the retired corpus revision column has.</summary>
+    internal const int MaximumCorpusRevisionLength = 128;
 
     /// <summary>The length a stored classification profile has, which is the derived identity's own fixed width.</summary>
     internal const int ProfileLength = SpamClassificationProfile.LengthInCharacters;
@@ -56,10 +56,14 @@ internal sealed class EmailSpamClassificationEntity
     /// <summary>Gets or sets the threshold the score was judged against, absent exactly when <see cref="Score" /> is.</summary>
     public double? Threshold { get; set; }
 
-    /// <summary>Gets or sets the rule corpus the deciding stage ran under, absent when it has none.</summary>
+    /// <summary>Gets or sets a column no stage writes any more, which every write clears.</summary>
+    /// <remarks>
+    /// It stays mapped because an older build reads it during a rolling upgrade, and a column dropped under a running
+    /// replica fails every read that replica makes of this table. A later release removes it.
+    /// </remarks>
     public string? CorpusRevision { get; set; }
 
-    /// <summary>Gets or sets the settings the verdict was reached under, absent on a record written before it named one.</summary>
+    /// <summary>Gets or sets the terms the verdict was reached under, absent on a record written before it named one.</summary>
     /// <remarks>
     /// Nullable rather than defaulted, because the two states mean different things to a run over a whole mailbox: a row
     /// naming the profile in force is mail to leave alone, and a row naming none was decided under terms nothing can
@@ -68,6 +72,19 @@ internal sealed class EmailSpamClassificationEntity
     public string? Profile { get; set; }
 
     public DateTimeOffset EvaluatedAt { get; set; }
+
+    /// <summary>Gets or sets what kind of spam the message is, absent where no stage named one.</summary>
+    /// <remarks>
+    /// Absent on every record written before the column existed as well, which reads back as a spam verdict nobody named a
+    /// subcategory for — exactly what those records were.
+    /// </remarks>
+    public SpamSubcategory? SpamSubcategory { get; set; }
+
+    /// <summary>Gets or sets what a phishing message asks for, absent where the model named nothing.</summary>
+    public SpamPhishingRequest? PhishingRequest { get; set; }
+
+    /// <summary>Gets or sets the kind of party the message pretends to come from, absent where the model named nothing.</summary>
+    public SpamImpersonatedParty? ImpersonatedParty { get; set; }
 
     /// <summary>Gets or sets the optimistic concurrency token, which is PostgreSQL's own <c>xmin</c> rather than a column.</summary>
     /// <remarks>

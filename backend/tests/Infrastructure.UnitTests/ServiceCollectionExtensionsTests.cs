@@ -14,6 +14,7 @@ using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.SearchEmails;
 using MailFathom.Application.Mail;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent;
@@ -26,6 +27,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.Infrastructure.Mail.Signatures;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Persistence.Users;
@@ -425,7 +427,10 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
+        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
         services.AddSingleton(Substitute.For<ISenderTrustPolicyReader>());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         this.AddScanningPostures(services, SensitiveContentCategory.Create("ProviderToken"));
@@ -458,13 +463,16 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
     {
         // Arrange
         var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], []));
+        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], [], []));
 
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
+        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
         services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
@@ -502,7 +510,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         // Arrange
         Assert.True(TrustedSenderEntry.TryCreateForDomain("partner.example", includeSubdomains: false, out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var policies = Substitute.For<ISenderTrustPolicyReader>();
         policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(policy);
 
@@ -510,7 +518,10 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
+        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
         services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
@@ -551,7 +562,10 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions { VerifyDkimLocally = true });
+        services.AddSingleton(new EmailSignatureTrustOptions());
+        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
@@ -590,7 +604,10 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions { VerifyDkimLocally = false });
+        services.AddSingleton(new EmailSignatureTrustOptions());
+        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
@@ -631,7 +648,10 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
+        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
@@ -667,7 +687,10 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
+        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Disabled);
 
@@ -702,14 +725,17 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         // an empty policy digests to None, which is exactly what the undecorated reader would leave behind.
         Assert.True(TrustedSenderEntry.TryCreateForDomain("partner.example", includeSubdomains: false, out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var policies = Substitute.For<ISenderTrustPolicyReader>();
         policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(policy);
 
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
+        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
         services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         this.AddScanningPostures(services, SensitiveContentCategory.Create("ProviderToken"));
@@ -747,7 +773,10 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
+        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         this.AddScanningPostures(services, category);
@@ -808,7 +837,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
     private static ISenderTrustPolicyReader TrustPolicyReader()
     {
         var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], []));
+        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], [], []));
 
         return policies;
     }

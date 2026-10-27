@@ -181,8 +181,8 @@ public sealed class ReplyDraftReadingTests
 
     private static IReadOnlyList<ReplyDraftMessage> Messages() =>
     [
-        new(First, 0, "Anna", new DateTimeOffset(2026, 9, 1, 9, 0, 0, TimeSpan.Zero), "Could you quote for the batch?"),
-        new(Second, 1, "Karolina", new DateTimeOffset(2026, 9, 2, 9, 0, 0, TimeSpan.Zero), "It is 4 200 zloty."),
+        new(First, 0, "Anna", new DateTimeOffset(2026, 9, 1, 9, 0, 0, TimeSpan.Zero), "Could you quote for the batch?", IsChosen: false, Attachments: []),
+        new(Second, 1, "Karolina", new DateTimeOffset(2026, 9, 2, 9, 0, 0, TimeSpan.Zero), "It is 4 200 zloty.", IsChosen: true, Attachments: []),
     ];
 
     private static IReadOnlyList<ReplyDraftParticipant> Participants()

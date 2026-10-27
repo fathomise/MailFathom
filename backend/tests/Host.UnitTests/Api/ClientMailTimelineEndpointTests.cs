@@ -13,8 +13,11 @@ using MailFathom.Application.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
@@ -182,6 +185,26 @@ public sealed class ClientMailTimelineEndpointTests
         await this.timeline.Received(1).ReadPageAsync(
             Arg.Is<EmailTimelineFilter>(filter =>
                 filter != null && filter.Direction == EmailTimelineDirection.NewestFirst),
+            null,
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A folder withheld from AI is still the person's, so the list a screen opens on reads it like any other.</summary>
+    [Fact]
+    public async Task ReadTimelineAsync_AFolderWithheldFromAI_IsReadForThePerson()
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("private"));
+
+        // Act
+        var result = await this.ReadAsync(participation: StubMailFolderParticipation.Nothing.Hiding(withheld));
+
+        // Assert
+        Assert.IsType<Ok<ClientMailTimelineResponse>>(result.Result);
+        await this.timeline.Received(1).ReadPageAsync(
+            Arg.Is<EmailTimelineFilter>(filter =>
+                filter != null && filter.Selection.Scope.ReadableFolders.Contains(withheld)),
             null,
             Arg.Any<int>(),
             Arg.Any<CancellationToken>());
@@ -402,6 +425,122 @@ public sealed class ClientMailTimelineEndpointTests
         Assert.Null(outstanding.Enrichment);
     }
 
+    /// <summary>
+    /// A row carries the spam verdict and both judges, so a list can fold it or badge it from the page it holds, and the
+    /// judge of the verdict and the judge of its subcategory stay apart where they differ.
+    /// </summary>
+    [Fact]
+    public void For_ARowAStageJudgedSpam_CarriesTheVerdictTheSubcategoryAndBothJudges()
+    {
+        // Arrange
+        var row = new BrowsedEmail(
+            SyntheticListedEmail() with
+            {
+                Spam = new EmailSpamVerdict(
+                    SpamVerdict.Spam,
+                    SpamClassificationStage.Deterministic,
+                    SpamSubcategory.Phishing,
+                    SpamPhishingRequest.Credentials,
+                    SpamImpersonatedParty.OnlineService),
+            },
+            Preview: null,
+            Enrichment: null,
+            ThreadMessageCount: null);
+
+        // Act
+        var response = ClientMailTimelineEntryResponse.For(row);
+
+        // Assert
+        Assert.Equal(
+            new ClientMailSpamVerdictResponse(
+                "Spam",
+                "Deterministic",
+                "Phishing",
+                "Model",
+                "Credentials",
+                "OnlineService"),
+            response.Spam);
+    }
+
+    /// <summary>A message no stage has reached carries no spam object, and one a stage cleared carries its conclusion.</summary>
+    [Fact]
+    public void For_ARowNothingClassifiedAndOneAStageCleared_ReachTheWireDifferently()
+    {
+        // Arrange
+        var unclassified = new BrowsedEmail(SyntheticListedEmail(), Preview: null, Enrichment: null, ThreadMessageCount: null);
+        var cleared = unclassified with
+        {
+            Email = SyntheticListedEmail() with
+            {
+                Spam = new EmailSpamVerdict(
+                    SpamVerdict.NotSpam,
+                    SpamClassificationStage.Person,
+                    Subcategory: null,
+                    PhishingRequest: null,
+                    ImpersonatedParty: null),
+            },
+        };
+
+        // Act
+        var outstanding = ClientMailTimelineEntryResponse.For(unclassified);
+        var settled = ClientMailTimelineEntryResponse.For(cleared);
+
+        // Assert
+        Assert.Null(outstanding.Spam);
+        Assert.Equal(new ClientMailSpamVerdictResponse("NotSpam", "Person", null, null, null, null), settled.Spam);
+    }
+
+    /// <summary>
+    /// A row carries the four facts a sender mark is chosen from, side by side and never combined, so a list draws the
+    /// mark from the page it holds: a trusted author whose verified signature names somebody else stays both.
+    /// </summary>
+    [Fact]
+    public void For_ARowOfASignedMessage_CarriesTheSenderFactsSideBySide()
+    {
+        // Arrange
+        var row = new BrowsedEmail(
+            SyntheticListedEmail() with
+            {
+                SenderVerification = new SenderVerification
+                {
+                    AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
+                    DeploymentTrust = SenderTrustLevel.Trusted,
+                    Signature = new EmailSignature
+                    {
+                        Format = EmailSignatureFormat.SecureMimeDetached,
+                        ContentCheck = SignatureCheckResult.Passed,
+                        AuthorityCheck = SignatureCheckResult.Passed,
+                        ValidityCheck = SignatureCheckResult.Passed,
+                        RevocationCheck = SignatureCheckResult.Passed,
+                        SignerCheck = SignatureCheckResult.Failed,
+                    },
+                },
+            },
+            Preview: null,
+            Enrichment: null,
+            ThreadMessageCount: null);
+
+        // Act
+        var response = ClientMailTimelineEntryResponse.For(row);
+
+        // Assert
+        Assert.Equal(new ClientMailListedSenderResponse("Authenticated", "Trusted", "Verified", false), response.Sender);
+    }
+
+    /// <summary>An unsigned message whose author nothing established still carries the facts, each stating its absence.</summary>
+    [Fact]
+    public void For_ARowNothingEstablished_CarriesTheSenderFactsAsNotEstablishedAndNotSigned()
+    {
+        // Arrange
+        var row = new BrowsedEmail(SyntheticListedEmail(), Preview: null, Enrichment: null, ThreadMessageCount: null);
+
+        // Act
+        var response = ClientMailTimelineEntryResponse.For(row);
+
+        // Assert
+        Assert.Equal(new ClientMailListedSenderResponse("NotEstablished", "Unknown", "NotSigned", false), response.Sender);
+    }
+
     /// <summary>Both cursors reach the wire, because a list a screen can only scroll one way is half a list.</summary>
     [Fact]
     public void For_APageInTheMiddleOfTheList_CarriesTheCursorAtBothEnds()
@@ -469,7 +608,8 @@ public sealed class ClientMailTimelineEndpointTests
         string? cursor = null,
         string? carriesMark = null,
         DateTimeOffset? markDueOnOrAfter = null,
-        DateTimeOffset? markDueBefore = null)
+        DateTimeOffset? markDueBefore = null,
+        StubMailFolderParticipation? participation = null)
     {
         this.timeline
             .ReadPageAsync(
@@ -496,13 +636,16 @@ public sealed class ClientMailTimelineEndpointTests
             carriesMark,
             markDueOnOrAfter,
             markDueBefore,
-            this.Browser(),
+            this.Browser(participation),
             TestContext.Current.CancellationToken);
     }
 
     /// <summary>Builds the use case behind the route over the real scope resolution, with storage and the instruments stood in for.</summary>
-    private MailTimelineBrowser Browser()
+    /// <param name="participation">What the caller's folders take part in, defaulting to a deployment that maps none.</param>
+    private MailTimelineBrowser Browser(StubMailFolderParticipation? participation = null)
     {
+        var folders = participation ?? StubMailFolderParticipation.Nothing;
+
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
         catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(MailAccountId.Create("work"))]);
 
@@ -535,8 +678,8 @@ public sealed class ClientMailTimelineEndpointTests
             conversations,
             new MailboxScopeResolver(
                 catalog,
-                StubMailFolderParticipation.Nothing,
-                StubDeploymentMailFolders.None,
+                folders,
+                StubDeploymentMailFolders.Of(folders),
                 StubMailFolderMappings.ResolvingNothing),
             SensitiveContentEgressGuards.Inactive(),
             readTelemetry,

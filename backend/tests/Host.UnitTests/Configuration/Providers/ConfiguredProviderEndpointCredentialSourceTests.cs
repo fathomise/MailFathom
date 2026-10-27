@@ -4,6 +4,7 @@
 
 using MailFathom.AI.Providers;
 using MailFathom.Host.Configuration.Chat;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Providers;
 using MailFathom.Host.UnitTests.TestDoubles;
@@ -272,9 +273,46 @@ public sealed class ConfiguredProviderEndpointCredentialSourceTests
         Assert.DoesNotContain("MISSING_TENANT", failure.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>A decision model is a third section behind the same lookup, and it presents a key and nothing beside it.</summary>
+    [Fact]
+    public async Task ResolveAsync_ADecisionModelAlias_ResolvesTheKeyThatModelDeclared()
+    {
+        // Arrange
+        var decisions = new DecisionModelOptions();
+        decisions.Models.Add(new DecisionModelDeclarationOptions
+        {
+            Alias = "decider",
+            Model = "vendor/decider-2026-10-01",
+            ApiKey = new ConfiguredSecret { SecretReference = "env:DECISION_KEY" },
+        });
+
+        var source = SourceOver(
+            EmbeddingsDeclaring("indexing", "env:EMBEDDING_KEY"),
+            ChatDeclaring("answering", "env:CHAT_KEY"),
+            decisions,
+            ("env:EMBEDDING_KEY", "the-embedding-key"),
+            ("env:CHAT_KEY", "the-chat-key"),
+            ("env:DECISION_KEY", "the-decision-key"));
+
+        // Act
+        using var credential = await source.ResolveAsync("decider", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ProviderEndpointCredentialKind.ApiKey, credential.Kind);
+        Assert.Equal("the-decision-key", credential.ApiKey);
+        Assert.Empty(credential.ExtraHeaders);
+    }
+
     private static ConfiguredProviderEndpointCredentialSource SourceOver(
         EmbeddingOptions embeddings,
         ChatModelOptions chat,
+        params (string Reference, string Material)[] resolvable) =>
+        SourceOver(embeddings, chat, new DecisionModelOptions(), resolvable);
+
+    private static ConfiguredProviderEndpointCredentialSource SourceOver(
+        EmbeddingOptions embeddings,
+        ChatModelOptions chat,
+        DecisionModelOptions decisions,
         params (string Reference, string Material)[] resolvable)
     {
         var resolver = Substitute.For<ISecretReferenceResolver>();
@@ -285,6 +323,7 @@ public sealed class ConfiguredProviderEndpointCredentialSourceTests
         return new ConfiguredProviderEndpointCredentialSource(
             Options.Create(embeddings),
             new StubSettingsSnapshot<ChatModelOptions>(chat),
+            Options.Create(decisions),
             resolver);
     }
 

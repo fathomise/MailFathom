@@ -69,12 +69,25 @@ const current = { staleness: 'Current', observedAt: '2026-08-31T09:42:00+00:00' 
 export const answerMarkupHost = 'pixel.example';
 
 /**
- * The raw HTML the answer repeats out of the mail it read, which is drawn as the text it is.
+ * The raw HTML the answer repeats out of the mail it read, as a reader sees it: the service writes the tag's opening
+ * bracket as a character reference, so the client draws it as the text it is.
  *
  * Its address carries no scheme, as a tag's is free not to, so what stays text is the tag whole: an address with one
  * would be drawn as a warned link the way one in the prose is, which is a different thing from a tag becoming an element.
  */
 export const answerRawMarkup = `<img src="//${answerMarkupHost}/bays.gif" alt="">`;
+
+/** Where the picture the answer wrote points, which the service publishes as a link rather than as a picture. */
+export const answerPictureTarget = `https://${answerMarkupHost}/plan.png`;
+
+/** The link the answer writes that the cited newsletter carries. */
+export const tracedAnswerLink = 'https://bays.example/plan';
+
+/**
+ * The link the answer writes whose words name another host and whose address no cited message carries — the shape a
+ * message asking the agent for a link produces.
+ */
+export const untracedAnswerLink = 'https://pay-bays.example/settle';
 
 /** The places the answer lists, which are drawn as a list rather than as the dashes they were written with. */
 export const answerListed = ['Two on the north side', 'Two by the loading door'] as const;
@@ -121,9 +134,42 @@ const answeredEntries = [
                 text: [
                     'Four bays were confirmed, held to the end of the week.',
                     answerListed.map((place) => `- **${place}**`).join('\n'),
-                    `The confirmation closes with ${answerRawMarkup} and a plan: ![The bays](https://${answerMarkupHost}/plan.png)`,
+                    `The confirmation closes with &lt;img src="//${answerMarkupHost}/bays.gif" alt=""> and a plan: [The bays](${answerPictureTarget})`,
+                    `The bay plan is at [bays.example/plan](${tracedAnswerLink}), and the confirmation asks you to pay at [bays.example](${untracedAnswerLink}).`,
                 ].join('\n\n'),
                 confidence: 'High',
+                links: [
+                    {
+                        link: {
+                            target: answerPictureTarget,
+                            host: answerMarkupHost,
+                            asciiHost: null,
+                            deception: 'NotApplicable',
+                            isWorthWarningAbout: false,
+                        },
+                        appearsInCitedSources: false,
+                    },
+                    {
+                        link: {
+                            target: tracedAnswerLink,
+                            host: 'bays.example',
+                            asciiHost: null,
+                            deception: 'None',
+                            isWorthWarningAbout: false,
+                        },
+                        appearsInCitedSources: true,
+                    },
+                    {
+                        link: {
+                            target: untracedAnswerLink,
+                            host: 'pay-bays.example',
+                            asciiHost: null,
+                            deception: 'DisplayedHostDiffers',
+                            isWorthWarningAbout: true,
+                        },
+                        appearsInCitedSources: false,
+                    },
+                ],
             },
         },
     },

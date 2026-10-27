@@ -9,6 +9,7 @@ import {
     longestDraftInstruction,
     longestDraftSelection,
     mailReplyDraftingRoute,
+    mostDraftContextMessages,
 } from './mailReplyDrafting';
 import type { ClientSession } from './session';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
@@ -59,7 +60,7 @@ function recording(response: Answer): { transport: MailFathomTransport; requests
 }
 
 function request(overrides: Readonly<Record<string, unknown>> = {}) {
-    return { answeredEmailId: answered, selection: null, instruction: null, ...overrides };
+    return { contextEmailIds: [answered], selection: null, instruction: null, ...overrides };
 }
 
 describe('draftsMailReplies', () => {
@@ -128,23 +129,23 @@ describe('draftMailReply', () => {
         expect(requests[0]?.method).toBe('POST');
         expect(requests[0]?.path).toBe(`${session.baseAddress}/api/client${mailReplyDraftingRoute}`);
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
-            answeredEmailId: answered,
+            contextEmailIds: [answered],
             selection: 'the 2 h SLA',
             instruction: 'Ask for a 5% cap.',
         });
     });
 
-    it('names no message where the composer answers none', async () => {
+    it('names no message where the composer is written from none', async () => {
         const { transport, requests } = recording({ status: 200, body: draftBody() });
 
         await draftMailReply(
             session,
             transport,
-            request({ answeredEmailId: null, instruction: 'Ask Contoso for a 5% cap.' }),
+            request({ contextEmailIds: [], instruction: 'Ask Contoso for a 5% cap.' }),
         );
 
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
-            answeredEmailId: null,
+            contextEmailIds: [],
             selection: null,
             instruction: 'Ask Contoso for a 5% cap.',
         });
@@ -168,13 +169,24 @@ describe('draftMailReply', () => {
         expect(sent.instruction).toHaveLength(longestDraftInstruction);
     });
 
+    it('names the whole context in its order, up to the most one drafting is written from', async () => {
+        const { transport, requests } = recording({ status: 200, body: draftBody() });
+        const context = Array.from({ length: mostDraftContextMessages + 2 }, (_, index) => `message-${String(index)}`);
+
+        await draftMailReply(session, transport, request({ contextEmailIds: context }));
+
+        const sent = JSON.parse(requests[0]?.body ?? '') as { contextEmailIds: string[] };
+
+        expect(sent.contextEmailIds).toStrictEqual(context.slice(0, mostDraftContextMessages));
+    });
+
     it('sends nothing at all for a text that is only whitespace', async () => {
         const { transport, requests } = recording({ status: 200, body: draftBody() });
 
         await draftMailReply(session, transport, request({ selection: '   ', instruction: '\n' }));
 
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
-            answeredEmailId: answered,
+            contextEmailIds: [answered],
             selection: null,
             instruction: null,
         });

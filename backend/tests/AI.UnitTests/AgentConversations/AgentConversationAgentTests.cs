@@ -159,6 +159,63 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             (block.Evidence.Support, block.Confidence, block.Evidence.Citations.Count));
     }
 
+    /// <summary>A control character between a mark and its bracket, or inside a tag, cannot rebuild what the neutralising passed over.</summary>
+    [Theory]
+    [InlineData("See !\u0001[x](https://stranger.example.test/p.png).", "See [x](https://stranger.example.test/p.png).")]
+    [InlineData("See <\u0001img src=\"https://stranger.example.test/p.png\">.", "See &lt;img src=\"https://stranger.example.test/p.png\">.")]
+    public void Presentable_AControlCharacterSplittingMarkup_LeavesNoPictureOnceItIsDropped(string written, string expected)
+    {
+        // Act
+        var presented = AgentConversationAgent.Presentable(written);
+
+        // Assert
+        Assert.Equal(expected, presented?.Value);
+    }
+
+    /// <summary>An answer's picture is published as a link, and every link says whether the mail the Agent read carries it.</summary>
+    [Fact]
+    public async Task ComposeAsync_AnAnswerWritingAPictureAndLinks_ComposesNoPictureAndTracesEveryLinkToWhatWasRead()
+    {
+        // Arrange
+        var search = new RecordingEmailKnowledgeSearch()
+            .Returning("bays", KnowledgePassages.Create("Book the bays at https://bays.example.test/book today.", subject: "Bays"));
+        using var provider = new ScriptedProvider(
+            answering: [Searching("bays"), Answering("Book at [bays](https://bays.example.test/book) or [here](https://other.example.test/). ![map](https://cdn.example.test/map.png)")],
+            standby: []);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search)
+            .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        var block = Assert.IsType<AnswerBlock>(this.ComposedBlock());
+        Assert.DoesNotContain("![", block.Text.Value, StringComparison.Ordinal);
+        Assert.Equal(
+            [("https://bays.example.test/book", true), ("https://other.example.test/", false), ("https://cdn.example.test/map.png", false)],
+            block.Links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
+    }
+
+    /// <summary>A folder whose mapping withholds it from AI is outside the scope every search of the Agent's run reads.</summary>
+    [Fact]
+    public async Task ComposeAsync_AFolderWithheldFromAI_IsLeftOutOfTheScopeTheRunSearches()
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(Primary, MailFolderAlias.Create("Private"));
+        var search = new RecordingEmailKnowledgeSearch();
+        using var provider = new ScriptedProvider(
+            answering: [Searching("bays"), Answering("Nothing mentions the bays.")],
+            standby: []);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search, foldersWithheldFromAI: [withheld])
+            .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [new MailFolderIdentity(Primary, MailFolderAlias.Create("inbox"))],
+            Assert.Single(search.Calls).Scope.ReadableFolders);
+    }
+
     /// <summary>
     /// Every round of the tool loop is one request, and all of them belong to the conversation — so each carries the
     /// same session, and it is not the conversation's own identifier.
@@ -292,7 +349,10 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         /// <summary>Gets the session each request carried, in the order they arrived, with <see langword="null" /> for one carrying none.</summary>
         public List<string?> SentSessions { get; } = [];
 
-        public AgentConversationAgent AgentOver(ChatGenerationPlan plan, IEmailKnowledgeSearch? search = null)
+        public AgentConversationAgent AgentOver(
+            ChatGenerationPlan plan,
+            IEmailKnowledgeSearch? search = null,
+            MailFolderIdentity[]? foldersWithheldFromAI = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -317,7 +377,8 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Primary)]);
             catalog.User.Returns(SyntheticUser.Deployment);
 
-            var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(Primary, MailFolderAlias.Create("inbox")));
+            var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(Primary, MailFolderAlias.Create("inbox")))
+                .Hiding(foldersWithheldFromAI ?? []);
             var readers = new AgentConversationReaders(
                 new MailboxScopeResolver(
                     catalog,
@@ -326,6 +387,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                     StubMailFolderMappings.ResolvingNothing),
                 search ?? Substitute.For<IEmailKnowledgeSearch>(),
                 ContentReader: null!,
+                ProvenanceReader: StubEmailProvenanceReader.AllKnownCorrespondents,
                 StateBrowser: null!,
                 Calendar: null!,
                 Tasks: null!,

@@ -10,6 +10,7 @@ using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.Mcp.Tools.Categories;
 using MailFathom.Mcp.Tools.Results;
@@ -39,8 +40,8 @@ namespace MailFathom.Mcp.Tools;
 /// <para>
 /// It changes state, reaches outside this process eventually rather than during the call, and is destructive in the
 /// sense the protocol gives that word: <c>destructiveHint</c> asks whether the tool performs only additive updates, and
-/// this one does not. A keyword replacement states the whole set, so a label the caller never listed comes off; a
-/// removal takes named labels off; and clearing <c>\Seen</c> or <c>\Flagged</c> removes a flag the message carried. The
+/// this one does not. A keyword removal takes named labels off, and clearing <c>\Seen</c> or <c>\Flagged</c> removes a
+/// flag the message carried. The
 /// annotation is what a client reads before deciding whether a call needs a person, so it says that rather than saying
 /// the change is easy to reverse — which it is, and which the description states separately.
 /// </para>
@@ -80,7 +81,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
     /// <param name="cancellationToken">Cancels the write when the caller disconnects or the host shuts down.</param>
     /// <returns>The durable record opened for each value asked for.</returns>
     /// <exception cref="StoredEmailIdentifierMalformedException">Thrown when the text names no email this system issued an identifier for.</exception>
-    /// <exception cref="MailFlagChangeInvalidException">Thrown when the call asks for nothing, states half a keyword change, names more keywords than a message may carry or one a mail server could not be asked to store, carries a request identity no record could be written under, or reuses one that already asked for a different value.</exception>
+    /// <exception cref="MailFlagChangeInvalidException">Thrown when the call asks for nothing, states half a keyword change, names more keywords than a message may carry or one a mail server could not be asked to store, names a junk keyword or asks for a replacement, carries a request identity no record could be written under, or reuses one that already asked for a different value.</exception>
     /// <exception cref="MailFathomException">
     /// Raised by the use case for a grant or an email it refuses. The call-tool filter turns every one of them into the
     /// coded result a client reads, so this tool neither catches nor re-describes any.
@@ -94,7 +95,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
         OpenWorld = true,
         UseStructuredContent = true)]
     [Description(
-        "Marks one email read or unread, stars or unstars it, and adds, removes, or replaces its keywords — the labels "
+        "Marks one email read or unread, stars or unstars it, and adds or removes its keywords — the labels "
         + "a mail client shows as tags. Every value is optional and at least one is required; a call that names none is "
         + "refused. The change is written down durably and issued to the mail server by the account's next "
         + "synchronization run, so the result reports the records rather than a mailbox that has already changed: each "
@@ -103,20 +104,23 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
         + "holds on its own there is no mail server to wait on: the result says applied, the change has already "
         + "happened, and no records are returned; requestId matches a repeated call only against a record, so there a "
         + "repeat under the same requestId applies the change again rather than answering with the first call. Every change is "
-        + "reversible: call again with the opposite value. keywordChange replace states the whole keyword set — a "
-        + "keyword you do not list is removed, and an empty list clears them all — so read the email's keywords first, "
-        + "or use add and remove, which touch only what they name. Only these three values can be written: this tool "
-        + "never sets the answered or draft flags, never deletes mail, and never sends anything.")]
+        + "reversible: call again with the opposite value. Keywords are changed with keywordChange add and remove, which "
+        + "touch only what they name; replace, which would state the whole set and take off whatever it does not list, "
+        + "is refused. The junk keywords $Junk, $NotJunk, and $Phishing are refused too: they carry the spam verdict and "
+        + "the person's correction of it, which only the person sets. Only these three values can be written: this tool "
+        + "never sets the answered or draft flags, never deletes mail, and never sends anything. A message in an "
+        + "account's outbox is not an email and carries no flags: an outgoingEmailId is refused here as an unknown "
+        + "email.")]
     public async Task<SetMailFlagsToolResult> SetMailFlagsAsync(
-        [Description("The storedEmailId a listing, a search, or a read returned for the email. A UUID that does not change when the mail server renumbers or moves the message.")]
+        [Description("The storedEmailId a listing, a search, or a read returned for the email. A UUID that does not change when the mail server renumbers or moves the message. An outgoingEmailId names no email and is refused.")]
         string storedEmailId,
         [Description("true marks the email read, false marks it unread. Omit it to leave the flag where it stands. Reading mail through MailFathom never sets it, so this is the only way it moves from here.")]
         bool? seen = null,
         [Description("true stars the email, false unstars it. This is the flag a mail client draws as a star or a flag, and it is what the user will see in their own client.")]
         bool? flagged = null,
-        [Description("What to do with keywords: add puts the listed ones on beside whatever the email already carries, remove takes the listed ones off and leaves the rest, replace makes the keywords exactly the listed ones. Send it together with keywords; either one alone is refused.")]
+        [Description("What to do with keywords: add puts the listed ones on beside whatever the email already carries, and remove takes the listed ones off and leaves the rest. replace, which would make the keywords exactly the listed ones, is refused on this surface. Send it together with keywords; either one alone is refused.")]
         SetMailFlagsKeywordChange? keywordChange = null,
-        [Description("The keywords the change names, at most 64, each at most 64 characters. A keyword is an IMAP atom: no space, no control character, none of ( ) { % * \" \\ ], nothing above plain ASCII, and no leading backslash, which is how system flags are spelled. Two spellings differing only in case are one keyword. An empty list is accepted only with replace, where it clears every keyword.")]
+        [Description("The keywords the change names, at most 64, each at most 64 characters. A keyword is an IMAP atom: no space, no control character, none of ( ) { % * \" \\ ], nothing above plain ASCII, and no leading backslash, which is how system flags are spelled. Two spellings differing only in case are one keyword. An empty list is refused.")]
         IReadOnlyList<string>? keywords = null,
         [Description("Your own identifier for this request, at most 128 characters. Send the same one when retrying a call that may have gone through: the change is then the same request and is not made twice. A call with a new value, or with none, is a new request — which is what lets you star a message, unstar it, and star it again. Reusing one to ask for a different value is refused, so send a new identifier whenever you mean a new change. These guarantees hold for a change written down as a record; on a held account, where the result says applied, nothing is matched and every call applies the change it names.")]
         string? requestId = null,
@@ -129,7 +133,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
             AuthoredDirection(keywordChange),
             NamedKeywords(keywords));
 
-        var result = await flagChangeRecorder.RecordAsync(change, Requester(requestId), cancellationToken);
+        var result = await flagChangeRecorder.RecordAsync(change, Requester(requestId), MailboxReaderKind.Agent, cancellationToken);
 
         return SetMailFlagsToolResult.From(result);
     }

@@ -13,6 +13,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -41,6 +42,7 @@ public sealed class ContactCorrespondenceReaderTests
         // Act
         await reader.ReadAsync(
             ContactOf("Anna@example.com", "anna.kowalska@example.org"),
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -59,7 +61,7 @@ public sealed class ContactCorrespondenceReaderTests
         var reader = ReaderOver(index, clock: clock);
 
         // Act
-        await reader.ReadAsync(ContactOf("anna@example.com"), TestContext.Current.CancellationToken);
+        await reader.ReadAsync(ContactOf("anna@example.com"), MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.All(
@@ -78,7 +80,7 @@ public sealed class ContactCorrespondenceReaderTests
         var reader = ReaderOver(index);
 
         // Act
-        await reader.ReadAsync(ContactOf("anna@example.com"), TestContext.Current.CancellationToken);
+        await reader.ReadAsync(ContactOf("anna@example.com"), MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.All(index.Reads, read =>
@@ -103,6 +105,7 @@ public sealed class ContactCorrespondenceReaderTests
         // Act
         var correspondence = await reader.ReadAsync(
             ContactOf("anna@example.com"),
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -130,6 +133,7 @@ public sealed class ContactCorrespondenceReaderTests
         // Act
         var correspondence = await reader.ReadAsync(
             ContactOf("anna@example.com"),
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -162,6 +166,7 @@ public sealed class ContactCorrespondenceReaderTests
         // Act
         var correspondence = await reader.ReadAsync(
             ContactOf("anna@example.com"),
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -186,7 +191,7 @@ public sealed class ContactCorrespondenceReaderTests
         var reader = ReaderOver(index, readTelemetry: readTelemetry);
 
         // Act
-        await reader.ReadAsync(ContactOf("anna@example.com"), TestContext.Current.CancellationToken);
+        await reader.ReadAsync(ContactOf("anna@example.com"), MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var read = Assert.Single(readTelemetry.Reads);
@@ -207,10 +212,31 @@ public sealed class ContactCorrespondenceReaderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            reader.ReadAsync(ContactOf("anna@example.com"), TestContext.Current.CancellationToken));
+            reader.ReadAsync(ContactOf("anna@example.com"), MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);
+    }
+
+    /// <summary>Correspondence is read for whoever asked, so a folder withheld from AI counts for the person and not for an agent.</summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.Person, true)]
+    [InlineData(MailboxReaderKind.Agent, false)]
+    public async Task ReadAsync_AFolderWithheldFromAI_IsReadOnlyForThePerson(MailboxReaderKind readerKind, bool folderRead)
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(TheAccount, MailFolderAlias.Create("Private"));
+        var index = new InMemoryContactCorrespondenceIndex();
+        var reader = ReaderOver(
+            index,
+            folderParticipation: StubMailFolderParticipation.Mapping(withheld).Hiding(withheld));
+
+        // Act
+        await reader.ReadAsync(ContactOf("anna@example.com"), readerKind, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.All(index.Reads, read => Assert.Equal(folderRead, read.Scope.ReadableFolders.Contains(withheld)));
+        Assert.NotEmpty(index.Reads);
     }
 
     private static ContactCorrespondenceReader ReaderOver(
@@ -219,12 +245,13 @@ public sealed class ContactCorrespondenceReaderTests
         SensitiveContentEgressGuard? egressGuard = null,
         IMailboxReadTelemetry? readTelemetry = null,
         AccessAuthorization? authorization = null,
-        TimeProvider? clock = null) => new(
+        TimeProvider? clock = null,
+        StubMailFolderParticipation? folderParticipation = null) => new(
         index,
         new MailboxScopeResolver(
             accountCatalog ?? CatalogServing(TheAccount),
-            StubMailFolderParticipation.Nothing,
-            StubDeploymentMailFolders.None,
+            folderParticipation ?? StubMailFolderParticipation.Nothing,
+            StubDeploymentMailFolders.Of(folderParticipation ?? StubMailFolderParticipation.Nothing),
             StubMailFolderMappings.ResolvingNothing),
         egressGuard ?? SensitiveContentEgressGuards.Inactive(),
         readTelemetry ?? new RecordingMailboxReadTelemetry(),

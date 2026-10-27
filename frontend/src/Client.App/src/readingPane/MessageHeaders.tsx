@@ -158,7 +158,12 @@ export function MessageHeaders({
                     {subject}
                 </h2>
 
-                <HeadActs compact={!twoPanes} toolbarCarriesActs={toolbarCarriesActs} message={message} />
+                <HeadActs
+                    compact={!twoPanes}
+                    toolbarCarriesActs={toolbarCarriesActs}
+                    message={message}
+                    subject={subject}
+                />
             </div>
 
             {/* A line with nobody behind it is a line rather than a control: a disclosure that unfolds nothing would

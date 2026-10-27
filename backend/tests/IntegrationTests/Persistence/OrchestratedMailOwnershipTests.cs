@@ -191,6 +191,12 @@ public sealed class OrchestratedMailOwnershipTests(MailFathomOrchestrationFixtur
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);
 
+        await OrchestratedSettlement.ApplyAsync(
+            services,
+            [storedEmailId],
+            SyntheticEmail.ReceivedAt,
+            cancellationToken);
+
         return storedEmailId;
     }
 
@@ -207,6 +213,8 @@ public sealed class OrchestratedMailOwnershipTests(MailFathomOrchestrationFixtur
             FolderAlias,
             cancellationToken);
 
+        List<StoredEmailId> storedEmailIds = [];
+
         var commitResult = await services.CommitAsync(
             async (scope, session, token) =>
             {
@@ -220,7 +228,7 @@ public sealed class OrchestratedMailOwnershipTests(MailFathomOrchestrationFixtur
                         FirstUnassignedUid + (uint)position);
                     var subject = $"{UnassignedSubjectPrefix}{accountId.Value}-{position:D4}";
 
-                    await repository.UpsertMetadataAsync(
+                    storedEmailIds.Add(await repository.UpsertMetadataAsync(
                         session,
                         SyntheticEmail.RemoteMetadataOf(occurrence, subject),
                         SyntheticEmail.ExtractionOf(
@@ -232,12 +240,15 @@ public sealed class OrchestratedMailOwnershipTests(MailFathomOrchestrationFixtur
                             ReceivedAt = SyntheticEmail.ReceivedAt.AddMinutes(position),
                         },
                         StoredEmailContentAvailability.Available,
-                        token);
+                        token));
                 }
             },
             cancellationToken);
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);
+
+        // Settled as the control is, so what keeps them out of the caller's page is the account and not the settlement.
+        await OrchestratedSettlement.ApplyAsync(services, storedEmailIds, SyntheticEmail.ReceivedAt, cancellationToken);
     }
 
     /// <summary>

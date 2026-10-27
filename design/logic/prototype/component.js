@@ -9,7 +9,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI,
     threads: THREADS, earlierMessages, threadMailBodies, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO,
-    accounts: ACCOUNTS, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
+    accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, watchedQuestions: WATCHED, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
     calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
     starterChips: STARTER_CHIPS, anotherTimeReply: ANOTHER_TIME, agentScheduledEvents: AGENT_SCHEDULED,
@@ -20,9 +20,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     agentDraftHtml: AGENT_DRAFT_HTML, draftRewrites: DRAFT_REWRITES, rewritePresets: REWRITE_PRESETS, selectionReplies: SEL_REPLIES,
     fieldAlternatives: FIELD_ALTS, peopleActions: PEOPLE_ACTS, moreDemos: MORE_DEMOS,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
+    senderMarks: SENDER_MARKS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
   } = MailFathomDesign.data;
   const { mdPlain, mdView, MDTXT } = MailFathomDesign.markdown;
-  const { HTML_SHELL, embedHtml, htmlFallback } = MailFathomDesign.mailHtml;
+  const { HTML_SHELL, embedHtml, embedLinks, htmlFallback } = MailFathomDesign.mailHtml;
 
   /* CLIENT STATES — INVENTORY (drawn in “client-states.dc.html”).
      Every state below is revealed there by the property state="<id>", at layout = telefon | fold | tablet | desktop | all
@@ -48,8 +49,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        d_watched   1.5  watched questions on the start screen: changed, no change, paused (allowance spent), could
                         not refresh, and nothing watched yet; opening one runs it, × stops watching.
      MAIL
-       m_verdict   2.1  sender verdict under the sender line: warning box (authenticated by another domain / nothing
-                        authenticated), healthy as one quiet line.
        m_more      2.2a thread paging at its end: Read more · reading more · “That is the whole of this conversation.”
        m_partial   2.2b partial failure in place of the missing messages; head notes (more people, more messages).
        m_pane      2.2c whole pane: failed, offline, nothing you are allowed to see - “Nothing open” layout.
@@ -57,7 +56,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                         no account.
        m_list      2.3b list: empty folder, nothing matches (+ Clear filters), partial failure strip, empty while failing.
        m_kind      2.4a New folder with “Kind of folder” first; a role hides name + inside and shows the hint.
-       m_roles     2.4b tree roles Flagged (flag), Important (label_important), All mail (all_inbox), Outbox (outbox).
+       m_roles     2.4b tree roles Flagged (flag), Important (label_important), All mail (all_inbox); the Outbox (outbox) as a
+                        mark on each account's Sent row - the screen behind it is drawn here, in Mail.
        m_search    2.5  described search: filter chips, “What this search is ranked by” chips, unused-phrase note,
                         “Reading what you wrote…”, words-only placeholder.
        m_pending   2.6  pending changes in the connection summary: indicator states, panel (sheet on phone) with
@@ -157,6 +157,49 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
   const DEFAULT_UNREAD = {};
   THREADS.slice(0, 5).forEach(t => { DEFAULT_UNREAD[t.id] = true; });
+  THREADS.filter(t => t.unread).forEach(t => { DEFAULT_UNREAD[t.id] = true; });
+
+  /* The six spam subcategories, in the order the chooser lists them. The three dangerous ones carry a glyph and the
+     error tone wherever they are named, so the danger is in the glyph and the word, never in the colour alone. */
+  const SPAM_KINDS = [
+    { key: "phishing", label: "Phishing", danger: true, hint: "Asks for a password, payment details or a code, usually posing as a bank, courier or service" },
+    { key: "bec", label: "Business email compromise", danger: true, hint: "Poses as a colleague, a manager or a supplier, usually to redirect a payment" },
+    { key: "malware", label: "Malware lure", danger: true, hint: "A pretext for opening an attachment or a download" },
+    { key: "scam", label: "Scam", danger: false, hint: "Inheritance, lottery, investment or callback schemes" },
+    { key: "extortion", label: "Extortion", danger: false, hint: "Threats demanding a payment" },
+    { key: "marketing", label: "Marketing", danger: false, hint: "Unsolicited advertising, unwanted but harmless" },
+  ];
+  const spamKind = (k) => SPAM_KINDS.find(x => x.key === k) || null;
+  const SPAM_JUDGE = { model: "judged by a model", server: "judged by your mail server", person: "marked by you" };
+  /* What a phishing message asks for and whom it is written to look like, by the closed value the record names. The
+     values that name nothing (`Other`, `NothingStated`, `NobodyEvident`) say nothing rather than an empty sentence. */
+  const SPAM_REQUESTS = { Credentials: "a password", PaymentDetails: "payment details", OneTimeCode: "a one-time code" };
+  const SPAM_PARTIES = { Bank: "a bank", Courier: "a courier", OnlineService: "an online service", Colleague: "a colleague",
+    Executive: "a manager", Supplier: "a supplier" };
+  const SPAM_READ_ONLY = "While it is marked spam it is read-only: its images are not loaded, its links and attachments do not open, and it cannot be answered or forwarded.";
+  /* A link in spam is drawn as words, never as something to press, with where it would have gone said beside it. */
+  const hostOf = (href) => { try { return new URL(href).host; } catch (e) { return href; } };
+  /* A link that leaves MailFathom asks before it opens, wherever it is pressed, unless the person trusts its host:
+     a domain on their list covers itself and every subdomain. `wordsHost` reads an address out of a link's own words,
+     so words naming one host over a link to another can be said in the question. */
+  const leavesApp = (href) => /^https?:\/\//i.test(href || "");
+  const hostTrusted = (host) => TRUSTED_LINK_DOMAINS.some(d => host === d || host.endsWith("." + d));
+  const bareHost = (h) => h.replace(/^www\./, "");
+  const wordsHost = (text) => {
+    const m = /^(?:https?:\/\/)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?:[\/?#]\S*)?$/i.exec((text || "").trim());
+    return m ? m[1].toLowerCase() : "";
+  };
+  const unlinkRuns = (runs) => runs.map(r => r.isLink ? Object.assign({}, r, {
+    isLink: false, plain: true, style: "color:var(--text2)", isJudged: true,
+    goesTo: " (a link to " + hostOf(r.href) + ", not opened)", warnings: [],
+  }) : r);
+  const unlinked = (blocks) => blocks.map(b => Object.assign({}, b,
+    b.runs ? { runs: unlinkRuns(b.runs) } : {},
+    b.items ? { items: b.items.map(it => Object.assign({}, it, { runs: unlinkRuns(it.runs) })) } : {}));
+  const spamVerdictLine = (sp) => {
+    const k = spamKind(sp.kind);
+    return "Spam" + (k ? ": " + k.label : "") + ", " + (SPAM_JUDGE[sp.judge] || "judged spam");
+  };
 
   const FRAMES = { tablet: { w: 1024, h: 768 }, fold: { w: 884, h: 832 }, phone: { w: 390, h: 844 } };
 
@@ -168,6 +211,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
      barSlop     12    px upward after which the nav bar hands the gesture to the panel (losing its own touch)
      rowSlop     10    px after which a row hands over the gesture and cancels its long-press */
   const NG = { commitFrac: 0.32, commitVel: 0.5, springMs: 260, springEase: "cubic-bezier(.32,.72,0,1)", barSlop: 12, rowSlop: 10 };
+
+  /* PULLING THE MESSAGE LIST DOWN TO REFRESH IT (coarse pointer: phone, fold, tablet).
+     decides    14    px of travel after which the touch is a pull (down, more down than across) or is not one at all
+     resistance 0.5   the indicator travels half as far as the finger
+     refreshAt  128   px of finger travel past which a release refreshes (the indicator then stands 64 px down)
+     carriesTo  96    px, the furthest the indicator travels however far the finger goes
+     size       40    px, the indicator's disc
+     rest       16    px from the list's top, where the indicator waits while the refresh is under way
+     The spring back is NG.springMs on NG.springEase, the notification gesture's own. */
+  const LP = { decides: 14, resistance: 0.5, refreshAt: 128, carriesTo: 96, size: 40, rest: 16 };
 
   const FONT = "display:flex;height:100dvh;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,sans-serif;font-size:15px";
 
@@ -203,6 +256,160 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     return prior.concat([last]);
   };
 
+  /* THE SENDER MARK — what the service publishes about who sent a received message (data/prototype/sender-marks.js),
+     read into the one mark a row and an opened message carry and the steps its details popup lists. The first rule
+     that holds decides the mark: a signature that does not match its content, then trust, then a signature verified
+     by the author, then failed sender authentication; everything else is neutral. */
+  const MARKS = {
+    warnSig: { glyph: "gpp_bad", word: "Suspicious", tone: "err", name: "Suspicious - the signature does not match" },
+    trusted: { glyph: "verified_user", word: "Trusted", tone: "ok", name: "Trusted sender" },
+    verified: { glyph: "signature", word: "Verified", tone: "accent", name: "Verified signature" },
+    warnAuth: { glyph: "gpp_bad", word: "Suspicious", tone: "err", name: "Suspicious - sender authentication failed" },
+    neutral: { glyph: "shield", word: "", tone: "plain", name: "Sender not recognized" },
+  };
+  const MARK_INK = { err: "var(--err-text)", ok: "var(--ok-text)", accent: "var(--accent-d)", plain: "var(--muted)" };
+  const MARK_PILL = {
+    err: "color:var(--err-text);background:var(--err-soft);border:1px solid var(--err);",
+    ok: "color:var(--ok-text);background:var(--ok-soft);border:1px solid transparent;",
+    accent: "color:var(--accent-d);background:var(--accent-soft);border:1px solid transparent;",
+    plain: "color:var(--muted);background:transparent;border:1px solid transparent;",
+  };
+  const STEP_RESULT = {
+    pass: { glyph: "check_circle", word: "Passed", ink: "var(--ok-text)" },
+    fail: { glyph: "cancel", word: "Failed", ink: "var(--err-text)" },
+    unchecked: { glyph: "help", word: "Not checked", ink: "var(--muted)" },
+    skip: { glyph: "do_not_disturb_on", word: "Skipped", ink: "var(--muted)" },
+  };
+  const domainOf = (a) => (a || "").split("@")[1] || a || "";
+  const pgpSig = (s) => s.format === "pgp";
+  const sigVerified = (r) => {
+    const s = r.sig;
+    if (!s || s.content !== "pass" || s.signer !== r.from || (s.revocation || {}).result !== "pass") return false;
+    return pgpSig(s) ? s.key === "known" && s.keyValidity === "pass" : s.ca.result !== "none" && s.validity === "pass";
+  };
+  const markKeyOf = (r) => r.sig && r.sig.content === "fail" ? "warnSig"
+    : r.trust ? "trusted"
+    : sigVerified(r) ? "verified"
+    : r.author === "failed" ? "warnAuth" : "neutral";
+  /* A message from somebody other than the thread's newest sender reads that person's own record where one exists. */
+  const senderRecord = (threadId, from) => {
+    const t = THREADS.find(x => x.id === threadId) || {};
+    if (!from || from === t.from) return SENDER_MARKS.threads[threadId] || null;
+    const other = THREADS.find(x => x.from === from && SENDER_MARKS.threads[x.id]);
+    if (other) return SENDER_MARKS.threads[other.id];
+    const c = CONTACTS.find(x => x.name === from);
+    const addr = c ? c.mail : "";
+    return { from: addr, checker: "server", dkim: domainOf(addr), spf: domainOf(addr), dmarc: "pass", author: "authenticated", authDomain: domainOf(addr), trust: null, sig: null };
+  };
+  const senderWhy = (k, r) => {
+    const fromDom = domainOf(r.from);
+    if (k === "warnSig") return "Its signature does not match its content: it was changed after it was signed, or the signature is forged.";
+    if (k === "warnAuth") return fromDom + " did not authenticate this message, so it may not come from who it names.";
+    if (k === "trusted" && r.trust.source === "org") return "The sender is a member of your organization" +
+      (r.trust.org ? ", " + r.trust.org : "") + ", and the organization's signature proves this message comes from this address.";
+    if (k === "trusted") return r.authDomain + " authenticated this message, and " + (r.trust.source === "ownAddress"
+      ? r.from + " is one of your own addresses."
+      : r.trust.source === "own"
+      ? r.trust.match + " is a domain of your own accounts."
+      : "the sender is on this account's trusted senders.");
+    if (k === "verified") return "It carries a signature that verified, made by " + r.from + ", the address it is from" +
+      (r.author === "failed" ? ". Sender authentication failed, which a forward or a mailing list often causes." : ".");
+    if (r.sig && r.sig.signer && r.sig.signer !== r.from) return "It is signed, but by " + r.sig.signer + ", not by the address it is from.";
+    if (r.sig) return "It is signed, but the signature is not verifiable here.";
+    if (r.author === "authenticated") return r.authDomain + " authenticated this message, but this account does not recognize the sender.";
+    return "Nothing established who sent this message.";
+  };
+  const senderSteps = (r, acc) => {
+    const fromDom = domainOf(r.from);
+    const nobody = r.checker === "none";
+    const own = r.checker === "own";
+    const notRun = ["unchecked", "Not checked, because nobody checked this message."];
+    const step = (name, res, more) => ({ name, result: res[0], detail: res[1], more: more || null });
+    const auth = [
+      step("Who checked", r.checker === "server"
+        ? ["pass", "This account's trusted receiving mail server checked it when the message arrived."]
+        : own ? ["pass", "MailFathom checked the DKIM signature itself, because no trusted receiving mail server is configured for this account."]
+        : ["unchecked", "Nobody: no trusted receiving mail server is configured for this account, and the message carries no DKIM signature MailFathom could check itself."]),
+      step("DKIM", nobody ? notRun : r.dkim ? ["pass", "A DKIM signature by " + r.dkim + " passed."] : ["fail", "No DKIM signature passed."]),
+      step("SPF", nobody ? notRun
+        : own ? ["unchecked", "Not checked: MailFathom's own check reads DKIM only, and SPF needs the server that received the message."]
+        : r.spf ? ["pass", r.spf + " allows the server that handed the message over."]
+        : ["fail", "No SPF check passed."]),
+      step("DMARC", nobody ? notRun
+        : own ? ["unchecked", "Not reported: MailFathom's own check does not evaluate DMARC."]
+        : r.dmarc === "pass" ? ["pass", fromDom + " publishes a DMARC policy, and the message meets it."]
+        : r.dmarc === "fail" ? ["fail", "The message fails the DMARC policy " + fromDom + " publishes."]
+        : r.dmarc === "none" ? ["unchecked", "No policy published: " + fromDom + " publishes no DMARC policy, so there was nothing to evaluate."]
+        : r.dmarc === "temperror" ? ["unchecked", "A temporary error: the policy of " + fromDom + " could not be looked up when the message arrived."]
+        : r.dmarc === "permerror" ? ["unchecked", "A permanent error: the policy " + fromDom + " publishes cannot be read."]
+        : ["unchecked", "Not reported: the receiving mail server did not report a DMARC result."]),
+      step("Author domain", r.author === "authenticated"
+        ? ["pass", fromDom + " is established as the author" + (r.authDomain === fromDom ? ": it authenticated the message itself." : ". " + r.authDomain + " authenticated the message.")]
+        : r.author === "failed"
+        ? ["fail", fromDom + " is not established as the author. " + (r.authDomain ? r.authDomain + " authenticated the message instead." : "No domain authenticated the message.")]
+        : nobody ? notRun
+        : ["unchecked", "Not established: nothing tied " + fromDom + " to the message."]),
+    ];
+    const trust = [
+      step("Trusted sender", r.trust && r.trust.source === "org"
+        ? ["pass", "A member of your organization" + (r.trust.org ? ", " + r.trust.org + "." : ".") +
+          " The organization's signature proves the message comes from " + r.from +
+          (r.trust.org ? "." : "; the organization has since been deleted, so its name is not shown.")]
+        : r.author !== "authenticated"
+        ? ["skip", "Skipped, because the author was not authenticated."]
+        : r.trust && r.trust.source === "ownAddress" ? ["pass", r.from + " is one of your own addresses."]
+        : r.trust && r.trust.source === "own" ? ["pass", r.trust.match + " is a domain of your own accounts."]
+        : r.trust ? ["pass", "The sender is on this account's trusted senders."]
+        : ["fail", "This account does not recognize " + r.from + ": it is not one of your own addresses, and it is not on the account's trusted senders."]),
+    ];
+    const s = r.sig;
+    if (!s) return { auth, trust, sig: [step("Signed", ["skip", "Not signed: the message carries no S/MIME or OpenPGP signature, so there is nothing to verify."])] };
+    const fmt = s.format === "smime-detached" ? "S/MIME, detached (multipart/signed)"
+      : s.format === "smime-opaque" ? "S/MIME, opaque (application/pkcs7-mime; smime-type=" + s.smimeType + ")"
+      : "OpenPGP, PGP/MIME (multipart/signed)";
+    const sig = [
+      step("Signed", ["pass", fmt + ", signed " + s.signedAt + "."]),
+      step("Content unchanged", s.content === "pass" ? ["pass", "The signature matches the signed content."]
+        : s.content === "fail" ? ["fail", "The signature does not match the signed content: the message was changed after it was signed, or the signature is forged."]
+        : ["unchecked", "Not checked, because there is no key here to check the signature with."]),
+    ];
+    if (pgpSig(s)) {
+      const k = s.pgpKey || {};
+      const unknown = s.key !== "known";
+      const keyMore = unknown ? [["Key ID", k.keyId]]
+        : [["Fingerprint", k.fingerprint], ["Key ID", k.keyId], ["User ID", k.userId], ["Created", k.created], ["Expires", k.expires], ["Algorithms", k.algorithms]];
+      const skipped = ["skip", "Skipped, because the key is not known here."];
+      sig.push(
+        step("Known key", unknown ? ["fail", "The key " + k.keyId + " is not one your administrator configured, so who holds it is not known here."]
+          : ["pass", "The key " + k.keyId + " is one your administrator configured."], keyMore),
+        step("Validity", unknown ? skipped : s.keyValidity === "pass" ? ["pass", "Not expired: the key is valid until " + k.expires + "."]
+          : ["fail", "The key expired on " + s.keyExpired + ", before the message was signed."]),
+        step("Not revoked", unknown ? skipped : s.revocation.result === "pass" ? ["pass", "The key carries no revocation."] : ["fail", "The key carries a revocation."]),
+        step("Signer is the sender", unknown ? skipped : s.signer === r.from ? ["pass", "The key's user ID names " + r.from + ", the address the message is from."]
+          : ["fail", "The key's user ID names " + s.signer + ", not " + r.from + ", the address the message is from."]),
+      );
+      return { auth, trust, sig };
+    }
+    const c = s.cert || {};
+    const rv = s.revocation || {};
+    sig.push(
+      step("Certificate authority", s.ca.result === "public" ? ["pass", "Chains to " + s.ca.name + ", a recognized public certificate authority."]
+        : s.ca.result === "operator" ? ["pass", "Chains to " + s.ca.name + ", a certificate authority your administrator configured."]
+        : ["fail", "Chains to no certificate authority this server trusts: it ends at " + s.ca.name + "."],
+        [["Name", c.subject], ["Email", c.email], ["Issuer", c.issuer], ["Valid from", (c.valid || "").split(" - ")[0]], ["Valid until", (c.valid || "").split(" - ")[1]], ["Serial", c.serial], ["Fingerprint", c.fingerprint], ["Algorithms", c.algorithms]]),
+      step("Validity and purpose", s.validity === "pass" ? ["pass", "Valid at the signing time, and meant for signing email."]
+        : s.validity === "expired" ? ["fail", "Expired on " + s.expired + ", before the message was signed."]
+        : ["fail", "Not meant for signing email: the certificate does not name email protection among its purposes."]),
+      step("Not revoked", rv.result === "pass" ? ["pass", rv.how === "OCSP" ? "The OCSP responder answered good at " + rv.at + "." : "The CRL its authority publishes, fetched at " + rv.at + ", does not list it."]
+        : rv.result === "revoked" ? ["fail", "Revoked on " + rv.on + ": the OCSP responder said so at " + rv.at + "."]
+        : rv.result === "unchecked" ? ["unchecked", "Could not be checked: the OCSP responder did not answer and no CRL could be fetched, so the signature is not verifiable here."]
+        : ["skip", "Skipped, because the certificate chains to no certificate authority this server trusts."]),
+      step("Signer is the sender", s.signer === r.from ? ["pass", "The certificate names " + r.from + ", the address the message is from."]
+        : ["fail", "The certificate names " + s.signer + ", not " + r.from + ", the address the message is from."]),
+    );
+    return { auth, trust, sig };
+  };
+
   const docContent = (d) => {
     if (!d) return [];
     const n = d.name || "";
@@ -231,7 +438,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const collectFromMail = (known) => {
     const map = {};
     THREADS.forEach(t => {
-      if (known.indexOf(t.from) >= 0) return;
+      if (known.indexOf(t.from) >= 0 || t.spam || t.box === "spam") return;
       const meta = t.meta || "";
       const mail = (meta.match(/[\w.+-]+@[\w.-]+/) || [""])[0];
       const when = meta.split(" · ")[1] || t.time;
@@ -331,7 +538,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     cal: { icon: "event", c: "var(--ok-text)", soft: "var(--ok-soft)", toast: "info" },
     task: { icon: "task_alt", c: "var(--text2)", soft: "var(--hover)", toast: "neutral" },
     system: { icon: "sync", c: "var(--muted)", soft: "var(--hover)", toast: "neutral" },
+    failure: { icon: "error", c: "var(--err-text)", soft: "var(--err-soft)", toast: "error" },
+    draftcopy: { icon: "cloud_off", c: "var(--warn-text)", soft: "var(--warn-soft)", toast: "warning" },
   };
+
+  /* What a mailbox change asked, as a notice names it once the server did not take it: the exhausted title, then
+     the gerund an unknown outcome is said with. Archive is a change this tab followed; one known only from its
+     notification is named by the server's eight acts, where archiving is a move. */
+  const CHANGE_ACT = {
+    move: ["Not moved", "Moving"], archive: ["Not archived", "Archiving"], delete: ["Not deleted", "Deleting"],
+    read: ["Not marked read", "Marking read"], unread: ["Not marked unread", "Marking unread"],
+    flag: ["Not flagged", "Flagging"], unflag: ["Not unflagged", "Unflagging"],
+    copy: ["Not copied", "Copying"], tags: ["Tags not changed", "Changing tags"],
+  };
+
+  const draftHtml = (paras) => (paras || []).map(p => "<p>" + String(p).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>") + "</p>").join("");
 
   const isNotifUnread = (n, read) => (read && read[n.id] !== undefined ? !read[n.id] : !!n.unread);
 
@@ -395,11 +616,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     componentDidMount() {
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(this.tbReset);
       document.addEventListener("mousedown", this.onDocDown, true);
+      document.addEventListener("keydown", this.onDocKey);
       window.addEventListener("message", this.onHtmlFrameMessage);
       window.addEventListener("popstate", this.onBackPressed);
       document.addEventListener("selectionchange", this.onSelChange);
       document.addEventListener("pointerdown", this.onSelPointer, true);
       document.addEventListener("pointerup", this.onSelPointer, true);
+      document.addEventListener("click", this.onLinkClick, true);
+      document.addEventListener("auxclick", this.onLinkClick, true);
       this.backSync();
       MailFathomDesign.fathomUi.install(this);
       this.measure = () => {
@@ -424,6 +648,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (typeof matchMedia === "function") matchMedia("(pointer: coarse)").addEventListener("change", this.measure);
       this.measure();
       this.timers.push(setTimeout(() => this.simulateNotif(), 14000));
+      /* Its own timer: Discover's run() clears `timers`, and the background run must still end. */
+      this.bgRunT = setTimeout(this.finishBackgroundRuns, 40000);
+      if (this.props.raise && this.props.raise !== "none") this.timers.push(setTimeout(() => this.raiseFailure(this.props.raise), 1200));
     }
 
     toggleSelect = (id) => {
@@ -474,7 +701,116 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     pickFolder = (key, label) => {
       if ((this.state.folderKey || "acc1·Inbox") === key) return;
       this.resetScroll("mail");
-      this.loadList({ folderKey: key, folderLabel: label, sel: [], sideDrawer: false });
+      this.loadList({ folderKey: key, folderLabel: label, sel: [], sideDrawer: false, outboxAcc: null, mailPane: this.state.outboxAcc ? "list" : this.state.mailPane });
+    };
+
+    /* The Outbox is read-only and holds no stored mail: what has not left an account yet. It opens from the mark on
+       that account's Sent row, and anything still going out leaves a few seconds after it is looked at - which is
+       how the prototype reaches an Outbox emptied while open. */
+    outboxOf = (acc) => ((this.state.outbox || OUTBOX)[acc] || []);
+    openOutbox = (acc, e) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      this.resetScroll("mail");
+      this.setState({ folderKey: acc + "·Outbox", folderLabel: "Outbox", outboxAcc: acc, outboxSel: null, mailPane: "list", sel: [], sideDrawer: false, swipeId: null });
+      this.outboxLeaveSoon(acc);
+    };
+    leaveOutbox = () => (this.state.outboxAcc
+      ? { outboxAcc: null, folderKey: this.state.outboxAcc + "·Sent", folderLabel: "Sent" }
+      : {});
+    setOutbox = (acc, entries, patch) => this.setState(s => Object.assign({
+      outbox: Object.assign({}, s.outbox || OUTBOX, { [acc]: entries }),
+    }, entries.some(x => x.id === s.outboxSel) ? {} : { outboxSel: null, mailPane: s.outboxAcc === acc ? "list" : s.mailPane }, patch || {}));
+    outboxLeaveSoon = (acc) => {
+      const t = setTimeout(() => {
+        const all = this.outboxOf(acc);
+        const gone = all.filter(x => x.stage === "sending");
+        if (!gone.length) return;
+        this.setOutbox(acc, all.filter(x => x.stage !== "sending"));
+        this.notify(gone.length === 1 ? "“" + gone[0].subject + "” is in Sent now." : gone.length + " messages are in Sent now.", { kind: "success", title: gone.length === 1 ? "Message sent" : "Messages sent" });
+      }, 6000);
+      this.timers.push(t);
+    };
+    pickOutboxEntry = (id) => this.setState({ outboxSel: id, mailPane: "thread" });
+    /* Cancelling and sending again are each a request the server answers a moment later. While it has not, the entry's
+       controls are held and say what is under way, so a second press cannot ask twice. */
+    decideOutboxEntry = (id, decision, apply) => {
+      if (this.state.outboxDeciding) return;
+      this.setState({ outboxDeciding: { id, decision } });
+      this.timers.push(setTimeout(() => {
+        this.setState({ outboxDeciding: null });
+        apply();
+      }, 900));
+    };
+    cancelOutboxEntry = (acc, id) => this.decideOutboxEntry(id, "cancel", () => this.cancelOutboxEntryNow(acc, id));
+    cancelOutboxEntryNow = (acc, id) => {
+      const entry = this.outboxOf(acc).find(x => x.id === id);
+      this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
+      if (entry) this.notify("Nothing was sent to " + entry.rcpt.map(r => r.mail).join(", ") + ".", { kind: "success", title: "Sending cancelled" });
+    };
+    /* Dismissing takes a refused send, or one nobody knows the fate of, out of the Outbox and changes nothing else.
+       The person cannot offer a dismissed send again, so the toast holds an Undo for as long as it stands. */
+    dismissOutboxEntry = (acc, id) => {
+      const before = this.outboxOf(acc);
+      const entry = before.find(x => x.id === id);
+      if (!entry) return;
+      this.setOutbox(acc, before.filter(x => x.id !== id));
+      const tid = this.notify("“" + entry.subject + "” is no longer listed here. Nothing else about the send changes.", {
+        title: "Taken out of Outbox", actionLabel: "Undo", ms: 8000,
+        onAction: () => {
+          this.dismissToast(tid);
+          const now = this.outboxOf(acc);
+          const ahead = before.slice(0, before.indexOf(entry)).map(x => x.id);
+          const at = now.filter(x => ahead.indexOf(x.id) >= 0).length;
+          this.setOutbox(acc, now.slice(0, at).concat([entry], now.slice(at)));
+        },
+      });
+    };
+    sendOutboxEntryAgain = (acc, id) => this.decideOutboxEntry(id, "again", () => this.sendOutboxEntryAgainNow(acc, id));
+    sendOutboxEntryAgainNow = (acc, id) => {
+      this.setOutbox(acc, this.outboxOf(acc).map(x => (x.id === id ? Object.assign({}, x, { stage: "sending" }) : x)));
+      this.notify("It goes out again now.", { title: "Sending again" });
+      this.outboxLeaveSoon(acc);
+    };
+    /* A refused send can be taken back to edit: it leaves the Outbox, nothing is sent, and the composer opens on it
+       as a draft with everything it carried. Only a refusal - an unknown outcome may have arrived. */
+    editOutboxEntry = (acc, id) => this.decideOutboxEntry(id, "edit", () => {
+      const entry = this.outboxOf(acc).find(x => x.id === id);
+      if (!entry) return;
+      this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
+      this.openDraft({ id: entry.id, acc: acc, subject: entry.subject, body: entry.body, attachments: entry.attachments || [],
+        to: entry.rcpt.filter(r => r.hdr === "To").map(r => r.mail), cc: entry.rcpt.filter(r => r.hdr === "Cc").map(r => r.mail) });
+      this.notify("“" + entry.subject + "” left the Outbox and nothing was sent. Send it when it is ready.", { title: "Back in Drafts" });
+    });
+
+    /* The composer opened on a draft: its recipients, subject, words and attachments. `noServerCopy` is a draft
+       MailFathom keeps whose copy on the mail server is missing or unknown. */
+    openDraft = (d) => {
+      this.pendingBody = draftHtml(d.body);
+      const patch = { compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null,
+        composeSubjEdit: d.subject, composeDraft: d, composeCc: (d.cc || []).slice(), ccOpen: !!(d.cc || []).length, closeAsk: false, sendAsk: null };
+      if (this.tabsMode()) this.openTab("compose", patch);
+      else this.setState(patch);
+    };
+
+    /* A mailbox change the server never took is decided on the message or on its notification row, and either one
+       marks the durable row read, so one failure is never shown as two. */
+    decideChange = (threadId, again, e) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      const n = CHANGE_NOTICES[threadId] || {};
+      this.setState(s => ({
+        changeDecided: Object.assign({}, s.changeDecided, { [threadId]: true }),
+        notifRead: n.notif ? Object.assign({}, s.notifRead, { [n.notif]: true }) : s.notifRead,
+      }));
+      if (again) this.notify("MailFathom is telling your mailbox again.", { title: "Asked again" });
+    };
+
+    /* What the open client raises when one of the three failures is raised: the durable row's own toast. */
+    raiseFailure = (which) => {
+      const n = this.notifAll().find(x => x.failure === which);
+      if (!n || !n.toast) return;
+      let tid;
+      tid = this.notify(n.toast.body, { kind: n.toast.kind, title: n.title, ms: 8000,
+        opens: () => { this.dismissToast(tid); this.openNotif(n); } });
     };
 
     pickThread = (id, e) => {
@@ -486,7 +822,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Some threads have an unread message from the middle of the history —
          we open exactly that one, not the newest. */
       const entry = { piotr: 2 };
-      const patch = Object.assign({ threadId: id, listWide: false, mailAnswer: false, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+      const patch = Object.assign(this.leaveOutbox(), { threadId: id, listWide: !!this.state.listKept, mailAnswer: false, replyDock: null, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) }, this.composeCtxPatch([id]));
       patch.msgLoading = true;
@@ -522,6 +858,39 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (this.state.swipeId) this.setState({ swipeId: null, swipeDx: 0 });
     };
 
+    /* A notification card swipes on the message row's numbers — engaged at 14 px, given up as a scroll once it drifts
+       26 px and more down than across, acted on past 96 px — and either way it toggles the card's read state, as its
+       read control does. */
+    notifSwipeStart = (id, e) => {
+      const t = e.touches && e.touches[0];
+      this._nswx = t ? t.clientX : 0;
+      this._nswy = t ? t.clientY : 0;
+      this._nswid = id;
+    };
+
+    notifSwipeMove = (id, e) => {
+      const t = e.touches && e.touches[0];
+      if (!t || this._nswid !== id) return;
+      const dx = t.clientX - this._nswx, dy = t.clientY - this._nswy;
+      if (Math.abs(dy) > 26 && Math.abs(dy) > Math.abs(dx)) { this._nswid = null; if (this.state.notifSwipeId) this.setState({ notifSwipeId: null, notifSwipeDx: 0 }); return; }
+      if (Math.abs(dx) < 14) return;
+      const cl = Math.max(-148, Math.min(148, dx));
+      if (Math.round(cl / 4) !== Math.round((this.state.notifSwipeDx || 0) / 4) || this.state.notifSwipeId !== id) {
+        this.setState({ notifSwipeId: id, notifSwipeDx: cl });
+      }
+    };
+
+    notifSwipeEnd = (n) => {
+      const dx = this.state.notifSwipeDx || 0;
+      const was = this.state.notifSwipeId === n.id;
+      this._nswid = null;
+      if (this.state.notifSwipeId) this.setState({ notifSwipeId: null, notifSwipeDx: 0 });
+      if (!was || Math.abs(dx) < 96) return;
+      this.suppressClick = true;
+      setTimeout(() => { this.suppressClick = false; }, 400);
+      this.toggleNotifRead(n);
+    };
+
     swipeEnd = (id) => {
       this.cancelLongPress();
       const dx = this.state.swipeDx || 0;
@@ -532,7 +901,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
       this.suppressClick = true;
       setTimeout(() => { this.suppressClick = false; }, 400);
-      if (dx < 0) {
+      if (dx < 0 && this.refuseSpam(id, "Spam cannot be answered.")) {
+        this.setState({ swipeId: null, swipeDx: 0 });
+      } else if (dx < 0) {
         this.setState({ swipeId: null, swipeDx: 0, threadId: id, mailPane: "thread", threadOpen: true, compose: true, composeMin: false });
       } else {
         this.setState({ swipeId: null, swipeDx: 0 });
@@ -541,6 +912,94 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           lastArchived: id,
         })), "arc");
       }
+    };
+
+    /* Under a finger, a swipe across what a strip of tabs or a segmented control shows steps to the tab beside it:
+       left opens the one to the right, right the one to the left, and nothing happens past either end. The same
+       numbers as a row's swipe — 14 to engage, 96 to count, 26 of drift before it is a scroll — and it acts the moment
+       it counts rather than on the lift, since there is nothing to carry back. People's books, the calendar's views,
+       and Settings' sections on one pane. */
+    tabSwipe = (order, cur, pick) => ({
+      down: (e) => {
+        const t = e.touches && e.touches[0];
+        /* A finger that lands in a field is dragging its caret or a selection, not the tabs. */
+        const inField = e.target && e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
+        this._tsw = t && !inField ? { x: t.clientX, y: t.clientY } : null;
+      },
+      move: (e) => {
+        const s = this._tsw, t = e.touches && e.touches[0];
+        if (!s || !t) return;
+        const dx = t.clientX - s.x, dy = t.clientY - s.y;
+        if (Math.abs(dy) > 26 && Math.abs(dy) > Math.abs(dx)) { this._tsw = null; return; }
+        if (Math.abs(dx) >= 14) this.cancelLongPress();
+        if (Math.abs(dx) < 96) return;
+        this._tsw = null;
+        const next = order[order.indexOf(cur) + (dx < 0 ? 1 : -1)];
+        if (next !== undefined) pick(next);
+      },
+      up: () => { this._tsw = null; },
+    });
+
+    /* Under a finger, the message list pulled down from its top asks for the one refresh (refreshAll) — the third way in
+       beside the rail's control and the More sheet's row. It is decided at LP.decides px: down and more down than
+       across is a pull, which calls off the row's swipe and its long press; anything else is a scroll or a row's swipe
+       and this touch takes no pull. It starts only on a list already at its first row. The indicator follows at half
+       the finger's travel, released past LP.refreshAt it refreshes and waits at LP.rest pulsing until the refresh
+       lands, released short it springs back. A pull while a refresh is under way shows the waiting indicator and asks
+       nothing. Under prefers-reduced-motion it does not travel: it stands at its resting place from the moment the
+       pull is decided and goes without springing. */
+    listPullStart = (e) => {
+      const t = e.touches && e.touches.length === 1 ? e.touches[0] : null;
+      const list = this.scrollEls.mail;
+      if (!t || !list || list.scrollTop > 0.5) { this._lp = null; return; }
+      this._lp = { x: t.clientX, y: t.clientY, taken: false, still: typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches };
+      document.removeEventListener("touchmove", this._lpMove);
+      document.removeEventListener("touchend", this._lpEnd);
+      document.removeEventListener("touchcancel", this._lpEnd);
+      document.addEventListener("touchmove", this._lpMove, { passive: false });
+      document.addEventListener("touchend", this._lpEnd);
+      document.addEventListener("touchcancel", this._lpEnd);
+    };
+
+    _lpMove = (ev) => {
+      const g = this._lp, p = ev.touches && ev.touches[0];
+      if (!g || !p) return;
+      const dx = p.clientX - g.x, dy = p.clientY - g.y;
+      if (!g.taken) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < LP.decides) return;
+        if (dy <= 0 || Math.abs(dx) >= dy) { this._lpDetach(); return; }
+        g.taken = true;
+        this.swipeCancel();
+        this.setState({ listPullSettled: false });
+      }
+      if (ev.cancelable) ev.preventDefault();
+      const travel = Math.max(0, dy);
+      if (Math.round(travel / 2) !== Math.round((this.state.listPull || 0) / 2) || this.state.listPull == null) {
+        this.setState({ listPull: travel, listPullStill: g.still });
+      }
+    };
+
+    _lpEnd = () => {
+      const g = this._lp;
+      this._lpDetach();
+      if (!g || !g.taken) return;
+      const travel = this.state.listPull || 0;
+      if (this.state.refreshBusy || travel >= LP.refreshAt) {
+        if (!this.state.refreshBusy) this.refreshAll();
+        this.setState({ listPull: null, listPullSettled: true });
+      } else if (g.still) {
+        this.setState({ listPull: null, listPullSettled: false });
+      } else {
+        this.setState({ listPull: null, listPullSettled: false, listPullBack: true });
+        this.timers.push(setTimeout(() => this.setState({ listPullBack: false }), NG.springMs));
+      }
+    };
+
+    _lpDetach = () => {
+      this._lp = null;
+      document.removeEventListener("touchmove", this._lpMove);
+      document.removeEventListener("touchend", this._lpEnd);
+      document.removeEventListener("touchcancel", this._lpEnd);
     };
 
     undoArchive = () => this.setState(s2 => ({
@@ -569,6 +1028,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         undo: !!o.undo,
         actionLabel: o.actionLabel || (o.undo ? "Undo" : ""),
         onAction: o.onAction || null,
+        opens: o.opens || null,
         ms: o.ms || 5000,
         sticky: o.kind === "loading" || !!o.sticky,
         cancelText: o.cancelText || "",
@@ -591,6 +1051,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       setTimeout(() => this.setState(s => ({ toasts: (s.toasts || []).filter(x => x.id !== id) })), 200);
     };
 
+    removeToast = (id) => {
+      this._tT = this._tT || {};
+      clearTimeout(this._tT[id]);
+      this.setState(s => ({ toasts: (s.toasts || []).filter(x => x.id !== id) }));
+    };
+
     hideToast = () => { (this.state.toasts || []).forEach(t => this.dismissToast(t.id)); };
 
     notifyTask = (o) => {
@@ -598,7 +1064,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this._tasks = this._tasks || {};
       this._tasks[id] = setTimeout(() => {
         delete this._tasks[id];
-        this.setState(s => ({ toasts: (s.toasts || []).map(x => (x.id === id ? Object.assign({}, x, { kind: "success", title: o.doneTitle, body: o.doneBody || "", sticky: false }) : x)) }));
+        this.setState(s => ({ toasts: (s.toasts || []).map(x => (x.id === id ? Object.assign({}, x, { kind: "success", title: o.doneTitle, body: o.doneBody || "", sticky: false, actionLabel: o.doneActionLabel || "", onAction: o.doneAction ? () => { this.dismissToast(id); o.doneAction(); } : null }) : x)) }));
         this.armToast(id, 5000);
       }, o.ms || 2200);
       return id;
@@ -620,14 +1086,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     startReply = (mode, ids) => {
       const id = this.opTargets(ids)[0];
-      const patch = { compose: true, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
+      if (this.refuseSpam(id, mode === "fwd" ? "Spam cannot be forwarded." : "Spam cannot be answered.")) return;
+      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
       if (this.state.workMode === "tabs") this.openTab("compose", patch);
       else this.setState(patch);
     };
 
-    /* *Draft a reply* goes straight to the reply composer and writes the AI draft into its editor there. */
+    /* The drafter's own press: the card folds, and the reply composer opens with the AI draft already being written
+       into its editor from what was asked in the card. */
     draftReply = () => {
       this.pendingAiWrite = true;
+      this.setState({ replyDock: null });
       this.startReply("reply", [this.state.threadId]);
     };
 
@@ -645,12 +1114,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        value for MOTION_EXIT_MS, so the surface stays mounted and drawn with its content, and `mo[<key>]` reads `out`
        — its `data-phase` — until the timer unmounts it. A pane key (mailPane, peoplePane) records which way
        it last moved instead, read by `paneMotion`, so one pane at a time pushes forward and comes back.
-       ponytail: the held value is read by the whole render, so anything else gated on the same key (the FAB waits on
+       The held value is read by the whole render, so anything else gated on the same key (the FAB waits on
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
-      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyChooser",
+      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen", "catchupOpen", "fathomMenu", "fathomAnswer",
-      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk"];
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "linkAsk", "source"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -696,9 +1165,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        Every step that stands records one history entry at the same address; a press consumes one and the top step
        closes, and a step closed by its own control gives its entry back. A space switch is an entry of its own, and
        going back across one closes everything still standing, the way the client's change of destination does.
-       ponytail: steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
-    static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyChooser", "catchupOpen", "fathomMenu", "fathomSmart", "fathomAnswer"];
+       Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
+    static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "source", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
+      "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk", "catchupOpen", "fathomMenu", "fathomSmart", "fathomAnswer"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1049,15 +1518,130 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     openMove = (ids) => this.setState({ moveFor: this.opTargets(ids) });
     closeMove = () => this.setState({ moveFor: null });
 
+    /* A move into Spam is the same act as pressing Spam: whatever was not spam already is marked spam by the person,
+       with no kind, and the chooser opens to name one. Closing it leaves the move and the mark as they are. A move
+       out of Spam changes no verdict: the message lands still spam and folds there, since *Not spam* is the one way
+       out of spam. A row whose move takes it into or out of Spam leaves the list it stood in; any other move keeps
+       the row where it is with the folder it went to, as every move in the prototype does. */
     moveThreads = (folder, account, ids) => {
       const t = ids || this.state.moveFor || [];
+      const intoSpam = folder === "Spam";
+      const marked = intoSpam ? t.filter(id => !this.spamOf(id).spam) : [];
+      const leaving = t.filter(id => this.sitsInSpam(id) !== intoSpam && (intoSpam || this.inSpamFolder()));
+      const op = { kind: "move", ids: t };
       this.setState(s => {
-        const moved = Object.assign({}, s.moved || {});
-        t.forEach(id => { moved[id] = folder; });
-        return { moved: moved, moveFor: null, sel: [], lastOp: { kind: "move", ids: t } };
+        const verdicts = Object.assign({}, s.verdicts || {});
+        marked.forEach(id => { verdicts[id] = { spam: true, judge: "person" }; });
+        return { verdicts: verdicts, moveFor: null, sel: [], lastOp: op,
+          spamAsk: marked.length ? { ids: marked, moved: true } : s.spamAsk, spamPick: marked.length ? null : s.spamPick };
       });
-      t.forEach(id => this.setRowAnim(id, "move", 900));
+      const commit = () => {
+        if (op.undone) return;
+        this.setState(s => {
+          const moved = Object.assign({}, s.moved || {});
+          t.forEach(id => { moved[id] = folder; });
+          return { moved: moved };
+        });
+      };
+      this.animateRowsOut(leaving, commit, "arc");
+      t.filter(id => leaving.indexOf(id) < 0).forEach(id => this.setRowAnim(id, "move", 900));
       this.notify("Moved to “" + folder + "”" + (account ? " in " + account : "") + " - " + this.countWord(t.length), true);
+    };
+
+    /* SPAM — the verdict a message carries. The person's own word, from this session, outranks what it arrived with.
+       *Undo* on a move into Spam moves the message back and leaves the mark: the deployment records the mark with the
+       move, and a move out of Spam lifts no verdict, so it lands where it came from still spam, and folds there. */
+    spamOf = (id) => {
+      const own = (this.state.verdicts || {})[id];
+      if (own) return own;
+      const t = THREADS.find(x => x.id === id) || {};
+      return t.spam ? Object.assign({ spam: true }, t.spam) : { spam: false };
+    };
+    sitsInSpam = (id) => {
+      const moved = (this.state.moved || {})[id];
+      if (moved) return moved === "Spam";
+      return (THREADS.find(x => x.id === id) || {}).box === "spam";
+    };
+    inSpamFolder = () => /·Spam$/.test(this.state.folderKey || "acc1·Inbox");
+    /* Whether *Spam* and *Not spam* also move a message is its account's own setting, off unless the account says so. */
+    accountOf = (id) => (THREADS.find(x => x.id === id) || {}).acc || "acc1";
+    movesSpam = (id) => !!(ACCOUNTS.find(a => a.key === this.accountOf(id)) || {}).movesSpam;
+    /* A message marked spam is read-only. A press on what it refuses still answers, with the one way back. */
+    refuseSpam = (id, what) => {
+      if (!this.spamOf(id).spam) return false;
+      this.notify(what + " Mark it not spam first.", { kind: "warning", title: "This message is marked spam" });
+      return true;
+    };
+
+    /* One toggle: *Spam* while nothing selected is spam, *Not spam* while all of it is, and a mix is refused. */
+    toggleSpam = (ids) => {
+      const t = this.opTargets(ids);
+      const spam = t.map(id => this.spamOf(id).spam);
+      if (spam.some(Boolean) && spam.some(x => !x)) {
+        this.setState({ ctxMenu: null });
+        this.notify("The selection mixes spam with other mail. Select only one of the two.", { kind: "error", title: "Nothing was marked" });
+        return;
+      }
+      if (spam[0] && t.some(id => this.sitsInSpam(id) && this.movesSpam(id))) this.setState({ notSpamAsk: { ids: t }, ctxMenu: null });
+      else if (spam[0]) { this.setState({ ctxMenu: null }); this.markNotSpam(t); }
+      else this.setState({ spamAsk: { ids: t, moved: false }, spamPick: null, ctxMenu: null });
+    };
+
+    /* Not spam is one act: the kind goes, the person's *not spam* is recorded, and whatever sits in Spam on an account
+       that moves spam goes to the Inbox, after a confirmation. Where nothing moves it applies at once, and a message in
+       Spam on an account that does not move spam stays there, unmarked, until the person moves it. */
+    closeNotSpamAsk = () => this.setState({ notSpamAsk: null });
+    confirmNotSpam = () => { if (this.state.notSpamAsk) this.markNotSpam(this.state.notSpamAsk.ids); };
+    markNotSpam = (t) => {
+      const inSpam = t.filter(id => this.sitsInSpam(id) && this.movesSpam(id));
+      const leftInSpam = t.filter(id => this.sitsInSpam(id) && !this.movesSpam(id));
+      this.setState(s => {
+        const verdicts = Object.assign({}, s.verdicts || {});
+        t.forEach(id => { verdicts[id] = { spam: false, judge: "person" }; });
+        return { verdicts: verdicts, notSpamAsk: null, sel: [], lastOp: null };
+      });
+      const commit = () => this.setState(s => {
+        const moved = Object.assign({}, s.moved || {});
+        inSpam.forEach(id => { moved[id] = "Inbox"; });
+        return { moved: moved };
+      });
+      this.animateRowsOut(this.inSpamFolder() ? inSpam : [], commit, "arc");
+      t.filter(id => inSpam.indexOf(id) < 0).forEach(id => this.setRowAnim(id, "edit", 1700));
+      const one = t.length === 1;
+      this.notify(!inSpam.length && leftInSpam.length
+          ? (one ? "It stays in Spam until you move it, because this account does not move spam." : "They stay where they are until you move them, because their accounts do not move spam.")
+        : !inSpam.length ? (one ? "It stays where it is and no longer folds away." : "They stay where they are and no longer fold away.")
+        : inSpam.length === t.length ? (one ? "It is in the Inbox now." : "They are in the Inbox now.")
+        : inSpam.length + " moved from Spam to the Inbox, and the rest stay where they are.",
+        { kind: "success", title: "Marked not spam - " + this.countWord(t.length) });
+    };
+
+    pickSpamKind = (k) => this.setState({ spamPick: k });
+    closeSpamAsk = () => this.setState({ spamAsk: null, spamPick: null });
+    confirmSpam = () => {
+      const ask = this.state.spamAsk;
+      const kind = spamKind(this.state.spamPick);
+      if (!ask || !kind) return;
+      const t = ask.ids;
+      const outside = t.filter(id => !this.sitsInSpam(id));
+      const movers = ask.moved ? [] : outside.filter(id => this.movesSpam(id));
+      this.setState(s => {
+        const verdicts = Object.assign({}, s.verdicts || {});
+        t.forEach(id => { verdicts[id] = { spam: true, judge: "person", kind: kind.key }; });
+        return { verdicts: verdicts, spamAsk: null, spamPick: null, sel: [] };
+      });
+      t.filter(id => movers.indexOf(id) < 0).forEach(id => this.setRowAnim(id, "edit", 1700));
+      this.animateRowsOut(movers, () => this.setState(s => {
+        const moved = Object.assign({}, s.moved || {});
+        movers.forEach(id => { moved[id] = "Spam"; });
+        return { moved: moved };
+      }), "arc");
+      const one = t.length === 1;
+      this.notify(kind.label + "." + (!outside.length ? ""
+        : movers.length === outside.length ? (one ? " It is in Spam now." : " They are in Spam now.")
+        : movers.length ? " " + movers.length + " moved to Spam, and the rest stay where they are, folded out of the way."
+        : one ? " It stays where it is, folded out of the way." : " They stay where they are, folded out of the way."),
+        { kind: "success", title: (ask.moved ? "Kind set - " : "Marked as spam - ") + this.countWord(t.length) });
     };
 
     /* Drag a thread (or the whole selection) from the list onto a folder in the sidebar. */
@@ -1096,7 +1680,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       else if (op.kind === "move") this.setState(s => {
         const moved = Object.assign({}, s.moved || {});
         op.ids.forEach(id => { delete moved[id]; });
-        return { moved: moved, lastOp: null };
+        return { moved: moved, spamAsk: null, spamPick: null, lastOp: null };
       });
     };
 
@@ -1161,25 +1745,143 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }));
     };
 
+    /* *More actions* — the three-dot control after the spam control, in the thread's head and, where two panes under a
+       finger leave the head to the toolbar, in the toolbar. It opens the context menu under itself, its end edge on the
+       control's, headed by the message's subject — or, from the toolbar, which holds no subject, by its own name, and
+       the source it opens is then named by its size alone. *Show source* is its one item for now. */
+    openMoreMenu = (id, e, fromToolbar) => {
+      const th = THREADS.find(t => t.id === id) || {};
+      const r = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
+      /* The menu's width plus its padding and border, which ctxMenuStyle's width does not include. */
+      const W = (this.state.coarse ? 262 : 236) + 14;
+      const p = this.localPt(r ? r.right - W : 0, r ? r.bottom + 4 : 0);
+      this.armCtx(false);
+      this.setState({
+        ctxMenu: {
+          x: p.x, y: p.y, kind: "more", id: id, title: fromToolbar ? "More actions" : th.subject || "Message",
+          items: [{ icon: "data_object", label: "Show source", run: () => this.openSource(id, !fromToolbar) }],
+        },
+      });
+    };
+
+    /* The raw source is asked for when *Show source* is pressed and never with the message, so the surface opens on a
+       skeleton and the text fades in once it arrives. One sample message fails until it is tried again, one arrives
+       cut, one is refused by its deployment's screen, one is asked for offline, which sends nothing and opens on no
+       skeleton, and one is never answered, so its skeleton stands (`data/prototype/message-sources.js`). */
+    openSource = (id, named) => {
+      if (MESSAGE_SOURCES.waitsFor.includes(id)) {
+        clearTimeout(this._sourceT);
+        this.setState({ source: { id: id, phase: "loading", named: named !== false } });
+        return;
+      }
+      if (MESSAGE_SOURCES.offlineFor.includes(id)) {
+        clearTimeout(this._sourceT);
+        this.setState({ source: { id: id, phase: "offline", named: named !== false } });
+        return;
+      }
+      const outcome = MESSAGE_SOURCES.screenedFor.includes(id) ? "screened" : MESSAGE_SOURCES.failsFor.includes(id) ? "failed" : "loaded";
+      this.loadSource(id, outcome, named !== false);
+    };
+
+    retrySource = () => {
+      const src = this.state.source;
+      if (src) this.loadSource(src.id, "loaded", src.named);
+    };
+
+    loadSource = (id, outcome, named) => {
+      clearTimeout(this._sourceT);
+      this.setState({ source: { id: id, phase: "loading", named: named } });
+      this._sourceT = setTimeout(() => this.setState(s => s.source && s.source.id === id ? { source: { id: id, phase: outcome, named: named } } : null), 900);
+    };
+
+    closeSource = () => { clearTimeout(this._sourceT); this.setState({ source: null }); };
+
+    /* The message exactly as it was received: the relay's trace, the authentication results, the signature, the
+       identity, and every MIME part with its transfer encoding — composed from the thread, since no sample stores one. */
+    sourceOf = (id) => {
+      const th = THREADS.find(t => t.id === id) || {};
+      const S = MESSAGE_SOURCES;
+      const addr = (/<([^>]+)>/.exec(th.meta || "") || [])[1] || "sender@mail.example";
+      const domain = addr.split("@")[1] || "mail.example";
+      const date = "Tue, 27 Oct 2026 " + (/^\d\d:\d\d$/.test(th.time || "") ? th.time : "09:14") + ":07 +0100";
+      const plain = (th.body || []).map(b => mdPlain(b.md || b.text || "")).join("\n\n");
+      const qp = (text) => text.split("\n").flatMap(line => {
+        const out = [];
+        let rest = line.replace(/=/g, "=3D");
+        while (rest.length > 75) { out.push(rest.slice(0, 75) + "="); rest = rest.slice(75); }
+        out.push(rest);
+        return out;
+      }).join("\n");
+      const boundary = "b1_mf_" + S.relay.id;
+      return [
+        "Return-Path: <" + addr + ">",
+        "Delivered-To: " + MY_MAIL,
+        "Received: from mail." + domain + " (mail." + domain + " [" + S.relay.via + "])",
+        "\tby " + S.relay.host + " with ESMTPS id " + S.relay.id,
+        "\tfor <" + MY_MAIL + ">; " + date,
+        "Authentication-Results: " + S.relay.host + ";",
+        "\tdkim=pass header.d=" + domain + " header.s=s2026;",
+        "\tspf=pass smtp.mailfrom=" + addr + ";",
+        "\tdmarc=pass (p=quarantine) header.from=" + domain,
+        "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=" + domain + "; s=s2026;",
+        "\th=from:to:subject:date:message-id:mime-version;",
+        "\tbh=" + S.bodyHash + ";",
+        "\tb=" + S.signature.join("\n\t  "),
+        "Message-ID: <" + (th.id || "message") + ".20261027." + S.relay.id.toLowerCase() + "@" + domain + ">",
+        "Date: " + date,
+        "From: " + (th.from || "Sender") + " <" + addr + ">",
+        "To: " + ME + " <" + MY_MAIL + ">",
+        "Subject: " + (th.subject || ""),
+        "MIME-Version: 1.0",
+        "Content-Type: multipart/alternative; boundary=\"" + boundary + "\"",
+        "",
+        "--" + boundary,
+        "Content-Type: text/plain; charset=utf-8",
+        "Content-Transfer-Encoding: quoted-printable",
+        "",
+        qp(plain),
+        "",
+        "--" + boundary,
+        "Content-Type: text/html; charset=utf-8",
+        "Content-Transfer-Encoding: quoted-printable",
+        "",
+        qp("<html><body style=\"font-family:Arial,sans-serif\">" + plain.split("\n\n").map(p2 => "<p>" + p2 + "</p>").join("\n") + "</body></html>"),
+        "",
+        "--" + boundary + "--",
+      ].join("\n");
+    };
+
     openMailMenu = (id, cx, cy) => {
       const th = THREADS.find(t => t.id === id) || {};
       const flagged = !!(this.state.flags || {})[id];
       const p = this.localPt(cx || 0, cy || 0);
+      /* Nothing that reads mail for the person reads spam, so a spam message offers neither AI act. Its verdict joins
+         the header's detail, since a folded row draws no badge and a finger has no hover to ask with. */
+      const sp = this.spamOf(id);
+      const ai = !sp.spam;
       this.setState({
         ctxMenu: {
-          x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message", detail: th.from,
+          x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message",
+          detail: th.from + (sp.spam ? " - " + (spamKind(sp.kind) ? spamKind(sp.kind).label + " spam" : "Spam") : "") +
+            (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name),
           items: [
-            { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
+            ai && { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
-            { icon: "auto_awesome", label: "Ask the agent", run: () => this.goAgentWith("thread “" + (th.subject || "mail") + "”") },
-            { icon: "reply", label: "Reply", run: () => { this.setState({ threadId: id, mailPane: "thread", threadOpen: true }); this.startReply("reply"); } },
-            { icon: "forward", label: "Forward", run: () => { this.setState({ threadId: id, mailPane: "thread", threadOpen: true }); this.startReply("fwd"); } },
+            ai && { icon: "auto_awesome", label: "Ask the agent", run: () => this.goAgentWith("thread “" + (th.subject || "mail") + "”") },
+            { icon: "reply", label: "Reply", run: () => { this.setState({ threadId: id, mailPane: "thread", threadOpen: true }); this.startReply("reply", [id]); } },
+            { icon: "forward", label: "Forward", run: () => { this.setState({ threadId: id, mailPane: "thread", threadOpen: true }); this.startReply("fwd", [id]); } },
             { icon: "archive", label: "Archive", run: () => this.archiveThreads([id]) },
             { icon: "flag", label: flagged ? "Remove flag" : "Flag", run: () => this.toggleFlagThreads([id]) },
             { icon: "mark_email_unread", label: "Mark as unread", run: () => this.markUnread([id]) },
+            { icon: sp.spam ? "report_off" : "report", label: sp.spam ? (this.sitsInSpam(id) && this.movesSpam(id) ? "Not spam\u2026" : "Not spam") : "Spam\u2026", run: () => this.toggleSpam([id]) },
             { icon: "drive_file_move", label: "Move\u2026", run: () => this.setState({ moveFor: [id] }) },
             { icon: "delete", label: "Delete", danger: true, run: () => this.deleteThreads([id]) },
-          ],
+            /* The row's mark answers a pointer alone, since a row is one option with nothing focusable inside it, so the
+               details are reached from the keyboard here. Asked from a menu there is no mark to stand under, and the
+               anchored panel opens centred instead. */
+            !/·(Sent|Drafts)$/.test(this.state.folderKey || "") && senderRecord(id, null) &&
+              { icon: MARKS[markKeyOf(senderRecord(id, null))].glyph, label: "Sender details", run: () => this.openSenderMark(id, null, null) },
+          ].filter(Boolean),
         },
       });
     };
@@ -1214,6 +1916,69 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* On the phone the filters band stands over the list rather than beside it, so a press anywhere outside the band
          and its control folds it away as its control would. */
       if (this.state.filtersOpen && this._isMobile && !e.target.closest?.("[data-filters-band],[data-filters-toggle]")) this.setState({ filtersOpen: false });
+      /* The sender details close on a press anywhere outside them; a press on a mark is that mark's own to answer. */
+      if (this.state.senderMark && !e.target.closest?.("[data-sender-pop],[data-sender-mark]")) this.closeSenderMark(false);
+    };
+
+    onDocKey = (e) => {
+      if (e.key === "Escape" && this.state.linkAsk) { e.preventDefault(); this.closeLinkAsk(); return; }
+      if (e.key === "Escape" && this.state.senderMark) { e.preventDefault(); this.closeSenderMark(true); return; }
+      if (e.key === "Escape" && this.state.ctxMenu) { e.preventDefault(); this.setState({ ctxMenu: null }); return; }
+      if (e.key === "Escape" && this.state.source) { e.preventDefault(); this.closeSource(); }
+    };
+
+    /* Every press on a link that leaves MailFathom ends here: a text link or a picture inside one, in a message's
+       simplified text, its original, an agent's answer or an event. A trusted host opens at once in a new browser
+       context with no referrer; any other asks first, naming where it goes and repeating what the link already
+       warned about. Spam draws no anchor at all, so it never reaches this. */
+    linkAskCancelRef = React.createRef();
+    pressLink = ({ href, text, image, warnings }) => {
+      const host = hostOf(href).toLowerCase();
+      if (hostTrusted(host)) { window.open(href, "_blank", "noopener,noreferrer"); return; }
+      const named = image ? "" : wordsHost(text);
+      const warn = (warnings || []).filter(Boolean);
+      if (!warn.length && named && bareHost(named) !== bareHost(host)) warn.unshift("Its words name " + named + ", but it goes to " + host + ".");
+      this.setState({ linkAsk: { href, host, image: !!image, warnings: warn } });
+      setTimeout(() => { const b = this.linkAskCancelRef.current; if (b && b.focus) b.focus(); }, 0);
+    };
+    onLinkClick = (e) => {
+      // A middle press opens a tab through `auxclick` rather than `click`, so both arrive here; the right button opens a menu.
+      if (e.defaultPrevented || e.button > 1) return;
+      const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (!a || !leavesApp(a.getAttribute("href"))) return;
+      e.preventDefault();
+      const w = a.getAttribute("data-link-warn");
+      this.pressLink({ href: a.getAttribute("href"), text: a.textContent, image: !!a.querySelector("img,svg,picture"), warnings: w ? w.split("\n") : [] });
+    };
+    closeLinkAsk = () => this.setState({ linkAsk: null });
+    confirmLinkAsk = () => {
+      const ask = this.state.linkAsk;
+      this.setState({ linkAsk: null });
+      if (ask) window.open(ask.href, "_blank", "noopener,noreferrer");
+    };
+
+    /* A mark on a row or beside a sender opens the same details, anchored under the mark on desktop and as a sheet
+       on touch. Pressing it neither opens nor selects the message; pressing the open one again closes it. */
+    senderPopRef = React.createRef();
+    openSenderMark = (threadId, from, e) => {
+      if (e && e.type === "keydown") {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+      }
+      if (e && e.stopPropagation) e.stopPropagation();
+      const key = threadId + "|" + (from || "");
+      if (this.state.senderMark && this.state.senderMark.key === key) { this.closeSenderMark(true); return; }
+      const el = e && e.currentTarget;
+      const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : { left: 0, top: 0, bottom: 0 };
+      const a = this.localPt(r.left, r.bottom);
+      this._markTrigger = el || null;
+      this.setState({ senderMark: { key, id: threadId, from: from || null, x: a.x, y: a.y, top: this.localPt(r.left, r.top).y, centred: !el }, senderMore: {} });
+      setTimeout(() => { const p = this.senderPopRef.current; if (p && p.focus) p.focus(); }, 0);
+    };
+    closeSenderMark = (refocus) => {
+      const t = this._markTrigger;
+      this.setState({ senderMark: null });
+      if (refocus && t && t.focus) setTimeout(() => t.focus(), 0);
     };
 
     tabsMode = () => {
@@ -1272,6 +2037,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     onHtmlFrameMessage = (e) => {
       const d = e && e.data;
       if (!d || typeof d !== "object") return;
+      /* A press on a link inside a message's original arrives here: the frame follows none itself. */
+      if (d.link && typeof d.link.href === "string") {
+        const own = Array.from(document.querySelectorAll("iframe")).some(f => f.contentWindow === e.source);
+        if (own && leavesApp(d.link.href)) this.pressLink({ href: d.link.href, text: String(d.link.text || ""), image: !!d.link.image });
+        return;
+      }
       const id = d.frameId, h = d.height;
       if (typeof id !== "string" || typeof h !== "number" || !isFinite(h)) return;
       const rec = this.htmlFrames.get(id);
@@ -1295,7 +2066,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (tb.kind === "doc") return { screen: "mail", doc: tb.att, docZoom: 1, htmlDoc: null };
       if (tb.kind === "html") return { screen: "mail", doc: null, htmlDoc: tb.htmlDoc, htmlSrcMode: false };
       if (tb.kind === "compose") return { screen: "mail", doc: null, htmlDoc: null, compose: true };
-      return { screen: "mail", threadId: tb.id, mailPane: "thread", threadOpen: true, doc: null, htmlDoc: null };
+      return Object.assign(this.leaveOutbox(), { screen: "mail", threadId: tb.id, mailPane: "thread", threadOpen: true, doc: null, htmlDoc: null });
     };
 
     openTab = (key, patch, extra) => {
@@ -1401,7 +2172,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     goScreen = (id, patch) => {
       /* The first entry into mail starts with an empty panel; after that the open message
          is remembered for the session (in-memory state - gone when the app closes). */
-      const p = Object.assign({ screen: id, replyChooser: null }, patch || {});
+      const p = Object.assign({ screen: id, replyDock: null, replyChooser: null }, patch || {});
       if (id !== "mail" && this.state.resultFilter) p.resultFilter = null;
       /* Entering mail from another screen = fetching the list from the server. */
       if (id === "mail" && this.state.screen !== "mail") {
@@ -1469,7 +2240,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (mode === "open" && this.state.notifCenter) return;
       this.notifGestDetach();
       const t = (e.touches && e.touches[0]) || e;
-      const g = { mode: mode, y0: t.clientY, yPrev: t.clientY, tPrev: Date.now(), v: 0, live: false, anchor: 0 };
+      const g = { mode: mode, x0: t.clientX, y0: t.clientY, yPrev: t.clientY, tPrev: Date.now(), v: 0, live: false, anchor: 0 };
       this._notifG = g;
       if (mode === "open") this._notifBarTap = false;
 
@@ -1501,6 +2272,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* Movement beyond the row slop cancels the long press — one or the other, never both. */
           if (Math.abs(dy) > NG.rowSlop) clearTimeout(this._lpT);
           if (dy < NG.rowSlop) return;
+          /* A finger gone more across than down is a card's swipe, never the panel's: one finger is one gesture. */
+          if (Math.abs(p.clientX - g.x0) > dy) { this.notifGestDetach(); this._notifG = null; return; }
           const list = this.notifListRef.current;
           if (list && list.scrollTop > 0.5) { g.y0 = p.clientY; return; }
           /* The list is at the top — the same uninterrupted move becomes a panel dismissal. */
@@ -1560,8 +2333,44 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.setState({ notifRead: read });
       this.closeNotifCenter();
       if (!n.go) return;
-      if (n.go.thread) this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: n.go.thread, cameFrom: false, sel: [] });
+      if (n.go.outbox) { this.showOutboxEntry(n.go.outbox, n.go.entry); return; }
+      if (n.go.draft) {
+        const d = ((LOCAL_DRAFTS[n.go.acc] || []).find(x => x.id === n.go.draft));
+        this.goScreen("mail", { outboxAcc: null, folderKey: n.go.acc + "·Drafts", folderLabel: "Drafts", mailPane: "list" });
+        if (d) this.openDraft(Object.assign({ acc: n.go.acc, noServerCopy: true }, d));
+        return;
+      }
+      if (n.go.thread) this.goScreen("mail", Object.assign(this.leaveOutbox(), { mailPane: "thread", threadOpen: true, threadId: n.go.thread, cameFrom: false, sel: [] }));
       else this.goScreen(n.go.screen, n.go.screen === "mail" ? { mailPane: "list" } : {});
+    };
+
+    /* A merged arrival hands exactly its messages to the agent: read, centre closed, a new
+       conversation under the chip, and the summary asked without anybody typing it. */
+    summarizeNotif = (n, e) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      const read = Object.assign({}, this.state.notifRead || {});
+      read[n.id] = true;
+      this.setState({ notifRead: read });
+      this.closeNotifCenter();
+      this.goAgentWith(n.count + " new messages · " + n.account);
+      this.agentAsk("Summarize these " + n.count + " new messages");
+    };
+
+    showOutboxEntry = (acc, id) => {
+      this.goScreen("mail", { mailPane: "list" });
+      this.openOutbox(acc);
+      this.pickOutboxEntry(id);
+    };
+
+    /* A refused send's row decides it where it stands: Send again or Edit, each done in the Outbox on that entry so the
+       decision under way is seen, and the row marked read. */
+    decideRefusedNotif = (n, decision, e) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      this.setState(s => ({ notifRead: Object.assign({}, s.notifRead, { [n.id]: true }) }));
+      this.closeNotifCenter();
+      this.showOutboxEntry(n.go.outbox, n.go.entry);
+      if (decision === "again") this.sendOutboxEntryAgain(n.go.outbox, n.go.entry);
+      else this.editOutboxEntry(n.go.outbox, n.go.entry);
     };
 
     pushNotif = (it) => {
@@ -1575,8 +2384,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const kind = (NKIND[it.kind] || NKIND.system).toast;
       let tid;
       tid = this.notify(it.body, {
-        kind: kind, title: it.title, actionLabel: "Show",
-        onAction: () => { this.dismissToast(tid); this.openNotif(n); },
+        kind: kind, title: it.title,
+        opens: () => { this.dismissToast(tid); this.openNotif(n); },
       });
       return n;
     };
@@ -1621,7 +2430,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this._demoLastId = id;
       this.markUnread(id);
       this.setRowAnim(id, "in", 720);
-      this.pushNotif({ kind: "mail", title: b.mail.from + " - new message", body: b.notif,
+      this.pushNotif({ kind: "mail", title: b.mail.from, body: b.mail.subject,
         src: "Mail · " + (b.mail.org || "Inbox"), go: { screen: "mail", thread: id } });
 
       /* 2 · a thread already on the list gets a reply — the same tile updates in place */
@@ -1642,9 +2451,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const t3 = setTimeout(() => {
         const done = (this.state.deleted || []);
         const gone = prev && done.indexOf(prev) < 0 ? prev : (done.indexOf(b.fallbackRemove) < 0 ? b.fallbackRemove : null);
-        if (!gone) { this.setState({ refreshBusy: false, lastSync: Date.now() }); return; }
+        if (!gone) { this.setState({ refreshBusy: false, listPullSettled: false, lastSync: Date.now() }); return; }
         this.notify(b.removeNote, false);
-        this.setState(s => ({ deleted: (s.deleted || []).concat([gone]), refreshBusy: false, lastSync: Date.now() }));
+        this.setState(s => ({ deleted: (s.deleted || []).concat([gone]), refreshBusy: false, listPullSettled: false, lastSync: Date.now() }));
       }, 2050);
       this.timers.push(t2, t3);
     };
@@ -1768,7 +2577,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     demoNext = () => {
       const step = (this.demo ? this.demo.script : DEMO_SCRIPT)[this.demoAt];
-      if (!step) { this.stopAgentPin(); this.setState({ agentThinking: false, agentStatus: "", demoRun: false }); return; }
+      if (!step) {
+        this.stopAgentPin();
+        this.setState(s2 => ({ agentThinking: false, agentStatus: "", demoRun: false, convs: this.markUnreadAway(s2, this.demo ? this.demo.id : DEMO_CONV_ID) }));
+        return;
+      }
       this.demoT = setTimeout(() => {
         this.demoAt += 1;
         this.demoApply(step, false);
@@ -1807,6 +2620,34 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return out;
       });
       if (!instant) this.scrollAgentDown();
+    };
+
+    /* A run that ends while its conversation is not in front of the reader leaves it unread, as new mail is. */
+    markUnreadAway = (s2, id) => (s2.convs || []).map(c => c.id === id && !(s2.screen === "agent" && s2.convId === id) ? Object.assign({}, c, { unread: true }) : c);
+
+    finishBackgroundRuns = () => this.setState(s2 => ({
+      convs: (s2.convs || []).map(c => !c.running ? c : Object.assign({}, c, {
+        running: null, when: "now",
+        msgs: c.msgs.filter(m => !m.working).concat([Object.assign({ role: "bot", ts: Date.now(), anim: true, bullets: [] }, c.finish)]),
+        unread: !(s2.screen === "agent" && s2.convId === c.id),
+      })),
+    }));
+
+    /* The rail's peek: a pointer resting on a tile slides out what that place holds right now. A finger has no
+       hover, so under touch it never opens and the tile's dot is the whole signal. Leaving waits a beat so the
+       pointer can cross the gap into the peek. */
+    peekOpen = (key) => (e) => {
+      if (this._touch || this._isMobile) return;
+      clearTimeout(this.peekT);
+      const r = e.currentTarget.getBoundingClientRect();
+      this.setState({ railPeek: { key: key, left: r.right + 10, mid: r.top + r.height / 2 } });
+    };
+
+    peekKeep = () => clearTimeout(this.peekT);
+
+    peekLeave = () => {
+      clearTimeout(this.peekT);
+      this.peekT = setTimeout(() => this.setState({ railPeek: null }), 160);
     };
 
     /* Cancel stops the playback or a pending reply where it stands — nothing is rolled back,
@@ -1901,10 +2742,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.startAgentPin();
       this._askT = setTimeout(() => {
         const hit = AGENT_REPLIES.find(r => r.match.test(q)) || AGENT_FALLBACK;
-        this.setState(s2 => Object.assign(
-          { agentThinking: false },
-          this.pushMsg(s2, [{ role: "bot", anim: true, scope: hit.scope, text: hit.text, bullets: hit.bullets || [], blocks: hit.blocks || [], next: hit.next || NEXT_DEFAULT }])
-        ));
+        this.setState(s2 => {
+          const out = Object.assign(
+            { agentThinking: false },
+            this.pushMsg(s2, [{ role: "bot", anim: true, scope: hit.scope, text: hit.text, bullets: hit.bullets || [], blocks: hit.blocks || [], next: hit.next || NEXT_DEFAULT }])
+          );
+          out.convs = this.markUnreadAway(Object.assign({}, s2, { convs: out.convs }), out.convId);
+          return out;
+        });
         this.stopAgentPin();
       }, Math.max(500, (this.props.streamDelay ?? 550) * 1.1));
       this.timers.push(this._askT);
@@ -2881,7 +3726,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           calAdded: (s2.calAdded || []).concat(AGENT_SCHEDULED),
         }));
       } else if (a.kind === "gocal") this.setState({ screen: "cal", calView: "Day" });
-      else if (a.kind === "thread") this.setState({ screen: "mail", threadId: a.tid, mailPane: "thread", threadOpen: true, cameFrom: false });
+      else if (a.kind === "thread") this.setState(Object.assign(this.leaveOutbox(), { screen: "mail", threadId: a.tid, mailPane: "thread", threadOpen: true, cameFrom: false }));
       else if (a.kind === "planday") this.agentAsk("Plan my day");
     };
 
@@ -2968,12 +3813,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
       this.backSync();
       this.tbMeasure();
+      /* A conversation is read once it is in front of the reader. */
+      const seenId = this.state.screen === "agent" ? this.state.convId : null;
+      if (seenId && (this.state.convs || []).some(c => c.id === seenId && c.unread)) {
+        this.setState(s2 => ({ convs: (s2.convs || []).map(c => c.id === seenId ? Object.assign({}, c, { unread: false }) : c) }));
+      }
       if (!this.state.listLoading) this.restoreScrolls();
       if (this.pendingDraft && this.bodyRef.current) {
         this.bodyRef.current.innerHTML = this.pendingDraft;
         this.pendingDraft = null;
         this.setState({ aiDraft: true });
       }
+      if (this.pendingBody && this.bodyRef.current) {
+        this.bodyRef.current.innerHTML = this.pendingBody;
+        this.pendingBody = null;
+      }
+      const raise = this.props.raise;
+      if (raise && raise !== "none" && raise !== (prevProps || {}).raise) this.raiseFailure(raise);
       if (this.pendingAiWrite && this.bodyRef.current) {
         this.pendingAiWrite = false;
         this.aiWrite("full");
@@ -3063,14 +3919,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     componentWillUnmount() {
       document.removeEventListener("mousedown", this.onDocDown, true);
+      document.removeEventListener("keydown", this.onDocKey);
       window.removeEventListener("message", this.onHtmlFrameMessage);
       window.removeEventListener("popstate", this.onBackPressed);
       document.removeEventListener("selectionchange", this.onSelChange);
       document.removeEventListener("pointerdown", this.onSelPointer, true);
       document.removeEventListener("pointerup", this.onSelPointer, true);
+      document.removeEventListener("click", this.onLinkClick, true);
+      document.removeEventListener("auxclick", this.onLinkClick, true);
       this.htmlFrames.forEach(r => { if (r.timer) clearTimeout(r.timer); });
       this.htmlFrames.clear();
       this.timers.forEach(clearTimeout);
+      clearTimeout(this.bgRunT);
+      clearTimeout(this.peekT);
       if (this.measure) window.removeEventListener("resize", this.measure);
       if (this.ro) this.ro.disconnect();
     }
@@ -3191,6 +4052,29 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const railW = compact ? 66 : 96;
       this._low = low;
       this._isMobile = isMobile;
+      this._touch = touch;
+      /* The list's pull: the disc's top edge follows half the finger's travel from above the list, waits at LP.rest
+         while the refresh is under way, and springs back above the list when released short. */
+      const listPull = (() => {
+        const pulling = st.listPull != null;
+        const settled = !!st.listPullSettled && !!st.refreshBusy;
+        const shown = touch && (pulling || settled || !!st.listPullBack);
+        const travel = pulling ? st.listPull : 0;
+        const still = pulling && !!st.listPullStill;
+        const armed = st.refreshBusy || travel >= LP.refreshAt;
+        const top = settled || still ? LP.rest : pulling ? Math.min(LP.carriesTo, travel * LP.resistance) - LP.size : -LP.size;
+        const turn = pulling && !still ? Math.min(1, travel / LP.refreshAt) * 270 : 0;
+        return {
+          shown: shown,
+          discStyle: "position:absolute;left:50%;top:0;z-index:5;width:" + LP.size + "px;height:" + LP.size + "px;margin-left:-" + (LP.size / 2) + "px;" +
+            "display:flex;align-items:center;justify-content:center;border-radius:50%;box-shadow:0 1px 0 var(--inset) inset,0 1px 3px var(--sh-2);pointer-events:none;" +
+            "background:var(--panel);border:1px solid " + (armed ? "var(--accent-line);color:var(--accent-d);" : "var(--line);color:var(--text2);") +
+            "transform:translateY(" + top + "px);opacity:" + (settled || still ? 1 : Math.max(0, Math.min(1, (top + LP.size) / LP.size))) + ";" +
+            (pulling ? "transition:background 140ms ease,color 140ms ease,border-color 140ms ease" : "transition:transform " + NG.springMs + "ms " + NG.springEase + ",opacity " + NG.springMs + "ms " + NG.springEase),
+          glyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;display:block;transform:rotate(" + turn + "deg)" +
+            (st.refreshBusy ? ";animation:mfpulse 1s ease-in-out infinite" : ""),
+        };
+      })();
       /* A dialog takes what a low window has and stops growing in a tall one. */
       const dlgMaxH = low ? "calc(100dvh - 16px)" : tall ? "min(calc(100dvh - 44px), 760px)" : "calc(100dvh - 44px)";
       const toastCompact = w < 900;
@@ -3263,11 +4147,134 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const evObj = plan && st.ev ? plan.evidence.find(x => x.n === st.ev) : null;
       const agentEvObj = st.agentEv && st.agentEv.conv === (st.convId || null) ? st.agentEv : null;
       const thread = THREADS.find(t => t.id === st.threadId) || THREADS[0];
+      /* An account's Spam folder lists what sits in it, badged by kind; every other list leaves it out and folds the
+         spam that sits elsewhere. The prototype's lists are otherwise one list under every folder. */
+      const inSpamBox = this.inSpamFolder();
+      const spamBoxAcc = (st.folderKey || "").split("·")[0];
+      const listedThreads = THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 &&
+        this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc) &&
+        (!st.resultFilter || st.resultFilter.ids.indexOf(t.id) >= 0));
+      const threadSpam = this.spamOf(thread.id);
+      /* The opened message's warning. Every spam message says it is spam and a security risk, and who judged it; a
+         dangerous kind takes the strong form and says, from the record's closed values, what it asks for and whom it is written to
+         look like, never repeating its own claims as fact. */
+      const spamWarning = (sp) => {
+        const k = spamKind(sp.kind);
+        const strong = !!(k && k.danger);
+        const judge = sp.judge === "person"
+          ? "You marked this message spam" + (k ? " and named it " + k.label.toLowerCase() + "." : ".")
+          : sp.judge === "server"
+            ? "Your mail server judged this message spam."
+            : "A model judged this message spam" + (k ? " and named it " + k.label.toLowerCase() + ". The kind is the model's judgement and can be wrong." : ".");
+        const lines = [];
+        const asks = sp.kind === "phishing" ? SPAM_REQUESTS[sp.request] : null;
+        const poses = sp.kind === "phishing" || sp.kind === "bec" ? SPAM_PARTIES[sp.party] : null;
+        if (strong && (asks || poses)) {
+          lines.push(asks && poses ? "It asks for " + asks + ", and it is written to look as if it came from " + poses + "."
+            : asks ? "It asks for " + asks + "." : "It is written to look as if it came from " + poses + ".");
+        }
+        lines.push(judge);
+        if (strong) lines.push("Do not give it anything it asks for.");
+        lines.push(SPAM_READ_ONLY);
+        return {
+          spamWarn: true,
+          spamTitle: strong ? k.label + ". This message is spam and a security risk."
+            : (k ? k.label + ". " : "") + "This message is spam and may be a security risk.",
+          spamGlyph: strong ? "gpp_bad" : "report",
+          spamBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:" + (touch ? "14px 15px" : "13px 16px") + ";" +
+            (strong ? "background:var(--err-soft);border:1px solid var(--err)" : "background:var(--sub);border:1px solid var(--line)"),
+          spamGlyphStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1;padding-top:1px;color:" +
+            (strong ? "var(--err-text)" : "var(--muted)"),
+          spamTitleStyle: "font-size:15px;font-weight:600;line-height:1.4;text-wrap:pretty;color:" + (strong ? "var(--err-text)" : "var(--text)"),
+          spamLines: lines.map((text, i) => ({
+            text, style: "font-size:14px;line-height:1.5;text-wrap:pretty;color:" + (i === lines.length - 1 ? "var(--muted)" : "var(--text)"),
+          })),
+        };
+      };
       const threadAddr = msgAddrRows(thread, (msgsFor(thread) || [])[0] || { from: thread.from, mine: false }, msgsFor(thread) || []);
       const flags = st.flags || {};
       /* The demo starts with the five newest threads unread — opening a thread clears it. */
       const unreadMap = st.unread || DEFAULT_UNREAD;
       const movedMap = st.moved || {};
+      /* What a row's verdict changes. In the Spam folder a row keeps its shape and names its kind in a square label
+         before the subject - the error tone and a glyph for the three dangerous kinds, the quiet tone for the rest,
+         nothing where no kind was named.
+         Everywhere else a spam row folds to one muted line: no preview, no AI line, no unread weight, its verdict in
+         its accessible name and in its menu's header rather than in a badge. No spam row offers the AI summary. */
+      const spamRowOf = (t, row) => {
+        const sp = this.spamOf(t.id);
+        const k = spamKind(sp.kind);
+        const folded = sp.spam && !inSpamBox;
+        const badged = inSpamBox && sp.spam && !!k;
+        const label = (tone) => "flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;font-size:12px;line-height:16px;border-radius:4px;padding:0 5px;white-space:nowrap;" +
+          (tone === "danger" ? "color:var(--err-text);background:var(--err-soft);border:1px solid var(--err)" : "color:var(--muted);border:1px solid var(--border2)");
+        const selected = sel.indexOf(t.id) >= 0;
+        return Object.assign(row, {
+          folded, unfolded: !folded,
+          aiBtnShown: !sp.spam,
+          showAi: row.showAi && !sp.spam,
+          spamBadge: badged,
+          spamBadgeDanger: badged && k.danger,
+          spamBadgeLabel: badged ? k.label : "",
+          spamBadgeStyle: badged ? label(k.danger ? "danger" : "quiet") : "",
+          spamGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1",
+          spamName: sp.spam ? spamVerdictLine(sp) + "." : "",
+          ...(folded ? {
+            isUnread: false,
+            foldedStyle: row.rowStyle + "flex-direction:row;align-items:center;justify-content:flex-start;gap:9px;padding:" + (isMobile ? "0 16px" : "0 14px") +
+              // As tall as the three-line row beside it: the client's list is windowed at one row height.
+              ";min-height:" + (isMobile ? 111 : 93) + "px;box-sizing:border-box",
+            foldGlyphStyle: "flex:0 0 " + avSz + "px;width:" + avSz + "px;display:flex;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)",
+            foldFromStyle: "flex:0 0 auto;max-width:38%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted)",
+            foldSubjStyle: "flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted)",
+            foldTimeStyle: "flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)",
+            foldCheckShown: selected,
+            stripLabel: spamVerdictLine(sp) + ": " + t.from + " - " + t.subject,
+            stripInitials: "report",
+            stripAvatarStyle: "width:36px;height:36px;flex:0 0 36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--rail);color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1",
+          } : {}),
+        });
+      };
+      /* The sender mark. Every received message's row carries it, folded spam rows included, since a lookalike sender
+         is exactly what someone unsure of a verdict wants to judge; rows that draw recipients - Sent and Drafts - carry
+         none. On a row it is the glyph alone, beside a sender it is a badge naming the state, and a neutral badge is
+         the glyph alone too. Either opens the same details. */
+      const recipientList = /·(Sent|Drafts)$/.test(st.folderKey || "");
+      const markGlyph = (px) => "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + px + "px";
+      const markOf = (threadId, from) => {
+        const r = senderRecord(threadId, from);
+        if (!r) return null;
+        const k = markKeyOf(r);
+        return Object.assign({ k, open: (e) => this.openSenderMark(threadId, from, e) }, MARKS[k]);
+      };
+      const withMark = (t, row) => {
+        const M = recipientList ? null : markOf(t.id, null);
+        if (!M) return Object.assign(row, { markShown: false, stripMarkShown: false });
+        return Object.assign(row, {
+          markShown: true, markGlyph: M.glyph, markName: M.name, openMark: M.open,
+          markOpen: !!(st.senderMark && st.senderMark.key === t.id + "|"),
+          markBtnStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:" + MARK_INK[M.tone] + ";" +
+            (touch ? "width:44px;height:44px;margin:-12px -10px;" : "width:24px;height:24px;margin:-4px -3px;"),
+          markGlyphStyle: markGlyph(touch ? 20 : 18),
+          stripLabel: row.stripLabel + " - " + M.name,
+          stripMarkShown: M.k !== "neutral",
+          stripMarkStyle: "position:absolute;bottom:6px;right:6px;width:18px;height:18px;border-radius:50%;background:var(--panel);box-shadow:0 0 0 2px var(--sub);display:flex;align-items:center;justify-content:center;color:" +
+            MARK_INK[M.tone] + ";" + markGlyph(13),
+        });
+      };
+      const badgeOf = (threadId, from) => {
+        const M = markOf(threadId, from);
+        if (!M) return { markShown: false };
+        return {
+          markShown: true, markGlyph: M.glyph, markWord: M.word, markName: M.name, openMark: M.open,
+          markOpen: !!(st.senderMark && st.senderMark.key === threadId + "|" + from),
+          markBtnStyle: "flex:0 0 auto;align-self:center;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;" +
+            (touch ? "min-width:44px;min-height:44px;margin:-11px 0;" : ""),
+          markPillStyle: "display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;height:22px;border-radius:6px;font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;" +
+            MARK_PILL[M.tone] + (M.word ? "padding:0 8px 0 6px;" : "width:22px;justify-content:center;padding:0;"),
+          markGlyphStyle: markGlyph(M.word ? 15 : 16),
+        };
+      };
       const rowAnim = st.rowAnim || {};
       const rowOut = (id) => rowAnim[id] === "out" || rowAnim[id] === "outdel" || rowAnim[id] === "outarc";
       /* the wash names the act: red for a deletion, orange for archive and move */
@@ -3280,11 +4287,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const flagOn = actTargets.every(id => !!flags[id]);
       const wantTabs = (st.workMode || "tabs") === "tabs";
       const rmode = st.replyMode || null;
-      const composeKind = rmode === "reply" ? "Reply" : rmode === "all" ? "Reply all" : rmode === "fwd" ? "Forward" : "New message";
+      const composeKind = rmode === "reply" ? "Reply" : rmode === "all" ? "Reply all" : rmode === "fwd" ? "Forward" : st.composeDraft ? "Draft" : "New message";
       /* A reply keeps the conversation it answers, whatever the list is pointed at afterwards. */
       const replyThread = (rmode && THREADS.find(t => t.id === st.replyThreadId)) || thread;
       const threadParticipants = (msgsFor(replyThread) || []).map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
-      const composeTo = rmode === "fwd" ? [] : rmode === "all" ? threadParticipants : rmode === "reply" ? threadParticipants.slice(-1) : NEW_MESSAGE_TO.slice();
+      const composeDraft = !rmode && st.composeDraft ? st.composeDraft : null;
+      const composeTo = rmode === "fwd" ? [] : rmode === "all" ? threadParticipants : rmode === "reply" ? threadParticipants.slice(-1) : composeDraft ? composeDraft.to.slice() : NEW_MESSAGE_TO.slice();
       const composeSubj = rmode === "fwd" ? "Fwd: " + replyThread.subject : rmode ? "Re: " + replyThread.subject : "";
       const composeCtx = (st.composeCtx || []).filter(id => THREADS.some(t => t.id === id));
       const composeCtxBase = st.composeCtxBase || null;
@@ -3296,7 +4304,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", cChange: null,
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", cChange: null,
           selBar: st.selBar && st.selBar.kind === "compose" ? null : st.selBar };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
@@ -3320,6 +4328,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         flag: () => this.toggleFlagThreads(),
         mark_email_unread: () => this.markUnread(),
         drive_file_move: () => this.openMove(),
+        report: () => this.toggleSpam(),
+        report_off: () => this.toggleSpam(),
+        more_vert: (e) => this.openMoreMenu(thread.id, e, true),
         fullscreen: () => this.setState({ stateBarOff: true }),
         fullscreen_exit: () => this.setState({ stateBarOff: false }),
       };
@@ -3364,12 +4375,35 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : m.mine ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
         const folding = st.histFolding === thread.id;
+        /* A mailbox change the server never took, on the message it was asked for, until it is asked again or let go. */
+        const chg = i === lastIdx && !(st.changeDecided || {})[thread.id] ? CHANGE_NOTICES[thread.id] : null;
+        const chgUnknown = !!chg && chg.fate === "unknown";
+        const chgAct = chg ? (CHANGE_ACT[chg.act] || CHANGE_ACT.move) : null;
+        const chgBtn = "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
+        /* The sample data states a verdict per thread, which is every one of its messages' verdict, so each message of
+           a spam thread carries its own warning, as each message the client opens is warned from its own. */
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
+          ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
+          ...(threadSpam.spam && !m.mine ? spamWarning(threadSpam) : { spamWarn: false }),
+          changeShown: !!chg,
+          changeIcon: chgUnknown ? "help" : "sync_problem",
+          changeTitle: !chg ? "" : chgUnknown ? chgAct[1] + " may not have happened" : chgAct[0] + " - your mailbox did not take this change",
+          changeText: !chg ? "" : chgUnknown
+            ? "The mail server never answered, so nobody knows whether it took the change. The message is shown as the server last reported it."
+            : "The mail server would not take it, so this message is shown where the server holds it.",
+          changeBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:12px 14px;border:1px solid " + (chgUnknown ? "var(--warn);background:var(--warn-soft)" : "var(--err);background:var(--err-soft)"),
+          changeIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + (chgUnknown ? "var(--warn-text)" : "var(--err-text)"),
+          changeTitleStyle: "font-size:14px;font-weight:600;color:" + (chgUnknown ? "var(--warn-text)" : "var(--err-text)"),
+          changeAgainLabel: chg && chg.act === "move" ? "Move again…" : "Ask again",
+          changeAgain: (e) => this.decideChange(thread.id, true, e),
+          changeLetGo: (e) => this.decideChange(thread.id, false, e),
+          changeAgainStyle: chgBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)",
+          changeQuietStyle: chgBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
           unfoldMotion: i !== activeIdx && (folding || st.histUnfolded === thread.id) ? "unfold" : "none",
           unfoldPhase: folding && i !== activeIdx ? "out" : "in",
-          remoteBlocked: remoteRefs > 0 && !remoteOn,
-          remoteLoaded: remoteRefs > 0 && remoteOn,
+          remoteBlocked: remoteRefs > 0 && !remoteOn && !threadSpam.spam,
+          remoteLoaded: remoteRefs > 0 && remoteOn && !threadSpam.spam,
           remoteCountLabel: "Removed references: " + remoteRefs,
           loadRemote: () => this.setState(s2 => ({ remoteLoaded: Object.assign({}, s2.remoteLoaded, { [k]: true }) })),
           remoteBoxStyle: "display:flex;flex-direction:column;gap:9px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:" + (touch ? "14px 15px" : "13px 16px"),
@@ -3381,26 +4415,29 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           num: (i + 1) + " / " + msgs.length,
           open, collapsed: !open,
           hasAtts: m.atts.length > 0,
-          atts: m.atts.map(x => ({ type: x.type, name: x.name, size: x.size, open: () => (this.tabsMode()
+          atts: m.atts.map(x => ({ type: x.type, name: x.name, size: x.size, open: () => this.refuseSpam(thread.id, "Its attachments do not open.") || (this.tabsMode()
             ? this.openTab("doc:" + x.name, { doc: x, docZoom: 1, docLoading: true }, { att: x })
-            : this.openDocLoad({ doc: x, docZoom: 1 })), download: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.notifyTask({ title: "Downloading file…", body: x.name, cancelText: "Downloading \u201C" + x.name + "\u201D is in progress. Aborting removes the incomplete file.", doneTitle: "File downloaded", doneBody: x.name, ms: 1800 }); } })),
+            : this.openDocLoad({ doc: x, docZoom: 1 })), download: (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (this.refuseSpam(thread.id, "Its attachments are not downloaded.")) return; this.notifyTask({ title: "Downloading file…", body: x.name, cancelText: "Downloading \u201C" + x.name + "\u201D is in progress. Aborting removes the incomplete file.", doneTitle: "File downloaded", doneBody: x.name, ms: 1800 }); } })),
           showDownloadAll: m.atts.length > 1,
-          downloadAll: () => this.notifyTask({ title: "Packing attachments…", body: m.atts.length + " files → attachments.zip", cancelText: "The ZIP archive is being prepared. Aborting discards the partially packed file.", doneTitle: "Archive ready", doneBody: "attachments.zip - " + m.atts.length  + " files", ms: 2600 }),
+          downloadAll: () => this.refuseSpam(thread.id, "Its attachments are not downloaded.") || this.notifyTask({ title: "Packing attachments…", body: m.atts.length + " files → attachments.zip", cancelText: "The ZIP archive is being prepared. Aborting discards the partially packed file.", doneTitle: "Archive ready", doneBody: "attachments.zip - " + m.atts.length  + " files", ms: 2600 }),
           clipLabel: m.atts.length ? String(m.atts.length) : "",
           clipStyle: "display:flex;align-items:center;gap:3px;color:var(--faint);font-size:" + (touch ? 13 : 11) + "px",
           clipIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + (touch ? 18 : 14) + "px",
           whenStyle: "color:var(--faint);font-size:" + (touch ? 13 : 11) + "px",
           htmlBtnStyle: "display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
             (touch ? "width:44px;height:44px;font-size:20px;border:1px solid var(--line);" : "width:28px;height:28px;font-size:18px;"),
-          showHtmlBtn: !htmlViewMode,
-          simpleView: !htmlViewMode,
-          htmlView: htmlViewMode,
+          /* Spam never renders its original, even with the HTML view chosen: it keeps the simple view and the
+             button that refuses. */
+          showHtmlBtn: !htmlViewMode || threadSpam.spam,
+          simpleView: !htmlViewMode || threadSpam.spam,
+          htmlView: htmlViewMode && !threadSpam.spam,
           htmlFrameId: "fit:" + thread.id + ":" + i,
-          htmlEmbedSrc: htmlViewMode ? embedHtml(m.html || htmlFallback(m, thread.subject), "fit:" + thread.id + ":" + i) : "",
+          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(m, thread.subject), "fit:" + thread.id + ":" + i) : "",
           htmlFrameRef: this.htmlFrameRef,
           htmlRich: !!m.html,
           htmlTitle: m.html ? "Show the original message (rich content)" : "Show the original message",
           openHtml: () => {
+            if (this.refuseSpam(thread.id, "Its original does not open.")) return;
             const doc = { title: thread.subject, from: m.from, when: m.when, rich: !!m.html, src: m.html || htmlFallback(m, thread.subject) };
             this.setState({ htmlAsk: { key: "html:" + thread.id + ":" + i, doc } });
           },
@@ -3421,7 +4458,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           avatarStyle:
             "width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:0.02em;" +
             (m.mine ? "background:var(--accent);color:var(--onaccent);" : "background:var(--border2);color:var(--text2);"),
-          paras: m.paras.reduce((acc, bb) => bb.md ? acc.concat(mdView(bb.md)) : acc.concat([{
+          paras: m.paras.reduce((acc, bb) => bb.md ? acc.concat(threadSpam.spam ? unlinked(mdView(bb.md)) : mdView(bb.md)) : acc.concat([{
             isText: true,
             runs: [{ text: bb.text, plain: true, isLink: false, href: "", style: "" }],
             style: bb.hl && st.cameFrom
@@ -3456,6 +4493,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const convRow = (c, isArchivedList) => {
         const lastMsg = c.msgs[c.msgs.length - 1];
         const isOpen = c.id === (activeConv || {}).id;
+        /* Unread as mail is: a reply landed while the conversation was not in front, and the title carries the weight. */
+        const isUnread = !!c.unread && !isOpen;
         /* On the phone the history covers the conversation, so picking one closes it. */
         const openConv = () => this.setState(isMobile ? { convId: c.id, history: false } : { convId: c.id });
         const rowPress = this.pressFor("convs", c.id, c.title || "New conversation", [
@@ -3471,7 +4510,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* The group already says yesterday; the row repeats only what the group does not. */
           when: day === "Yesterday" && !isArchivedList ? "" : when,
           day: day,
-          preview: lastMsg ? lastMsg.text : "no messages",
+          preview: c.running ? c.running + "…" : lastMsg ? lastMsg.text : "no messages",
           activate: this.rowTap("convs", c.id, openConv),
           press: rowPress,
           /* One quiet control instead of an archive and a delete glyph on every row: it opens the
@@ -3484,11 +4523,42 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (isOpen || isSel("convs", c.id) ? "background:var(--accent-soft);" : "") +
             (isSel("convs", c.id) ? "box-shadow:inset 0 0 0 1px var(--accent-line);" : ""),
           titleStyle: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:" + (isMobile ? 15 : 13) + "px;line-height:1.35;" +
-            (isOpen ? "font-weight:600;color:var(--accent-d);" : "font-weight:500;color:var(--text);"),
-          whenStyle: "flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;color:" + (isOpen ? "var(--accent-d)" : "var(--faint)"),
-          previewStyle: "font-size:" + (isMobile ? 13 : 12) + "px;line-height:1.4;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+            (isOpen ? "font-weight:600;color:var(--accent-d);" : isUnread ? "font-weight:700;color:var(--text);" : "font-weight:500;color:var(--text);"),
+          whenStyle: "flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;" +
+            (isOpen ? "color:var(--accent-d)" : isUnread ? "color:var(--text);font-weight:600" : "color:var(--faint)"),
+          previewStyle: "font-size:" + (isMobile ? 13 : 12) + "px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:" +
+            (c.running ? "var(--accent-d)" : isUnread ? "var(--text2)" : "var(--muted)"),
         };
       };
+      /* What the rail's Agent tile reports: runs under way (a background run, the scripted example, a pending reply)
+         and finished conversations nobody has read. Running pulses; unread alone is a still dot; neither draws nothing. */
+      const agentRuns = convList.filter(c => c.running && !c.archived).map(c => ({ id: c.id, title: c.title, sub: c.running }));
+      const fgRunId = st.demoRun ? (this.demo ? this.demo.id : DEMO_CONV_ID) : st.agentThinking ? st.convId : null;
+      const fgRun = fgRunId ? convList.find(c => c.id === fgRunId) : null;
+      if (fgRun && !agentRuns.some(r => r.id === fgRun.id)) agentRuns.unshift({ id: fgRun.id, title: fgRun.title || "New conversation", sub: st.agentStatus || "Going through your mail" });
+      const agentUnread = convList.filter(c => c.unread && !c.archived && !(st.screen === "agent" && c.id === st.convId) && !agentRuns.some(r => r.id === c.id));
+      const agentDot = agentRuns.length ? "pulse" : agentUnread.length ? "dot" : "";
+      /* One shape for every rail peek, so another place can fill it with its own sections later. */
+      const peekRow = (lead, c, sub) => ({
+        title: c.title || "New conversation", sub: sub, lead: lead, spin: lead === "spin", dot: lead === "dot",
+        open: () => { clearTimeout(this.peekT); this.goScreen("agent", { convId: c.id, railPeek: null }); },
+        titleStyle: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;line-height:1.35;color:var(--text);font-weight:" + (lead === "dot" ? 700 : 500),
+        subStyle: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.4;color:" + (lead === "spin" ? "var(--accent-d)" : "var(--muted)"),
+      });
+      const railPeeks = {
+        agent: {
+          title: "Agent",
+          meta: [agentRuns.length ? agentRuns.length + " working" : "", agentUnread.length ? agentUnread.length + " unread" : ""].filter(Boolean).join(" · "),
+          sections: [
+            { label: "Working on", rows: agentRuns.map(r => peekRow("spin", r, r.sub + "…")) },
+            { label: "Unread", rows: agentUnread.map(c => { const lm = c.msgs[c.msgs.length - 1]; return peekRow("dot", c, lm ? mdPlain(lm.text || "") : ""); }) },
+          ].filter(s => s.rows.length),
+          empty: "Nothing running and nothing unread.",
+        },
+      };
+      const peek = st.railPeek && railPeeks[st.railPeek.key] && !isMobile && !touch ? st.railPeek : null;
+      const peekView = peek ? railPeeks[peek.key] : null;
+      const peekTop = peek ? Math.max(8, peek.mid - 30) : 0;
       const convGroups = (rows) => ["Today", "Yesterday", "Earlier"]
         .map(d => ({ label: d, rows: rows.filter(r => r.day === d) }))
         .filter(g => g.rows.length);
@@ -3554,9 +4624,162 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const emptyMail = !composeInPane && !docInPane && !htmlInPane &&
         (tabsMode ? tabItems.length === 0 : (!singlePane && !st.threadOpen));
       /* Two panes in less than 1020 px: while a thread is open the list folds to a strip of senders, so the thread
-         gets the width; the strip's head widens it again. A width rule — a mouse gets the same strip as a finger. */
+         gets the width; the toolbar's list control widens it again. A width rule — a mouse gets the same strip as a finger. */
       const foldTwoPanes = !singlePane && narrow;
-      const listStrip = foldTwoPanes && !emptyMail && !st.listWide && !selectionOn && !(st.stateBarOff);
+      /* The Outbox: one per account, read-only, holding what has not left it yet. It has no row of its own in the tree;
+         it is a mark on the account's Sent row, drawn only while something waits or was refused. */
+      const outboxAcc = st.screen === "mail" ? (st.outboxAcc || null) : null;
+      const outboxOn = !!outboxAcc;
+      const outboxAll = st.outbox || OUTBOX;
+      /* The six things a row can say, from ADR 0040: waiting, scheduled and retrying are a send at Recorded, sending is
+         one an attempt holds, unknown is one whose body went out with no answer back, refused is the server's no. */
+      const OB_TONE = {
+        neutral: { ink: "var(--muted)", title: "var(--text)", box: "var(--line);background:var(--rail)" },
+        accent: { ink: "var(--accent-d)", title: "var(--text)", box: "var(--accent-line);background:var(--accent-soft)" },
+        warn: { ink: "var(--warn-text)", title: "var(--warn-text)", box: "var(--warn);background:var(--warn-soft)" },
+        err: { ink: "var(--err-text)", title: "var(--err-text)", box: "var(--err);background:var(--err-soft)" },
+      };
+      const attemptsSaid = (x) => x.attempts + (x.attempts === 1 ? " attempt" : " attempts");
+      const OB_STAGE = {
+        waiting: { icon: "schedule", tone: "neutral", act: "cancel",
+          line: () => "Waiting to send",
+          title: () => "Waiting to send",
+          text: (x) => "Handed over at " + x.at + " and not sent yet. It goes out as soon as the mail server takes it." },
+        scheduled: { icon: "schedule_send", tone: "neutral", act: "cancel",
+          line: (x) => "Sends " + x.leaveAt,
+          title: (x) => "Sends " + x.leaveAt,
+          text: (x) => "Handed over at " + x.at + " and written to leave " + x.leaveAt + ". Until then it can still be cancelled." },
+        retrying: { icon: "update", tone: "warn", act: "cancel",
+          line: (x) => "Trying again at " + x.retryAt + " · " + attemptsSaid(x),
+          title: (x) => "Trying again at " + x.retryAt,
+          text: (x) => x.reason + " MailFathom tries again on its own - " + attemptsSaid(x) + " so far, and nothing has reached anybody yet." },
+        sending: { icon: "send", tone: "accent", act: null, pulse: true,
+          line: () => "Sending now",
+          title: () => "Sending now",
+          text: () => "An attempt is sending it right now, so it can no longer be cancelled." },
+        unknown: { icon: "help", tone: "warn", act: "decide",
+          line: (x) => "Outcome unknown · " + attemptsSaid(x),
+          title: () => "Outcome unknown",
+          text: (x) => "It went out at " + x.at + " and the server's answer never came back, so nobody knows whether it arrived. Send it again only if you are sure it did not - otherwise it may arrive twice." },
+        refused: { icon: "error", tone: "err", act: "decide",
+          line: (x) => "Refused by the server · " + attemptsSaid(x),
+          title: () => "Not sent - the server refused it",
+          text: (x) => x.reason },
+      };
+      const firstAddressee = (x) => {
+        const lead = x.rcpt.find(r => r.hdr === "To") || x.rcpt.find(r => r.hdr === "Cc") || x.rcpt[0];
+        if (!lead) return "No recipient";
+        return lead.mail + (x.rcpt.length > 1 ? " +" + (x.rcpt.length - 1) : "");
+      };
+      const outboxMarkFor = (accKey) => {
+        const entries = outboxAll[accKey] || [];
+        if (!entries.length) return null;
+        const refused = entries.filter(x => x.stage === "refused").length;
+        const waiting = entries.length - refused;
+        const said = "Outbox - " + [waiting ? waiting + " waiting to leave" : "", refused ? refused + " refused" : ""].filter(Boolean).join(", ");
+        const open = outboxAcc === accKey;
+        const ink = open ? "var(--onaccent)" : refused ? "var(--err-text)" : "var(--accent-d)";
+        const ground = open ? (refused ? "var(--err)" : "var(--accent)") : refused ? "var(--err-soft)" : "var(--accent-soft)";
+        return {
+          count: String(entries.length), title: said, current: open ? "true" : "false",
+          run: (e) => this.openOutbox(accKey, e),
+          /* Under a finger the target is 44 x 44 around a 36 px pill, taken from the row's padding so the row keeps its height. */
+          style: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;" + (touch ? "min-width:44px;min-height:44px;margin:-12px -6px -12px 0;" : ""),
+          pillStyle: "display:inline-flex;align-items:center;justify-content:center;gap:4px;box-sizing:border-box;border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:" + ink + ";background:" + ground + ";" +
+            (touch ? "min-width:44px;height:36px;padding:0 10px;" : "height:22px;padding:0 8px 0 6px;"),
+          iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1",
+          stripStyle: "position:relative;display:flex;align-items:center;justify-content:center;height:34px;border-radius:8px;color:" + (open ? "var(--onaccent)" : ink) + ";background:" + (open ? ground : "transparent"),
+          stripBadgeStyle: "position:absolute;top:2px;right:6px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:999px;font-size:11px;font-weight:600;line-height:16px;text-align:center;color:var(--onaccent);background:" + (refused ? "var(--err)" : "var(--accent)") + ";box-shadow:0 0 0 2px var(--sub)",
+        };
+      };
+      const outboxAccount = ACCOUNTS.find(a => a.key === outboxAcc) || ACCOUNTS[0];
+      const outboxEntries = outboxAll[outboxAcc] || [];
+      const outboxEntry = outboxEntries.find(x => x.id === st.outboxSel) || null;
+      const obStage = outboxEntry ? OB_STAGE[outboxEntry.stage] : OB_STAGE.waiting;
+      const obTone = OB_TONE[obStage.tone];
+      const outboxDecidingHere = !!outboxEntry && !!st.outboxDeciding && st.outboxDeciding.id === outboxEntry.id;
+      const obHeld = outboxDecidingHere ? ";opacity:0.6;cursor:default" : "";
+      const obBtn = "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
+      /* Drafts whose copy on the mail server may be missing or out of date stand at the foot of a Drafts list's column,
+         outside the scrolling rows, so their arrival moves no row; the unified Drafts gathers every account's. */
+      const openFolderKey = st.folderKey || "acc1·Inbox";
+      const draftsAcc = /·Drafts$/.test(openFolderKey) && !outboxOn ? openFolderKey.split("·")[0] : null;
+      const draftsLocal = !draftsAcc ? [] : ACCOUNTS.some(a => a.key === draftsAcc)
+        ? (LOCAL_DRAFTS[draftsAcc] || []).map(d => Object.assign({ acc: draftsAcc }, d))
+        : ACCOUNTS.reduce((all, a) => all.concat((LOCAL_DRAFTS[a.key] || []).map(d => Object.assign({ acc: a.key }, d))), []);
+      const outboxView = {
+        draftsLocalShown: draftsLocal.length > 0 && !st.listLoading,
+        draftsLocalHeadStyle: "display:flex;align-items:center;gap:7px;padding:" + (isMobile ? "12px 16px 8px" : "10px 14px 6px") + ";font-size:12px;font-weight:600;color:var(--warn-text);background:var(--warn-soft);border-bottom:1px solid var(--line2)",
+        draftsLocalRows: draftsLocal.map(d => ({
+          to: d.to[0] + (d.to.length > 1 ? " +" + (d.to.length - 1) : ""), subject: d.subject, at: d.at,
+          open: () => this.openDraft(Object.assign({ noServerCopy: true }, d)),
+          rowStyle: rowStyleFor(false, false) + "border-bottom:1px solid var(--line2);",
+        })),
+        draftsLocalFootStyle: "flex:0 0 auto;max-height:50%;overflow:auto;border-top:1px solid var(--line);background:var(--sub);padding-bottom:8px",
+        outboxListShown: outboxOn,
+        outboxHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:" + (touch ? 8 : 9) + "px;box-sizing:border-box;" + (isMobile ? "min-height:56px;padding:6px 12px 6px 16px;" : touch ? "padding:8px 12px;" : "padding:10px 12px;") + "border-bottom:1px solid var(--line)",
+        outboxTitleStyle: isMobile ? "font-size:20px;font-weight:600;letter-spacing:-0.01em;line-height:1.2" : "font-size:16px;font-weight:600",
+        outboxAccountLabel: outboxAccount.label,
+        outboxReadOnlyStyle: "flex:0 0 auto;display:flex;align-items:flex-start;gap:8px;padding:" + (isMobile ? "10px 16px" : "9px 14px") + ";font-size:12px;line-height:1.45;color:var(--muted);background:var(--rail);border-bottom:1px solid var(--line)",
+        outboxHasEntries: outboxEntries.length > 0,
+        outboxEmpty: outboxOn && outboxEntries.length === 0,
+        outboxEmptyText: "Nothing is waiting to leave " + outboxAccount.label + " any more. What went out is in Sent.",
+        outboxEmptyBtnStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 36) + "px;padding:0 16px;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px",
+        outboxGoSent: () => this.pickFolder(outboxAcc + "·Sent", "Sent"),
+        outboxRows: outboxEntries.map(x => {
+          const stg = OB_STAGE[x.stage];
+          const picked = !singlePane && outboxEntry && outboxEntry.id === x.id;
+          return {
+            to: firstAddressee(x), subject: x.subject, at: x.at, stageLabel: stg.line(x), stageIcon: stg.icon,
+            select: () => this.pickOutboxEntry(x.id),
+            rowStyle: rowStyleFor(false, picked),
+            stageStyle: "display:flex;align-items:center;gap:5px;min-width:0;font-size:12px;font-weight:" + (x.stage === "refused" || x.stage === "unknown" ? 600 : 400) + ";color:" + OB_TONE[stg.tone].ink,
+            stageIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1" + (stg.pulse ? ";animation:mfpulse 1.6s ease-in-out infinite" : ""),
+          };
+        }),
+        outboxPaneShown: outboxOn && (!singlePane || mailPane === "thread") && !composeInPane && !docInPane && !htmlInPane,
+        outboxEntryShown: !!outboxEntry,
+        outboxNothingShown: !outboxEntry,
+        outboxNothingText: outboxEntries.length
+          ? "Pick a message to read it. Outbox is read-only: what is here can be read, and nothing can be replied to, moved or deleted."
+          : "Outbox is empty, so there is nothing to read here. What went out is in Sent.",
+        outboxBackShown: singlePane,
+        outboxBack: () => this.setState({ mailPane: "list" }),
+        outboxBackStyle: "flex:0 0 auto;width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(--text2)",
+        outboxPaneHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:8px;min-width:0;" + (singlePane ? "padding:6px 8px 6px 8px;" : "padding:16px 24px 10px;"),
+        outboxSubject: outboxEntry ? outboxEntry.subject : "",
+        outboxSubjectStyle: singlePane ? "flex:1;min-width:0;font-size:18px;font-weight:600;line-height:1.3;letter-spacing:-0.01em;text-wrap:pretty" : "flex:1;min-width:0;font-size:20px;font-weight:600;letter-spacing:-0.01em",
+        outboxPaneBodyStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:16px;" + (singlePane ? "padding:4px 16px 24px" : "padding:4px 24px 28px"),
+        outboxStageTitle: outboxEntry ? obStage.title(outboxEntry) : "",
+        outboxStageText: outboxEntry ? obStage.text(outboxEntry) : "",
+        outboxStageIcon: obStage.icon,
+        outboxStageBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:12px 14px;border:1px solid " + obTone.box,
+        outboxStageIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + obTone.ink + (obStage.pulse ? ";animation:mfpulse 1.6s ease-in-out infinite" : ""),
+        outboxStageTitleStyle: "font-size:14px;font-weight:600;color:" + obTone.title,
+        outboxCanCancel: !!outboxEntry && obStage.act === "cancel",
+        outboxCanDecide: !!outboxEntry && obStage.act === "decide",
+        outboxCancel: () => outboxEntry && this.cancelOutboxEntry(outboxAcc, outboxEntry.id),
+        outboxResend: () => outboxEntry && this.sendOutboxEntryAgain(outboxAcc, outboxEntry.id),
+        outboxDismiss: () => outboxEntry && !outboxDecidingHere && this.dismissOutboxEntry(outboxAcc, outboxEntry.id),
+        outboxHeld: outboxDecidingHere,
+        outboxDecidingShown: outboxDecidingHere,
+        outboxDecidingSaid: outboxDecidingHere ? (st.outboxDeciding.decision === "cancel" ? "Cancelling sending…" : st.outboxDeciding.decision === "edit" ? "Taking it back to edit…" : "Sending it again…") : "",
+        outboxCanEdit: !!outboxEntry && outboxEntry.stage === "refused",
+        outboxEdit: () => outboxEntry && this.editOutboxEntry(outboxAcc, outboxEntry.id),
+        outboxEditIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1;margin-right:6px",
+        outboxResendStyle: obBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)" + obHeld,
+        outboxQuietBtnStyle: obBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)" + obHeld,
+        outboxFacts: !outboxEntry ? [] : [{ k: "From", v: outboxAccount.address }]
+          .concat(outboxEntry.rcpt.map(r => ({ k: r.hdr, v: r.mail, said: r.said || "" })))
+          .concat([{ k: "Handed", v: "today, " + outboxEntry.at }])
+          .concat(outboxEntry.leaveAt ? [{ k: "Leaves", v: outboxEntry.leaveAt }] : [])
+          .concat(outboxEntry.attempts ? [{ k: "Tried", v: attemptsSaid(outboxEntry) }] : [])
+          .map(f => Object.assign({ said: "" }, f, { hasSaid: !!f.said })),
+        outboxAttachments: outboxEntry ? (outboxEntry.attachments || []) : [],
+        outboxHasAttachments: !!outboxEntry && !!(outboxEntry.attachments || []).length,
+        outboxBody: outboxEntry ? outboxEntry.body.map(p => ({ text: p })) : [],
+      };
+      const listStrip = foldTwoPanes && !emptyMail && !st.listWide && !selectionOn && !(st.stateBarOff) && !outboxOn;
       /* What is inside the thread pane reads the pane's own width, not the window's: the same window gives the pane
          more or less as the list is folded, dragged, or put away. These are the pane's container breakpoints. */
       const paneW = singlePane ? w - (isMobile ? 0 : railW) : w - railW - sideW - (listStrip ? 76 : listW);
@@ -3564,9 +4787,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const paneNarrow = paneW < 560;
       const stateCards = !isMobile && paneCompact;
       const readPad = (min) => "max(" + min + "px, calc((100% - 880px) / 2))";
-      /* Past the column the pane has spare width, and a tinted band across it would run empty on both sides of
-         the cards. So there the state stands as a box in the column itself, its cards on the head's edge. */
-      const readingColumn = !singlePane && paneW > 924;
 
       const vals = {
         mo,
@@ -3690,6 +4910,77 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const y = Math.max(10, Math.min(c.y, bh - H - 10));
           return base + "left:" + x + "px;top:" + y + "px;width:" + W + "px";
         })(),
+        ...(() => {
+          /* The sender details: the state the mark shows and why, then every verification step with its result,
+             grouped under sender authentication, trust and signature. A step with more to say unfolds it in place. */
+          const smk = st.senderMark;
+          const r = smk ? senderRecord(smk.id, smk.from) : null;
+          if (!r) return { senderPopOpen: false };
+          const k = markKeyOf(r), M = MARKS[k];
+          const steps = senderSteps(r, this.accountOf(smk.id));
+          const moreOpen = st.senderMore || {};
+          const group = (label, list, gk) => ({
+            label,
+            steps: list.map((s2, i) => {
+              const R = STEP_RESULT[s2.result];
+              const key = gk + i;
+              const open = !!moreOpen[key];
+              return {
+                name: s2.name, detail: s2.detail, word: R.word, glyph: R.glyph,
+                hasMore: !!s2.more, moreOpen: open,
+                more: (s2.more || []).filter(d => d[1]).map(d => ({ k: d[0], v: d[1] })),
+                moreLabel: open ? "Hide details" : r.sig && pgpSig(r.sig) ? "Key details" : "Certificate details",
+                moreGlyph: open ? "expand_less" : "expand_more",
+                toggleMore: (e) => {
+                  if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+                  this.setState(s3 => ({ senderMore: Object.assign({}, s3.senderMore, { [key]: !open }) }));
+                },
+                rowStyle: "display:flex;flex-direction:column;gap:3px;padding:10px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+                resultStyle: "flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;white-space:nowrap;color:" + R.ink,
+                moreBtnStyle: "align-self:flex-start;display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--accent-d);border-radius:8px;margin-left:-6px;" +
+                  (touch ? "min-height:44px;padding:0 6px;" : "padding:3px 6px;"),
+              };
+            }),
+          });
+          const bw = st.vw || 1200;
+          const bh = st.vh || (typeof window !== "undefined" ? window.innerHeight : 900);
+          const W = 392;
+          const below = bh - smk.y - 16;
+          const up = below < 320 && smk.top > below;
+          const x = Math.max(10, Math.min(smk.x - 8, bw - W - 10));
+          const frame = "display:flex;flex-direction:column;background:var(--panel);overflow:hidden;outline:none;";
+          return {
+            senderPopOpen: true,
+            senderPopSheet: touch,
+            senderPopMotion: touch ? "sheet" : "pop",
+            closeSenderMark: (e) => {
+              if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+              this.closeSenderMark(true);
+            },
+            senderPopRef: this.senderPopRef,
+            senderPopTitle: M.name,
+            senderPopWhy: senderWhy(k, r),
+            senderPopFrom: r.from,
+            senderPopGlyph: M.glyph,
+            senderPopGroups: [group("Sender authentication", steps.auth, "a"), group("Trust", steps.trust, "t"), group("Signature", steps.sig, "s")],
+            senderPopStyle: touch
+              ? "position:fixed;z-index:93;left:0;right:0;bottom:0;margin:0 auto;width:100%;max-width:600px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";" +
+                frame + "border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -12px 40px var(--sh-3)"
+              : smk.centred ? "position:fixed;z-index:93;left:50%;top:50%;transform:translate(-50%,-50%);width:" + W + "px;max-width:calc(100% - 20px);max-height:560px;" +
+                frame + "border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 46px var(--sh-3)"
+              : "position:fixed;z-index:93;left:" + x + "px;width:" + W + "px;max-width:calc(100% - 20px);" +
+                (up ? "bottom:" + (bh - smk.top + 6) + "px;max-height:" + Math.min(560, smk.top - 16) + "px;" : "top:" + (smk.y + 6) + "px;max-height:" + Math.min(560, below) + "px;") +
+                frame + "border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 46px var(--sh-3)",
+            senderPopHeadStyle: "flex:0 0 auto;display:flex;align-items:flex-start;gap:12px;border-bottom:1px solid var(--line);" + (touch ? "padding:4px 12px 14px 18px" : "padding:16px 10px 14px 18px"),
+            senderPopTileStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;box-sizing:border-box;" +
+              MARK_PILL[M.tone] + (M.tone === "plain" ? "background:var(--sub);border-color:var(--line);" : "") + markGlyph(20),
+            senderPopTitleStyle: "font-size:15px;font-weight:600;line-height:1.35;color:" + (M.tone === "plain" ? "var(--text)" : MARK_INK[M.tone]),
+            senderPopBodyStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;" + (touch ? "padding:14px 18px 22px" : "padding:14px 18px 18px"),
+          };
+        })(),
+        senderGroupStyle: "display:flex;flex-direction:column;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:0 14px",
+        senderResultGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px",
+        senderMoreGridStyle: "display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;margin-top:4px;padding:9px 11px;border-radius:8px;background:var(--panel);border:1px solid var(--line);font-size:12px;line-height:1.45",
         selBarShown: !!selBarIds.length,
         selClear: () => this.selClearKind(selBarKind),
         selBarCount: selBarIds.length + " selected",
@@ -3745,6 +5036,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ovAsk97: this.ovAskStyle(97, isMobile),
         ovAsk98: this.ovAskStyle(98, isMobile),
         ovAsk99: this.ovAskStyle(99, isMobile),
+        /* The link question is a modal dialog in the client, and a modal dialog covers the whole screen, the bottom bar
+           included, so on the phone it is centred on the full screen rather than above the bar. */
+        ovAskCover99: this.ovAskStyle(99, isMobile).replace("top:0;left:0;right:0;bottom:" + this.barH() + "px", "inset:0"),
         dlgFormWide: isMobile
           ? "width:100%;height:100%;display:flex;flex-direction:column;background:var(--panel);overflow:auto"
           : "width:460px;max-width:100%;max-height:" + dlgMaxH + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:auto",
@@ -3901,8 +5195,35 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.remFire(t2, rem, "task", "Tasks", { screen: "tasks" });
         },
         isAgent: st.screen === "agent" && !emptyApp,
-        goAgent: () => this.goScreen("agent"),
-        railAgentStyle: railBase + (st.screen === "agent" ? activeStyle : idleColor),
+        goAgent: () => { clearTimeout(this.peekT); this.goScreen("agent", { railPeek: null }); },
+        /* The tile is a button so the counts in its name reach a screen reader, and a button answers a key. */
+        goAgentKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); clearTimeout(this.peekT); this.goScreen("agent", { railPeek: null }); } },
+        railAgentStyle: "position:relative;" + railBase + (st.screen === "agent" ? activeStyle : idleColor),
+        agentPeekEnter: this.peekOpen("agent"),
+        railPeekLeave: this.peekLeave,
+        railPeekKeep: this.peekKeep,
+        /* The status dot any rail tile can carry: `pulse` while something there is under way, `dot` while something
+           waits to be read. It sits in the top end corner of the tile — of the glyph's pill on the phone's bar — inset
+           far enough that the pulse's 5 px ring never crosses the tile's edge. */
+        agentDotShown: !!agentDot,
+        agentDotKind: agentDot,
+        railIconWrapStyle: (isMobile ? "position:relative;" : "") + "display:flex;align-items:center;justify-content:center",
+        railDotStyle: "position:absolute;width:8px;height:8px;border-radius:50%;background:var(--err);pointer-events:none;" +
+          (isMobile ? "top:6px;right:6px" : "top:8px;right:8px"),
+        agentTileLabel: "Agent" + (agentDot ? " - " + [agentRuns.length ? agentRuns.length + " working" : "", agentUnread.length ? agentUnread.length + " unread" : ""].filter(Boolean).join(", ") : ""),
+        railPeekShown: !!peekView,
+        railPeekTitle: peekView ? peekView.title : "",
+        railPeekMeta: peekView ? peekView.meta : "",
+        railPeekSections: peekView ? peekView.sections : [],
+        railPeekEmpty: peekView && !peekView.sections.length ? peekView.empty : "",
+        railPeekStyle: peek
+          ? "position:fixed;left:" + peek.left + "px;top:" + peekTop + "px;width:300px;max-height:calc(100vh - " + (peekTop + 12) + "px);z-index:62;box-sizing:border-box;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 12px 28px var(--sh-2),0 2px 6px var(--sh-2);transform-origin:0 " + (peek.mid - peekTop) + "px"
+          : "",
+        /* The beak: a square turned 45° on the peek's start edge, level with the tile's middle, so the peek reads as
+           coming out of the tile it belongs to. */
+        railPeekBeakStyle: peek
+          ? "position:absolute;left:-6px;top:" + (peek.mid - peekTop - 6) + "px;width:11px;height:11px;background:var(--panel);border-left:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg);border-bottom-left-radius:2px"
+          : "",
         /* The hairline after Start and Agent: the spaces that look across everything stand above it, the spaces that hold below. */
         railSepStyle: "flex:0 0 auto;align-self:stretch;height:1px;margin:4px 16px;background:var(--line)",
         agentScrollStyle: isMobile
@@ -4057,7 +5378,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           time: formatMsgTime(m.ts),
           text: m.text,
           hasText: !!m.text,
-          md: (m.text ? mdView(m.text) : []).concat((m.paras || []).reduce((acc, p) => acc.concat(mdView(p.t).map(b => Object.assign({}, b, {
+          md: (m.text ? mdView(m.text, m.role === "bot" ? (m.links || {}) : null) : []).concat((m.paras || []).reduce((acc, p) => acc.concat(mdView(p.t).map(b => Object.assign({}, b, {
             style: b.style + (p.anim ? ";animation:mfmsgin 0.44s cubic-bezier(0.22,0.61,0.36,1) both" : ""),
           }))), [])),
           hasMd: !!m.text || (m.paras || []).length > 0,
@@ -4116,6 +5437,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:inline-flex;align-items:center;min-height:44px;padding:0 6px;font-size:13px;color:var(--muted)"
           : "font-size:12px;color:var(--muted)",
         composeAiPlaceholder: isMobile ? "Write what this is about…" : "Write what this is about - e.g. “we accept the 2 h SLA but ask for a 5% CPI cap”",
+        /* Both drafting fields take an instruction, a draft of the message, or both, so they grow with what is
+           written: one line empty, wrapping rather than scrolling sideways, up to six lines, and a scrollbar past
+           that. An empty field keeps its placeholder on the one line, cut with an ellipsis. */
+        growingFieldStyle: "flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;font-family:inherit;line-height:1.5;color:var(--text);padding:0;field-sizing:content;max-height:6lh;overflow-y:auto;overflow-wrap:anywhere;",
+        composeAiText: st.composeAiText || "",
+        onComposeAiText: (e) => this.setState({ composeAiText: e.target.value }),
         askLabel: touch ? "Ask" : "Ask ⏎",
         askBtnStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;" +
           (touch ? "min-height:44px;padding:0 18px" : "padding:8px 16px"),
@@ -4604,7 +5931,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         showSide: !drawer || drawerOpen,
         sideScrim: drawer && drawerOpen,
         closeDrawer: () => this.setState({ sideDrawer: false }),
-        showFolderBtn: drawer,
+        /* The list's head keeps the drawer's opener only where no toolbar stands to lead with it: the phone, and a
+           selection, whose bar replaces the toolbar. */
+        showFolderBtn: drawer && (singlePane || selectionOn),
         listSearchRef: this.listSearchRef,
         listSearchActive: !!st.listSearchOn,
         listSearchIdle: !st.listSearchOn,
@@ -4710,11 +6039,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               const active = (st.folderKey || "acc1·Inbox") === fk;
               const dragOver = st.dragOverKey === fk;
               const canNest = node.path.split("/").length < this.MAX_DEPTH;
-              const said = g.title + " - " + node.path.split("/").join(" / ") + (node.count ? " · " + node.count : "");
+              const obMark = g.key !== "all" && node.path === "Sent" ? outboxMarkFor(g.key) : null;
+              const said = g.title + " - " + node.path.split("/").join(" / ") + (node.count ? " · " + node.count : "") + (obMark ? " · " + obMark.title : "");
               const fpress = g.key === "all" ? null : this.pressFor("folder", fk, label, this.folderMenu(g.key, g.label, node.path, canNest, node.custom), undefined, said);
               return {
               ctxOpen: fpress ? fpress.ctx : noop, pressDown: fpress ? fpress.down : noop, pressUp: fpress ? fpress.up : noop,
               icon: node.icon, label: label, count: node.count, expanded: !sideCollapsed,
+              outboxMark: !!obMark && !sideCollapsed,
+              outboxStrip: !!obMark && sideCollapsed,
+              ob: obMark || {},
               title: fpress ? said : null,
               pick: () => this.pickFolder(fk, label),
               dragOver: (e) => this.dragOverFolder(fk, e),
@@ -4882,6 +6215,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.setState({ remFor: { key: key, title: e.t, timed: e.time !== "all day", kind: "cal", hint: this.remAnchor({ time: e.time, day: e.day }), src: "Calendar" } });
         },
         eventTitle: st.event ? st.event.t : "",
+        eventHasLink: !!(st.event && st.event.link),
+        eventLink: st.event && st.event.link ? st.event.link : "",
+        eventLinkHost: st.event && st.event.link ? hostOf(st.event.link) : "",
         eventWhen: st.event ? (st.event.day ? st.event.day + " August · " : "") + st.event.time : "",
         eventKind: st.event ? (st.event.kind === "deadline" ? "Deadline" : st.event.kind === "mail" ? "From mail" : "Meeting") : "",
         eventKindStyle: "font-size:11px;border-radius:12px;padding:3px 9px;" + (st.event && st.event.kind === "deadline"
@@ -4931,6 +6267,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                 ? "background:var(--accent);color:var(--onaccent);font-weight:600;"
                 : "color:var(--text2);border:1px solid var(--border2);"),
         })),
+        calSwipe: touch ? this.tabSwipe(["Day", "Week", "Month", "Agenda"], st.calView || "Week", v => this.setState({ calView: v })) : {},
         calIsWeek: (st.calView || "Week") === "Week",
         calIsDay: st.calView === "Day",
         calIsMonth: st.calView === "Month",
@@ -5111,6 +6448,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         peopleCount: shownContacts.length + (shownContacts.length === 1 ? " person" : " people"),
         peopleTabHint: peopleTab === "collected" ? "from received mail headers" : "address book",
         showOwnContacts: () => this.setState({ peopleTab: "own" }),
+        peopleSwipe: touch ? this.tabSwipe(["own", "collected"], peopleTab, v => this.setState({ peopleTab: v })) : {},
         showCollectedContacts: () => this.setState({ peopleTab: "collected" }),
         tabOwnStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;text-align:center;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:36px;padding:0 10px;" : "padding:6px 10px;") + (peopleTab !== "collected"
           ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);"
@@ -5225,7 +6563,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            the correspondence gets the full width (on desktop the list stays, there is room). */
         showThreadList: (!singlePane || mailPane === "list") && !(compact && st.stateBarOff && mailPane !== "list"),
         showContentPane: !singlePane || mailPane === "thread" || !!st.compose || !!st.doc,
-        showThreadPane: (!singlePane || mailPane === "thread") && !composeInPane && !docInPane && !htmlInPane && !emptyMail,
+        showThreadPane: (!singlePane || mailPane === "thread") && !composeInPane && !docInPane && !htmlInPane && !emptyMail && !outboxOn,
         showMailBack: singlePane && mailPane === "thread",
         backBtnStyle: "flex:0 0 auto;width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(--text2)",
         /* One pane gives the subject a row of its own under the back button and the actions, two lines before it is cut,
@@ -5254,31 +6592,58 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         threadAddrTitle: st.threadAddrOpen ? "Collapse address details" : "Other people on this message",
         threadAddrRowsStyle: "display:flex;flex-direction:column;gap:3px;padding:2px 0 3px " + (singlePane ? "27px" : "22px"),
         toggleThreadAddr: () => this.setState(s2 => ({ threadAddrOpen: !s2.threadAddrOpen })),
-        threadActions: [
+        /* A message marked spam is read-only, so its header holds *Not spam* alone, the list's act with its
+           confirmation; any other message adds *Spam* after its acts, in the error tone beside its glyph and word. */
+        /* *More actions* closes both sets, after the spam control, as its glyph alone wherever the head stands. */
+        threadActions: (threadSpam.spam ? [
+          { icon: "report_off", label: "Not spam", title: "Not spam", run: () => this.toggleSpam([thread.id]) },
+          { icon: "more_vert", label: "More actions", title: "More actions", glyph: true, run: (e) => this.openMoreMenu(thread.id, e) },
+        ] : [
           { icon: "reply", label: "Reply", title: "Reply", run: () => this.startReply("reply", [thread.id]) },
           { icon: "forward", label: "Forward", title: "Forward", run: () => this.startReply("fwd", [thread.id]) },
           { icon: "flag", label: flagOn ? "Unflag" : "Flag", title: flagOn ? "Remove flag" : "Flag", run: () => this.toggleFlagThreads([thread.id]) },
-        /* Two panes under a finger carry these three in the toolbar above already, so the header keeps *Ask* alone and
+          { icon: "report", label: "Mark spam", title: "Mark spam", run: () => this.toggleSpam([thread.id]) },
+          { icon: "more_vert", label: "More actions", title: "More actions", glyph: true, run: (e) => this.openMoreMenu(thread.id, e) },
+        /* Two panes under a finger carry these in the toolbar above already, so the header keeps *Ask* alone and
            the subject keeps the width a second copy would take from it. */
-        ].filter(() => singlePane || !touch).map(a => ({
+        ]).filter(() => singlePane || !touch).map(a => ({
           title: a.title,
           run: a.run,
-          label: singlePane || paneNarrow ? a.icon : a.label,
-          style: singlePane || paneNarrow
-            ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
-            : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--muted") + ")",
+          label: singlePane || paneNarrow || a.glyph ? a.icon : a.label,
+          style: singlePane || paneNarrow || a.glyph
+            ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
+            : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : a.icon === "report_off" ? "--text2" : "--muted") + ")",
         })),
-        backToList: () => this.setState({ mailPane: "list", replyChooser: null }),
+        backToList: () => this.setState({ mailPane: "list", replyDock: null, replyChooser: null }),
         threadListStyle: "position:relative;" + (singlePane
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
           : "width:" + (listStrip ? 76 : listW) + "px;flex:0 0 " + (listStrip ? 76 : listW) + "px;display:flex;flex-direction:column;min-height:0" + (listStrip ? ";background:var(--sub);border-right:1px solid var(--line)" : "")),
         listStrip,
-        listFull: !listStrip,
-        listNarrowable: foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn,
-        widenList: () => this.setState({ listWide: true }),
-        narrowList: () => this.setState({ listWide: false }),
-        stripHeadStyle: "flex:0 0 auto;display:flex;justify-content:center;padding:8px 0;border-bottom:1px solid var(--line)",
-        stripBtnStyle: "width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(--text2)",
+        listFull: !listStrip && !outboxOn,
+        ...outboxView,
+        /* The toolbar leads with the controls that change the view rather than the message: below 1020 px with a
+           thread open the list's own fold, one control for both ways, and then the folder pane's — its show and hide
+           where it stands beside the list, its drawer's opener where it is a drawer. The strip has no head of its own,
+           so the list control is there under a mouse as well as a finger. Holding it while the list is widened keeps
+           the list open as other threads are opened (`st.listKept`), drawn on `--accent-soft`; holding again lets
+           it fold, and a tap narrows it and lets go of the hold. */
+        viewLeadShown: st.screen === "mail",
+        drawerOpenerShown: drawer && st.screen === "mail",
+        listToggleShown: listStrip || (foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn && !outboxOn),
+        listToggleIcon: listStrip ? "left_panel_open" : "left_panel_close",
+        listToggleLabel: listStrip ? "Show the list" : "Narrow the list",
+        listToggleTitle: listStrip
+          ? "Show the list"
+          : st.listKept
+            ? "The list stays open as you open other messages. Hold to let it fold again, or tap to narrow it."
+            : "Narrow the list. Hold to keep it open as you open other messages.",
+        toggleList: () => this.setState(listStrip ? { listWide: true } : { listWide: false, listKept: false }),
+        keepList: (e) => {
+          if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); }
+          if (!listStrip) this.setState(s2 => ({ listKept: !s2.listKept }));
+        },
+        listToggleStyle: "flex:0 0 auto;width:" + (touch ? 44 : 32) + "px;height:" + (touch ? 44 : 32) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;"
+          + (st.listKept && !listStrip ? "color:var(--accent-strong);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
         stripScrollStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0",
         selectionOn,
         selectionOff: !selectionOn,
@@ -5297,7 +6662,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           "width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
         selectionCount: sel.length + " selected",
         clearSelection: () => this.setState({ sel: [] }),
-        selectAllThreads: () => this.setState({ sel: THREADS.map(t => t.id) }),
+        selectAllThreads: () => this.setState({ sel: listedThreads.map(t => t.id) }),
         tbRef: this.tbRef,
         toolbarStyle: "flex:0 0 auto;display:flex;align-items:center;gap:2px;overflow-x:auto;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 1px 2px var(--sh-1);" +
           (isMobile ? "box-sizing:border-box;min-height:56px;padding:6px 8px 6px 16px" : "padding:8px 12px"),
@@ -5321,22 +6686,30 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:flex;align-items:center;gap:7px;flex:0 0 auto;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);padding:8px 13px;border-radius:8px;white-space:nowrap;box-shadow:0 1px 2px var(--sh-2)"
           : "display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--accent);color:var(--onaccent);flex:0 0 auto;" + (touch ? "width:44px;height:44px" : "width:34px;height:34px"),
         toolbarActions: [
-          { icon: "reply", label: "Reply", key: 1 },
-          { icon: "reply_all", label: "Reply all" },
-          { icon: "forward", label: "Forward" },
+          ...(threadSpam.spam ? [{ icon: "report_off", label: "Not spam" }] : [
+            { icon: "reply", label: "Reply", key: 1 },
+            { icon: "reply_all", label: "Reply all" },
+            { icon: "forward", label: "Forward" },
+          ]),
           { icon: "archive", label: "Archive", key: 1 },
           { icon: "delete", label: "Delete", key: 1 },
           { icon: "flag", label: flagOn ? "Remove flag" : "Flag", key: 1 },
           { icon: "mark_email_unread", label: "Unread" },
           { icon: "drive_file_move", label: "Move" },
+          ...(threadSpam.spam ? [] : [{ icon: "report", label: "Mark spam" }]),
+          /* Where two panes under a finger leave the head its subject alone, or hidden panels leave no head at all,
+             *More actions* follows the spam control here instead, so every composition reaches it once. */
+          ...((touch || st.stateBarOff) && !singlePane ? [{ icon: "more_vert", label: "More actions", glyphOnly: true }] : []),
           /* Condensed view: hides the agreed/questions bar under the thread header.
              The setting is global for mail, so it survives switching messages. */
           /* Glyph only — fullscreen/exit reads instantly, the label lives in the tooltip. */
           { icon: st.stateBarOff ? "fullscreen_exit" : "fullscreen", label: st.stateBarOff ? "Show thread panels" : "Hide panels - correspondence only", iconOnly: true, key: 1 },
-        ].map(a => ({
-           icon: a.icon, title: a.label, label: (tbFull && !a.iconOnly) ? a.label : "", run: mailAct[a.icon],
-           style: ((tbFull && !a.iconOnly) ? tbBtn : tbIcon + ";flex:0 0 auto") +
+        /* The Outbox takes no mail act, so its toolbar keeps the folder toggle and *New message* and nothing else. */
+        ].filter(() => !outboxOn).map(a => ({
+           icon: a.icon, title: a.label, label: (tbFull && !a.iconOnly && !a.glyphOnly) ? a.label : "", run: mailAct[a.icon],
+           style: ((tbFull && !a.iconOnly && !a.glyphOnly) ? tbBtn : tbIcon + ";flex:0 0 auto") +
              (a.icon === "flag" && flagOn ? ";color:var(--warn);background:var(--warn-soft)" : "") +
+             (a.icon === "report" ? ";color:var(--err-text)" : "") +
              (a.icon === "fullscreen_exit" ? ";color:var(--accent-d);background:var(--accent-soft)" : "") +
              /* Focus mode is a view toggle, not a message action — kept separate, at the right edge. */
              (a.iconOnly ? ";margin-left:auto" : ""),
@@ -5347,6 +6720,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "delete", label: "Delete" },
           { icon: "flag", label: "Flag" },
           { icon: "mark_email_unread", label: "Unread" },
+          /* *Not spam* only while every selected message is spam; a mix reads *Spam* and is refused when pressed. */
+          sel.length && sel.every(id => this.spamOf(id).spam) ? { icon: "report_off", label: "Not spam" } : { icon: "report", label: "Spam" },
           { icon: "drive_file_move", label: "Move" },
         ].map(a => ({ icon: a.icon, title: a.label, label: tbFull ? a.label : "", run: mailAct[a.icon], style: tbFull ? selBtn : tbIcon + ";flex:0 0 auto;color:var(--accent-d)" })),
         aiSumOpen: !!aiSumThread,
@@ -5381,6 +6756,94 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           };
         })(),
         closeAiSum: this.closeAiSum,
+        /* The spam chooser: six kinds, one choice for the whole selection, confirmed rather than applied on the press.
+           Closing it changes nothing - except after a move into Spam, which has already marked the move spam. */
+        ...(() => {
+          const ask = st.spamAsk;
+          const n = ask ? ask.ids.length : 0;
+          const words = n === 1 ? "1 message" : n + " messages";
+          const picked = spamKind(st.spamPick);
+          return {
+            spamAskOpen: !!ask,
+            spamAskTitle: !ask ? "" : ask.moved ? "Moved to Spam" : "Mark " + words + " as spam",
+            spamAskText: !ask ? "" : ask.moved
+              ? (n === 1 ? "It is in Spam now and marked spam. Pick what kind of spam it is, or close this to leave it with no kind."
+                : "They are in Spam now and marked spam. Pick what kind of spam they are, or close this to leave them with no kind.")
+              : (() => {
+                const out = ask.ids.filter(id => !this.sitsInSpam(id));
+                const go = out.filter(id => this.movesSpam(id)).length;
+                const pick = n === 1 ? "Pick what kind of spam it is." : "Pick what kind of spam they are. One kind applies to all " + n + ".";
+                return pick + (!out.length ? "" : go === out.length ? (n === 1 ? " It moves to Spam." : " They move to Spam.")
+                  : go ? " The " + go + " on an account that moves spam go to Spam, and the rest stay where they are."
+                  : n === 1 ? " It stays in the folder it is in." : " Each stays in the folder it is in.");
+              })(),
+            spamAskStyle: isMobile
+              ? "box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;gap:12px;background:var(--panel);padding:8px 16px 22px;overflow:auto"
+              : "width:440px;max-width:100%;max-height:" + dlgMaxH + ";overflow:auto;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 22px 50px var(--sh-3)",
+            spamCloseStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
+              (touch ? "width:44px;height:44px;font-size:22px" : "width:28px;height:28px;font-size:18px"),
+            spamKinds: SPAM_KINDS.map(k => {
+              const on = st.spamPick === k.key;
+              return {
+                label: k.label, hint: k.hint, danger: k.danger, checked: on ? "true" : "false",
+                pick: () => this.pickSpamKind(k.key),
+                style: "display:flex;align-items:flex-start;gap:11px;border-radius:8px;padding:" + (touch ? "11px 12px" : "8px 10px") + ";min-height:" + (touch ? 52 : 40) + "px;box-sizing:border-box;" +
+                  (on ? "background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : ""),
+                dotStyle: "flex:0 0 18px;width:18px;height:18px;margin-top:1px;box-sizing:border-box;border-radius:50%;" +
+                  (on ? "border:5px solid var(--accent);background:var(--panel)" : "border:1.5px solid var(--border2)"),
+                labelStyle: "display:flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:" + (k.danger ? "var(--err-text)" : "var(--text)"),
+              };
+            }),
+            spamGlyphInline: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1",
+            spamHintStyle: "font-size:13px;line-height:1.4;color:var(--muted);text-wrap:pretty",
+            spamConfirmLabel: ask && ask.moved ? "Set the kind" : "Mark as spam",
+            spamConfirmOff: picked ? "false" : "true",
+            spamConfirmTitle: picked ? "" : "Pick a kind of spam first",
+            spamConfirmStyle: "display:flex;align-items:center;justify-content:center;font-size:" + (touch ? 14 : 13) + "px;font-weight:600;border-radius:8px;padding:0 16px;min-height:" + (touch ? 44 : 34) + "px;" +
+              (picked ? "color:var(--onaccent);background:var(--accent)" : "color:var(--faint);background:var(--rail)"),
+            spamCancelStyle: "display:flex;align-items:center;justify-content:center;font-size:" + (touch ? 14 : 13) + "px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:0 15px;min-height:" + (touch ? 44 : 34) + "px",
+            spamCancelLabel: ask && ask.moved ? "No kind" : "Cancel",
+            closeSpamAsk: this.closeSpamAsk,
+            confirmSpam: this.confirmSpam,
+          };
+        })(),
+        /* *Not spam* asks before it acts whenever it moves mail: how many, and what happens to each. */
+        ...(() => {
+          const ask = st.notSpamAsk;
+          const n = ask ? ask.ids.length : 0;
+          const inSpam = ask ? ask.ids.filter(id => this.sitsInSpam(id) && this.movesSpam(id)).length : 0;
+          const one = n === 1;
+          return {
+            notSpamAskOpen: !!ask,
+            notSpamAskTitle: !ask ? "" : one ? "Mark this message not spam?" : "Mark " + n + " messages not spam?",
+            notSpamAskText: !ask ? ""
+              : inSpam === n ? (one ? "It is marked not spam and moved to the Inbox." : n + " messages are marked not spam and moved to the Inbox.")
+              : !inSpam ? (one ? "It is marked not spam and stays where it is." : n + " messages are marked not spam and stay where they are.")
+              : n + " messages are marked not spam. " + inSpam + " move from Spam to the Inbox, and the rest stay where they are.",
+            notSpamConfirmLabel: inSpam ? "Not spam, move to Inbox" : "Not spam",
+            notSpamBtnStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:0 16px;min-height:" + (touch ? 44 : 34) + "px",
+            notSpamCancelStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:0 15px;min-height:" + (touch ? 44 : 34) + "px",
+            closeNotSpamAsk: this.closeNotSpamAsk,
+            confirmNotSpam: this.confirmNotSpam,
+          };
+        })(),
+        ...(() => {
+          const ask = st.linkAsk;
+          return {
+            linkAskOpen: !!ask,
+            linkAskTitle: ask && ask.image ? "Open the link behind this picture?" : "Open this link?",
+            linkAskHost: ask ? ask.host : "",
+            linkAskHref: ask ? ask.href : "",
+            linkAskWarnings: ask ? ask.warnings.map(w => ({ text: w })) : [],
+            linkAskBtnStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:0 16px;min-height:" + (touch ? 44 : 34) + "px",
+            linkAskCancelStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:0 15px;min-height:" + (touch ? 44 : 34) + "px",
+            linkAskCancelRef: this.linkAskCancelRef,
+            closeLinkAsk: this.closeLinkAsk,
+            confirmLinkAsk: this.confirmLinkAsk,
+            closeLinkAskKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.closeLinkAsk(); } },
+            confirmLinkAskKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.confirmLinkAsk(); } },
+          };
+        })(),
         moveOpen: !!(st.moveFor && st.moveFor.length),
         moveTitle: st.moveFor ? "Move " + this.countWord(st.moveFor.length) : "",
         closeMove: this.closeMove,
@@ -5477,8 +6940,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         notifScrimStyle: "position:fixed;inset:0;z-index:88;background:var(--scrim);" +
           (notifDragging ? "transition:none;" : "transition:opacity " + (st.notifSpring ? NG.springMs + "ms " + NG.springEase : "260ms ease") + ";") +
           "opacity:" + (isMobile ? notifProg : notifIn ? 1 : 0),
+        /* On the phone the panel comes up over the bottom bar and covers it, as the whole screen. */
         notifPanelStyle: "position:fixed;z-index:89;top:0;" +
-          (isMobile ? "left:0;right:0;bottom:" + this.barH() + "px;" : "bottom:0;left:" + railW + "px;width:min(400px,calc(100vw - " + (railW + 24) + "px));border-right:1px solid var(--line);") +
+          (isMobile ? "left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom);" : "bottom:0;left:" + railW + "px;width:min(400px,calc(100vw - " + (railW + 24) + "px));border-right:1px solid var(--line);") +
           "display:flex;flex-direction:column;background:var(--panel);box-shadow:26px 0 60px var(--sh-3);" +
           (isMobile
             ? "touch-action:pan-y;transform:translateY(" + (notifIn ? notifDrag + "px" : "100%") + ");" +
@@ -5495,19 +6959,52 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (notifFilter === x.k ? "var(--accent);background:var(--accent-soft);color:var(--accent-d);font-weight:600" : "var(--border2);background:var(--panel);color:var(--text2)"),
         })),
         notifEmpty: notifShown.length === 0,
+        /* Rows separated as the Mail list's are: each one raised on --panel, a hairline of --sub between them. */
+        notifListStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:1px;padding:1px 0;background:var(--sub)",
         notifItems: notifShown.map(n => {
           const K = NKIND[n.kind] || NKIND.system;
           const unread = isNotifUnread(n, st.notifRead || {});
-          return {
-            title: n.title, body: n.body, src: n.src, icon: K.icon, unread: unread,
-            time: notifTime(n.mins),
-            press: this.pressFor("notifs", n.id, n.title, [
+          const notifSwiped = st.notifSwipeId === n.id;
+          const notifDx = notifSwiped ? (st.notifSwipeDx || 0) : 0;
+          /* A refused send and an abandoned change carry their decisions as pills under the source line, visible at
+             every width so a finger reaches them; the same decisions stand in the row's menu. A change already decided on
+             its message has nothing left to decide. */
+          const changeOpen = n.failure === "change" && !(st.changeDecided || {})[n.change];
+          const pills = n.failure === "send"
+            ? [{ icon: "send", label: "Send again", run: (e) => this.decideRefusedNotif(n, "again", e) }, { icon: "edit", label: "Edit", run: (e) => this.decideRefusedNotif(n, "edit", e) }]
+            : changeOpen
+            ? [{ icon: "refresh", label: (CHANGE_NOTICES[n.change] || {}).act === "move" ? "Move again…" : "Ask again", run: (e) => this.decideChange(n.change, true, e) }, { icon: "close", label: "Let it go", run: (e) => this.decideChange(n.change, false, e) }]
+            : [];
+          const notifPress = this.pressFor("notifs", n.id, n.title, [
               { icon: "check_box", label: "Select notifications", run: () => this.selStart("notifs", n.id) },
               { icon: unread ? "mark_email_read" : "mark_email_unread", label: unread ? "Mark as read" : "Mark as unread", run: () => this.toggleNotifRead(n) },
               { icon: "open_in_new", label: "Open source", run: () => this.openNotif(n) },
+            ].concat(n.merged ? [{ icon: "auto_awesome", label: "Summarize", run: () => this.summarizeNotif(n) }] : []).concat(pills).concat([
               { icon: "delete", label: "Delete notification", danger: true, run: () => this.askHide("notifs", [n.id], "Delete notification?", n.title + " will disappear from the notification centre.") },
-            ], 420, notifInstant(n.mins)),
-            open: this.rowTap("notifs", n.id, () => this.openNotif(n)),
+            ]), 420, notifInstant(n.mins));
+          return {
+            pills: pills, hasPills: pills.length > 0,
+            title: n.title, body: n.body, src: n.src, icon: K.icon, unread: unread,
+            time: notifTime(n.mins),
+            press: notifPress,
+            merged: !!n.merged,
+            summarize: (e) => this.summarizeNotif(n, e),
+            summarizeStyle: "align-self:flex-start;display:inline-flex;align-items:center;gap:7px;margin-top:6px;border:1px solid var(--accent-line);border-radius:10px;background:var(--accent-soft);color:var(--accent-d);font-weight:600;" +
+              (touch ? "min-height:44px;padding:0 14px;font-size:14px;" : "min-height:30px;padding:0 11px;font-size:13px;"),
+            summarizeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:" + (touch ? 20 : 17) + "px",
+            open: (e) => { if (this.suppressClick) return; this.rowTap("notifs", n.id, () => this.openNotif(n))(e); },
+            touchStart: (e) => { notifPress.down(e); if (touch) this.notifSwipeStart(n.id, e); },
+            touchMove: (e) => { notifPress.up(); if (touch) this.notifSwipeMove(n.id, e); },
+            touchEnd: () => { notifPress.up(); if (touch) this.notifSwipeEnd(n); },
+            swiping: touch && notifSwiped && Math.abs(notifDx) > 8,
+            swipeBgStyle: "position:absolute;inset:0;display:flex;align-items:center;background:var(--accent-soft);color:var(--accent-d);" +
+              (notifDx < 0 ? "justify-content:flex-end;padding-right:22px;" : "justify-content:flex-start;padding-left:22px;"),
+            swipeIcon: unread ? "mark_email_read" : "mark_email_unread",
+            swipeLabel: unread ? "Mark read" : "Mark unread",
+            swipeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' " + (Math.abs(notifDx) >= 96 ? 500 : 300) + ";font-size:22px;line-height:1;margin-right:8px",
+            swipeTextStyle: "font-size:13px;font-weight:600;opacity:" + (Math.abs(notifDx) >= 96 ? "1" : "0.55"),
+            wrapStyle: "position:relative;flex:0 0 auto" +
+              (notifAnim[n.id] === "in" ? ";overflow:hidden;animation:mfrowin 480ms cubic-bezier(.22,1,.36,1) both" : ""),
             toggleRead: (e) => this.toggleNotifRead(n, e),
             readIcon: unread ? "mark_email_read" : "mark_email_unread",
             readTitle: unread ? "Mark as read" : "Mark as unread",
@@ -5516,8 +7013,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             titleStyle: "flex:1;min-width:0;font-size:14px;line-height:1.35;text-wrap:pretty;font-weight:" + (unread ? "600" : "500") + ";color:" + (unread ? "var(--text)" : "var(--text2)"),
             iconWrapStyle: "flex:0 0 auto;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:" + K.soft,
             iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + K.c,
-            style: "display:flex;align-items:flex-start;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line2);" + (unread ? "background:var(--sub);" : "") + selMark("notifs", n.id) +
-              (notifAnim[n.id] === "in" ? "overflow:hidden;animation:mfrowin 480ms cubic-bezier(.22,1,.36,1) both;" : ""),
+            style: "position:relative;display:flex;align-items:flex-start;gap:12px;padding:13px 16px;background:var(--panel);box-shadow:inset 0 1px 0 var(--inset),0 1px 2px var(--sh-1);" + selMark("notifs", n.id) +
+              (touch && notifSwiped ? "transform:translateX(" + notifDx + "px);" : "transform:translateX(0);transition:transform 160ms ease,background 120ms ease;"),
           };
         }),
         /* On the phone and the fold a toast is a slim strip at the top: it says one thing and goes. */
@@ -5536,9 +7033,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             loading: ["progress_activity", "var(--accent-2)", "var(--accent-soft)", "var(--accent)"],
           }[t.kind] || ["info", "var(--text2)", "var(--hover)", "var(--border2)"];
           const loading = t.kind === "loading";
+          /* A toast raised for a notification is the notification on the screen, so the whole card opens it and it
+             draws no button; any toast is dragged aside to dismiss it, beside its close control. */
+          const drag = MailFathomDesign.toastDrag(loading ? () => this.askCancelToast(t.id) : () => this.removeToast(t.id), loading);
           return {
             id: t.id,
             icon: K[0],
+            open: (e) => { if (t.opens && !drag.dragged(e)) t.opens(); },
+            dragDown: drag.down,
+            dragMove: drag.move,
+            dragUp: drag.up,
             title: t.title,
             body: t.body,
             hasBody: !!t.body,
@@ -5546,13 +7050,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             actionInline: !!t.actionLabel && toastCompact,
             actionLabel: t.actionLabel,
             action: t.onAction || this.undoOp,
-            close: loading ? () => this.askCancelToast(t.id) : () => this.dismissToast(t.id),
+            close: (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (loading) this.askCancelToast(t.id); else this.dismissToast(t.id); },
             closeTitle: loading ? "Abort operation" : "Close",
             hasBar: !t.sticky && !t.out,
             barStyle: "position:absolute;left:0;right:0;bottom:0;height:2px;transform-origin:left;opacity:0.55;background:" + K[3] + ";animation:mftbar " + (t.ms || 5000) + "ms linear both",
             iconWrapStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:" + K[2] + ";" + (toastCompact ? "width:28px;height:28px;border-radius:8px;" : "width:34px;height:34px;border-radius:12px;"),
             iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:" + (toastCompact ? 18 : 22) + "px;color:" + K[1] + (loading ? ";animation:mfspin 1.1s linear infinite" : ""),
-            style: "pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:flex-start;" + (toastCompact ? "align-items:center;gap:10px;padding:6px 4px 6px 8px;border-radius:12px;" : "gap:12px;padding:13px 12px 15px 13px;border-radius:16px;") + "background:var(--panel);border:1px solid var(--line);box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:" + (toastCompact ? 1 : 0.8) + ";transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards"),
+            style: "pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:flex-start;touch-action:pan-y;user-select:none;" + (t.opens ? "cursor:pointer;" : "") + (toastCompact ? "align-items:center;gap:10px;padding:6px 4px 6px 8px;border-radius:12px;" : "gap:12px;padding:13px 12px 15px 13px;border-radius:16px;") + "background:var(--panel);border:1px solid var(--line);box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:" + (toastCompact ? 1 : 0.8) + ";transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards"),
           };
         }),
         cancelAskOpen: !!st.cancelAsk,
@@ -5574,21 +7078,56 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         onTasksScroll: this.keepScrollOn("tasks"),
         calScrollRef: this.keepScroll("cal"),
         onCalScroll: this.keepScrollOn("cal"),
-        listScrollStyle: "position:relative;flex:1;overflow:auto;min-height:160px;background:var(--sub)",
+        /* overscroll-behavior keeps a browser's own pull-to-refresh from reloading the page under the list's pull. */
+        listScrollStyle: "position:relative;flex:1;overflow:auto;overscroll-behavior:contain;min-height:160px;background:var(--sub)",
+        listPullStart: touch ? this.listPullStart : null,
+        listPullShown: listPull.shown,
+        listPullStyle: listPull.discStyle,
+        listPullGlyphStyle: listPull.glyphStyle,
         listInnerStyle: "display:flex;flex-direction:column;gap:1px;padding:1px 0",
         threadHeadStyle: singlePane
           ? "flex:0 0 auto;display:flex;flex-direction:column;gap:2px;padding:" + (thCollapsed ? "3px 6px" : "6px 8px 8px 8px") + ";border-bottom:1px solid var(--line);background:var(--panel);transition:padding 140ms ease"
-          : "display:flex;flex-direction:column;gap:" + (low ? 2 : 7) + "px;padding:" + (low ? 8 : 16) + "px " + readPad(22) + ";border-bottom:1px solid var(--line)",
-        showThreadStateBar: (!singlePane || !thCollapsed) && !stateCards && !st.stateBarOff,
+          : "display:flex;flex-direction:column;gap:" + (low ? 2 : 7) + "px;padding:" + (low ? 8 : 16) + "px 22px;border-bottom:1px solid var(--line)",
+        showThreadStateBar: (!singlePane || !thCollapsed) && !stateCards && !st.stateBarOff && !threadSpam.spam,
         /* Condensed view: only the correspondence remains. On a narrow screen the header stays —
            mieszka w nim przycisk powrotu do listy. */
         showThreadHead: !st.stateBarOff || singlePane,
-        replyFabShown: !st.stateBarOff,
+        /* *Draft a reply* first asks what the reply should say: a card hanging over the bottom of the thread with a
+           field and its press, and only that press opens the reply composer and starts the draft in it. */
+        replyFabShown: !st.stateBarOff && !st.replyDock && !threadSpam.spam,
+        replyDockOpen: !st.stateBarOff && !!st.replyDock,
+        closeReplyDock: () => this.setState({ replyDock: null }),
+        draftReplyFromDock: this.draftReply,
+        showComposerChips: !singlePane && !paneCompact,
+        askThreadLabel: singlePane ? "Draft" : "Draft a reply",
+        composerPlaceholder: singlePane ? "Describe the reply…" : "Describe the reply you want to send…",
+        /* 24 px rather than a pill on the phone: one line reads as the pill it was, and a field grown to several lines
+           stays a rounded box instead of a capsule whose ends cut into the text. */
+        composerBarStyle: "flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:" + (singlePane ? "1px solid var(--accent-line)" : "2px solid var(--accent)") + ";background:var(--sub);border-radius:" + (isMobile ? 24 : 12) + "px;padding:" + (isMobile ? "4px 4px 4px 14px" : singlePane ? "4px 4px 4px 12px" : "6px 6px 6px 14px"),
+        composerPhStyle: "flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text);padding:0;field-sizing:content;max-height:6lh;overflow-y:auto;overflow-wrap:anywhere;" + (singlePane ? "font-size:14px;line-height:1.5" : "font-size:15px;line-height:1.55"),
+        replyDockText: st.replyDockText || "",
+        onReplyDockText: (e) => this.setState({ replyDockText: e.target.value }),
+        /* Enter asks for the draft, Shift+Enter starts a new line, and nothing is asked while a composition is
+           still being typed. */
+        onReplyDockKey: (e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); this.draftReply(); }
+          else if (e.key === "Escape") { e.preventDefault(); this.setState({ replyDock: null }); }
+        },
+        askThreadBtnStyle: "display:flex;align-items:center;justify-content:center;flex:0 0 auto;white-space:nowrap;color:var(--onaccent);background:var(--accent);font-weight:600;border-radius:" + (isMobile ? 999 : 7) + "px;" + (isMobile
+          ? "min-height:44px;padding:0 18px;font-size:14px;"
+          : touch ? "min-height:44px;padding:0 16px;font-size:13px;"
+          : "height:" + (singlePane ? 30 : 36) + "px;padding:0 " + (singlePane ? 13 : 16) + "px;font-size:13px;"),
+        /* A round close badge hanging off the drafter's top-right corner. On touch it sits higher and the
+           card carries more room above its row, so the badge never lands on *Draft*. */
+        replyDockCloseStyle: "position:absolute;z-index:1;display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--text2);background:var(--panel);border:1px solid var(--line);box-shadow:0 4px 12px var(--sh-2);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;" +
+          (touch ? "top:-19px;right:-4px;width:32px;height:32px;font-size:18px;" : "top:-11px;right:-11px;width:26px;height:26px;font-size:16px;"),
+        composerStyle: "position:absolute;z-index:16;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px var(--sh-3),0 2px 8px var(--sh-2);" +
+          (singlePane ? "left:10px;right:10px;bottom:10px;padding:" + (touch ? "16px 8px 8px" : "8px") : "left:18px;right:18px;bottom:16px;padding:12px"),
         /* The one AI entry point of a thread: a floating glyph pinned to the pane's bottom-right corner, over the
            thread rather than in it, so it stays put however far the conversation scrolls. Pressing it unfolds two
            choices above it, *Draft a reply* and *Ask*, and turns the glyph into a close; Escape, back, a press
            outside or a choice folds them again. */
-        replyChooserOpen: !st.stateBarOff && !!st.replyChooser,
+        replyChooserOpen: !st.stateBarOff && !st.replyDock && !!st.replyChooser,
         toggleReplyChooser: () => this.setState(s => ({ replyChooser: s.replyChooser ? null : true })),
         closeReplyChooser: () => this.setState({ replyChooser: null }),
         replyFabIcon: st.replyChooser ? "close" : "auto_awesome",
@@ -5599,14 +7138,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (isMobile ? "right:16px;bottom:84px;" : "right:" + (singlePane ? 16 : 22) + "px;bottom:" + (singlePane ? 72 : 76) + "px;"),
         replyChoiceStyle: "display:flex;align-items:center;gap:10px;white-space:nowrap;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);font-weight:600;" +
           (touch ? "min-height:48px;padding:0 18px 0 14px;font-size:15px;" : "height:40px;padding:0 16px 0 12px;font-size:14px;"),
-        chooseDraftReply: () => { this.setState({ replyChooser: null }); this.draftReply(); },
+        chooseDraftReply: () => this.setState({ replyDock: true, replyChooser: null }),
         chooseAskThread: () => { this.setState({ replyChooser: null }); this.goAgentWith("thread “" + thread.subject + "”"); },
         /* A reading that predates the conversation's newest message: a message joined or left after
            the state was derived, so the reading is held back instead of being shown out of date. */
         stateStale: !!thread.stateStale,
         stateFresh: !thread.stateStale,
-        stateInBody: stateCards && !st.stateBarOff && !thread.stateStale,
-        staleInBody: stateCards && !st.stateBarOff && !!thread.stateStale,
+        stateInBody: stateCards && !st.stateBarOff && !thread.stateStale && !threadSpam.spam,
+        staleInBody: stateCards && !st.stateBarOff && !!thread.stateStale && !threadSpam.spam,
         threadAiLine: thread.ai || (thread.state[0] ? thread.state[0].value : ""),
         threadSheetOpen: !!st.threadSheet,
         agentJumpRowStyle: "flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:var(--sub);padding:" + (paneCompact ? "9px 16px" : "10px 24px"),
@@ -5619,7 +7158,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           "What the other side expects from me",
           "Draft a reply for me",
         ].map(q => ({ label: q, run: q === "Draft a reply for me"
-          ? () => { this.setState({ threadSheet: false }); this.draftReply(); }
+          ? () => this.setState({ threadSheet: false, replyDock: true })
           : () => this.setState({ threadSheet: false, mailAnswer: true }) })),
         goAgentBtnStyle: "display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid var(--accent-line);border-radius:12px;background:var(--accent-soft);color:var(--accent-d);font-weight:600;" +
           (touch ? "min-height:50px;padding:0 14px;font-size:14px" : "min-height:40px;padding:0 14px;font-size:13px"),
@@ -5649,15 +7188,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           if (!t2 || !singlePane) return;
           const dx = t2.clientX - this._sx, dy = t2.clientY - this._sy;
           if (Math.abs(dx) < 72 || Math.abs(dy) > 56) return;
-          const i = THREADS.findIndex(x => x.id === thread.id);
-          const next = THREADS[dx < 0 ? i + 1 : i - 1];
+          const i = listedThreads.findIndex(x => x.id === thread.id);
+          const next = i < 0 ? null : listedThreads[dx < 0 ? i + 1 : i - 1];
           if (next) this.setState({ threadId: next.id, thScroll: false, stateOpen: false });
         },
         threadStateStyle: singlePane
           ? "flex:0 0 auto;display:flex;align-items:center;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 12px"
-          : readingColumn
-            ? "flex:0 0 auto;display:flex;flex-direction:column;gap:6px;background:var(--sub);border:1px solid var(--line);border-radius:8px;margin:14px max(9px, calc((100% - 906px) / 2)) 0;padding:9px 12px"
-            : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px " + readPad(22),
+          : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 22px",
         stateRowStyle: isMobile || paneNarrow ? "display:flex;flex-direction:column;gap:6px;padding-top:1px"
           : thread.state.length >= 4 ? "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px" : "display:flex;gap:12px 20px;flex-wrap:wrap",
         stateBodyRowStyle: thread.state.length >= 4
@@ -5680,8 +7217,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         stateToggleLabel: st.stateOpen ? "hide" : "3 fields",
         /* The bottom padding keeps the last line of the thread clear of the floating reply button. */
         threadBodyStyle: singlePane
-          ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : 84) + "px;overflow:auto;min-height:0"
-          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px " + readPad(22) + " " + (st.stateBarOff ? 18 : 86) + "px;overflow:auto;min-height:0",
+          ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : st.replyDock ? 96 : 84) + "px;overflow:auto;min-height:0"
+          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px " + readPad(22) + " " + (st.stateBarOff ? 18 : st.replyDock ? 150 : 86) + "px;overflow:auto;min-height:0",
         backBannerStyle: isMobile
           ? "display:flex;flex-direction:column;gap:3px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:9px 14px"
           : "display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:10px 22px",
@@ -5698,7 +7235,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         clearResultFilter: () => this.setState({ resultFilter: null }),
         backToResultFromList: () => this.setState({ screen: "start", resultFilter: null }),
         resultFilterStyle: "flex:0 0 auto;display:flex;flex-direction:column;gap:4px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:" + (isMobile ? "10px 12px 6px" : "9px 12px 5px"),
-        threads: THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 && (!st.resultFilter || st.resultFilter.ids.indexOf(t.id) >= 0)).map(t => ({
+        threads: listedThreads.map(t => withMark(t, spamRowOf(t, {
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
           movedTo: movedMap[t.id] || "",
@@ -5720,11 +7257,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           hasAvatar: !!avatarOf(t.from), noAvatar: !avatarOf(t.from), initials: initialsOf(t.from),
           avatarStyle: "width:" + avSz + "px;height:" + avSz + "px;flex:0 0 " + avSz + "px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:" + (isMobile ? 12 : 11) + "px;letter-spacing:0.02em;background:var(--border2);color:var(--text2)",
           avatarImgStyle: "width:" + avSz + "px;height:" + avSz + "px;flex:0 0 " + avSz + "px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(t.from) + ");display:block",
-          /* Unread is the weight of the words, as every mail client draws it: the sender and the subject in 600, a
-             read row in 400. The colours are the read row's either way, so weight is the one signal. No dot. */
-          fromStyle: (isMobile ? "flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px;white-space:nowrap") + ";font-weight:" + (unreadMap[t.id] ? "600" : "400"),
-          subjStyle: (isMobile ? "font-size:14px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + ";font-weight:" + (unreadMap[t.id] ? "600" : "400"),
-          orgStyle: isMobile || compact ? "display:none" : "font-size:12px;color:var(--muted);white-space:nowrap",
+          /* Unread is the weight and the ink of the words, as every mail client draws it: the sender and the subject
+             in 700 and the full text colour, a read row in 400 and the secondary one. 600 against 400 alone read as
+             the same row at a glance. No dot. */
+          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "flex:0 0 auto;max-width:60%;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          subjStyle: (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          orgStyle: isMobile || compact ? "display:none" : "flex:0 1 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
           showAi: aiHints && !!t.ai,
           openAiSum: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.openAiSum(t.id); },
           aiBtnStyle: "width:" + (touch ? 32 : 24) + "px;height:" + (touch ? 32 : 24) + "px;flex:0 0 " + (touch ? 32 : 24) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
@@ -5757,7 +7295,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             rowWash(t.id),
           count: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10),
           multi: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10) > 1,
-        })),
+        }))),
         activeSubject: thread.subject,
         activeMeta: thread.meta,
         activeState: thread.state.map((s, i) => {
@@ -5784,8 +7322,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeExpanded: (!!st.compose && !st.composeMin) || composeInPane,
         composeChromeShown: !composeTabActive,
         openCompose: () => (tabsMode
-          ? this.openTab("compose", { compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
-          : this.setState({ compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
+          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
+          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
         composeSubjValue: curSubj,
         onComposeSubj: (e) => this.setState({ composeSubjEdit: e.target.value }),
         closeCompose: () => (bodyTxt() || curSubj.trim() ? this.setState({ closeAsk: true }) : finishCompose()),
@@ -5823,15 +7361,26 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         sendConfirmLabel: st.sendAsk && st.sendAsk.warnings.length ? "Send anyway" : "Send",
         sendSummaryTo: composeTo.length ? composeTo.join(", ") : "- no recipient -",
         sendSummarySubj: curSubj.trim() || "- no subject -",
+        /* A send is handed to the account's Outbox, so the toast saying it was sent leads to its entry there, which is
+           where withdrawing it is offered for as long as it can be. */
         confirmSend: () => {
           const to = composeTo.length ? composeTo.join(", ") : "no recipient";
+          const entry = { id: "ob" + Date.now(), stage: "waiting", at: "10:47", attempts: 0,
+            rcpt: composeTo.map(n => ({ hdr: "To", name: n, mail: (CONTACTS.find(c => c.name === n) || { mail: n }).mail })), subject: curSubj.trim() || "(no subject)", body: [bodyTxt()] };
           finishCompose();
+          this.setOutbox("acc1", [entry].concat(this.outboxOf("acc1")));
           this.notifyTask({
             title: "Sending message…",
             body: "Do: " + to,
-            cancelText: "The message is being sent. Aborting stops delivery and saves it as a draft.",
+            cancelText: "The message is being sent. Aborting stops it here, so it is not sent.",
             doneTitle: "Message sent",
             doneBody: "Do: " + to,
+            doneActionLabel: "Show in Outbox",
+            doneAction: () => {
+              this.goScreen("mail", { mailPane: "list" });
+              this.openOutbox("acc1");
+              this.pickOutboxEntry(entry.id);
+            },
             ms: 2400,
           });
         },
@@ -5843,6 +7392,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(86dvh, 760px)" : "86dvh") + ";z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
         composeTitle: (st.composeMin ? composeKind + " - collapsed" : composeKind),
         composeToChips: composeTo.map(n => ({ name: n })),
+        /* A draft opened from the Outbox or the Drafts list carries its files; one whose copy on the mail server may be
+           missing or out of date says so first, above the recipients, at every composition. */
+        composeDraftAtts: composeDraft ? (composeDraft.attachments || []) : [],
+        composeHasAtts: !!composeDraft && !!(composeDraft.attachments || []).length,
+        composeAttChipStyle: "display:flex;align-items:center;gap:7px;min-width:0;max-width:100%;box-sizing:border-box;font-size:13px;background:var(--rail);border:1px solid var(--line);border-radius:8px;" + (touch ? "min-height:36px;padding:0 10px;" : "padding:4px 10px;"),
+        composeNoServerCopy: !!composeDraft && !!composeDraft.noServerCopy,
+        composeNoCopyStyle: "display:flex;align-items:flex-start;gap:9px;padding:" + (touch ? "11px 15px" : "9px 15px") + ";font-size:" + (touch ? 13 : 12) + "px;line-height:1.45;color:var(--warn-text);background:var(--warn-soft);border-bottom:1px solid var(--warn)",
         ccOpen: !!st.ccOpen,
         ccTitle: st.ccOpen ? "Hide Cc and Bcc fields" : "Show Cc and Bcc fields",
         /* The phone's field labels take the width of the longest of them rather than a desktop column, so a recipient
@@ -5900,10 +7456,57 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         fmtHintShown: !touch,
         fmtBarStyle: "display:flex;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line2);" + (touch ? "gap:6px;padding:9px 12px" : "gap:2px;padding:6px 12px"),
 
+        /* *Show source*: a dialog over a scrim on the desktop, and the whole screen below 1180 — the tablet, the fold, and
+           above the bottom navigation on the phone — rising as a sheet with its grabber. It draws a skeleton of
+           header-like lines while the source is on the wire, then the text in a monospaced face, which fades in, wraps
+           rather than scrolling sideways, and scrolls inside the surface. */
+        ...(() => {
+          const src = st.source;
+          if (!src) return { sourceOpen: false };
+          const full = isMobile || compact;
+          const th = THREADS.find(t => t.id === src.id) || {};
+          const cut = MESSAGE_SOURCES.cutFor[src.id];
+          const text = src.phase === "loaded" ? this.sourceOf(src.id) : "";
+          return {
+            sourceOpen: true,
+            sourceMotion: full ? "sheet" : "pop",
+            sourceGrabber: full,
+            sourceSubject: src.named ? th.subject || "Message" : "",
+            sourceOverlayStyle: isMobile
+              ? "position:fixed;top:0;left:0;right:0;bottom:" + this.barH() + "px;z-index:89;display:flex;background:var(--sub)"
+              : full
+              ? "position:fixed;inset:0;z-index:89;display:flex;background:var(--sub)"
+              : "position:fixed;inset:0;z-index:89;display:flex;align-items:center;justify-content:center;padding:22px;background:var(--scrim)",
+            sourceWindowStyle: full
+              ? "flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)"
+              : "width:min(880px,100%);height:" + dlgMaxH + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 26px 60px var(--scrim);overflow:hidden",
+            sourceHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);" + (full ? "padding:6px 12px 10px 16px" : "padding:10px 12px 10px 16px"),
+            sourceCloseStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:var(--text2);border-radius:8px;" + (touch ? "width:44px;height:44px" : "width:28px;height:28px"),
+            sourceLoading: src.phase === "loading",
+            sourceLoaded: src.phase === "loaded",
+            sourceFailed: src.phase === "failed",
+            sourceScreened: src.phase === "screened",
+            sourceOffline: src.phase === "offline",
+            sourceCut: src.phase === "loaded" && !!cut,
+            sourceCutNote: cut ? "This message is " + cut + ", more than can be shown at once, so its source stops after the first 1 MB." : "",
+            sourceSize: src.phase === "loaded" ? (cut || (Math.max(1, Math.round(text.length / 100) / 10)) + " kB") : "",
+            sourceAsReceived: src.phase === "loaded" ? (src.named ? " · as received, " : "As received, ") : "",
+            sourceText: text,
+            sourceTextStyle: "margin:0;padding:" + (isMobile ? "14px 14px 24px" : "16px 20px 28px") + ";font-family:'Geist Mono',ui-monospace,monospace;font-size:" + (isMobile ? 12 : 13) + "px;line-height:1.625;color:var(--text2);white-space:pre-wrap;overflow-wrap:anywhere;user-select:text",
+            sourceSkelLines: [38, 64, 52, 0, 70, 58, 66, 44, 0, 61, 74, 30, 0, 22, 48, 0, 96, 92, 98, 57].map((wd, i) => ({
+              style: wd
+                ? "border-radius:4px;background:linear-gradient(90deg,var(--line) 0%,var(--sub) 42%,var(--line) 78%);background-size:260% 100%;animation:mfshim 1.05s linear infinite;height:10px;width:" + wd + "%" + (i > 15 ? "" : ";max-width:560px")
+                : "height:6px",
+            })),
+            closeSource: this.closeSource,
+            retrySource: this.retrySource,
+          };
+        })(),
+
         htmlOpen: !!st.htmlDoc && (!tabsMode || htmlInPane),
         htmlTitleText: st.htmlDoc ? st.htmlDoc.title : "",
         htmlMeta: st.htmlDoc ? st.htmlDoc.from + " · " + st.htmlDoc.when : "",
-        htmlSrc: st.htmlDoc ? st.htmlDoc.src : "",
+        htmlSrc: st.htmlDoc ? embedLinks(st.htmlDoc.src) : "",
         closeHtml: () => (htmlInPane ? this.closeTab(st.activeTab) : this.setState({ htmlDoc: null })),
         htmlOverlayStyle: htmlInPane
           ? "flex:1;display:flex;min-height:0;min-width:0;background:var(--sub)"
@@ -6037,6 +7640,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               .filter(g => g.items.length),
           };
         })(),
+        settingsSwipe: touch && singlePane
+          ? this.tabSwipe(["profil", "accounts", "ai", "notif", "app"], st.settingsTab || "profil", v => this.setState({ settingsTab: v }))
+          : {},
         settingsTabs: [["profil", "Profile"], ["accounts", "Accounts"], ["ai", "AI"], ["notif", "Notifications"], ["app", "Application"]].map(([v, label]) => ({
           label,
           pick: () => this.setState({ settingsTab: v }),
@@ -6271,7 +7877,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "Every open mail, attachment and new message gets its own tab above the content panel."
           : "Mail opens in the panel next to the list; a new message replaces the content panel.",
         tabsBarShown: tabsMode && tabItems.length > 0,
-        noTabsOpen: emptyMail,
+        noTabsOpen: emptyMail && !outboxOn,
         emptyMailText: tabsMode
           ? "Pick a message from the list, write a new one or ask about the whole correspondence history - each opens as a tab."
           : "Pick a message from the list, write a new one or ask about the whole correspondence history.",

@@ -65,12 +65,15 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
     public async Task<IReadOnlyList<StoredEmailAwaitingEmbedding>> GetEmailsAwaitingEmbeddingAsync(
         StoredEmailId? resumeAfter,
         EmbeddingProfileId profileId,
+        TimeSpan liveEmbeddingWindow,
         int batchSize,
         CancellationToken cancellationToken)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(liveEmbeddingWindow, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
 
         var resumeAfterId = resumeAfter?.Value;
+        var profile = profileId.Value;
         // One snapshot for both halves. The predicate narrows the batch and the answer below names which of the gate's
         // decisions admitted each row, so a second reading taken microseconds later would let the query select a row
         // the answer then reported as still waiting.
@@ -78,7 +81,10 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
         var foldersGeneratingEmbeddings = await deploymentFolders.ReadAsync(
             MailFolderSelection.GeneratingEmbeddings,
             cancellationToken);
-        var candidates = await this.EmailsAwaitingEmbedding(profileId.Value, foldersGeneratingEmbeddings, terms)
+        var candidates = await this.LeavingRecentCutsToTheLivePath(
+                this.EmailsAwaitingEmbedding(profile, foldersGeneratingEmbeddings, terms),
+                profile,
+                liveEmbeddingWindow)
             .Where(email => resumeAfterId == null || email.Id > resumeAfterId)
             .OrderBy(email => email.Id)
             .Take(batchSize)
@@ -164,6 +170,28 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
 
         storedPosition.LastProcessedStoredEmailId = lastProcessed.Value;
         storedPosition.UpdatedAt = recordedAt;
+    }
+
+    /// <summary>Narrows a selection to the messages none of whose outstanding passages was cut inside the window.</summary>
+    /// <remarks>
+    /// The window ends at an instant read from this process's clock rather than at the database's own <c>now()</c>, so
+    /// it is measured on the clock the passages' instants were stamped with. A zero window adds nothing to the query.
+    /// </remarks>
+    private IQueryable<StoredEmailEntity> LeavingRecentCutsToTheLivePath(
+        IQueryable<StoredEmailEntity> emails,
+        Guid profileId,
+        TimeSpan liveEmbeddingWindow)
+    {
+        if (liveEmbeddingWindow == TimeSpan.Zero)
+        {
+            return emails;
+        }
+
+        var leftToLivePathAfter = timeProvider.GetUtcNow() - liveEmbeddingWindow;
+
+        return emails.Where(email => !email.Chunks.Any(chunk =>
+            chunk.DerivedAt > leftToLivePathAfter
+            && !chunk.Embeddings.Any(vector => vector.EmbeddingProfileId == profileId)));
     }
 
     /// <summary>Selects the messages that are not current for one profile, whichever of the two reasons applies.</summary>

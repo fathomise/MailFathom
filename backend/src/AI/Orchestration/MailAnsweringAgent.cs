@@ -274,11 +274,20 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
     /// audited policy, recorded as the digest of its own text, so a value that changes per call would make that digest
     /// name a text nothing produced. Without it a question naming a period reaches the retrieval filters, which take
     /// absolute instants, as a date the model recalled rather than one it was given. Composed through one method so the
-    /// bounds above are applied to the turn that is actually sent rather than to the question the anchor expands.
+    /// bounds above are applied to the turn that is actually sent rather than to the question the anchor expands. The
+    /// question is written in the person's ask element, which is the one place the composed instruction says the
+    /// person's wishes are read from.
     /// </remarks>
     /// <param name="askedAt">The instant the question was asked at.</param>
     /// <param name="questionText">The question, as guarded for the provider.</param>
     /// <returns>The turn.</returns>
-    internal static string ComposeTurn(DateTimeOffset askedAt, string questionText) =>
-        $"{AgentTimeAnchor.Stated(askedAt)}\n\n{questionText}";
+    internal static string ComposeTurn(DateTimeOffset askedAt, string questionText)
+    {
+        using var document = new AgentTurnDocument();
+
+        document.WriteStatement($"{AgentTimeAnchor.Stated(askedAt)}\n\n");
+        document.WriteAsk(questionText);
+
+        return document.Complete();
+    }
 }

@@ -16,8 +16,11 @@ using MailFathom.Application.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
@@ -125,6 +128,27 @@ public sealed class ClientMailSearchEndpointTests
         Assert.True(row.Unread);
         Assert.Equal(["the **invoice** is attached"], row.Snippets);
         Assert.Equal(nameof(SearchMatchOrigin.LexicalRanking), row.MatchedBy);
+    }
+
+    /// <summary>A folder withheld from AI is still the person's, so a search from the client reaches it like any other.</summary>
+    [Fact]
+    public async Task SearchAsync_AFolderWithheldFromAI_IsSearchedForThePerson()
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("private"));
+
+        // Act
+        var result = await this.SearchAsync("invoice", participation: StubMailFolderParticipation.Nothing.Hiding(withheld));
+
+        // Assert
+        var page = Assert.IsType<Ok<ClientMailSearchResponse>>(result.Result).Value;
+        Assert.Single(page!.Results);
+        await this.index.Received().ReadRankedCandidatesAsync(
+            Arg.Is<MailboxEmailSelection>(selection =>
+                selection != null && selection.Scope.ReadableFolders.Contains(withheld)),
+            Arg.Any<EmailSearchQueryText>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>How a page was ranked and what the instance can do are published, which is what keeps a narrower answer from being a quieter one.</summary>
@@ -263,6 +287,70 @@ public sealed class ClientMailSearchEndpointTests
         Assert.Empty(Assert.Single(response.Results).AttachmentMatches);
     }
 
+    /// <summary>A search result carries the spam verdict a list row carries, so a result is folded or badged the same way.</summary>
+    [Fact]
+    public void For_AResultAModelJudgedSpam_CarriesTheVerdict()
+    {
+        // Arrange
+        var page = PageOf(new BrowsedSearchResult(
+            SyntheticMatchedEmail() with
+            {
+                Spam = new EmailSpamVerdict(
+                    SpamVerdict.Spam,
+                    SpamClassificationStage.Model,
+                    SpamSubcategory.Marketing,
+                    PhishingRequest: null,
+                    ImpersonatedParty: null),
+            },
+            "the invoice is attached",
+            ["**invoice**"],
+            SearchMatchOrigin.LexicalRanking,
+            AttachmentMatches: [],
+            IsDepictedMatch: false));
+
+        // Act
+        var response = ClientMailSearchResponse.For(page);
+
+        // Assert
+        Assert.Equal(
+            new ClientMailSpamVerdictResponse("Spam", "Model", "Marketing", "Model", null, null),
+            Assert.Single(response.Results).Spam);
+    }
+
+    /// <summary>A search result carries the sender facts a list row carries, so a result draws the same sender mark.</summary>
+    [Fact]
+    public void For_AResultWhoseSignatureFailed_CarriesTheSenderFacts()
+    {
+        // Arrange
+        var page = PageOf(new BrowsedSearchResult(
+            SyntheticMatchedEmail() with
+            {
+                SenderVerification = new SenderVerification
+                {
+                    AuthorAuthentication = AuthorAuthenticationOutcome.Failed,
+                    DeploymentTrust = SenderTrustLevel.Unknown,
+                    Signature = new EmailSignature
+                    {
+                        Format = EmailSignatureFormat.OpenPgpMime,
+                        ContentCheck = SignatureCheckResult.Failed,
+                    },
+                },
+            },
+            "the invoice is attached",
+            ["**invoice**"],
+            SearchMatchOrigin.LexicalRanking,
+            AttachmentMatches: [],
+            IsDepictedMatch: false));
+
+        // Act
+        var response = ClientMailSearchResponse.For(page);
+
+        // Assert
+        Assert.Equal(
+            new ClientMailListedSenderResponse("Failed", "Unknown", "Failed", false),
+            Assert.Single(response.Results).Sender);
+    }
+
     /// <summary>Wraps one result in the page a response is described from, so a shape assertion arranges only what it is about.</summary>
     private static BrowsedSearchPage PageOf(BrowsedSearchResult result) => new(
         [result],
@@ -310,7 +398,8 @@ public sealed class ClientMailSearchEndpointTests
         string? folder = null,
         string? sender = null,
         int? pageSize = null,
-        string? cursor = null)
+        string? cursor = null,
+        StubMailFolderParticipation? participation = null)
     {
         var matched = SyntheticMatchedEmail();
 
@@ -347,13 +436,16 @@ public sealed class ClientMailSearchEndpointTests
             receivedBefore: null,
             pageSize,
             cursor,
-            this.Browser(),
+            this.Browser(participation),
             TestContext.Current.CancellationToken);
     }
 
     /// <summary>Builds the use case behind the route over the real scope resolution, with storage and the instruments stood in for.</summary>
-    private MailSearchBrowser Browser()
+    /// <param name="participation">What the caller's folders take part in, defaulting to a deployment that maps none.</param>
+    private MailSearchBrowser Browser(StubMailFolderParticipation? participation = null)
     {
+        var folders = participation ?? StubMailFolderParticipation.Nothing;
+
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
         catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(MailAccountId.Create("work"))]);
 
@@ -375,8 +467,8 @@ public sealed class ClientMailSearchEndpointTests
             previews,
             new MailboxScopeResolver(
                 catalog,
-                StubMailFolderParticipation.Nothing,
-                StubDeploymentMailFolders.None,
+                folders,
+                StubDeploymentMailFolders.Of(folders),
                 StubMailFolderMappings.ResolvingNothing),
             EmailSearchSnippetBounds.Default,
             SensitiveContentEgressGuards.Inactive(),

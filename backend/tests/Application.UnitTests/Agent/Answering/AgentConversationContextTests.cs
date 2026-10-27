@@ -29,7 +29,7 @@ public sealed class AgentConversationContextTests
         var history = context.Compose();
 
         // Assert
-        Assert.Equal([Text("a"), Text("b"), Text("c")], history.Select(static turn => turn.Text));
+        Assert.Equal([Text("a"), Text("b"), Text("c")], history.Select(TextOf));
     }
 
     [Fact]
@@ -48,12 +48,8 @@ public sealed class AgentConversationContextTests
         // Assert
         Assert.Collection(
             history,
-            summary =>
-            {
-                Assert.Equal(AgentMessageAuthor.Agent, summary.Author);
-                Assert.Equal(AgentConversationContext.SummaryPreamble + "They asked a and heard b.", summary.Text);
-            },
-            later => Assert.Equal(Text("c"), later.Text));
+            summary => Assert.Equal(new AgentSummaryTurn("They asked a and heard b."), summary),
+            later => Assert.Equal(Text("c"), TextOf(later)));
     }
 
     /// <summary>Two turns that no compaction separates send the same leading part, which is what a provider's prompt cache is keyed on.</summary>
@@ -73,7 +69,7 @@ public sealed class AgentConversationContextTests
         var second = AgentConversationContext.Read(AgentConversationExample.Written([.. before, Question("c")])).Compose();
 
         // Assert
-        Assert.Equal(first.Select(static turn => turn.Text), second.Take(first.Count).Select(static turn => turn.Text));
+        Assert.Equal(first, second.Take(first.Count));
     }
 
     [Fact]
@@ -89,7 +85,7 @@ public sealed class AgentConversationContextTests
         // Assert
         Assert.NotNull(plan);
         Assert.Null(plan.PreviousSummary);
-        Assert.Equal([Text("a"), Text("b"), Text("c")], plan.Turns.Select(static turn => turn.Text));
+        Assert.Equal([Text("a"), Text("b"), Text("c")], plan.Turns.Select(TextOf));
         Assert.Equal(3, plan.Through);
         Assert.Empty(plan.Carried);
     }
@@ -108,7 +104,7 @@ public sealed class AgentConversationContextTests
         // Assert
         Assert.NotNull(plan);
         Assert.Equal([2L], plan.Carried);
-        Assert.Equal([Text("a"), Text("c")], plan.Turns.Select(static turn => turn.Text));
+        Assert.Equal([Text("a"), Text("c")], plan.Turns.Select(TextOf));
     }
 
     /// <summary>A proposal the person already answered is no longer live, so the next summary folds it in.</summary>
@@ -133,8 +129,10 @@ public sealed class AgentConversationContextTests
         Assert.NotNull(plan);
         Assert.Equal("They asked a.", plan.PreviousSummary);
         Assert.Empty(plan.Carried);
-        Assert.StartsWith("[Proposed a message", plan.Turns[0].Text, StringComparison.Ordinal);
-        Assert.Equal([Text("c"), Text("d")], plan.Turns.Skip(1).Select(static turn => turn.Text));
+        var proposal = Assert.IsType<AgentProposedMessageTurn>(plan.Turns[0]);
+        Assert.Equal("Re: Revised figures", proposal.Subject);
+        Assert.Equal(["ada@northwind.example"], proposal.Recipients);
+        Assert.Equal([Text("c"), Text("d")], plan.Turns.Skip(1).Select(TextOf));
     }
 
     [Fact]
@@ -162,7 +160,7 @@ public sealed class AgentConversationContextTests
         var history = context.ComposeWithin(budgetTokens: 60, Text("q"));
 
         // Assert
-        Assert.Equal([Text("d")], history.Select(static turn => turn.Text));
+        Assert.Equal([Text("d")], history.Select(TextOf));
     }
 
     /// <summary>The estimate is corrected by what the provider charged, so a language that costs more per character is counted as it is.</summary>
@@ -211,6 +209,8 @@ public sealed class AgentConversationContextTests
     }
 
     private static string Text(string letter) => new(letter[0], 100);
+
+    private static string TextOf(AgentHistoryTurn turn) => Assert.IsType<AgentWrittenTurn>(turn).Text;
 
     private static AgentMessageWritten Question(string letter) =>
         AgentConversationExample.Question(AgentMessageId.New(), Text(letter));

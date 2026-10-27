@@ -9,8 +9,12 @@ import type { ControlShape } from '../controls/controlShapes';
 import type { IconName } from '../controls/icons';
 import { PlannedControl } from '../controls/PlannedControl';
 import type { MessageKey } from '../localization/en';
+import type { ListFold } from '../messageRows/listFold';
 import { useLocalization } from '../localization/useLocalization';
 import { MailboxActControls } from '../mailboxActs/MailboxActControls';
+import { allDrawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
+import { MoreActions } from '../messageSource/MoreActions';
+import { SpamControl } from '../spamMarking/SpamControl';
 import { actedMessages, useListedMail } from '../messageList/useListedMail';
 import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -38,7 +42,18 @@ const answers: readonly { readonly answer: MailDraftAnswer; readonly icon: IconN
     { answer: 'forward', icon: 'forward', label: 'mail.forward' },
 ];
 
-export function MailToolbar({ strip, fit }: StripFitting) {
+export function MailToolbar({
+    strip,
+    fit,
+    openMailboxes,
+    listFold,
+}: StripFitting & {
+    /** Opens the mailboxes drawer, or `null` where the mailbox column is docked beside the list instead. */
+    readonly openMailboxes: (() => void) | null;
+
+    /** The fold's list, or `null` where the composition draws the list whole. */
+    readonly listFold: ListFold | null;
+}) {
     const { translate } = useLocalization();
     const { workspace, revise } = useWorkspace();
     const composing = useComposing();
@@ -50,6 +65,15 @@ export function MailToolbar({ strip, fit }: StripFitting) {
     const panelsHidden = workspace.panelsHidden;
     const actShape: ControlShape = fit === 'symbols' ? 'symbol' : 'labelled';
 
+    // An Outbox is read-only, so while one stands in the list's place the strip keeps the column's control and
+    // composing and drops every act on a message — and the panels toggle, which has no correspondence to give room to.
+    const outboxOpen = workspace.outbox !== null;
+
+    // A message marked spam cannot be answered, so *Not spam* stands where the three answers would.
+    const acts = useMailboxActs();
+    const openMessages = open === null ? [] : actedMessages(listed, [open]);
+    const openSpam = allDrawnSpam(acts, openMessages);
+
     return (
         <div
             ref={strip}
@@ -57,12 +81,14 @@ export function MailToolbar({ strip, fit }: StripFitting) {
             aria-label={translate('mail.toolbar')}
             className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-line bg-panel px-3 py-2 shadow-raised"
         >
-            {/* The mailbox column's own show and hide, which leads the strip wherever the column is docked beside the
-                list rather than a drawer over it, so a long tree never scrolls it away. The rule after it keeps it
-                apart from composing, so a press meant for one never lands on the other. It and its rule are one child
-                of the strip, which is what the fitting reads ahead of composing. */}
-            {docked ? (
-                <span className="flex shrink-0 items-center self-stretch">
+            {/* The controls that change the view rather than a message lead the strip: the mailbox column's own show
+                and hide where it is docked beside the list, and otherwise — on the fold, with something open — the
+                list's own fold, followed by the drawer's opener. Here rather than in the list, so a long tree or a long list never
+                scrolls them away. The rule after them keeps them apart from composing, so a press meant for one never
+                lands on the other. They and their rule are one child of the strip, which is what the fitting reads
+                ahead of composing. */}
+            <span className="flex shrink-0 items-center self-stretch">
+                {docked ? (
                     <Control
                         label={translate(folded ? 'mailboxes.unfold' : 'mailboxes.fold')}
                         icon={folded ? 'left_panel_open' : 'left_panel_close'}
@@ -71,10 +97,16 @@ export function MailToolbar({ strip, fit }: StripFitting) {
                             revise({ mailboxesFolded: !folded });
                         }}
                     />
+                ) : null}
 
-                    <span aria-hidden="true" className="ms-1.5 me-2 w-px self-stretch bg-line" />
-                </span>
-            ) : null}
+                {listFold === null ? null : <ListFoldControl fold={listFold} />}
+
+                {openMailboxes === null ? null : (
+                    <Control label={translate('mailboxes.open')} icon="menu" shape="symbol" onPress={openMailboxes} />
+                )}
+
+                <span aria-hidden="true" className="ms-1.5 me-2 w-px self-stretch bg-line" />
+            </span>
 
             {/* Composing stands first, and only while the names fit beside it: otherwise it is the floating control
                 over the list, which the mail space draws. The divider after it is what the measurement reads as the
@@ -101,30 +133,42 @@ export function MailToolbar({ strip, fit }: StripFitting) {
             {/* Answering needs something to answer, so with nothing open each of the three is drawn as what it is
                 rather than left out: a strip whose controls appear as a message is opened is one that moves under a
                 reader's cursor. */}
-            {answers.map((answering) =>
-                composing.offered && open !== null ? (
-                    <Control
-                        key={answering.icon}
-                        label={translate(answering.label)}
-                        icon={answering.icon}
-                        shape={actShape}
-                        onPress={() => {
-                            composing.compose({ kind: 'answer', answers: answering.answer, storedEmailId: open });
-                        }}
-                    />
-                ) : (
-                    <PlannedControl
-                        key={answering.icon}
-                        label={translate(answering.label)}
-                        icon={answering.icon}
-                        shape={actShape}
-                    />
-                ),
+            {outboxOpen ? null : openSpam ? (
+                <SpamControl messages={openMessages} shape={actShape} wording="mark" />
+            ) : (
+                answers.map((answering) =>
+                    composing.offered && open !== null ? (
+                        <Control
+                            key={answering.icon}
+                            label={translate(answering.label)}
+                            icon={answering.icon}
+                            shape={actShape}
+                            onPress={() => {
+                                composing.compose({ kind: 'answer', answers: answering.answer, storedEmailId: open });
+                            }}
+                        />
+                    ) : (
+                        <PlannedControl
+                            key={answering.icon}
+                            label={translate(answering.label)}
+                            icon={answering.icon}
+                            shape={actShape}
+                        />
+                    ),
+                )
             )}
 
             {/* The five that change the mailbox, over the one message that is open. With nothing open each of them
                 says so rather than being left out, for the reason the three answers above are drawn either way. */}
-            <MailboxActControls messages={open === null ? [] : actedMessages(listed, [open])} shape={actShape} />
+            {outboxOpen ? null : <MailboxActControls messages={openMessages} shape={actShape} spam="toolbar" />}
+
+            {/* Where two panes stand below the desktop composition the head leaves its acts to this strip, and where
+                the panels are hidden there is no head at all, so *More actions* follows the spam control here instead,
+                and every composition reaches it once. The strip holds no subject, so its menu is headed by its own
+                name. */}
+            {outboxOpen || !twoPanes || (docked && !panelsHidden) ? null : (
+                <MoreActions storedEmailId={open} subject={null} />
+            )}
 
             {/* The one control in the strip that changes the view rather than the message, which is why the design
                 keeps it apart at the far edge and draws it as its symbol alone at every width. What it takes away is
@@ -135,7 +179,7 @@ export function MailToolbar({ strip, fit }: StripFitting) {
                 all turn over together. Drawn only where the composition has two panes, because that is where the
                 design gives it something to do — a single pane keeps the head, which carries the way back to the
                 list. */}
-            {twoPanes ? (
+            {twoPanes && !outboxOpen ? (
                 <Control
                     label={translate(panelsHidden ? 'mail.showPanels' : 'mail.hidePanels')}
                     icon={panelsHidden ? 'fullscreen_exit' : 'fullscreen'}
@@ -148,5 +192,29 @@ export function MailToolbar({ strip, fit }: StripFitting) {
                 />
             ) : null}
         </div>
+    );
+}
+
+// The fold's list control, one control for both ways: it widens the strip and narrows the widened list. Held while the
+// list is widened, it keeps the list open as other messages are opened, and held again it lets the list fold at the
+// next one — so what it says about itself names the hold, and a list kept open is drawn the way the strip draws a view
+// that is switched on.
+function ListFoldControl({ fold }: { readonly fold: ListFold }) {
+    const { translate } = useLocalization();
+
+    if (fold.folded) {
+        return <Control label={translate('mail.showList')} icon="left_panel_open" shape="symbol" onPress={fold.turn} />;
+    }
+
+    return (
+        <Control
+            label={translate('mail.narrowList')}
+            hint={translate(fold.kept ? 'mail.listKept' : 'mail.narrowListHold')}
+            icon="left_panel_close"
+            shape="symbol"
+            className={fold.kept ? 'bg-accent-soft text-accent-strong ring-1 ring-accent-line ring-inset' : ''}
+            onPress={fold.turn}
+            onHold={fold.keep}
+        />
     );
 }

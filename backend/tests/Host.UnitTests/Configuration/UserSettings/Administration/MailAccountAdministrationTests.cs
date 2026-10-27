@@ -1168,6 +1168,51 @@ public sealed class MailAccountAdministrationTests
     }
 
     /// <summary>
+    /// A signing identity is judged against the sending address and the submission host as well as its own material,
+    /// so an edit moving the address beside an identity the account cannot sign with is this write's problem and is
+    /// refused, while an edit the identity is not judged against still commits and reports it as already held.
+    /// </summary>
+    [Theory]
+    [InlineData("sender@example.test", "someone.else@example.test", false)]
+    [InlineData("imap.example.test", "imap2.example.test", true)]
+    public async Task SaveAsync_AnEditBesideASigningIdentityTheAccountCannotUse_IsRefusedOnlyWhenTheIdentityIsJudgedAgainstIt(
+        string standingValue,
+        string savedValue,
+        bool commits)
+    {
+        // Arrange
+        var mailbox = Mailbox("work@example.test", "work");
+        var work = mailbox with
+        {
+            Document = mailbox.Document.Replace(
+                "\"Language\"",
+                """
+                "Delivery": {
+                  "Host": "smtp.example.test",
+                  "FromAddress": "sender@example.test",
+                  "Secrets": { "Password": { "Name": "work-submission-password", "SecretReference": "file:/run/secrets/work-submission-password" } },
+                  "OpenPgpSigningKey": { "Name": "work-signing-key", "SecretReference": "file:/run/secrets/work-signing.asc" }
+                },
+                "Language"
+                """,
+                StringComparison.Ordinal),
+        };
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminConfigurationWrite]);
+        deployment.Holding(Alex, EmptyRecord, version: 1, work);
+
+        // Act
+        var outcome = await deployment.MailAccounts.SaveAsync(
+            work.Id,
+            MailAccountDeclaration.Of(work).Replace(standingValue, savedValue, StringComparison.Ordinal),
+            expectedVersion: 1,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(commits, outcome!.IsCommitted);
+        Assert.Contains("OpenPgpSigningKey", Assert.Single(outcome.Messages), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The walk's sentence names a path and a failure, never the target, so a broken reference replaced by a different
     /// broken one reads the same — and is still this write's own problem, refused rather than committed as though the
     /// account already carried it.

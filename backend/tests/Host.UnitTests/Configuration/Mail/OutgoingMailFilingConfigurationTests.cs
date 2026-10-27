@@ -3,7 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Accounts;
-using MailFathom.Domain.Folders;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure.Mail;
@@ -18,40 +17,43 @@ public sealed class OutgoingMailFilingConfigurationTests
     private static readonly MailAccountId Primary = MailAccountId.Create("primary");
 
     /// <summary>
-    /// RFC 6154 declares no outbox attribute, so nothing discovery could look for exists. Such a mapping would resolve
-    /// to nothing and the operator would learn that from mail they never saw mirrored, which is why it is refused where
-    /// it binds instead.
+    /// Each account's outbox is MailFathom's own and no folder plays it any more, so a mapping naming the role is refused
+    /// where it binds — with or without a path, however it is cased — and the refusal says which mapping to remove.
     /// </summary>
-    [Fact]
-    public void ValidateForSynchronization_AnOutboxRoleWithNoPath_IsRefusedNamingTheFolder()
+    [Theory]
+    [InlineData("Outbox", null)]
+    [InlineData("Outbox", "INBOX.Outbox")]
+    [InlineData("outbox", "INBOX.Outbox")]
+    public void ValidateForSynchronization_AMappingNamingTheRetiredOutboxRole_IsRefusedNamingTheMappingToRemove(
+        string specialUse,
+        string? remotePath)
     {
         // Arrange
         var options = OptionsFor(CreateAccount(new MailFolderMappingOptions
         {
-            Alias = "outbox",
-            SpecialUse = "Outbox",
+            Alias = "waiting",
+            RemotePath = remotePath,
+            SpecialUse = specialUse,
         }));
 
         // Act
         var messages = ConfiguredMailAccounts.Validate(options).Select(result => result.ErrorMessage!).ToArray();
 
         // Assert
-        Assert.Contains(
-            messages,
-            message => message.Contains("'outbox'", StringComparison.Ordinal)
-                && message.Contains("RemotePath", StringComparison.Ordinal));
+        var message = Assert.Single(messages);
+        Assert.Contains("'waiting'", message, StringComparison.Ordinal);
+        Assert.Contains("Remove this folder mapping", message, StringComparison.Ordinal);
     }
 
-    /// <summary>Beside a path the role is a label like any other, which is how a deployment says which folder holds what is waiting.</summary>
+    /// <summary>A provider folder merely named like an outbox is an ordinary folder, because nothing here reads a folder's name.</summary>
     [Fact]
-    public void ValidateForSynchronization_AnOutboxRoleOnAConfiguredPath_ReportsNoError()
+    public void ValidateForSynchronization_AFolderMerelyNamedLikeAnOutbox_ReportsNoError()
     {
         // Arrange
         var options = OptionsFor(CreateAccount(new MailFolderMappingOptions
         {
             Alias = "outbox",
             RemotePath = "INBOX.Outbox",
-            SpecialUse = "Outbox",
         }));
 
         // Act
@@ -59,47 +61,6 @@ public sealed class OutgoingMailFilingConfigurationTests
 
         // Assert
         Assert.Empty(results);
-    }
-
-    /// <summary>The role is read from what the operator wrote, so the mirror has a folder to go into.</summary>
-    [Fact]
-    public void FindFolderPlayingRole_AnOutboxMapping_AnswersWithTheFolderTheOperatorNamed()
-    {
-        // Arrange
-        var options = OptionsFor(CreateAccount(new MailFolderMappingOptions
-        {
-            Alias = "outbox",
-            RemotePath = "INBOX.Outbox",
-            SpecialUse = "Outbox",
-        }));
-
-        // Act
-        var folder = options.Readers.FolderMappings.FindFolderPlayingRole(Primary, MailFolderSpecialUse.Outbox);
-
-        // Assert
-        Assert.NotNull(folder);
-        Assert.Equal(MailFolderAlias.Create("outbox"), folder.Alias);
-    }
-
-    /// <summary>
-    /// A deployment that says nothing maps no outbox folder, which is what keeps the mirror off by default — and a
-    /// provider folder merely named like one carries no role, because nothing here reads a folder's name.
-    /// </summary>
-    [Fact]
-    public void FindFolderPlayingRole_AFolderMerelyNamedLikeAnOutbox_PlaysNoOutboxRole()
-    {
-        // Arrange
-        var options = OptionsFor(CreateAccount(new MailFolderMappingOptions
-        {
-            Alias = "outbox",
-            RemotePath = "INBOX.Outbox",
-        }));
-
-        // Act
-        var folder = options.Readers.FolderMappings.FindFolderPlayingRole(Primary, MailFolderSpecialUse.Outbox);
-
-        // Assert
-        Assert.Null(folder);
     }
 
     /// <summary>

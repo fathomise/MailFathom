@@ -291,9 +291,9 @@ public interface IMailboxWriteSession : IAsyncDisposable
     /// <exception cref="MailboxFolderRecreatedException">Thrown when the folder no longer reports the UIDVALIDITY the append named.</exception>
     /// <remarks>
     /// <para>
-    /// It exists so a mirrored copy of an undelivered message does not outlive the wait it was showing. The UID is one
-    /// the server itself named when it accepted the copy, so this reaches a message MailFathom put there and can reach
-    /// no other — which is what separates it from the delete a mutation performs on the user's own mail.
+    /// It exists so a sent copy MailFathom appended can be taken back out once the provider has filed one of its own
+    /// beside it. The UID is one the server itself named when it accepted the copy, so this reaches a message MailFathom
+    /// put there and can reach no other — which is what separates it from the delete a mutation performs on the user's own mail.
     /// </para>
     /// <para>
     /// The UIDVALIDITY is compared before anything is issued, because a folder recreated since the append renumbered

@@ -88,7 +88,7 @@ public sealed class SpamClassificationPassTests
         Assert.Equal(2, this.harness.Classifications.Saved.Count);
     }
 
-    /// <summary>The run binds what it is decided under, so a later pass can tell a moved threshold from an unchanged one.</summary>
+    /// <summary>The run binds what it is decided under, so a later pass can tell terms that moved from terms that did not.</summary>
     [Fact]
     public async Task RunAsync_APassPickingTheRunUp_BindsTheProfileItStartedUnder()
     {
@@ -116,8 +116,7 @@ public sealed class SpamClassificationPassTests
         // Act
         var report = await this.CreatePass(SpamActionSettings.Create(
             filesJunk: false,
-            marksJunkRead: true,
-            threshold: null)).RunAsync(Account, TestContext.Current.CancellationToken);
+            marksJunkRead: true)).RunAsync(Account, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, report.Walk?.SkippedEmailCount);
@@ -145,7 +144,7 @@ public sealed class SpamClassificationPassTests
         Assert.Single(this.harness.Classifications.Saved);
     }
 
-    /// <summary>A record from before the profile was part of one names terms the run cannot compare, so it is reached again.</summary>
+    /// <summary>A record from before the profile was part of one names no profile the run can compare, so it is reached again.</summary>
     [Fact]
     public async Task RunAsync_ARecordNamingNoProfile_IsScoredAgainRatherThanSkipped()
     {
@@ -168,7 +167,7 @@ public sealed class SpamClassificationPassTests
         // Arrange
         var stored = this.StoreEmail();
         this.harness.Classifications.Hold(
-            ClassificationOf(stored, SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 3)));
+            ClassificationOf(stored, SpamClassificationProfile.Restore("a67d92672a05")));
         this.runs.Arrange(this.RequestedRun());
 
         // Act
@@ -179,6 +178,42 @@ public sealed class SpamClassificationPassTests
         Assert.Single(this.harness.Classifications.Saved);
     }
 
+    /// <summary>A profile change re-decides mail, and the person's own verdict is the mail it never reaches — but still acts on.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsync_ThePersonsVerdictUnderOtherTerms_StandsIsCountedAsSkippedAndIsStillActedOn(bool rescores)
+    {
+        // Arrange
+        var stored = this.StoreEmail();
+        var personsVerdict = SpamClassification.Create(
+            stored,
+            SpamVerdict.Spam,
+            SpamClassificationStage.Person,
+            assessment: null,
+            SpamClassificationProfile.Restore("a67d92672a05"),
+            [],
+            EvaluatedAt.AddDays(-1),
+            SpamSubcategory.Scam);
+
+        this.harness.Classifications.Hold(personsVerdict);
+        this.runs.Arrange(this.RequestedRun(rescores: rescores));
+
+        // Act
+        var report = await this.CreatePass(SpamActionSettings.Create(
+            filesJunk: false,
+            marksJunkRead: true)).RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(0, report.Walk?.ClassifiedEmailCount);
+        Assert.Equal(1, report.Walk?.SkippedEmailCount);
+        Assert.Equal(1, report.Walk?.SpamEmailCount);
+        Assert.Equal(1, report.Walk?.ActedEmailCount);
+        Assert.Equal(1, this.harness.Mutations.OpenedRecordCount);
+        Assert.Empty(this.harness.Classifications.Saved);
+        Assert.Same(personsVerdict, await this.harness.Classifications.FindAsync(stored, TestContext.Current.CancellationToken));
+    }
+
     /// <summary>A run cannot finish under terms it did not start with, and half a mailbox decided both ways is worse.</summary>
     [Fact]
     public async Task RunAsync_TheProfileMovedWhileARunWasOutstanding_EndsItAsSupersededWithoutClassifying()
@@ -187,7 +222,7 @@ public sealed class SpamClassificationPassTests
         this.StoreEmail();
         this.runs.Arrange(this.RequestedRun() with
         {
-            Profile = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 3),
+            Profile = SpamClassificationProfile.Restore("a67d92672a05"),
         });
 
         // Act
@@ -270,8 +305,7 @@ public sealed class SpamClassificationPassTests
         // Act
         var report = await this.CreatePass(SpamActionSettings.Create(
             filesJunk: false,
-            marksJunkRead: true,
-            threshold: null)).RunAsync(Account, TestContext.Current.CancellationToken);
+            marksJunkRead: true)).RunAsync(Account, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, report.Walk?.ActedEmailCount);
@@ -314,7 +348,7 @@ public sealed class SpamClassificationPassTests
     }
 
     private static SpamClassificationSettings SettingsCovering(params MailFolderAlias[] aliases) =>
-        SpamClassificationSettings.Create(isEnabled: true, usesScanner: false, aliases);
+        SpamClassificationSettings.Create(isEnabled: true, aliases);
 
     /// <summary>A record an earlier pass would have left, under the terms the test names.</summary>
     private static SpamClassification ClassificationOf(StoredEmailId emailId, SpamClassificationProfile profile) =>
@@ -323,7 +357,6 @@ public sealed class SpamClassificationPassTests
             SpamVerdict.Spam,
             SpamClassificationStage.Deterministic,
             assessment: null,
-            corpusRevision: null,
             profile,
             [],
             EvaluatedAt.AddDays(-1));
@@ -333,7 +366,9 @@ public sealed class SpamClassificationPassTests
         this.harness.Emails.Add(new ClassifiableEmail(
             StoredEmailId.Create(Guid.Parse($"0199a0c0-0000-7000-8000-{++this.storedEmailCount:D12}")),
             accountId ?? Account,
-            folderAlias ?? Inbox));
+            folderAlias ?? Inbox,
+            folderAlias ?? Inbox,
+            RemoteEmailKeywords.None));
 
     private SpamClassificationRun RequestedRun(
         SpamActionPosture posture = SpamActionPosture.Acting,

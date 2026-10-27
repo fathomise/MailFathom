@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Domain.Delivery.Drafts;
 
@@ -182,15 +183,18 @@ internal sealed record ClientDraftAttachmentResponse(
 /// <param name="Draft">The record, exactly as the listing serves it.</param>
 /// <param name="PlainTextBody">The plain text the stored message carries.</param>
 /// <param name="HtmlBody">The HTML the stored message carries, or <see langword="null" /> where it carries none.</param>
+/// <param name="Document">The stored message reduced to the closed document tree a client draws, or <see langword="null" /> where it yielded none.</param>
 /// <remarks>
 /// The words are parsed out of the stored message rather than out of a second copy of them, so what an author is given
 /// back to go on editing is what would actually be sent. It is the one draft route that loads a message, which is why
-/// it is asked for one draft by identity.
+/// it is asked for one draft by identity. The document is what a composer reads the author's formatting back from, for
+/// the reason a message's body route serves one: a client that never parses markup is handed the tree instead.
 /// </remarks>
 internal sealed record ClientDraftReadingResponse(
     ClientDraftResponse Draft,
     string PlainTextBody,
-    string? HtmlBody)
+    string? HtmlBody,
+    MailDocument? Document)
 {
     /// <summary>Describes one opened draft for the wire.</summary>
     /// <param name="reading">The draft and its text, as the use case read them.</param>
@@ -203,7 +207,8 @@ internal sealed record ClientDraftReadingResponse(
         return new ClientDraftReadingResponse(
             ClientDraftResponse.For(reading.Draft),
             reading.Text.PlainTextBody,
-            reading.Text.HtmlBody);
+            reading.Text.HtmlBody,
+            reading.Document);
     }
 }
 

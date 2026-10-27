@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Answers;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Retrieval.AskMail.Audit;
@@ -12,6 +13,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Answering.Audit;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Retrieval.AskMail;
 
@@ -163,10 +165,10 @@ public sealed class MailboxQuestionReader
         this.authorization.RequirePermission(MailFathomPermission.MailRead);
 
         var questionText = MailQuestionText.Create(request.QuestionText);
-        // Junk is left out with no override, unlike a listing and a search. Answering a question is exactly the path the
-        // exclusion exists for: content written to manipulate whoever reads it now has a model reading it, and a caller
-        // hunting a wrongly filed message uses the listing or the search that can ask for it.
+        // An agent's scope withholds every message judged spam and the junk folder's mail the person did not mark not
+        // spam, so content written to manipulate whoever reads it never reaches the model answering.
         var scope = await this.scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             request.Accounts,
             request.Folders,
             JunkMailInclusion.Excluded,
@@ -284,10 +286,6 @@ public sealed class MailboxQuestionReader
     /// though the extracts it was written from were scanned on their way to the model. A model restates what it read,
     /// and an answer is the one text in a run that nothing else has looked at.
     /// </para>
-    /// <para>
-    /// Scanning happens before the answer is cut to what one response carries, so the published text is bounded after
-    /// every placeholder is in it. Cutting first would bound a text that is not the one published.
-    /// </para>
     /// </remarks>
     private async Task<AskMailResult> PublishedAsync(
         MailAnswer answer,
@@ -295,11 +293,12 @@ public sealed class MailboxQuestionReader
         CancellationToken cancellationToken)
     {
         var maximumCitations = this.answerBounds.MaximumCitations;
-        var maximumAnswerCharacters = this.answerBounds.MaximumAnswerCharacters;
 
-        var answerText = await this.egressGuard.GuardAsync(
-            SensitiveContentEgressPoint.McpSnippet,
+        var published = await PublishedTextOfAsync(
             answer.Text,
+            retrieval.Passages,
+            this.egressGuard,
+            this.answerBounds.MaximumAnswerCharacters,
             cancellationToken);
 
         // Collapsed and counted before anything is scanned, because the count decides the truncation flag while only
@@ -308,11 +307,47 @@ public sealed class MailboxQuestionReader
         var citations = await this.CitedAsync(citable.Take(maximumCitations), cancellationToken);
 
         return new AskMailResult(
-            Bounded(answerText, maximumAnswerCharacters),
+            published.Text,
             citations,
-            answerText.Length > maximumAnswerCharacters,
+            published.WasCut,
             citable.Length > maximumCitations,
-            retrieval.Degradation.HasFlag(MailAnsweringRunDegradation.RetrievalCeilingReached));
+            retrieval.Degradation.HasFlag(MailAnsweringRunDegradation.RetrievalCeilingReached))
+        {
+            Links = published.Links,
+        };
+    }
+
+    /// <summary>Writes an answer's text as one response publishes it, and judges every link in that text.</summary>
+    /// <param name="answer">The answer as the model wrote it.</param>
+    /// <param name="passages">Every passage the run showed the model, which the links are traced to.</param>
+    /// <param name="egressGuard">Scans the answer, where this deployment scans anything.</param>
+    /// <param name="maximumAnswerCharacters">The most characters one response carries.</param>
+    /// <param name="cancellationToken">Cancels the scan.</param>
+    /// <returns>The published text, whether the cut shortened it, and its links, judged.</returns>
+    /// <remarks>
+    /// <para>
+    /// Scanning happens before the answer is cut to what one response carries, so the published text is bounded after
+    /// every placeholder is in it. Cutting first would bound a text that is not the one published.
+    /// </para>
+    /// <para>
+    /// The pictures go after the scan, because a placeholder opens with a bracket, so an exclamation mark the model wrote
+    /// in front of a detected value would turn the placeholder into a picture; and before the cut, because neutralising
+    /// adds characters. The links are judged last, on the text exactly as it is published, against every passage the run
+    /// showed the model.
+    /// </para>
+    /// </remarks>
+    internal static async Task<(string Text, bool WasCut, IReadOnlyList<AnswerLink> Links)> PublishedTextOfAsync(
+        string answer,
+        IEnumerable<EmailKnowledgePassage> passages,
+        SensitiveContentEgressGuard egressGuard,
+        int maximumAnswerCharacters,
+        CancellationToken cancellationToken)
+    {
+        var scanned = await egressGuard.GuardAsync(SensitiveContentEgressPoint.McpSnippet, answer, cancellationToken);
+        var neutralised = AnswerMarkup.WithoutPictures(scanned);
+        var text = Bounded(neutralised, maximumAnswerCharacters);
+
+        return (text, neutralised.Length > maximumAnswerCharacters, AnswerMarkup.LinksIn(text, AnswerMarkup.TextOf(passages)));
     }
 
     /// <summary>Reads the passages one answer cites into citations, with the one text a citation carries scanned.</summary>
@@ -346,7 +381,7 @@ public sealed class MailboxQuestionReader
                     passage.Subject,
                     cancellationToken),
                 passage.ReceivedAt,
-                passage.SenderVerification,
+                passage.Provenance,
                 passage.MachineAuthorship,
                 await this.CitedAttachmentsAsync(passage.AttachmentExtracts, cancellationToken)));
         }

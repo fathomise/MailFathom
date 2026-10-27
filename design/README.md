@@ -17,7 +17,7 @@ loop that judges a client screen runs in any clone.
 | `design.js` | The one global the other files share, `MailFathomDesign`: sample data under `data`, each artboard's component under `artboards` |
 | `styles/` | `base.css`, which every page links first and which holds what the whole design shares — the palette, the typeface, how a control answers a press, a keyboard focus, and a request for less motion, and the one motion vocabulary every surface arrives and leaves by — and then one stylesheet per artboard, linked from the page's `<helmet>` |
 | `logic/` | Each artboard's component. The prototype's is split into `markdown.js` (the Markdown renderer message bodies use), `mail-html.js` (the shell and the measuring script an original message is shown in), `fathom.js` (the Fathom button, its Smart mode, and Start's catch-up), and `component.js` |
-| `data/` | The sample data, one file per artboard or, for the prototype, one file per concern: `threads.js`, `mail-bodies.js`, `people.js`, `workspace.js`, `home.js`, `catchup.js`, `fathom.js`, `ask.js`, `calendar.js`, `tasks.js`, `compose.js`, `documents.js`, `agent.js`, `notifications.js`, and `sample-text.js` |
+| `data/` | The sample data, one file per artboard or, for the prototype, one file per concern: `threads.js`, `mail-bodies.js`, `people.js`, `workspace.js`, `home.js`, `catchup.js`, `fathom.js`, `ask.js`, `calendar.js`, `tasks.js`, `compose.js`, `documents.js`, `agent.js`, `notifications.js`, `sender-marks.js`, `message-sources.js`, and `sample-text.js` |
 | `runtime/support.js` | The generated runtime every `.dc.html` page boots on. An artboard is a component this runtime renders rather than a document a browser draws, so without it nothing renders |
 | `state-inventory.md` | Every screen, the states it has, what reveals each one, and the states no rendered preview reaches. **This is what a screen is built from**; the artboards are what it describes |
 | `parity.json` | Which artboard each screen in `frontend/design-parity/screens.json` is drawn on, the properties it takes, and what is pressed to reach it. `scripts/capture-design.sh` reads it |
@@ -40,8 +40,10 @@ a signed-in client. This directory is public.
 
 ## Changing the design
 
-A change to the design is a decision about the product, so it is made deliberately: in a change whose issue asks for it,
-never as a side effect of a client task making the design agree with what it built. It edits the artboard and whatever
+A change to the design is a decision about the product, so it is made deliberately and in one of two places:
+on its own, ahead of the client, or in the client pull request that would otherwise ship something the design does not
+show — the root [`AGENTS.md`](../AGENTS.md) § *The design leads the client, never the other way round* is the rule. It
+is never redrawn to excuse a client defect. It edits the artboard and whatever
 of its data, logic, and styles the change reaches, and in the same change:
 
 - `state-inventory.md`, for every state it adds, removes, or gates differently — the inventory is what a screen is
@@ -66,9 +68,9 @@ generated and which is replaced whole rather than edited; the root `AGENTS.md` s
 
 The design wins and the client changes. Three things turn that around — an accessibility obligation, a real platform
 constraint, and something that cannot be built — and each of those is a correction to the design rather than a
-difference to live with: name it precisely in the pull request and in an issue of its own, and let the design move
-first. The same holds for a state the source gates and nothing draws, which is a gap in the design rather than a screen
-to invent in the client.
+difference to live with: name it precisely in the pull request and correct the design here in that same pull request.
+The same holds for a state the source gates and nothing draws, which is a gap in the design, closed here rather than
+invented in the client.
 
 `frontend/AGENTS.md` § *Where a screen comes from* and § *Holding a screen against the design* carry the rule and the
 three scripts that hold a running screen against these files as images.

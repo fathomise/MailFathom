@@ -53,7 +53,7 @@ export function SynthesizedAnswer({ block }: { readonly block: AnswerBlock }) {
             </div>
 
             <div className="text-xl leading-relaxed text-pretty workspace:text-answer [&>p:has(+span)]:inline">
-                <AnswerText text={answer.text} />
+                <AnswerText links={answer.links} text={answer.text} />
 
                 {evidence.citations.map((source, at) => (
                     <span className="ms-1 inline-flex" key={source}>

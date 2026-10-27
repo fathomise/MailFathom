@@ -68,6 +68,9 @@ readonly licence_pattern='Apache-2\.0|BlueOak-1\.0\.0|BSD-3-Clause|BSD-2-Clause|
 readonly register_file='THIRD_PARTY_LICENSES.md'
 readonly global_json='global.json'
 readonly tool_manifest='.config/dotnet-tools.json'
+# The composite actions the workflows use name actions of their own, so every action reference is surveyed and rewritten
+# in `${workflow_directory%/*}/actions` as well — derived rather than named, so whatever points the one elsewhere points
+# the other too.
 readonly workflow_directory='.github/workflows'
 readonly backend_pins='backend/Directory.Packages.props'
 readonly backend_solution='backend/MailFathom.slnx'
@@ -261,8 +264,11 @@ crate_latest() {
 # `crate-ci/typos` with 355 — so the flag costs one request today exactly as its absence did. It is here because the
 # newest major is computed from this list, and a page boundary appearing upstream would not fail: it would quietly
 # report a pin as current.
+#
+# The second argument is the prefix the tags carry, which is read off the pin rather than assumed: most actions tag
+# `v1.2.3`, but `vegardit/fast-apt-mirror.sh` tags a bare `1.4.5`, and asking for `tags/v` there returns nothing.
 github_version_tags() {
-  gh api --paginate "repos/$1/git/matching-refs/tags/v" --jq '.[].ref' 2> /dev/null | sed 's|^refs/tags/||' || true
+  gh api --paginate "repos/$1/git/matching-refs/tags/$2" --jq '.[].ref' 2> /dev/null | sed 's|^refs/tags/||' || true
 }
 
 ### The register side. Both readers are pattern reads over prose and are reported as such.
@@ -460,7 +466,7 @@ survey_sdk_pins() {
 }
 
 survey_action_references() {
-  local reference action_repository pinned latest licence recorded note tags exact_tags
+  local reference action_repository pinned tag_prefix latest licence recorded note tags exact_tags
 
   [[ -d "$workflow_directory" ]] || return 0
 
@@ -469,8 +475,10 @@ survey_action_references() {
 
     action_repository="$(printf '%s' "${reference%@*}" | cut -d/ -f1-2)"
     pinned="${reference#*@}"
+    tag_prefix=''
+    [[ "$pinned" == v* ]] && tag_prefix='v'
 
-    tags="$(github_version_tags "$action_repository")"
+    tags="$(github_version_tags "$action_repository" "$tag_prefix")"
     licence="$(github_licence "$action_repository")"
     recorded="$(register_recorded_licences "$action_repository")"
 
@@ -485,7 +493,7 @@ survey_action_references() {
       # not on.
       exact_tags="$(printf '%s\n' "$tags" | grep -E "^${pinned}\.[0-9]+\.[0-9]+$" | sort -V | tail -1)" || true
     else
-      exact_tags="$(printf '%s\n' "$tags" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)" || true
+      exact_tags="$(printf '%s\n' "$tags" | grep -E "^${tag_prefix}[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -1)" || true
     fi
 
     if [[ "$pinned" =~ ^v[0-9]+$ ]]; then
@@ -502,7 +510,7 @@ survey_action_references() {
     fi
 
     record 'actions' "$reference" "$pinned" "$latest" "$licence" "$recorded" "$note" "$workflow_directory"
-  done < <(grep -rhoE 'uses: [A-Za-z0-9][^ ]*@[^ ]+' "$workflow_directory" | sed 's|^uses: ||' | sort -u)
+  done < <(grep -rhoE 'uses: [A-Za-z0-9][^ ]*@[^ ]+' "$workflow_directory" "${workflow_directory%/*}/actions" 2> /dev/null | sed 's|^uses: ||' | sort -u)
 }
 
 # Every image reference this repository pins, read from the places that write one whole: the Dockerfile's `FROM` lines,
@@ -886,7 +894,7 @@ rewrite_pin() {
 
   case "$family" in
     nuget | npm | crates | tools | sdk) touched=("$source") ;;
-    actions) mapfile -t touched < <(grep -rlF "uses: $component" "$workflow_directory" 2> /dev/null || true) ;;
+    actions) mapfile -t touched < <(grep -rlF "uses: $component" "$workflow_directory" "${workflow_directory%/*}/actions" 2> /dev/null || true) ;;
     *) return 1 ;;
   esac
 

@@ -52,6 +52,13 @@ function message(at: number): MailTimelineEntry {
         preview: null,
         enrichment: null,
         threadMessageCount: null,
+        spam: null,
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            signatureOutcome: 'NotSigned',
+            signerMatchesAuthor: false,
+        },
     };
 }
 

@@ -31,6 +31,8 @@ public sealed class MailReplyDraftingTests
 
     private static readonly StoredEmailId Answered = StoredEmailId.Create(Guid.CreateVersion7());
 
+    private static readonly StoredEmailId AlsoChosen = StoredEmailId.Create(Guid.CreateVersion7());
+
     [Fact]
     public async Task DraftAsync_AConversationTheWriterAnswered_PublishesTheDraft()
     {
@@ -118,6 +120,31 @@ public sealed class MailReplyDraftingTests
                 scope!.AccountIds.Contains(Account)
                 && scope.SelectedFolders.Count == 0
                 && scope.IncludesJunkMail),
+            Arg.Any<ReplyDraftBounds>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>What a reply is drafted from goes to a model, so a folder withheld from AI is outside the scope its sources are read under.</summary>
+    [Fact]
+    public async Task DraftAsync_AFolderWithheldFromAI_IsLeftOutOfTheScopeTheSourcesAreReadUnder()
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(Account, MailFolderAlias.Create("Private"));
+        var sourceReader = SourceReaderReturning(Sources());
+        var drafting = CreateDrafting(
+            sourceReader,
+            WriterReturning(Written("We accept.")),
+            foldersWithheldFromAI: [withheld]);
+
+        // Act
+        await drafting.DraftAsync(Request(), TestContext.Current.CancellationToken);
+
+        // Assert
+        await sourceReader.Received(1).ReadSourcesAsync(
+            Answered,
+            Arg.Is<MailboxScope>(scope =>
+                scope!.ReadableFolders.Count == 1
+                && scope.ReadableFolders[0] == new MailFolderIdentity(Account, MailFolderAlias.Create("inbox"))),
             Arg.Any<ReplyDraftBounds>(),
             Arg.Any<CancellationToken>());
     }
@@ -313,6 +340,143 @@ public sealed class MailReplyDraftingTests
         await writer.DidNotReceiveWithAnyArgs().WriteAsync(Arg.Any<ReplyDraftBrief>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>One message is read under the whole bound, exactly as a reply to one message always was.</summary>
+    [Fact]
+    public async Task DraftAsync_AContextOfOneMessage_ReadsItUnderTheWholeMessageBound()
+    {
+        // Arrange
+        var sourceReader = SourceReaderReturning(Sources());
+        var drafting = CreateDrafting(sourceReader, WriterReturning(Written("We accept.")));
+
+        // Act
+        await drafting.DraftAsync(Request(), TestContext.Current.CancellationToken);
+
+        // Assert
+        await sourceReader.Received(1).ReadSourcesAsync(
+            Answered,
+            Arg.Any<MailboxScope>(),
+            Arg.Is<ReplyDraftBounds>(bounds => bounds!.MaximumMessages == MailReplyDrafting.MaximumMessages),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Several context messages share one bound, and only the first reads the account's sent mail, so the reply keeps one voice.</summary>
+    [Fact]
+    public async Task DraftAsync_AContextOfTwoMessages_ReadsEachUnderItsShareAndTheMannerFromTheFirstAlone()
+    {
+        // Arrange
+        var sourceReader = SourceReaderReturning(Sources());
+        var drafting = CreateDrafting(sourceReader, WriterReturning(Written("We accept.")));
+
+        // Act
+        await drafting.DraftAsync(
+            new ReplyDraftRequest { ContextEmailIds = [Answered, AlsoChosen] },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await sourceReader.Received(1).ReadSourcesAsync(
+            Answered,
+            Arg.Any<MailboxScope>(),
+            Arg.Is<ReplyDraftBounds>(bounds =>
+                bounds!.MaximumMessages == MailReplyDrafting.MaximumMessages / 2
+                && bounds.MaximumStyleMessages == MailReplyDrafting.MaximumStyleMessages),
+            Arg.Any<CancellationToken>());
+        await sourceReader.Received(1).ReadSourcesAsync(
+            AlsoChosen,
+            Arg.Any<MailboxScope>(),
+            Arg.Is<ReplyDraftBounds>(bounds =>
+                bounds!.MaximumMessages == MailReplyDrafting.MaximumMessages / 2
+                && bounds.MaximumStyleMessages == 0),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The reads become one correspondence, so the writer cites and proposes across every conversation the context reached.</summary>
+    [Fact]
+    public async Task DraftAsync_AContextOfTwoConversations_BriefsTheWriterWithBothMerged()
+    {
+        // Arrange
+        var sourceReader = Substitute.For<IReplyDraftSourceReader>();
+        sourceReader
+            .ReadSourcesAsync(Answered, Arg.Any<MailboxScope>(), Arg.Any<ReplyDraftBounds>(), Arg.Any<CancellationToken>())
+            .Returns(Sources());
+        sourceReader
+            .ReadSourcesAsync(AlsoChosen, Arg.Any<MailboxScope>(), Arg.Any<ReplyDraftBounds>(), Arg.Any<CancellationToken>())
+            .Returns(Sources(
+                [
+                    new ReplyDraftMessage(
+                        AlsoChosen,
+                        0,
+                        "Karolina",
+                        new DateTimeOffset(2026, 9, 8, 9, 0, 0, TimeSpan.Zero),
+                        "The delivery is on Friday.",
+                        IsChosen: true,
+                        Attachments: []),
+                ]));
+        var writer = WriterReturning(Written("We accept."));
+        var drafting = CreateDrafting(sourceReader, writer);
+
+        // Act
+        await drafting.DraftAsync(
+            new ReplyDraftRequest { ContextEmailIds = [Answered, AlsoChosen] },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var brief = (ReplyDraftBrief)writer.ReceivedCalls().Single().GetArguments()[0]!;
+
+        Assert.Equal([Answered, AlsoChosen], brief.Sources.Messages.Select(static message => message.StoredEmailId));
+        Assert.Equal([0, 1], brief.Sources.Messages.Select(static message => message.Position));
+    }
+
+    /// <summary>Drafting from the rest would report that the missing message exists somewhere, so one the scope does not admit answers for the whole context.</summary>
+    [Fact]
+    public async Task DraftAsync_AContextWithOneMessageTheScopeDoesNotAdmit_AnswersWithNothingAndDraftsNothing()
+    {
+        // Arrange
+        var sourceReader = Substitute.For<IReplyDraftSourceReader>();
+        sourceReader
+            .ReadSourcesAsync(Answered, Arg.Any<MailboxScope>(), Arg.Any<ReplyDraftBounds>(), Arg.Any<CancellationToken>())
+            .Returns(Sources());
+        sourceReader
+            .ReadSourcesAsync(AlsoChosen, Arg.Any<MailboxScope>(), Arg.Any<ReplyDraftBounds>(), Arg.Any<CancellationToken>())
+            .Returns((ReplyDraftSources?)null);
+        var writer = WriterReturning(Written("We accept."));
+        var drafting = CreateDrafting(sourceReader, writer);
+
+        // Act
+        var draft = await drafting.DraftAsync(
+            new ReplyDraftRequest { ContextEmailIds = [Answered, AlsoChosen] },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(draft);
+        await writer.DidNotReceiveWithAnyArgs().WriteAsync(Arg.Any<ReplyDraftBrief>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The bound holds for every caller rather than only for the boundary written against it: a message named twice is read once, and no more messages are read than a context may hold.</summary>
+    [Fact]
+    public async Task DraftAsync_AContextNamingAMessageTwiceAndPastItsBound_ReadsEachMessageOnceAndNoMoreThanTheBound()
+    {
+        // Arrange
+        var sourceReader = SourceReaderReturning(Sources());
+        var drafting = CreateDrafting(sourceReader, WriterReturning(Written("We accept.")));
+        StoredEmailId[] context =
+        [
+            Answered,
+            Answered,
+            .. Enumerable.Range(0, ReplyDraftRequest.MaximumContextMessages).Select(static _ => StoredEmailId.Create(Guid.CreateVersion7())),
+        ];
+
+        // Act
+        await drafting.DraftAsync(new ReplyDraftRequest { ContextEmailIds = context }, TestContext.Current.CancellationToken);
+
+        // Assert
+        await sourceReader.Received(1).ReadSourcesAsync(
+            Answered,
+            Arg.Any<MailboxScope>(),
+            Arg.Any<ReplyDraftBounds>(),
+            Arg.Any<CancellationToken>());
+        Assert.Equal(ReplyDraftRequest.MaximumContextMessages, sourceReader.ReceivedCalls().Count());
+    }
+
     /// <summary>The language is the acting user's own, which is the one thing a drafting answering nothing has to go on.</summary>
     [Theory]
     [InlineData(UserLanguage.English)]
@@ -332,7 +496,7 @@ public sealed class MailReplyDraftingTests
         Assert.Equal(language, brief.Language);
     }
 
-    private static ReplyDraftRequest Request() => new() { AnsweredEmailId = Answered };
+    private static ReplyDraftRequest Request() => new() { ContextEmailIds = [Answered] };
 
     private static ReplyDraft Written(string body) => ReplyDraft.Written(body, [], []);
 
@@ -353,7 +517,9 @@ public sealed class MailReplyDraftingTests
                     0,
                     "Karolina",
                     new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                    "It is 4 200 zloty."),
+                    "It is 4 200 zloty.",
+                    IsChosen: true,
+                    Attachments: []),
             ],
             [new ReplyDraftParticipant(0, Recipient())],
             []);
@@ -387,7 +553,8 @@ public sealed class MailReplyDraftingTests
         AccessAuthorization? authorization = null,
         SensitiveContentEgressGuard? egressGuard = null,
         UserLanguage language = UserLanguage.English,
-        bool derivesStyleFromSentMail = true)
+        bool derivesStyleFromSentMail = true,
+        MailFolderIdentity[]? foldersWithheldFromAI = null)
     {
         var accounts = servedAccounts ?? [Account];
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
@@ -395,7 +562,8 @@ public sealed class MailReplyDraftingTests
         catalog.User.Returns(SyntheticUser.Deployment);
 
         var participation = StubMailFolderParticipation.Mapping(
-            [.. accounts.Select(accountId => new MailFolderIdentity(accountId, MailFolderAlias.Create("inbox")))]);
+            [.. accounts.Select(accountId => new MailFolderIdentity(accountId, MailFolderAlias.Create("inbox")))])
+            .Hiding(foldersWithheldFromAI ?? []);
 
         var scopeResolver = new MailboxScopeResolver(
             catalog,

@@ -19,6 +19,7 @@ const scopes: Readonly<Record<AgentMessageScope['kind'], MessageKey>> = {
     thread: 'agent.scope.thread',
     calendarEvent: 'agent.scope.calendarEvent',
     discoveryRun: 'agent.scope.discoveryRun',
+    notification: 'agent.scope.notification',
 };
 
 /**

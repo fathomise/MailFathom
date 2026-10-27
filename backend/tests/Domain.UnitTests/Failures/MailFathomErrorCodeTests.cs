@@ -91,11 +91,13 @@ public sealed class MailFathomErrorCodeTests
     }
 
     /// <summary>A retired or mistyped number is unknown rather than reconstructed as a value nothing raises.</summary>
-    [Fact]
-    public void TryParse_UnallocatedNumber_ReportsUnspecified()
+    [Theory]
+    [InlineData(99999)]
+    [InlineData(81003)]
+    public void TryParse_UnallocatedNumber_ReportsUnspecified(int number)
     {
         // Act
-        var parsed = MailFathomErrorCode.TryParse(99999, out var code);
+        var parsed = MailFathomErrorCode.TryParse(number, out var code);
 
         // Assert
         Assert.False(parsed);

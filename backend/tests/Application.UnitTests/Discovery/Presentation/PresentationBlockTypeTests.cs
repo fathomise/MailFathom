@@ -149,7 +149,7 @@ public sealed class PresentationBlockTypeTests
     public void ToString_ACataloguedType_NamesTheIdentityAndTheVersion()
     {
         // Act, Assert
-        Assert.Equal("answer v1", PresentationBlockType.Answer.ToString());
+        Assert.Equal("answer v2", PresentationBlockType.Answer.ToString());
     }
 
     [Fact]

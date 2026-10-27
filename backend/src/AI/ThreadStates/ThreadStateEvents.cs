@@ -29,7 +29,7 @@ internal static partial class ThreadStateEvents
     [LoggerMessage(
         EventId = 2,
         Level = LogLevel.Warning,
-        Message = "The thread-state agent at {EndpointAlias} answered with nothing this build could read as statements, so the conversation is recorded as having nothing to say.")]
+        Message = "The thread-state agent at {EndpointAlias} answered with nothing this build could read as statements, so the conversation stays outstanding for a later run.")]
     internal static partial void LogAnswerUnreadable(ILogger logger, string endpointAlias);
 
     [LoggerMessage(

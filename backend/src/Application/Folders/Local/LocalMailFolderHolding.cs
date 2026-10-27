@@ -2,17 +2,19 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using MailFathom.Domain.Accounts;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Folders.Local;
 
 /// <summary>What local state holds about one account's own folders.</summary>
-/// <param name="Phase">Which copy of the mailbox is the truth.</param>
-/// <param name="Folders">The account's live folders, empty for an account whose source is the truth about its mailbox.</param>
+/// <param name="Folders">The account's live folders.</param>
 /// <param name="ErasedSourceAliases">The source folders whose corresponding local folder has been erased.</param>
+/// <remarks>
+/// It says nothing about which copy of the mailbox is the truth: that is the custody phase, which only
+/// <see cref="MailboxCustodianResolver" /> reads for an act.
+/// </remarks>
 public sealed record LocalMailFolderHolding(
-    MailAccountCustodyPhase Phase,
     IReadOnlyList<LocalMailFolder> Folders,
     IReadOnlyList<MailFolderAlias> ErasedSourceAliases)
 {

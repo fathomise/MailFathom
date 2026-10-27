@@ -53,6 +53,9 @@ internal static class OutgoingEmailRecordMapping
             LastReplyCode = entity.LastReplyCode,
             Filings = [.. entity.Filings.Select(ToFiling).OrderBy(filing => filing.Filing.Name, StringComparer.Ordinal)],
             LastFilingFailure = StoredFailureCode.ToErrorCode(entity.LastFilingFailureCode),
+            Subject = entity.Subject,
+            Dismissal = ToDismissal(entity),
+            AttemptLeaseExpiresAt = entity.LeaseExpiresAt,
         };
     }
 
@@ -101,6 +104,13 @@ internal static class OutgoingEmailRecordMapping
             entity.Status,
             entity.LastReplyCode,
             entity.AnsweredAt);
+
+    /// <summary>Reads back who took the send out of its account's outbox and when, where somebody did.</summary>
+    /// <remarks>The two columns are written together by one statement, so a row carrying only one of them reads as no dismissal.</remarks>
+    private static OutgoingEmailDismissal? ToDismissal(OutgoingEmailEntity entity) =>
+        entity is { DismissedAt: { } dismissedAt, DismissedByUserId: { } dismissedBy }
+            ? new OutgoingEmailDismissal(dismissedAt, UserId.Create(dismissedBy))
+            : null;
 
     /// <summary>Reads back the time the message was written to leave at, where one was named.</summary>
     /// <remarks>

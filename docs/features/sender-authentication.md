@@ -205,11 +205,6 @@ about this message, this mailbox, or this recipient. What the signing domain can
 somebody here received mail they sent — which they already know, because they sent it. It happens when a message is
 stored rather than when one is read, so no lookup is ever correlated with somebody opening their mail.
 
-That is why this may default to **on** while [the spam scanner's DNS checks](spam-classification.md) stay off. What a
-blocklist query would send is high-entropy — the sending address and the URI hosts taken out of the body, where a URL
-may carry a token unique to this recipient and this message. The two are different transactions rather than the same
-one at different sizes.
-
 The lookups are bounded twice, because both how many of them a message asks for and which names they ask for are
 written by whoever sent it: an explicit deadline per name, and a budget over the whole of one message's verification,
 past which every signature still unchecked stays that way. Reaching either leaves the verdict not established, which is
@@ -225,8 +220,11 @@ configuration](../operations/configuration-mail.md#mailsynchronization) states w
 ## Whether the author is one this deployment recognizes
 
 An author who authenticated is still a stranger until something says otherwise, so a third answer is recorded beside
-the two above: **trusted** or **unknown**. The rule is deliberately narrow. An author is trusted when their domain belongs
-to an account this deployment synchronizes, or when an entry on the receiving account's trusted-sender list names them.
+the two above: **trusted** or **unknown**. The rule is deliberately narrow. An author is trusted when [a signature of the
+receiving account's organization](#a-colleague-in-the-receiving-accounts-organization) proves them a member of it, when
+they write as [one of the receiving account owner's own addresses](#a-users-own-addresses), when the receiving account
+[opted into its owner's domains](#a-users-own-domains-on-an-account-that-opts-in) and theirs is one of them, or when an
+entry on the receiving account's trusted-sender list names them.
 Everything else is unknown — including most legitimate mail, and that is the intended outcome. The claim being made is
 *this deployment does not know who wrote this*, never *this is suspicious*; whether a message is wanted is [spam
 classification](spam-classification.md)'s question and is reached by other means entirely.
@@ -251,32 +249,107 @@ identity happened to authenticate.** Both of the alternatives are forgeries wait
 What establishes an author is [the conclusion above](#whether-the-displayed-author-authenticated), and the list is held
 against its answer and nothing else. A message whose author was not established, and one whose author authentication
 failed, both reach *unknown* without the list being consulted at all; which of the two it was stays where it was
-recorded, on the authentication verdict.
+recorded, on the authentication verdict. [Organization membership](#a-colleague-in-the-receiving-accounts-organization)
+is the one exception, because what it proves is the author's address rather than a domain.
 
-### A user's own domains
+### A colleague in the receiving account's organization
 
-Mail whose author writes from a domain one of a user's own accounts uses is trusted, on every account of that user
-rather than on the account that owns the domain. An instance synchronizing a work mailbox and a personal one is
-synchronizing one person's correspondence, and mail that person sends from the first to the second is the least
-suspicious mail in the mailbox; recognizing it only against the receiving account's own domain would leave the user's
-own mail unknown.
+A receiving account that belongs to an organization verifies, locally and when the message is extracted, a signature
+made with a key that organization holds, wherever a message carries one — and the outbox signs what an organization's
+accounts send, as [what is signed, and when](../operations/organization-signing-keys.md#what-is-signed-and-when)
+states. [ADR
+0042](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
+records the format and the reasoning; [Organization signing keys](../operations/organization-signing-keys.md) is where
+the keys are minted, rotated, and revoked.
+
+The signature is a DKIM value written in a header of MailFathom's own, `MailFathom-Organization-Signature`, which every
+other server ignores. Verification hands each value to MimeKit's DKIM verifier as a `DKIM-Signature` header rebuilt in
+memory from the exact bytes the message carried, so the message itself is never modified. At most as many of these
+headers are read as the local DKIM verification reads, because their number is written by whoever sent the message. The
+key is located by the selector alone, among **the receiving account's own organization's keys and nowhere else**: `d=`
+is never read and nothing is asked of DNS.
+
+**The author is trusted as a member only where all three hold:**
+
+1. **The signature verifies** against a key of the receiving account's organization that is active or retired and was
+   never revoked. A retired key keeps its public half, so mail it signed goes on verifying; a revoked key confirms
+   nothing for any message verified after the revocation, whenever the message says it was signed.
+2. **The message carries exactly one `From` field, naming exactly one mailbox, and that address is the sending address
+   of a mail account in the organization now** — the address its mail is written from, never its IMAP user name, so a
+   member whose user name is a bare login is still recognized. It is read from the settings of the users the account is
+   assigned to, whoever the receiving account is assigned to, so a colleague served to another person is recognized and
+   an account assigned to nobody sends as nobody; so does every account of a user whose record is refused for what it
+   holds, which costs that user recognition rather than failing everybody else's mail. A user's account outside the
+   organization never counts, however many of its accounts are in it. Every signed header is listed twice, so a second `From`,
+   or a `Reply-To` that would send the reply elsewhere, inserted after signing breaks the signature. An author who has
+   left the organization is no longer recognized, whatever key once signed for them.
+3. **The message was sent to the receiving account**: its sending address is in the signed `To` or `Cc`, or the record
+   this deployment kept of the send — the one with the signed `Message-ID`, made through the author's account — lists it
+   as a blind copy. This is what refuses a validly signed message replayed to somebody it never named. It also means a
+   message reaching a member through a mailing list, an alias, or a redirect is not recognized this way, and is judged
+   by the other sources as before. A send record deleted by retention or erasure before the blind copy arrives
+   recognizes nothing.
+
+**Membership ranks first and needs no authenticated domain.** Where it holds, the verdict is trusted with the source
+*organization member*, and the lists below are not consulted: a colleague on a server publishing no DKIM key is still
+recognized, and one on the organization's own domain is named as a member rather than by that domain. The verdict also
+stores which organization recognized the author, as a reference to it; deleting the organization clears the reference
+and leaves the reason standing without it. A reader is shown the organization by its name as it reads now, looked up
+through that reference whenever the message is read
+([the message route](../operations/client-endpoint.md)), so a rename reaches mail already stored and a deleted
+organization leaves the reason with no name beside it.
+
+**A signature that fails, names no key of the organization, or names a revoked one contributes nothing, and is never a
+warning.** Relays legitimately alter messages — a disclaimer footer breaks the body hash — so the message is judged by
+the other sources exactly as it would have been unsigned. A receiving account in no organization never runs this
+verification, and its mail is judged exactly as before.
+
+Verification happens at extraction and nowhere else, so it is the same in every custody phase: a held account's source
+keeps delivering new mail, which is extracted as an arrival. Nothing re-reads stored mail on account of a rotation, a
+revocation, or a member leaving; [re-deriving stored mail](#re-deriving-what-is-already-stored) re-verifies it under the
+keys, the membership, and the send records as they stand then, so a re-derivation after a revocation leaves no verdict
+that key reached.
+
+### A user's own addresses
+
+Mail whose author writes as exactly one of a user's own addresses is trusted, with the source *own account address*,
+on every account of that user rather than only on the account the address belongs to, and with nothing to configure.
+An instance synchronizing a work mailbox and a personal one is synchronizing one person's correspondence, and mail that
+person sends from the first to the second is the least suspicious mail in the mailbox.
+
+The addresses are what the accounts state: each account's IMAP user name where it is an address, and the address an
+account that configures a submission endpoint sends as (`Delivery:FromAddress`). They are held against an
+**authenticated author** exactly as an address entry on [the trusted-sender list](#the-trusted-sender-list) is: the
+author's domain was established — by a trusted DMARC result, a DKIM or SPF identity matching the displayed domain, or a
+locally verified DKIM signature naming it — and `From` shows exactly that address. Where nothing authenticated the
+author, `From` is not evidence and the owner's address in it recognizes nothing; what such a match rests on, and what it
+does not establish, is what the address entry below states.
 
 The set stops at that person. A deployment serving several users holds several such sets, one per user, because two
 users are two correspondents: one of them writing to the other is ordinary mail from outside, and trusting it as the
 recipient's own would hand one person's identity to a message the other wrote.
 
-The set is derived from the configured accounts rather than restated in configuration, so adding an account extends it
-and removing one narrows it without a second edit. It is read from each account's IMAP user name, which is the only
-mailbox identity an IMAP account states — a server is reached at a host that is rarely the mail domain, and the account
-identifier is a key an operator invented. **An account whose user name is a bare login therefore contributes nothing**,
-and a deployment in that position names its domains on the accounts' own lists instead. Only the domain itself counts
-and never the names beneath it.
+### A user's own domains, on an account that opts in
 
-`MailSynchronization:TrustOwnAccountDomains` is what turns the whole set off, and it defaults to on because that mail is
-either the user's own or somebody who has taken their mailbox, and the first is far more common. **The case for turning
-it off is an account on a large shared provider**: every user of that provider writes from the same domain, so the set
-would recognize all of them. A deployment that turns it off names the domains it does mean on the per-account list
-below.
+An account that sets `TrustOwnAccountDomains` also trusts every author writing from a domain one of its owner's
+accounts uses, with the source *own account domain*. It is off by default and per account. **The case for leaving it off
+is an account on a large shared provider** — `gmail.com`, `outlook.com`, `wp.pl` — where every user of that provider
+writes from the same domain and the set would recognize all of them. The case for turning it on is an account whose
+domain is the owner's own, where a colleague writing from it is somebody the owner knows; turning it on for that account
+leaves the owner's other accounts as they were. A colleague in the receiving account's organization is recognized on
+any provider by [their organization's signature](#a-colleague-in-the-receiving-accounts-organization) instead, which
+needs no setting at all.
+
+The set is derived from the user's configured accounts rather than restated in configuration, so adding an account
+extends it and removing one narrows it without a second edit, and like the addresses it stops at that person. It is
+read from each account's IMAP user name, which is the only mailbox identity an IMAP account states — a server is reached
+at a host that is rarely the mail domain, and the account identifier is a key an operator invented. **An account whose
+user name is a bare login therefore contributes no domain**, and a deployment in that position names its domains on the
+accounts' own lists instead. Only the domain itself counts and never the names beneath it. Where the owner writing as
+themselves matches both, the verdict names the address.
+
+Changing either set judges new mail only. A verdict outlives the policy it was reached under by design, so mail already
+stored keeps its verdict until [re-deriving it](#re-deriving-what-is-already-stored) judges it again.
 
 ### The trusted-sender list
 
@@ -319,9 +392,11 @@ every author unknown, and an operator would meet the difference as mail whose au
 
 The answer is stored on the message rather than decided when the message is read, so a reader and a rule can ask
 whether an author is trusted without re-evaluating a policy that may since have changed. What makes that legible is
-the **policy revision** recorded beside it: a digest of the effective list, so two verdicts carrying different revisions
-were reached under different lists, and one carrying none was never put to a policy at all. Reordering a list is not a
-change to it and produces the same revision; adding an entry to it produces a different one.
+the **policy revision** recorded beside it: a digest of the effective list together with the receiving account's
+organization, so two verdicts carrying different revisions were reached under a different list or for a different
+organization, and one carrying none was never put to a policy at all. Reordering a list is not a change to it and
+produces the same revision; adding an entry to it, or the account joining or leaving an organization, produces a
+different one.
 
 Adding a domain therefore does not silently rewrite what a reader was already shown. What re-judges mail already stored
 is [`mfctl mailbox rederive`](imap-synchronization.md#bringing-stored-mail-up-to-a-later-release), the same deliberate
@@ -344,7 +419,7 @@ is described.
 | `list_emails` | The pair, on each listed email's summary |
 | `search_emails` | The same pair, by republishing that summary rather than reshaping it |
 | `get_email_content` | The pair, and beside it the evidence: the domain that authenticated, the domain the `From` header displayed, which check established the first, the DMARC result, and which of the two readings reached the verdict |
-| `ask_mail` | The pair, on each citation, without the evidence |
+| `ask_mail` | The pair, on each citation, without the evidence, beside whether the message sat in junk and whether its sender was a first contact |
 
 **The listing carries the verdict and the single-email read carries the evidence.** A listing exists to let a reader
 recognize a message and already narrows `Cc` and `Reply-To` away, and the two outcomes are what a caller branches on;
@@ -362,6 +437,13 @@ of its own: `authorAuthentication` is the conclusion, reached against every iden
 against the one kept as evidence, and the domains say what stood behind the message rather than answering the question
 themselves.
 
+**A message's own S/MIME or OpenPGP signature is a separate fact, published beside these and never folded into them.**
+What the receiving server established is about the domain a message came from; what a signature proves is who signed
+it and that the signed content is unchanged. `senderVerification.signature` on the tools and `signature` on [the
+client's message route](../operations/client-endpoint.md#the-message-route) carry it, and [verifying a message's own
+signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) is how it is
+reached and what it trusts. Neither answer is an input to the other, and neither says a message is safe.
+
 **Every published value was stored when the message was extracted.** A read evaluates nothing, resolves no DNS, re-reads
 no header, verifies no signature, and triggers no IMAP fetch. Mail stored before the columns existed therefore reads as *not established* and
 *unknown*, with every domain absent, which is what its row holds rather than a state invented for it — and an absent
@@ -378,6 +460,18 @@ deployment's own classification and not an authentication result, that *unknown*
 mail from a new correspondent, and that the sender address beside them is a claim the message wrote about itself. None
 of them characterizes the message or the sender's intent. A failed authentication is stated as a failed authentication.
 [MCP tools](mcp-tools.md#list_emails) holds the published shape of each result.
+
+## What an AI operation is told
+
+The AI operations that carry provenance — answering, the Agent's `search_mail` and `read_thread`, enrichment, a
+conversation's state, and Discover — write the conclusion beside each message they quote as the service's own
+`sender-authentication` attribute, with
+`sender-trusted="true"` where this deployment recognizes the author, and asks the model to qualify a claim resting on
+an author nobody established. Reply drafting, contact relationships, calendar-event extraction, and body cleanup quote
+mail without it so far. The evidence never travels there. [Mail
+answering](mail-answering.md#where-a-message-came-from) holds the attributes, the two qualifications written beside
+them, and the rule a model is given. A citation a client resolves carries the same values back, so the person sees
+why a claim was qualified.
 
 ## What MailFathom does not do
 

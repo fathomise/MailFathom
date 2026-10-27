@@ -6,7 +6,9 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Operations;
+using MailFathom.Application.Notifications;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Transport;
 
@@ -50,6 +52,7 @@ public sealed class MailOutboxPass
     private readonly MailDraftPass drafts;
     private readonly IMailTransportSecurityPolicyReader transportSecurityPolicyReader;
     private readonly MailOutboxSettings settings;
+    private readonly MailFailureNotifications failures;
 
     /// <summary>Initializes the pass from the outbox it claims out of and the attempt it runs.</summary>
     /// <param name="outgoingEmails">Claims the batch this pass settles.</param>
@@ -58,6 +61,7 @@ public sealed class MailOutboxPass
     /// <param name="drafts">Finishes whatever a draft still owes the mailbox, including the one a delivered send was promoted from.</param>
     /// <param name="transportSecurityPolicyReader">Supplies the policy every submission obeys, and says whether the account submits at all.</param>
     /// <param name="settings">Bounds how much one pass claims and how long it holds it.</param>
+    /// <param name="failures">Tells the account's users about a send the server refused.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     /// <remarks>
     /// The drafts ride this pass rather than one of their own, because what they need is exactly what it already
@@ -71,7 +75,8 @@ public sealed class MailOutboxPass
         OutgoingMailFilingPass filings,
         MailDraftPass drafts,
         IMailTransportSecurityPolicyReader transportSecurityPolicyReader,
-        MailOutboxSettings settings)
+        MailOutboxSettings settings,
+        MailFailureNotifications failures)
     {
         ArgumentNullException.ThrowIfNull(outgoingEmails);
         ArgumentNullException.ThrowIfNull(delivery);
@@ -79,6 +84,7 @@ public sealed class MailOutboxPass
         ArgumentNullException.ThrowIfNull(drafts);
         ArgumentNullException.ThrowIfNull(transportSecurityPolicyReader);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(failures);
 
         this.outgoingEmails = outgoingEmails;
         this.delivery = delivery;
@@ -86,6 +92,7 @@ public sealed class MailOutboxPass
         this.drafts = drafts;
         this.transportSecurityPolicyReader = transportSecurityPolicyReader;
         this.settings = settings;
+        this.failures = failures;
     }
 
     /// <summary>Claims one batch of the account's due sends and attempts each of them.</summary>
@@ -117,17 +124,12 @@ public sealed class MailOutboxPass
 
         var markedUnknownCount = await this.outgoingEmails.MarkUnknownOutcomesAsync(account, stoppingToken);
 
-        // Before the claim rather than after it, so a send that is waiting for an instant still ahead is mirrored while
-        // it waits rather than after whatever eventually takes it. A send this claim is about to take is not waiting at
-        // all and is mirrored nowhere.
-        var filingResults = new List<OutgoingMailFilingResult>(
-            await this.filings.MirrorWaitingSendsAsync(account, stoppingToken));
-
-        // Beside the mirror rather than in the synchronization run that discovers the duplicate, because taking a copy
+        // On the outbox pass rather than in the synchronization run that discovers the duplicate, because taking a copy
         // out of a folder is a write and no read path may obtain the session that makes one. It sits behind the
         // delivery policy for the reason the claim does: only an account that sends has a copy of its own in a sent
         // folder, so an account that merely reads mail spends no query on a duplicate it cannot have.
-        filingResults.AddRange(await this.filings.WithdrawDuplicatedSentCopiesAsync(account, stoppingToken));
+        var filingResults = new List<OutgoingMailFilingResult>(
+            await this.filings.WithdrawDuplicatedSentCopiesAsync(account, stoppingToken));
 
         var claimed = await this.outgoingEmails.ClaimAsync(
             OutgoingEmailClaimRequest.Create(account, this.settings.MaxDeliveriesPerPass, this.settings.LeaseDuration),
@@ -138,6 +140,8 @@ public sealed class MailOutboxPass
         {
             var result = await this.AttemptAsync(send, transportSecurityPolicy, stoppingToken);
             results.Add(result);
+
+            await this.ReportRefusalAsync(send, result, stoppingToken);
 
             filingResults.AddRange(await this.FileCopiesOfAsync(result, stoppingToken));
 
@@ -254,6 +258,44 @@ public sealed class MailOutboxPass
             // No draft is named, because none was chosen: what fails past the filer's own catches is the read that
             // decides which drafts to reach at all.
             return [];
+        }
+    }
+
+    /// <summary>Tells the account's users about a send this attempt left refused, and never lets that end the pass.</summary>
+    /// <remarks>
+    /// <para>
+    /// Both endings that leave a send at <see cref="OutgoingEmailStage.Refused" /> are reported: a server's refusal,
+    /// and a send that missed the time it was written to leave by, which the attempt refuses rather than sending late.
+    /// Each is reached once, because a refused send is claimed again only when somebody offers it again; refused a
+    /// second time while the first notification still stands unread, the send is the same condition and that one
+    /// already says so.
+    /// </para>
+    /// <para>
+    /// The notification is written after the refusal has committed and in a transaction of its own, so a failure to
+    /// write it costs that notification and nothing about the send: the send still waits in the outbox, marked refused,
+    /// where the Sent folder's mark shows it. Raising it inside the refusal's own commit would close that gap, at the
+    /// price of a notification store that joins a delivery transaction it has no other reason to know.
+    /// </para>
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Telling somebody about a refusal that is already durably recorded must not end the pass; the send waits in the outbox marked refused whatever became of the notification.")]
+    [SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception", Justification = "There is no second action to take: the refusal is already what the record says.")]
+    private async Task ReportRefusalAsync(
+        ClaimedOutgoingEmail send,
+        MailOutboxDeliveryResult result,
+        CancellationToken stoppingToken)
+    {
+        if (result.Outcome is not (MailOutboxDeliveryOutcome.Refused or MailOutboxDeliveryOutcome.MissedItsDueTime))
+        {
+            return;
+        }
+
+        try
+        {
+            await this.failures.ReportRefusedSendAsync(send.Record, stoppingToken);
+        }
+        catch (Exception)
+        {
+            // Nothing to restore: the refusal is what the record already says, and the notification is the one thing lost.
         }
     }
 

@@ -3,7 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.Mailboxes;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Retrieval;
@@ -16,6 +15,7 @@ using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.IntegrationTests.Orchestration;
+using MailFathom.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -163,7 +163,7 @@ public sealed class OrchestratedMailAnsweringAuditTrailTests(MailFathomOrchestra
         Folder = new StoredEmailFolder(MailFolderId.Create(Guid.CreateVersion7()), Inbox.RemotePath.Value, Inbox.Alias),
         Subject = "Quarterly invoice",
         ReceivedAt = Clock.GetUtcNow(),
-        SenderVerification = SenderVerification.NotEstablished,
+        Provenance = StubEmailProvenanceReader.KnownCorrespondent,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         Text = "the invoice is attached",
     };

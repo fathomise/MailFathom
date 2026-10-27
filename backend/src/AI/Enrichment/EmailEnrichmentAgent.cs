@@ -13,7 +13,6 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Accounts;
-using MailFathom.Domain.Emails;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -22,9 +21,11 @@ namespace MailFathom.AI.Enrichment;
 /// <summary>Derives one message's marks by putting it to the composed enrichment agent.</summary>
 /// <remarks>
 /// <para>
-/// One call, no tools, and one message. What leaves this deployment is the subject, the arrival instant, and the
-/// passages the pass selected, every one of them guarded first — so a derivation sends the message and nothing about
-/// the mailbox it sits in.
+/// One call, no tools, and one message. What leaves this deployment is the subject, the arrival instant, the passages
+/// the pass selected, every one of them guarded first, and the message's provenance: the sender verdict, whether the
+/// deployment trusts the author, whether the message sits in junk, and whether the mailbox had corresponded with its
+/// sender before. The last two are facts about the mailbox, and the only ones a derivation sends; no address, no
+/// folder name, and no other message travels with it.
 /// </para>
 /// <para>
 /// It opens no chat call of its own. The agent is composed by <see cref="AgentComposition" /> like every other
@@ -203,23 +204,13 @@ internal sealed class EmailEnrichmentAgent : IEmailEnricher
             [.. email.Passages.Select(static passage => passage.Text)],
             cancellationToken);
 
-        return Bounded(
-            EmailEnrichmentInstructions.ComposeEnrichmentTurn(subject, email.ReceivedAt, passages),
+        return EmailEnrichmentInstructions.ComposeEnrichmentTurn(
+            subject,
+            email.ReceivedAt,
+            email.Provenance,
+            passages,
             plan.MaximumRequestCharacters);
     }
-
-    /// <summary>Cuts a turn down to what one call may carry, without splitting a character in half.</summary>
-    /// <remarks>
-    /// A bound rather than a refusal, which is the one place this derivation departs from
-    /// <see cref="ChatRequestBounds" />'s posture and does so deliberately. A refusal here would be permanent — the same
-    /// message would be composed to the same length on every run — so an endpoint declared narrower than a long
-    /// message's passages would leave that message outstanding forever. What a bounded turn costs instead is the tail
-    /// of the last passage, and a mark citing a passage the model saw only part of is still a mark somebody can check.
-    /// </remarks>
-    private static string Bounded(string turn, int maximumCharacters) =>
-        turn.Length <= maximumCharacters
-            ? turn
-            : MailTextBounds.TruncateAtTextElementBoundary(turn, maximumCharacters);
 
     /// <summary>Makes the one provider call, answering with nothing where it failed.</summary>
     /// <remarks>

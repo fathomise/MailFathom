@@ -110,7 +110,7 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
         Assert.True(pages[^1].Count <= PageSize);
     }
 
-    /// <summary>A folder withheld from tools is narrowed out by the server, whatever the request named.</summary>
+    /// <summary>A folder withheld from AI is narrowed out by the server, whatever the request named.</summary>
     /// <remarks>
     /// The narrowing is composed per admitted account rather than written as a filter over one column, so whether it
     /// translates at all is settled here and nowhere else: a predicate that does not is an exception at runtime. The
@@ -119,7 +119,7 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
     /// withholding rather than a folder nothing was seeded into.
     /// </remarks>
     [Fact]
-    public async Task ReadPageAsync_AFolderWithheldFromTools_IsNarrowedOutWhileItsMailStaysStored()
+    public async Task ReadPageAsync_AFolderWithheldFromAI_IsNarrowedOutWhileItsMailStaysStored()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -204,7 +204,7 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
         Assert.Empty(listed);
         Assert.Empty(freshness);
 
-        // The alias is not among the folders a tool may read, which is what makes the two empty answers above a folder
+        // The alias is not among the folders an agent may read, which is what makes the two empty answers above a folder
         // MailFathom does not have rather than one holding no mail. The folders that are readable are the control: on
         // an empty list this would hold however the mapping had answered.
         Assert.NotEmpty(unmappedScope.ReadableFolders);
@@ -513,6 +513,8 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
             return;
         }
 
+        List<StoredEmailId> storedEmailIds = [];
+
         var commitResult = await services.CommitAsync(
             async (scope, session, token) =>
             {
@@ -520,16 +522,18 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
 
                 foreach (var seededEmail in SeededEmails(binding))
                 {
-                    await repository.UpsertMetadataAsync(
+                    storedEmailIds.Add(await repository.UpsertMetadataAsync(
                         session, seededEmail.RemoteMetadata,
                         seededEmail.Extraction,
                         StoredEmailContentAvailability.Available,
-                        token);
+                        token));
                 }
             },
             cancellationToken);
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);
+
+        await OrchestratedSettlement.ApplyAsync(services, storedEmailIds, FirstReceivedAt, cancellationToken);
     }
 
     /// <summary>Describes the seeded volume: tie-grouped dated mail, an undated tail, and the three addressable rows.</summary>

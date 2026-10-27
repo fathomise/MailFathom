@@ -11,6 +11,7 @@ using MailFathom.AI.Retrieval;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Answers;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
@@ -18,9 +19,9 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
-using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -109,7 +110,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         ArgumentNullException.ThrowIfNull(brief);
         ArgumentNullException.ThrowIfNull(journal);
 
-        var scope = await this.readers.ScopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, cancellationToken);
+        var scope = await this.readers.ScopeResolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, cancellationToken);
         var runLedger = new MailAnsweringRunLedger(this.runBounds);
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.readers.KnowledgeSearch,
@@ -118,13 +119,13 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             this.egressGuard,
             brief.Question.AskedAt);
         var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds);
-        var messages = ComposeMessages(brief, tools.NamedAccounts);
+        var accounts = tools.NamedAccounts;
         var stickySession = StickySessionOf(brief.Question.Conversation);
 
         var answer = await ChatModelFallThrough.RunAsync(
             this.plan,
             this.logger,
-            (model, attemptToken) => this.AskAsync(model, brief.Language, messages, tools, journal, runLedger, stickySession, attemptToken),
+            (model, attemptToken) => this.AskAsync(model, brief, accounts, tools, journal, runLedger, stickySession, attemptToken),
             () => !tools.HasProposed,
             cancellationToken);
 
@@ -145,7 +146,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             tools.ReportedConfidence ?? PresentationConfidence.Moderate,
             evidence.Support);
 
-        await journal.ComposeAsync(new AnswerBlock(evidence, answer, confidence), cancellationToken);
+        await journal.ComposeAsync(new AnswerBlock(evidence, answer, confidence, LinksIn(answer, tools)), cancellationToken);
 
         AgentConversationEvents.LogAnswered(this.logger, this.plan.Endpoint.Alias, cited.Length);
 
@@ -155,6 +156,10 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <summary>Turns an answer into the text a block may carry, or refuses it as no answer at all.</summary>
     /// <param name="text">The text the run's last turn carried.</param>
     /// <returns>The text a block carries, or <see langword="null" /> where none is left, which the run fails as an empty answer.</returns>
+    /// <remarks>
+    /// Its pictures go after its control characters, because dropping one between a mark and its bracket would rebuild a
+    /// picture the neutralising had already passed over, and before it is cut, so the cut bounds the text that is published.
+    /// </remarks>
     internal static PresentationText? Presentable(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -162,7 +167,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             return null;
         }
 
-        var cleaned = new string([.. text.Where(static character => !char.IsControl(character) || character is '\n' or '\r' or '\t')]).Trim();
+        var cleaned = AnswerMarkup.WithoutPictures(new string([.. text.Where(static character => !char.IsControl(character) || character is '\n' or '\r' or '\t')])).Trim();
         var bounded = cleaned.Length <= PresentationText.MaxLength
             ? cleaned
             : MailTextBounds.TruncateAtTextElementBoundary(cleaned, PresentationText.MaxLength);
@@ -170,18 +175,36 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         return PresentationText.TryCreate(bounded, out var presentable) ? presentable : null;
     }
 
+    /// <summary>Judges every link an answer writes against the mail the run showed the model.</summary>
+    /// <param name="answer">The answer as its block carries it.</param>
+    /// <param name="tools">The run's tools, which hold every message it showed.</param>
+    /// <returns>The links, judged.</returns>
+    internal static IReadOnlyList<AnswerLink> LinksIn(PresentationText answer, AgentConversationTools tools) =>
+        AnswerMarkup.LinksIn(answer.Value, tools.ShownMail);
+
     /// <summary>Composes what the model is sent: every earlier turn of the conversation, then the question's own turn.</summary>
     /// <param name="brief">The question, the language it is answered in, and the conversation before it.</param>
     /// <param name="accounts">The accounts the turn names, which are the ones a tool the model is offered takes.</param>
     /// <returns>The conversation, oldest turn first.</returns>
     internal static IReadOnlyList<ChatMessage> ComposeMessages(AgentAnswerBrief brief, IReadOnlyList<MailAccountId> accounts) =>
+        ComposeMessages(brief, accounts, brief.History, brief.Question.Text.Value);
+
+    /// <summary>Composes the conversation from a history and a question standing in for the ones the brief carries.</summary>
+    private static IReadOnlyList<ChatMessage> ComposeMessages(
+        AgentAnswerBrief brief,
+        IReadOnlyList<MailAccountId> accounts,
+        IReadOnlyList<AgentHistoryTurn> history,
+        string question) =>
     [
-        .. brief.History.Select(static turn => new ChatMessage(
-            turn.Author is AgentMessageAuthor.Person ? ChatRole.User : ChatRole.Assistant,
-            turn.Text)),
+        .. history.Select(AgentHistoryDocument.MessageOf),
         new ChatMessage(
             ChatRole.User,
-            AgentConversationComposition.ComposeTurn(brief.Question.AskedAt, accounts, brief.Question.Scope, brief.Question.Text.Value)),
+            AgentConversationComposition.ComposeTurn(
+                brief.Question.AskedAt,
+                accounts,
+                brief.Question.Scope,
+                brief.NamedEmails,
+                question)),
     ];
 
     /// <summary>Derives the sticky session every request of one conversation is routed by.</summary>
@@ -203,21 +226,29 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     internal static string StickySessionOf(AgentConversationId conversation) =>
         Convert.ToHexStringLower(SHA256.HashData(conversation.Value.ToByteArray()));
 
-    /// <summary>Scans every turn the person or the Agent wrote, which is what leaves this deployment on each call.</summary>
-    private async Task<IReadOnlyList<ChatMessage>> GuardAsync(IReadOnlyList<ChatMessage> messages, CancellationToken cancellationToken)
+    /// <summary>Scans every text the person or the Agent wrote, which is what leaves this deployment on each call, and composes the conversation from what the scan let through.</summary>
+    /// <remarks>
+    /// Each text is scanned as the value it is, before the question's turn is written around it, so no redaction can
+    /// reach into the elements the turn is composed of.
+    /// </remarks>
+    private async Task<IReadOnlyList<ChatMessage>> GuardAsync(
+        AgentAnswerBrief brief,
+        IReadOnlyList<MailAccountId> accounts,
+        CancellationToken cancellationToken)
     {
-        var guarded = await this.egressGuard.GuardAllAsync(
+        var history = await AgentHistoryDocument.GuardAsync(this.egressGuard, brief.History, cancellationToken);
+        var question = await this.egressGuard.GuardAsync(
             SensitiveContentEgressPoint.ChatPrompt,
-            [.. messages.Select(static message => message.Text)],
+            brief.Question.Text.Value,
             cancellationToken);
 
-        return [.. messages.Select((message, index) => new ChatMessage(message.Role, guarded[index]))];
+        return ComposeMessages(brief, accounts, history, question);
     }
 
     private async Task<PresentationText> AskAsync(
         ChatGenerationPlan model,
-        UserLanguage language,
-        IReadOnlyList<ChatMessage> messages,
+        AgentAnswerBrief brief,
+        IReadOnlyList<MailAccountId> accounts,
         AgentConversationTools tools,
         AgentAnswerJournal journal,
         MailAnsweringRunLedger runLedger,
@@ -225,10 +256,10 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         CancellationToken cancellationToken)
     {
         // Against this model's own bounds, and before the scan, so a conversation refused by a ceiling costs no scan.
-        ChatRequestBounds.RequireForAttempt(messages, model);
+        ChatRequestBounds.RequireForAttempt(ComposeMessages(brief, accounts), model);
         tools.ForgetEndingReports();
 
-        var guarded = await this.GuardAsync(messages, cancellationToken);
+        var guarded = await this.GuardAsync(brief, accounts, cancellationToken);
 
         var endpoint = model.Endpoint;
 
@@ -246,7 +277,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         using var recordedClient = new RecordedChatClient(budgetedClient, journal);
         using var steeredClient = new SteeredChatClient(recordedClient, journal, this.egressGuard);
 
-        var agent = AgentConversationComposition.Compose(steeredClient, model, language, tools.Create(), this.instructionEnvelope, this.loggerFactory);
+        var agent = AgentConversationComposition.Compose(steeredClient, model, brief.Language, tools.Create(), this.instructionEnvelope, this.loggerFactory);
         var response = await agent.RunAsync(ChatConversationMapping.ToProviderConversation(guarded), session: null, options: null, cancellationToken);
 
         if (Presentable(response.Text) is not { } answer)

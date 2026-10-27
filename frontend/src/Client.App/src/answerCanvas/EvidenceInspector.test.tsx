@@ -54,6 +54,7 @@ const work: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 const passage = { fragmentId: 'f-4', ordinal: 3, text: 'Monthly remuneration is EUR 1,200 net' };
@@ -557,7 +558,7 @@ describe('reaching evidence from a block', () => {
         type: 'answer',
         named: 'answer',
         evidence: backed,
-        answer: { text: theAnswer, confidence: 'High' },
+        answer: { text: theAnswer, confidence: 'High', links: [] },
     };
 
     const evidenceList: AnswerBlock = {

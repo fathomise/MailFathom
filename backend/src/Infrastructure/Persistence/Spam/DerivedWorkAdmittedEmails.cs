@@ -39,7 +39,7 @@ internal static class DerivedWorkAdmittedEmails
     /// Three clauses, in the order the gate asks its questions. The junk folders go first because placement decides with
     /// nothing having scored the message and because a reversal has to be able to undo a verdict scoring reached. The
     /// verdict goes next, which is what withholds junk a user scores without filing. The last is the wait, and its
-    /// three escapes are the whole of what keeps a wedged scanner from stopping the index: a folder no classification
+    /// three escapes are the whole of what keeps a stalled classification from stopping the index: a folder no classification
     /// runs over, a message whose payload was never stored and never will be, and a message that has waited longer than
     /// a verdict is allowed to take.
     /// </para>

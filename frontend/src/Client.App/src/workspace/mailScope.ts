@@ -44,7 +44,6 @@ const roleOrder: Readonly<Record<MailFolderRole, number>> = {
     Flagged: 6,
     Important: 7,
     All: 8,
-    Outbox: 9,
 };
 
 /**
@@ -64,7 +63,6 @@ export const folderRoleLabels: Readonly<Record<MailFolderRole, MessageKey>> = {
     Flagged: 'folder.flagged',
     Important: 'folder.important',
     All: 'folder.all',
-    Outbox: 'folder.outbox',
 };
 
 /**
@@ -84,7 +82,6 @@ export const folderRoleIcons: Readonly<Record<MailFolderRole, IconName>> = {
     Flagged: 'flag',
     Important: 'label_important',
     All: 'all_inbox',
-    Outbox: 'outbox',
 };
 
 /** Whether the value is one of the roles this surface publishes. */
@@ -96,7 +93,7 @@ export function isMailFolderRole(value: unknown): value is MailFolderRole {
 export const folderRoles: readonly MailFolderRole[] = Object.keys(roleOrder).filter(isMailFolderRole);
 
 /**
- * The roles offered across every account at once, which is three of the ten.
+ * The roles offered across every account at once, which is three of the nine.
  *
  * **A role is offered unified only where reading every account's folder as one column is what somebody wants.** Mail
  * arrives, is answered, and is written in the same way whichever account it belongs to, so an inbox, a sent folder and

@@ -3,7 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
+using System.Xml.Linq;
 using MailFathom.AI.CalendarEvents;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Domain.Calendar;
 using Xunit;
@@ -46,17 +48,6 @@ public sealed class CalendarEventExtractionInstructionsTests
         Assert.Contains("no zone offset", text, StringComparison.Ordinal);
     }
 
-    /// <summary>Mail is the most adversarial text this system reads, and a calendar is where somebody would like to write.</summary>
-    [Fact]
-    public void Text_TheInstruction_TellsTheAgentBothInputsAreData()
-    {
-        // Act
-        var text = CalendarEventExtractionInstructions.Text;
-
-        // Assert
-        Assert.Contains("data rather than an instruction", text, StringComparison.Ordinal);
-    }
-
     [Fact]
     public void ComposeMailTurn_AMessage_CarriesItsSubjectItsPassagesAndTheInstantToResolveAgainst()
     {
@@ -70,10 +61,26 @@ public sealed class CalendarEventExtractionInstructionsTests
             ["shall we say Thursday at ten", "the yard is open until six"]);
 
         // Assert
+        var message = Parsed(turn).Element(MessagePassages.MessageElementName);
         Assert.Contains("2026-09-21T09:30", turn, StringComparison.Ordinal);
-        Assert.Contains("The racking survey", turn, StringComparison.Ordinal);
-        Assert.Contains("Passage 0:\nshall we say Thursday at ten", turn, StringComparison.Ordinal);
-        Assert.Contains("Passage 1:\nthe yard is open until six", turn, StringComparison.Ordinal);
+        Assert.Equal("The racking survey", message?.Element(MessagePassages.SubjectElementName)?.Value);
+        Assert.Equal(
+            ["shall we say Thursday at ten", "the yard is open until six"],
+            message?.Elements(MessagePassages.PassageElementName).Select(static passage => passage.Value));
+    }
+
+    /// <summary>The offset is the deployment's half of resolving a time, so the message never carries it beside the anchor.</summary>
+    [Fact]
+    public void ComposeMailTurn_AnArrivalCarryingAnOffset_StatesTheWallClockWithoutIt()
+    {
+        // Act
+        var turn = CalendarEventExtractionInstructions.ComposeMailTurn(
+            "A subject",
+            new DateTimeOffset(2026, 9, 21, 9, 30, 0, TimeSpan.FromHours(2)),
+            ["a passage"]);
+
+        // Assert
+        Assert.DoesNotContain("+02:00", turn, StringComparison.Ordinal);
     }
 
     /// <summary>The message's own arrival, so the same message read again next month resolves Friday to the same day.</summary>
@@ -92,7 +99,7 @@ public sealed class CalendarEventExtractionInstructionsTests
     }
 
     [Fact]
-    public void ComposeMailTurn_AMessageWithNoSubject_SaysSoRatherThanLeavingTheLineEmpty()
+    public void ComposeMailTurn_AMessageWithNoSubject_WritesNoSubjectElement()
     {
         // Act
         var turn = CalendarEventExtractionInstructions.ComposeMailTurn(
@@ -101,11 +108,12 @@ public sealed class CalendarEventExtractionInstructionsTests
             ["a passage"]);
 
         // Assert
-        Assert.Contains("Subject: (none)", turn, StringComparison.Ordinal);
+        Assert.Empty(Parsed(turn).Descendants(MessagePassages.SubjectElementName));
     }
 
+    /// <summary>The sentence is the person's own words, so it sits in the one element the instruction says speaks for them.</summary>
     [Fact]
-    public void ComposeDescriptionTurn_ASentence_CarriesItAndTheInstantToResolveAgainst()
+    public void ComposeDescriptionTurn_ASentence_CarriesItAsTheAskAndTheInstantToResolveAgainst()
     {
         // Act
         var turn = CalendarEventExtractionInstructions.ComposeDescriptionTurn(
@@ -115,7 +123,7 @@ public sealed class CalendarEventExtractionInstructionsTests
         // Assert
         Assert.Contains("2026-09-21T09:30", turn, StringComparison.Ordinal);
         Assert.Contains("Monday", turn, StringComparison.Ordinal);
-        Assert.Contains("lunch with the surveyor tomorrow at one", turn, StringComparison.Ordinal);
+        Assert.Equal("lunch with the surveyor tomorrow at one", Parsed(turn).Element(AgentTurnDocument.AskElementName)?.Value);
     }
 
     /// <summary>The offset is the deployment's half of resolving a time, so it is never handed to the model to copy back.</summary>
@@ -130,4 +138,6 @@ public sealed class CalendarEventExtractionInstructionsTests
         // Assert
         Assert.DoesNotContain("+02:00", turn, StringComparison.Ordinal);
     }
+
+    private static XElement Parsed(string turn) => XElement.Parse($"<turn>{turn}</turn>", LoadOptions.PreserveWhitespace);
 }

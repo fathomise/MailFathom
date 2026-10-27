@@ -22,6 +22,7 @@ const workAccount: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 const archiveAccount: MailAccount = { ...workAccount, id: 'archive', displayName: 'Archive', behind: true };
@@ -37,7 +38,13 @@ const unreachableAccount: MailAccount = { ...failingAccount, synchronizationStat
 
 const reading: ClientResult<DeploymentSession> = {
     outcome: 'read',
-    value: { version: '0.8.7', permissions: ['mailfathom.mail.read'], telemetryLevel: 'info' },
+    value: {
+        version: '0.8.7',
+        permissions: ['mailfathom.mail.read'],
+        telemetryLevel: 'info',
+        revision: null,
+        organization: null,
+    },
 };
 
 function directory(
@@ -136,7 +143,16 @@ describe('ConnectionSummary', () => {
 
     it('says nothing about freshness where the credential may not read mail, that being said elsewhere', () => {
         renderSummary({
-            session: { outcome: 'read', value: { version: '0.8.7', permissions: [], telemetryLevel: 'info' } },
+            session: {
+                outcome: 'read',
+                value: {
+                    version: '0.8.7',
+                    permissions: [],
+                    telemetryLevel: 'info',
+                    revision: null,
+                    organization: null,
+                },
+            },
         });
 
         expect(screen.queryByText(/account/i)).toBeNull();

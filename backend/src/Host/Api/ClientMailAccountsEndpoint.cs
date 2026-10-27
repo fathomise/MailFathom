@@ -3,7 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Spam.Actions;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -48,18 +50,20 @@ internal static class ClientMailAccountsEndpoint
 
     /// <summary>Reports the acting user's accounts and their synchronization freshness.</summary>
     /// <param name="reader">Reads the user's accounts and reduces each one's folders to a single reading.</param>
+    /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the user's accounts, empty where they own none, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>It speaks to no mail server, so a client request cannot wait on IMAP and cannot set the remote <c>\Seen</c> flag.</remarks>
     internal static async Task<Ok<ClientMailAccountsResponse>> ReadAccountsAsync(
         [FromServices] MailAccountFreshnessReader reader,
+        [FromServices] ISpamActionSettingsReader spamActions,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(reader);
 
-        var accounts = await reader.ReadAsync(cancellationToken);
+        var accounts = await reader.ReadAsync(MailboxReaderKind.Person, cancellationToken);
 
-        return TypedResults.Ok(ClientMailAccountsResponse.For(accounts));
+        return TypedResults.Ok(ClientMailAccountsResponse.For(accounts, spamActions));
     }
 }
 
@@ -77,15 +81,19 @@ internal sealed record ClientMailAccountsResponse(
 {
     /// <summary>Describes the user's accounts on the wire.</summary>
     /// <param name="accounts">What the use case answered.</param>
+    /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accounts" /> is <see langword="null" />.</exception>
-    internal static ClientMailAccountsResponse For(MailAccountFreshnessDirectory accounts)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accounts" /> or <paramref name="spamActions" /> is <see langword="null" />.</exception>
+    internal static ClientMailAccountsResponse For(
+        MailAccountFreshnessDirectory accounts,
+        ISpamActionSettingsReader spamActions)
     {
         ArgumentNullException.ThrowIfNull(accounts);
+        ArgumentNullException.ThrowIfNull(spamActions);
 
         return new ClientMailAccountsResponse(
             accounts.SynchronizationEnabled,
-            [.. accounts.Accounts.Select(ClientMailAccountResponse.For)]);
+            [.. accounts.Accounts.Select(account => ClientMailAccountResponse.For(account, spamActions))]);
     }
 }
 
@@ -95,27 +103,45 @@ internal sealed record ClientMailAccountsResponse(
 /// <param name="SynchronizationState">Whether the deployment's last attempt at the account succeeded, failed, found no mail server, or has never happened, as the state's own name.</param>
 /// <param name="LastSynchronizedAt">When the account last durably took anything in, or <see langword="null" /> where it never has.</param>
 /// <param name="Behind">Whether any of the account's folders ended its last attempt with mail it had not yet taken in.</param>
+/// <param name="FilesJunk">Whether a spam verdict on the account's mail moves it into the junk folder, and the person's not-spam verdict moves it out to the inbox.</param>
 /// <remarks>
+/// <para>
 /// The three answer different parts of one question and are published apart for that reason. The timestamp says how old
 /// what is being read is, the state says whether it is still being refreshed, and being behind says whether there is
 /// known to be more to come — an account that has been failing since yesterday, one nobody has written to since
 /// yesterday, and one still catching up carry the same instant and are three different situations. A mailbox this
 /// deployment cannot currently reach is a state of its own for the same reason: it is waited out rather than repaired.
+/// </para>
+/// <para>
+/// The junk switch is published because a person's own spam and not-spam marks follow it, and a client has to say before
+/// the press whether a mark will move the message — a not-spam mark that moves mail out of the junk folder is confirmed,
+/// and one that moves nothing is not. It is read from the same reader the mark route decides its moves from.
+/// </para>
 /// </remarks>
 internal sealed record ClientMailAccountResponse(
     string Id,
     string DisplayName,
     string SynchronizationState,
     DateTimeOffset? LastSynchronizedAt,
-    bool Behind)
+    bool Behind,
+    bool FilesJunk)
 {
     /// <summary>Describes one account on the wire.</summary>
     /// <param name="account">The account's freshness.</param>
+    /// <param name="spamActions">Reads whether the account's spam verdicts move its mail.</param>
     /// <returns>The response body.</returns>
-    internal static ClientMailAccountResponse For(MailAccountFreshness account) => new(
-        account.Account.Id.Value,
-        account.Account.DisplayName.Value,
-        account.State.ToString(),
-        account.LastSynchronizedAt,
-        account.IsBehind);
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="account" /> or <paramref name="spamActions" /> is <see langword="null" />.</exception>
+    internal static ClientMailAccountResponse For(MailAccountFreshness account, ISpamActionSettingsReader spamActions)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        ArgumentNullException.ThrowIfNull(spamActions);
+
+        return new(
+            account.Account.Id.Value,
+            account.Account.DisplayName.Value,
+            account.State.ToString(),
+            account.LastSynchronizedAt,
+            account.IsBehind,
+            spamActions.ActionsFor(account.Account.Id).FilesJunk);
+    }
 }

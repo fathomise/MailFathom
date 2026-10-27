@@ -77,7 +77,7 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
         var (alternatives, excluded) = TermsOf(query.QueryText);
         var wanted = alternatives.SelectMany(static terms => terms).ToList();
 
-        // ponytail: substring matching over websearch_to_tsquery's AND and OR, not the deployment's PostgreSQL full-text
+        // Substring matching over websearch_to_tsquery's AND and OR, not the deployment's PostgreSQL full-text
         // search — no tokenizer, no phrase adjacency, ranked by words carried rather than ts_rank; run the scenarios over
         // the real search in the integration harness if the ranking itself is measured.
         var found = corpus
@@ -88,10 +88,13 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
             .OrderByDescending(static candidate => candidate.Score)
             .ThenByDescending(static candidate => candidate.Message.ReceivedAt)
             .Take(EmailKnowledgeBounds.Default.MaximumPassages)
-            .Select(candidate => MatchOf(candidate.Message, candidate.Score, wanted));
+            .ToArray();
 
         return Task.FromResult(EmailKnowledgeLookup.Unfiltered(
-            MailboxKnowledgeSearch.PassagesOf(found, EmailKnowledgeBounds.Default),
+            MailboxKnowledgeSearch.PassagesOf(
+                [.. found.Select(candidate => MatchOf(candidate.Message, candidate.Score, wanted))],
+                found.ToDictionary(static candidate => candidate.Message.Id, static candidate => candidate.Message.Provenance),
+                EmailKnowledgeBounds.Default),
             EmailSearchRetrievalMode.Lexical));
     }
 
@@ -159,7 +162,7 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
     {
         var snippets = EmailSearchSnippetBounds.Default;
 
-        // ponytail: one window per wanted word's first occurrence in a passage, scored by the words it carries — not
+        // One window per wanted word's first occurrence in a passage, scored by the words it carries — not
         // ts_headline's cover density; measure the ranking over the real search if an extract's exact words matter.
         IReadOnlyList<string> fragments =
         [

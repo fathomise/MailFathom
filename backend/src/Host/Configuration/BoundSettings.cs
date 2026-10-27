@@ -2,9 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Host.Configuration.Access;
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
 using MailFathom.Host.Configuration.DataEncryption;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Jobs;
 using MailFathom.Host.Configuration.Mail;
@@ -142,6 +144,15 @@ internal static class BoundSettings
             .Bind(
                 configuration.GetSection(ChatModelOptions.SectionName),
                 binderOptions => binderOptions.ErrorOnUnknownConfiguration = true);
+        // A root of its own beside Chat, because a decision model answers a closed question through a contract a chat model
+        // does not speak. Bound without the framework's validator for a reason of its own: composition maps the section
+        // into plans before the container exists, so its rules are judged in ComposedSettings, ahead of that mapping,
+        // and a validator here would only repeat them. Strict, because the keys a chat block takes and this one refuses —
+        // a fallback, sampling parameters, extra headers, request members — must stop a start rather than be ignored.
+        services.AddOptions<DecisionModelOptions>()
+            .Bind(
+                configuration.GetSection(DecisionModelOptions.SectionName),
+                binderOptions => binderOptions.ErrorOnUnknownConfiguration = true);
         // A configuration root of its own beside Chat rather than a block inside it, because the two answer different
         // questions: Chat says which endpoint generates text and what one call to it may carry, while this says what
         // answering a question is allowed to cost and how much of a mailbox may leave the process to do it. Unlike the
@@ -184,6 +195,14 @@ internal static class BoundSettings
         services.AddOptions<DataEncryptionOptions>()
             .Bind(
                 configuration.GetSection(DataEncryptionOptions.SectionName),
+                binderOptions => binderOptions.ErrorOnUnknownConfiguration = true)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        // A root of its own rather than a section of DataEncryption: the ring seals the keys, but how often an
+        // organization's key is replaced is a decision about signing, and ADR 0042 keeps it out of the settings policy.
+        services.AddOptions<OrganizationSigningOptions>()
+            .Bind(
+                configuration.GetSection(OrganizationSigningOptions.SectionName),
                 binderOptions => binderOptions.ErrorOnUnknownConfiguration = true)
             .ValidateDataAnnotations()
             .ValidateOnStart();

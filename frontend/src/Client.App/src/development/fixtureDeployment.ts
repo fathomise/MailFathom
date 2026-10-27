@@ -22,6 +22,8 @@ import * as drafts from '../../../../tests/fixtures/drafts';
 import * as mail from '../../../../tests/fixtures/mail';
 import * as messages from '../../../../tests/fixtures/messages';
 import * as notifications from '../../../../tests/fixtures/notifications';
+import * as outbox from '../../../../tests/fixtures/outbox';
+import * as senders from '../../../../tests/fixtures/senders';
 import * as tasks from '../../../../tests/fixtures/tasks';
 import type { DeploymentTransport } from '../deployment/sendToDeployment';
 
@@ -238,6 +240,10 @@ export function fixtureDeployment(draw: () => number = Math.random): DeploymentT
 
         await answerAfter(options.latency, abandoned);
 
+        if (request.path.endsWith(`/messages/${messages.waitingSourceId}/source`)) {
+            await unanswered(abandoned);
+        }
+
         const answer = fixtureAnswer(request, options, draw(), state);
 
         if (answer === null) {
@@ -246,6 +252,19 @@ export function fixtureDeployment(draw: () => number = Math.random): DeploymentT
 
         return answer;
     };
+}
+
+/** A request nothing answers, which ends only when the screen that started it walks away. */
+function unanswered(abandoned: AbortSignal): Promise<never> {
+    return new Promise((_, reject) => {
+        abandoned.addEventListener(
+            'abort',
+            () => {
+                reject(new Error('The request was abandoned before the fixture deployment answered.'));
+            },
+            { once: true },
+        );
+    });
 }
 
 /** One value of the corpus put on the wire as the deployment behind it would answer with it. */
@@ -323,6 +342,10 @@ function answerFor(
             return answering(mail.emptyFolderPage);
         }
 
+        if (asked.get('folder') === 'JUNK') {
+            return answering(mail.spamFolderPage);
+        }
+
         const cursor = Number(asked.get('cursor') ?? '0');
 
         return answering(mail.timelinePage(asked.get('direction') === 'backward' ? cursor - mail.rowsPerPage : cursor));
@@ -341,12 +364,14 @@ function answerFor(
     if (route === '/preferences') {
         const stated = request.method === 'POST' ? recordIn(request.body) : null;
 
-        // As the route does: a body stating nothing about the telemetry switch leaves the answer the deployment
-        // holds, which is what the client sends in every write the person did not move it in.
+        // As the route does: a body stating nothing about the telemetry switch or the trusted list leaves the answer
+        // the deployment holds, which is what the client sends in every write the person did not move the switch in,
+        // and in every write at all for the list.
         if (stated !== null) {
             state.preferences = {
                 ...stated,
                 telemetryEnabled: stated['telemetryEnabled'] ?? state.preferences['telemetryEnabled'],
+                trustedLinkDomains: stated['trustedLinkDomains'] ?? state.preferences['trustedLinkDomains'],
             };
         }
 
@@ -376,9 +401,10 @@ function answerFor(
         agentAnswer(route, asked, request, options) ??
         calendarAnswer(route, asked, request, options) ??
         notificationAnswer(route, options) ??
-        changeAnswer(route, options) ??
+        changeAnswer(route, request, options) ??
+        outboxAnswer(route, options) ??
         contactAnswer(route, asked, request, options) ??
-        draftAnswer(route, request) ??
+        draftAnswer(route, asked, request) ??
         taskAnswer(route, request, options) ??
         messageAnswer(route, asked) ?? { status: 404, body: '', headers: {} }
     );
@@ -664,13 +690,21 @@ function notificationAnswer(route: string, options: Readonly<FixtureDeploymentOp
 }
 
 /** What a submitted batch of changes answers with, where the caller's own changes stand, and the signal ticket. */
-function changeAnswer(route: string, options: Readonly<FixtureDeploymentOptions>): ClientResponse | null {
+function changeAnswer(
+    route: string,
+    request: ClientRequest,
+    options: Readonly<FixtureDeploymentOptions>,
+): ClientResponse | null {
     if (route === '/mutations/flags') {
         return answering(changes.flagsRecorded);
     }
 
     if (route === '/mutations/moves') {
         return answering(changes.movesPartlyRecorded);
+    }
+
+    if (route === '/mutations/spam') {
+        return answering({ results: spamMarked(request.body) });
     }
 
     if (route === '/mutations') {
@@ -681,17 +715,55 @@ function changeAnswer(route: string, options: Readonly<FixtureDeploymentOptions>
         return answering(changes.signalTicket);
     }
 
-    if (route === '/outbox/cancellation') {
-        return answering({ outcome: 'Accepted' });
-    }
-
     return null;
 }
 
-/** What the drafts routes answer: the record itself for a write, the queued send, and nothing for a discard. */
-function draftAnswer(route: string, request: ClientRequest): ClientResponse | null {
+/** What the corpus mailbox's Outbox answers: its sends, one send's preview, and each decision taken. */
+function outboxAnswer(route: string, options: Readonly<FixtureDeploymentOptions>): ClientResponse | null {
+    if (!route.startsWith('/outbox')) {
+        return null;
+    }
+
+    if (route === '/outbox') {
+        return answering(options.emptyCollections ? outbox.emptyOutboxPage : outbox.outboxPage);
+    }
+
+    if (route === '/outbox/cancellation' || route === '/outbox/requeue' || route === '/outbox/dismissal') {
+        return answering(outbox.outboxDecisionTaken);
+    }
+
+    if (route === '/outbox/reopening') {
+        return answering(drafts.reopenedSend);
+    }
+
+    const named = decodeURIComponent(route.slice('/outbox/'.length));
+    const send = outbox.outboxPage.sends.find(({ outgoingEmail }) => outgoingEmail === named);
+
+    return send === undefined ? { status: 404, body: '', headers: {} } : answering(outbox.outgoingMailPreview(send));
+}
+
+/**
+ * What the drafts routes answer: the kept drafts and one of them read whole, the record itself for a write, the queued
+ * send, and nothing for a discard.
+ */
+function draftAnswer(route: string, asked: URLSearchParams, request: ClientRequest): ClientResponse | null {
     if (!route.startsWith('/drafts')) {
         return null;
+    }
+
+    if (request.method === 'GET') {
+        const reading = [drafts.outOfStepDraftReading, drafts.reopenedDraftReading].find(
+            ({ draft }) => route === `/drafts/${draft.draftId}`,
+        );
+
+        return route === '/drafts'
+            ? answering({
+                  ...drafts.draftList,
+                  drafts: drafts.draftList.drafts.filter(({ account }) => account === asked.get('account')),
+              })
+            : reading === undefined
+              ? { status: 404, body: '', headers: {} }
+              : answering(reading);
     }
 
     if (request.method === 'DELETE') {
@@ -728,6 +800,25 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
 
     const storedEmailId = decodeURIComponent(route.split('/')[2] ?? '');
     const markupOnly = storedEmailId === messages.markupOnlyId;
+    const spamRow = mail.spamRows.find((row) => row.id === storedEmailId);
+
+    // The one read answered as text rather than JSON: the message as it arrived, whichever message was asked for but the
+    // one the deployment fails to serve. The one never answered is held back before this, in the transport.
+    if (route.endsWith('/source')) {
+        return storedEmailId === messages.unavailableSourceId
+            ? { status: 503, body: '', headers: {} }
+            : {
+                  status: 200,
+                  body: messages.newsletterSource,
+                  headers: { 'content-type': 'text/plain; charset=utf-8' },
+              };
+    }
+
+    if (spamRow !== undefined) {
+        return answering(
+            route.endsWith('/body') ? { ...messages.spamBody, storedEmailId } : messages.spamMessage(spamRow),
+        );
+    }
 
     if (route.endsWith('/body')) {
         const body = markupOnly
@@ -742,7 +833,11 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
 
     const message = markupOnly ? messages.markupOnlyMessage : messages.newsletterMessage;
 
-    return answering({ ...message, storedEmailId });
+    return answering({
+        ...message,
+        ...senders.messageSenderEvidence(senders.senderKindOf(storedEmailId)),
+        storedEmailId,
+    });
 }
 
 // The passages a citation request named, in the order it named them, which is what the answer is paired against. A
@@ -776,6 +871,18 @@ function messagesIn(body: string | undefined): readonly string[] | null {
         .filter((email): email is string => typeof email === 'string');
 
     return named.length === citations.length ? named : null;
+}
+
+// Every message a spam mark named, recorded and moved nowhere, which is what a deployment whose switch is off answers.
+function spamMarked(body: string | undefined): readonly unknown[] {
+    const named = recordIn(body)?.['storedEmailIds'];
+
+    return (Array.isArray(named) ? named : []).map((storedEmailId: unknown) => ({
+        storedEmailId,
+        outcome: 'applied',
+        moved: false,
+        changes: [],
+    }));
 }
 
 /** What a request body states, where it states an object at all. */

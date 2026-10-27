@@ -72,7 +72,10 @@ export function rememberedWorkspace(): Workspace {
 /**
  * Keeps what this tab is looking at, so a reload returns to it.
  *
- * Everything but four values, each left out for a reason of its own. The selected fragment is a passage of somebody's
+ * Everything but five values, each left out for a reason of its own. An open Outbox is left out because what it holds
+ * is on its way out: a send leaves it within moments of being written, so a reload reopening one would most often open
+ * a send that has gone. A reload returns to the Sent folder the Outbox was opened from instead, where the mark on that
+ * row is one press away for as long as anything still waits. The selected fragment is a passage of somebody's
  * mail rather than a name the service assigned, so keeping it would put mail content in a browser store for nothing —
  * the reading pane drops the fragment as the message it belongs to opens, and a reload is that message opening again.
  * The full-HTML surface is left out because it is a consent rather than a place: it was given for one message after
@@ -91,6 +94,7 @@ export function rememberWorkspace(workspace: Workspace): void {
             storageKey,
             JSON.stringify({
                 ...workspace,
+                outbox: null,
                 fragment: null,
                 fullHtml: null,
                 attachment: null,
@@ -155,6 +159,7 @@ function workspaceIn(value: unknown): Workspace | null {
         foldsToggled,
         mailboxesFolded,
         panelsHidden,
+        outbox: null,
         selection,
         conversation,
         fullHtml: null,

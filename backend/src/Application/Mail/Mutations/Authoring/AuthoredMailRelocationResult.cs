@@ -41,6 +41,10 @@ public enum MailRelocationOutcome
     /// <summary>The move would file mail into the drafts or the sent folder's tree from outside it, or out of either tree into anything but the trash.</summary>
     /// <remarks>A draft is a message in the account's drafts folder, which is what a client reads to open one in its composer, and the sent folder is what says a message left this account — so a message filed into either would reopen as something somebody was writing or read as something they sent, and one filed out of either would sit among mail it is not.</remarks>
     DestinationNotAllowed = 6,
+
+    /// <summary>The move into the junk folder marked the message spam, and the request identity already asked it for other keywords, so nothing was written down.</summary>
+    /// <remarks>A repeat under one identity is the same request, so a repeat that would owe different keywords — a subcategory named in between — is one no record can stand for.</remarks>
+    RequestIdAlreadyAskedForAnother = 7,
 }
 
 /// <summary>What one authored move became: the durable record that now carries it, or the reason there is none.</summary>
@@ -60,6 +64,10 @@ public sealed record AuthoredMailRelocationResult(
     MailboxMutationRecordId? RecordId,
     MailboxMutationLifecycle? Lifecycle)
 {
+    /// <summary>Gets the keyword records the person's move into the junk folder opened when it marked the message spam, empty for every other move.</summary>
+    /// <remarks>Reported beside the move so a caller follows them as it follows the move, rather than learning of keyword changes it never saw.</remarks>
+    public IReadOnlyList<MailboxMutationRecord> SpamMarkRecords { get; init; } = [];
+
     /// <summary>Reports a move that was written down.</summary>
     /// <param name="destination">The folder it was recorded against.</param>
     /// <param name="recordId">The record that carries it.</param>

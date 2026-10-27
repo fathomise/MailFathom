@@ -30,7 +30,7 @@ export const mailFoldersRoute = '/folders';
  * `null` here, and nothing in this package guesses one from a name.
  */
 export type MailFolderRole =
-    'Inbox' | 'Archive' | 'Drafts' | 'Sent' | 'Junk' | 'Trash' | 'All' | 'Flagged' | 'Important' | 'Outbox';
+    'Inbox' | 'Archive' | 'Drafts' | 'Sent' | 'Junk' | 'Trash' | 'All' | 'Flagged' | 'Important';
 
 /** One folder of one account, as a screen drawing a tree reads it. */
 export interface MailFolder {
@@ -55,10 +55,27 @@ export interface MailFolder {
     readonly behind: boolean;
 }
 
+/**
+ * What one account's outbox holds, as the two numbers a client decides whether to draw it from.
+ *
+ * The outbox is a member of the account rather than one of its folders: it has no folder identity, so nothing that
+ * names a folder can name it, and it is read at the outbox routes in `mailOutbox.ts`.
+ */
+export interface MailAccountOutbox {
+    /** How many sends have not left yet, being transmitted included. */
+    readonly waiting: number;
+
+    /** How many a server refused that nobody has dismissed. */
+    readonly refused: number;
+}
+
 /** One of the user's accounts and the folders beneath it. */
 export interface MailAccountFolders {
     readonly account: MailAccount;
     readonly folders: readonly MailFolder[];
+
+    /** What its outbox holds, or `null` for a credential that may not both read and send this account's mail. */
+    readonly outbox: MailAccountOutbox | null;
 }
 
 /** The user's whole tree, beside the deployment-wide switch saying whether any of it is being refreshed at all. */
@@ -86,7 +103,6 @@ const roles: readonly MailFolderRole[] = [
     'All',
     'Flagged',
     'Important',
-    'Outbox',
 ];
 
 /** Reads the signed-in user's mailboxes and folders, answering an expected failure as a value rather than by throwing. */
@@ -174,7 +190,21 @@ function parseAccountFolders(value: unknown): MailAccountFolders | null {
         folders.push(folder);
     }
 
-    return { account, folders };
+    const carried = record['outbox'] ?? null;
+    const outbox = carried === null ? null : parseOutbox(carried);
+    if (carried !== null && outbox === null) {
+        return null;
+    }
+
+    return { account, folders, outbox };
+}
+
+function parseOutbox(value: unknown): MailAccountOutbox | null {
+    const record = asRecord(value);
+    const waiting = record?.['waiting'];
+    const refused = record?.['refused'];
+
+    return isCount(waiting) && isCount(refused) ? { waiting, refused } : null;
 }
 
 function parseFolder(value: unknown): MailFolder | null {

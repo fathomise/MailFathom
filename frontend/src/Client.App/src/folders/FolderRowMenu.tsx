@@ -37,6 +37,7 @@ const actLabels: Readonly<Record<FolderAct, MessageKey>> = {
 export function FolderRowMenu({
     acts,
     header,
+    detail,
     at,
     onAct,
     onClose,
@@ -46,6 +47,9 @@ export function FolderRowMenu({
 
     /** What the menu is about, in the row's own words, which is the name the menu carries. */
     readonly header: string;
+
+    /** A fact the row draws that a finger has no hover to read, said under the header — the Outbox mark's name. */
+    readonly detail?: string | undefined;
 
     /** Where the gesture happened, in the window's own coordinates. */
     readonly at: MenuPoint;
@@ -65,5 +69,5 @@ export function FolderRowMenu({
         },
     }));
 
-    return <ContextMenu header={header} at={at} items={items} onClose={onClose} />;
+    return <ContextMenu header={header} detail={detail} at={at} items={items} onClose={onClose} />;
 }

@@ -18,7 +18,7 @@ namespace MailFathom.Evaluations.DayLayout;
 /// leaves out is what decides whether a day is arranged at all rather than how it is arranged: the spend ledger, the
 /// egress guard, and the fallback chain. An arrangement is a structure and every case asks what that structure
 /// settles, so no case is judged; every answer is also held to carrying out nothing a task's own line asked of it,
-/// which only the hostile case invites.
+/// which only the hostile cases invite.
 /// </remarks>
 internal static class DayLayoutScenario
 {
@@ -36,7 +36,7 @@ internal static class DayLayoutScenario
         ArgumentNullException.ThrowIfNull(scenario);
 
         var question = scenario.Question;
-        var instruction = DayLayoutInstructions.Text;
+        var instruction = AgentComposition.InstructionFor(DayLayoutInstructions.Text);
 
         // The lines pass an inactive guard, an egress guard being what a deployment puts between the store and this turn
         // rather than part of what the agent is measured on.

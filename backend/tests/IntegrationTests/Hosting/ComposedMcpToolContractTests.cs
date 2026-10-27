@@ -5,7 +5,6 @@
 using System.Net;
 using System.Text.Json;
 using MailFathom.AppHost;
-using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -131,7 +130,7 @@ public sealed class ComposedMcpToolContractTests(MailFathomOrchestrationFixture 
             cancellationToken);
         var occurrenceId = SyntheticEmail.OccurrenceIn(accountId, binding, uid: 9801);
 
-        var commitResult = await services.CommitAsync(
+        var storedEmailId = await services.CommitProducingAsync(
             (scope, session, token) => scope.GetRequiredService<IEmailMetadataRepository>().UpsertMetadataAsync(
                 session, SyntheticEmail.RemoteMetadataOf(occurrenceId, SeededSubject),
                 SyntheticEmail.ExtractionOf(
@@ -143,7 +142,12 @@ public sealed class ComposedMcpToolContractTests(MailFathomOrchestrationFixture 
                 token),
             cancellationToken);
 
-        Assert.Equal(PersistenceCommitResult.Committed, commitResult);
+        // The composed host runs no account run, so nothing would settle the message the search is asked to find.
+        await OrchestratedSettlement.ApplyAsync(
+            services,
+            [storedEmailId],
+            SyntheticEmail.ReceivedAt,
+            cancellationToken);
     }
 
     /// <summary>Builds the JSON-RPC call a client makes.</summary>

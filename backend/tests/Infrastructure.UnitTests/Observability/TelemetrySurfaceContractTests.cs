@@ -14,6 +14,7 @@ using MailFathom.Application.Emails.Embeddings.Limits;
 using MailFathom.Application.Emails.Embeddings.Vectorization;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Execution;
 using MailFathom.Application.Jobs.Scheduling;
@@ -29,6 +30,7 @@ using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.SensitiveContent.Redaction;
 using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Drain;
 using MailFathom.Application.Synchronization.Restore;
@@ -136,12 +138,15 @@ public sealed class TelemetrySurfaceContractTests
 
     private static readonly MailboxReadTelemetry MailboxRead = new();
     private static readonly MailExtractionBackfillTelemetry ExtractionBackfill = new();
+    private static readonly MailSettlementTelemetry Settlement = new();
     private static readonly MailSynchronizationTelemetry Synchronization = new(Clock);
     private static readonly PersistenceCommitTelemetry PersistenceCommits = new();
     private static readonly SensitiveContentDerivationTelemetry Derivation = new();
     private static readonly SensitiveContentEgressTelemetry Egress = new();
+    private static readonly SpamModelStageTelemetry SpamModelStage = new();
     private static readonly ObjectStorageTelemetry ObjectStorage = new(Clock);
     private static readonly StoredContentMoveTelemetry ContentMove = new(Clock);
+    private static readonly OrganizationSigningKeyTelemetry OrganizationSigningKeys = new();
     private static readonly RetainedContentReleaseTelemetry ContentRelease = new();
     private static readonly StoredEmailContentTelemetry StoredContent = new(Clock);
     private static readonly StoredMailRederivationTelemetry Rederivation = new(Clock);
@@ -174,12 +179,15 @@ public sealed class TelemetrySurfaceContractTests
         typeof(MailboxMutationTelemetry),
         typeof(MailboxReadTelemetry),
         typeof(MailExtractionBackfillTelemetry),
+        typeof(MailSettlementTelemetry),
         typeof(MailSynchronizationTelemetry),
         typeof(ObjectStorageTelemetry),
+        typeof(OrganizationSigningKeyTelemetry),
         typeof(PersistenceCommitTelemetry),
         typeof(RetainedContentReleaseTelemetry),
         typeof(SensitiveContentDerivationTelemetry),
         typeof(SensitiveContentEgressTelemetry),
+        typeof(SpamModelStageTelemetry),
         typeof(StoredContentMoveTelemetry),
         typeof(StoredEmailContentTelemetry),
         typeof(StoredMailRederivationTelemetry),
@@ -308,6 +316,7 @@ public sealed class TelemetrySurfaceContractTests
         DriveAuthorizationRefusals();
         DriveContactCollection();
         DriveDerivedWorkGate();
+        DriveSettlement();
         DriveEmbedding();
         DriveJobQueue();
         await DriveAnsweringAsync();
@@ -319,8 +328,11 @@ public sealed class TelemetrySurfaceContractTests
         DriveContentObjectReclamation();
         DriveContentMove();
         ContentRelease.Released(payloadCount: 3, byteCount: 61_057);
+        OrganizationSigningKeys.MintRefusedWithoutKeyRing();
+        OrganizationSigningKeys.MessageSentUnsigned();
         DriveObjectStorage();
         DriveSensitiveContent();
+        DriveSpamModelStage();
         DriveStoredMailRederivation();
         DriveWorkLeases();
 
@@ -444,6 +456,17 @@ public sealed class TelemetrySurfaceContractTests
         }
     }
 
+    private static void DriveSpamModelStage()
+    {
+        foreach (var job in Enum.GetValues<SpamModelJob>())
+        {
+            foreach (var outcome in Enum.GetValues<SpamModelOutcome>())
+            {
+                SpamModelStage.RecordConsultation(job, outcome);
+            }
+        }
+    }
+
     private static void DriveDerivedWorkGate()
     {
         foreach (var admission in Enum.GetValues<DerivedWorkAdmission>())
@@ -452,6 +475,14 @@ public sealed class TelemetrySurfaceContractTests
         }
 
         DerivedWorkGate.RecordDiscardedPassages(61_003);
+    }
+
+    private static void DriveSettlement()
+    {
+        foreach (var settlement in Enum.GetValues<MailSettlement>().Where(static settlement => settlement != MailSettlement.Settling))
+        {
+            Settlement.RecordSettled(settlement);
+        }
     }
 
     private static void DriveEmbedding()

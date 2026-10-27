@@ -29,7 +29,7 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="display:flex;flex-direction:column;gap:4px">
         <div style="font-size:11px;color:var(--muted);font-weight:600">MailFathom - system</div>
         <div style="font-size:28px;font-weight:600;letter-spacing:-0.02em">Toasts</div>
-        <div style="font-size:14px;color:var(--muted);max-width:62ch;text-wrap:pretty">The system's fleeting response to what the user just did. Top right corner, gone after {{ secLabel }}, stacked newest first, each with a close button. A toast for a running operation does not vanish on its own - closing it aborts the operation.</div>
+        <div style="font-size:14px;color:var(--muted);max-width:62ch;text-wrap:pretty">The system's fleeting response to what the user just did. Top right corner, gone after {{ secLabel }}, stacked newest first, each with a close button and dragged left or right to dismiss. A toast for a running operation does not vanish on its own - closing it aborts the operation.</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <div onClick="{{ toggleTheme }}" style="display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;border:1px solid var(--border2);border-radius:12px;font-size:13px;color:var(--text2)" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">{{ themeIcon }}</span>{{ themeAttr }}</div>
@@ -61,7 +61,7 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
       <div style="display:flex;align-items:flex-start;gap:10px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:12px 14px">
         <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-2);padding-top:1px">swap_horiz</span>
-        <div style="flex:1;min-width:0;font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty">Where they meet: <strong style="font-weight:600;color:var(--text)">a new notification also raises a toast</strong> with a “Show” button. The toast disappears after a moment; the notification stays in the list as unread. This page describes toasts only.</div>
+        <div style="flex:1;min-width:0;font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty">Where they meet: <strong style="font-weight:600;color:var(--text)">a new notification also raises a toast</strong>, and that toast is pressed as a whole: it draws no button, and a press anywhere on it opens what the notification opens. Left alone, it disappears after a moment and the notification stays in the list as unread. This page describes toasts only.</div>
       </div>
     </div>
 
@@ -137,7 +137,7 @@ Project repository: https://github.com/fathomise/MailFathom
 
   <div style="{{ toastWrapStyle }}">
     <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
-      <div style="{{ t.style }}" style-hover="opacity:1">
+      <div onClick="{{ t.open }}" onPointerDown="{{ t.dragDown }}" onPointerMove="{{ t.dragMove }}" onPointerUp="{{ t.dragUp }}" onPointerCancel="{{ t.dragUp }}" style="{{ t.style }}" style-hover="opacity:1">
         <div style="{{ t.iconWrapStyle }}"><span style="{{ t.iconStyle }}">{{ t.icon }}</span></div>
         <div style="{{ t.textStyle }}">
           <div style="{{ t.titleStyle }}">{{ t.title }}</div>

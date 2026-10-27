@@ -25,7 +25,8 @@ name: Apply pull request rules
 #   it, and only where the branch lives in this repository. That job is on the same wait.
 # - **A board status** follows from three things the pull request cannot announce for itself: whether
 #   it still merges, which changes when something *else* merges into `main`; whether the reviewer
-#   approved the head in front of us; and what its pipelines concluded. So it is decided on a push to
+#   approved the head in front of us; and what the checks the branch rules require concluded on it —
+#   read from the rules on every run, so the board waits on exactly what the merge waits on. So it is decided on a push to
 #   `main`, across every open pull request at once, and on a pipeline concluding, for the one pull
 #   request that run belongs to. The one `pull_request` event it is decided on is the merge queue
 #   taking a pull request in or letting it go — `enqueued` and `dequeued` — because nothing else
@@ -37,8 +38,13 @@ name: Apply pull request rules
 #   because there is no `workflows-ignore`, and naming them is also what keeps this workflow off its
 #   own list — a run that triggered itself would conclude, raise the event again, and chain until
 #   GitHub's three-level limit stopped it. `CodeQL` is left off for a different reason: it is not
-#   required to merge, so nothing here reads its conclusion and a run of it decides nothing.
-#   `scripts/test-agent-workflow.sh` holds the list to exactly the workflows a pull request runs.
+#   required to merge, so nothing here reads its conclusion and a run of it decides nothing. Every
+#   other workflow is listed whether a ruleset requires its checks today or not, because which checks
+#   are required is a repository setting that changes without a commit here, and a listed workflow
+#   whose checks are not required only asks the same question again. `Fathom review` is listed for a
+#   reason of its own: its verdict is a review rather than a required check, and its run concluding is
+#   the event that says one arrived. `scripts/test-agent-workflow.sh` holds the list to exactly the
+#   workflows a pull request runs.
 #
 # It only ever adds a label or an assignee. One a hand applied answers a question this workflow
 # cannot see, and a workflow that tidied the list would erase it. The board write is bounded the other

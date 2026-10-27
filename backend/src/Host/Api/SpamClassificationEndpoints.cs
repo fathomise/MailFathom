@@ -23,7 +23,7 @@ namespace MailFathom.Host.Api;
 /// <remarks>
 /// <para>
 /// Asking for a whole mailbox to be classified, and reading back what was concluded and what it asked for. Nothing here
-/// switches classification on, moves a threshold, or names a junk folder: those are configuration, which
+/// switches classification on, widens the folders it covers, or names a junk folder: those are configuration, which
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0002-configuration-reading-mapping-and-reload-boundary.md">ADR 0002</see>
 /// keeps read-only so that what an instance will do to a mailbox is reviewable in a diff before it runs.
 /// </para>

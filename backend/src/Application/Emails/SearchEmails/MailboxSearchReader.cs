@@ -12,6 +12,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.SearchEmails;
 
@@ -224,8 +225,7 @@ public sealed class MailboxSearchReader
                 [],
                 EmailSearchRetrievalMode.Lexical,
                 capability,
-                [],
-                selection.Scope.IncludesJunkMail);
+                []);
         }
 
         var (ranking, retrievalMode, semanticSearchCapability) =
@@ -258,8 +258,7 @@ public sealed class MailboxSearchReader
             matches,
             retrievalMode,
             semanticSearchCapability,
-            folderFreshness,
-            selection.Scope.IncludesJunkMail);
+            folderFreshness);
     }
 
     /// <summary>Scans the mail content of a window before the window becomes somebody else's.</summary>
@@ -395,9 +394,10 @@ public sealed class MailboxSearchReader
     /// </remarks>
     private async Task<MailboxEmailSelection> ReadableSelectionAsync(SearchEmailsRequest request, CancellationToken cancellationToken) => MailboxEmailSelection.Create(
         request.ResolvedScope ?? await this.scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             request.Accounts,
             request.Folders,
-            request.IncludeJunkMail ? JunkMailInclusion.Included : JunkMailInclusion.Excluded,
+            JunkMailInclusion.Excluded,
             cancellationToken),
         request.SenderAddress,
         request.RecipientAddress,

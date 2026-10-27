@@ -18,6 +18,7 @@ import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import type { Locale } from '../localization/locale';
+import { LinksNotOpened } from './linksNotOpened';
 import { EmbeddedMessageMarkup } from './MessageMarkupFrame';
 import { MessageBlocks } from './MessageBlocks';
 import { splitQuotedHistory } from './quotedHistory';
@@ -48,7 +49,7 @@ const refusalMessages: Readonly<Record<Exclude<MailDocumentRefusal, 'None'>, Mes
 };
 
 // Why the cleaned view is drawing the ordinary reduced document, said in every case a reader could otherwise read as
-// the cleaning having silently stopped working. Two of the six say nothing: a cleaning that happened needs no sentence,
+// the cleaning having silently stopped working. Two of the seven say nothing: a cleaning that happened needs no sentence,
 // and one that found nothing to drop has already drawn the document it would have composed.
 const cleaningFellBack: Readonly<Record<MailBodyCleaning, MessageKey | null>> = {
     Cleaned: null,
@@ -57,6 +58,7 @@ const cleaningFellBack: Readonly<Record<MailBodyCleaning, MessageKey | null>> = 
     AllowanceExhausted: 'body.cleaningAllowanceExhausted',
     ProviderUnavailable: 'body.cleaningProviderUnavailable',
     AnswerRejected: 'body.cleaningAnswerRejected',
+    WithheldFromAI: 'body.cleaningWithheldFromAI',
 };
 
 // Why the embedded view fell back to the reduced tree, which is said in every case rather than in some of them: a
@@ -94,6 +96,7 @@ export function MessageBody({
     cleaned = null,
     cleaning = false,
     quotedHistoryOnRequest = false,
+    readOnly = false,
     onShowRemotePictures,
 }: {
     readonly body: MailBody;
@@ -129,6 +132,12 @@ export function MessageBody({
      */
     readonly quotedHistoryOnRequest?: boolean;
 
+    /**
+     * Whether the message is marked spam, which reads it in the reduced view whatever view is chosen, uncleaned, with
+     * no offer of its remote content, and with links that open nothing.
+     */
+    readonly readOnly?: boolean;
+
     readonly onShowRemotePictures: () => void;
 }) {
     const { translate } = useLocalization();
@@ -141,7 +150,7 @@ export function MessageBody({
         return <p className="text-warning">{translate(availabilityMessages[body.availability])}</p>;
     }
 
-    const embedded = embeddedHtml ? markupOrWhyNot(body) : null;
+    const embedded = embeddedHtml && !readOnly ? markupOrWhyNot(body) : null;
     const markup = embedded?.markup ?? null;
     const insteadBecause = embedded?.insteadBecause ?? null;
 
@@ -149,7 +158,9 @@ export function MessageBody({
     // waits in silence: what is drawn below is the document this client already holds, and the line above it says
     // whether a cleaning is still coming, arrived, or is not going to.
     const cleanedDocument =
-        cleaned?.outcome === 'read' && cleaned.value.cleaning === 'Cleaned' ? cleaned.value.document : null;
+        !readOnly && cleaned?.outcome === 'read' && cleaned.value.cleaning === 'Cleaned'
+            ? cleaned.value.document
+            : null;
     const written = cleanedDocument ?? drawn;
 
     // What the message asked to load from somebody else's server stands above either rendering rather than only above
@@ -160,9 +171,9 @@ export function MessageBody({
         <div className="flex flex-col gap-4">
             {insteadBecause === null ? null : <p className="text-sm text-muted">{translate(insteadBecause)}</p>}
 
-            <Cleaning cleaned={cleaned} cleaning={cleaning} />
+            {readOnly ? null : <Cleaning cleaned={cleaned} cleaning={cleaning} />}
 
-            {body.document === null ? null : (
+            {body.document === null || readOnly ? null : (
                 <RemoteContent
                     document={body.document}
                     requested={body.remoteImagesRequested}
@@ -177,7 +188,9 @@ export function MessageBody({
                 <ReadAsWords body={body} />
             ) : (
                 <article className={writtenWords}>
-                    <Written blocks={written.blocks} quotedHistoryOnRequest={quotedHistoryOnRequest} />
+                    <LinksNotOpened value={readOnly}>
+                        <Written blocks={written.blocks} quotedHistoryOnRequest={quotedHistoryOnRequest} />
+                    </LinksNotOpened>
                     {written.truncated ? <p className="text-sm text-muted">{translate('body.truncated')}</p> : null}
                 </article>
             )}

@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Citations;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Retrieval;
 using MailFathom.Domain.Accounts;
 
@@ -15,12 +16,14 @@ namespace MailFathom.AI.Discovery;
 /// <param name="Extract">Every passage the run retrieved from the message, in the order retrieval ranked them, which is what the model is shown and what an evidence entry quotes.</param>
 /// <param name="Relevance">Where the extract stood in the retrieval's own order, on the scale the contract states it on.</param>
 /// <param name="ReceivedAt">When the message arrived, or <see langword="null" /> where the store recorded no time.</param>
+/// <param name="Provenance">Where the message came from as this deployment recorded it, which the model is shown beside the extract.</param>
 internal sealed record DiscoveryComposedSource(
     PresentationCitation Citation,
     MailAccountId AccountId,
     string Extract,
     double Relevance,
-    DateTimeOffset? ReceivedAt);
+    DateTimeOffset? ReceivedAt,
+    EmailProvenance Provenance);
 
 /// <summary>Declares the sources one run may cite, before a model is shown anything.</summary>
 /// <remarks>
@@ -75,7 +78,8 @@ internal static class DiscoveryComposedSources
                 message.First().AccountId,
                 string.Join('\n', message.Select(passage => passage.Text).Distinct(StringComparer.Ordinal)),
                 RelevanceOf(rank, ranked.Length),
-                message.First().ReceivedAt)),
+                message.First().ReceivedAt,
+                message.First().Provenance)),
         ];
     }
 

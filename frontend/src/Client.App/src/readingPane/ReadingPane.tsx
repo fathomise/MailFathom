@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
+    isSpam,
     readMailMessage,
     type ClientFailureReason,
     type ClientResult,
@@ -15,6 +16,9 @@ import {
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { drawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
+import { useListedMail } from '../messageList/useListedMail';
+import { useSpamRefusal } from '../spamMarking/useSpamRefusal';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { useOpenAttachment } from '../workspace/openAttachment';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -23,7 +27,6 @@ import { useMessageBody } from '../messageBody/useMessageBody';
 import { BackToList } from '../mailSpace/BackToList';
 import { NothingOpen } from '../mailSpace/NothingOpen';
 import { useTwoPanes } from '../shell/useWideWorkspace';
-import { ReplyDraftCard } from '../threadAgent/ReplyDraftCard';
 import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
 import { MessageHeaders } from './MessageHeaders';
 import { OpenedMessage } from './OpenedMessage';
@@ -188,11 +191,29 @@ function OpenMessage({
     // The body's own read, started here rather than inside the component that draws it, which is what makes the pair
     // concurrent: this component mounts when the message is opened, and the branch drawing the body exists only once
     // the description has answered.
-    const bodyRead = useMessageBody(session, transport, storedEmailId, online);
+    //
+    // A message drawn spam is read as words alone. Its verdict is the row's where a list drew it, which is known before
+    // anything is read, and the description's once that answers. A message opened from no list has its markup and its
+    // cleaning asked for until the description says it is spam, and neither is drawn.
+    const acts = useMailboxActs();
+    const listedSpam = useListedMail().placeOf(storedEmailId)?.spam ?? null;
+    const describedSpam =
+        answer?.result.outcome === 'read' && answer.read.storedEmailId === storedEmailId
+            ? answer.result.value.spam
+            : listedSpam;
+    const bodyRead = useMessageBody(
+        session,
+        transport,
+        storedEmailId,
+        online,
+        isSpam(drawnSpam(acts, { id: storedEmailId, spam: describedSpam })),
+    );
 
     // The opener is a new function on every render, so it is held rather than named as a dependency below: the effect
     // that follows a citation reacts to the citation and to the answer, and naming this would run it once per render.
     const openCitedFile = useRef(openAttachment);
+    const refuseSpam = useSpamRefusal();
+    const refuseCitedFile = useRef(refuseSpam);
 
     const opened = useRef<HTMLElement>(null);
     // The message focus was last placed on, which starts as the one this pane mounted with so that landing on a message
@@ -202,6 +223,7 @@ function OpenMessage({
 
     useEffect(() => {
         openCitedFile.current = openAttachment;
+        refuseCitedFile.current = refuseSpam;
     });
 
     // A message changing under this component invalidates what is being read, which React answers by adjusting state
@@ -298,10 +320,14 @@ function OpenMessage({
 
         const file = answer.result.value.attachments.find((held) => held.position === cited.position);
 
-        if (file !== undefined) {
+        // A file inside spam is refused like a press on it would be, since it is the same file opened another way, and
+        // spam is what the pane draws: the person's own mark over the deployment's last verdict.
+        if (file !== undefined && isSpam(drawnSpam(acts, { id: storedEmailId, spam: answer.result.value.spam }))) {
+            refuseCitedFile.current('spam.refusedAttachmentOpen');
+        } else if (file !== undefined) {
             openCitedFile.current({ storedEmailId: cited.storedEmailId, attachment: file });
         }
-    }, [workspace.citedAttachment, answer, storedEmailId, revise]);
+    }, [workspace.citedAttachment, answer, storedEmailId, revise, acts]);
 
     // An answer's evidence citation named this message, and the correspondence it belongs to is what the reader asked
     // for: a citation carries a message and only a description of that message says which conversation it is part of.
@@ -468,18 +494,18 @@ function OpenMessage({
                         onShowFullHtml(storedEmailId, message.headers.subject);
                     }}
                 />
-
-                <ReplyDraftCard under={storedEmailId} />
             </div>
 
-            {foot?.(
-                message.threadId === null
-                    ? null
-                    : {
-                          scope: { kind: 'thread', subject: message.threadId },
-                          title: message.headers.subject ?? translate('message.noSubject'),
-                      },
-            )}
+            {isSpam(drawnSpam(acts, { id: message.storedEmailId, spam: message.spam }))
+                ? null
+                : foot?.(
+                      message.threadId === null
+                          ? null
+                          : {
+                                scope: { kind: 'thread', subject: message.threadId },
+                                title: message.headers.subject ?? translate('message.noSubject'),
+                            },
+                  )}
         </article>
     );
 }

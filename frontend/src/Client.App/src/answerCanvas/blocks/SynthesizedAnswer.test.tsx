@@ -6,6 +6,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { AnswerBlock, BlockEvidence, DeclaredSource } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../../localization/Localization';
+import { LinkOpenerContext } from '../../shellOperations/linkOpener';
 import { AnswerSourcesContext } from '../answerSources';
 import { SynthesizedAnswer } from './SynthesizedAnswer';
 
@@ -31,7 +32,7 @@ function answering(evidence: BlockEvidence, confidence: 'High' | 'Moderate' | 'L
         type: 'answer',
         named: 'answer',
         evidence,
-        answer: { text: 'The rate was agreed in April 2021.', confidence },
+        answer: { text: 'The rate was agreed in April 2021.', confidence, links: [] },
     };
 }
 
@@ -40,9 +41,11 @@ function renderAnswer(block: AnswerBlock, sources: readonly DeclaredSource[] = [
 
     return render(
         <LocalizationProvider>
-            <AnswerSourcesContext value={{ sources: declared, follow: null }}>
-                <SynthesizedAnswer block={block} />
-            </AnswerSourcesContext>
+            <LinkOpenerContext value={() => Promise.resolve()}>
+                <AnswerSourcesContext value={{ sources: declared, follow: null }}>
+                    <SynthesizedAnswer block={block} />
+                </AnswerSourcesContext>
+            </LinkOpenerContext>
         </LocalizationProvider>,
     );
 }
@@ -59,7 +62,7 @@ describe('SynthesizedAnswer', () => {
             type: 'answer',
             named: 'answer',
             evidence: backed,
-            answer: { text: 'Two invoices are open:\n\n- **March**\n- April', confidence: 'High' },
+            answer: { text: 'Two invoices are open:\n\n- **March**\n- April', confidence: 'High', links: [] },
         });
 
         expect(screen.getAllByRole('listitem')).toHaveLength(2);
@@ -67,6 +70,39 @@ describe('SynthesizedAnswer', () => {
         expect(
             screen.getByRole('list').nextElementSibling?.contains(screen.getByRole('button', { name: /Citation 1/u })),
         ).toBe(true);
+    });
+
+    it('warns about a link the answer writes as the service judged it', () => {
+        renderAnswer({
+            type: 'answer',
+            named: 'answer',
+            evidence: backed,
+            answer: {
+                text: 'Confirm at [northwind.example](https://northwind-billing.example/confirm).',
+                confidence: 'High',
+                links: [
+                    {
+                        link: {
+                            target: 'https://northwind-billing.example/confirm',
+                            host: 'northwind-billing.example',
+                            asciiHost: null,
+                            deception: 'DisplayedHostDiffers',
+                            worthWarningAbout: true,
+                        },
+                        appearsInCitedSources: true,
+                    },
+                ],
+            },
+        });
+
+        expect(
+            screen.getByText('This link does not go where its words say. It goes to northwind-billing.example.', {
+                exact: false,
+            }),
+        ).toBeDefined();
+        expect(
+            screen.queryByText('This address is in none of the messages this answer cites.', { exact: false }),
+        ).toBeNull();
     });
 
     it.each([

@@ -5,6 +5,7 @@
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -114,6 +115,18 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         entity.Property(email => email.SenderTrustPolicyRevision)
             .HasMaxLength(SenderTrustPolicyRevision.Length);
 
+        // Cleared rather than cascaded, so deleting an organization keeps every verdict it reached and only loses the
+        // name it would have been shown under. The index is partial because nearly every row carries none, and exists
+        // so that deletion finds the rows to clear without reading the whole table.
+        entity.HasOne<OrganizationEntity>()
+            .WithMany()
+            .HasForeignKey(email => email.SenderTrustOrganizationId)
+            .HasConstraintName(PersistenceConstraintNames.StoredEmailSenderTrustOrganizationForeignKeyName)
+            .OnDelete(DeleteBehavior.SetNull);
+        entity.HasIndex(email => email.SenderTrustOrganizationId)
+            .HasDatabaseName(PersistenceConstraintNames.StoredEmailSenderTrustOrganizationIndexName)
+            .HasFilter($"\"{nameof(StoredEmailEntity.SenderTrustOrganizationId)}\" IS NOT NULL");
+
         // How much the message's own text read as machine written. The band is stored as text like every other
         // enum here and defaults to the value that claims nothing, which is what a row written before the
         // assessment existed holds and what a deployment that turned it off writes on all of its mail. The signal
@@ -135,6 +148,36 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         entity.Property(email => email.MachineAuthorshipProfileRevision)
             .HasMaxLength(MachineAuthorshipProfileRevision.Length);
 
+        // What verifying the message's own signature found. Every enum is text like the rest, and the outcome and the
+        // five step results default to what a row written before this deployment verified anything holds: a message
+        // nothing verified a signature on, with every step unreached. Everything else in the group is nullable,
+        // because its absence is what a message with no signature, or a signer nothing could read, carries.
+        entity.Property(email => email.SignatureOutcome)
+            .HasConversion<string>()
+            .HasMaxLength(64)
+            .HasDefaultValue(EmailSignatureOutcome.NotSigned)
+            .IsRequired();
+        entity.Property(email => email.SignatureFormat).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureSecureMimeType).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureUnverifiableReason).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureTrustAnchor).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureValidityFailure).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureRevocationMethod).HasConversion<string>().HasMaxLength(64);
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureContentCheck));
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureAuthorityCheck));
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureValidityCheck));
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureRevocationCheck));
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureSignerCheck));
+        entity.Property(email => email.SignatureChainEnd).HasMaxLength(EmailSigner.MaximumNameLength);
+        entity.Property(email => email.SignerName).HasMaxLength(EmailSigner.MaximumNameLength);
+        entity.Property(email => email.SignerAddress).HasMaxLength(EmailSigner.MaximumAddressLength);
+        entity.Property(email => email.SignerIssuer).HasMaxLength(EmailSigner.MaximumNameLength);
+        entity.Property(email => email.SignerSerialNumber).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+        entity.Property(email => email.SignerFingerprint).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+        entity.Property(email => email.SignerKeyId).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+        entity.Property(email => email.SignerPublicKeyAlgorithm).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+        entity.Property(email => email.SignerDigestAlgorithm).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+
         ConfigureIndexes(entity);
 
         entity.HasOne(email => email.MailFolderBinding)
@@ -155,6 +198,16 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
             .HasForeignKey(email => email.ParentStoredEmailId)
             .OnDelete(DeleteBehavior.SetNull);
     }
+
+    // The sentinel is the database default rather than the CLR default, because Passed is the CLR default: a step that
+    // passed on a new row would otherwise be left out of the insert and written as the column default instead.
+    private static void ConfigureSignatureCheck(PropertyBuilder<SignatureCheckResult> property) =>
+        property
+            .HasConversion<string>()
+            .HasMaxLength(64)
+            .HasDefaultValue(SignatureCheckResult.Skipped)
+            .HasSentinel(SignatureCheckResult.Skipped)
+            .IsRequired();
 
     /// <summary>Declares the indexes mailbox reads are planned against, and with them the timeline ordering contract.</summary>
     /// <remarks>
@@ -289,6 +342,22 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
             .HasFilter(
                 $"\"{nameof(StoredEmailEntity.RulesEvaluatedAt)}\" IS NULL AND "
                 + $"\"{nameof(StoredEmailEntity.FiledFromOutgoingEmailId)}\" IS NULL");
+
+        // The settling queue, filtered for the reason the rule queue above is: a row settles once and stays settled, so in
+        // steady state the filter holds only the mail of the last few runs while every read of the account runs past it.
+        entity.HasIndex(
+                email => new { email.MailboxAccountId, email.Id },
+                PersistenceConstraintNames.StoredEmailSettlingIndexName)
+            .HasDatabaseName(PersistenceConstraintNames.StoredEmailSettlingIndexName)
+            .HasFilter($"\"{nameof(StoredEmailEntity.SettledAt)}\" IS NULL");
+
+        // Set null rather than no action, unlike the folder reference above: a message has left the folder it arrived in
+        // by the time a rule's move settles, so that folder may be removed while the row still names it, and the only
+        // reader — the settlement deciding whether to announce — then treats the message as not having reached the inbox.
+        entity.HasOne(email => email.ArrivalFolder)
+            .WithMany()
+            .HasForeignKey(email => email.ArrivalFolderId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // What synchronization asks of every message it meets in a held account's sent folder: whether it is the copy
         // of a send already filed locally. Filtered to the filed copies no server has returned yet, which is a handful

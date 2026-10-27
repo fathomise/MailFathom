@@ -281,16 +281,16 @@ tools; a user no role is assigned to is listed none. Four of them — `list_acco
 `list_emails`, `get_email_content`, and `search_emails` — advertise themselves as read-only, non-destructive, and
 idempotent. Four of the rest are not read-only. `set_mail_flags`
 changes your mailbox on the mail server rather than MailFathom's copy of it, and it advertises itself as destructive too
-— a keyword replacement states the whole set, so a label the caller did not list comes off. `send_email` sends a real
+— a keyword removal takes a label off, and clearing a flag takes the flag off. `send_email` sends a real
 message and advertises itself as destructive for the opposite reason: it takes nothing away, and nothing takes it back,
 so a client that asks before a destructive call asks before this one. `reply_to_email` and `forward_email` answer mail
 this deployment already holds and carry exactly the same four annotations, for exactly the same reasons. All four also
 announce that they reach outside this
 process, which is the annotation most clients read before deciding whether to prompt.
 
-Two more sit over a send rather than performing one. `get_outgoing_email` reports what became of a message one of the
-sending tools queued and advertises itself as read-only, non-destructive, and confined to this process, so a client may
-call it without asking. `cancel_outgoing_email` stops one that has not left yet, and it is the one tool here that
+Three more sit over a send rather than performing one. `get_outgoing_email` reports what became of a message one of the
+sending tools queued, and `list_outgoing_emails` lists what an account has not sent yet; both advertise themselves as
+read-only, non-destructive, and confined to this process, so a client may call them without asking. `cancel_outgoing_email` stops one that has not left yet, and it is the one tool here that
 advertises itself as destructive *and* as confined to this process — it destroys a queued message no later call brings
 back, while reaching no mail server and nobody outside the deployment.
 

@@ -5,7 +5,6 @@
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
@@ -868,19 +867,17 @@ public sealed class MailRuleActionRecorderTests
         var transportSecurityPolicies = Substitute.For<IMailTransportSecurityPolicyReader>();
         transportSecurityPolicies.GetPolicy(Arg.Any<MailAccountId>()).Returns(RequiredTlsPolicy);
 
-        return new MailboxDestinationResolver(
-            this.folderMappings.Resolver,
-            this.folders,
-            new MailFolderResolver(
-                remoteFolderCatalog,
-                Substitute.For<IRemoteFolderCreator>(),
-                this.folders,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                persistenceSessionFactory,
-                ClientSignalPublishers.ReachingNobody,
-                new FakeTimeProvider(new DateTimeOffset(2026, 8, 12, 9, 0, 0, TimeSpan.Zero))),
-            transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
+        return new MailboxCustodianComposition(new FakeTimeProvider(new DateTimeOffset(2026, 8, 12, 9, 0, 0, TimeSpan.Zero)))
+        {
+            Mappings = this.folderMappings,
+            FolderResolutions = this.folders,
+            RemoteFolderCatalog = remoteFolderCatalog,
+            RemoteFolderCreator = Substitute.For<IRemoteFolderCreator>(),
+            MappingChangeAuditor = Substitute.For<IMailFolderMappingChangeAuditor>(),
+            PersistenceSessions = persistenceSessionFactory,
+            Signals = ClientSignalPublishers.ReachingNobody,
+            TransportPolicies = transportSecurityPolicies,
+        }.Destinations;
     }
 
     private MailRuleActionRecorder CreateRecorder() =>

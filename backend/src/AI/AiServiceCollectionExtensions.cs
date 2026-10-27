@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using MailFathom.AI.AgentConversations;
 using MailFathom.AI.BodyCleanup;
 using MailFathom.AI.CalendarEvents;
@@ -9,6 +11,8 @@ using MailFathom.AI.Chat;
 using MailFathom.AI.Chunking;
 using MailFathom.AI.ContactRelationships;
 using MailFathom.AI.DayLayout;
+using MailFathom.AI.DecisionModels;
+using MailFathom.AI.Decisions;
 using MailFathom.AI.Descriptions;
 using MailFathom.AI.Discovery;
 using MailFathom.AI.Embeddings;
@@ -19,6 +23,7 @@ using MailFathom.AI.Providers;
 using MailFathom.AI.ReplyDrafts;
 using MailFathom.AI.Retrieval;
 using MailFathom.AI.Search;
+using MailFathom.AI.SpamClassification;
 using MailFathom.AI.ThreadStates;
 using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
@@ -41,6 +46,7 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -58,6 +64,13 @@ public static class AiServiceCollectionExtensions
     /// has been replaced cannot answer with an unbounded body.
     /// </remarks>
     private const int ResponseBytesPerComponent = 16;
+
+    /// <summary>Bounds a decision response, which is a handful of probabilities per question whatever the input was.</summary>
+    /// <remarks>
+    /// Far above what the most questions and options one request may carry could fill, and deliberately so, for the
+    /// reason the embedding bound gives: it is a ceiling on a misbehaving endpoint rather than an estimate of a working one.
+    /// </remarks>
+    private const int DecisionResponseBytes = 256 * 1024;
 
     private const int ResponseEnvelopeBytes = 8 * 1024;
 
@@ -173,6 +186,114 @@ public static class AiServiceCollectionExtensions
         services.AddScoped<IChatModelClient, ProviderChatModelClient>();
 
         AddChatProviderTransport(services);
+
+        return services;
+    }
+
+    /// <summary>Registers one composed decision client per function, keyed by the function, over the model each was routed to.</summary>
+    /// <param name="services">The service collection to add to.</param>
+    /// <param name="plans">The model every function runs on, already resolved and validated by the composition root.</param>
+    /// <param name="activitySource">The source a decision call's span is opened from.</param>
+    /// <param name="meter">The meter a decision call is measured on.</param>
+    /// <returns>The same service collection, so registration reads as one expression.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// A client is resolved as <c>[FromKeyedServices(DecisionFunction.X)] IDecisionClient</c>, and composed in this
+    /// order, outermost first: the run's ceilings, the charge to the period, the span and the measurements, the
+    /// resilience budget, and the adapter. The ceilings sit outside resilience so a call this deployment refused never
+    /// reaches the model's circuit or its health; the span sits outside it so it covers every attempt and ends on the
+    /// failure the attempts ended on.
+    /// </para>
+    /// <para>
+    /// Scoped, because one scope is one run: the run ledger the outermost middleware holds is made with the client, so
+    /// two classifications never share a ceiling. Nothing here admits a run into the period — that is the caller's, as
+    /// it is for every derivation, so a period already spent costs nothing to refuse.
+    /// </para>
+    /// <para>
+    /// The caller registers the <see cref="IProviderEndpointCredentialSource" />, the run bounds, the period ledger, and
+    /// the resilience runner, as it does for chat. No evaluation cache is composed here; a deployment never reads a
+    /// decision back.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddDecisionProviderAdapter(
+        this IServiceCollection services,
+        IReadOnlyDictionary<DecisionFunction, DecisionModelPlan> plans,
+        ActivitySource activitySource,
+        Meter meter)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(plans);
+
+        var telemetry = new DecisionTelemetry(activitySource, meter);
+
+        foreach (var (function, plan) in plans)
+        {
+            services.AddKeyedDecisionClient(
+                    function,
+                    provider => new OpenRouterDecisionClient(
+                        plan,
+                        provider.GetRequiredService<IProviderEndpointCredentialSource>(),
+                        provider.GetRequiredService<IHttpClientFactory>()),
+                    ServiceLifetime.Scoped)
+                .Use((innerClient, provider) => new BudgetedDecisionClient(
+                    innerClient,
+                    new MailAnsweringRunLedger(provider.GetRequiredService<MailAnsweringRunBounds>())))
+                .Use((innerClient, provider) => new SpendReportingDecisionClient(
+                    innerClient,
+                    provider.GetRequiredService<IMailAnsweringSpendLedger>()))
+                .Use((innerClient, provider) => new ObservedDecisionClient(
+                    innerClient,
+                    telemetry,
+                    plan,
+                    provider.GetRequiredService<TimeProvider>()))
+                .Use((innerClient, provider) => new ResilientDecisionClient(
+                    innerClient,
+                    plan,
+                    provider.GetRequiredService<IOutboundOperationRunner>(),
+                    provider.GetRequiredService<IAiProviderHealthRecorder>(),
+                    provider.GetRequiredService<ILogger<ResilientDecisionClient>>()));
+        }
+
+        AddDecisionProviderTransport(services, [.. plans.Values]);
+
+        return services;
+    }
+
+    /// <summary>Registers the one way the spam model stage asks a model, in whichever of its two states the deployment is in.</summary>
+    /// <param name="services">The service collection to add to.</param>
+    /// <param name="plan">The plan of the decision model that serves <see cref="DecisionFunction.SpamClassification" />, which <see cref="AddDecisionProviderAdapter" /> registered, or <see langword="null" /> where none does.</param>
+    /// <returns>The same service collection, so registration reads as one expression.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// Called unconditionally and always registering something, on the terms enrichment is: the stage counts and records
+    /// why nothing was asked rather than resolving nothing, and a deployment that declared no decision model never opens a
+    /// scope, a transport, or a turn for it.
+    /// </para>
+    /// <para>
+    /// A singleton when it is active, because it owns the replica's call slots, which bound every classification the
+    /// process runs at once; each judgement opens the scope its own client is resolved in, and cuts its input to the
+    /// plan's request bound. The caller registers the <see cref="SpamModelStageBounds" /> it reads.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddSpamModelJudge(this IServiceCollection services, DecisionModelPlan? plan)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        if (plan is null)
+        {
+            services.AddSingleton<ISpamModelJudge>(InactiveSpamModelJudge.Instance);
+
+            return services;
+        }
+
+        services.AddSingleton<ISpamModelJudge>(provider => new SpamModelJudge(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            provider.GetRequiredService<SensitiveContentEgressGuard>(),
+            provider.GetRequiredService<SpamModelStageBounds>(),
+            plan.MaximumRequestCharacters,
+            provider.GetRequiredService<ILogger<SpamModelJudge>>()));
 
         return services;
     }
@@ -731,6 +852,38 @@ public static class AiServiceCollectionExtensions
             });
 
         // The third client in this process to opt out, for the reason the embedding one does.
+#pragma warning disable EXTEXP0001 // RemoveAllResilienceHandlers is experimental, and is how the standard handler is opted out of.
+        client.RemoveAllResilienceHandlers();
+#pragma warning restore EXTEXP0001
+    }
+
+    /// <summary>Registers the transport a decision request is sent over.</summary>
+    /// <remarks>
+    /// <para>
+    /// A registration of its own, for the reason the chat one gives about embeddings: a decision answer is a handful of
+    /// probabilities whatever the input was, so its ceiling is a fixed size rather than one derived from an output
+    /// budget, and sharing a client would bound neither.
+    /// </para>
+    /// <para>
+    /// Redirects are refused, because the request carries a key; the timeout is looser than the deadline the
+    /// resilience middleware sets per attempt, so a slow endpoint surfaces as this deployment's classified timeout. It
+    /// opts out of the standard resilience handler, because every call already runs under the AiProviderInvocation
+    /// pipeline.
+    /// </para>
+    /// </remarks>
+    private static void AddDecisionProviderTransport(IServiceCollection services, IReadOnlyList<DecisionModelPlan> plans)
+    {
+        var timeout = plans.Count is 0 ? TimeSpan.FromMinutes(1) : plans.Max(plan => plan.RequestTimeout);
+
+        var client = services.AddHttpClient(OpenRouterDecisionClient.TransportName)
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { AllowAutoRedirect = false })
+            .ConfigureHttpClient(client =>
+            {
+                client.Timeout = timeout + TimeSpan.FromSeconds(30);
+                client.MaxResponseContentBufferSize = DecisionResponseBytes;
+            });
+
+        // The fourth client in this process to opt out, for the reason the embedding one does.
 #pragma warning disable EXTEXP0001 // RemoveAllResilienceHandlers is experimental, and is how the standard handler is opted out of.
         client.RemoveAllResilienceHandlers();
 #pragma warning restore EXTEXP0001

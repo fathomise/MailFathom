@@ -18,6 +18,7 @@ const workAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 const inbox = {
@@ -86,6 +87,7 @@ describe('readMailFolders', () => {
                             synchronizationState: 'Synchronized',
                             lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
                             behind: false,
+                            filesJunk: false,
                         },
                         folders: [
                             {
@@ -99,10 +101,22 @@ describe('readMailFolders', () => {
                                 behind: false,
                             },
                         ],
+                        outbox: null,
                     },
                 ],
             },
         });
+    });
+
+    it('reads what an account’s outbox holds beside its folders', async () => {
+        const body = JSON.stringify({
+            synchronizationEnabled: true,
+            accounts: [{ account: workAccount, folders: [inbox], outbox: { waiting: 4, refused: 1 } }],
+        });
+
+        const result = await readMailFolders(session, answering({ status: 200, body }));
+
+        expect(result.outcome === 'read' ? result.value.accounts[0]?.outbox : null).toEqual({ waiting: 4, refused: 1 });
     });
 
     it('reads a folder no source synchronizes as one with no synchronization state', async () => {
@@ -177,6 +191,21 @@ describe('readMailFolders', () => {
         },
         { shape: 'a folder with no identity', body: bodyOf([{ ...inbox, id: 42 }]) },
         { shape: 'a folder carrying a role this client does not know', body: bodyOf([{ ...inbox, role: 'Spam' }]) },
+        { shape: 'a folder playing the outbox, which no folder does', body: bodyOf([{ ...inbox, role: 'Outbox' }]) },
+        {
+            shape: 'an outbox that is not two counts',
+            body: JSON.stringify({
+                synchronizationEnabled: true,
+                accounts: [{ account: workAccount, folders: [], outbox: 3 }],
+            }),
+        },
+        {
+            shape: 'an outbox counting a fraction of a send',
+            body: JSON.stringify({
+                synchronizationEnabled: true,
+                accounts: [{ account: workAccount, folders: [], outbox: { waiting: 0.5, refused: 0 } }],
+            }),
+        },
         { shape: 'a folder whose path is not levels', body: bodyOf([{ ...inbox, path: 'INBOX/2026' }]) },
         { shape: 'a folder whose path holds something other than a name', body: bodyOf([{ ...inbox, path: [7] }]) },
         { shape: 'a folder counting a fraction of a message', body: bodyOf([{ ...inbox, unreadEmailCount: 1.5 }]) },

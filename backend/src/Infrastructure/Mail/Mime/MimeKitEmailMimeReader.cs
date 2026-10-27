@@ -7,7 +7,9 @@ using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Mail;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Infrastructure.Mail.Dkim;
+using MailFathom.Infrastructure.Mail.Signatures;
 using MimeKit;
 
 namespace MailFathom.Infrastructure.Mail.Mime;
@@ -35,6 +37,8 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     private readonly EmailMimeExtractionOptions options;
     private readonly ITrustedAuthenticationAuthorityReader trustedAuthorities;
     private readonly ILocalSenderVerifier? localSenderVerifier;
+    private readonly IEmailSignatureVerifier? signatureVerifier;
+    private readonly OrganizationSignatureVerifier? organizationVerifier;
     private readonly ParsedMimeMessageLoader loadMessage;
 
     /// <summary>Initializes a reader that parses with MimeKit.</summary>
@@ -44,12 +48,28 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     /// Verifies a message's own DKIM signatures where no trusted server statement was found, or
     /// <see langword="null" /> where this deployment verifies nothing itself and makes no lookup for it.
     /// </param>
+    /// <param name="signatureVerifier">
+    /// Verifies a message's S/MIME or OpenPGP signature, or <see langword="null" /> where nothing does and every message
+    /// is recorded as not signed.
+    /// </param>
+    /// <param name="organizationVerifier">
+    /// Verifies a message against the keys of the receiving account's organization, or <see langword="null" /> where
+    /// nothing does and no message is verified that way.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options" /> or <paramref name="trustedAuthorities" /> is <see langword="null" />.</exception>
     public MimeKitEmailMimeReader(
         EmailMimeExtractionOptions options,
         ITrustedAuthenticationAuthorityReader trustedAuthorities,
-        ILocalSenderVerifier? localSenderVerifier)
-        : this(options, trustedAuthorities, localSenderVerifier, LoadWithoutCopyingContentAsync)
+        ILocalSenderVerifier? localSenderVerifier,
+        IEmailSignatureVerifier? signatureVerifier = null,
+        OrganizationSignatureVerifier? organizationVerifier = null)
+        : this(
+            options,
+            trustedAuthorities,
+            localSenderVerifier,
+            LoadWithoutCopyingContentAsync,
+            signatureVerifier,
+            organizationVerifier)
     {
     }
 
@@ -58,12 +78,16 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     /// <param name="trustedAuthorities">Resolves the server whose sender-authentication statements an account believes.</param>
     /// <param name="localSenderVerifier">Verifies a message's own DKIM signatures, or <see langword="null" /> where nothing does.</param>
     /// <param name="loadMessage">Turns raw MIME into a parsed message.</param>
-    /// <exception cref="ArgumentNullException">Thrown when any argument other than the verifier is <see langword="null" />.</exception>
+    /// <param name="signatureVerifier">Verifies a message's S/MIME or OpenPGP signature, or <see langword="null" /> where nothing does.</param>
+    /// <param name="organizationVerifier">Verifies a message against the receiving account's organization, or <see langword="null" /> where nothing does.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any argument other than the verifiers is <see langword="null" />.</exception>
     internal MimeKitEmailMimeReader(
         EmailMimeExtractionOptions options,
         ITrustedAuthenticationAuthorityReader trustedAuthorities,
         ILocalSenderVerifier? localSenderVerifier,
-        ParsedMimeMessageLoader loadMessage)
+        ParsedMimeMessageLoader loadMessage,
+        IEmailSignatureVerifier? signatureVerifier = null,
+        OrganizationSignatureVerifier? organizationVerifier = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(trustedAuthorities);
@@ -72,6 +96,8 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
         this.options = options;
         this.trustedAuthorities = trustedAuthorities;
         this.localSenderVerifier = localSenderVerifier;
+        this.signatureVerifier = signatureVerifier;
+        this.organizationVerifier = organizationVerifier;
         this.loadMessage = loadMessage;
     }
 
@@ -153,6 +179,12 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
             await this.ReadSenderAuthenticationAsync(accountId, message, cancellationToken))
         {
             Automation = MailAutomationReading.Read(message),
+            Signature = this.signatureVerifier is { } verifier
+                ? await verifier.VerifyAsync(message, message.From.Mailboxes.FirstOrDefault()?.Address, cancellationToken)
+                : EmailSignature.NotSigned,
+            OrganizationVerification = this.organizationVerifier is { } organizationVerifier
+                ? await organizationVerifier.VerifyAsync(accountId, message, cancellationToken)
+                : null,
         };
     }
 

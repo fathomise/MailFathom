@@ -73,8 +73,8 @@ internal sealed class ProviderSpendHandler(SpendMeter meter, HttpMessageHandler 
             }
 
             meter.Record(
-                Count(usage, "prompt_tokens"),
-                Count(usage, "completion_tokens"),
+                Count(usage, "prompt_tokens", "input_tokens"),
+                Count(usage, "completion_tokens", "output_tokens"),
                 usage.TryGetProperty("cost", out var cost) && cost.TryGetDecimal(out var charge) ? charge : null);
         }
         catch (JsonException)
@@ -83,6 +83,10 @@ internal sealed class ProviderSpendHandler(SpendMeter meter, HttpMessageHandler 
         }
     }
 
-    private static long Count(JsonElement usage, string property) =>
-        usage.TryGetProperty(property, out var value) && value.TryGetInt64(out var count) ? count : 0;
+    /// <summary>Reads a token count under the name a chat answer gives it, or under the one a decision answer gives it.</summary>
+    private static long Count(JsonElement usage, string chatProperty, string decisionProperty) =>
+        (usage.TryGetProperty(chatProperty, out var value) || usage.TryGetProperty(decisionProperty, out value))
+        && value.TryGetInt64(out var count)
+            ? count
+            : 0;
 }

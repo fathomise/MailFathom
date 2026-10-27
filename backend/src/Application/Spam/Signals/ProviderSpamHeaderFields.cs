@@ -7,8 +7,8 @@ namespace MailFathom.Application.Spam.Signals;
 /// <summary>The header fields a provider's own spam verdict is read from.</summary>
 /// <remarks>
 /// <para>
-/// The set is deliberately narrow. These four fields have documented, stable meanings — SpamAssassin defined them and
-/// the mail servers that score before delivery write them in the same shape — so a value read from one of them means
+/// The set is deliberately narrow. These four fields have documented, stable meanings — the content filters that mail
+/// servers run before delivery write them in one shared shape — so a value read from one of them means
 /// what this system takes it to mean. A provider-specific report field such as an antispam confidence level is a
 /// different grammar per vendor, and reading a verdict out of one on a guess would file somebody's mail on a
 /// misunderstanding.

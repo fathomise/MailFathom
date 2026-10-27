@@ -4,11 +4,12 @@
 
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MailTimelineEntry } from '@mailfathom/client-backend';
+import type { MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressDrift, pressOpensAfter } from '../contextMenu/rowPress';
 import { swipeCarriesTo, swipeDistance, swipeDrift, swipeEngages } from '../controls/swipeAcross';
+import { glyphOf } from '../controls/icons';
 import { tipRestsFor } from '../controls/useTip';
 import { ListFoldContext } from './listFold';
 import { MailboxActsContext, nothingActed, type MailboxAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
@@ -35,6 +36,13 @@ const email: MailTimelineEntry = {
     preview: 'The opening of the message.',
     enrichment: null,
     threadMessageCount: null,
+    spam: null,
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        signatureOutcome: 'NotSigned',
+        signerMatchesAuthor: false,
+    },
 };
 
 function drawMoved(moved: {
@@ -367,7 +375,7 @@ describe('MessageRow', () => {
     it('draws the sender alone where the list is folded to a strip, named by who wrote and about what', () => {
         render(
             <LocalizationProvider>
-                <ListFoldContext value={{ folded: true, turn: () => undefined }}>
+                <ListFoldContext value={{ folded: true, kept: false, turn: () => undefined, keep: () => undefined }}>
                     <ul>
                         <MessageRow
                             email={{ ...email, senderDisplayName: 'Anna Kowalska' }}
@@ -463,6 +471,17 @@ describe('MessageRow, under a pointer', () => {
         fireEvent.pointerUp(row, { pointerType: 'touch', clientX: 10, clientY: 10 });
 
         expect(pointed).toHaveBeenCalledOnce();
+    });
+
+    it('acts on nothing where the finger travelled down the row before it was lifted, which is the list being pulled', () => {
+        const pointed = vi.fn();
+        const row = pointedRow({ onPoint: pointed });
+
+        fireEvent.pointerDown(row, { pointerType: 'touch', clientX: 10, clientY: 20 });
+        fireEvent.pointerMove(row, { pointerType: 'touch', clientX: 10, clientY: 160 });
+        fireEvent.pointerUp(row, { pointerType: 'touch', clientX: 10, clientY: 160 });
+
+        expect(pointed).not.toHaveBeenCalled();
     });
 
     it('opens the row’s menu once the finger has been held, and acts on nothing when it is lifted', () => {
@@ -851,6 +870,102 @@ describe('MessageRow, the mark that opens what was read', () => {
     });
 });
 
+function spamVerdict(over: Partial<MailSpamVerdict> = {}): MailSpamVerdict {
+    return {
+        verdict: 'Spam',
+        decidedBy: 'Model',
+        spamSubcategory: null,
+        spamSubcategoryNamedBy: null,
+        phishingRequest: null,
+        impersonatedParty: null,
+        ...over,
+    };
+}
+
+function spamRow(spam: MailSpamVerdict, { inSpamFolder = false, unread = false } = {}): HTMLElement {
+    render(
+        <LocalizationProvider>
+            <ul>
+                <MessageRow
+                    email={{ ...email, unread, spam }}
+                    position={1}
+                    open={false}
+                    selected={false}
+                    focusable
+                    inSpamFolder={inSpamFolder}
+                    note="Found by what it means."
+                    onOpen={() => undefined}
+                    onPoint={() => undefined}
+                    onElement={() => undefined}
+                />
+            </ul>
+        </LocalizationProvider>,
+    );
+
+    return screen.getByRole('option');
+}
+
+/** The kind a row names in the line it reserves, which is where the Spam folder draws its badge. */
+function badgeIn(row: HTMLElement, kind: string): HTMLElement {
+    const reserved = reservedLine(row);
+
+    if (!(reserved instanceof HTMLElement)) {
+        throw new Error('The row drew no reserved line.');
+    }
+
+    return within(reserved).getByText(kind);
+}
+
+describe('MessageRow, a message marked spam', () => {
+    // In the Spam folder every row is spam, so the row keeps its shape and its third line names the kind instead.
+    it('names a dangerous kind in the Spam folder with the warning glyph beside it', () => {
+        const row = spamRow(spamVerdict({ spamSubcategory: 'Phishing', spamSubcategoryNamedBy: 'Model' }), {
+            inSpamFolder: true,
+        });
+        const badge = badgeIn(row, 'Phishing');
+
+        expect(badge.querySelector('path')?.getAttribute('d')).toBe(glyphOf('warning')?.outline);
+    });
+
+    it('names a kind that informs rather than warns in the Spam folder without a glyph', () => {
+        const row = spamRow(spamVerdict({ spamSubcategory: 'Extortion', spamSubcategoryNamedBy: 'Person' }), {
+            inSpamFolder: true,
+        });
+        const badge = badgeIn(row, 'Extortion');
+
+        expect(badge.querySelector('svg')).toBeNull();
+    });
+
+    it('draws no badge in the Spam folder for spam nobody named a kind of, nor what the screen would have said', () => {
+        const reserved = reservedLine(spamRow(spamVerdict(), { inSpamFolder: true }));
+
+        expect(reserved?.textContent).toBe('');
+        expect(reserved?.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    // Outside the Spam folder the row folds to one muted line, so the verdict is said in words a screen reader reads.
+    it('folds to one line elsewhere, announcing the verdict before who wrote and about what', () => {
+        const row = spamRow(spamVerdict({ spamSubcategory: 'Scam', spamSubcategoryNamedBy: 'Model' }));
+
+        expect(row.textContent).toMatch(/^Spam: Scam, judged by a model\.Writer/u);
+        expect(within(row).getByText('The quarter is closed')).toBeDefined();
+        expect(within(row).queryByText('Found by what it means.')).toBeNull();
+    });
+
+    it('draws a folded spam row without the unread weight, though the deployment reports it unread', () => {
+        spamRow(spamVerdict(), { unread: true });
+
+        expect(screen.queryByText('Unread')).toBeNull();
+    });
+
+    it('folds no row whose verdict is that it is not spam', () => {
+        spamRow(spamVerdict({ verdict: 'NotSpam' }));
+
+        expect(screen.queryByText(/^Spam/u)).toBeNull();
+        expect(screen.getByText('Found by what it means.')).toBeDefined();
+    });
+});
+
 describe('MessageRow, dragged towards a folder', () => {
     function draggedRow(acts: MailboxActs, onCarry?: () => void): HTMLElement {
         render(
@@ -896,7 +1011,16 @@ describe('MessageRow, dragged towards a folder', () => {
     it('is drawn faded for as long as a drag is carrying it', () => {
         const acts: MailboxActs = {
             ...nothingActed,
-            carried: [{ storedEmailId: 'message-1', account: 'work', folder: 'INBOX', unread: false, flagged: false }],
+            carried: [
+                {
+                    storedEmailId: 'message-1',
+                    account: 'work',
+                    folder: 'INBOX',
+                    unread: false,
+                    flagged: false,
+                    spam: null,
+                },
+            ],
         };
 
         expect(draggedRow(acts, () => undefined).className).toContain('opacity-45');
@@ -905,9 +1029,139 @@ describe('MessageRow, dragged towards a folder', () => {
     it('is drawn as it was while the drag is carrying other messages', () => {
         const acts: MailboxActs = {
             ...nothingActed,
-            carried: [{ storedEmailId: 'message-2', account: 'work', folder: 'INBOX', unread: false, flagged: false }],
+            carried: [
+                {
+                    storedEmailId: 'message-2',
+                    account: 'work',
+                    folder: 'INBOX',
+                    unread: false,
+                    flagged: false,
+                    spam: null,
+                },
+            ],
         };
 
         expect(draggedRow(acts, () => undefined).className).not.toContain('opacity-45');
+    });
+});
+
+// The mark on who sent the message, which is the pointer's shortcut to the sender details. It is out of the
+// accessibility tree for the reason the readings mark is, so it is found by the name it shows a pointer.
+function senderMarkedRow({
+    sender = email.sender,
+    spam = email.spam,
+    onSenderDetails,
+    onPoint = vi.fn(),
+    onOpen = vi.fn(),
+}: {
+    sender?: MailTimelineEntry['sender'];
+    spam?: MailTimelineEntry['spam'];
+    onSenderDetails?: ((anchor: DOMRect) => void) | undefined;
+    onPoint?: (event: unknown) => void;
+    onOpen?: () => void;
+}): HTMLElement {
+    render(
+        <LocalizationProvider>
+            <ul>
+                <MessageRow
+                    email={{ ...email, sender, spam }}
+                    position={1}
+                    open={false}
+                    selected={false}
+                    focusable
+                    onSenderDetails={onSenderDetails}
+                    onOpen={onOpen}
+                    onPoint={onPoint}
+                    onElement={() => undefined}
+                />
+            </ul>
+        </LocalizationProvider>,
+    );
+
+    return screen.getByRole('option');
+}
+
+function senderMark(name: string): HTMLElement {
+    const mark = screen
+        .getAllByText(name)
+        .map((sentence) => document.querySelector<HTMLElement>(`[aria-describedby="${sentence.id}"]`))
+        .find((element) => element !== null);
+
+    if (mark === undefined) {
+        throw new Error(`No mark is described by "${name}".`);
+    }
+
+    return mark;
+}
+
+describe('MessageRow, the mark on who sent the message', () => {
+    it('says the state of a trusted sender in words, inside the row a screen reader reads', () => {
+        const row = senderMarkedRow({
+            sender: { ...email.sender, deploymentTrust: 'Trusted' },
+            onSenderDetails: () => undefined,
+        });
+
+        expect(row.textContent).toContain('Trusted sender');
+    });
+
+    it.each([
+        [
+            'a signature that does not match',
+            { signatureOutcome: 'Failed' },
+            'Suspicious - the signature does not match',
+        ],
+        [
+            'a signature the author made',
+            { signatureOutcome: 'Verified', signerMatchesAuthor: true },
+            'Verified signature',
+        ],
+        ['failed authentication', { authorAuthentication: 'Failed' }, 'Suspicious - sender authentication failed'],
+        ['nothing that recognized the sender', {}, 'Sender not recognized'],
+    ] as const)('draws the mark for %s', (_, facts, name) => {
+        senderMarkedRow({ sender: { ...email.sender, ...facts }, onSenderDetails: () => undefined });
+
+        expect(senderMark(name).getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('is drawn on no row that marks no sender', () => {
+        const row = senderMarkedRow({});
+
+        expect(row.textContent).not.toContain('Sender not recognized');
+    });
+
+    // Folded to one muted line, a spam row keeps the mark after who wrote it, which is where the design draws it.
+    it('stays on a spam row folded to one line, after the sender it judges', () => {
+        const asked = vi.fn();
+
+        senderMarkedRow({ spam: spamVerdict(), onSenderDetails: asked });
+        fireEvent.click(senderMark('Sender not recognized'));
+
+        expect(asked).toHaveBeenCalledOnce();
+    });
+
+    it('opens the details anchored under itself', () => {
+        const asked = vi.fn();
+
+        senderMarkedRow({ onSenderDetails: asked });
+        fireEvent.click(senderMark('Sender not recognized'));
+
+        expect(asked).toHaveBeenCalledOnce();
+    });
+
+    it('neither opens nor selects the message it is drawn on', () => {
+        const pointed = vi.fn();
+        const opened = vi.fn();
+
+        senderMarkedRow({ onSenderDetails: () => undefined, onPoint: pointed, onOpen: opened });
+
+        const mark = senderMark('Sender not recognized');
+
+        fireEvent.pointerDown(mark, { pointerType: 'mouse', button: 0 });
+        fireEvent.pointerUp(mark, { pointerType: 'mouse', button: 0 });
+        fireEvent.click(mark);
+        fireEvent.doubleClick(mark);
+
+        expect(pointed).not.toHaveBeenCalled();
+        expect(opened).not.toHaveBeenCalled();
     });
 });

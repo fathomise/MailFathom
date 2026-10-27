@@ -9,6 +9,7 @@ using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Transmission;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Resilience;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Transport;
@@ -58,6 +59,7 @@ public sealed class MailOutboxDelivery
     private readonly LocalMailFiler localFiler;
     private readonly MailOutboxSettings settings;
     private readonly TimeProvider timeProvider;
+    private readonly ClientSignals clientSignals;
 
     /// <summary>Initializes the attempt from the session it submits through and the record it settles.</summary>
     /// <param name="sessions">Opens the one session able to reach a submission server.</param>
@@ -68,6 +70,7 @@ public sealed class MailOutboxDelivery
     /// <param name="localFiler">Files the sent copy of a held account's delivery in the commit that records it.</param>
     /// <param name="settings">Bounds the attempt and says when the next one may happen.</param>
     /// <param name="timeProvider">Measures the attempt's budget and stamps what it records.</param>
+    /// <param name="clientSignals">Tells an open client that a send in the account's outbox moved.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public MailOutboxDelivery(
         IMailDeliverySessionFactory sessions,
@@ -77,7 +80,8 @@ public sealed class MailOutboxDelivery
         OptimisticConcurrencyRetryPolicy commitPolicy,
         LocalMailFiler localFiler,
         MailOutboxSettings settings,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ClientSignals clientSignals)
     {
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(outgoingEmails);
@@ -87,6 +91,7 @@ public sealed class MailOutboxDelivery
         ArgumentNullException.ThrowIfNull(localFiler);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(clientSignals);
 
         this.sessions = sessions;
         this.outgoingEmails = outgoingEmails;
@@ -96,6 +101,7 @@ public sealed class MailOutboxDelivery
         this.localFiler = localFiler;
         this.settings = settings;
         this.timeProvider = timeProvider;
+        this.clientSignals = clientSignals;
     }
 
     /// <summary>Attempts one claimed send and records what became of it.</summary>
@@ -228,6 +234,7 @@ public sealed class MailOutboxDelivery
         }
 
         await this.CommitAsync(
+            claimed,
             (writeSession, token) => this.outgoingEmails.RecordTransmissionBegunAsync(
                 writeSession,
                 claimed.Lease,
@@ -301,7 +308,7 @@ public sealed class MailOutboxDelivery
         var sentCopy = await this.localFiler.PrepareSentCopyAsync(claimed.Record, preparationToken.Token);
         FiledLocalEmail? filed = null;
 
-        await this.CommitAsync(async (session, token) =>
+        await this.CommitAsync(claimed, async (session, token) =>
         {
             await this.WriteRecipientOutcomesAsync(session, claimed, outcomes, token);
 
@@ -344,7 +351,7 @@ public sealed class MailOutboxDelivery
         int? replyCode,
         MailOutboxDeliveryOutcome reportedAs = MailOutboxDeliveryOutcome.Refused)
     {
-        await this.CommitAsync(async (session, token) =>
+        await this.CommitAsync(claimed, async (session, token) =>
         {
             await this.WriteRecipientOutcomesAsync(session, claimed, outcomes, token);
             await this.outgoingEmails.RecordFailureAsync(session, claimed.Lease, claimed.Record.Id, failure, token);
@@ -387,7 +394,7 @@ public sealed class MailOutboxDelivery
             minimumDelay: TimeSpan.Zero,
             claimed.Record.AttemptCount);
 
-        await this.CommitAsync(async (session, token) =>
+        await this.CommitAsync(claimed, async (session, token) =>
         {
             await this.WriteRecipientOutcomesAsync(session, claimed, outcomes, token);
 
@@ -428,7 +435,7 @@ public sealed class MailOutboxDelivery
         ClaimedOutgoingEmail claimed,
         IReadOnlyList<OutgoingRecipientOutcome> outcomes)
     {
-        await this.CommitAsync(async (session, token) =>
+        await this.CommitAsync(claimed, async (session, token) =>
         {
             await this.WriteRecipientOutcomesAsync(session, claimed, outcomes, token);
 
@@ -451,6 +458,7 @@ public sealed class MailOutboxDelivery
     private async Task<MailOutboxDeliveryResult> ReleaseForShutdownAsync(ClaimedOutgoingEmail claimed)
     {
         await this.CommitAsync(
+            claimed,
             (session, token) => this.outgoingEmails.ReleaseAsync(session, claimed.Lease, claimed.Record.Id, token));
 
         return Result(claimed, MailOutboxDeliveryOutcome.ReleasedForShutdown, failure: null, replyCode: null);
@@ -526,10 +534,18 @@ public sealed class MailOutboxDelivery
     /// <remarks>
     /// The write runs outside the caller's cancellation on purpose. What it records is a submission that has already
     /// happened outside this deployment, and a shutdown that abandoned the write would leave the record describing an
-    /// attempt that never reached the point it actually reached.
+    /// attempt that never reached the point it actually reached. Every movement is something the account's outbox
+    /// shows — a stage, an attempt, a failure, or whether an attempt still holds the send — so each one tells an open
+    /// client once it is durable.
     /// </remarks>
-    private Task CommitAsync(Func<IPersistenceSession, CancellationToken, Task> stageChangesAsync) =>
-        this.commitPolicy.CommitAsync(stageChangesAsync, CancellationToken.None);
+    private async Task CommitAsync(
+        ClaimedOutgoingEmail claimed,
+        Func<IPersistenceSession, CancellationToken, Task> stageChangesAsync)
+    {
+        await this.commitPolicy.CommitAsync(stageChangesAsync, CancellationToken.None);
+
+        this.clientSignals.Publish(ClientSignal.OutboxChanged(claimed.Record.AccountId));
+    }
 
     private static OutgoingRecipientStatus StatusOf(MailRecipientReply reply, bool transmissionAcknowledged) =>
         reply.Acceptance switch

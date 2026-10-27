@@ -11,7 +11,9 @@ import {
     type PointerEvent,
     type ReactNode,
 } from 'react';
+import { flushSync } from 'react-dom';
 import {
+    isSpam,
     readMailTimeline,
     type ClientFailure,
     type ClientFailureReason,
@@ -28,17 +30,23 @@ import { useLocalization } from '../localization/useLocalization';
 import { ActQuestions } from '../mailboxActs/ActQuestions';
 import {
     actLeaving,
+    drawnSpam,
     opensAsDraft,
     useMailboxActs,
     type ActedMessage,
     type AskedAct,
+    type MailboxActs,
 } from '../mailboxActs/useMailboxActs';
+import { useSpamRefusal } from '../spamMarking/useSpamRefusal';
+import { DraftsOutOfStep } from './DraftsOutOfStep';
 import { useComposing } from '../composer/useComposing';
 import { MessageReading } from '../messageRows/MessageReading';
 import { leadingReading, readingsOf } from '../messageRows/messageReadings';
 import { MessageRow } from '../messageRows/MessageRow';
 import { MessageRowMenu, type ActAsked } from '../messageRows/MessageRowMenu';
 import { ReadingsAsked, type AskedReadings } from '../messageRows/ReadingsAsked';
+import { SenderDetails, type AskedSender } from '../senderMark/SenderDetails';
+import { marksSender, senderMarkOf } from '../senderMark/senderMarks';
 import { rowMark, rowWithFlags, type RowContents } from '../messageRows/rowContents';
 import {
     estimatedRowHeight,
@@ -74,6 +82,7 @@ import {
     type HeldTimeline,
     type TimelineRead,
 } from './heldTimeline';
+import { ListPull } from './ListPull';
 import { ListSettings } from './ListSettings';
 import { narrowed, narrowedByReading, narrowedToView, queryFor, type MailListing } from './listing';
 import { extendedTo, inReadingOrder, withToggled } from '../contextMenu/rowSelection';
@@ -108,6 +117,48 @@ const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
 // writes once rather than per frame, short enough that leaving immediately afterwards keeps the position.
 const restingBeforeRemembered = 400;
 
+// The accounts whose Drafts folder this list is, which is where the drafts out of step with their server are drawn: the
+// one account's where one Drafts folder is open, and every account's where the Drafts of all of them are.
+function draftsAccountsOf(scope: MailScope, accounts: readonly MailAccount[], acts: MailboxActs): readonly string[] {
+    if (scope.kind === 'role') {
+        return scope.role === 'Drafts' ? accounts.map((account) => account.id) : [];
+    }
+
+    if (scope.kind !== 'folder') {
+        return [];
+    }
+
+    const role = acts.folderRoleOf({
+        storedEmailId: '',
+        account: scope.accountId,
+        folder: scope.folderId,
+        unread: false,
+        flagged: false,
+        spam: null,
+    });
+
+    return role === 'Drafts' ? [scope.accountId] : [];
+}
+
+// Whether this list is a Spam folder, where a spam row keeps its shape and names its kind rather than folding away.
+function spamFolderOf(scope: MailScope, acts: MailboxActs): boolean {
+    if (scope.kind === 'role') {
+        return scope.role === 'Junk';
+    }
+
+    return (
+        scope.kind === 'folder' &&
+        acts.folderRoleOf({
+            storedEmailId: '',
+            account: scope.accountId,
+            folder: scope.folderId,
+            unread: false,
+            flagged: false,
+            spam: null,
+        }) === 'Junk'
+    );
+}
+
 export function MessageList({
     session,
     transport,
@@ -140,6 +191,9 @@ export function MessageList({
     // dialog as what a finger reaches, and on a touch screen the folder column is a drawer a drag cannot reach while a
     // held finger is the row's menu — which a platform starting a drag on that same hold would take away.
     const coarse = useCoarsePointer();
+    const draftsAccounts = draftsAccountsOf(scope, accounts, acts);
+    const inSpamFolder = spamFolderOf(scope, acts);
+    const refuseSpam = useSpamRefusal();
     const composing = useComposing();
     const signalledChanges = useSignalledChanges();
     // Where this list opens: how the folder was last read and where in it the reader was. State rather than a value
@@ -205,6 +259,9 @@ export function MessageList({
     // The readings being checked, which outlive the menu they were asked from for the reason a question does.
     const [askedReadings, setAskedReadings] = useState<AskedReadings | null>(null);
 
+    // Whose sender is being explained, which outlives the menu it may have been asked from for the same reason.
+    const [askedSender, setAskedSender] = useState<AskedSender | null>(null);
+
     // Whether the reader has been put back where they were. State rather than a ref, because what depends on it is what
     // the list asks the deployment for, and that is worked out during render: a list restored into a page it opened
     // from a cursor spends the commit before the scroller is moved with its window at the leading end of that page,
@@ -216,6 +273,7 @@ export function MessageList({
     const deleting = useRef<HTMLDialogElement>(null);
     const filing = useRef<HTMLDialogElement>(null);
     const checking = useRef<HTMLDialogElement>(null);
+    const explaining = useRef<HTMLDialogElement>(null);
     const elements = useRef(new Map<number, HTMLLIElement>());
     const wantsFocus = useRef(false);
 
@@ -665,6 +723,34 @@ export function MessageList({
         checking.current?.showModal();
     }
 
+    // Explaining the mark on who sent one message. A row in Sent or Drafts marks no sender, so it offers none: the
+    // writer of that mail is the reader. The details are placed before they open, so they never draw for a frame where
+    // the last ones stood.
+    function marksSenderOf(email: MailTimelineEntry): boolean {
+        return marksSender(
+            acts.folderRoleOf({
+                storedEmailId: email.id,
+                account: email.account,
+                folder: email.folder,
+                unread: email.unread,
+                flagged: email.flagged,
+                spam: email.spam,
+            }),
+        );
+    }
+
+    function explainSender(email: MailTimelineEntry, anchor: DOMRect | null): void {
+        flushSync(() => {
+            setAskedSender({
+                storedEmailId: email.id,
+                message: null,
+                anchor: anchor === null ? null : { left: anchor.left, top: anchor.top, bottom: anchor.bottom },
+            });
+        });
+        closeMenu();
+        explaining.current?.showModal();
+    }
+
     function hasReadings(email: MailTimelineEntry): boolean {
         return readingsOf(email.enrichment).length > 0;
     }
@@ -800,6 +886,13 @@ export function MessageList({
 
         if (email === null || !composing.offered) {
             return undefined;
+        }
+
+        // Spam cannot be answered, so the swipe is answered with why rather than with a composer.
+        if (isSpam(drawnSpam(acts, email))) {
+            return () => {
+                refuseSpam('spam.refusedAnswer');
+            };
         }
 
         return () => {
@@ -976,101 +1069,115 @@ export function MessageList({
             {rowCount === 0 ? (
                 <Note>{translate(emptyReason(accounts, scope, listing))}</Note>
             ) : (
-                <div
-                    ref={scroller}
-                    className="rows-windowed min-h-0 flex-1 overflow-y-auto overscroll-contain"
-                    onScroll={(event) => {
-                        scrolledTo(event.currentTarget.scrollTop);
-                    }}
-                >
-                    {/* The rows that are not in the document, as the space they take. Outside the list rather than in
-                        it, because a listbox holds options and nothing else — a spacer inside it would be announced as
-                        one more thing in the list. */}
-                    <div aria-hidden="true" style={{ height: `${String(drawn.above)}px` }} />
-
-                    {/* Rows sit flush against each other, and that is arithmetic rather than taste: the spacers above
-                        and below are whole rows of the token height, so a gap between drawn rows would put every row a
-                        fraction lower than the space the list drew for it, and the drift would grow with how far down
-                        the folder the reader is. What separates them is the line each row carries. */}
-                    <ul
-                        aria-label={translate('list.label')}
-                        aria-busy={wanted !== null}
-                        aria-multiselectable="true"
-                        role="listbox"
-                        className="flex flex-col"
-                        onKeyDown={onKeyDown}
+                <ListPull scroller={scroller} enabled={coarse}>
+                    <div
+                        ref={scroller}
+                        className="rows-windowed min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                        onScroll={(event) => {
+                            scrolledTo(event.currentTarget.scrollTop);
+                        }}
                     >
-                        {Array.from({ length: drawn.count }, (_, at) => drawn.first + at).map((row) => {
-                            const email = rowAt(shown, row);
+                        {/* The rows that are not in the document, as the space they take. Outside the list rather than in
+                            it, because a listbox holds options and nothing else — a spacer inside it would be announced as
+                            one more thing in the list. */}
+                        <div aria-hidden="true" style={{ height: `${String(drawn.above)}px` }} />
 
-                            return email === null ? (
-                                <ArrivingRow key={`arriving-${String(row)}`} position={row + 1} />
-                            ) : (
-                                <MessageRow
-                                    key={email.id}
-                                    email={email}
-                                    position={row + 1}
-                                    open={workspace.selection === email.id}
-                                    selected={workspace.selected.includes(email.id)}
-                                    focusable={row === focusedRow}
-                                    arrived={arrivedRows.has(email.id)}
-                                    changed={changedRows.has(email.id)}
-                                    onSettled={() => {
-                                        setArrivedRows((rows) => rowSettled(rows, email.id));
-                                        setChangedRows((rows) => rowSettled(rows, email.id));
-                                    }}
-                                    onGone={() => {
-                                        const asked = acts.asked.get(email.id);
+                        {/* Rows sit flush against each other, and that is arithmetic rather than taste: the spacers above
+                            and below are whole rows of the token height, so a gap between drawn rows would put every row a
+                            fraction lower than the space the list drew for it, and the drift would grow with how far down
+                            the folder the reader is. What separates them is the line each row carries. */}
+                        <ul
+                            aria-label={translate('list.label')}
+                            aria-busy={wanted !== null}
+                            aria-multiselectable="true"
+                            role="listbox"
+                            className="flex flex-col"
+                            onKeyDown={onKeyDown}
+                        >
+                            {Array.from({ length: drawn.count }, (_, at) => drawn.first + at).map((row) => {
+                                const email = rowAt(shown, row);
 
-                                        if (asked !== undefined) {
-                                            setGoneRows((gone) => rowWentOut(gone, email.id, asked));
+                                return email === null ? (
+                                    <ArrivingRow key={`arriving-${String(row)}`} position={row + 1} />
+                                ) : (
+                                    <MessageRow
+                                        key={email.id}
+                                        email={email}
+                                        position={row + 1}
+                                        open={workspace.selection === email.id}
+                                        selected={workspace.selected.includes(email.id)}
+                                        focusable={row === focusedRow}
+                                        arrived={arrivedRows.has(email.id)}
+                                        changed={changedRows.has(email.id)}
+                                        onSettled={() => {
+                                            setArrivedRows((rows) => rowSettled(rows, email.id));
+                                            setChangedRows((rows) => rowSettled(rows, email.id));
+                                        }}
+                                        onGone={() => {
+                                            const asked = acts.asked.get(email.id);
+
+                                            if (asked !== undefined) {
+                                                setGoneRows((gone) => rowWentOut(gone, email.id, asked));
+                                            }
+                                        }}
+                                        note={readingOn(email)}
+                                        inSpamFolder={inSpamFolder}
+                                        onReadings={
+                                            hasReadings(email)
+                                                ? () => {
+                                                      checkReadings(email);
+                                                  }
+                                                : undefined
                                         }
-                                    }}
-                                    note={readingOn(email)}
-                                    onReadings={
-                                        hasReadings(email)
-                                            ? () => {
-                                                  checkReadings(email);
-                                              }
-                                            : undefined
-                                    }
-                                    onOpen={() => {
-                                        open(row);
-                                    }}
-                                    onPoint={(event) => {
-                                        point(event, row);
-                                    }}
-                                    onPress={(pointedAt) => {
-                                        setFocusedRow(row);
-                                        setPressed({ storedEmailId: email.id, at: pointedAt });
-                                    }}
-                                    onAnswer={answering(row)}
-                                    onArchive={filingAway(row)}
-                                    onCarry={carrying(row)}
-                                    onElement={(element) => {
-                                        if (element === null) {
-                                            elements.current.delete(row);
-                                        } else {
-                                            elements.current.set(row, element);
+                                        onSenderDetails={
+                                            marksSenderOf(email)
+                                                ? (anchor) => {
+                                                      explainSender(email, anchor);
+                                                  }
+                                                : undefined
                                         }
-                                    }}
-                                />
-                            );
-                        })}
-                    </ul>
+                                        onOpen={() => {
+                                            open(row);
+                                        }}
+                                        onPoint={(event) => {
+                                            point(event, row);
+                                        }}
+                                        onPress={(pointedAt) => {
+                                            setFocusedRow(row);
+                                            setPressed({ storedEmailId: email.id, at: pointedAt });
+                                        }}
+                                        onAnswer={answering(row)}
+                                        onArchive={filingAway(row)}
+                                        onCarry={carrying(row)}
+                                        onElement={(element) => {
+                                            if (element === null) {
+                                                elements.current.delete(row);
+                                            } else {
+                                                elements.current.set(row, element);
+                                            }
+                                        }}
+                                    />
+                                );
+                            })}
+                        </ul>
 
-                    <div aria-hidden="true" style={{ height: `${String(drawn.below)}px` }} />
+                        <div aria-hidden="true" style={{ height: `${String(drawn.below)}px` }} />
 
-                    {wanted !== null ? (
-                        <p className="px-3 py-2 text-sm text-muted" role="status">
-                            {translate('list.readingMore')}
-                        </p>
-                    ) : null}
+                        {wanted !== null ? (
+                            <p className="px-3 py-2 text-sm text-muted" role="status">
+                                {translate('list.readingMore')}
+                            </p>
+                        ) : null}
 
-                    {cursorAfter(shown) === null ? (
-                        <p className="px-3 py-2 text-sm text-faint">{translate('list.wholeFolderRead')}</p>
-                    ) : null}
-                </div>
+                        {cursorAfter(shown) === null ? (
+                            <p className="px-3 py-2 text-sm text-faint">{translate('list.wholeFolderRead')}</p>
+                        ) : null}
+                    </div>
+                </ListPull>
+            )}
+
+            {draftsAccounts.length === 0 ? null : (
+                <DraftsOutOfStep session={session} transport={transport} accounts={draftsAccounts} />
             )}
 
             {/* The row's own menu, over whichever row was pressed. It stands outside the scroller because it is placed
@@ -1094,6 +1201,10 @@ export function MessageList({
                                   }
                                 : undefined
                         }
+                        senderMark={marksSenderOf(row) ? senderMarkOf(row.sender) : null}
+                        onSenderDetails={() => {
+                            explainSender(row, null);
+                        }}
                         onClose={closeMenu}
                     />
                 )}
@@ -1106,6 +1217,8 @@ export function MessageList({
             {/* Where a reading is checked, standing here for the same reason: the menu it is reached from is gone the
                 moment the item is chosen. */}
             <ReadingsAsked asked={askedReadings} session={session} transport={transport} dialog={checking} />
+
+            <SenderDetails asked={askedSender} session={session} transport={transport} dialog={explaining} />
         </div>
     );
 }

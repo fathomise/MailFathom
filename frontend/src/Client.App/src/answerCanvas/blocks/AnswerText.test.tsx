@@ -3,16 +3,44 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { AnswerLink } from '@mailfathom/client-backend';
 import { describe, expect, it } from 'vitest';
 import { LocalizationProvider } from '../../localization/Localization';
 import { LinkOpenerContext, type OpenLink } from '../../shellOperations/linkOpener';
 import { AnswerText } from './AnswerText';
 
-function drawing(text: string, openLink: OpenLink = () => Promise.resolve()) {
+const untracedWarning = 'This address is in none of the messages this answer cites.';
+const linkWarnings = [
+    untracedWarning,
+    'This link does not go where its words say.',
+    'This link is worth checking before you follow it.',
+    'which is written',
+];
+
+function expectNoLinkWarning() {
+    for (const warning of linkWarnings) {
+        expect(screen.queryByText(warning, { exact: false })).toBeNull();
+    }
+}
+
+function judged(target: string, host: string, appearsInCitedSources: boolean, deceives = false): AnswerLink {
+    return {
+        link: {
+            target,
+            host,
+            asciiHost: null,
+            deception: deceives ? 'DisplayedHostDiffers' : 'None',
+            worthWarningAbout: deceives,
+        },
+        appearsInCitedSources,
+    };
+}
+
+function drawing(text: string, links: readonly AnswerLink[] = [], openLink: OpenLink = () => Promise.resolve()) {
     return render(
         <LocalizationProvider>
             <LinkOpenerContext value={openLink}>
-                <AnswerText text={text} />
+                <AnswerText links={links} text={text} />
             </LinkOpenerContext>
         </LocalizationProvider>,
     );
@@ -54,21 +82,46 @@ describe('AnswerText', () => {
         expect(container.querySelector('img')).toBeNull();
     });
 
-    it('draws a link the way a link in mail is drawn: saying where it goes, and warned about', () => {
-        drawing('Read [the agreement](https://phish.example/login) first.');
+    it('draws a link the service judged, and a cited message carries, saying where it goes and warning about nothing', () => {
+        drawing('Read [the reports](https://northwind.example/reports).', [
+            judged('https://northwind.example/reports', 'northwind.example', true),
+        ]);
 
-        expect(screen.getByRole('link', { name: 'the agreement' })).toBeDefined();
-        expect(screen.getByText('goes to phish.example')).toBeDefined();
+        expect(screen.getByRole('link', { name: 'the reports' })).toBeDefined();
+        expect(screen.getByText('goes to northwind.example')).toBeDefined();
+        expectNoLinkWarning();
+    });
+
+    it('warns about a link whose words name another host and whose address no cited message carries, each once', () => {
+        drawing('Confirm at [northwind.example](https://northwind-billing.example/confirm).', [
+            judged('https://northwind-billing.example/confirm', 'northwind-billing.example', false, true),
+        ]);
+
         expect(
-            screen.getByText('This link is worth checking before you follow it. It goes to phish.example.', {
+            screen.getByText('This link does not go where its words say. It goes to northwind-billing.example.', {
                 exact: false,
             }),
         ).toBeDefined();
+        expect(screen.getAllByText(untracedWarning, { exact: false })).toHaveLength(1);
+    });
+
+    it('warns about a link the service did not judge as one no cited message carries', () => {
+        drawing('Read [the agreement](https://phish.example/login) first.');
+
+        expect(screen.getByText('goes to phish.example')).toBeDefined();
+        expect(screen.getByText(untracedWarning, { exact: false })).toBeDefined();
+    });
+
+    it('matches a judged link by where it goes, whatever spelling of the same address the text used', () => {
+        drawing('See <https://Northwind.example>.', [judged('https://northwind.example/', 'northwind.example', true)]);
+
+        expect(screen.getByRole('link')).toBeDefined();
+        expectNoLinkWarning();
     });
 
     it('opens a link out of the application rather than navigating the answer to it', () => {
         const opened: string[] = [];
-        drawing('Read [the agreement](https://example.invalid/agreement).', (target) => {
+        drawing('Read [the agreement](https://example.invalid/agreement).', [], ({ target }) => {
             opened.push(target);
             return Promise.resolve();
         });
@@ -76,6 +129,18 @@ describe('AnswerText', () => {
         fireEvent.click(screen.getByRole('link', { name: 'the agreement' }));
 
         expect(opened).toEqual(['https://example.invalid/agreement']);
+    });
+
+    it('hands the question the warning that the address is in none of the messages the answer cites', () => {
+        const warned: (readonly string[])[] = [];
+        drawing('Read [the agreement](https://example.invalid/agreement).', [], ({ warnings }) => {
+            warned.push(warnings);
+            return Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByRole('link', { name: 'the agreement' }));
+
+        expect(warned).toEqual([['This address is in none of the messages this answer cites.']]);
     });
 
     it('draws a link naming no web or mail address as its words alone', () => {

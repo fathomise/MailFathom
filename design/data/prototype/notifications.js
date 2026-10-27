@@ -2,17 +2,27 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+/* The three failures that land after a request already answered — a send the server refused, a mailbox change the
+   server never took, a draft whose copy is not on the server — are durable rows like any other. `failure` names which,
+   `toast` is what the open client raises when one is raised, and `go` where the row leads. */
 MailFathomDesign.data.notifications = [
-  { id: "n1", kind: "mail", unread: true, mins: 3, title: "Anna Kowalska replied", body: "CPI cap counter-proposal - she asks for approval by tomorrow.", src: "Mail · Contoso", go: { screen: "mail", thread: "contoso" } },
+  { id: "nf1", kind: "failure", failure: "send", unread: true, mins: 5, title: "Not sent - it waits in the Outbox", body: "Re: Contract addendum - signatures", src: "Outbox · Nordwind · work", go: { screen: "mail", outbox: "acc1", entry: "ob1" },
+    toast: { kind: "error", body: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.", action: "Show in Outbox" } },
+  { id: "nf2", kind: "failure", failure: "change", unread: true, mins: 18, title: "A change did not reach your mailbox", body: "Move - the mail server would not take it, so the message is still where the server holds it.", src: "Mail · Nordwind · work", go: { screen: "mail", thread: "travel1" }, change: "travel1",
+    toast: { kind: "error", body: "Move - the mail server would not take it, so the message is still where the server holds it.", action: "Show message" } },
+  { id: "nf3", kind: "draftcopy", failure: "draft", unread: true, mins: 41, title: "Draft out of step with your server", body: "Q4 supplier review - agenda", src: "Drafts · Nordwind · work", go: { screen: "mail", draft: "ld1", acc: "acc1" },
+    toast: { kind: "warning", body: "“Q4 supplier review - agenda” is kept in MailFathom, but your mail server's copy may be missing or out of date.", action: "Open draft" } },
+  { id: "n1", kind: "mail", unread: true, mins: 3, title: "Anna Kowalska", body: "Re: Contract addendum - CPI cap counter-proposal", src: "Mail · Contoso", go: { screen: "mail", thread: "contoso" } },
+  { id: "n3", kind: "mail", unread: true, mins: 12, merged: true, count: 8, account: "Fabrikam", title: "8 new messages", body: "More than five arrived unread, so they are gathered here.", src: "Mail · Fabrikam", go: { screen: "mail" } },
   { id: "n2", kind: "cal", unread: true, mins: 26, title: "Meeting in 30 minutes", body: "Contoso addendum review · Nordwind room and Teams.", src: "Calendar", go: { screen: "cal" } },
   { id: "n4", kind: "task", unread: false, mins: 150, title: "Task: IT contract list", body: "Audit is waiting for the list with notice periods.", src: "Tasks", go: { screen: "tasks" } },
-  { id: "n5", kind: "mail", unread: false, mins: 320, title: "New attachment in the audit thread", body: "Marek Wiśniewski added two files to “IT contract audit”.", src: "Mail · Audit", go: { screen: "mail", thread: "audyt" } },
+  { id: "n5", kind: "mail", unread: false, mins: 320, title: "Marek Wiśniewski", body: "Re: IT contract audit - two files attached", src: "Mail · Audit", go: { screen: "mail", thread: "audyt" } },
   { id: "n6", kind: "system", unread: false, mins: 700, title: "Sync finished", body: "3 accounts, 12 new threads, 1 account needs to sign in again.", src: "System", go: null },
   { id: "n7", kind: "cal", unread: false, mins: 1580, title: "Meeting invitation", body: "Nordwind - SLA negotiations, Tuesday 10:00.", src: "Calendar", go: { screen: "cal" } },
 ];
 
 MailFathomDesign.data.incomingNotifications = [
-  { kind: "mail", title: "Tomasz Zieliński: date confirmation", body: "Fabrikam confirms delivery on 12.11 - asks for approval.", src: "Mail · Fabrikam", go: { screen: "mail", thread: "fabrikam" } },
+  { kind: "mail", title: "Tomasz Zieliński", body: "Delivery 12.11 - confirmation needed", src: "Mail · Fabrikam", go: { screen: "mail", thread: "fabrikam" } },
   { kind: "cal", title: "Meeting in 10 minutes", body: "Contoso - call about the CPI cap.", src: "Calendar", go: { screen: "cal" } },
 ];
 
@@ -28,10 +38,9 @@ MailFathomDesign.data.demoBatches = [
       body: [ { text: "Attached is the annex to the framework agreement in the version after our call. The change concerns support hours (8-18 instead of 9-17) and the reporting procedure." },
         { text: "Please send comments by 15 September - after that date we send the document for signature." } ],
       attachments: [ { type: "PDF", name: "Annex_framework_agreement.pdf", size: "184 kB" } ] },
-    notif: "Annex after the call - comments expected by 15.09.",
     edit: { id: "finanse", patch: { time: "now", subject: "Invoice 08/2026 - correction", ai: "Corrected amount €1,388 · new due date 05.09",
       meta: "invoices@company.example · today, now · thread: 2 messages" } },
-    editNotif: { title: "Finance: invoice correction", body: "Corrected 08/2026 - €1,388 net, payment by 05.09.", thread: "finanse" },
+    editNotif: { title: "Accounts payable", body: "Invoice 08/2026 - correction", thread: "finanse" },
     fallbackRemove: "jacek",
     removeNote: "The sender withdrew a message - the thread has left the list",
   },
@@ -43,10 +52,9 @@ MailFathomDesign.data.demoBatches = [
       body: [ { text: "We confirm the delivery on 12.11 in the morning window. We need the name of the person receiving and a contact number for the driver." },
         { text: "Without confirmation today the slot goes to the next order in the queue." } ],
       attachments: [] },
-    notif: "Fabrikam confirms 12.11 - asks for the receiving person today.",
     edit: { id: "marta", patch: { time: "now", subject: "Re: CPI calculation 2027 - cap accepted", ai: "Finance accepts a 5% cap · ready for the annex",
       meta: "m.nowak@company.example · today, now · thread: 5 messages" } },
-    editNotif: { title: "Marta Nowak replied", body: "Finance accepts a 5% cap on indexation.", thread: "marta" },
+    editNotif: { title: "Marta Nowak", body: "Re: CPI calculation 2027 - cap accepted", thread: "marta" },
     fallbackRemove: "jacek",
     removeNote: "The sender withdrew a message - the thread has left the list",
   },
@@ -58,10 +66,9 @@ MailFathomDesign.data.demoBatches = [
       body: [ { text: "Passing on the signatory details for addendum no. 3: Anna Kowalska, board member, acting under the entry in the register." },
         { text: "The eSign link goes out tomorrow morning - nothing more is needed from your side." } ],
       attachments: [] },
-    notif: "Contoso passed the signatory details for addendum no. 3.",
     edit: { id: "contoso", patch: { time: "now", subject: "Contract addendum - CPI cap agreed", ai: "Cap 5% accepted · ready for signature",
       meta: "Anna Kowalska <a.kowalska@contoso.example> · today, now · thread: 7 messages" } },
-    editNotif: { title: "Anna Kowalska replied", body: "Contoso accepts a 5% cap - the addendum goes to signature.", thread: "contoso" },
+    editNotif: { title: "Anna Kowalska", body: "Contract addendum - CPI cap agreed", thread: "contoso" },
     fallbackRemove: "jacek",
     removeNote: "The sender withdrew a message - the thread has left the list",
   },

@@ -9,10 +9,11 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 
 /// <summary>One thing that happened to a person while nobody was looking at the screen.</summary>
 /// <remarks>
-/// The user is a value, as it is on every other table, and the message is an association — which is the one place
-/// this row deliberately differs from the audit trails beside it. A trail records an act and has to outlive what it
-/// acted on; a notification describes something a person can still open, so a row pointing at mail that has been
-/// deleted is a row that leads nowhere and is erased with it.
+/// The user is a value, as it is on every other table, and every record the row can lead to is an association — a
+/// message, a calendar event, a task, a send, a mailbox change, or a draft — which is where this row deliberately
+/// differs from the audit trails beside it. A trail records an act and has to outlive what it acted on; a notification
+/// describes something a person can still open, so a row pointing at a record that is gone is a row that leads nowhere
+/// and is erased with it.
 /// </remarks>
 [RequiresIntegrationCoverage]
 internal sealed class NotificationEntity
@@ -74,6 +75,27 @@ internal sealed class NotificationEntity
 
     /// <summary>Gets or sets the task the notification leads to.</summary>
     public PersonalTaskEntity? TargetPersonalTask { get; set; }
+
+    /// <summary>Gets or sets the send the notification leads to, which is the association the row is erased through.</summary>
+    /// <remarks>A key for the reason the event above is one: a statement about a send that is no longer kept is not a row to keep.</remarks>
+    public Guid? TargetOutgoingEmailId { get; set; }
+
+    /// <summary>Gets or sets the send the notification leads to.</summary>
+    public OutgoingEmailEntity? TargetOutgoingEmail { get; set; }
+
+    /// <summary>Gets or sets the change the notification reports, which is erased with the record it names.</summary>
+    /// <remarks>The message the change was asked of is <see cref="TargetStoredEmailId" />, which a change target carries beside it.</remarks>
+    public Guid? TargetMailboxMutationId { get; set; }
+
+    /// <summary>Gets or sets the change the notification reports.</summary>
+    public MailboxMutationEntity? TargetMailboxMutation { get; set; }
+
+    /// <summary>Gets or sets the draft the notification leads to, which is the association the row is erased through.</summary>
+    /// <remarks>A key, so a draft somebody discarded or sent takes the statement about its copy with it.</remarks>
+    public Guid? TargetMailDraftId { get; set; }
+
+    /// <summary>Gets or sets the draft the notification leads to.</summary>
+    public MailDraftEntity? TargetMailDraft { get; set; }
 
     /// <summary>Gets or sets the condition this notification was raised for.</summary>
     /// <remarks>

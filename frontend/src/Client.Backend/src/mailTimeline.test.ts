@@ -49,6 +49,12 @@ const message = {
     sizeOctets: 84_213,
     preview: 'The figures you asked for are attached.',
     threadMessageCount: null,
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        signatureOutcome: 'NotSigned',
+        signerMatchesAuthor: false,
+    },
 };
 
 function bodyOf(emails: readonly unknown[], cursors: Readonly<Record<string, unknown>> = {}): string {
@@ -191,7 +197,7 @@ describe('readMailTimeline', () => {
         expect(result).toStrictEqual({
             outcome: 'read',
             value: {
-                emails: [{ ...message, enrichment: null }],
+                emails: [{ ...message, enrichment: null, spam: null }],
                 nextCursor: 'after',
                 previousCursor: 'before',
                 pageSize: 50,
@@ -272,6 +278,24 @@ describe('readMailTimeline', () => {
         ['a conversation size that is not whole', bodyOf([{ ...message, threadMessageCount: 2.5 }])],
         ['a derivation that is not a record', bodyOf([{ ...message, enrichment: 'derived' }])],
         ['a derivation that does not say when it ran', bodyOf([{ ...message, enrichment: { marks: [] } }])],
+        ['a row saying nothing about who sent it', bodyOf([{ ...message, sender: undefined }])],
+        ['sender facts that are not a record', bodyOf([{ ...message, sender: 'Authenticated' }])],
+        [
+            'an authentication outcome this build does not publish',
+            bodyOf([{ ...message, sender: { ...message.sender, authorAuthentication: 'Probably' } }]),
+        ],
+        [
+            'a trust level this build does not publish',
+            bodyOf([{ ...message, sender: { ...message.sender, deploymentTrust: 'Suspect' } }]),
+        ],
+        [
+            'a signature outcome this build does not publish',
+            bodyOf([{ ...message, sender: { ...message.sender, signatureOutcome: 'Forged' } }]),
+        ],
+        [
+            'a signer match that is not a boolean',
+            bodyOf([{ ...message, sender: { ...message.sender, signerMatchesAuthor: 'yes' } }]),
+        ],
     ])('refuses %s rather than reading a page with a hole in it', async (_, body) => {
         const result = await readMailTimeline(session, answering({ status: 200, body }), leadingPage);
 
@@ -299,6 +323,21 @@ describe('readMailTimeline', () => {
         const result = await readMailTimeline(session, transport, leadingPage);
 
         expect(result.outcome === 'read' && result.value.emails[0]?.enrichment).toStrictEqual(enrichment);
+    });
+
+    it('reads the four facts about who sent a message side by side, as the row carried them', async () => {
+        const sender = {
+            authorAuthentication: 'Failed',
+            deploymentTrust: 'Trusted',
+            signatureOutcome: 'Verified',
+            signerMatchesAuthor: true,
+        };
+
+        const transport = answering({ status: 200, body: bodyOf([{ ...message, sender }]) });
+
+        const result = await readMailTimeline(session, transport, leadingPage);
+
+        expect(result.outcome === 'read' && result.value.emails[0]?.sender).toStrictEqual(sender);
     });
 
     it('reads a message no derivation has reached as carrying none', async () => {

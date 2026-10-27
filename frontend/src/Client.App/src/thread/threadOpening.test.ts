@@ -30,6 +30,13 @@ function message(id: string, position: number, unread = false): MailThreadMessag
             preview: 'What this one added.',
             enrichment: null,
             threadMessageCount: null,
+            spam: null,
+            sender: {
+                authorAuthentication: 'Authenticated',
+                deploymentTrust: 'Unknown',
+                signatureOutcome: 'NotSigned',
+                signerMatchesAuthor: false,
+            },
         },
         message: null,
         body: null,

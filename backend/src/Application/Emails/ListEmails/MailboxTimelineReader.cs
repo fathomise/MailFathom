@@ -12,6 +12,7 @@ using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.ListEmails;
 
@@ -115,7 +116,7 @@ public sealed class MailboxTimelineReader
         {
             read.Completed(0);
 
-            return new ListEmailsResult([], NextCursor: null, [], filter.Selection.Scope.IncludesJunkMail);
+            return new ListEmailsResult([], NextCursor: null, []);
         }
 
         // One row beyond the page is what establishes whether another page exists. A count over the same filter would
@@ -142,11 +143,7 @@ public sealed class MailboxTimelineReader
 
         read.Completed(guardedPage.Count);
 
-        return new ListEmailsResult(
-            guardedPage,
-            nextCursor,
-            folderFreshness,
-            filter.Selection.Scope.IncludesJunkMail);
+        return new ListEmailsResult(guardedPage, nextCursor, folderFreshness);
     }
 
     /// <summary>Scans the two things a summary carries that a message's author wrote.</summary>
@@ -203,9 +200,10 @@ public sealed class MailboxTimelineReader
     /// <summary>Validates the request's filters and restricts the query to the accounts this deployment serves.</summary>
     private async Task<EmailTimelineFilter> ReadableFilterAsync(ListEmailsRequest request, CancellationToken cancellationToken) => EmailTimelineFilter.Create(
         await this.scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             request.Accounts,
             request.Folders,
-            request.IncludeJunkMail ? JunkMailInclusion.Included : JunkMailInclusion.Excluded,
+            JunkMailInclusion.Excluded,
             cancellationToken),
         request.SenderAddress,
         request.RecipientAddress,

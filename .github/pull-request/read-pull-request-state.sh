@@ -12,9 +12,15 @@
 #   {"total": <how many pull requests matched>, "pull_requests": [ {...}, ... ]}
 #
 # and each pull request carries `number`, `mergeable`, `isDraft`, `state`, `labels`, `headRefOid`,
-# `reviews`, and `checks`. A review is `{author, state, body, submittedAt, commit}` and a check is
-# `{workflow, name, status, conclusion}`, both as GitHub spells them, which is what lets a fixture
-# stand in for the API in the contract suite.
+# `reviews`, `checks`, and `requiredChecks`. A review is `{author, state, body, submittedAt, commit}`
+# and a check is `{workflow, name, status, conclusion}`, both as GitHub spells them, which is what lets
+# a fixture stand in for the API in the contract suite.
+#
+# `requiredChecks` is the list of status check contexts the base branch's rules require before a
+# merge, read once from the branch rules and copied onto every pull request. It is the effective set
+# across every active ruleset, at whatever level each is configured, so the board waits on exactly
+# what the merge waits on. Because it is read from the rules rather than written here, a new workflow
+# decides the board only once a ruleset requires it.
 #
 # Two ways to ask, because two events answer different questions:
 #
@@ -148,6 +154,11 @@ projection='
 
 answer_file="$(mktemp)"
 
+required_checks="$(
+  "$call_github_api" "repos/${repository}/rules/branches/${base_branch}?per_page=100" \
+    --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | unique'
+)"
+
 if [[ -n "$pull_request_number" ]]; then
   "$call_github_api" graphql \
     -f owner="${repository%/*}" \
@@ -206,4 +217,5 @@ jq -r --argjson limit "$check_limit" \
    | "::notice::Pull request #\(.number) carries \(.checksTotal) checks and this run read the first \($limit)."' \
   <<< "$state" >&2
 
-jq 'del(.pull_requests[].checksTotal)' <<< "$state"
+jq --argjson required "$required_checks" \
+  '.pull_requests[] |= (del(.checksTotal) | .requiredChecks = $required)' <<< "$state"

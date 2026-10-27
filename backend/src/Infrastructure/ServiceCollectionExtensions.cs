@@ -7,6 +7,7 @@ using MailFathom.Application.Access.Credentials;
 using MailFathom.Application.Access.DefaultAdministrator;
 using MailFathom.Application.Access.Grants;
 using MailFathom.Application.Access.Organizations;
+using MailFathom.Application.Access.Organizations.SigningKeys;
 using MailFathom.Application.Access.Sessions;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
@@ -52,10 +53,13 @@ using MailFathom.Application.Emails.Extraction.Images;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Provenance;
+using MailFathom.Application.Emails.ReadSource;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Application.Emails.SearchEmails;
+using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Emails.ThreadStates;
@@ -77,6 +81,7 @@ using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Scheduling;
 using MailFathom.Application.Mail.Delivery.Screening;
+using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Application.Mail.Delivery.Submission;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Mail.Export;
@@ -106,10 +111,12 @@ using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.History;
+using MailFathom.Application.Spam.Marking;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Runs;
-using MailFathom.Application.Spam.Scanning;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
@@ -138,6 +145,8 @@ using MailFathom.Infrastructure.Mail.MailKit.Writes;
 using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.Infrastructure.Mail.Mime.Composition;
 using MailFathom.Infrastructure.Mail.OAuth;
+using MailFathom.Infrastructure.Mail.Signatures;
+using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.ObjectStorage;
 using MailFathom.Infrastructure.Observability;
 using MailFathom.Infrastructure.Persistence;
@@ -188,9 +197,9 @@ using MailFathom.Infrastructure.Security.ApiKeys;
 using MailFathom.Infrastructure.Security.ClientAssertions;
 using MailFathom.Infrastructure.Security.OAuth;
 using MailFathom.Infrastructure.Security.Passwords;
+using MailFathom.Infrastructure.Security.SigningKeys;
 using MailFathom.Infrastructure.SensitiveContent.PersonalData;
 using MailFathom.Infrastructure.SensitiveContent.Secrets;
-using MailFathom.Infrastructure.Spam;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -283,10 +292,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISecretReferenceResolver, CompositeSecretReferenceResolver>();
         // The loaders belong here rather than beside the mail adapter or the endpoint: they turn resolved bytes into
         // typed material and know nothing about IMAP or about hosting, so a future material kind joins them instead of
-        // touching a scheme adapter. The two are separate types because they enforce opposite rules about a private
-        // key — an anchor must not carry one, a server identity must.
+        // touching a scheme adapter. The first two are separate types because they enforce opposite rules about a
+        // private key — an anchor must not carry one, a server identity must — and the signing validators judge an
+        // account's signing identities against the address it sends from.
         services.AddSingleton<TrustAnchorLoader>();
         services.AddSingleton<TlsServerCertificateLoader>();
+        services.AddSingleton<SmimeSigningCertificateValidator>();
+        services.AddSingleton<OpenPgpSigningKeyValidator>();
 
         return services;
     }
@@ -500,6 +512,10 @@ public static class ServiceCollectionExtensions
         // the metadata write does on its way past, because both of those stages may still change what a message is.
         services.AddScoped<IStoredEmailChunkingStore, StoredEmailChunkingStore>();
         services.AddScoped<MailChunkingPass>();
+        // The end of an arrival: the pass that makes a message readable once its verdict and its rules have placed it,
+        // and announces it then rather than when synchronization committed it.
+        services.AddScoped<IMailSettlementStore, MailSettlementStore>();
+        services.AddScoped<MailSettlementPass>();
         // The reading of what a message's attachments say, and the pass that performs it. A stage behind the cut rather
         // than part of it, because it is the only one that parses octets a stranger composed and the only one that may
         // reach a provider — so a message reaches retrieval on its own words first and gains its attachments' words
@@ -630,6 +646,11 @@ public static class ServiceCollectionExtensions
         // The organizations users are grouped into and the membership that scopes a password's login. Scoped for the
         // reason the credential store is: it writes through the request's own context.
         services.AddScoped<IOrganizationStore, PersistedOrganizations>();
+        // The organizations' signing keys, and what generates and seals one. The minter is a singleton over the ring's own
+        // singletons; the store is scoped for the reason the organization store is, and the organization store mints the
+        // first key through the same minter in the transaction that records the organization.
+        services.AddSingleton<OrganizationSigningKeyMinter>();
+        services.AddScoped<IOrganizationSigningKeyStore, PersistedOrganizationSigningKeys>();
         // The settings policy the deployment and each organization hold. Scoped for the reason the organization store
         // is: it reads and writes through the request's own context.
         services.AddScoped<ISettingsPolicyStore, PersistedSettingsPolicies>();
@@ -671,6 +692,10 @@ public static class ServiceCollectionExtensions
         // it and a port registered here stay in one place.
         services.AddScoped<UserCredentialAdministration>();
         services.AddScoped<OrganizationAdministration>();
+        services.AddScoped<IOrganizationSigningKeyAuditor, LoggedOrganizationSigningKeyAuditor>();
+        services.AddScoped<OrganizationSigningKeyAdministration>();
+        services.AddScoped<OrganizationSigningKeyRenewal>();
+        services.AddSingleton<IOrganizationSigningKeyTelemetry, OrganizationSigningKeyTelemetry>();
         // Where a change to a role, a group, or an assignment is written down, and what an administrator does to them.
         services.AddScoped<IGrantAuditor, LoggedGrantAuditor>();
         services.AddScoped<GrantAdministration>();
@@ -862,6 +887,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailSpamClassificationStore, EmailSpamClassificationStore>();
         services.AddScoped<IClassifiableEmailReader, ClassifiableEmailReader>();
         services.AddScoped<ISpamActionOccurrenceReader, SpamActionOccurrenceReader>();
+        services.AddScoped<ISpamVerdictActStore, EmailSpamVerdictActStore>();
+        services.AddScoped<ISpamVerdictFloorCandidateReader, SpamVerdictFloorCandidateReader>();
         services.AddScoped<ISpamClassificationRunStore, SpamClassificationRunStore>();
         services.AddScoped<ISpamClassificationHistoryReader, SpamClassificationHistoryReader>();
         services.AddScoped<SpamClassificationRunReader>();
@@ -877,6 +904,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStoredEmailTimelineReader, StoredEmailTimelineReader>();
         services.AddScoped<IStoredEmailSummaryReader, StoredEmailSummaryReader>();
         services.AddScoped<IStoredEmailPreviewReader, StoredEmailPreviewReader>();
+        services.AddScoped<IEmailProvenanceReader, StoredEmailProvenanceReader>();
         services.AddScoped<IEmailThreadReader, StoredEmailThreadReader>();
         services.AddScoped<IStoredThreadStateReader, StoredThreadStateReader>();
         // Registered whatever the deployment decided about drafting, because it reads stored mail and nothing else:
@@ -962,6 +990,25 @@ public static class ServiceCollectionExtensions
             DnsDkimPublicKeyRecordResolver.CreateLookupClient(),
             provider.GetRequiredService<DkimPublicKeyRecordCache>(),
             provider.GetRequiredService<TimeProvider>()));
+        // The revocation answers and the client they are fetched through are process-wide for the reason the DKIM cache
+        // is: a cache per scope would ask the same responder about the same certificate once per folder run. The
+        // client keeps the standard resilience handler the service defaults add, so an OCSP request or a CRL download
+        // is retried and bounded like any other idempotent outbound read, and the checker holds the whole check to the
+        // configured deadline on top of that. Redirects are not followed: the addresses are plain HTTP, so whoever
+        // answers could otherwise send this process to any host, and only an address a trusted authority wrote into a
+        // certificate may reach the client. A redirect is no answer, which leaves the signature not verifiable.
+        services.AddHttpClient(CertificateRevocationChecker.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { AllowAutoRedirect = false })
+            .ConfigureHttpClient(static client =>
+                client.MaxResponseContentBufferSize = CertificateRevocationChecker.MaximumAnswerBytes);
+        services.AddSingleton(provider => new CertificateRevocationAnswerCache(provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton(provider => new CertificateRevocationChecker(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            provider.GetRequiredService<CertificateRevocationAnswerCache>(),
+            provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton(provider => new SecureMimeSignatureVerifier(
+            provider.GetRequiredService<CertificateRevocationChecker>(),
+            provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<IEmailMimeReader>(provider =>
         {
             // The local verification is handed to the parse only where this deployment verifies for itself, so a
@@ -979,7 +1026,18 @@ public static class ServiceCollectionExtensions
                     new MimeKitEmailMimeReader(
                         extractionOptions,
                         provider.GetRequiredService<ITrustedAuthenticationAuthorityReader>(),
-                        localSenderVerifier),
+                        localSenderVerifier,
+                        new EmailSignatureVerifier(
+                            provider.GetRequiredService<EmailSignatureTrustOptions>(),
+                            provider.GetRequiredService<TrustAnchorLoader>(),
+                            provider.GetRequiredService<ISecretReferenceResolver>(),
+                            provider.GetRequiredService<SecureMimeSignatureVerifier>()),
+                        // Unconditional, unlike the DNS-backed verification: it asks nothing outside the database,
+                        // and an account in no organization is answered by one indexed read before any key is.
+                        new OrganizationSignatureVerifier(
+                            new PersistedOrganizationSenderDirectory(
+                                new Lazy<MailFathomDbContext>(provider.GetRequiredService<MailFathomDbContext>)),
+                            provider.GetRequiredService<ISenderIdentityDirectory>())),
                     provider.GetRequiredService<ISenderTrustPolicyReader>()),
                 provider.GetRequiredService<MachineAuthorshipProfile>());
 
@@ -1036,6 +1094,17 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMailAccountCustodyStore, MailAccountCustodyStore>();
         services.AddScoped<IMailAccountCustodyAuditor, LoggedMailAccountCustodyAuditor>();
         services.AddScoped<MailAccountCustodySwitch>();
+
+        // Every act on a mailbox is carried by the custodian of the account's phase, and the resolver is the one reader
+        // of that phase. It takes each custodian lazily because they compose the collaborators that already do the work,
+        // and several of those reach the resolver again, so building all three eagerly would be a cycle.
+        services.AddScoped<MailboxCustodianResolver>();
+        services.AddScoped<MirroredMailboxCustodian>();
+        services.AddScoped<HeldMailboxCustodian>();
+        services.AddScoped<RestoringMailboxCustodian>();
+        services.AddScoped(provider => new Lazy<MirroredMailboxCustodian>(provider.GetRequiredService<MirroredMailboxCustodian>));
+        services.AddScoped(provider => new Lazy<HeldMailboxCustodian>(provider.GetRequiredService<HeldMailboxCustodian>));
+        services.AddScoped(provider => new Lazy<RestoringMailboxCustodian>(provider.GetRequiredService<RestoringMailboxCustodian>));
         services.AddScoped<LocalMailFolderEditor>();
         services.AddScoped<MirroredMailFolderEditor>();
         services.AddScoped<MailFolderEditor>();
@@ -1084,6 +1153,7 @@ public static class ServiceCollectionExtensions
         // A singleton for the reason every other instrument here is one: what it counts is a fact about the process, and
         // a scoped instance would create a meter per request.
         services.AddSingleton<IDerivedWorkGateTelemetry, DerivedWorkGateTelemetry>();
+        services.AddSingleton<IMailSettlementTelemetry, MailSettlementTelemetry>();
         services.AddSingleton<SensitiveContentEgressGuard>();
         // Its refusing counterpart, registered on the same terms and inert in the same two ways for the same user: no
         // redactor where nothing is switched on for them, and a policy that stops nothing where neither the deployment
@@ -1107,6 +1177,7 @@ public static class ServiceCollectionExtensions
         // whoever asked the question.
         services.AddScoped<CitationResolver>();
         services.AddScoped<EmailAttachmentDownloadReader>();
+        services.AddScoped<EmailSourceReader>();
         services.AddScoped<MailboxSearchReader>();
         services.AddScoped<MailSearchBrowser>();
     }
@@ -1115,25 +1186,16 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     private static void AddSpamClassification(IServiceCollection services)
     {
-        // Both halves of classification, registered for every deployment rather than only where it is switched on: what
-        // the switch decides is whether the classifier does anything, and the classifier asks the settings reader that.
-        // The scanner is the one dependency a supported deployment may not have — this change ships no implementation of
-        // the port at all — so it is asked for rather than injected, exactly as the embedding generator is.
+        // Registered for every deployment rather than only where it is switched on: what the switch decides is whether the
+        // classifier does anything, and the classifier asks the settings reader that.
         services.AddScoped<DeterministicSpamClassifier>();
-        services.AddScoped(provider => new EmailSpamClassifier(
-            provider.GetRequiredService<IClassifiableEmailReader>(),
-            provider.GetRequiredService<IEmailContentStore>(),
-            provider.GetRequiredService<IEmailSpamHeaderReader>(),
-            provider.GetRequiredService<IJunkMailFolderCatalog>(),
-            provider.GetRequiredService<DeterministicSpamClassifier>(),
-            provider.GetRequiredService<ISpamClassificationSettingsReader>(),
-            provider.GetRequiredService<IEmailSpamClassificationStore>(),
-            provider.GetRequiredService<IEmailChunkStore>(),
-            provider.GetRequiredService<IStoredEmailAttachmentTextStore>(),
-            provider.GetRequiredService<IDerivedWorkGateTelemetry>(),
-            provider.GetRequiredService<OptimisticConcurrencyRetryPolicy>(),
-            provider.GetRequiredService<TimeProvider>(),
-            provider.GetService<ISpamScanner>()));
+        // The model stage is composed for every deployment too: whether it asks anything is the account's switch and the
+        // judge the AI boundary registers, so with neither it reads one property and returns the deterministic record.
+        services.AddSingleton<ISpamModelStageTelemetry, SpamModelStageTelemetry>();
+        services.TryAddSingleton(SpamModelStageBounds.Default);
+        services.AddScoped<SpamModelEvidenceReader>();
+        services.AddScoped<SpamModelStage>();
+        services.AddScoped<EmailSpamClassifier>();
         // The ordering that puts classification in front of chunking, embedding, and rule evaluation. Registered for
         // every deployment because the paths that obey it are unconditional: with classification off the gate admits
         // everything and every one of them behaves exactly as it did before the gate existed.
@@ -1239,6 +1301,7 @@ public static class ServiceCollectionExtensions
             provider.GetService<IAgentConversationSummarizer>(),
             answeringBudget.Context,
             provider.GetRequiredService<IMailAnsweringSpendLedger>(),
+            provider.GetRequiredService<INotificationStore>(),
             provider.GetRequiredService<ClientSignals>(),
             provider.GetRequiredService<IUserLanguages>(),
             provider.GetRequiredService<TimeProvider>()));
@@ -1361,15 +1424,22 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthoredMailboxTargetReader, AuthoredMailboxTargetReader>();
         services.AddScoped<ILocalEmailStateStore, LocalEmailStateStore>();
 
-        // The held account's copy act, beside the submission that chooses it: it writes the second stored message a
-        // copy produces, which is why it holds the stores a message is written through rather than only the state store.
+        // The local commit both local custodians carry a change on a message through, and the copy act beside it: it
+        // writes the second stored message a copy produces, which is why it holds the stores a message is written through
+        // rather than only the state store.
         services.AddScoped<LocalMailCopier>();
+        services.AddScoped<LocalMailboxChanges>();
         services.AddScoped<MailboxChangeSubmission>();
         services.AddScoped<MailFlagChangeRecorder>();
 
         // The relocation half of what a caller may author, beside the flag half and registered the same way: it writes
         // a record and holds nothing that could reach a mail server, so the account's own pass carries the move.
         services.AddScoped<MailRelocationRecorder>();
+
+        // The person's own spam verdict, beside the moves because a move into the junk folder is one: the writer is
+        // what both acts record the verdict and its keywords through, and the recorder is the act of marking itself.
+        services.AddScoped<SpamMarkWriter>();
+        services.AddScoped<SpamMarkRecorder>();
 
         // The deleting half beside them, and registered the same way for the same reason. Its grant is its own: filing
         // mail in the trash is reversible and this is not, so a deployment decides the two separately.
@@ -1407,6 +1477,10 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<EmailAttachmentTextBounds>(),
             provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<OutgoingMailScreening>();
+        // What signs a message for its account's organization before the outbox stores it. Scoped because the reading of
+        // the account's organization and its key goes through the request's own context.
+        services.AddScoped<IAccountSigningKeyReader, PersistedAccountSigningKeys>();
+        services.AddScoped<IOrganizationMailSigner, OrganizationMailSigner>();
         services.AddScoped<MailOutbox>();
         // The operator's view of the same records, registered beside the outbox rather than with the administrative
         // endpoint that serves it today: the grant is asked in the use case, so a second entrypoint reaching it is
@@ -1523,6 +1597,7 @@ public static class ServiceCollectionExtensions
         // so a row nobody announced and an announcement of a row nobody kept are both unreachable.
         services.AddScoped<NotificationRaiser>();
         services.AddScoped<SynchronizationNotifications>();
+        services.AddScoped<MailFailureNotifications>();
         services.AddScoped<NotificationRetention>();
         services.AddScoped<OwnNotifications>();
         // What a person owes, native to this deployment. Scoped like every other store: a write that has a read to
@@ -1570,6 +1645,7 @@ public static class ServiceCollectionExtensions
         // scope, over every account the deployment is putting back.
         services.AddSingleton<IMailboxRestoreTelemetry, MailboxRestoreTelemetry>();
         services.AddScoped<MailboxDestinationResolver>();
+        services.AddScoped<OnDemandMailboxDestinationResolver>();
         services.AddScoped<IRemoteFolderCatalog>(provider => new MailKitRemoteFolderCatalog(
             MailKitImapClientFactory.CreateWithoutProtocolLogging,
             provider.GetRequiredService<IImapAccountSettingsProvider>(),
@@ -1772,45 +1848,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISensitiveContentScanner, PresidioContentScanner>();
         services.AddSingleton<IPersonalDataAnalyzerProbe, PresidioAnalyzerProbe>();
         AddPersonalDataAnalyzerClient(services);
-
-        return services;
-    }
-
-    /// <summary>Registers the spam scanner, which scores whole messages against a daemon deployed beside this service.</summary>
-    /// <param name="services">The service collection.</param>
-    /// <returns>The service collection, for chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services" /> is <see langword="null" />.</exception>
-    /// <remarks>
-    /// <para>
-    /// Called only where the scanner switch is on, which is what makes an opt-in nobody took cost nothing: with it off
-    /// none of these descriptors exists, no address is read, and <see cref="EmailSpamClassifier" />
-    /// resolves no scanner and classifies through the deterministic stage alone. The composed
-    /// <see cref="SpamAssassinScannerProfile" /> is the host's to register, because where the daemon is comes from
-    /// configuration this project does not bind.
-    /// </para>
-    /// <para>
-    /// The probe is registered beside the scanner rather than always, because startup refuses a switch that is on with
-    /// nothing behind it, and either one present without the other would turn that refusal into a deployment that scores
-    /// nothing and says so nowhere.
-    /// </para>
-    /// <para>
-    /// All three are singletons, and the conversation is the reason: it holds the concurrency permits that bound this
-    /// process against the daemon, and the corpus identity the startup probe establishes for every scan afterwards. Two
-    /// instances would be two of each, so the scanner and the probe are handed the same one.
-    /// </para>
-    /// <para>
-    /// No <c>IHttpClientFactory</c> registration appears here, unlike every other outbound dependency: the daemon speaks
-    /// its own line protocol on a TCP port rather than HTTP, so there is no handler chain to bound and the bounds live in
-    /// the profile the conversation reads.
-    /// </para>
-    /// </remarks>
-    public static IServiceCollection AddSpamAssassinScanning(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.AddSingleton<SpamAssassinDaemon>();
-        services.AddSingleton<ISpamScanner, SpamAssassinScanner>();
-        services.AddSingleton<ISpamScannerProbe, SpamAssassinScannerProbe>();
 
         return services;
     }

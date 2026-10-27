@@ -6,8 +6,8 @@ import { useEffect, type ReactElement } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
-import { ComposingContext } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
+import { ToastsProvider } from '../toasts/Toasts';
 import {
     ReadMarkingContext,
     nothingMarkedRead,
@@ -15,12 +15,12 @@ import {
     type ReadMarking,
 } from '../readMarking/useReadMarking';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
-import { ReplyDraftingContext, type ReplyDrafting } from '../threadAgent/replyDrafting';
 import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import type { OpenConversation } from '../workspace/openConversation';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { Thread } from './Thread';
+import { listedSender } from '../../../../tests/fixtures/senders';
 
 // The network boundary is the transport and it is the whole of what these tests fake, so the routes the conversation
 // asks for, the parsing that reads the answers, and the failure mapping are all under test rather than replaced.
@@ -101,6 +101,7 @@ function row(id: string, overrides: Readonly<Record<string, unknown>> = {}): Rea
         attachmentCount: 0,
         sizeOctets: 1_024,
         preview: `What ${id} added.`,
+        sender: listedSender('unrecognized'),
         ...overrides,
     };
 }
@@ -123,7 +124,39 @@ function describing(id: string, unread: boolean): Readonly<Record<string, unknow
             references: [],
         },
         body: { availability: 'Readable', plainText: true, html: false },
-        sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            authenticatedDomain: null,
+            authenticationSource: 'ReceivingServer',
+            dkimDomain: null,
+            spfDomain: null,
+            dmarc: 'NotReported',
+            trustSource: null,
+            trustOrganization: null,
+        },
+        signature: {
+            outcome: 'NotSigned',
+            format: null,
+            secureMimeType: null,
+            unverifiableReason: null,
+            signedAt: null,
+            steps: {
+                content: 'NotChecked',
+                authority: 'NotChecked',
+                validity: 'NotChecked',
+                revocation: 'NotChecked',
+                signer: 'NotChecked',
+            },
+            trustAnchor: null,
+            chainEnd: null,
+            validityFailure: null,
+            revocationMethod: null,
+            revocationCheckedAt: null,
+            revokedAt: null,
+            signerMatchesAuthor: false,
+            signer: null,
+        },
         attachments: [],
         carried: null,
         unread,
@@ -165,7 +198,10 @@ function pageOf(
             // carrying neither field — which is the gap a conversation is still drawn with.
             ...(unopened.includes(id)
                 ? {}
-                : { message: describing(id, rows[id]?.['unread'] === true), body: saying(id) }),
+                : {
+                      message: { ...describing(id, rows[id]?.['unread'] === true), spam: rows[id]?.['spam'] ?? null },
+                      body: saying(id),
+                  }),
         })),
         participants: [
             { address: 'auditor@example.invalid', displayName: 'The auditor', messageCount: 2 },
@@ -257,23 +293,25 @@ function inTheFrame(
 ): ReactElement {
     return (
         <LocalizationProvider>
-            <WorkspaceProvider>
-                <HidesThePanels hidden={panelsHidden} />
-                {selection === null ? null : <Selecting selection={selection} />}
-                <LinkOpenerContext value={() => Promise.resolve()}>
-                    <ReadMarkingContext value={marking}>
-                        <Thread
-                            session={session}
-                            transport={transport}
-                            conversation={conversation}
-                            online={online}
-                            expandWholeThread={expandWholeThread}
-                            onShowFullHtml={() => undefined}
-                            foot={foot}
-                        />
-                    </ReadMarkingContext>
-                </LinkOpenerContext>
-            </WorkspaceProvider>
+            <ToastsProvider>
+                <WorkspaceProvider>
+                    <HidesThePanels hidden={panelsHidden} />
+                    {selection === null ? null : <Selecting selection={selection} />}
+                    <LinkOpenerContext value={() => Promise.resolve()}>
+                        <ReadMarkingContext value={marking}>
+                            <Thread
+                                session={session}
+                                transport={transport}
+                                conversation={conversation}
+                                online={online}
+                                expandWholeThread={expandWholeThread}
+                                onShowFullHtml={() => undefined}
+                                foot={foot}
+                            />
+                        </ReadMarkingContext>
+                    </LinkOpenerContext>
+                </WorkspaceProvider>
+            </ToastsProvider>
         </LocalizationProvider>
     );
 }
@@ -356,6 +394,47 @@ describe('Thread', () => {
         expect(await screen.findByText(said)).toBeDefined();
     });
 
+    // A conversation standing on spam is read-only: nothing derives where it stands, and nothing hands it to the agent.
+    const scam = {
+        verdict: 'Spam',
+        decidedBy: 'Model',
+        spamSubcategory: 'Scam',
+        spamSubcategoryNamedBy: 'Model',
+        phishingRequest: null,
+        impersonatedParty: null,
+    };
+
+    it('draws neither where it stands nor the AI button under a conversation opened on a spam message', async () => {
+        drawing(
+            deploymentAnswering(pageOf(['one'], {}, { one: { spam: scam } })),
+            { threadId, openAt: null },
+            true,
+            nothingMarkedRead,
+            false,
+            false,
+            footSaying,
+        );
+
+        expect(await screen.findByText(/^Scam\. This message is spam/u)).toBeDefined();
+        expect(screen.queryByRole('region', { name: 'Where this conversation stands' })).toBeNull();
+        expect(screen.queryByText(`${threadId} · The quarterly figures`)).toBeNull();
+    });
+
+    it('draws where it stands and the AI button under a conversation opened on an ordinary message', async () => {
+        drawing(
+            deploymentAnswering(pageOf(['one'])),
+            { threadId, openAt: null },
+            true,
+            nothingMarkedRead,
+            false,
+            false,
+            footSaying,
+        );
+
+        expect(await screen.findByText(`${threadId} · The quarterly figures`)).toBeDefined();
+        expect(screen.getByRole('region', { name: 'Where this conversation stands' })).toBeDefined();
+    });
+
     it('draws the latest message and hides every earlier one behind the control that names how many there are', async () => {
         drawing(deploymentAnswering(pageOf(['one', 'two', 'three'])));
 
@@ -420,44 +499,6 @@ describe('Thread', () => {
         expect(await screen.findByText('The whole of what one says.')).toBeDefined();
         expect(screen.getAllByRole('listitem')).toHaveLength(3);
         expect(screen.getByRole('button', { name: 'Hide earlier messages' })).toBeDefined();
-    });
-
-    // The reply answers the message the conversation was opened at, and with the history shown that is no longer the
-    // last one drawn — so the end of the thread would put it under a later message it does not answer.
-    it('draws a reply drafted for the message it was opened at under that message, with the history shown', async () => {
-        const drafting: ReplyDrafting = {
-            draft: { answering: 'two', body: 'Thank you, the figures reconcile.' },
-            draftReply: () => undefined,
-            letGo: () => undefined,
-            holdField: () => undefined,
-            returnToField: () => undefined,
-        };
-
-        render(
-            <ComposingContext
-                value={{ offered: true, drafts: true, opening: null, compose: () => undefined, close: () => undefined }}
-            >
-                <ReplyDraftingContext value={drafting}>
-                    {inTheFrame(
-                        deploymentAnswering(pageOf(['one', 'two', 'three'])),
-                        { threadId, openAt: 'two' },
-                        true,
-                        nothingMarkedRead,
-                        false,
-                        false,
-                        'two',
-                    )}
-                </ReplyDraftingContext>
-            </ComposingContext>,
-        );
-
-        expect(await screen.findByText('The whole of what two says.')).toBeDefined();
-        fireEvent.click(screen.getByRole('button', { name: 'Show all the messages' }));
-
-        const answered = screen.getByRole('region', { name: 'Draft · local' }).closest('li');
-
-        expect(screen.getAllByRole('region', { name: 'Draft · local' })).toHaveLength(1);
-        expect(answered?.textContent).toContain('The whole of what two says.');
     });
 
     it('still hides the history from a reader who asked for it expanded and then pressed the control', async () => {

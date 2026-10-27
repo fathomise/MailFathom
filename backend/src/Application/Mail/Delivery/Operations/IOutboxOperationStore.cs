@@ -2,25 +2,29 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Mail.Delivery.Tracking;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 
 namespace MailFathom.Application.Mail.Delivery.Operations;
 
-/// <summary>Reads an outbox as an operator sees it, and carries out the two decisions they can take about one send.</summary>
+/// <summary>Reads an outbox as an operator and as an account's user see it, and carries out the three decisions about one send.</summary>
 /// <remarks>
 /// <para>
 /// Separate from <see cref="IOutgoingEmailStore" /> because the callers are separate, for the reason the dead-letter
 /// store is separate from the job store. That contract is the delivery attempt's, and every write on it names the lease
-/// the calling attempt holds; nothing here holds a lease, because an operator is not an attempt. Folding the two
-/// together would put an operator's decision behind a lease owner it would have to invent, and would widen the surface a
-/// worker sees to include writes no worker may make.
+/// the calling attempt holds; nothing here holds a lease, because a decision is not an attempt. Folding the two together
+/// would put a decision behind a lease owner it would have to invent, and would widen the surface a worker sees to
+/// include writes no worker may make.
 /// </para>
 /// <para>
-/// Both decisions are conditional on the record still being in the state the decision applies to, and on no live lease
-/// holding it. That is what makes them safe to repeat and safe to race: an operator acting on a listing a few minutes
-/// old, or two terminals acting together, produce one change and one refusal that says what happened instead — rather
-/// than a cancellation that lands while a worker is offering the message to a server.
+/// Every decision — withdrawing a send, offering it again, and dismissing it — is conditional on the record still being
+/// in the state the decision applies to, and on no live lease holding it. That is what makes them safe to repeat and
+/// safe to race: a caller acting on a listing a few minutes old, or two callers acting together, produce one change and
+/// one refusal that says what happened instead — rather than a cancellation that lands while a worker is offering the
+/// message to a server, or a dismissal undone by a requeue that read the record before it.
 /// </para>
 /// </remarks>
 public interface IOutboxOperationStore
@@ -45,6 +49,28 @@ public interface IOutboxOperationStore
     /// </remarks>
     Task<OutboxPage> ReadPageAsync(OutboxQuery query, CancellationToken cancellationToken);
 
+    /// <summary>Serves one bounded page of one account's outbox: what has not left, and what was refused and not dismissed.</summary>
+    /// <param name="query">The account, the stage among the outbox's to narrow to, and how the page is continued.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The page, newest first, and the boundary the next one is asked with where the outbox continues.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="query" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when the query names no account, or a stage the outbox does not hold.</exception>
+    /// <remarks>
+    /// Unlike <see cref="ReadPageAsync" />, this reads who each send is for and what it is about, because it serves the
+    /// person whose mail it is rather than an operator; the use case in front of it is what decides that the caller may
+    /// read it. A subject an earlier build did not keep is answered absent rather than read from the message here.
+    /// </remarks>
+    Task<AccountOutboxPage> ReadAccountOutboxAsync(OutboxQuery query, CancellationToken cancellationToken);
+
+    /// <summary>Counts what each named account's outbox holds.</summary>
+    /// <param name="accounts">The accounts to count.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>One count per account named, in no particular order, zero where an account's outbox holds nothing.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accounts" /> is <see langword="null" />.</exception>
+    Task<IReadOnlyList<AccountOutboxCount>> CountAccountOutboxesAsync(
+        IReadOnlyCollection<MailAccountId> accounts,
+        CancellationToken cancellationToken);
+
     /// <summary>Withdraws one send that has not begun transmitting.</summary>
     /// <param name="outgoingEmailId">The send to cancel.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
@@ -67,6 +93,7 @@ public interface IOutboxOperationStore
     /// <summary>Puts one send back where the next delivery pass claims it, with its attempts given back.</summary>
     /// <param name="outgoingEmailId">The send to offer again.</param>
     /// <param name="refusalRestated">Whether the caller has restated a permanent refusal, which is what a refused send needs before it is offered again.</param>
+    /// <param name="reachesDismissedSend">Whether a dismissed send may be offered again, which is the operator's decision alone.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>What happened to the send.</returns>
     /// <remarks>
@@ -89,16 +116,74 @@ public interface IOutboxOperationStore
     /// still says why it stopped until something newer replaces it, and the recipients keep the answers they already
     /// have: an address a server settled is never offered a second time, whoever asked for the send to run again.
     /// </para>
+    /// <para>
+    /// A dismissed send is reached only when <paramref name="reachesDismissedSend" /> says so, and the dismissal is then
+    /// cleared, because a send offered again is back in its account's outbox whatever somebody decided about it before.
+    /// Otherwise the dismissal is a condition of the statement, so one committed between a caller's read and this write
+    /// is never undone by it.
+    /// </para>
     /// </remarks>
     Task<OutboxDecisionOutcome> RequeueAsync(
         OutgoingEmailId outgoingEmailId,
         bool refusalRestated,
+        bool reachesDismissedSend,
+        CancellationToken cancellationToken);
+
+    /// <summary>Takes one refused send, or one whose outcome nobody will learn, out of its account's outbox.</summary>
+    /// <param name="outgoingEmailId">The send to dismiss.</param>
+    /// <param name="dismissedBy">The user deciding.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>What happened to the send.</returns>
+    /// <remarks>
+    /// <para>
+    /// It records the dismissal and changes nothing else: the stage stays where it stood and the recipients keep what
+    /// each server said. Two stages reach it — <see cref="OutgoingEmailStage.Refused" />, and
+    /// <see cref="OutgoingEmailStage.TransmissionBegun" /> where no live lease holds the send — and a send already
+    /// dismissed is refused as one the decision no longer applies to.
+    /// </para>
+    /// <para>
+    /// A send at <see cref="OutgoingEmailStage.TransmissionBegun" /> that a lease holds is being transmitted right now,
+    /// and dismissing it would hide an outcome that is about to be known, so it is refused as an attempt under way.
+    /// </para>
+    /// </remarks>
+    Task<OutboxDecisionOutcome> DismissAsync(
+        OutgoingEmailId outgoingEmailId,
+        UserId dismissedBy,
+        CancellationToken cancellationToken);
+
+    /// <summary>Takes one refused send back to the draft it was sent from, so the person can edit it, and takes it out of the outbox.</summary>
+    /// <param name="outgoingEmailId">The send to take back.</param>
+    /// <param name="reopenedBy">The user deciding, whose draft it has to have been.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>What happened to the send, with the draft it was taken back into where it was.</returns>
+    /// <remarks>
+    /// <para>
+    /// The draft is given back and the send dismissed in one write, so the message is in exactly one of the two places
+    /// ADR 0040 allows it to be: an editable draft beside a send still standing in the outbox could be sent twice. The
+    /// dismissal is the ordinary one — the stage stays <see cref="OutgoingEmailStage.Refused" /> and the recipients keep
+    /// what each server said — and the draft is the one the send was promoted from, unchanged, so its words, its
+    /// attachments, and its copy in the drafts folder are what they were when it was sent.
+    /// </para>
+    /// <para>
+    /// Only a refused send nobody dismissed is reached, and only where it was written from a draft the deciding user
+    /// holds; any other send answers <see cref="OutboxDecisionOutcome.NoDraftToReopen" />, and a send no longer refused
+    /// answers as every other decision does.
+    /// </para>
+    /// </remarks>
+    Task<OutboxReopening> ReopenAsDraftAsync(
+        OutgoingEmailId outgoingEmailId,
+        UserId reopenedBy,
         CancellationToken cancellationToken);
 }
 
-/// <summary>States what became of a send an operator decided about.</summary>
+/// <summary>What became of a refused send somebody asked to take back to its draft.</summary>
+/// <param name="Outcome">What happened to the send.</param>
+/// <param name="Draft">The draft the send was taken back into, which is present exactly when the outcome is <see cref="OutboxDecisionOutcome.Accepted" />.</param>
+public sealed record OutboxReopening(OutboxDecisionOutcome Outcome, MailDraftId? Draft);
+
+/// <summary>States what became of a send an operator or an account's user decided about.</summary>
 /// <remarks>
-/// One set for both decisions, because what the refusals say is the same in both: a send this deployment does not hold,
+/// One set for every decision, because what the refusals say is the same in each: a send this deployment does not hold,
 /// a send that has moved past the point the decision applies at, and a send an attempt is holding right now. Which
 /// decision was asked for is already the method that was called.
 /// </remarks>
@@ -113,8 +198,9 @@ public enum OutboxDecisionOutcome
     /// <summary>The send has moved past the point at which the decision could be taken.</summary>
     /// <remarks>
     /// For a cancellation it is a send whose transmission has begun or which has already reached a terminal stage; for a
-    /// re-queue it is one that was delivered or withdrawn. It is the answer to a second terminal acting on a listing
-    /// the first one has already acted on.
+    /// re-queue it is one that was delivered or withdrawn, or one that was dismissed where the caller may not reach a
+    /// dismissal; for a dismissal it is one still waiting to be attempted, one that was delivered or withdrawn, or one
+    /// already dismissed. It is the answer to a second caller acting on a listing the first one has already acted on.
     /// </remarks>
     StageDoesNotAllowIt = 2,
 
@@ -125,4 +211,8 @@ public enum OutboxDecisionOutcome
     /// <summary>The send was permanently refused and the caller did not restate that refusal.</summary>
     /// <remarks>It is a re-queue's refusal alone. What the record says is that a server will not take this message, and offering it again is a decision to disbelieve that rather than a retry.</remarks>
     RefusalNotRestated = 4,
+
+    /// <summary>The send was not written from a draft the caller holds, so there is no draft to take it back into.</summary>
+    /// <remarks>It is the answer to taking back a send a rule or an agent wrote, or one another user wrote from their own draft.</remarks>
+    NoDraftToReopen = 5,
 }

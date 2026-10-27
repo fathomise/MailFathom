@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Agent.Answering;
 
@@ -18,4 +19,12 @@ namespace MailFathom.Application.Agent.Answering;
 public sealed record AgentAnswerBrief(
     AgentQuestion Question,
     UserLanguage Language,
-    IReadOnlyList<AgentHistoryTurn> History);
+    IReadOnlyList<AgentHistoryTurn> History)
+{
+    /// <summary>Gets the messages the question's scope names, which only a scope naming a merged arrival notification does.</summary>
+    /// <remarks>
+    /// Read when the answer is composed, under the asker's identity, so a scope naming a notification the asker does not
+    /// hold names nothing — exactly as one naming a notification nobody holds.
+    /// </remarks>
+    public IReadOnlyList<StoredEmailId> NamedEmails { get; init; } = [];
+}

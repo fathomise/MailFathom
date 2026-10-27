@@ -4,9 +4,9 @@
 
 using System.Text.Json;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
-using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
@@ -237,7 +237,13 @@ public sealed class ClientManagedMailFoldersEndpointTests
             sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(session);
 
             var store = Substitute.For<ILocalMailFolderStore>();
-            var holding = new LocalMailFolderHolding(phase, phase is MailAccountCustodyPhase.Mirrored ? [] : ProtectedFolders(), []);
+            var holding = new LocalMailFolderHolding(phase is MailAccountCustodyPhase.Mirrored ? [] : ProtectedFolders(), []);
+            var custody = Substitute.For<IMailAccountCustodyStore>();
+            var state = new MailAccountCustodyState(
+                phase is MailAccountCustodyPhase.Held ? MailAccountCustody.HoldMailbox : MailAccountCustody.MirrorSource,
+                phase);
+            custody.ReadAsync(Account, Arg.Any<CancellationToken>()).Returns(state);
+            custody.ReadAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<CancellationToken>()).Returns(state);
             store.ReadAsync(Account, Arg.Any<CancellationToken>()).Returns(holding);
             store.ReadAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<CancellationToken>()).Returns(holding);
             store.ReadFoldersAsync(Account, Arg.Any<CancellationToken>()).Returns(holding.Folders);
@@ -257,37 +263,18 @@ public sealed class ClientManagedMailFoldersEndpointTests
             var accounts = Substitute.For<ICallerMailAccountCatalog>();
             accounts.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Account)]);
 
-            this.Editor = new MailFolderEditor(
-                new LocalMailFolderEditor(
-                    store,
-                    new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), clock),
-                    Substitute.For<ILocalMailFolderChangeAuditor>(),
-                    this.signals,
-                    Substitute.For<IJobStore>(),
-                    authorization,
-                    clock),
-                new MirroredMailFolderEditor(
-                    Substitute.For<IMailFolderMappingReader>(),
-                    Substitute.For<IMailFolderResolutionStore>(),
-                    declarations,
-                    Substitute.For<IRemoteFolderCreator>(),
-                    Substitute.For<IRemoteFolderEditor>(),
-                    transportPolicies,
-                    Substitute.For<IAuthoredFolderDeleteDispositionReader>(),
-                    this.signals,
-                    Substitute.For<IJobStore>(),
-                    authorization,
-                    new MailFolderResolver(
-                        Substitute.For<IRemoteFolderCatalog>(),
-                        Substitute.For<IRemoteFolderCreator>(),
-                        Substitute.For<IMailFolderResolutionStore>(),
-                        Substitute.For<IMailFolderMappingChangeAuditor>(),
-                        sessionFactory,
-                        this.signals,
-                        clock)),
-                authorization,
-                accounts,
-                store);
+            var composition = new MailboxCustodianComposition(clock)
+            {
+                Custody = custody,
+                LocalFolders = store,
+                PersistenceSessions = sessionFactory,
+                Signals = this.signals,
+                Authorization = authorization,
+                Declarations = declarations,
+                TransportPolicies = transportPolicies,
+            };
+
+            this.Editor = new MailFolderEditor(composition.Custodians, authorization, accounts);
         }
 
         internal MailFolderEditor Editor { get; }

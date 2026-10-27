@@ -194,7 +194,7 @@ gh api -X POST repos/fathomise/MailFathom/milestones -f title='<next>'          
 gh issue list --repo fathomise/MailFathom --milestone '<next>' --state all \
   --search 'Cut and publish in:title' --json number,title
 gh issue create --repo fathomise/MailFathom --title 'Cut and publish the <next> release' \
-  --label type:workflow --milestone '<next>' --body-file <body>    # only when the search found none
+  --type Workflow --milestone '<next>' --body-file <body>    # only when the search found none
 
 # What to move: open issues in the milestone being released, minus the tracking issue. `/issues` returns pull
 # requests as well, so both exclusions are the query's rather than the reader's to remember.
@@ -207,7 +207,7 @@ gh api -X PATCH "repos/fathomise/MailFathom/milestones/<old>" -f state=closed
 
 The new issue is placed like any other, through the calls `docs/operations/issue-tracking.md` § *Board fields* holds:
 `Area: Release`, `Queue: Later` — it names a release nobody is cutting yet, and step 6 is what moves it to `Next` when
-its pull requests exist — and `Size: S`, which is what that page's rule gives anything that is not `type:feature`. The
+its pull requests exist — and `Size: S`, which is what that page's rule gives anything that is not a `Feature`. The
 measured value the field otherwise carries does not reach this issue: this skill opens its own pull requests rather than
 going through `$finish-change`, so the placeholder is what stands. It is the right band anyway, both diffs together being
 a changelog section, three prose files, one property, and the lock files.
@@ -548,8 +548,7 @@ the tag and closes when the release is actually finished.
 **Then set `Queue: Next` on the tracking issue.** `docs/operations/issue-tracking.md` § *Linking a pull request to its
 issue* makes that write part of opening a pull request, and it is this skill's to perform: `$finish-change` is what
 writes it everywhere else, and no step here invokes it. Without the write the release is the one piece of work in
-flight that the board's `Now` view cannot see, for exactly the weeks it is being cut. It sits outside the owner's
-five-slot cap, as every write triggered by a pull request does.
+flight that the board's `Now` view cannot see, for exactly the weeks it is being cut.
 
 ```bash
 gh project field-list 1 --owner fathomise --format json   # field ids and option ids

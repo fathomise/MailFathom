@@ -94,14 +94,21 @@ function lifetimeBar(): HTMLElement | null {
     return screen.getByRole('listitem').querySelector<HTMLElement>('span[aria-hidden="true"]');
 }
 
-/** A finger landing on the card, travelling, and lifting again. What it lands on is anything the card draws. */
-function swipe(swiped: HTMLElement, across: number, down: number, pointerType = 'touch'): void {
-    const landed = { pointerId: 1, pointerType, clientX: 0, clientY: 0 };
-    const travelled = { pointerId: 1, pointerType, clientX: across, clientY: down };
+/** A pointer landing on the card and travelling, still held. What it lands on is anything the card draws. */
+function carry(swiped: HTMLElement, across: number, down: number, pointerType = 'touch'): void {
+    fireEvent.pointerDown(swiped, { pointerId: 1, pointerType, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(swiped, { pointerId: 1, pointerType, clientX: across, clientY: down });
+}
 
-    fireEvent.pointerDown(swiped, landed);
-    fireEvent.pointerMove(swiped, travelled);
-    fireEvent.pointerUp(swiped, travelled);
+/** A pointer landing on the card, travelling, and lifting again. */
+function swipe(swiped: HTMLElement, across: number, down: number, pointerType = 'touch'): void {
+    carry(swiped, across, down, pointerType);
+    fireEvent.pointerUp(swiped, { pointerId: 1, pointerType, clientX: across, clientY: down });
+}
+
+/** A toast standing for a notification, which is pressed as a whole to open what it is about. */
+function raiseOpening(opened: () => void): void {
+    raise({ kind: 'info', title: 'Ada Lovelace', body: 'About the engine', opens: { label: 'Show', take: opened } });
 }
 
 const packing: Operation = {
@@ -315,14 +322,113 @@ describe('ToastsProvider', () => {
         expect(standing()).toHaveLength(1);
     });
 
-    it('stays where a mouse was dragged across it, the close control being what a pointer has', () => {
+    it('is dismissed by a mouse dragged across it as well, the close control staying beside the gesture', () => {
         drawSurface();
 
         raise({ kind: 'neutral', title: 'Three threads archived' });
-        swipe(screen.getByText('Three threads archived'), swipeDistance, 0, 'mouse');
+        swipe(screen.getByText('Three threads archived'), -swipeDistance, 0, 'mouse');
+        pass(toastLeaving);
+
+        expect(standing()).toHaveLength(0);
+    });
+
+    it('stays where it is let go short of the threshold', () => {
+        drawSurface();
+
+        raise({ kind: 'neutral', title: 'Three threads archived' });
+        swipe(screen.getByText('Three threads archived'), swipeDistance - 1, 0, 'mouse');
         pass(toastLeaving);
 
         expect(standing()).toHaveLength(1);
+    });
+
+    it('forgets a press whose pointer left the card before it moved, so passing over the card later drags nothing', () => {
+        drawSurface();
+
+        raise({ kind: 'neutral', title: 'Three threads archived' });
+
+        const card = screen.getByText('Three threads archived');
+
+        // Pressed, then let go somewhere else: the release never reaches the card.
+        fireEvent.pointerDown(card, { pointerId: 1, pointerType: 'mouse', clientX: 0, clientY: 0 });
+        fireEvent.pointerLeave(card, { pointerId: 1, pointerType: 'mouse', clientX: -5, clientY: 0 });
+        fireEvent.pointerMove(card, { pointerId: 1, pointerType: 'mouse', clientX: swipeDistance, clientY: 0 });
+        fireEvent.pointerUp(card, { pointerId: 1, pointerType: 'mouse', clientX: swipeDistance, clientY: 0 });
+        pass(toastLeaving);
+
+        expect(standing()).toHaveLength(1);
+
+        // And the next press is a press like any other.
+        swipe(card, swipeDistance, 0, 'mouse');
+        pass(toastLeaving);
+
+        expect(standing()).toHaveLength(0);
+    });
+
+    it('stays where a right button was dragged across it, which is not a drag', () => {
+        drawSurface();
+
+        raise({ kind: 'neutral', title: 'Three threads archived' });
+
+        const card = screen.getByText('Three threads archived');
+
+        fireEvent.pointerDown(card, { pointerId: 1, pointerType: 'mouse', button: 2, clientX: 0, clientY: 0 });
+        fireEvent.pointerMove(card, { pointerId: 1, pointerType: 'mouse', clientX: swipeDistance, clientY: 0 });
+        fireEvent.pointerUp(card, { pointerId: 1, pointerType: 'mouse', clientX: swipeDistance, clientY: 0 });
+        pass(toastLeaving);
+
+        expect(standing()).toHaveLength(1);
+    });
+
+    it('opens what a notification is about when its card is pressed, and draws no button for it', () => {
+        drawSurface();
+
+        const opened = vi.fn();
+
+        raiseOpening(opened);
+
+        // One control, named by what the card says and then by what pressing it does.
+        const card = screen.getByRole('button', { name: 'Information Ada Lovelace About the engine Show' });
+
+        fireEvent.click(card, { detail: 1 });
+        pass(toastLeaving);
+
+        expect(opened).toHaveBeenCalledTimes(1);
+        expect(standing()).toHaveLength(0);
+    });
+
+    it('only closes where the close control of a notification is pressed', () => {
+        drawSurface();
+
+        const opened = vi.fn();
+
+        raiseOpening(opened);
+        fireEvent.click(closeControl('Close'));
+        pass(toastLeaving);
+
+        expect(opened).not.toHaveBeenCalled();
+        expect(standing()).toHaveLength(0);
+    });
+
+    it('does not open what a notification is about where the press ends a drag', () => {
+        drawSurface();
+
+        const opened = vi.fn();
+
+        raiseOpening(opened);
+
+        const card = screen.getByRole('button', { name: /Show$/u });
+
+        swipe(card, swipeDistance - 1, 0, 'mouse');
+        fireEvent.click(card, { detail: 1 });
+
+        expect(opened).not.toHaveBeenCalled();
+        expect(standing()).toHaveLength(1);
+
+        // A key pressing the card afterwards has dragged nothing.
+        fireEvent.click(card, { detail: 0 });
+
+        expect(opened).toHaveBeenCalledTimes(1);
     });
 
     it('leaves an operation standing however long it runs', () => {

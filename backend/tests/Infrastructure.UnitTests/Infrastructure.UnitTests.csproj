@@ -14,7 +14,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Signed messages, certificates, keys, and revocation answers generated once and committed, because a signature
+         verification test needs fixed key material and no key may be generated while a test runs. They are read as
+         resources rather than files, which keeps the suite off the file system. -->
+    <EmbeddedResource Include="Mail\Signatures\Fixtures\*" LogicalName="Signatures.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="..\shared\RecordingLoggerProvider.cs" Link="RecordingLoggerProvider.cs" />
+    <Compile Include="..\shared\StubEmailProvenanceReader.cs" Link="StubEmailProvenanceReader.cs" />
     <Compile Include="..\shared\InMemoryMailAnsweringSpendPeriodStore.cs" Link="InMemoryMailAnsweringSpendPeriodStore.cs" />
     <Compile Include="..\shared\ExceptionHierarchyAssertion.cs" Link="ExceptionHierarchyAssertion.cs" />
     <!-- The contact mapping writes the book a row belongs to, and a book is a user's or a mail account's, so its

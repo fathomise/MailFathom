@@ -15,6 +15,7 @@ import type {
     MailThreadMessage,
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ToastsProvider } from '../toasts/Toasts';
 import { ReadMarkingContext, nothingMarkedRead, type ReadMarking } from '../readMarking/useReadMarking';
 import { MailAccountsContext } from '../shell/accountNames';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
@@ -34,6 +35,7 @@ const work: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 const asked: ClientRequest[] = [];
@@ -66,12 +68,45 @@ const described: MailMessage = {
         references: [],
     },
     body: { availability: 'Readable', plainText: true, html: true },
-    sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        authenticatedDomain: null,
+        authenticationSource: 'ReceivingServer',
+        dkimDomain: null,
+        spfDomain: null,
+        dmarc: 'NotReported',
+        trustSource: null,
+        trustOrganization: null,
+    },
+    signature: {
+        outcome: 'NotSigned',
+        format: null,
+        secureMimeType: null,
+        unverifiableReason: null,
+        signedAt: null,
+        steps: {
+            content: 'NotChecked',
+            authority: 'NotChecked',
+            validity: 'NotChecked',
+            revocation: 'NotChecked',
+            signer: 'NotChecked',
+        },
+        trustAnchor: null,
+        chainEnd: null,
+        validityFailure: null,
+        revocationMethod: null,
+        revocationCheckedAt: null,
+        revokedAt: null,
+        signerMatchesAuthor: false,
+        signer: null,
+    },
     attachments: [],
     carried: null,
     unread: false,
     flagged: false,
     answered: false,
+    spam: null,
 };
 
 /** The words the same answer carried, which is what makes drawing this message cost nothing on the wire. */
@@ -108,6 +143,13 @@ function message(overrides: Partial<MailThreadMessage> = {}): MailThreadMessage 
             preview: 'The figures you asked for are attached.',
             enrichment: null,
             threadMessageCount: null,
+            spam: null,
+            sender: {
+                authorAuthentication: 'Authenticated',
+                deploymentTrust: 'Unknown',
+                signatureOutcome: 'NotSigned',
+                signerMatchesAuthor: false,
+            },
         },
         message: described,
         body: said,
@@ -133,26 +175,28 @@ function drawing(
 ): void {
     render(
         <LocalizationProvider>
-            <WorkspaceProvider>
-                <LinkOpenerContext value={() => Promise.resolve()}>
-                    <ReadMarkingContext value={marking}>
-                        <MailAccountsContext value={accounts}>
-                            <ul>
-                                <ThreadMessage
-                                    session={session}
-                                    transport={answersNothing}
-                                    message={held}
-                                    mark={mark}
-                                    motion={motion}
-                                    online
-                                    onShowFullHtml={handlers.onShowFullHtml ?? (() => undefined)}
-                                    onRegion={handlers.onRegion ?? (() => undefined)}
-                                />
-                            </ul>
-                        </MailAccountsContext>
-                    </ReadMarkingContext>
-                </LinkOpenerContext>
-            </WorkspaceProvider>
+            <ToastsProvider>
+                <WorkspaceProvider>
+                    <LinkOpenerContext value={() => Promise.resolve()}>
+                        <ReadMarkingContext value={marking}>
+                            <MailAccountsContext value={accounts}>
+                                <ul>
+                                    <ThreadMessage
+                                        session={session}
+                                        transport={answersNothing}
+                                        message={held}
+                                        mark={mark}
+                                        motion={motion}
+                                        online
+                                        onShowFullHtml={handlers.onShowFullHtml ?? (() => undefined)}
+                                        onRegion={handlers.onRegion ?? (() => undefined)}
+                                    />
+                                </ul>
+                            </MailAccountsContext>
+                        </ReadMarkingContext>
+                    </LinkOpenerContext>
+                </WorkspaceProvider>
+            </ToastsProvider>
         </LocalizationProvider>,
     );
 }

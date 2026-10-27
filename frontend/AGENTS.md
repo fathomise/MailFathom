@@ -24,13 +24,14 @@ what it refuses.
 clicked into, while the source states every screen, every variant and every reaction at once — so the empty state, the
 failing state, the state that only exists under a coarse pointer, and the state no click reaches at all are each
 invisible in a picture, and a screen built from one is built from a partial reading of a complete document. A screen
-the design does not draw yet is drawn in `design/` first, in a change whose issue asks for it, and built afterwards.
+the design does not draw yet is drawn in `design/` before it is built or in the pull request that builds it, never
+after: the root `AGENTS.md` § _The design leads the client, never the other way round_ is the rule.
 
 Where the design and the code disagree, the design wins and the code changes. The three exceptions turn it around — an
 accessibility obligation, a real platform constraint, and something that cannot be built — and each of those is a
-correction to the design rather than a difference to live with, so it is named precisely in the pull request and in an
-issue of its own, and the design moves first. A client change never edits the design to agree with what it built. The
-same holds for a state the source gates and nothing draws: that is a gap in the design, not a screen to invent.
+correction to the design rather than a difference to live with, so it is named precisely in the pull request and made in
+`design/` in that same pull request. The same holds for a state the source gates and nothing draws: that is a gap in the
+design, closed in `design/`, not a screen to invent in the client.
 
 ## Holding a screen against the design
 

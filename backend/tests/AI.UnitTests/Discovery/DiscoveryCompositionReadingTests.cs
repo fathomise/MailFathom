@@ -9,13 +9,13 @@ using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Discovery.Runs;
 using MailFathom.Application.Emails.Search;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.Discovery;
@@ -52,6 +52,29 @@ public sealed class DiscoveryCompositionReadingTests
         Assert.Equal("They accepted the revised figure.", block.Text.Value);
         Assert.Equal(PresentationSupport.Supported, block.Evidence.Support);
         Assert.Equal(PresentationConfidence.High, block.Confidence);
+    }
+
+    /// <summary>A picture is published as a link, and a link is traced to the extracts the answer rests on and to no other.</summary>
+    [Fact]
+    public void Read_AnAnswerWritingAPictureAndLinks_ComposesNoPictureAndTracesEveryLinkToWhatItCites()
+    {
+        // Arrange
+        const string answer = """
+            { "answer": "Sign at [the form](https://forms.example.test/sign), not [this](https://elsewhere.example.test/). ![seal](https://cdn.example.test/seal.png)", "confidence": "high", "sources": ["s1"] }
+            """;
+
+        // Act
+        var plan = Read(
+            answer,
+            DiscoveryIntent.FindFact,
+            Sources("sign at https://forms.example.test/sign by Friday", "see https://elsewhere.example.test/ too"));
+
+        // Assert
+        var block = Assert.IsType<AnswerBlock>(plan.Blocks[0]);
+        Assert.DoesNotContain("![", block.Text.Value, StringComparison.Ordinal);
+        Assert.Equal(
+            [("https://forms.example.test/sign", true), ("https://elsewhere.example.test/", false), ("https://cdn.example.test/seal.png", false)],
+            block.Links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
     }
 
     /// <summary>Nothing a model writes becomes a reference to mail, so a name nobody offered rests on nothing.</summary>
@@ -595,7 +618,8 @@ public sealed class DiscoveryCompositionReadingTests
                 Work,
                 $"extract {index}",
                 Relevance: 0.5,
-                ReceivedAt: null))
+                ReceivedAt: null,
+                StubEmailProvenanceReader.KnownCorrespondent))
             .ToArray();
 
         // Act
@@ -758,7 +782,7 @@ public sealed class DiscoveryCompositionReadingTests
         Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         Subject = null,
         ReceivedAt = null,
-        SenderVerification = SenderVerification.NotEstablished,
+        Provenance = StubEmailProvenanceReader.KnownCorrespondent,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         Text = text,
     };

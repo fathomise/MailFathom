@@ -2,7 +2,6 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using System.Globalization;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.Rules;
 using MailFathom.Host.Configuration.Spam;
@@ -27,7 +26,6 @@ public sealed class MailAccountSpamClassificationOptionsTests
         // Assert
         Assert.Empty(refusals);
         Assert.False(options.Enabled);
-        Assert.False(options.UseScanner);
         Assert.Null(options.ScannedFolders);
     }
 
@@ -45,20 +43,6 @@ public sealed class MailAccountSpamClassificationOptionsTests
         Assert.Empty(refusals);
     }
 
-    /// <summary>A scanner is only ever consulted where classification runs, so asking for one without it is a contradiction.</summary>
-    [Fact]
-    public void FindRefusals_AScannerAskedForWhileClassificationIsOff_IsRefused()
-    {
-        // Arrange
-        var options = new MailAccountSpamClassificationOptions { Enabled = false, UseScanner = true };
-
-        // Act
-        var refusal = Assert.Single(options.FindRefusals(AccountOf("work", "INBOX")));
-
-        // Assert
-        Assert.Equal([nameof(MailAccountSpamClassificationOptions.UseScanner)], refusal.MemberNames);
-    }
-
     [Fact]
     public void FindRefusals_AScannedFolderThatIsNotAUsableAlias_IsRefused()
     {
@@ -70,47 +54,6 @@ public sealed class MailAccountSpamClassificationOptionsTests
 
         // Assert
         Assert.Equal([nameof(MailAccountSpamClassificationOptions.ScannedFolders)], refusal.MemberNames);
-    }
-
-    /// <summary>The bounds are the deployment's, and a record writing outside them is told the range rather than the value.</summary>
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1001)]
-    [InlineData(double.NaN)]
-    public void FindRefusals_AThresholdOutsideTheDeploymentsRange_IsRefusedNamingTheRange(double threshold)
-    {
-        // Arrange
-        var options = new MailAccountSpamClassificationOptions { Enabled = true, ScannerThreshold = threshold };
-
-        // Act
-        var refusal = Assert.Single(options.FindRefusals(AccountOf("work", "INBOX")));
-
-        // Assert
-        Assert.Equal([nameof(MailAccountSpamClassificationOptions.ScannerThreshold)], refusal.MemberNames);
-        Assert.Contains(
-            SpamClassificationOptions.SmallestThreshold.ToString(CultureInfo.InvariantCulture),
-            refusal.ErrorMessage,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            SpamClassificationOptions.LargestThreshold.ToString(CultureInfo.InvariantCulture),
-            refusal.ErrorMessage,
-            StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData(0.1)]
-    [InlineData(5.5)]
-    [InlineData(1000)]
-    public void FindRefusals_AThresholdInsideTheDeploymentsRange_IsAccepted(double threshold)
-    {
-        // Arrange
-        var options = new MailAccountSpamClassificationOptions { Enabled = true, ScannerThreshold = threshold };
-
-        // Act
-        var refusals = options.FindRefusals(AccountOf("work", "INBOX")).ToArray();
-
-        // Assert
-        Assert.Empty(refusals);
     }
 
     /// <summary>A destination is judged against this account's own folders, so one only another mailbox maps is refused.</summary>
@@ -169,15 +112,24 @@ public sealed class MailAccountSpamClassificationOptionsTests
 
     /// <summary>Acting on a verdict nothing produces is refused here exactly as it is in the deployment's own section.</summary>
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void FindRefusals_AnActionAskedForWhileClassificationIsOff_IsRefused(bool moveToJunkFolder, bool markAsRead)
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public void FindRefusals_AnActionAskedForWhileClassificationIsOff_IsRefused(
+        bool moveToJunkFolder,
+        bool markAsRead,
+        bool markWithJunkKeywords)
     {
         // Arrange
         var options = new MailAccountSpamClassificationOptions
         {
             Enabled = false,
-            Actions = new MailAccountSpamActionOptions { MoveToJunkFolder = moveToJunkFolder, MarkAsRead = markAsRead },
+            Actions = new MailAccountSpamActionOptions
+            {
+                MoveToJunkFolder = moveToJunkFolder,
+                MarkAsRead = markAsRead,
+                MarkWithJunkKeywords = markWithJunkKeywords,
+            },
         };
 
         // Act
@@ -185,29 +137,12 @@ public sealed class MailAccountSpamClassificationOptionsTests
 
         // Assert
         Assert.Equal(
-            [nameof(MailAccountSpamActionOptions.MoveToJunkFolder), nameof(MailAccountSpamActionOptions.MarkAsRead)],
+            [
+                nameof(MailAccountSpamActionOptions.MoveToJunkFolder),
+                nameof(MailAccountSpamActionOptions.MarkAsRead),
+                nameof(MailAccountSpamActionOptions.MarkWithJunkKeywords),
+            ],
             refusal.MemberNames);
-    }
-
-    [Fact]
-    public void FindRefusals_AnActionThresholdOutsideTheDeploymentsRange_IsRefusedNamingTheRange()
-    {
-        // Arrange
-        var options = new MailAccountSpamClassificationOptions
-        {
-            Enabled = true,
-            Actions = new MailAccountSpamActionOptions { Threshold = 1001 },
-        };
-
-        // Act
-        var refusal = Assert.Single(options.FindRefusals(AccountOf("work", "INBOX")));
-
-        // Assert
-        Assert.Equal([nameof(MailAccountSpamActionOptions.Threshold)], refusal.MemberNames);
-        Assert.Contains(
-            SpamClassificationOptions.LargestThreshold.ToString(CultureInfo.InvariantCulture),
-            refusal.ErrorMessage,
-            StringComparison.Ordinal);
     }
 
     [Fact]

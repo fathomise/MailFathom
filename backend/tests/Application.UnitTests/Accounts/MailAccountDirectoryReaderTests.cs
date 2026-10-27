@@ -41,7 +41,7 @@ public sealed class MailAccountDirectoryReaderTests
         var reader = ReaderOver(Freshness(), Work, Private);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
@@ -60,7 +60,7 @@ public sealed class MailAccountDirectoryReaderTests
             Work);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var folders = Assert.Single(directory.Accounts).Folders;
@@ -87,7 +87,7 @@ public sealed class MailAccountDirectoryReaderTests
             Private);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
@@ -103,7 +103,7 @@ public sealed class MailAccountDirectoryReaderTests
         var reader = ReaderOver(Freshness((Work.Id, "INBOX", SynchronizedAt)), Work, Private);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(directory.Accounts.Single(account => account.Account == Private).Folders);
@@ -118,7 +118,7 @@ public sealed class MailAccountDirectoryReaderTests
         var reader = ReaderOver(freshnessReader, Work);
 
         // Act
-        await reader.ReadAsync(TestContext.Current.CancellationToken);
+        await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         await freshnessReader
@@ -137,7 +137,7 @@ public sealed class MailAccountDirectoryReaderTests
         var reader = ReaderOver(freshnessReader);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(directory.Accounts);
@@ -156,7 +156,7 @@ public sealed class MailAccountDirectoryReaderTests
         var reader = ReaderOver(Freshness(), synchronizationEnabled, Work);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(synchronizationEnabled, directory.SynchronizationEnabled);
@@ -175,7 +175,7 @@ public sealed class MailAccountDirectoryReaderTests
         var reader = ReaderOver(readTelemetry, Freshness(), synchronizationEnabled: true, Work, Private);
 
         // Act
-        await reader.ReadAsync(TestContext.Current.CancellationToken);
+        await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var read = Assert.Single(readTelemetry.Reads);
@@ -194,7 +194,7 @@ public sealed class MailAccountDirectoryReaderTests
         var reader = ReaderOver(readTelemetry, Freshness(), synchronizationEnabled: true);
 
         // Act
-        await reader.ReadAsync(TestContext.Current.CancellationToken);
+        await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(0, Assert.Single(readTelemetry.Reads).ResultCount);
@@ -209,7 +209,7 @@ public sealed class MailAccountDirectoryReaderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            reader.ReadAsync(TestContext.Current.CancellationToken));
+            reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);
@@ -224,7 +224,7 @@ public sealed class MailAccountDirectoryReaderTests
 
         // Act, Assert
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            reader.ReadAsync(TestContext.Current.CancellationToken));
+            reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
     }
 
     /// <summary>Builds a reader whose collaborators would all answer, so a refusal can only have come from the grant.</summary>

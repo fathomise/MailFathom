@@ -1,6 +1,6 @@
 # The client endpoint
 
-<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
+<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
 
 Where the MailFathom client reaches the service, what a deployment has to enable before it answers, and what a person's
 mail client presents to get in.
@@ -80,12 +80,14 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/messages/{storedEmailId}/body` | `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/body/cleaned` | `mailfathom.assistant.use` with `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/attachments/{position}` | `mailfathom.mail.read` |
+| `GET /api/client/messages/{storedEmailId}/source` | `mailfathom.mail.read` |
 | `POST /api/client/citations/resolution` | `mailfathom.mail.read` |
 | `GET /api/client/mutations` | `mailfathom.mail.read` |
 | `POST /api/client/mutations/flags` | `mailfathom.mail.flags.write` |
 | `POST /api/client/mutations/flags/withdrawals` | `mailfathom.mail.flags.write` |
 | `POST /api/client/mutations/moves` | `mailfathom.mail.move` |
 | `POST /api/client/mutations/moves/withdrawals` | `mailfathom.mail.move` |
+| `POST /api/client/mutations/spam` | `mailfathom.mail.flags.write`, and `mailfathom.mail.move` for mail of an account whose switch files junk |
 | `POST /api/client/mutations/deletes` | `mailfathom.mail.delete` |
 | `POST /api/client/mutations/deletes/withdrawals` | `mailfathom.mail.delete` |
 | `POST /api/client/mutations/deletes/releases` | `mailfathom.mail.delete` |
@@ -109,10 +111,12 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `POST /api/client/drafts/{draftId}/send` | `mailfathom.mail.send` |
 | `GET /api/client/replies/drafting` | `mailfathom.assistant.use` |
 | `POST /api/client/replies/drafting` | `mailfathom.assistant.use` with `mailfathom.mail.read` |
-| `GET /api/client/outbox` | `mailfathom.mail.send` |
-| `GET /api/client/outbox/{outgoingEmailId}` | `mailfathom.mail.send` |
+| `GET /api/client/outbox` | `mailfathom.mail.read` and `mailfathom.mail.send` |
+| `GET /api/client/outbox/{outgoingEmailId}` | `mailfathom.mail.send`; the preview needs `mailfathom.mail.read` too |
 | `POST /api/client/outbox/cancellation` | `mailfathom.mail.send` |
 | `POST /api/client/outbox/requeue` | `mailfathom.mail.send` |
+| `POST /api/client/outbox/dismissal` | `mailfathom.mail.send` |
+| `POST /api/client/outbox/reopening` | `mailfathom.mail.send` with `mailfathom.mail.drafts.write` |
 | `GET /api/client/contacts` | `mailfathom.contacts.read` |
 | `GET /api/client/contacts/collected` | `mailfathom.contacts.read` |
 | `GET /api/client/contacts/{contactId}` | `mailfathom.contacts.read` |
@@ -217,9 +221,14 @@ unreachable one: it falls back to what the session route's challenge says about 
 
 ### The session route
 
-It answers with four fields: `service`, which is always `MailFathom`; `version`, the running release; `permissions`, the
+It answers with six fields: `service`, which is always `MailFathom`; `version`, the running release; `revision`, the
+source revision the running build was stamped with, or `unknown` where it was stamped with none, which names the image a
+deployment runs more precisely than its version; `organization`, the identifier of the organization the caller's user
+belongs to, or `null` where they belong to none or the request names no user; `permissions`, the
 published names the caller holds — its user's grant, kept to what the credential it presented names — in the order this
 project publishes them; and `telemetry`, how much of a client's own telemetry this deployment wants forwarded.
+`revision` and `organization` are what MailFathom's own client shows in its developer mode, so that a session can be
+found in the deployment's own records, and neither names anybody else.
 `permissions` is computed on every read rather than copied from the credential, so a role assigned or revoked since the
 sign-in is already in it, and a credential naming no permission reports exactly what its user's roles grant. The one
 change a session meets only at its next sign-in is a user-facing permission a later release publishes: a session records what
@@ -423,14 +432,16 @@ It answers with the mail accounts the signed-in user owns, and how current the l
       "displayName": "Work mail",
       "synchronizationState": "Synchronized",
       "lastSynchronizedAt": "2026-08-15T10:00:00+00:00",
-      "behind": false
+      "behind": false,
+      "filesJunk": true
     },
     {
       "id": "8e3f1a6b-2c4d-4f7e-a915-7b2d0c6e1f38",
       "displayName": "Private mail",
       "synchronizationState": "Failing",
       "lastSynchronizedAt": "2026-08-14T21:12:00+00:00",
-      "behind": true
+      "behind": true,
+      "filesJunk": false
     }
   ]
 }
@@ -473,6 +484,13 @@ that was failing is not one this process is applying. A host shutting down mid-a
 supervisor counts it under none, so an account backed off for every restart would be one approached less often for being
 stopped.
 
+**`filesJunk` says whether the person's own spam marks move this account's mail**: it is the account's
+`SpamClassification:Actions:MoveToJunkFolder` switch, `false` wherever classification is off, and it is read from the
+same place [the spam mark route](#marking-mail-spam-or-not-spam) decides its moves from. Where it is `true`, *spam*
+moves a message into the junk folder and *not spam* moves one out of it to the inbox; where it is `false`, a mark
+changes the verdict and leaves the message where it is. A client reads it before the press rather than after it,
+because whether a mark will move anything is what decides whether the client asks first.
+
 **`synchronizationEnabled` is the deployment's switch rather than the user's**, and it is reported beside the accounts
 because no per-account value carries it: a copy that last moved a week ago means one thing where the deployment is still
 trying every few minutes and another where an operator switched synchronization off.
@@ -506,7 +524,8 @@ It answers with the user's mailboxes and every folder in them, which is the one 
         "displayName": "Work mail",
         "synchronizationState": "Synchronized",
         "lastSynchronizedAt": "2026-08-15T10:00:00+00:00",
-        "behind": false
+        "behind": false,
+        "filesJunk": true
       },
       "folders": [
         {
@@ -539,7 +558,8 @@ It answers with the user's mailboxes and every folder in them, which is the one 
           "lastSynchronizedAt": null,
           "behind": false
         }
-      ]
+      ],
+      "outbox": { "waiting": 1, "refused": 0 }
     }
   ]
 }
@@ -558,7 +578,7 @@ reachable asks there and a client drawing a tree asks here.
 **`role` is the answer a client cannot work out for itself.** Special-use folders are advertised by server attribute
 rather than by name, and the names differ per provider and per language, so a screen that guessed which folder is the
 sent one from its name would guess wrong on somebody's Polish provider. The value is one of `Inbox`, `Archive`,
-`Drafts`, `Sent`, `Junk`, `Trash`, `All`, `Flagged`, `Important`, or `Outbox` — the role
+`Drafts`, `Sent`, `Junk`, `Trash`, `All`, `Flagged`, or `Important` — the role
 [configuration labelled the folder with](configuration-mail.md), and `null` where it labelled it with none. Nothing is
 guessed from a folder's name to fill it in.
 
@@ -601,8 +621,8 @@ scheduled, so no run discovers it, and a folder nothing has bound yet has not be
 present all the same, carrying `NeverSynchronized` and both counts at zero, because a folder MailFathom does not copy
 is still a folder the mailbox has and still a folder [a move](#the-mutation-routes) files into. A client that could not see one would
 be told an account has nowhere to put a deleted message while its mailbox has a trash folder. A folder an operator
-withheld from tools is the one that stays absent, for the same reason it is absent from every other read: this surface
-admits what configuration admits.
+withheld from AI is listed like any other, because this surface answers for the person and the switch withholds a
+folder from AI and from nothing else.
 
 **A user with no mail account reads an empty `accounts` list**, and a credential whose grant does not carry
 `mailfathom.mail.read` is answered `403` — the same two answers the accounts route gives, because naming a user's
@@ -682,7 +702,7 @@ where the server advertises it, and MailFathom records the role either way.
 something into, and every rule [the folder routes of an account's own settings](admin-endpoint.md) apply holds here
 too — `Synchronize` and `CreateIfMissing` are always true, a role is stated when a folder is declared rather than given
 to one declared without it, and an account has at most one folder per role. Its `RemotePath`, `GenerateEmbeddings`, and
-`VisibleToTools` stay editable there.
+`VisibleToAI` stay editable there.
 
 **On an account whose mailbox MailFathom holds**, a deletion is a move into the trash, with everything beneath the
 folder, and it is not held to the depth limit, since it takes the folder out of the hierarchy rather than deeper into
@@ -809,7 +829,14 @@ continues the list at each end:
           }
         ]
       },
-      "threadMessageCount": 4
+      "threadMessageCount": 4,
+      "spam": null,
+      "sender": {
+        "authorAuthentication": "Authenticated",
+        "deploymentTrust": "Unknown",
+        "signatureOutcome": "NotSigned",
+        "signerMatchesAuthor": false
+      }
     }
   ],
   "nextCursor": "AbCd...",
@@ -854,6 +881,62 @@ Two states reach a client and they mean different things. The field is **`null`*
 reached — which is every message on a deployment with the switch off. It is an **object with an empty `marks` array**
 for one a derivation settled with nothing to say. A client may draw the two identically, but it can tell them apart,
 which is what the shape exists for.
+
+**`spam` is what spam classification concluded about the message**, read in the same query the page comes from, so a
+list badges a row in the Spam folder or folds one anywhere else without a request per row:
+
+```jsonc
+"spam": {
+  "verdict": "Spam",
+  "decidedBy": "Deterministic",
+  "spamSubcategory": "Phishing",
+  "spamSubcategoryNamedBy": "Model",
+  "phishingRequest": "Credentials",
+  "impersonatedParty": "Bank"
+}
+```
+
+It is **`null`** for a message no stage has reached — every message on a deployment that classifies nothing — and an
+object for one a stage concluded about, `NotSpam` and `Undetermined` included. `verdict` and `decidedBy` are always
+there; the other four are `null` where nothing named them. Every value is the name of a closed set's member, so nothing
+in the object is text a model or a sender wrote, and a screen that wants a sentence composes it from the value.
+
+| Field | Values |
+| --- | --- |
+| `verdict` | `Spam`, `NotSpam`, `Undetermined` |
+| `decidedBy` | `Deterministic` — what the receiving mail server and the message itself established — `Model`, or `Person` |
+| `spamSubcategory` | `Phishing`, `BusinessEmailCompromise`, `MalwareLure`, `Scam`, `Extortion`, `Marketing`, on a `Spam` verdict only |
+| `spamSubcategoryNamedBy` | `Model` or `Person`, beside a subcategory |
+| `phishingRequest` | `Credentials`, `PaymentDetails`, `OneTimeCode`, `Other`, `NothingStated`, on `Phishing` only |
+| `impersonatedParty` | `Bank`, `Courier`, `OnlineService`, `Colleague`, `Executive`, `Supplier`, `Other`, `NobodyEvident`, on `Phishing` and `BusinessEmailCompromise` only |
+
+**The two judges are published apart because they can differ.** The model names the subcategory of a verdict the
+deterministic stage reached, and that verdict stays the deterministic stage's, so a warning can say the mail server
+judged the message spam and a model said what kind. `Person` in `decidedBy` is the person's own call, which outranks
+every stage and which no later stage replaces — their `NotSpam` included. The subcategory carries `spam` in its name
+because it says what kind of spam a message is and nothing about mail that is not spam; it is not a mail category.
+`impersonatedParty` is the kind of party a message pretends to come from and never a name — where a reader needs one,
+the message's own sender is in front of them. [Spam classification](../features/spam-classification.md) is where each
+stage and each value is decided.
+
+**`sender` is what was established about who sent the message, as four facts side by side**, so a list marks a
+row's sender without a request per row. `authorAuthentication` and `deploymentTrust` are the two states
+[the message route](#the-message-route) publishes under the same names, and `signatureOutcome` and
+`signerMatchesAuthor` are its `signature.outcome` and `signature.signerMatchesAuthor`:
+
+| Field | Values |
+| --- | --- |
+| `authorAuthentication` | `NotEstablished`, `Failed`, `Authenticated` |
+| `deploymentTrust` | `Unknown`, `Trusted` |
+| `signatureOutcome` | `NotSigned`, `Verified`, `Failed`, `NotVerifiable` |
+| `signerMatchesAuthor` | `true` where the message's own signer is the author it displays |
+
+The four are never combined into one value here. Which mark a screen draws from them is the client's rule, and a value
+combining them on the wire would be a second copy of that rule for the two to disagree over. The evidence each fact was
+reached from — the domains that passed, the DMARC result, the signer and every verification step — stays on the
+message route, which is what a surface explaining a mark reads; a list page carrying it would publish what no row draws.
+Every row carries the object, sent mail included, because the facts are the message's and which rows draw a mark is the
+screen's to decide.
 
 **`evidence` names passages rather than carrying them.** Each entry is a passage identifier, resolvable through the
 same citation route an answer's citations use, so a client that wants the words behind a mark asks for them. A row
@@ -967,7 +1050,14 @@ It answers with one page of the user's mail ranked against what they are looking
           "extracts": [ "**Invoice** 4471 is payable within 30 days" ]
         }
       ],
-      "isDepictedMatch": false
+      "isDepictedMatch": false,
+      "spam": null,
+      "sender": {
+        "authorAuthentication": "Authenticated",
+        "deploymentTrust": "Trusted",
+        "signatureOutcome": "NotSigned",
+        "signerMatchesAuthor": false
+      }
     }
   ],
   "nextCursor": "AbCd...",
@@ -988,6 +1078,8 @@ acted on without a second request. `snippets` are the extracts around what match
 `**` — text cut from untrusted mail rather than markup to render — and `preview` is the same bounded opening the list
 route publishes. The one list field a result does not carry is `threadMessageCount`: a search ranks messages rather
 than correspondences, and counting the conversation behind every result would be a query this route does not owe.
+`spam` and `sender` are the list row's own objects, read the same way, so a result is folded, badged, and marked
+exactly as its row would be.
 
 **`matchedBy` is why the row is there**: `LexicalRanking` for a message carrying the query's words, `SemanticRanking`
 for one matching by meaning, and `BothRankings` for one both rankings found. It is the field a screen needs most for
@@ -1197,7 +1289,14 @@ It answers with one conversation as a single document — the messages in it, wh
             }
           ]
         },
-        "threadMessageCount": 2
+        "threadMessageCount": 2,
+        "spam": null,
+        "sender": {
+          "authorAuthentication": "Authenticated",
+          "deploymentTrust": "Unknown",
+          "signatureOutcome": "NotSigned",
+          "signerMatchesAuthor": false
+        }
       }
     },
     {
@@ -1222,7 +1321,14 @@ It answers with one conversation as a single document — the messages in it, wh
         "sizeOctets": 3120,
         "preview": "Thanks — I will read the notes this afternoon.",
         "enrichment": null,
-        "threadMessageCount": 2
+        "threadMessageCount": 2,
+        "spam": null,
+        "sender": {
+          "authorAuthentication": "Authenticated",
+          "deploymentTrust": "Unknown",
+          "signatureOutcome": "NotSigned",
+          "signerMatchesAuthor": false
+        }
       }
     }
   ],
@@ -1241,9 +1347,8 @@ It answers with one conversation as a single document — the messages in it, wh
 **A conversation is not scoped to a folder, and the route takes no account or folder to scope it by.** The question is
 in the inbox, the answer is in `SENT`, and a forwarded copy is in a project folder — so it is read across every folder
 of every account the signed-in user owns, and the junk folder takes part too, because a reply that landed in junk is
-still part of the exchange somebody is reading. A folder an operator withheld from tools is the one exception, and it is
-absent for the reason it is absent everywhere: the message is in no conversation this surface publishes, in no count of
-one, and in no participant list.
+still part of the exchange somebody is reading. A folder an operator withheld from AI takes part like any other, because
+this surface answers for the person and the switch withholds a folder from AI and from nothing else.
 
 **What a conversation covers today is one account's mail.** MailFathom assembles a thread from the mail of the account
 that holds it, so the same exchange in two of your mailboxes is two conversations with two identifiers, each complete
@@ -1255,7 +1360,8 @@ across this surface, and its `preview` is what that message added with the quote
 trimmed off — which is what keeps the eighth reply from redrawing the seven above it. Field for field includes
 `enrichment`, which carries here exactly what it carries on a list row and means exactly the same thing: a message a
 derivation reached shows its marks whichever screen draws it, and a conversation that answered `null` for a message the
-list shows marks for would be stating that no derivation has reached it. `threadMessageCount` on each of these rows is
+list shows marks for would be stating that no derivation has reached it. `sender` is the row's own object too, so a
+message marks its sender alike in a list, in search results, and in a conversation. `threadMessageCount` on each of these rows is
 this conversation's own `messageCount`, because that is what the field means and every message here is in this
 conversation — so a row drawn from a thread reads the same number as the header above it. That is the *assembled* count
 rather than the counted one, so a conversation past the 500 this route assembles reads `500` here beside
@@ -1379,7 +1485,46 @@ of its body exist to be asked for:
   "sender": {
     "authorAuthentication": "Authenticated",
     "deploymentTrust": "Trusted",
-    "authenticatedDomain": "example.test"
+    "authenticatedDomain": "EXAMPLE.TEST",
+    "authenticationSource": "ReceivingServer",
+    "dkimDomain": "EXAMPLE.TEST",
+    "spfDomain": "BOUNCES.EXAMPLE.TEST",
+    "dmarc": "Pass",
+    "trustSource": "ConfiguredTrustedSender",
+    "trustOrganization": null
+  },
+  "signature": {
+    "outcome": "Verified",
+    "format": "SecureMimeDetached",
+    "secureMimeType": null,
+    "unverifiableReason": null,
+    "signedAt": "2026-08-27T09:13:58+00:00",
+    "steps": {
+      "content": "Passed",
+      "authority": "Passed",
+      "validity": "Passed",
+      "revocation": "Passed",
+      "signer": "Passed"
+    },
+    "trustAnchor": "SystemTrustStore",
+    "chainEnd": "CN=Example Root CA, O=Example Trust Services",
+    "validityFailure": null,
+    "revocationMethod": "Ocsp",
+    "revocationCheckedAt": "2026-08-27T09:14:07+00:00",
+    "revokedAt": null,
+    "signerMatchesAuthor": true,
+    "signer": {
+      "name": "CN=Release notices, O=Example",
+      "address": "release@example.test",
+      "issuer": "CN=Example Mail CA, O=Example Trust Services",
+      "validFrom": "2026-01-01T00:00:00+00:00",
+      "validUntil": "2028-01-01T00:00:00+00:00",
+      "serialNumber": "1001",
+      "fingerprint": "4F1C…",
+      "keyId": null,
+      "publicKeyAlgorithm": "ECDSA P-256",
+      "digestAlgorithm": "SHA-256"
+    }
   },
   "attachments": [
     {
@@ -1400,7 +1545,8 @@ of its body exist to be asked for:
   },
   "unread": true,
   "flagged": false,
-  "answered": false
+  "answered": false,
+  "spam": null
 }
 ```
 
@@ -1420,8 +1566,8 @@ nothing about what arrived — and whether there is a richer rendering to draw i
 is `true` where the message carried an HTML part, which is what the body route's document is reduced from; both are
 `false` for a body nothing could read, and `availability` is the same set that route reports.
 
-**`sender` is two states and is never one.** `authorAuthentication` is what the receiving mail server established about
-the author the message displays, and `deploymentTrust` is whether this deployment recognizes that author — a fact about
+**`sender` is two states and is never one.** `authorAuthentication` is what was established about the author the
+message displays — by the receiving mail server, or by MailFathom's own DKIM check where that server said nothing — and `deploymentTrust` is whether this deployment recognizes that author — a fact about
 the message beside a classification of a list. They are published side by side because collapsing them into one badge
 would mean inventing the rule that combines them: an authenticated author nobody has named is the ordinary state of
 legitimate mail and carries the same trust value as one whose authentication failed outright. Both are read back as they
@@ -1429,10 +1575,78 @@ were stored; nothing on this path re-reads a header, resolves DNS, or evaluates 
 what was concluded about the authenticated author rather than a reading of the `From` header.
 
 **`authenticatedDomain` is who the authentication was established for**, which is the fact a reader needs when the
-name a message displays is not it. It is the domain the receiving mail server authenticated and nothing wider: it is
+name a message displays is not it. It is the domain that check authenticated and nothing wider: it is
 `null` for a message nothing authenticated a sender for, and it is published beside the two states rather than
 compared against the `From` address, because judging whether the two agree is the policy this path deliberately does
 not evaluate.
+
+**The rest of `sender` is the evidence the two states were reached from**, which is what a surface explaining a sender
+mark lists step by step. None of it changes what a reader acts on, which stays the two states, and none of it is
+combined into them here.
+
+| Field | Values |
+| --- | --- |
+| `authenticationSource` | `ReceivingServer` — the account's trusted receiving mail server, read back out of the `Authentication-Results` header it wrote — or `LocalVerification`, where MailFathom verified the message's own DKIM signatures itself because no such statement was available |
+| `dkimDomain` | The domain whose DKIM signature passed, or `null` where none did |
+| `spfDomain` | The domain whose SPF check passed, or `null` where none did or none was evaluated |
+| `dmarc` | `NotReported`, `Pass`, `Fail`, `NoPolicyPublished`, `TemporaryError`, `PermanentError` |
+| `trustSource` | `OwnAccountDomain`, `ConfiguredTrustedSender`, `StoredTrustedSender`, `OrganizationMember`, `OwnAccountAddress`, or `null` where nothing recognized the author |
+| `trustOrganization` | The current display name of the organization whose signature recognized the author, present only where `trustSource` is `OrganizationMember` and that organization still exists; `null` otherwise |
+
+`authenticationSource` names which reading produced the verdict rather than asserting that a server established
+something, so `ReceivingServer` is also what a message carries when nothing was read at all. A reader concludes that
+nobody checked from `ReceivingServer` beside an `authorAuthentication` of `NotEstablished`, no domain passing, and a
+`dmarc` of `NotReported`. A verdict reached by `LocalVerification` reads DKIM alone, so it never names an SPF domain and
+reports `NotReported` for DMARC. All three domains are published in the form they are stored in, which is upper-case
+ASCII with an internationalized name in its ASCII encoding, so a screen that wants another spelling makes it.
+
+**`trustSource` names what recognized the author, never which entry matched.** `OwnAccountAddress` is one of the
+addresses the receiving account's owner holds, `OwnAccountDomain` a domain of one of the owner's accounts on an account
+that opted into those, `ConfiguredTrustedSender` an entry on the receiving account's configured
+trusted-sender list, `StoredTrustedSender` one somebody added to its stored list, and `OrganizationMember` a signature
+of the receiving account's organization proving the author a member of it, which holds whatever `authorAuthentication`
+says ([Sender authentication](../features/sender-authentication.md)); where both lists name the author the configured
+one is reported. Which address or domain on a list matched is not recorded, so it is not published. It is the source
+in force when the message was extracted, so a change to the trusted senders since reaches mail extracted after it.
+
+**`trustOrganization` is the organization's name as it reads now, not as it read when the message arrived.** The
+verdict records which organization's signature proved the member, never its name, so the name is read through that
+organization on every request: a rename reaches mail already stored, and an organization deleted since leaves
+`trustSource` at `OrganizationMember` with `trustOrganization` at `null`, the reason standing without a name. Every
+other source carries `null`. A list row publishes neither field, because the mark it chooses is *Trusted* whatever
+recognized the author. The name is personal data like the rest of `sender`.
+
+**`signature` is what the message's own S/MIME or OpenPGP signature proves, and it is never folded into `sender`.**
+`sender` is what was established about the domain a message came from; `signature` is what the
+message's cryptography proves about who signed it and whether the signed content changed since. Neither says a message
+is safe. `outcome` is one of four values for both formats — `NotSigned`, `Verified`, `Failed` where the content does not
+match its signature, and `NotVerifiable` where it could not be verified here, with `unverifiableReason` saying why:
+`NoCertificate`, `UntrustedRoot`, `OutsideValidityPeriod`, `WrongKeyUsage`, `Revoked`, `RevocationNotCheckable`,
+`UnknownKey`, `ExpiredKey`, `RevokedKey`, `UnsupportedAlgorithm`, `MalformedSignature`, or `ContentNotOpened` for an
+encrypted or compressed S/MIME body whose signature was never reached. `Revoked` and `RevocationNotCheckable`, and the
+`revocationMethod`, `revocationCheckedAt`, and `revokedAt` beside them, describe the signer's answer or, where an
+authority above the signer answered revoked or could not be asked, that authority's. `format` is `SecureMimeDetached`,
+`SecureMimeOpaque`, or `OpenPgpMime`, and `secureMimeType` is the `smime-type` an opaque body declared, whatever it was —
+a `certs-only` body is recorded with it and stays `NotSigned`. Only the message's own signature is read: a signed message
+forwarded as an attachment is not this message's signature.
+
+**`steps` is what a verification popup draws, one result per step**: the content is unchanged, a certificate authority or
+a configured key vouches for the signer, the certificate or key was valid at signing time and fit for signing mail, it is
+not revoked, and the signer is the author the message displays. Each is `Passed`, `Failed`, `NotChecked` where the step
+was reached and could not be completed, or `Skipped` where an earlier step stopped the verification before it — so the
+steps a verification never reached are drawn as such rather than inferred. `trustAnchor`, `chainEnd`, `validityFailure`,
+`revocationMethod`, `revocationCheckedAt`, and `revokedAt` are each step's detail. **`signerMatchesAuthor` is a fact of
+its own rather than a fifth outcome**: a sound signature by somebody other than the displayed author is `Verified` with
+it `false`, because the signature is sound and the mismatch is what a reader needs to be told.
+
+**It is read back as extraction stored it.** Opening a message verifies nothing and reaches no responder: the revocation
+answer is the one extraction received, and `revocationCheckedAt` says when. Mail stored before signatures were verified
+reads as `NotSigned` until a re-derivation reaches it. `signer` is personal data like the rest of this response, and the
+signer's certificate or key itself is not published. The configuration that decides which signers can verify is
+[`MailSynchronization:SignatureVerification`](configuration-mail.md#verifying-a-messages-own-signature--signatureverification).
+
+**`spam` is the object a list row carries**, read from the same summary the row is, so the warning an opened message
+draws and the badge on its row cannot disagree. [The mail list route](#the-mail-list-route) describes its fields.
 
 **No octet of a file is here, at any size and in any encoding.** Each entry says what the file is called, what it
 declares itself to be, and how large it decodes to — which is what a reader decides against — and `position` is what its
@@ -1653,12 +1867,15 @@ frame rather than their message absent, and every block it keeps identical to wh
 | `AllowanceExhausted` | The period's `MailAnswering` ceilings are spent, so nothing was asked of the provider |
 | `ProviderUnavailable` | The provider was asked and did not answer |
 | `AnswerRejected` | Two answers arrived and neither described the document |
+| `WithheldFromAI` | The message is in a folder mapped `VisibleToAI: false`, so nothing of it was put to a model |
 
 **A route of its own rather than a query on the body route, because what it costs is different in kind.** The body route
 reads a local copy and is published under `mailfathom.mail.read`; this one sends an outline to a chat provider and is
 charged to the period allowance a question is charged to, so it is published under **`mailfathom.assistant.use`** — a reading
 grant is not a way to spend a deployment's provider budget. A caller holds both, the read behind this needing the reading
-grant as every read does.
+grant as every read does. That read answers for an agent rather than for the person, because what it reads goes to a
+model; a message only the person may read — one in a folder mapped `VisibleToAI: false` — is then read for the person,
+and answered with its ordinary reduced document and `WithheldFromAI` beside it, without a model being asked.
 
 **It never answers an empty pane, and it never fails the read to report a cost.** A spent allowance is `200` with the
 ordinary reduced document and `AllowanceExhausted` beside it rather than `429`: the message is on the screen either way,
@@ -1752,6 +1969,55 @@ already authenticated for this message and this position, so what they learn is 
 serves rather than anything about mail they may not read. Nothing is redacted — a file is served whole or refused —
 and a user who screens nothing pays no extraction and reads exactly the answer the paragraphs above describe.
 
+### The source route
+
+```http
+GET /api/client/messages/0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90/source
+```
+
+It answers with one message exactly as it was received — every header and every MIME part, in its transfer encoding —
+as text and nothing else:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 18342
+X-Content-Type-Options: nosniff
+Cache-Control: no-store
+```
+
+**It is asked for when somebody presses *Show source* and never with the message**, so opening a message costs nothing
+for a source nobody looks at. The client keeps nothing it read: closing the surface and pressing again reads it again.
+
+**The octets are the stored copy's, served as text with sniffing switched off.** They are bytes a sender chose, served
+from the origin the client itself is served from, so a message carrying markup is read as characters rather than run as
+a page. `charset=utf-8` is what a reader's browser decodes them under; a part in another character set arrives as the
+characters UTF-8 makes of its octets, which is what *as received* means for a part nobody decoded. `no-store` keeps the
+answer out of every proxy in front of the deployment, and nothing about the request or the octets is logged.
+
+**A source larger than 1 MiB (1,048,576 octets) is cut there.** The answer then carries the first 1,048,576 octets and
+`MailFathom-Source-Truncated-From: <octets>`, naming how many the whole message holds, so a reader is told where the text
+stops rather than shown a part as if it were all of it. The header is absent from an answer that is the whole message.
+Past a mebibyte what is left is encoded attachments nobody reads as text, and the bound is what keeps a forty-megabyte
+message from being buffered into one answer.
+
+**A message this user does not hold is answered `404`**, and so is one no deployment ever held, one whose copy was never
+stored, and one whose stored copy is missing or damaged — a missing or damaged copy records the repair request a read of
+the message records, because the finding is about the copy rather than about which read met it. A credential whose grant does not
+carry `mailfathom.mail.read` is answered `403`, as everywhere else on this surface.
+
+**Where [sensitive-content scanning](../features/sensitive-content-scanning.md) is switched on for any account the
+reader is assigned, the source is not served.** That is the posture every read of their mail is redacted under, whichever
+account the message came from. The route answers `409` with `errorCode` `59005` before any of the copy is read, and only
+for a message the reader can reach: one they cannot reach is `404` on a screened deployment too. A read of the message
+is redacted value by value, and a raw source cannot be: its body sits in transfer encodings no scanner reads, so serving
+it beside a redacted body would hand out exactly what the redaction withholds. The reader has already been shown the
+message exists, so saying the source is withheld discloses nothing more.
+
+**It is served from the local copy in every custody phase.** Nothing here contacts a mail server, so reading a source
+cannot fetch a message and cannot set the remote `\Seen` flag; the stored copy is the message whether the account is
+mirrored, held, or being restored.
+
 ### The citation route
 
 ```http
@@ -1781,7 +2047,13 @@ It answers with one resolution per citation, in the order the request named them
         "folder": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10",
         "subject": "Renewal terms",
         "sentAt": "2026-03-04T09:00:00+00:00",
-        "receivedAt": "2026-03-04T09:01:12+00:00"
+        "receivedAt": "2026-03-04T09:01:12+00:00",
+        "provenance": {
+          "authorAuthentication": "Authenticated",
+          "deploymentTrust": "Unknown",
+          "inJunkFolder": false,
+          "firstContact": false
+        }
       },
       "fragment": {
         "fragmentId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
@@ -1818,9 +2090,18 @@ whether somebody else's message exists. A local copy that is stored and damaged 
 message, which is this deployment's own defect rather than a statement about anyone's mail.
 
 **A resolution carries enough to draw the source in place and no more**: the passage with the offsets it was cut from,
-the message it belongs to, and its dates. Reading the rest of the message is [the message route](#the-message-route),
+the message it belongs to, its dates, and where it came from. Reading the rest of the message is [the message route](#the-message-route),
 which is a request the reader chose to make, and no octet of a cited file is here — the file is described exactly as the
 message route describes it.
+
+**`provenance` is what the model was told about the message**, read from what the deployment recorded rather than
+from the message: `authorAuthentication` is `Authenticated`, `NotEstablished`, or `Failed`, `deploymentTrust` is
+`Trusted` or `Unknown`, and `inJunkFolder` and `firstContact` say whether the message sits in its account's junk folder
+and whether nothing the mailbox held before it was written by or to its sender. A run qualifies a claim resting on a
+message that is not authenticated, is junk, or is a first contact, and these four values are what let a client show the
+person why. [Mail answering](../features/mail-answering.md#where-a-message-came-from) holds what each one means. A
+message whose provenance can no longer be read was erased between the read and the lookup and resolves as
+`PrivateSource`.
 
 **One request follows at most ten citations**, which is also what bounds the messages read, and a passage is bounded
 before it is ever cited because chunking cuts it to a fixed length. A larger batch is answered `400`, a body over 16 KiB
@@ -1834,14 +2115,15 @@ flag.
 
 ### The mutation routes
 
-These eight are how a person changes the mailbox itself: marking mail read or unread, starring it, relabelling it,
-filing it into another folder, and deleting it off the server — and asking where each of those changes has got to,
-taking one back, or saying a delete need wait no longer.
+These nine are how a person changes the mailbox itself: marking mail read or unread, starring it, relabelling it,
+filing it into another folder, saying it is spam or not, and deleting it off the server — and asking where each of
+those changes has got to, taking one back, or saying a delete need wait no longer.
 
 | Route | What it does |
 | --- | --- |
 | `POST /api/client/mutations/flags` | Writes down one batch of flag and tag changes, one result per message |
 | `POST /api/client/mutations/moves` | Writes down one batch of folder moves, one result per message |
+| `POST /api/client/mutations/spam` | Records the person's own spam or not-spam verdict on one batch, one result per message |
 | `POST /api/client/mutations/deletes` | Writes down one batch of deletes, one result per message |
 | `GET /api/client/mutations?record=…&record=…` | Reports where each of the caller's own changes stands |
 | `POST /api/client/mutations/flags/withdrawals` | Takes back flag and tag changes nothing has been asked of a server for |
@@ -1936,7 +2218,11 @@ Content-Type: application/json
 
 Each result carries one of `recorded`, `applied`, `message-not-found`, `destination-not-found`,
 `destination-not-allowed`, `already-in-destination`, or `account-no-longer-configured`, and a flag change may also answer
-`change-not-usable` when the values asked for are not values one request can name. A folder withheld from this caller is
+`change-not-usable` when the values asked for are not values one request can name. A move into the junk folder may
+answer `change-not-usable` as well, where `requestId` already asked the same message for other keywords, because that
+move is also [the person's spam mark](#marking-mail-spam-or-not-spam): its result carries `spamMarkChanges`, the keyword
+records the mark opened, beside the move's own `change`, and the list is empty for every other move. A move into junk
+that is not made — the message is already there, or the destination is not allowed — marks nothing either. A folder withheld from this caller is
 reported as a destination that is not there, on the same rule that makes mail in a withheld folder a message that is not
 there: filing mail into a folder the caller cannot read would move it out of sight rather than be a capability of its
 own.
@@ -2078,6 +2364,60 @@ says whether an identity somebody else holds exists.
 
 **No mutation record carries mail content.** A record names the message, the change, the folder, and where it stands; no
 subject, no correspondent, no body, and no keyword reaches a log line or a telemetry dimension from it.
+
+#### Marking mail spam or not spam
+
+`POST /api/client/mutations/spam` records the person's own verdict on a batch: `Spam`, with one `spamSubcategory` for
+the whole batch or none, or `NotSpam`. The values are the member names the `spam` object on every message publishes,
+matched exactly — a subcategory beside `NotSpam`, a name in another case, or a number standing for a member refuses the
+whole request with a `400`, as an empty batch and one over the 200-message bound do. One request carries one direction,
+because that is the one choice the person made; a selection that would need two is the client's to split.
+
+```http
+POST /api/client/mutations/spam
+Content-Type: application/json
+
+{ "requestId": "mark-1", "verdict": "Spam", "spamSubcategory": "Phishing", "storedEmailIds": ["0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90"] }
+```
+
+```json
+{
+  "results": [
+    {
+      "storedEmailId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
+      "outcome": "recorded",
+      "moved": true,
+      "changes": [
+        { "mutation": "add-keywords", "recordId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92", "state": "pending" },
+        { "mutation": "remove-keywords", "recordId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a93", "state": "pending" },
+        { "mutation": "relocate", "recordId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a94", "state": "pending" }
+      ]
+    }
+  ]
+}
+```
+
+Each result carries `recorded`, `applied`, `message-not-found`, or `change-not-usable` — the last where `requestId`
+already asked the same message for other keywords. **The verdict itself is recorded at once in every case but the two
+refusals**, so `recorded` means the verdict stands and at least one change is written down for the mail server, and
+`applied` means everything the mark asked took effect immediately — on a held account, or where the account permits
+no keyword change and nothing had to move. Every mark asks for all of its keywords, whatever the server last reported,
+so one undone before the first reached the server is still corrected. `changes` lists every record opened, which the read route above follows
+like any other: the keyword additions and removals first, then the move. `moved` says whether the mark moved the
+message, which only the account's `SpamClassification:Actions:MoveToJunkFolder` decides — spam into the junk
+destination, and not spam out of the junk folder to the inbox. A mark's move passes the checks a person's own move does,
+so a destination withheld from the caller, or a move across the edge of the drafts or the sent tree, leaves the message
+where it is with the verdict recorded. A batch naming mail of an account whose switch files junk needs
+`mailfathom.mail.move` beside the flag grant, whether or not a given message would move, and a caller holding only the
+flag grant is refused the whole request with a `403` before any message of it is written. The switch is read once per
+account for the whole batch, so the grant and every move of it are decided from the same reading. The route asks for no
+confirmation of its own; a call is taken as confirmed.
+
+The verdict is final: no later classification replaces it, and `NotSpam` is the one way a spam verdict is lifted.
+Moving a message into the junk folder through the move route is the same mark, with no subcategory or the one the person
+already named, and moving it out changes no verdict. Which keywords follow, what governs them, and why a filed message
+is never filed again are [spam classification](../features/spam-classification.md#the-persons-own-verdict)'s to say.
+`markReadOnOpen` and the account's `MarkAsRead` switch have no part in it.
 
 ### The record routes
 
@@ -2234,7 +2574,7 @@ spelling is the refusal. A folder
 naming a `RemotePath` also carries `CreateIfMissing` as `true`, so a folder a dialog declares is created where the
 server advertises none at that path; a folder found instead by the role it plays carries no such switch, because a
 folder that does not exist advertises no role, and a request stating one on such a folder is refused naming
-`RemotePath`. `GenerateEmbeddings`, `VisibleToTools`, and `RemotePath` stay the person's on every folder, special ones
+`RemotePath`. `GenerateEmbeddings`, `VisibleToAI`, and `RemotePath` stay the person's on every folder, special ones
 included — which is what lets a folder declared against the wrong place on the server be corrected rather than started
 over. The record route carries no mailbox at all and is therefore no way around them.
 
@@ -2423,26 +2763,27 @@ and somebody who set the client up the way they work should not have to set it u
   "messageView": "reduced",
   "aiFiltersShown": true,
   "notificationSeconds": 5,
+  "trustedLinkDomains": [],
   "telemetryHeldBy": null
 }
 ```
 
-**It holds eight preferences and nothing else.** The ninth field of an answer, `telemetryHeldBy`, is not one: it says
+**It holds nine preferences and nothing else.** The tenth field of an answer, `telemetryHeldBy`, is not one: it says
 who holds the first, [as described below](#a-settings-policy-may-hold-the-telemetry-switch), and a write does not
 state it. Whether this deployment may be told what the person's client is doing;
 what the client is painted in, which is `system`, `light`, or `dark`; whether opening a message opens a tab rather
 than replacing what is on the screen; whether opening a message marks it read on the person's own mail server; whether
 opening a conversation draws every message in it rather than the one it was opened at; which of the three renderings an
 open message is drawn as, which is `reduced`, `cleaned`, or `embeddedHtml`; whether the client offers the standing views
-of the mailbox beneath its folder tree; and how long one of the client's own notifications stands before it takes itself
-away. Each of them says how
+of the mailbox beneath its folder tree; how long one of the client's own notifications stands before it takes itself
+away; and which domains the person trusts the links to. Each of them says how
 somebody wants to work, which is why it belongs to the person. The language does not, and stays on the device: it is
 resolved for somebody who has not signed in and may never get a session. Neither does the width a person drags the
 message list to, which describes the screen in front of them.
 
 **Unset reads as telemetry on, the theme following the machine, tabs off, marking read on, a conversation opening at
-the message it was opened at, a message read as the reduced document, the standing views drawn, and a notification
-standing for five seconds.** A person who has set nothing is answered a
+the message it was opened at, a message read as the reduced document, the standing views drawn, a notification
+standing for five seconds, and no link domain trusted.** A person who has set nothing is answered a
 document rather than a refusal, so a first run draws a screen. The theme is still resolved on the device
 before sign-in — the client cannot wait on the network to paint itself, and there is no session to read this over above
 the sign-in screen — and what this answers replaces that device value once a session exists.
@@ -2507,12 +2848,50 @@ server, plus the grace [the mutation routes](#the-mutation-routes) describe. A v
 naming the range rather than clamped to it: a person who asked for a minute would otherwise be handed half of one
 without being told, and the one screen that writes this offers nothing outside it.
 
+**`trustedLinkDomains` is the person's own list of domains whose links the client opens without asking first.** The
+client asks before following any `http` or `https` link — in a message, its original, an agent's answer, or anywhere
+else it draws one — naming the host and the whole address, and a link whose host is on this list, or is a subdomain of
+an entry on it, opens at once instead. So `nordwind.example` covers `files.nordwind.example`, and a name that only
+borrows its letters, such as `nordwind-billing.example`, still asks. **No screen edits the list yet**: it is set through
+this route alone, and the client reads it and never states it.
+
+**A write that omits `trustedLinkDomains`, or states it as `null`, leaves the stored list as it was**, and `[]` is how
+the list is emptied. It is the second preference, beside the telemetry switch, whose omission is not its unset answer,
+and for the same kind of reason: a client has nothing of the person's to say about a list no control of its own edits,
+and a write composed before its first read answered would otherwise erase a list set here with nothing on any screen to
+show it went.
+
+Each entry is a bare domain name, validated when it is written:
+
+- It is stored, and answered, as lowercase ASCII, with an internationalized name in its punycode form — `bücher.example`
+  is held as `xn--bcher-kva.example` — because that is how a browser spells the host of a link it is compared with.
+- It carries no scheme, path, query, port, or user name, and no wildcard, since a domain already covers every subdomain
+  of it.
+- It is a name rather than an address, has at least two labels, and is not a bare public suffix such as `co.uk` or
+  `com.pl`, each of which would trust every site registered under it. The suffixes refused are the second-level labels
+  registries sell names beneath under a two-letter country code, not the whole Public Suffix List, so a rarer suffix is
+  accepted; what that costs is one person over-trusting their own links.
+- It is at most 253 characters in either form, and the list holds at most 50 entries.
+
+An entry that fails is not dropped: the whole write is refused with `400`, naming the entry's position and what is wrong
+with it, and nothing is stored. The same domain written twice — in two cases, or once in its own script and once in
+punycode — is kept once. A stored entry this build would refuse, written by an earlier one or by hand, is left out of
+the answer, which only means a link to it asks.
+
+**While a rolling upgrade runs a build without the list beside one with it, a stored list can be lost.** A replica of
+the older build reads a document without the key and answers without it, which the newer client reads as a list
+trusting none, so links ask; and a write that replica commits renders the document without the key, which empties a
+list stored through a newer replica. Nothing is lost but the list, and nothing about it is refused, so what is left to
+do once every replica runs the newer build is to set the list again.
+
 **A write states the whole document.** It is a closed set rather than a patch: a key nothing binds is refused rather
 than stored, a theme this deployment does not publish is refused naming the three that are, and a preference the body
-omits is committed as its own default rather than left at whatever was there. The body is bounded like every other on
+omits is committed as its own default rather than left at whatever was there — except the telemetry switch and the
+trusted link domains, each of which an omission leaves as it was stored. The body is bounded like every other on
 this surface, and one past the bound is answered `413`.
 
-**`telemetryEnabled` is the one preference whose omission is not its default.** A body that leaves it out, or states it
+**`telemetryEnabled` is one of the two preferences whose omission is not its default**, the trusted link domains
+[above](#the-preferences-routes) being the other. A body that leaves it out, or states it
 as `null`, says nothing about the switch, and the write keeps the answer the person stored. Both halves of the reason
 are about them: the default is on, so a writer with nothing to say about telemetry would otherwise opt somebody in,
 and a read answers the switch [as it is applied](#a-settings-policy-may-hold-the-telemetry-switch) rather than as it
@@ -2546,7 +2925,7 @@ a sentence saying so in place of the switch — a control over a client that is 
 
 **`telemetryEnabled` is the one preference somebody else may decide.** The deployment's
 [settings policy](admin-endpoint.md#settings-policies), or the policy of the organization a person belongs to, may
-force it on or off for everybody it governs. Nothing else here is ever governed: the other seven take no default, no
+force it on or off for everybody it governs. Nothing else here is ever governed: the other eight take no default, no
 forced value, and no editing restriction, and the switch itself takes a forced value and nothing else.
 [ADR 0037](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0037-a-settings-policy-at-the-deployment-and-at-each-organization.md)
 holds why this one, and what forcing it on takes from the person it is about.
@@ -2555,7 +2934,7 @@ holds why this one, and what forcing it on takes from the person it is about.
 | --- | --- |
 | `GET /api/client/preferences` | Answers `telemetryEnabled` as the forced value, whatever the person stored, and `telemetryHeldBy` as `Deployment` or `Organization` |
 | `POST /api/client/preferences` stating the other value | Answers `400` and writes nothing, in a sentence naming `TelemetryEnabled`, what it is forced to, and whether the deployment or the organization holds it |
-| `POST /api/client/preferences` stating the forced value, or omitting the switch | Commits the other seven and answers the forced value with who holds it. The person's own answer is left exactly as it was |
+| `POST /api/client/preferences` stating the forced value, or omitting the switch | Commits the other eight and answers the forced value with who holds it. The person's own answer is left exactly as it was |
 
 **`telemetryHeldBy` is `null` wherever the answer is the person's own**, so a client reads one field to know whether
 the control is theirs: where it names a holder, their own answer is not what is being applied, and moving the switch
@@ -2575,7 +2954,7 @@ refusal, which is how the telemetry routes read that row.
 
 **A write for somebody whose record this replica does not serve leaves the switch alone too.** Whether a policy holds
 it cannot be known there, and the body may be stating a forced answer another replica read to that person's client, so
-the other seven are committed, the stored answer stays as it was, and the write answers what is stored.
+the other eight are committed, the stored answer stays as it was, and the write answers what is stored.
 
 **The deployment's force wins over an organization's**, as it does for every setting a policy forces: an organization
 holding the switch off for its members is overruled by a deployment holding it on, and `telemetryHeldBy` then names
@@ -2662,7 +3041,7 @@ route to promote one into the other.
 | --- | --- |
 | `GET /api/client/drafts` | Lists what the signed-in user is writing, newest first, optionally narrowed to one account |
 | `POST /api/client/drafts` | Writes one new draft, as a message of its own or as an answer to stored mail |
-| `GET /api/client/drafts/{draftId}` | Opens one draft with the words its stored message carries |
+| `GET /api/client/drafts/{draftId}` | Opens one draft with the words its stored message carries, and the same `document` a message body is drawn from, which is what a composer reads the author's formatting back from |
 | `PUT /api/client/drafts/{draftId}` | Replaces one draft with what the author has written since |
 | `DELETE /api/client/drafts/{draftId}` | Gives one draft up, and takes its copies back out of the folder |
 | `POST /api/client/drafts/{draftId}/attachments` | Stages one file against a draft, the octets being the request body |
@@ -2737,7 +3116,7 @@ POST /api/client/replies/drafting
 Content-Type: application/json
 
 {
-  "answeredEmailId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
+  "contextEmailIds": [ "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90" ],
   "selection": "Could you confirm the racking is still 4 200 net?",
   "instruction": "Confirm the price and offer Tuesday at ten."
 }
@@ -2762,7 +3141,7 @@ Content-Type: application/json
 ```
 
 **What comes back is a proposal rather than a message.** Nothing on this route sends, queues, or writes to a mail
-server, and nothing is stored: the reply arrives as text in the composer or in the card under a correspondence, which
+server, and nothing is stored: the reply arrives as text in the composer, which
 its author edits, discards, or saves through [the drafts routes](#the-drafts-routes) above. Every irreversible act stays behind a person confirming it.
 
 **The read says whether this deployment drafts at all**, which is what decides whether a composer may offer the
@@ -2772,13 +3151,21 @@ holds the answer. `false` is what a deployment with no chat section answers and 
 deliberately one answer, because what a client does about either is identical and naming which would publish a
 deployment's configuration to every signed-in browser.
 
-**The request names one message and states nothing else about it.** The conversation the draft is grounded in, the
-account whose manner it is written in, the subject, and the people it may propose are all read out of the stored copy
-that identifier resolves to, so a client can state none of them and can state none of them wrongly. `selection` is the
-part of the correspondence being answered and `instruction` is what the reply should say; both are optional beside a
-message, and a request carrying neither is the ordinary one.
+**The request names its context and states nothing else about it.** `contextEmailIds` lists the messages the reply is
+written from — usually the one being answered, and at most ten, from one conversation or from several — and the
+conversations the draft is grounded in, the subject, the people it may propose, and the account whose manner it is
+written in are all read out of the stored copies those identifiers resolve to, so a client can state none of them and
+can state none of them wrongly. The first one named decides the subject and the manner. An all-zero identifier names no
+message and is dropped, a message named twice is read once where it was first named, more than ten are refused with
+`400`, and a context holding any message this user does not hold is answered `404`, as one naming a message nobody
+holds. Every context message is marked in what the provider is shown as one the person chose, and is kept there however
+old it is beside the most recent messages of its conversation, so the draft answers it rather than the latest message.
+`selection` is the part of the correspondence being answered, at most 4 000 characters, and `instruction` is whatever was
+typed about the reply — what it should say, the person's own rough version of it, or both, which the drafting tells
+apart itself — at most 4 000 characters as well; both are optional beside a context, and a request carrying neither is
+the ordinary one.
 
-**`answeredEmailId` is `null` for a message that answers nothing**, which is the composer somebody opened with nothing
+**`contextEmailIds` is empty for a message that answers nothing**, which is the composer somebody opened with nothing
 in front of it. There is then no conversation to read, so `instruction` is what the message is written from and is
 required there — a request naming neither is refused with `400`, because it would be a provider call made to invent a
 message out of nothing at all. The language follows the same split: a reply is written in the language the conversation
@@ -2786,16 +3173,19 @@ it answers is written in, and a message answering none is written in the languag
 user, which [the user record](configuration-sources.md) holds. An `instruction` asking for a particular language
 outranks both, being the one thing the person said about the message themselves.
 
-**The client asks for a draft in two places, and neither reaches another screen.** The block the design draws over the
-composer's body is one — the field says what the message should be about, the act beside it says what shape it should
-take, and the two travel as one `instruction`. What comes back replaces the words in the composer with the way back
+**The client asks for a draft in two places, and both write into the composer.** The block the design draws over the
+composer's body is one — the field takes what the message should say, a rough draft of it, or both, and grows from one
+line to six as it is typed into, the act beside it says what shape it should take, and the two travel as one
+`instruction`. What comes back replaces the words in the composer with the way back
 beside them, and a draft nobody has accepted is named in the send confirmation before the message goes out. The field
-under a correspondence, unfolded from the AI button at its foot, is the other: *Draft a reply* asks for a reply to the message being read, with the fixed
-sentence *Write a reply to this message.* and whatever was typed there joined as one `instruction`, and the passage
-selected in the message as the `selection`, and draws the answer as a card under that message, even with the rest of
-the correspondence shown, that says nothing has been sent. The card is held in memory and nowhere else; *Open in composer* carries its words into the composer on that
-message without asking the deployment again, over whatever that tab was already writing for the same answer, which stays
-the way back — and *Discard draft* lets it go.
+under a correspondence, unfolded from the AI button at its foot, is the other — it grows the same way, and Enter in it
+asks while Shift+Enter starts a new line: *Draft a reply* opens the composer
+expanded as a reply to the message being read and asks there at once, with the fixed sentence *Write a reply to this
+message.* and whatever was typed in the field joined as one `instruction`, and the passage selected in the message as
+the `selection`. Either way `contextEmailIds` is the context the composer shows as chips: a reply starts with the
+message it answers, a new message starts with none, and while the list stands beside the composer a click on a row
+makes that message the context and a selection makes the whole selection the context — so what a draft is written
+from is what the composer said it would be written from.
 
 **`supported` is published beside the sources rather than left to a client to derive.** A claim carrying none is one
 the correspondence does not back, and it is kept and marked rather than dropped, because the sentence is already in the
@@ -2814,7 +3204,7 @@ somebody pressing a button the allowance has already been spent on.
 
 **Everything travels in a body**, which is why drafting is a `POST` for an operation that stores nothing: what somebody
 is asking a reply to say is as revealing as the correspondence it answers, and a query string is the part of a request
-that reaches an access log by default, here and on every proxy in front of this deployment. A body over 16 KiB is
+that reaches an access log by default, here and on every proxy in front of this deployment. A body over 32 KiB is
 refused before it is read, a request naming no message and an over-long `selection` or `instruction` are refused with
 `400`, and a refusal never echoes what was sent.
 
@@ -2894,25 +3284,57 @@ deadline is not one, and what reaches the provider.
 
 ### The outbox routes
 
-These are what a client draws after a message has been sent: the send the user just asked for has not left yet, and
-this is where the screen watches it go, takes one back while it is still queued, or offers a failed one another chance.
+Each of a user's accounts has an outbox: the sends written down for it that have not left yet, and the ones a server
+refused that nobody has dismissed. It is what a client draws after a message has been sent — the send the user just
+asked for has not left yet, and this is where the screen watches it go, takes one back while it is still queued,
+offers a failed one another chance, or dismisses one that failed for good.
 
 | Route | What it does |
 | --- | --- |
-| `GET /api/client/outbox` | Reads one page of the named account's outbox, optionally narrowed to one stage |
-| `GET /api/client/outbox/{outgoingEmailId}` | Reads one send, with what the server told this deployment about each recipient |
+| `GET /api/client/outbox` | Reads one page of the named account's outbox, newest first, optionally narrowed to one stage |
+| `GET /api/client/outbox/{outgoingEmailId}` | Reads one send: as the message it is, or as its delivery to a send-only credential |
 | `POST /api/client/outbox/cancellation` | Withdraws one send that has not begun transmitting |
 | `POST /api/client/outbox/requeue` | Offers one send again |
+| `POST /api/client/outbox/dismissal` | Takes one refused send, or one whose outcome nobody will learn, out of the outbox |
+| `POST /api/client/outbox/reopening` | Takes one refused send back to the draft it was written in, so it can be edited and sent again |
+
+**The outbox is beside an account's folders, never one of them.** [The folders route](#the-folders-route) carries it as
+an `outbox` member of each account — `{ "waiting": 2, "refused": 1 }`, where `waiting` counts the sends recorded or
+whose transmission began and `refused` the refused ones nobody dismissed — and a client draws it while either number is
+above zero. The member is `null` for a caller that does not hold both `mailfathom.mail.read` and
+`mailfathom.mail.send`, because how much an outbox holds is part of what it says. It has no folder identity, so no route that moves, copies, flags, or files a message can name it, and a send
+in it is named by the `outgoingEmail` identifier its send answered with rather than as a stored email: handed to a
+route that takes an email, that identifier answers as an email nobody holds. No folder on the mail server plays this
+role either; `SpecialUse: Outbox` is refused at startup, as
+[the mail configuration](configuration-mail.md#one-account--a-mailbox-in-a-users-record) state.
 
 **A listing names an account and never the deployment.** The narrowing is required rather than optional, so there is no
 unnarrowed reading here at all: one that fell back to every account would page through every user's outgoing mail,
-which is the deployment-wide catalog a user-facing surface must never compose. An account another user owns is
+which is the deployment-wide catalog a user-facing surface must never compose. An account another user is assigned is
 refused exactly as one nobody configured, and a send another user made answers exactly as one nobody made.
 
-**What the answers carry is what [the administrative outbox](admin-endpoint.md) already settled.** A page names no
-recipient and no subject, because a page of an outbox would otherwise be an export of who this user writes to, a page
-at a time; one send read by identity names its recipients and what the server said about each, because that is the
-question it was asked. Neither reads the message, at any size.
+**What a page holds is three stages.** `Recorded` has not left, `TransmissionBegun` is being transmitted or ended with
+an outcome nobody knows, and `Refused` was refused; a delivered send has left the outbox and a withdrawn or dismissed one
+is gone from it, so narrowing to `Sent` or `Cancelled` is refused as a stage the outbox does not hold. A page holds at
+most `OutboxQuery.MaximumPageSize` rows, newest first, and continues with the cursor it returns. A row carries the send's
+identifier, its account, its stage, `heldByAttempt` — whether an attempt holds it right now, which at
+`TransmissionBegun` tells a send being transmitted from one whose outcome nobody knows — up to three recipients from
+`To` (or from `Cc`, then `Bcc`, where `To` is empty) with `otherRecipientCount` for the rest, the subject, when it was
+recorded, the time it was written to leave at and the zone that time was named in, `availableAt` — the earliest a
+delivery pass may take it, which for a send left to try again is when it is tried — how many attempts it has taken, and
+the failure it stopped on as a code, a reply code, and a sentence in the reader's language.
+
+**A page and a preview are mail, so they take both grants.** Who a send is addressed to, its subject, and the message
+itself are what [the mail list](#the-mail-list-route) and [the message route](#the-message-route) guard, so the page is read under
+`mailfathom.mail.read` and `mailfathom.mail.send` together and a caller holding only one of them is answered `403`. The
+read by identity serves both kinds of caller. One holding both is answered the preview: the row's fields plus every
+recipient with the header it is named in and what the server said about it, the sender as the message's `From` names
+it, the body rendered from the MIME the send will transmit into the same closed document
+[the message body route](#the-message-body-route) answers with, and each attachment by name, media type, and size — none of them served
+from here. One holding only the sending grant is answered the delivery it watched before: the stage, the attempts, and
+each recipient's outcome, with no subject and no message. Subjects on a page are screened at the listing point and a
+preview at the content point, exactly as a stored message's would be, when the account's sensitive-content posture
+asks for it.
 
 **A decision reports what became of the send it named rather than refusing.** A send that has gone past the point of
 recall, and one this user does not hold, are outcomes in the answer — which is exactly what somebody acting on a
@@ -2920,9 +3342,28 @@ screen a moment old needs. Only a request naming no send at all is refused. Each
 set, because a message whose outcome nobody knows may already be in somebody's mailbox, so a filtered re-queue would be
 an unknown number of duplicates asked for in one request.
 
-**Every route here is `mailfathom.mail.send`, the two readings included.** What an outbox says is what this user is
-sending, so a credential granted to read a mailbox learns nothing here, and withdrawing a send is part of sending
-rather than a power beside it.
+**A dismissal is the person accepting the failure.** It is offered at `Refused`, and at `TransmissionBegun` once no
+attempt holds the send; the stage stays what it was, and the record keeps when the send was dismissed and by which
+user. A dismissed send is out of every outbox a person reads, so offering it again is the operator's, from
+[the administrative outbox](admin-endpoint.md), and a requeue here answers `StageDoesNotAllowIt`.
+
+**Taking a refused send back to edit hands the message back to its draft and dismisses the send, in one statement.**
+The body is `{"outgoingEmail": "..."}` and the answer `{"outgoingEmail", "outcome", "draftId"}`. It is offered at
+`Refused` alone, for a send nobody dismissed that was written from a draft of the caller's own: the draft stops naming
+the send it was promoted to, so it is listed and opened again like any other draft, and the send is dismissed against
+the same user in the same transaction, so the message is never in the Outbox and in Drafts at once. `Accepted` carries
+the `draftId` a client opens the composer on, through `GET /api/client/drafts/{draftId}`; a send written from no draft
+of the caller's — one an agent sent, or one written straight to the Outbox — answers `NoDraftToReopen`, and every other
+outcome is the one the decisions above answer with.
+
+**Every decision here is `mailfathom.mail.send`.** Withdrawing, offering again, and dismissing a send are part of
+sending rather than powers beside it, so a credential granted to read a mailbox decides nothing here. Taking one back
+to edit also writes a draft, so it needs `mailfathom.mail.drafts.write` beside it.
+
+**An open client is told when an account's outbox moves.** A send written down, every step a delivery attempt commits
+— transmission begun, the send delivered, refused, or left to try again — and a send withdrawn, offered again, or
+dismissed each raise `outbox.changed` on [the signal channel](#the-signal-channel), naming the account and nothing of
+the send, and the client reads the page again.
 
 ### The contact routes
 
@@ -3161,15 +3602,21 @@ holds** — so nothing here reports whether such a notification exists.
 **A row carries what a list draws and stops there**: the kind, what the notification says, a headline, a second line,
 what the source line names beyond the kind, where opening it leads, when the thing it describes happened, and whether
 it has been read. Everything a row draws was derived when the notification was produced, so drawing the centre
-re-reads no mail — and no mail body, no address, and no attachment reaches these answers at any size. The
-deduplication key is absent: it is the rule's own name for a condition rather than anything a screen renders.
+re-reads no mail — and no mail body, no recipient, and no attachment reaches these answers at any size. A row about
+one arrived message carries mail's own words, its sender and its subject, and a refused send and a draft out of step
+carry the subject of the send or the draft, for the reason given below.
+The deduplication key is absent: it is the rule's own name for a condition rather than anything a screen renders.
 
 **What a notification says is a condition and its numbers, and the sentence is the client's.** `statement` carries a
-`cause` — `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, or
-`TaskReminderDue` — beside
-`counted` and `outOf`, whose meaning is the cause's to give: mail counts the messages that arrived, an unfinished run
+`cause` — `MailArrived`, `MessageArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`,
+`TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, or `DraftCopyNotKept` — beside
+`counted` and `outOf`, whose meaning is the cause's to give: merged mail counts the messages that arrived, one arrived
+message counts whether it carried a subject — so a client words a missing one itself — an unfinished run
 counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now
-and the event, and a refused credential counts nothing. A client turns that into a
+and the event, and a refused credential counts nothing. A refused send and a draft out of step with its server copy
+count whether they carried a subject, as one arrived message does, and a given-up change counts the act it was:
+`0` mark as read, `1` mark as unread, `2` flag, `3` remove the flag, `4` move, `5` delete, `6` copy, `7` change the
+tags. A client turns that into a
 sentence in whatever language its reader has, which is why the service sends no sentence of its own for it to
 translate. `title` and `body` beside it are that same statement written out in English, for a reader with no client
 to say it in their own; a client that recognizes the cause draws the statement and ignores them. `statement` is
@@ -3207,15 +3654,38 @@ administrator maintains clears their own bell under a grant that says nothing ab
 record about a message that stays. Opening the message a notification points at is `mailfathom.mail.read`, as it is
 from anywhere else.
 
-**Where opening one leads is one of five shapes**, and `target` carries the one the producer chose: `Nothing`,
+**Where opening one leads is one of eight shapes**, and `target` carries the one the producer chose: `Nothing`,
 `Message` with a `messageId`, `Screen` with a `screen`, `CalendarEvent` with a `calendarEventId`, and `PersonalTask`
 with a `taskId` — the last two being what a [due reminder](../features/reminders.md) names, and how a client reaches
-the record it is about. A row carrying a shape a client does not recognize leads nowhere rather than being drawn as an
+the record it is about — then `OutgoingEmail` with an `outgoingEmailId`, `MailboxChange` with a `changeRecordId` and the
+`messageId` it was asked of, and `MailDraft` with a `draftId`, which are what a failure decided after its request
+answered leads to. A row carrying a shape a client does not recognize leads nowhere rather than being drawn as an
 error.
 
-**A reminder is the one row whose headline names a record.** `title` is what the person called their own event or
-their own task, because there is nothing else a reminder is about and no catalogue could hold it, so a client fills it
-into its own sentence rather than replacing it. Everything else about the record stays on the record.
+**A failure decided after its request answered is put in front of the person once.** A send the mail server refused
+for good, or one that missed the moment it was due, is a `SendRefused` row for every user assigned the account,
+leading to that send in its outbox, where it is offered again, taken back to edit, or dismissed. A change somebody
+asked of a message that MailFathom gave up on — every attempt spent, a server that cannot carry it, a destination
+folder the server does not have, or an outcome nobody could establish — is a `MailboxChangeAbandoned` row for every user assigned the account, leading to the message;
+a change a rule or the spam classifier asked for raises none, because nobody watched it happen. A draft whose copy on
+the mail server stopped following it — an append the server never answered, or an earlier revision's copy that could
+not be taken back out — is a `DraftCopyNotKept` row for the draft's writer alone, leading to the draft. Each is
+deduplicated per send, per change, and per draft while it stands unread, and each goes with the record it names: a
+send purged from the outbox, a change record removed, and a draft sent or given up take their row with them.
+
+**Two kinds of row carry a headline no catalogue could hold.** A reminder's `title` is what the person called their own
+event or their own task, because there is nothing else a reminder is about, so a client fills it into its own sentence
+rather than replacing it. A `MessageArrived` row's `title` is who sent the message — the name they gave, else the
+address they wrote from — and its `body` the subject, which a client draws as it arrives, while `counted` at zero tells
+it the message carried none. Everything else about either record stays on the record.
+
+**Mail is announced a message at a time while it is few, and as one row once it is not**, per person and per account.
+While an account's unread arrivals number five or fewer, each message is a `MessageArrived` row leading to it. The
+arrival that would take them past five replaces every one of those rows with a single `MailArrived` row counting them
+all and leading to the mail screen, and while that row stands unread each later arrival replaces it again with a count
+that includes its own — a new row with a new identifier, newest in the centre and signalled like any other. Reading it
+ends the merge, so what arrives next starts again a message at a time. A merged row stands for the messages it counts,
+up to the newest hundred of them, which is what [asking the Agent about it](#the-agent-conversation-routes) reads.
 
 **A notification is kept for thirty days and no longer**, and one pointing at a message is erased with that message.
 Both are the record's own bounds rather than these routes', so a centre that reaches back no further has aged out
@@ -3731,7 +4201,10 @@ Location: /api/client/agent/conversations/0199a2c4-5e6f-7a1b-8c2d-3e4f5a6b7c8d
 
 The question and the opening of the answer to it — the run — are written together, and the run's identifier is the
 answer's. A repeated `messageId` answers with what the first post wrote. `scope` is `Mailbox` with no subject, or
-`Thread`, `CalendarEvent`, or `DiscoveryRun` naming the one it was asked about, and may be left out. A question asked
+`Thread`, `CalendarEvent`, `DiscoveryRun`, or `Notification` naming the one it was asked about, and may be left out. A
+`Notification` scope is a merged arrival: the Agent is handed the messages that row stands for, read under the asker's
+own identity, and a notification the asker does not hold — or one that stands for none — hands it nothing, exactly as
+one that never existed. A question asked
 while an answer is still being composed is `409`, and so is one into a full conversation — 5 000 visible entries, or
 50 000 entries of the whole record, the last two of each kept for an answer's ending and the agent's note after a stop,
 so a running answer can always be stopped —
@@ -3975,14 +4448,15 @@ no subject, address, body fragment, filename, or attachment name reaches it at a
 flags `mail.flags.changed` carries, which say where each of those two stands rather than that one moved, for the reason
 the paragraph below the table gives. The second is a raised notification's own headline and second line, which are the
 record's already-derived text and reach a client entitled to read that record over
-[the notification routes](#the-notification-routes). Seven things are said:
+[the notification routes](#the-notification-routes). Eight things are said:
 
 | Signal | What it says |
 | --- | --- |
-| `mail.arrived` | A run committed mail into one folder, and how much |
+| `mail.arrived` | A run settled newly arrived mail of one account — its verdict and its rules have placed it, so every route above now returns it — and how much |
 | `mail.changed` | Stored mail in one folder, or in every folder of one account, is no longer what a client last read, naming up to 100 of the rows |
 | `mail.flags.changed` | Nothing moved but the `\Seen` or `\Flagged` flag of up to 100 rows, and where each of those flags now stands |
 | `folders.changed` | The set of folders an account mirrors, or a held account's local folders, has moved |
+| `outbox.changed` | A send in an account's [outbox](#the-outbox-routes) was written down, moved through a delivery attempt, or was withdrawn, offered again, or dismissed, naming the account and nothing of the send |
 | `notification.raised` | A notification was written, with its kind, its two lines, and how many now stand unread |
 | `account.state` | An account's synchronization run finished, so what a client says about it is out of date |
 | `run.advanced` | A [Discover run](../features/discovery-run.md#a-run-is-watched-rather-than-waited-for) or an [Agent conversation](#the-agent-conversation-routes) had something written, naming the run, the conversation where it is one, and the place reached — and no part of what was written |
@@ -3996,15 +4470,18 @@ else that moved — a message that changed folder, was deleted, or whose keyword
 whole of what a run found, and a client re-reads. A flag a publisher did not observe is left out rather than reported as
 cleared: a reconciliation window states both, and a change this deployment authored states the one it wrote.
 
-**A client that does not know a kind ignores it and catches up on its next refresh**, which is what made the sixth and
-the seventh additions rather than breaks; the client and the service ship under one version.
+**A client that does not know a kind ignores it and catches up on its next refresh**, which is what made the sixth, the
+seventh, and the eighth additions rather than breaks; the client and the service ship under one version.
 
 **A statement names no folder where the change is known only by where it stands on the mail server.** A change
 settled against the server — a move, a copy, a delete, a keyword or a flag change MailFathom wrote there — and what a
 run's reconciliation finds moved are known by the server's folders rather than by the folders a client draws, so their
 `mail.changed` and `mail.flags.changed` carry no folder and reach every folder of the account; a client re-reads what it
 draws of that account, and applies a stated flag to whichever row it holds. A change made to mail MailFathom holds
-names the folder it happened in, and an arrival names the folder it landed in.
+names the folder it happened in. An arrival names no folder either: what a run settles is a set of messages each in the
+folder its verdict and its rules left it in, so its `mail.arrived` reaches every folder of the account, and a client
+re-reads what it draws of that account. Mail a run stored but has not settled is not said at all, because no route
+returns it yet.
 
 **A settled move is announced twice.** The first statement comes when the mail server has taken the move, which is
 before the account's next run finds the message in its new folder and moves the stored row with it — so a client
@@ -4012,9 +4489,9 @@ re-reading on it reads a folder that does not hold the message yet. The run that
 naming the messages it carried, and that is the read that finds them. A client holding none of the named rows reads its
 folder's leading page again, as it would for an arrival.
 
-**Statements are folded per user, per kind, and per place over half a second.** A run committing a folder's worth of
-mail is one arrival to the person who was away from the screen rather than one statement per message, and two folders'
-arrivals stay two statements so a client is never told that mail arrived without being told where to look.
+**Statements are folded per user, per kind, and per place over half a second.** A run settling a mailbox's worth of
+mail is one arrival to the person who was away from the screen rather than one statement per message, and two accounts'
+arrivals stay two statements.
 
 **A client with no channel behaves exactly as one that never had it.** Every screen re-reads over the routes above, and
 the channel only decides when. So a deployment behind a reverse proxy that does not pass the WebSocket upgrade, or one
@@ -4327,8 +4804,9 @@ deployment did not answer, on its sign-in screen, before a password has been typ
 while a downloaded head calls it silent is this setting before it is anything else.
 
 The policy allows `GET` and `POST`, the `Authorization`, `Content-Type`, `Accept`, and `traceparent` request headers,
-and exposes `WWW-Authenticate` so a page can read the challenge that tells it where to authorize and `Retry-After` so a
-client told to hold can read for how long. `traceparent` is the W3C trace context the client sends on every request, and
+and exposes `WWW-Authenticate` so a page can read the challenge that tells it where to authorize, `Retry-After` so a
+client told to hold can read for how long, and `MailFathom-Source-Truncated-From` so a client shown part of a message's
+[source](#the-source-route) can say how large the whole is. `traceparent` is the W3C trace context the client sends on every request, and
 it is the only propagation header this surface admits — [what a client-originated trace
 contains](telemetry.md#what-a-client-originated-trace-contains) is what it carries and why nothing else is allowed
 beside it. **Credentials are never allowed

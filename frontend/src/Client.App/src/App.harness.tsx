@@ -35,6 +35,7 @@ import { LinkOpenerContext } from './shellOperations/linkOpener';
 import { receivesNoRedirect, type SignInRedirect, type SignInRedirectAnswer } from './shellOperations/signInRedirect';
 import { SystemNotifierContext, type SystemNotifier } from './shellOperations/systemNotifier';
 import { WorkspaceProvider } from './workspace/Workspace';
+import { listedSender } from '../../../tests/fixtures/senders';
 
 // The frame every `App.*.test.tsx` file mounts, and the doubles it is mounted over. It is a module rather than a
 // second test file because each of those files proves one group of behaviours against the same arrangement, and a
@@ -90,6 +91,7 @@ export const workAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 // Far enough out that nothing in a test renews a session on its own: renewal is its own file, and a fixture that
@@ -240,6 +242,7 @@ export function preferencesAnswering(telemetryEnabled: boolean, aiFiltersShown =
             expandWholeThread: false,
             aiFiltersShown,
             notificationSeconds: 5,
+            trustedLinkDomains: [],
             messageView: 'reduced',
         }),
     };
@@ -292,7 +295,39 @@ const describedMessage: Answer = {
             references: [],
         },
         body: { availability: 'Readable', plainText: true, html: true },
-        sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            authenticatedDomain: null,
+            authenticationSource: 'ReceivingServer',
+            dkimDomain: null,
+            spfDomain: null,
+            dmarc: 'NotReported',
+            trustSource: null,
+            trustOrganization: null,
+        },
+        signature: {
+            outcome: 'NotSigned',
+            format: null,
+            secureMimeType: null,
+            unverifiableReason: null,
+            signedAt: null,
+            steps: {
+                content: 'NotChecked',
+                authority: 'NotChecked',
+                validity: 'NotChecked',
+                revocation: 'NotChecked',
+                signer: 'NotChecked',
+            },
+            trustAnchor: null,
+            chainEnd: null,
+            validityFailure: null,
+            revocationMethod: null,
+            revocationCheckedAt: null,
+            revokedAt: null,
+            signerMatchesAuthor: false,
+            signer: null,
+        },
         attachments: [],
         carried: null,
         unread: true,
@@ -325,6 +360,7 @@ const folderWithOneMessage: Answer = {
                 attachmentCount: 0,
                 sizeOctets: 4_096,
                 preview: 'The invoice for August.',
+                sender: listedSender('unrecognized'),
             },
         ],
         nextCursor: null,
@@ -408,6 +444,7 @@ export function deploymentWorkingInTabs(): DeploymentTransport {
                     expandWholeThread: false,
                     aiFiltersShown: true,
                     notificationSeconds: 5,
+                    trustedLinkDomains: [],
                     messageView: 'reduced',
                 }),
             }),
@@ -455,6 +492,7 @@ const drawnConversation: Answer = {
                     attachmentCount: 0,
                     sizeOctets: 4_096,
                     preview: 'The invoice for August.',
+                    sender: listedSender('unrecognized'),
                 },
 
                 // The conversation route carries every message's own description and words, which is what makes

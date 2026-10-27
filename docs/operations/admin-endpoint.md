@@ -295,7 +295,8 @@ Over organization 0198f0aa-… it is granted mailfathom.admin.read, mailfathom.a
 **Some operations are the deployment's alone**, and a grant below the deployment never reaches them whatever else does:
 the configuration reads and writes under `/api/admin/configuration`, the embedding routes under `/api/admin/embeddings`,
 the loaded rules, the stopped jobs naming no account, the outbox's summary and listing, the content move and the release
-of what it left behind, creating and deleting an organization, changing its short name, and defining a role.
+of what it left behind, creating and deleting an organization, changing its short name, rotating and revoking its
+[signing key](organization-signing-keys.md), and defining a role.
 [What only the deployment scope grants](permissions.md#what-only-the-deployment-scope-grants) lists them per
 permission.
 
@@ -467,6 +468,7 @@ These routes accept a grant held at any of the three, and check it against the t
 | `GET /api/admin/organizations` | — lists the organizations the caller's scopes for `mailfathom.admin.read` cover; a user scope covers none |
 | `PUT /api/admin/organizations/{organizationId}/display-name` | The organization |
 | `GET` and `POST /api/admin/organizations/{organizationId}/policy` | The organization |
+| `GET /api/admin/organizations/{organizationId}/signing-keys` | The organization |
 
 **A target outside the caller's scope is answered exactly as one that does not exist**, because a refusal naming the
 missing scope would tell an organization's administrator that the account, the person, or the organization exists
@@ -680,6 +682,9 @@ and a request with none is refused as any other.
 | `POST /api/admin/policy` | `mailfathom.admin.configuration.write` | Takes that policy back edited and commits it as one change against the version it was opened over. It is what `mfctl policy edit` sends when the editor exits; a policy that does not validate, and one another writer moved past, are refused in the answer rather than merged or written in part. |
 | `GET /api/admin/organizations/{organizationId}/policy` | `mailfathom.admin.read` | Hands over the settings policy one organization holds, the same way. It answers `404` for an organization this deployment does not hold. |
 | `POST /api/admin/organizations/{organizationId}/policy` | `mailfathom.admin.configuration.write` | Takes that organization's policy back edited and commits it as one change, the same way. It answers `404` for an organization this deployment does not hold. |
+| `GET /api/admin/organizations/{organizationId}/signing-keys` | `mailfathom.admin.read` | Reads [one page](#reading-the-users-mail-accounts-and-organizations-a-page-at-a-time) of [the organization's signing keys](organization-signing-keys.md), oldest first, each with its identifier, its state — `active`, `retired`, or `revoked` — and when it was created, retired, and revoked, beside the organization's display name and `nextCursor` naming where the following page continues. No key material is ever part of the answer. It answers `404` for an organization this deployment does not hold or the caller's scope does not cover. This is what `mfctl organization signing-key list` asks. |
+| `POST /api/admin/organizations/{organizationId}/signing-keys/rotation` | `mailfathom.admin.credentials.write` | Mints the organization a fresh active signing key now and retires the one it signed with, answering with both identifiers. It answers `404` for an organization this deployment does not hold, and `409` naming `DataEncryption` where the deployment configures no key ring to seal the new key under. |
+| `POST /api/admin/organizations/{organizationId}/signing-keys/{keyId}/revocation` | `mailfathom.admin.credentials.write` | Revokes one of the organization's signing keys. Revoking the active key mints its replacement in the same transaction, and the answer names it. It answers `404` for a key the organization does not hold, and `409` for a key already revoked. |
 | `GET /api/admin/roles` | `mailfathom.admin.read` | Reads one page of the [roles](#roles-groups-and-assignments) this deployment holds, each with its list as it was written under `permissions`, what each pattern on that list reaches in this build under `patterns`, and any stored entry granting nothing in this build under `unpublished`. |
 | `POST /api/admin/roles` | `mailfathom.admin.roles.write` at the deployment | Records a role from the name and the list of permissions the body carries — published names, and [patterns](permissions.md#a-pattern-in-a-roles-list) — and answers with the identifier it was minted under. A name another role carries is answered `409`, and a name it does not accept, a missing list, a permission this build does not publish, or a pattern reaching nothing it publishes `400`. |
 | `PUT /api/admin/roles/{roleId}/name` | `mailfathom.admin.roles.write` at the deployment | Replaces the name an operator reads the role by. It answers `204`, `404`, `409` for a name already taken, and `400` for a name it does not accept. |
@@ -740,8 +745,10 @@ short page against the size you asked for. The rows are in identifier order, whi
 indexed in and — every identifier MailFathom mints being a version 7 UUID — the order the rows were recorded in. A
 cursor names the last row a page held rather than a position counted from the start, so a row recorded or removed
 while you walk moves nothing you have not read yet, and a cursor naming a row removed since is still a place to
-continue from. A cursor another listing issued, a cursor one group's members were listed with presented to another
-group's, or anything this deployment did not issue, is refused with `400`, and so is a page size outside the range.
+continue from. A cursor another listing issued, a cursor one group's members or one organization's signing keys were
+listed with presented to another group's or organization's, or anything this deployment did not issue, is refused with
+`400`, and so is a page size outside the range. An organization's [signing keys](organization-signing-keys.md) are paged
+the same way, under the same two parameters.
 
 `mfctl user list`, `mfctl account list`, and `mfctl organization list` follow the cursor to the end themselves and
 print the whole listing; `mfctl organization list` sorts it by short name before printing. A script reading a listing
@@ -1151,11 +1158,11 @@ to name and the rule's own words are what an operator has to correct.
 ### Classifying the mail you already have, and reading what was concluded
 
 Three commands, and none of *them* writes a setting: they apply the account's own classification settings to the mail
-this deployment already holds for it, and read what was decided. Whether that mail is classified at all, what a scanner
-is judged by, and what happens to junk are the account's to state, in the
+this deployment already holds for it, and read what was decided. Whether that mail is classified at all, over which
+folders, and what happens to junk are the account's to state, in the
 [`SpamClassification`](configuration-mail.md#classifying-this-accounts-mail--spamclassification) block of its record;
-the deployment's [`SpamClassification`](configuration-ai.md#spamclassification) section registers the scanner and bounds
-what the process spends on it and reaches no mailbox's scope. The first is changed through [the mail account
+the deployment's [`SpamClassification`](configuration-ai.md#spamclassification) section bounds what the process
+spends and reaches no mailbox's scope. The first is changed through [the mail account
 routes](#mail-accounts-and-who-they-are-assigned-to) and the second, without a restart, through [reading and changing
 the configuration](#reading-and-changing-the-deployments-own-configuration); neither is reached through these three.
 [Spam classification](../features/spam-classification.md) is what the feature does.
@@ -1174,8 +1181,8 @@ The run is carried by the account's synchronization runs. Watch it with 'mfctl s
 ```
 
 `--folder` narrows the walk and is repeatable; it narrows *within* that user's own scope, and a folder outside it is
-refused, because a run over a folder nobody classifies would read the whole of it and record nothing. `--rescore` scores mail again even where its verdict was already reached under the settings now in force,
-which is the one form of the run that costs a scanner call per message however recently it was decided.
+refused, because a run over a folder nobody classifies would read the whole of it and record nothing. `--rescore` classifies mail again even where its verdict was already reached under the terms now in force,
+which is the one form of the run that reads every message's content however recently it was decided.
 
 Asking twice is asking once, and the command says which of the two happened — including that the terms the second
 request carried were not applied to the walk under way.
@@ -1206,9 +1213,16 @@ answers "why is this in junk"; narrowing with `--verdict` answers "what would th
 
 ```console
 $ mfctl spam classifications --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --verdict Spam
-Evaluated             Verdict                Message                               Folder  Under                                                     Signals                  Asked
-2026-08-12 11:04:11Z  Spam (Scanner 15.2/5)  0199c3d0-0000-7000-8000-000000000002  INBOX   a1b2c3d4e5f6, scanner corpus spamassassin.4.0.2+20260801  X-Spam-Status, BAYES_99  relocate (0199c3d0-0000-7000-8000-000000000009)
+Evaluated             Verdict                      Spam subcategory  Message                               Folder  Under         Signals        Asked
+2026-08-12 11:04:11Z  Spam (Deterministic 15.2/5)  none              0199c3d0-0000-7000-8000-000000000002  INBOX   a1b2c3d4e5f6  X-Spam-Status  relocate (0199c3d0-0000-7000-8000-000000000009)
 ```
+
+`Spam subcategory` is what kind of spam the message is and which stage named it, with what the model saw a phishing
+message ask for and pretend to be — `Phishing (named by Model): asks for Credentials, impersonates Bank` — or `none`
+where no stage named one. A `Deterministic` verdict beside a subcategory the model named is the model naming the kind of
+spam the mail server already called spam, not the model deciding the verdict. The route serves the same values as
+`spamSubcategory`, `spamSubcategoryNamedBy`, `phishingRequest`, and `impersonatedParty`, each absent where nothing was
+named.
 
 **The signals are names and never values.** `X-Spam-Status` says the verdict rests on that header; what the header said
 is not recorded here, and neither is a subject, an address, or a sending domain. `Under` is the profile the verdict was
@@ -1334,7 +1348,9 @@ Re-queueing is an explicit act on one named send and never a set — a route tha
 would be a way to send an unknown number of duplicates with one request. It gives the attempts back, so the next
 delivery pass offers the message to the addresses still outstanding and to no others. A permanently refused send needs
 the refusal restated in the body (`mfctl outbox requeue --message <id> --despite-refusal`), because the record says a
-server will not take the message and offering it again is a decision to disbelieve that rather than a retry.
+server will not take the message and offering it again is a decision to disbelieve that rather than a retry. A send
+its user dismissed from their account's [outbox](client-endpoint.md#the-outbox-routes) is offered again here and
+nowhere else, and offering it again clears the dismissal, so it is back in that outbox until it leaves.
 
 ### Erasing a folder you have stopped mirroring
 
@@ -1389,7 +1405,10 @@ refreshes and what neither touches; this is what the endpoint serves.
 **`mfctl mailbox rederive` is the cheap one, and the one to reach for first.** Everything the stored payload itself
 carries — the sender identity the receiving server authenticated is today's example — is already on the deployment's
 own disk, so it is a local read, a parse, and an update of the message's own columns. It opens no mailbox session, so
-it cannot set `\Seen`, and it rewrites no stored content:
+it cannot set `\Seen`, and it rewrites no stored content. The one request it may make is the one extraction makes: a
+signed message's signer certificate is checked for revocation again, against the responders it names, as
+[verifying a message's own signature](configuration-mail.md#verifying-a-messages-own-signature--signatureverification)
+describes:
 
 ```console
 $ mfctl mailbox rederive --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
@@ -2013,9 +2032,12 @@ EndpointAccess:McpEndpoint is held by the deployment, whose settings policy forc
 carried.** A user record's save never touches an account, so a reference that stopped resolving in one of that user's
 accounts is reported beside the commit rather than refusing it: the answer names the setting, says the account already
 carried it, and names `mfctl account edit` as what clears it. An account write that introduces a reference reaching
-nothing, a secret name repeated within the composed record, or a trust anchor that cannot be loaded is refused,
-including one whose broken reference is replaced by another broken one; a problem the account already carried and the
-write leaves exactly as it was is reported the same way. It is still worth clearing before the next restart, because a
+nothing, a secret name repeated within the composed record, a trust anchor that cannot be loaded, or a signing
+identity that cannot sign as the account is refused, including one whose broken reference is replaced by another broken
+one. A signing identity is judged against the submission host, the sending address, and the user name that address
+falls back to as well as its own material, so an edit to any of those three beside an identity that cannot sign counts
+as introducing the problem. A problem the account already carried and the write leaves exactly as it was is reported
+the same way. It is still worth clearing before the next restart, because a
 start refuses a record carrying it.
 
 **Nothing here reports a secret.** A record is handed over with every password, token, and client secret replaced by the
@@ -2048,6 +2070,9 @@ method's](mcp-endpoint.md#passwords) to state.
 | `mfctl organization rename --organization <id> --display-name <name>` | Replaces the name an operator reads it by |
 | `mfctl organization set-short-name --organization <id> --short-name <name>` | Replaces the short name its members sign in under |
 | `mfctl organization remove --organization <id>` | Removes an organization with neither members nor mail accounts |
+| `mfctl organization signing-key list --organization <id>` | Reads every one of the organization's [signing keys](organization-signing-keys.md), oldest first, with each one's state and dates and never its material |
+| `mfctl organization signing-key rotate --organization <id>` | Mints a fresh active signing key now and retires the one the organization signed with |
+| `mfctl organization signing-key revoke --organization <id> --key <id>` | Revokes one signing key after asking, minting a replacement in the same act when it was the active one |
 | `mfctl user set-organization (--organization <id> \| --none)` | Moves one user into an organization, or out of every organization; it takes `--user` as every other user command does |
 | `mfctl account set-organization --account <id> (--organization <id> \| --none)` | Moves one mail account into an organization, or out of every organization |
 
@@ -2208,7 +2233,7 @@ What a save is refused for, each under `12007` unless the row says otherwise:
 | A path that names no property of the record | A mistyped path would otherwise be a rule that silently governs nothing. A name that is not a section, a statement, or part of an editing restriction is refused the same way, and so is a name stated twice in different casing |
 | A value its property would refuse in a record | Each stated value is bound on its own by the binder a record is bound by, as the property it is stated for, and held to what that property declares: a value of the wrong type, an unknown setting inside a list entry, a name or number that is no member of the setting's enumeration, a value outside a range the setting declares, and a language, time zone, or telemetry level MailFathom does not know are each refused naming the path. A list is stated whole, so each entry of one is held to that entry's own rules as well — a folder mapping with no alias, or one naming neither a remote path nor a special-use role, and a trusted sender or a contact-collection exclusion that does not name exactly one usable thing, which is refused by its position in the list and never by the address or the domain it holds. A property named with no value, a single value where a list or a block belongs, and an object where a single value belongs are refused too |
 | A default or a forced value for an identity property | It says who or which rather than how, so one statement for many records could only be wrong. In `Users` these are `DisplayName` and `Portrait`; in `MailAccounts`, `EmailAddress`, `DisplayName`, `UserName`, `Delivery:UserName`, `Delivery:FromAddress`, and `Delivery:FromDisplayName`. Each may still be listed under `Editing` |
-| A default or a forced value for a secret block | A secret reference is admissible for one user, and a policy speaks for every record in its scope. These are `Secrets:Password`, `OAuth:ClientSecret`, `OAuth:RefreshToken`, `TransportSecurity:TrustedCertificateAuthority`, and `Delivery:Secrets:Password` in `MailAccounts`. Each may still be listed under `Editing`, and the settings beside one in its block are ordinary |
+| A default or a forced value for a secret block | A secret reference is admissible for one user, and a policy speaks for every record in its scope. These are `Secrets:Password`, `OAuth:ClientSecret`, `OAuth:RefreshToken`, `TransportSecurity:TrustedCertificateAuthority`, `Delivery:Secrets:Password`, `Delivery:OpenPgpSigningKey`, and `Delivery:SmimeSigningCertificate:Bundle`, `:CertificateChain`, and `:PrivateKey` in `MailAccounts`. Each may still be listed under `Editing`, and the settings beside one in its block are ordinary |
 | An administrator-only property listed as the person's to change | `EndpointAccess` and `ClientTelemetryLevel` in `Users` are written by an administrator alone. They take a default and a forced value and may be listed as locked, and a `NoneExcept` list naming one — or a block holding one — is refused, because no editing mode makes it the person's |
 | A client preference other than the telemetry switch | A client preference is the person's own. `ClientPreferences:TelemetryEnabled` takes a forced value under `Users:Forced` and nothing else: a default for it, any statement about another preference, and an editing path reaching `ClientPreferences` are each refused by name |
 | `MailAccounts` in the `Users` section, and `AccountId` in `MailAccounts` | A policy governs the properties of a record, and never which mail accounts a user has or the identifier this deployment generates for one |

@@ -53,6 +53,8 @@ These columns are an observation and never an instruction. Reading mail cannot r
 
 **What the rules have seen.** `rules_evaluated_at` records when a rule pass last evaluated this message, and is null while none has. It is not only a record: its absence is the queue a pass reads, so writing it is what takes a message out of the mail rules apply to on arrival, and `ix_stored_emails_awaiting_rule_evaluation` is what makes reading that queue proportionate to it rather than to the mailbox. The migration that adds the column stamps every row already stored, which is the same statement made about mail that existed before rules ran at all — an upgrade must not hand a deployment's first rule set an entire mailbox's history as though it had just arrived. Re-evaluating mail that already carries a value is the whole-mailbox run below, and never something an edit sets off; [mail rules](../features/mail-rules.md#when-rules-run) states both halves as behaviour.
 
+**Whether a reader may see it yet.** `SettledAt` records when the message settled — when its spam verdict and its moving rules had placed it — and is null while it is still settling. Every read a person or an agent makes admits settled rows alone, through the shared selection predicate and the read by identifier, and governance paths read past it; [the arrival pipeline](arrival-pipeline.md#a-message-is-shown-once-it-has-settled) states what a message waits for. Its absence is also the queue the settlement walks, which `ix_stored_emails_settling` keeps proportionate to it. The migration that adds the column stamps every row already stored with its `StoredAt`, so an upgrade hides nothing a reader could already see. `ArrivalFolderId` is the folder synchronization stored the message into, kept so the settlement can tell a message a rule filed out of the inbox — which is announced — from one that arrived elsewhere; it is set null if that folder is removed, which only costs such a message its announcement.
+
 **When this deployment first held the message.** `StoredAt` is written once, when the row is inserted, and is never revised. It is deliberately neither `sent_at` nor `received_at`: both of those are facts about the message that a sender or a mail server decided, and can be years old on a mailbox being synchronized for the first time. This is a fact about this deployment, and it is what spam classification's ordering is measured against — how long a message has waited for a verdict before everything derived from it is released anyway, which [junk is kept out of what a deployment derives from mail](../features/spam-classification.md#junk-is-kept-out-of-what-a-deployment-derives-from-mail) states as behaviour. The migration that adds the column backfills every existing row with `-infinity` rather than with the instant of the upgrade: a message stored before the column existed has by definition waited longer than any wait a deployment can configure, so it is eligible immediately, while stamping it with the upgrade would hold a whole mailbox out of the index for one more wait apiece.
 
 **When the stored bytes were last read back and matched.** `ContentVerifiedAt` is null until the drain of a
@@ -142,6 +144,15 @@ which list gave it.
 [Sender authentication](../features/sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes)
 states the rule the verdict follows.
 
+`SenderTrustOrganizationId` is the fourth, set only where `SenderTrustGrantedBy` is `OrganizationMember`: the
+organization whose signature recognized the author. It is a foreign key onto `organizations` with `ON DELETE SET NULL`,
+so deleting an organization keeps every verdict it reached and loses only which organization it was, and
+the partial index `ix_stored_emails_sender_trust_organization` over the rows that carry one is what lets that deletion
+find them without reading the whole table. No name is copied onto the row: a read of a message's summary reads the
+display name of every organization its rows name in one more query, by primary key and only where a row names one, so
+a rename reaches stored mail and a deleted organization reads as none. A receiving account's organization is also part
+of the revision of every verdict reached under it, so a revision says whose keys were consulted.
+
 ### The machine-authorship reading
 
 Four columns record how much the message's own text read as machine written: `MachineAuthorshipBand`,
@@ -167,6 +178,34 @@ The whole group is written by extraction from the stored raw MIME and is re-deri
 every extraction so a re-derivation never leaves a likelihood beside signals a different profile found.
 [Machine authorship](../features/machine-authorship.md#what-is-recorded) states what each value means and what the
 reading deliberately does not claim.
+
+### The message's own signature
+
+Twenty-six columns record what verifying the message's own S/MIME or OpenPGP signature found, on the email for the
+reason the groups above are: every message extraction reached carries an answer, the not-signed one included.
+`SignatureOutcome` is the verdict the steps add up to, stored beside them so a query can select on it, and defaults to
+`NotSigned`; `SignatureFormat`, `SignatureSecureMimeType`, and `SignatureUnverifiableReason` are nullable text. The five
+step results — `SignatureContentCheck`, `SignatureAuthorityCheck`, `SignatureValidityCheck`, `SignatureRevocationCheck`,
+and `SignatureSignerCheck` — are text defaulting to `Skipped`, so the migration that adds them fills every stored
+message in with the not-signed answer its row then truly holds until a re-derivation verifies it. Each step's detail
+sits beside it: `SignatureTrustAnchor` and `SignatureChainEnd`, `SignatureValidityFailure`, and
+`SignatureRevocationMethod`, `SignatureRevocationCheckedAt`, and `SignatureRevokedAt`, with `SignatureSignedAt` the time
+the signer claims.
+
+The `Signer*` columns are who signed, as their certificate or key names them — name, address, issuer, validity, serial
+number, fingerprint, OpenPGP key ID, and algorithms — each bounded by the value it is written from. The signer's
+certificate or public key itself is not on the email: `stored_email_signer_keys` holds it, one row per signed message
+keyed by the email's identifier, as `KeyMaterial` — the certificate's DER or the key's transferable form, `bytea`, and
+dropped above 64 KiB. It is a table of its own for the reason raw MIME is, so no mailbox query carries binary key
+material through the change tracker; it is kept so a later feature can encrypt to the signer, and nothing reads it back
+today. Extraction writes, replaces, or deletes that row together with the columns, so a message re-derived as unsigned
+keeps no key. All of it is personal data, inherits the message's classification, and is erased with the message by the
+cascade from it.
+
+The whole group is written by extraction and written whole on every extraction, so a re-derivation that reaches a
+revocation responder it could not reach before replaces every step rather than one. [Verifying a message's own
+signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) states what
+each verification trusts and what it asks the network.
 
 ### Bounds on what a header may contribute
 
@@ -221,6 +260,23 @@ however many people read it. [ADR 0014](https://github.com/fathomise/MailFathom/
 records it, from the moment it records it; `DisplayName`, at most 128 characters; `ShortName`, at most 32 characters,
 stored upper-cased and unique across the deployment under its own index, because it is half of a login and what a
 sign-in resolves the organization by; and when it was recorded.
+
+`organization_signing_keys` holds [the keys an organization signs with](../operations/organization-signing-keys.md):
+every key the deployment ever minted for it, active, retired, or revoked. The organization's name is not on any of them.
+
+| Column of `organization_signing_keys` | What it records |
+| --- | --- |
+| `Id` | A version 7 identifier minted with the key, which is also the selector a signature names |
+| `OrganizationId` | The organization the key belongs to, as a foreign key onto `organizations` (`fk_organization_signing_keys_organization`) with `ON DELETE CASCADE`, so removing an organization removes its keys |
+| `PublicKey` | The 32-byte Ed25519 public key, `bytea`, kept for the life of the row |
+| `SealedPrivateKey`, `DataEncryptionKeyId` | The private key sealed under the key ring with the purpose `organization-signing-key` and the row's `Id` as its subject, and the ring key it was sealed under. Both are present or both are null (`ck_organization_signing_keys_sealed_pair`), and both are null on a retired or revoked key (`ck_organization_signing_keys_spent_holds_no_private_key`), so a spent key holds no private half the database could still hand out |
+| `CreatedAt`, `RetiredAt`, `RevokedAt` | When the key was minted, when a rotation replaced it, and when an operator revoked it |
+
+A row with neither `RetiredAt` nor `RevokedAt` is the organization's active key, and the partial unique index
+`ix_organization_signing_keys_active` on `OrganizationId` over exactly those rows is what holds an organization to one:
+a replica that inserts a second loses on it and reads the winner's key back instead.
+`ix_organization_signing_keys_organization` on `(OrganizationId, Id)` serves the listing, which pages through one
+organization's keys in identifier order — the order they were minted in.
 
 `settings_policies` holds [the settings policy](../operations/admin-endpoint.md#settings-policies) each scope states:
 at most one row for the deployment and one per organization. A scope that has stored none has no row, and reads as a
@@ -296,7 +352,7 @@ version a client composes its own changes against.
 
 ### What every account is asked about at once
 
-Some questions are about every mailbox the deployment serves rather than one: which folders a tool may read, which are
+Some questions are about every mailbox the deployment serves rather than one: which folders an agent may read, which are
 junk, which accounts classify spam and which of their folders that covers, whether any mailbox is scanned, and the
 strictest posture across one user's mailboxes. Those are answered by a query rather than by binding every account's
 document, so the settings they filter on are held relationally beside the document — the five columns above, and one row
@@ -322,8 +378,8 @@ left as they stand rather than written from the document alone.
 |---|---|
 | `MailAccountId` | The account, a foreign key onto `settings_mail_accounts` (`fk_mail_account_folder_settings_settings_mail_accounts`) with `ON DELETE CASCADE` |
 | `Alias` | The folder's alias, trimmed and upper-cased as every alias is compared, at most 128 characters |
-| `SpecialUse` | The role the mapping names, `0` inbox through `9` outbox in `MailFolderSpecialUse`'s order, or null where it names a path |
-| `IsSynchronized`, `IsVisibleToTools`, `GeneratesEmbeddings` | The folder's three participation switches, each true where the document leaves it unset |
+| `SpecialUse` | The role the mapping names, `0` inbox through `8` important in `MailFolderSpecialUse`'s order, or null where it names a path |
+| `IsSynchronized`, `IsVisibleToTools`, `GeneratesEmbeddings` | The folder's participation as its three switches — `Synchronize`, `VisibleToAI`, and `GenerateEmbeddings` — resolve it: each true where the document leaves it unset, unless another withdraws it, so a folder nothing mirrors is neither visible to AI nor embedded and a folder withheld from AI is not embedded. `IsVisibleToTools` holds whether the folder is visible to AI |
 | `IsClassifiedForSpam` | Whether the account's classification covers the folder: the folders it names, or its inbox where it names none. Read together with `ClassifiesSpam`, so a folder is classified only where the account classifies at all |
 
 The primary key is `(MailAccountId, Alias)`. A document mapping no folder has one row, the inbox, which is the folder a
@@ -515,9 +571,9 @@ readable, and the reconciliation window skips it; the marker is cleared when the
 
 `client_preferences` holds one row per user, carrying what that person set about
 [their own client](../operations/client-endpoint.md#the-preferences-routes) so that it follows them between machines
-rather than staying in the browser profile or the desktop install they set it in. There are three of them today: whether
-this deployment may be told what their client is doing, what the client is painted in, and whether opening a message
-opens a tab.
+rather than staying in the browser profile or the desktop install they set it in. There are nine of them today, which
+that page lists, from whether this deployment may be told what their client is doing to the domains whose links they
+trust to open without being asked first.
 
 | Column of `client_preferences` | What it records |
 |---|---|
@@ -564,7 +620,7 @@ before the cascade takes the rows, so the objects go with them.
 
 ## What happened while nobody was looking
 
-`notifications` holds what a person is told about — a synchronization run that brought them mail, and the system
+`notifications` holds what a person is told about — the mail a synchronization run brought them, and the system
 conditions that run distinguishes. It belongs to the deployment rather than to a device, because the read state has to
 be the same in both heads and on a second machine, and because most of what produces a row is visible only to the
 service.
@@ -575,30 +631,53 @@ service.
 | `UserId` | The user it happened to. It is the foreign key onto `settings_accounts` with `ON DELETE CASCADE`, for the reason `client_preferences` keys the same way |
 | `Kind` | Which part of MailFathom it is about — `Mail`, `Calendar`, `Task`, or `System` — stored as text |
 | `Title`, `Body` | The two lines a row is drawn with in English, derived when the notification was produced rather than by re-reading mail when it is displayed |
-| `Cause` | The condition the row was raised for — `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, or `TaskReminderDue` — stored as text. It is what lets a client say the row in its reader's own language, the two lines above being that same condition written out. Absent on a row written before the column existed, which is what an upgrade over existing data leaves until retention has taken those rows |
-| `Counted`, `OutOf` | The numbers the cause is stated with, whose meaning is the cause's: mail counts the messages that arrived, an unfinished run counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now and what it is about — the event for `CalendarReminderDue`, nine in the morning on the due day for `TaskReminderDue` — and a refused credential counts neither |
+| `Cause` | The condition the row was raised for — `MessageArrived`, `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, `TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, or `DraftCopyNotKept` — stored as text. It is what lets a client say the row in its reader's own language, the two lines above being that same condition written out. Absent on a row written before the column existed, which is what an upgrade over existing data leaves until retention has taken those rows |
+| `Counted`, `OutOf` | The numbers the cause is stated with, whose meaning is the cause's: one arrived message counts whether it carried a subject — one where it did, none where it did not — merged arrivals count the messages they stand for, an unfinished run counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now and what it is about — the event for `CalendarReminderDue`, nine in the morning on the due day for `TaskReminderDue` — a refused credential counts neither, a refused send and a draft out of step with its server copy count whether they carried a subject as one arrived message does, and a given-up change counts the act it was, `0` mark as read through `7` change the tags |
 | `Source` | What the source line names beyond the kind, which is an account identifier today, and absent where the kind is the whole of it |
-| `TargetKind` | Which of the five shapes opening it leads to — `Nothing`, `Message`, `Screen`, `CalendarEvent`, or `PersonalTask` — stored as text |
-| `TargetStoredEmailId` | The message a `Message` target names, and the foreign key onto `stored_emails` with `ON DELETE CASCADE`. Absent for every other shape |
+| `TargetKind` | Which of the eight shapes opening it leads to — `Nothing`, `Message`, `Screen`, `CalendarEvent`, `PersonalTask`, `OutgoingEmail`, `MailboxChange`, or `MailDraft` — stored as text |
+| `TargetStoredEmailId` | The message a `Message` target names, and the message a `MailboxChange` target's change was asked of, and the foreign key onto `stored_emails` with `ON DELETE CASCADE`. Absent for every other shape |
 | `TargetScreen` | The screen a `Screen` target names — `Mail` or `Settings` — stored as text. Absent for every other shape |
 | `TargetCalendarEventId` | The event a `CalendarEvent` target names, and the foreign key onto `calendar_events` with `ON DELETE CASCADE`, so a deleted event takes the reminders it raised. Absent for every other shape |
 | `TargetPersonalTaskId` | The task a `PersonalTask` target names, and the foreign key onto `tasks` with `ON DELETE CASCADE`, for the same reason: a reminder about work nobody owes any more is not a row to keep. Absent for every other shape |
+| `TargetOutgoingEmailId` | The send an `OutgoingEmail` target names, and the foreign key onto `outgoing_emails` with `ON DELETE CASCADE`, so a send purged from the outbox takes the refusal it raised. Absent for every other shape |
+| `TargetMailboxMutationId` | The change a `MailboxChange` target names, and the foreign key onto `mailbox_mutations` with `ON DELETE CASCADE`, so a change record that goes takes the notice that it was given up with it. Absent for every other shape |
+| `TargetMailDraftId` | The draft a `MailDraft` target names, and the foreign key onto `mail_drafts` with `ON DELETE CASCADE`, so a draft sent or given up takes the notice about its server copy with it. Absent for every other shape |
 | `DeduplicationKey` | MailFathom's own name for the condition the notification was raised for |
 | `OccurredAt` | When the thing it describes happened |
 | `IsRead` | Whether the person has read it, which is also what frees the condition to be said again |
 
-**A row carries no mail.** The one exception is a reminder's title, which is what the person called their own event and is theirs rather than a third party's; everything else is MailFathom's own sentences about a count or a condition, the
-cause and its two numbers are that same condition as a name and two counts, the
-source is an account identifier, and the key is a condition's name — so no subject, address, body fragment, filename,
-or credential material reaches the table. What still makes it derived personal data is that it says something reached
-this person's mailbox and when, which is what the two cascades and the retention bound answer for.
+**A row carries mail in one shape only.** A `MessageArrived` row's title and body are the sender and the subject of
+the one message it is about — the sender's display name, or their address where the message names none — which is
+why that row always leads to its message and goes with it through the cascade below. A reminder's title is what the
+person called their own event or task, which is theirs rather than a third party's. Everything else is MailFathom's
+own sentences about a count or a condition, the cause and its two numbers are that same condition as a name and two
+counts, the source is an account identifier, and the key is a condition's name — so no body fragment, recipient,
+filename, or credential material reaches the table. What makes every row derived personal data is that it says
+something reached this person's mailbox and when, which is what the cascades and the retention bound answer for.
 
-**Two cascades reach it, and they answer different obligations.** The user's row takes their notifications with them,
+**Mail arrives a message at a time until an account has more than five unread, then merged.** While a person's unread
+arrival rows for one account number five or fewer, each arrived message is a row of its own. The arrival that would
+take them past five replaces them with one `MailArrived` row counting every message, and while that row stands unread
+each later arrival replaces it again with a count that includes its own; the read of what stands and the replacement
+are one transaction. `notification_named_emails` holds which messages such a merged row stands for, up to a hundred
+and the newest kept, so a question can be asked about them:
+
+| Column of `notification_named_emails` | What it records |
+|---|---|
+| `NotificationId` | The merged notification, and the foreign key onto `notifications` with `ON DELETE CASCADE`, so the pairs go with it whichever way it leaves |
+| `StoredEmailId` | One message it stands for, and the foreign key onto `stored_emails` with `ON DELETE CASCADE`, indexed by `ix_notification_named_emails_stored_email` because a message's erasure reaches the table by the message alone |
+
+The pair is the key. An erased message leaves the merged row's count as it was, because the count says how much
+arrived rather than how much is left.
+
+**The cascades that reach it answer two different obligations.** The user's row takes their notifications with them,
 so an erasure request never has to name this table — which matters here because the table records no mail account and
-the [erasure walk](#privacy-classification) enumerates the tables that do. And a stored message takes the notifications
-that lead to it, so nothing can leave a row pointing at mail that is gone. That second cascade is why the message is an
-association here where `mailbox_mutation_audit_entries` deliberately keeps its own as a plain value: a trail records an
-act and has to outlive what it acted on, while a notification only offers to open something.
+the [erasure walk](#privacy-classification) enumerates the tables that do. And every record a notification can lead to
+takes the notifications leading to it — a stored message, a calendar event, a task, a send in `outgoing_emails`, a
+change in `mailbox_mutations`, and a draft in `mail_drafts` — so nothing can leave a row pointing at something that is
+gone. That is why the message is an association here where `mailbox_mutation_audit_entries` deliberately keeps its own
+as a plain value: a trail records an act and has to outlive what it acted on, while a notification only offers to open
+something.
 
 **Saying one condition twice is refused by the schema rather than checked for before the insert.**
 `ix_notifications_user_unread_condition` is unique over `(UserId, DeduplicationKey)` and filtered to `NOT "IsRead"`,
@@ -1218,14 +1297,24 @@ removes a request with the email it is about.
 ## What classification concluded about a message
 
 `email_spam_classifications` is one-to-one with `stored_emails` and holds what spam classification concluded: the
-`Verdict`, the stage that `DecidedBy`, the `Score` and the `Threshold` it was judged against, the `CorpusRevision` the
-deciding stage ran under, the `Profile` it was reached under, and when it was `EvaluatedAt`. [Spam
+`Verdict`, the stage that `DecidedBy`, the `Score` and the `Threshold` it was judged against, the `Profile` it was
+reached under, and when it was `EvaluatedAt`. [Spam
 classification](../features/spam-classification.md#what-a-classification-records) describes what produces each value.
+`CorpusRevision` is a nullable column no stage writes, and every write clears it; it stays mapped because a replica of
+the previous build reads it during a rolling upgrade.
 
-`Profile` is a twelve-character digest of the settings the verdict rests on — whether a scanner was consulted and the
-threshold its score was judged by — and it is nullable because a row written before the column existed names terms
-nothing can compare. That is what it is for: a run over a whole mailbox reads it to decide whether a message has
-already been decided under the settings now in force, and a row carrying none is scored again rather than skipped.
+`SpamSubcategory` names what kind of spam a `Spam` verdict is — `Phishing`, `BusinessEmailCompromise`, `MalwareLure`,
+`Scam`, `Extortion`, or `Marketing` — and is null where no stage named one, which includes every row written before the
+column existed. `PhishingRequest` names what a phishing message asks for and `ImpersonatedParty` the kind of party a
+phishing or business-email-compromise message pretends to come from; both are null wherever the model named nothing.
+All three are member names stored as text, like `Verdict` and `DecidedBy`. Which stage named the subcategory is not a
+column: the person names the one on their own verdict, and the model every other. **The spam subcategory is not a mail
+category** — it says what kind of spam a spam message is, and nothing about mail that is not spam.
+
+`Profile` is a twelve-character digest of the terms the verdict was reached under, and it is nullable because a row
+written before the column existed names terms nothing can compare. That is what it is for: a run over a whole mailbox
+reads it to decide whether a message has already been decided under the terms now in force, and a row carrying none,
+or one other than the current profile, is classified again rather than skipped.
 
 Keyed by the email rather than carrying an identity of its own, which is what makes one classification per message a
 property of the schema instead of a rule somebody has to remember: classifying the same message twice reaches the same
@@ -1253,6 +1342,16 @@ subset.
 Both cascades point one way. A classification is deleted with the email it describes, and its signals with the
 classification, so whatever erasure and retention already reach a message reach everything derived from it — there is no
 pass of its own to remember.
+
+`email_spam_verdict_acts` records what a verdict of this deployment did to a message: one row per act, keyed by
+`(StoredEmailId, Act)`, where `Act` is `FiledIntoJunk`, `MarkedJunk`, `MarkedPhishing`, or `ClearedJunkMarks`, with the
+`RecordedAt` it was first done. It is written in the transaction that makes the act — beside the mutation record on a mirrored account, and
+beside the local commit on a held or restoring one — and is never rewritten, because what it answers outlives the
+verdict: the deterministic stage reads it so a placement or a keyword the deployment made is not taken as evidence, and
+the action recorder reads it so a message moved back out of junk, a keyword somebody removed, or a `$Junk` and
+`$NotJunk` pair already cleared once, is not acted on again.
+It is a table of its own rather than a reading of the mutation records because a held account's act opens none. It
+holds no folder, no keyword text, and nothing from the message, and it is deleted with the email it describes.
 
 ## Recorded mailbox mutations
 
@@ -2080,6 +2179,9 @@ withdrawn from the mailbox it reached.
 | `RecordedAt`, `StageChangedAt` | When the intent was written, and when the record last moved. The second is what says how long a stuck send has been stuck |
 | `LastFailureCode` | The code of the failure the last attempt ended in, null while none has. The code is kept and the message is not, because a failure message is assembled at the failure site and may repeat what a remote server wrote |
 | `LastReplyCode` | The reply code the server last answered the transmission with, null while it has answered none. A different fact from the per-recipient codes: a server accepts or refuses each address separately and then answers once for the body |
+| `Subject` | The message's subject as it was authored, so a row of [the account's outbox](../operations/client-endpoint.md#the-outbox-routes) names the send without reading its MIME. A message without a subject holds the empty string; null is only on a row written before the column existed, which the outbox reads from the stored message instead |
+| `InternetMessageId` | The `Message-ID` the enqueued MIME carries, read once when the record is opened. A receiving account of the same organization finds the send behind a blind copy through it, which is how a blind copy is told from a signed message replayed to somebody it never named — [Sender authentication](../features/sender-authentication.md#a-colleague-in-the-receiving-accounts-organization) has the rule. Null where the MIME carried none, and on a row written before the column existed; either can never vouch for a blind copy |
+| `DismissedAt`, `DismissedByUserId` | When a person took a refused send, or one whose outcome nobody will learn, out of the account's outbox, and which user did. Both null until then; a requeue clears both. The user is a plain identifier rather than a foreign key, for the reason `UserId` is: erasing the user leaves the account's sending history alone |
 
 `Stage` is the submission's own vocabulary rather than a generic queued and sent, because it is what a later attempt
 reads:
@@ -2160,14 +2262,13 @@ in every recipient's client. A second enqueue of the same identity therefore lea
 ### The copies of an outgoing message that are in the mailbox
 
 `outgoing_email_filings` holds one row per place a copy of an outgoing message has been put, keyed by the record and
-the filing — `draft`, `held`, or `sent` — so an account's own Sent folder and its outbox folder are two rows of one
-send rather than two records. It exists because an `APPEND` cannot be corrected by repeating it: every mutation
-elsewhere in this schema names a message the server already holds, while an append *creates* one, so a second attempt
+the filing — `draft` or `sent` — so an account's own Drafts folder and its Sent folder are two rows of one send rather
+than two records; a message waiting to leave is filed nowhere. The table exists because an `APPEND` cannot be
+corrected by repeating it: every mutation elsewhere in this schema names a message the server already holds, while an append *creates* one, so a second attempt
 is a second copy in somebody's folder that nothing afterwards can tell from the first.
 
-That key is named `pk_outgoing_email_filings` for the reason `pk_email_embeddings` is: it is what two passes reaching
-one send at once collide on, and a lost race is only recognized as one where the constraint has a name to recognize it
-by. The loser retries from a fresh read, finds the row the winner issued, and appends nothing.
+That key is named `pk_outgoing_email_filings` because it is what two passes reaching one send at once collide on, and a
+lost race is only recognized as one where the constraint has a name to recognize it by. The loser retries from a fresh read, finds the row the winner issued, and appends nothing.
 
 | Column | What it records |
 |---|---|
@@ -2349,6 +2450,7 @@ account reach these four tables through the same cascade every other table is re
 | `ix_stored_emails_account_identity` | `(mailbox_account_id, id)` | The order a whole-mailbox rule run walks an account's mail in. The identity rather than the timeline, because a walk that has to resume needs a total order no later write disturbs and a position that is one column rather than a nullable timestamp paired with a tie-breaker |
 | `ix_stored_emails_filed_sent_copy` | `(mailbox_account_id, internet_message_id)` over the rows whose `FiledFromOutgoingEmailId` is not null and `uid_validity` is null | Whether a message synchronization meets in a held account's sent folder is the provider's copy of a send already filed locally. The filter keeps it to the filed copies no server has returned yet, which is a handful at most, so the probe made for every message in that folder costs an empty lookup rather than a walk of the account |
 | `ix_stored_emails_awaiting_rule_evaluation` | `(mailbox_account_id, id)` over the rows whose `rules_evaluated_at` **and** `FiledFromOutgoingEmailId` are both null | The queue of mail no rule pass has evaluated, read once per account run. The filter is the point: in steady state almost every row of an account has been evaluated, so without it the read would walk the account's whole index to find the handful that qualify, on every run of every account. The second clause is what keeps a copy of this deployment's own outgoing mail out of that queue permanently — such a row is never stamped as evaluated, because it never was, so excluding it anywhere else would leave it at the head of the queue for good |
+| `ix_stored_emails_settling` | `(MailboxAccountId, Id)` over the rows whose `SettledAt` is null | The settling queue, read once per account run. Filtered for the reason the rule queue above is: a row settles once and stays settled, so in steady state the index holds only the last few runs' mail |
 | `ix_stored_emails_awaiting_attachment_text` | `(mailbox_account_id, id)` over the rows whose `AttachmentTextDerivedAt` is null **and** whose `AttachmentCount` is above zero | The queue of mail whose attachments no pass has read, in the same identity order the rule queue walks and for the same reason. Both clauses of the filter earn their place: the timestamp is what takes a message out of the queue once its attachments have been settled, and the count is what keeps the mail carrying no attachment at all — most of a mailbox — out of an index that would otherwise be as large as the account |
 | `ix_stored_emails_thread` | `(EmailThreadId, Id)` | One conversation's messages, in the total order a read assembles them from. The identity is in the key because the order a conversation is published in is computed rather than stored, and the read needs a stable one to bound and page the raw set by |
 | `IX_stored_emails_ParentStoredEmailId` | `(ParentStoredEmailId)` | The self-referencing key back to the message a reply answers, which is what erasing a message reaches its replies by rather than scanning |
@@ -2376,9 +2478,11 @@ account reach these four tables through the same cascade every other table is re
 | `ix_mailbox_mutation_audit_entries_mutation` | `(MutationRecordId)`, unique | One audit entry per mutation ending, whatever a repeated append attempts |
 | `ix_outgoing_emails_identity` | `(MailboxAccountId, UserId, RequesterOrigin, RequesterIdentity)`, unique | An outgoing message's idempotency identity, which is what makes the same authored request twice one delivery. The account leads it because the message belongs to the mailbox; the author stays in the key behind it, which is what ADR 0014 means by an outgoing email keeping its author in its identity — two people writing from one shared mailbox under the same requester identity are two sends rather than one. It spans terminal rows deliberately: a row that was sent is what stops the same request asking again |
 | `ix_outgoing_emails_claimable` | `(MailboxAccountId, AvailableAt, Id)` where the stage is `Recorded` | The batch a delivery pass claims, oldest first. The filter is what keeps it proportionate to the outbox rather than to everything the deployment has ever sent: a claim reads only rows nothing has transmitted for, and in steady state that is almost none of the table. The identity is in the key because two sends recorded in one instant need a total order for the claim to be deterministic |
-| `ix_outgoing_email_filings_placement` | `(MailboxAccountId, FolderPath, PlacementUidValidity, PlacementUid)` where the stage is `Confirmed` | The question every synchronized batch asks: is one of these UIDs a copy this deployment filed. The stage is the whole filter, so the index is the size of the copies still standing rather than of everything ever sent — a mirror withdrawn before any run saw it, and an append the server never answered, are rows nothing will ever match again. Having been met is deliberately not part of it, because a provider that files the sent copy itself puts a second occurrence of the same message in the same folder and both have to be recognized |
+| `ix_outgoing_email_filings_placement` | `(MailboxAccountId, FolderPath, PlacementUidValidity, PlacementUid)` where the stage is `Confirmed` | The question every synchronized batch asks: is one of these UIDs a copy this deployment filed. The stage is the whole filter, so the index is the size of the copies still standing rather than of everything ever sent — a copy withdrawn before any run saw it, and an append the server never answered, are rows nothing will ever match again. Having been met is deliberately not part of it, because a provider that files the sent copy itself puts a second occurrence of the same message in the same folder and both have to be recognized |
 | `ix_outgoing_email_filings_message_id` | `(MailboxAccountId, InternetMessageId)` where the stage is `Confirmed` | The same question on a server that advertises no `UIDPLUS` and therefore named no placement, answered by the identity in the appended bytes, and bounded the same way |
 | `ix_outgoing_email_filings_recent_by_filing` | `(MailboxAccountId, Filing, AppendedAt, OutgoingEmailId)` where the stage is `Confirmed` | The same rows read the other way round, which is what the sweep for a copy the provider duplicated asks: which of this account's standing copies of one kind were appended recently enough to still be acted on. The two above lead with what a discovery is recognized by and answer nothing about when a copy was filed, so without this one that sweep reads every confirmed filing the account has ever kept — on every outbox pass — to find the few inside a fifteen-minute window. The identity is behind the instant for the reason the claim's is, and it is what lets the ordering be read rather than sorted. The provider's own copy is in none of these three: it has no row in this table at all, and is found by a correlated match against `stored_emails` on the folder, the UID space, and the identity the append carried, at a UID the placement does not name |
+| `ix_outgoing_emails_internet_message_id` | `(InternetMessageId, MailboxAccountId)` where `InternetMessageId` is not null | The send behind a blind copy a receiving account of the same organization was signed: found by the `Message-ID` the arrival names, and confined to the account its signed author sends through. Partial because a send whose MIME named no identifier can never be found this way |
+| `ix_outgoing_emails_outbox` | `(MailboxAccountId, RecordedAt, Id)` where `DismissedAt` is null and the stage is `Recorded`, `TransmissionBegun`, or `Refused` | What [an account's outbox](../operations/client-endpoint.md#the-outbox-routes) pages through, newest first, and what its count reads. The filter is the outbox's own definition, so the index is the size of what a person is shown rather than of everything the account ever sent, and the identity breaks a tie between two sends recorded in one instant |
 | `ix_outgoing_emails_outstanding` | `(MailboxAccountId, RecordedAt)` where the stage is none of `Sent`, `Refused`, or `Cancelled` | The outbox a restart reads and an operator asks about: what is queued, what is in flight, and what has stopped. The filter names the three terminal stages rather than the successful one alone, so a refused send stays visible while the deployment's whole sending history does not |
 | `ix_outgoing_emails_period_usage` | `(RecordedAt, MailboxAccountId)` | What a send ceiling counts: the messages one period was asked for, for one account and for the whole deployment. It carries no filter, because a period counts every message it was asked for whatever became of it, and the account is behind the instant rather than in front of it so one index answers both questions — the deployment's count reads a range of it and an account's count reads the same range narrowed. Neither half names a user: a deployment ceiling bounds what the process puts on the network, which is one budget however many users it serves, and a per-account one counts a shared mailbox's sends once rather than once per person assigned it |
 | `ix_recurring_sends_identity` | `(MailboxAccountId, UserId, RequesterOrigin, RequesterIdentity)`, unique | A declaration's idempotency identity, which is what makes the same authored act twice one declaration. The account leads it because the declaration belongs to the mailbox, and the author stays behind it because a recurring send keeps whoever declared it: two people declaring from one shared mailbox under the same requester identity are two declarations rather than one. It spans stopped rows deliberately: a declaration that was stopped is what keeps the act that made it from quietly declaring a second one |
@@ -2420,6 +2524,9 @@ account reach these four tables through the same cascade every other table is re
 | `IX_notifications_TargetStoredEmailId` | `(TargetStoredEmailId)` | The foreign key back to the message a notification leads to, which is what erasing that message reaches its notifications by rather than scanning |
 | `IX_notifications_TargetCalendarEventId` | `(TargetCalendarEventId)` | The same for the event a reminder leads to, which is what deleting an event reaches the rows that announced it by |
 | `IX_notifications_TargetPersonalTaskId` | `(TargetPersonalTaskId)` | The same again for the task a due reminder leads to, which is what erasing a task reaches the rows that announced it by |
+| `IX_notifications_TargetOutgoingEmailId` | `(TargetOutgoingEmailId)` | The same for the send a refusal leads to, which is what purging a send reaches the row that announced its refusal by |
+| `IX_notifications_TargetMailboxMutationId` | `(TargetMailboxMutationId)` | The same for the change a given-up notice leads to, which is what removing a change record reaches its notice by |
+| `IX_notifications_TargetMailDraftId` | `(TargetMailDraftId)` | The same for the draft an out-of-step notice leads to, which is what removing a draft reaches its notice by |
 | `ix_tasks_user_due` | `(UserId, DueOn, Id)` | The one order a personal task list is read and drawn in: one person's tasks soonest due first, with PostgreSQL's own `NULLS LAST` leaving the undated ones at the end and the identifier keeping two tasks due on one day in a stable order across reads. Reading the proposals apart from the commitments is an equality on `Origin` within one person's rows, which is a handful of them, so that column earns no place in the key |
 | `ix_mailbox_exports_account_requested` | `(MailboxAccountId, RequestedAt DESC)` | One account's exports newest first, which is the listing an operator asks for and the only order this table is read in |
 | `ix_mailbox_exports_expires_at` | `(ExpiresAt)` where it is not null | The archives the expiry pass has to delete. The filter is what keeps the index the size of the archives that exist rather than of every export the deployment has ever written: one that failed, was cancelled, or has already gone carries no expiry |
@@ -2482,6 +2589,12 @@ is what makes that structural rather than a pass somebody has to remember. A sig
 authentication outcome, or a rule — never the value of a header — and nothing in either table reaches a log, a metric, a
 trace, or an error message.
 
+`email_spam_verdict_acts` is derived personal data by the same reading as a recorded mutation: a row says that this
+deployment filed somebody's message as junk or marked it so, and when. It inherits the source message's retention,
+access, export, and erasure obligations whole, and the cascade from `stored_emails` is what makes that structural. It
+holds the act and its instant and nothing else — no folder, no keyword text, nothing the message supplied — and neither
+column reaches a log, a metric, a trace, or an error message beyond the message's generated identifier.
+
 `jobs` is derived personal data by the same reading as a chunk or a classification: a row says that something is to be done about somebody's message, and it points at that message by its stored identity. What keeps it a pointer rather than a copy is the payload contract — a document of references with no property a subject, an address, or a body could go in, bounded in size at the enqueue boundary so a payload that grew into a copy is refused instead of stored. The account column and the cascade from `mailbox_accounts` are what erasure reaches queued work by. The message the payload names is not a foreign key, because it is a value inside a `jsonb` document rather than a column a constraint can reach: a job whose message was erased before it ran finds nothing under that identity and ends without acting.
 
 `attachment_derivation_spend_periods` holds no personal data for exactly the reason `embedding_spend_periods` does not, and it is a stronger claim there because what it counts is reading rather than sending: a unit count, an instant, a step name, and a generated user identifier say how much a deployment opened, of which kind, for whom, and when, and none of them names a message, an attachment, or a filename. Nothing cascades into it either, so erasing the mail a period paid to read leaves the record that the period was paid for.
@@ -2535,12 +2648,19 @@ and the folder alias, never a subject, an address, a file name, or a line of wha
 
 `settings_accounts` is personal data of a kind nothing else on this page holds: it is the record of a person rather than of their mail, and its document is what they configured MailFathom to do on their behalf. It is therefore the row a data-subject erasure is aimed at, and the cascade beneath it is what discharges the rest — which is also why the tables that record a mail account without keying onto one are taken by the same operation rather than left for somebody to remember. The contact book is reached by a cascade rather than by that derived list, and by the one belonging to whichever holder each half has: `contacts` keys onto the user directly on the asserted half and onto `mailbox_accounts` on the collected one, and `contact_addresses` keys onto `contacts` through `(ContactId, BookHolderId)`, so erasing the user takes their own book with them in two hops — which is what an erasure request owes about an assembled record of third parties this user wrote down — while what their mailboxes collected goes with a mailbox rather than with them. `stored_secrets` keys onto the user directly as well, so the sealed material behind every reference in their document leaves through that cascade. The refresh token of an account that was authorized but never synchronized is reached by the explicit account predicate over `mailbox_refresh_tokens`, over the accounts this user was the last one assigned; it no longer survives for lack of a `mailbox_accounts` row. Nothing in the user row reaches a log, a metric, a trace, or an exception message: a failure names the user's identifier, which is a value MailFathom generated, and never the document beside it.
 
-`notifications` is derived personal data by the same reading as a chunk or a classification, and by a weaker one than a
-mutation history: a row says that something reached this person's mailbox and when, without saying what. It therefore
-inherits the source message's obligations wherever it names one, and the cascade from `stored_emails` is what makes that
-structural — a notification offering to open a message that has been erased is exactly the row that must not survive.
-What the rows naming no message carry instead is a bound of the record's own: thirty days from the instant described,
-swept on each account's own run. Nothing in the table reaches a log, a metric, a trace, or an exception message; the
+`notifications` is derived personal data by the same reading as a chunk or a classification. A `MessageArrived` row
+names its message and carries that message's sender and subject as its headline and second line, which is somebody
+else's personal data copied out of the mail. So it inherits the source message's obligations, and the cascade from
+`stored_emails` is what makes that structural: a notification offering to open a message that has been erased, or
+still showing who sent it, is exactly the row that must not survive. A `SendRefused` or a `DraftCopyNotKept` row carries
+the subject of the send or the draft as its second line by the same reading, and goes with that send or that draft
+through its own cascade; a `MailboxChangeAbandoned` row names the act and quotes no mail. Every other row is weaker than
+a mutation history.
+It says that something reached this person's mailbox and when, without saying what — a merged `MailArrived` row
+counts what arrived and quotes none of it. What the rows naming no message carry instead is a bound of the record's
+own: thirty days from the instant described, swept on each account's own run. `notification_named_emails` is derived
+from the same mail, recording which stored messages a merged row stands for. It goes with its notification and with
+its message alike, through the two cascades, so an erased message leaves no row naming it. Nothing in the table reaches a log, a metric, a trace, or an exception message; the
 user's generated identifier and the account alias are what a failure names, and they are the two values that are not
 personal data.
 

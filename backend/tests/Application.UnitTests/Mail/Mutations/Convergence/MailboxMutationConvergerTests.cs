@@ -2,11 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Mail.Mutations.Local;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -15,6 +17,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
+using MailFathom.Domain.Notifications;
 using MailFathom.Domain.Transport;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
@@ -462,6 +465,58 @@ public sealed class MailboxMutationConvergerTests
         Assert.Equal(MailboxMutationLifecycle.DeadLettered, record.Lifecycle);
     }
 
+    /// <summary>A person's change whose outcome nothing could establish is put in front of them once it is given up.</summary>
+    [Fact]
+    public async Task ConvergeAsync_APersonsUnknownOutcomeOutlastsItsGrace_TellsTheAccountsUsersOnce()
+    {
+        // Arrange
+        var context = new ConvergerContext(unknownOutcomeGrace: TimeSpan.FromHours(6));
+        var request = await context.LeaveOutstandingAsync(
+            MailboxMutationRequest.Delete(
+                StoredEmailId.Create(Guid.CreateVersion7()),
+                Occurrence(43U),
+                MailboxMutationRequester.Command("client-delete-1"),
+                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteServerDisposition.Expunge),
+            record => record with { Stage = MailboxMutationStage.PlacementIssued });
+
+        // Act
+        context.Clock.Advance(TimeSpan.FromHours(7));
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        var notification = Assert.Single(context.Notifications.Recorded);
+        Assert.Equal(NotificationCause.MailboxChangeAbandoned, notification.Statement?.Cause);
+        Assert.Equal((int)MailboxChangeAct.Delete, notification.Statement?.Counted);
+        Assert.Equal(request.StoredEmailId, notification.Target.Message);
+    }
+
+    /// <summary>A notification that cannot be written costs that notification, and the converger still gives the change up.</summary>
+    [Fact]
+    public async Task ConvergeAsync_TheNotificationOfAGivenUpChangeCannotBeWritten_StillAbandonsTheRecord()
+    {
+        // Arrange
+        var context = new ConvergerContext(unknownOutcomeGrace: TimeSpan.FromHours(6));
+        var request = await context.LeaveOutstandingAsync(
+            MailboxMutationRequest.Delete(
+                StoredEmailId.Create(Guid.CreateVersion7()),
+                Occurrence(43U),
+                MailboxMutationRequester.Command("client-delete-1"),
+                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteServerDisposition.Expunge),
+            record => record with { Stage = MailboxMutationStage.PlacementIssued });
+        context.Notifications.RefusesRecords = true;
+
+        // Act
+        context.Clock.Advance(TimeSpan.FromHours(7));
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailboxMutationStage.Abandoned, context.Store.RecordOf(request).Stage);
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
     /// <summary>A record nothing will attempt again is still read back, because being seen is what giving up on it buys.</summary>
     [Fact]
     public async Task ConvergeAsync_AnAlreadyDeadLetteredMutation_IsReportedAndNotAttempted()
@@ -639,11 +694,17 @@ public sealed class MailboxMutationConvergerTests
                     Arg.Any<CancellationToken>())
                 .Returns(this.WriteSession);
 
+            var failures = new MailFailureNotifications(
+                new NotificationRaiser(this.Notifications, ClientSignalPublishers.ReachingNobody),
+                new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
+                this.Clock);
+
             this.Performer = new MailboxMutationPerformer(
                 this.Store,
                 this.WriteSessionFactory,
                 commitPolicy,
                 this.AuditTrail,
+                failures,
                 ClientSignalPublishers.ReachingNobody,
                 new MailboxMutationOptions { MaximumAttempts = maximumAttempts });
 
@@ -656,19 +717,23 @@ public sealed class MailboxMutationConvergerTests
                 transportSecurityPolicyReader,
                 commitPolicy,
                 this.AuditTrail,
+                failures,
                 new MailboxConvergenceOptions
                 {
                     MaxMutationsPerPass = maxMutationsPerPass,
                     UnknownOutcomeGrace = unknownOutcomeGrace ?? TimeSpan.FromHours(6),
                 },
                 this.Clock,
-                localFolders ?? Substitute.For<ILocalMailFolderStore>(),
+                localFolders is InMemoryLocalMailFolderStore held ? held.Custody : Substitute.For<IMailAccountCustodyStore>(),
                 MailboxChangeSubmissions.Over(this.Store, localFolders, states));
         }
 
         internal InMemoryMailboxMutationRecordStore Store { get; } = new();
 
         internal RecordingMailboxMutationAuditTrail AuditTrail { get; } = new();
+
+        /// <summary>Gets what the account's one user was told about a change that never reached the server.</summary>
+        internal InMemoryNotificationStore Notifications { get; } = new();
 
         internal FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 8, 7, 12, 0, 0, TimeSpan.Zero));
 

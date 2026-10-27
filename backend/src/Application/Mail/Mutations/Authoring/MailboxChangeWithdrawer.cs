@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 
 namespace MailFathom.Application.Mail.Mutations.Authoring;
@@ -68,6 +69,7 @@ public sealed class MailboxChangeWithdrawer
 
     /// <summary>Withdraws flag and keyword changes this caller authored.</summary>
     /// <param name="recordIds">The records to withdraw.</param>
+    /// <param name="reader">Who the act is asked for: the person through the client, or an agent or an MCP caller.</param>
     /// <param name="cancellationToken">Cancels the read and the commit.</param>
     /// <returns>One entry per record this caller holds under those identities, each reporting where it now stands.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="recordIds" /> is <see langword="null" />.</exception>
@@ -76,14 +78,17 @@ public sealed class MailboxChangeWithdrawer
     /// <remarks>A record naming a move is absent from the answer, exactly as a record belonging to somebody else is: this entry point holds authority over flag changes and says nothing about anything else.</remarks>
     public Task<IReadOnlyList<MailboxChangeProgress>> WithdrawFlagChangesAsync(
         IReadOnlyList<MailboxMutationRecordId> recordIds,
+        MailboxReaderKind reader,
         CancellationToken cancellationToken) => this.WithdrawAsync(
             recordIds,
+            reader,
             MailFathomPermission.MailFlagsWrite,
             MailboxMutation.FlagWriting,
             cancellationToken);
 
     /// <summary>Withdraws folder moves this caller authored.</summary>
     /// <param name="recordIds">The records to withdraw.</param>
+    /// <param name="reader">Who the act is asked for: the person through the client, or an agent or an MCP caller.</param>
     /// <param name="cancellationToken">Cancels the read and the commit.</param>
     /// <returns>One entry per record this caller holds under those identities, each reporting where it now stands.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="recordIds" /> is <see langword="null" />.</exception>
@@ -92,14 +97,17 @@ public sealed class MailboxChangeWithdrawer
     /// <remarks>A record naming a flag change is absent from the answer, for the reason the flag entry point gives about a move.</remarks>
     public Task<IReadOnlyList<MailboxChangeProgress>> WithdrawMovesAsync(
         IReadOnlyList<MailboxMutationRecordId> recordIds,
+        MailboxReaderKind reader,
         CancellationToken cancellationToken) => this.WithdrawAsync(
             recordIds,
+            reader,
             MailFathomPermission.MailMove,
             [MailboxMutation.Relocate],
             cancellationToken);
 
     /// <summary>Withdraws deletes this caller authored.</summary>
     /// <param name="recordIds">The records to withdraw.</param>
+    /// <param name="reader">Who the act is asked for: the person through the client, or an agent or an MCP caller.</param>
     /// <param name="cancellationToken">Cancels the read and the commit.</param>
     /// <returns>One entry per record this caller holds under those identities, each reporting where it now stands.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="recordIds" /> is <see langword="null" />.</exception>
@@ -114,8 +122,10 @@ public sealed class MailboxChangeWithdrawer
     /// </remarks>
     public Task<IReadOnlyList<MailboxChangeProgress>> WithdrawDeletesAsync(
         IReadOnlyList<MailboxMutationRecordId> recordIds,
+        MailboxReaderKind reader,
         CancellationToken cancellationToken) => this.WithdrawAsync(
             recordIds,
+            reader,
             MailFathomPermission.MailDelete,
             [MailboxMutation.Delete],
             cancellationToken);
@@ -128,6 +138,7 @@ public sealed class MailboxChangeWithdrawer
     /// </remarks>
     private async Task<IReadOnlyList<MailboxChangeProgress>> WithdrawAsync(
         IReadOnlyList<MailboxMutationRecordId> recordIds,
+        MailboxReaderKind reader,
         MailFathomPermission grant,
         IReadOnlyList<MailboxMutation> covered,
         CancellationToken cancellationToken)
@@ -145,7 +156,7 @@ public sealed class MailboxChangeWithdrawer
         var held = await this.records.ReadAsync(assignedAccounts, recordIds, cancellationToken);
 
         var withdrawable = held
-            .Where(record => covered.Contains(record.Request.Mutation) && this.IsReadable(assignedAccounts, record))
+            .Where(record => covered.Contains(record.Request.Mutation) && this.IsReadable(reader, assignedAccounts, record))
             .Select(record => record.Id)
             .ToArray();
 
@@ -175,8 +186,12 @@ public sealed class MailboxChangeWithdrawer
     }
 
     /// <summary>Reports whether the caller may still reach the mailbox the change was recorded in.</summary>
-    private bool IsReadable(IReadOnlyList<MailAccountId> assignedAccounts, MailboxMutationRecord record) =>
-        this.scopeResolver.IsReadableByTools(
+    private bool IsReadable(
+        MailboxReaderKind reader,
+        IReadOnlyList<MailAccountId> assignedAccounts,
+        MailboxMutationRecord record) =>
+        this.scopeResolver.IsReadable(
+            reader,
             assignedAccounts,
             record.Request.Occurrence.AccountId,
             record.Request.Occurrence.FolderResolutionId.Alias);

@@ -15,6 +15,7 @@
     <Compile Include="..\shared\RecordingClientSignalChannel.cs" Link="RecordingClientSignalChannel.cs" />
     <Compile Include="..\shared\ClientSignalPublishers.cs" Link="ClientSignalPublishers.cs" />
     <Compile Include="..\shared\LocalMailCopiers.cs" Link="LocalMailCopiers.cs" />
+    <Compile Include="..\shared\MailboxCustodianComposition.cs" Link="MailboxCustodianComposition.cs" />
     <!-- The Discover routes reach a run through the same store the application writes it through, so both suites drive one fake. -->
     <Compile Include="..\shared\InMemoryDiscoveryRunStore.cs" Link="InMemoryDiscoveryRunStore.cs" />
     <!-- Every property in the repository is sampled through one set of settings, so the wrapper that fixes them is
@@ -36,6 +37,7 @@
     <Compile Include="..\shared\StubMailFolderParticipation.cs" Link="StubMailFolderParticipation.cs" />
     <Compile Include="..\shared\StubDeploymentMailFolders.cs" Link="StubDeploymentMailFolders.cs" />
     <Compile Include="..\shared\StubJunkMailFolderCatalog.cs" Link="StubJunkMailFolderCatalog.cs" />
+    <Compile Include="..\shared\StubEmailProvenanceReader.cs" Link="StubEmailProvenanceReader.cs" />
     <!-- The classification gate reaches synchronization, the classifier, and both persistence walks, so the settings a
          gate is built from and the instrument that reports what it decided are linked wherever one is constructed. -->
     <Compile Include="..\shared\StubSpamClassificationSettingsReader.cs" Link="StubSpamClassificationSettingsReader.cs" />
@@ -67,6 +69,7 @@
     <Compile Include="..\shared\SensitiveContentEgressGuards.cs" Link="SensitiveContentEgressGuards.cs" />
     <Compile Include="..\shared\ScanningSensitiveContentEgress.cs" Link="ScanningSensitiveContentEgress.cs" />
     <Compile Include="..\shared\OutgoingMailScreenings.cs" Link="OutgoingMailScreenings.cs" />
+    <Compile Include="..\shared\OrganizationMailSigners.cs" Link="OrganizationMailSigners.cs" />
     <!-- Whose mail an account or a message is, and what one user's payloads hold, are read by the synchronizer and by
          the embedding run alike, so the two doubles that answer them are linked wherever either is arranged. -->
     <Compile Include="..\shared\StubMailOwnership.cs" Link="StubMailOwnership.cs" />

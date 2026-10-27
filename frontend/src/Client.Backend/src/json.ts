@@ -18,3 +18,31 @@ export function isRecord(value: unknown): value is Readonly<Record<string, unkno
 export function asRecord(value: unknown): Readonly<Record<string, unknown>> | null {
     return isRecord(value) ? value : null;
 }
+
+/**
+ * Every entry of an array read by one parser, refusing an array longer than `most` or holding one entry the parser does
+ * not read — checked during the walk rather than after it, because a bound applied afterwards is not a bound.
+ */
+export function parseEach<TEntry>(
+    answered: unknown,
+    most: number,
+    parse: (entry: unknown) => TEntry | null,
+): readonly TEntry[] | null {
+    if (!Array.isArray(answered) || answered.length > most) {
+        return null;
+    }
+
+    const entries: TEntry[] = [];
+
+    for (const entry of answered) {
+        const parsed = parse(entry);
+
+        if (parsed === null) {
+            return null;
+        }
+
+        entries.push(parsed);
+    }
+
+    return entries;
+}

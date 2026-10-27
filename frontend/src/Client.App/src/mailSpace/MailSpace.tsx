@@ -57,7 +57,8 @@ import { paneArrival, usePaneMotion } from '../shell/paneMotion';
 // - *Two panes or one.* Below that width the space draws the list **or** what is open and never both, so a row that is
 //   not on the screen is not in the document either; above it the two stand side by side with a boundary to move.
 // - *The mailbox column or a drawer.* Only the desktop composition has room for a third column, so at the tablet and
-//   the fold the mailboxes stand in a drawer over the space, reached from a control in the list's own header.
+//   the fold the mailboxes stand in a drawer over the space, reached from the toolbar's lead — and from the list's own
+//   header on the phone and during a selection, where no toolbar stands.
 // - *The toolbar at all*, which is the phone question: bottom navigation already spends the foot of a phone-width
 //   window, and the toolbar's acts are on the selection bar and the message's own head there.
 //
@@ -135,11 +136,6 @@ export function MailSpace({
     const [listWidth, setListWidth] = useState(() => readListWidth(person));
     const [mailboxesWidth, setMailboxesWidth] = useState(() => readMailboxesWidth(person));
 
-    // How the toolbar fits its width is measured here rather than in the toolbar, because what it decides is drawn in
-    // two places: the names in the strip, and — once composing no longer fits beside them — the floating control over
-    // the list, which is this space's to draw. The selection bar measures itself; nothing outside it moves. Where the
-    // mailbox column is docked, the control that shows and hides it stands ahead of composing in the strip.
-    const { strip: toolbarStrip, fit: toolbarFit } = useStripFit(true, `${locale}:${String(desktop)}`, desktop ? 1 : 0);
     const selecting = workspace.selected.length > 0;
     const [drawerOpen, setDrawerOpen] = useState(false);
     const drawer = useRef<HTMLDialogElement>(null);
@@ -154,7 +150,12 @@ export function MailSpace({
 
     // What is being written stands where what is being read stands, so the narrow shape brings the reading column
     // in front of the list for a message somebody is writing exactly as it does for one they opened.
-    const readingOpen = workspace.selection !== null || workspace.conversation !== null || composing.opening !== null;
+    const outboxEntry = workspace.outbox?.entry ?? null;
+    const readingOpen =
+        workspace.selection !== null ||
+        workspace.conversation !== null ||
+        outboxEntry !== null ||
+        composing.opening !== null;
     const readingInFront = !twoPanes && readingOpen;
     const paneMoved = usePaneMotion(readingInFront, twoPanes);
 
@@ -165,11 +166,21 @@ export function MailSpace({
         revise({ selection: null, conversation: null });
     });
 
+    // A send read in front of an Outbox goes back to that Outbox the same way.
+    const outbox = workspace.outbox;
+
+    useScreenStep(!twoPanes && outbox !== null && outbox.entry !== null, () => {
+        if (outbox !== null) {
+            revise({ outbox: { account: outbox.account, entry: null } });
+        }
+    });
+
     // The list is the last thing the *fullscreen* control takes away, and only at a tablet-class width: the design's
     // `showThreadList` is off where a tablet has both panes and something open under that control, and on at every
     // desktop width, where there is room for the correspondence to stand alone without the list going with it. The
-    // toolbar stays either way, which is what leaves the control there to turn it back off.
-    const listGivenUp = workspace.panelsHidden && twoPanes && !desktop && readingOpen;
+    // toolbar stays either way, which is what leaves the control there to turn it back off. An Outbox keeps its list,
+    // because the toolbar draws no such control while one is open.
+    const listGivenUp = workspace.panelsHidden && twoPanes && !desktop && readingOpen && outbox === null;
 
     // Whether the list stands behind what is in front of it rather than beside it. Both cases above put the reading
     // column where the list was, and neither is a reason to take the list down: what it holds is the pages the
@@ -179,28 +190,54 @@ export function MailSpace({
     const listAside = readingInFront || listGivenUp;
 
     // The fold — two panes under a finger in less width than the tablet — folds the list to a strip of senders while
-    // something is open beside it, so the message gets the width, and the strip's head widens it again. Widening is
-    // remembered against what was open when it was asked for, so picking another message folds the list back without
-    // anything having to undo it.
+    // something is open beside it, so the message gets the width, and the toolbar's list control widens it again.
+    // Widening is remembered against what was open when it was asked for, so picking another message folds the list
+    // back without anything having to undo it — unless somebody held that control to keep the list open, which holds
+    // for the session rather than for one message.
     const coarse = useCoarsePointer();
     const roomy = useRoomyComposition();
     const [widenedFor, setWidenedFor] = useState<string | null | undefined>(undefined);
-    const foldOffered = coarse && twoPanes && !roomy && readingOpen && !selecting && !listGivenUp;
+    const [listKept, setListKept] = useState(false);
+    // Not while an Outbox stands in the list's place: the strip is a list of senders, and an Outbox lists none.
+    const foldOffered =
+        coarse && twoPanes && !roomy && readingOpen && !selecting && !listGivenUp && workspace.outbox === null;
     const opened = workspace.selection;
-    const listFolded = widenedFor !== opened;
+    const listFolded = !listKept && widenedFor !== opened;
     const listFold = useMemo<ListFold | null>(
         () =>
             foldOffered
                 ? {
                       folded: listFolded,
+                      kept: listKept,
                       turn: () => {
-                          setWidenedFor((widened) => (widened === opened ? undefined : opened));
+                          setListKept(false);
+                          setWidenedFor(listFolded ? opened : undefined);
+                      },
+                      keep: () => {
+                          if (listFolded) {
+                              return;
+                          }
+
+                          setListKept(!listKept);
+                          setWidenedFor(opened);
                       },
                   }
                 : null,
-        [foldOffered, listFolded, opened],
+        [foldOffered, listFolded, listKept, opened],
     );
     const listStrip = listFold?.folded === true;
+
+    // How the toolbar fits its width is measured here rather than in the toolbar, because what it decides is drawn in
+    // two places: the names in the strip, and — once composing no longer fits beside them — the floating control over
+    // the list, which is this space's to draw. The selection bar measures itself; nothing outside it moves. The controls
+    // that change the view — the mailbox column's, or the drawer's and the fold's list — stand ahead of composing as
+    // one child of the strip at every width the toolbar is drawn at.
+    const { strip: toolbarStrip, fit: toolbarFit } = useStripFit(
+        true,
+        `${locale}:${String(desktop)}:${String(listFold !== null)}`,
+        1,
+    );
+    const toolbarDrawn = !selecting && wide;
 
     // Read from the workspace rather than held here, because the column is not the only thing that draws differently
     // once it is folded: the tree inside it draws a symbol where it drew a name, and the tree is a region handed in
@@ -269,7 +306,8 @@ export function MailSpace({
     // The drawer is a way to point at a mailbox, so pointing at one closes it: a reader who chose a folder wants the
     // folder's mail, which is behind the drawer they chose it in. The dialog is the platform's own, so closing it puts
     // focus back on the control that opened it without anything here remembering which control that was.
-    const scope = scopeKey(workspace.scope);
+    // Opening an account's Outbox is pointing at it the same way, from the mark on its Sent row.
+    const scope = `${scopeKey(workspace.scope)}|${workspace.outbox?.account ?? ''}`;
     const shownScope = useRef(scope);
 
     useEffect(() => {
@@ -314,7 +352,16 @@ export function MailSpace({
             {/* The bar replaces the toolbar while messages are picked out, which is the design's composition:
                 one strip saying what the next press is about. It stands at every width because the narrow shape has no
                 toolbar to replace and a selection still needs both a way to act on it and a way out of it. */}
-            {selecting ? <SelectionBar /> : wide ? <MailToolbar strip={toolbarStrip} fit={toolbarFit} /> : null}
+            {selecting ? (
+                <SelectionBar />
+            ) : toolbarDrawn ? (
+                <MailToolbar
+                    strip={toolbarStrip}
+                    fit={toolbarFit}
+                    openMailboxes={desktop ? null : openDrawer}
+                    listFold={listFold}
+                />
+            ) : null}
 
             <div className="relative flex min-h-0 flex-1">
                 {desktop ? (
@@ -433,9 +480,10 @@ export function MailSpace({
                         would sit on top of both, and it would move whenever either changed height. Positioned
                         against this box instead, it keeps the corner a thumb reaches whatever stands under it. */}
                     <div className="relative flex min-h-0 flex-1 flex-col">
-                        {/* The list's own head row draws the way into the drawer, at its start, wherever there is
-                            a drawer to open; the column has none, and offers nothing. */}
-                        <MailboxesDrawerContext value={desktop ? null : openDrawer}>
+                        {/* The list's head opens the drawer only where no toolbar stands to lead with it: the phone,
+                            and a selection, whose bar replaces the toolbar. The column has no drawer and offers
+                            nothing. */}
+                        <MailboxesDrawerContext value={desktop || toolbarDrawn ? null : openDrawer}>
                             <ListFoldContext value={listFold}>{list}</ListFoldContext>
                         </MailboxesDrawerContext>
 
@@ -564,16 +612,23 @@ function Mailboxes({
     );
 }
 
-// Whether what the reading column draws is a message, whose head carries the way back to the list itself. Everything
-// else the column can hold — a conversation, the sender's own markup, an attachment, a message being written — takes
-// the way back above it, drawn by the column. Read from the workspace with the same four questions the frame asks to
-// decide what the column draws, so the two cannot disagree about which surface is in front.
+// Whether what the reading column draws is a message, or a send of an Outbox, whose head carries the way back to the
+// list itself. Everything else the column can hold — a conversation, the sender's own markup, an attachment, a message
+// being written — takes the way back above it, drawn by the column. Read from the workspace with the same questions the
+// frame asks to decide what the column draws, so the two cannot disagree about which surface is in front.
 function headCarriesTheWayBack(workspace: Workspace, composing: boolean): boolean {
+    if (composing) {
+        return false;
+    }
+
+    if (workspace.outbox !== null) {
+        return workspace.outbox.entry !== null;
+    }
+
     return (
         workspace.selection !== null &&
         workspace.conversation === null &&
         workspace.fullHtml === null &&
-        workspace.attachment === null &&
-        !composing
+        workspace.attachment === null
     );
 }

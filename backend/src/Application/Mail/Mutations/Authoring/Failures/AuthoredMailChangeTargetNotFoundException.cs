@@ -10,9 +10,10 @@ namespace MailFathom.Application.Mail.Mutations.Authoring.Failures;
 /// <remarks>
 /// <para>
 /// It answers four cases with one sentence: no row carries that identity, the row belongs to an account this
-/// deployment no longer serves, the row is in a folder an operator withheld from tools, and the row names a remote
-/// occurrence the server has expunged — a local copy retained after MailFathom deleted the message, which a listing
-/// still serves because the mail is readable while the UID it carries names nothing the server holds. Telling them
+/// deployment no longer serves, the row is in a folder an operator withheld from AI and an agent asked for the change,
+/// and the row names a remote occurrence the server has expunged — a local copy retained after MailFathom deleted the
+/// message, which a listing still serves because the mail is readable while the UID it carries names nothing the
+/// server holds. Telling them
 /// apart would let a caller learn which identifiers exist by asking about them, which is the same reading every mailbox
 /// read applies to the first three.
 /// </para>
@@ -28,7 +29,7 @@ namespace MailFathom.Application.Mail.Mutations.Authoring.Failures;
 /// </remarks>
 public sealed class AuthoredMailChangeTargetNotFoundException : MailFathomException
 {
-    /// <summary>Refuses a change against an email this deployment does not serve to tools.</summary>
+    /// <summary>Refuses a change against an email this deployment does not serve to the request's reader.</summary>
     public AuthoredMailChangeTargetNotFoundException()
         : base("The named email is not one this deployment serves, so no change can be written down against it.")
     {

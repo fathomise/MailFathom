@@ -80,6 +80,7 @@ public sealed class AuthoredResponseSubmission(
             new AuthoredResponseRequest
             {
                 AnsweredEmailId = request.AnsweredEmailId,
+                Reader = request.Reader,
                 Act = request.Act,
                 PlainTextBody = request.PlainTextBody,
                 HtmlBody = request.HtmlBody,

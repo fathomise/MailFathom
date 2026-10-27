@@ -2,14 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.EmailContent.Storage;
-using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Mutations;
-using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery.Filing;
@@ -54,7 +53,7 @@ internal sealed class OutgoingMailFilingHarness
         IEmailContentStore contentStore,
         MailOutboxSettings settings,
         TimeProvider clock,
-        LocalMailFiler? localFiler = null)
+        HeldLocalMailbox? held = null)
     {
         this.Filings = new InMemoryOutgoingMailFilingStore(outgoingEmails);
         this.filingPolicies.FilesSentCopy(Arg.Any<MailAccountId>()).Returns(false);
@@ -85,48 +84,25 @@ internal sealed class OutgoingMailFilingHarness
         var persistenceSessions = Substitute.For<IPersistenceSessionFactory>();
         persistenceSessions.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(persistenceSession);
 
-        var destinations = new MailboxDestinationResolver(
-            this.mappings.Resolver,
-            this.folderResolutions,
-            new MailFolderResolver(
-                Substitute.For<IRemoteFolderCatalog>(),
-                Substitute.For<IRemoteFolderCreator>(),
-                this.folderResolutions,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                persistenceSessions,
-                ClientSignalPublishers.ReachingNobody,
-                clock),
-            transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
+        var composition = new MailboxCustodianComposition(clock)
+        {
+            Custody = held?.Folders.Custody ?? Substitute.For<IMailAccountCustodyStore>(),
+            LocalFolders = held?.Folders ?? Substitute.For<ILocalMailFolderStore>(),
+            LocalFilerOver = held is null ? null : custodians => held.FilerOver(contentStore, custodians),
+            Mappings = this.mappings,
+            FolderResolutions = this.folderResolutions,
+            PersistenceSessions = persistenceSessions,
+            TransportPolicies = transportSecurityPolicies,
+            WriteSessions = writeSessions,
+            Contents = contentStore,
+            OutgoingEmails = outgoingEmails,
+            FilingPolicies = this.filingPolicies,
+            Filings = this.Filings,
+            OutboxSettings = settings,
+        };
 
-        var commitPolicy = new OptimisticConcurrencyRetryPolicy(
-            persistenceSessions,
-            new PersistenceConcurrencyOptions(),
-            clock);
-
-        this.Filer = new OutgoingMailFiler(
-            new MailboxCopyAppender(
-                writeSessions,
-                destinations,
-                contentStore,
-                transportSecurityPolicies,
-                clock),
-            writeSessions,
-            destinations,
-            this.Filings,
-            transportSecurityPolicies,
-            commitPolicy,
-            clock);
-
-        this.Pass = new OutgoingMailFilingPass(
-            outgoingEmails,
-            this.Filer,
-            this.mappings,
-            this.filingPolicies,
-            this.Filings,
-            localFiler ?? LocalMailFilers.HoldingNothing(clock),
-            clock,
-            settings);
+        this.Filer = composition.OutgoingFiler;
+        this.Pass = composition.OutgoingFilings;
     }
 
     /// <summary>Gets the pass an outbox runs, which is what a test under this harness exercises.</summary>

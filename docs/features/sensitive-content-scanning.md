@@ -1,6 +1,6 @@
 # Sensitive-content scanning
 
-<!-- describes: backend/src/Application/SensitiveContent/**, backend/src/Application/Mail/Delivery/Screening/**, backend/src/Application/Emails/DownloadAttachment/**, backend/src/Host/Configuration/SensitiveContent/**, backend/src/Infrastructure/SensitiveContent/**, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/AttachmentText/EmailAttachmentTextDeriver.cs, backend/src/Host/Hosting/Warnings/StaleDerivedDataStartupReport.cs -->
+<!-- describes: backend/src/Application/SensitiveContent/**, backend/src/Application/Mail/Delivery/Screening/**, backend/src/Application/Emails/DownloadAttachment/**, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Configuration/SensitiveContent/**, backend/src/Infrastructure/SensitiveContent/**, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/AttachmentText/EmailAttachmentTextDeriver.cs, backend/src/Host/Hosting/Warnings/StaleDerivedDataStartupReport.cs -->
 
 Mail carries credentials. A deployment key pasted into a thread, a connection string in a stack trace, an API token a
 colleague sent because it was quicker than a vault — all of it arrives in a mailbox and, from there, would otherwise
@@ -152,6 +152,7 @@ the list below answerable by reading it.
 | `client_contact_correspondence` | The mail text the client API answers an opened contact with: the subject of each conversation naming that person, and the name of each document they sent. The identities, the positions, the declared types and the instants beside them do not cross, being values this deployment resolved rather than text a sender wrote |
 | `client_contact_relationship` | The card the client API heads an opened contact with: the note a derivation wrote about that correspondence, what it suggests doing next, and each observation beside them. The citations under them do not cross, being identifiers and a position this deployment resolved out of its own store |
 | `attachment_download` | The extracted text of one attachment about to be streamed whole, on the signed link route and on the client's own attachment route alike — the one point whose subject is a file's own words rather than a message's |
+| `spam_classification_input` | What the spam model stage hands a decision model about one message: the sender's display name, the subject, the plain-text body cut to its bound, each link's hosts, and each attachment's declared type and name. The addresses beside them do not cross, being what the stage judges a sender by |
 
 `client_citation_resolution` is apart from both of the client points above because what crosses it is chosen by neither
 a folder nor a query but by a claim a model already made: the passage is the evidence behind one sentence of an answer,
@@ -187,6 +188,12 @@ named correspondent, so a finding says a scanner withheld content from a correla
 rate of that merged into the listing's would be lost among every folder anybody scrolled. It is also the one client
 point that scans a file name without the file's words beside it — the document list names what a sender called each
 file and nothing out of it.
+
+`spam_classification_input` is apart from `chat_prompt` although both reach a model, because what crosses it is chosen
+by neither a question nor a retrieval: it is one whole message, read because it arrived, and sent before anybody has
+asked anything about it. A finding there says a scanner withheld something from a classification rather than from an
+answer, and a rate merged into the prompt's would hide the one point whose volume follows the mail rather than the
+questions. [Spam classification](spam-classification.md#the-model-stage) holds what else the stage sends and why.
 
 `client_contact_relationship` is apart from `client_contact_correspondence` beside it although both are drawn on one
 page and the second is derived from the first. What crosses there is text a sender wrote — a subject, a file name —
@@ -345,6 +352,16 @@ same screen sits on the two paths that hand an attachment's octets to somebody o
   combination is the asymmetry this section exists to close, so an operator writing that list is deciding about
   downloads as well as about sends.
 
+### A message's raw source is not served where reading it is redacted
+
+The client surface serves one message exactly as it was received through its
+[source route](../operations/client-endpoint.md#the-source-route). Where a switched-on scanner covers any account its
+reader is assigned — the posture across a user's accounts that redacts every read of their mail — that route refuses,
+answering `409` with `59005` before any of the stored copy is read. A read is redacted value by value, and a raw source cannot be: its body sits in transfer encodings
+no scanner reads, and cutting a region out of it would hand a reader a message its sender never composed. So the answer
+is the whole source or none of it, and for a reader any of whose accounts is screened it is none. A reader no scanner
+covers is served the source as it always was.
+
 ### What it screens for, and why the default is secrets alone
 
 Screening reuses the deployment's scanners, its category lists, its suppressions, and its bounds. What it does not reuse
@@ -421,8 +438,7 @@ Everything MailFathom derives from a message's body — the extracted text, the 
 built from those passages — is derived from redacted text while a scanner is on. The redaction happens once, where the
 body is read out of the stored MIME, so a placeholder is what is stored, what is embedded, and what a search or an
 answer later returns; nothing downstream scans a second time and nothing downstream sees the original.
-[The arrival pipeline](../architecture/arrival-pipeline.md) draws where that read sits among the stages around it, and
-why the spam scanner beside it is deliberately shown the message unredacted.
+[The arrival pipeline](../architecture/arrival-pipeline.md) draws where that read sits among the stages around it.
 
 **Words read out of an attachment go through it too**, where the deployment turned attachment reading on. A contract's
 extracted text and a model's description of a picture are both derived mail content — an invoice carries an account

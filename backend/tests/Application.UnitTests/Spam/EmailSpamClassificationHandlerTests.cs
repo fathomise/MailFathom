@@ -6,6 +6,8 @@ using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Spam.Signals;
+using MailFathom.Application.Synchronization;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -28,6 +30,8 @@ public sealed class EmailSpamClassificationHandlerTests
     private static readonly DateTimeOffset EvaluatedAt = new(2026, 8, 13, 9, 0, 0, TimeSpan.Zero);
 
     private readonly SpamClassificationHarness harness = new(EvaluatedAt);
+
+    private MailAccountRunSignal RunSignal { get; } = new();
 
     public EmailSpamClassificationHandlerTests()
     {
@@ -56,6 +60,38 @@ public sealed class EmailSpamClassificationHandlerTests
         Assert.Equal([emailId], this.harness.Classifications.Saved.Select(classification => classification.EmailId));
         Assert.Equal(SpamVerdict.Spam, this.harness.Classifications.Saved.Single().Verdict);
         Assert.Equal(1, this.harness.Mutations.OpenedRecordCount);
+    }
+
+    /// <summary>The message stays settling until a run has offered it to the rules, so a verdict asks for that run now.</summary>
+    [Fact]
+    public async Task RunAsync_AVerdictIsReached_BringsTheAccountsNextRunForward()
+    {
+        // Arrange
+        var emailId = this.StoreEmail();
+
+        // Act
+        await this.CreateHandler().RunAsync(
+            ClassifyStoredEmailSpamJobPayload.For(Account, emailId),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(this.RunSignal.TakeRaise(Account));
+    }
+
+    /// <summary>A job that reached no verdict changed nothing a run could act on, so it asks for no run.</summary>
+    [Fact]
+    public async Task RunAsync_NoVerdictIsReached_LeavesTheAccountsNextRunWhereItWas()
+    {
+        // Arrange
+        var neverStored = StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000003"));
+
+        // Act
+        await this.CreateHandler().RunAsync(
+            ClassifyStoredEmailSpamJobPayload.For(Account, neverStored),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(this.RunSignal.TakeRaise(Account));
     }
 
     /// <summary>An attempt that committed its verdict and lost its lease leaves the next one the filing to finish.</summary>
@@ -167,11 +203,81 @@ public sealed class EmailSpamClassificationHandlerTests
         Assert.Equal("payload", refusal.ParamName);
     }
 
+    /// <summary>A message that arrives already marked junk by another client is junk on arrival, and is filed where filing is on.</summary>
+    [Fact]
+    public async Task RunAsync_AnArrivalAnotherClientMarkedJunkWithFilingOn_IsSpamAndFiledFromTheInbox()
+    {
+        // Arrange
+        var junk = MailFolderAlias.Create("Junk");
+        this.harness.Mappings.With(
+            Account,
+            MailFolderMapping.ToSpecialUse(junk, MailFolderSpecialUse.Junk, MailFolderParticipation.Full));
+        this.harness.Bindings.Bind(Account, junk, "Spam");
+        var emailId = this.StoreEmail("$Junk");
+
+        // Act
+        await this.CreateHandler(
+            SpamActionSettings.Create(filesJunk: true, marksJunkRead: false),
+            occurrences: SpamClassificationHarness.OccurrenceReader(Account, Inbox, "$Junk"),
+            headers: SpamHeaderFacts.None).RunAsync(
+            ClassifyStoredEmailSpamJobPayload.For(Account, emailId),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamVerdict.Spam, this.harness.Classifications.Saved.Single().Verdict);
+        Assert.Equal(1, this.harness.Mutations.OpenedRecordCount);
+        Assert.Contains(SpamVerdictAct.FiledIntoJunk, this.harness.VerdictActs.Of(emailId));
+    }
+
+    /// <summary>With no switch on, the same arrival is still junk and stays exactly where it is.</summary>
+    [Fact]
+    public async Task RunAsync_AnArrivalAnotherClientMarkedJunkWithNoSwitchOn_IsSpamAndLeftInPlace()
+    {
+        // Arrange
+        var emailId = this.StoreEmail("$Junk");
+
+        // Act
+        await this.CreateHandler(
+            occurrences: SpamClassificationHarness.OccurrenceReader(Account, Inbox, "$Junk"),
+            headers: SpamHeaderFacts.None).RunAsync(
+            ClassifyStoredEmailSpamJobPayload.For(Account, emailId),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamVerdict.Spam, this.harness.Classifications.Saved.Single().Verdict);
+        Assert.Equal(0, this.harness.Mutations.OpenedRecordCount);
+        Assert.Empty(this.harness.VerdictActs.Of(emailId));
+    }
+
+    /// <summary>Moving a message out of junk is not a correction: its verdict stands and it is not filed a second time.</summary>
+    [Fact]
+    public async Task RunAsync_AMessageFiledAndThenMovedBackOutOfJunk_KeepsItsVerdictAndIsNotFiledAgain()
+    {
+        // Arrange
+        var junk = MailFolderAlias.Create("Junk");
+        this.harness.Mappings.With(
+            Account,
+            MailFolderMapping.ToSpecialUse(junk, MailFolderSpecialUse.Junk, MailFolderParticipation.Full));
+        this.harness.Bindings.Bind(Account, junk, "Spam");
+        var emailId = this.StoreEmail();
+        var filing = SpamActionSettings.Create(filesJunk: true, marksJunkRead: false);
+        var payload = ClassifyStoredEmailSpamJobPayload.For(Account, emailId);
+        await this.CreateHandler(filing).RunAsync(payload, TestContext.Current.CancellationToken);
+
+        // Act
+        await this.CreateHandler(filing, headers: SpamHeaderFacts.None)
+            .RunAsync(payload, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamVerdict.Spam, this.harness.Classifications.Saved.Single().Verdict);
+        Assert.Equal(1, this.harness.Mutations.OpenedRecordCount);
+    }
+
     private static SpamActionSettings MarksJunkRead =>
-        SpamActionSettings.Create(filesJunk: false, marksJunkRead: true, threshold: null);
+        SpamActionSettings.Create(filesJunk: false, marksJunkRead: true);
 
     private static SpamClassificationSettings SettingsCovering(params MailFolderAlias[] aliases) =>
-        SpamClassificationSettings.Create(isEnabled: true, usesScanner: false, aliases);
+        SpamClassificationSettings.Create(isEnabled: true, aliases);
 
     /// <summary>A record an earlier attempt would have left, under the terms this test's settings name.</summary>
     private static SpamClassification ClassificationOf(StoredEmailId emailId) => SpamClassification.Create(
@@ -179,20 +285,22 @@ public sealed class EmailSpamClassificationHandlerTests
         SpamVerdict.Spam,
         SpamClassificationStage.Deterministic,
         assessment: null,
-        corpusRevision: null,
         SettingsCovering(Inbox).Profile,
         [],
         EvaluatedAt.AddMinutes(-1));
 
-    private StoredEmailId StoreEmail() => this.harness.Emails.Add(new ClassifiableEmail(
+    private StoredEmailId StoreEmail(params string[] keywords) => this.harness.Emails.Add(new ClassifiableEmail(
         StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000001")),
         Account,
-        Inbox));
+        Inbox,
+        Inbox,
+        RemoteEmailKeywords.Create(keywords)));
 
     private EmailSpamClassificationHandler CreateHandler(
         SpamActionSettings? actions = null,
         SpamClassificationSettings? settings = null,
-        ISpamActionOccurrenceReader? occurrences = null)
+        ISpamActionOccurrenceReader? occurrences = null,
+        SpamHeaderFacts? headers = null)
     {
         var settingsReader = Substitute.For<ISpamClassificationSettingsReader>();
         settingsReader.SettingsFor(Arg.Any<MailAccountId>()).Returns(settings ?? SettingsCovering(Inbox));
@@ -202,11 +310,12 @@ public sealed class EmailSpamClassificationHandlerTests
 
         return new EmailSpamClassificationHandler(
             this.harness.Classifications,
-            this.harness.CreateClassifier(settingsReader, commitPolicy),
+            this.harness.CreateClassifier(settingsReader, commitPolicy, headers),
             this.harness.CreateActionRecorder(
                 actions ?? SpamActionSettings.None,
                 occurrences ?? SpamClassificationHarness.OccurrenceReader(Account, Inbox),
                 sessionFactory,
-                commitPolicy));
+                commitPolicy),
+            this.RunSignal);
     }
 }

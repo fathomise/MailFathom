@@ -10,7 +10,9 @@ import type { ControlShape } from '../controls/controlShapes';
 import { PlannedControl } from '../controls/PlannedControl';
 import { useLocalization } from '../localization/useLocalization';
 import { flagActFor, refusalSaid, standsInTheWay } from '../mailboxActs/drawnActs';
-import { useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
+import { allDrawnSpam, useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
+import { MoreActions } from '../messageSource/MoreActions';
+import { SpamControl } from '../spamMarking/SpamControl';
 
 // What stands at the end of the head of a message or a conversation, beside its subject: the three things the design
 // offers to do with it from there. One component because two heads draw it — a message opened from the list and the
@@ -39,6 +41,7 @@ export function HeadActs({
     compact,
     toolbarCarriesActs = false,
     message,
+    subject = null,
 }: {
     readonly compact: boolean;
 
@@ -56,6 +59,9 @@ export function HeadActs({
      * the same one. An act over a whole conversation is a screen of its own and is not what this draws.
      */
     readonly message: ActedMessage | null;
+
+    /** What the head names the message by, which heads the *More actions* menu over it. */
+    readonly subject?: string | null;
 }) {
     const { translate } = useLocalization();
     const acts = useMailboxActs();
@@ -106,9 +112,19 @@ export function HeadActs({
         };
     }
 
+    // A message marked spam is read-only, so its head offers *Not spam* alone; any other adds *Mark spam* after its acts.
+    // *More actions* follows the spam control either way, drawn as its symbol alone however much room the head has.
+    const spam = message !== null && allDrawnSpam(acts, [message]);
+    const more = <MoreActions storedEmailId={message?.storedEmailId ?? null} subject={subject} />;
+
     return (
         <div className="ms-auto flex shrink-0 items-center gap-2">
-            {toolbarCarriesActs ? null : (
+            {toolbarCarriesActs ? null : spam ? (
+                <>
+                    <SpamControl messages={[message]} shape={actShape} wording="mark" />
+                    {more}
+                </>
+            ) : (
                 <div className="flex items-center gap-0.75">
                     {answer === null ? (
                         <PlannedControl label={translate('mail.reply')} icon="reply" shape={actShape} />
@@ -137,6 +153,9 @@ export function HeadActs({
                     ) : (
                         <PlannedControl label={flagLabel} icon="flag" shape={actShape} why={flag.why} />
                     )}
+
+                    <SpamControl messages={message === null ? [] : [message]} shape={actShape} wording="mark" />
+                    {more}
                 </div>
             )}
         </div>

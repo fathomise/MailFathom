@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -170,7 +171,7 @@ internal static class ClientMailThreadEndpoint
     /// per message as well, so a conversation is drawn with none of them resolved.
     /// </remarks>
     internal static GetEmailContentRequest ContentRequestFor(IReadOnlyList<StoredEmailId> storedEmailIds) =>
-        GetEmailContentRequest.Create(storedEmailIds) with { IncludeMailDocument = true };
+        GetEmailContentRequest.Create(storedEmailIds) with { IncludeMailDocument = true, Reader = MailboxReaderKind.Person };
 
     /// <summary>States what a caller has to change, without echoing what they sent.</summary>
     private static ProblemHttpResult Refuse(string stated) =>
@@ -188,8 +189,9 @@ internal static class ClientMailThreadEndpoint
 /// <param name="PageSize">How many messages the read ran under, which is what the request asked for or the default it took.</param>
 /// <remarks>
 /// Everything outside <c>messages</c> describes the whole conversation rather than the page, so a client draws a thread
-/// header from the first page and keeps it accurate without holding the rest. The two counts are of what this caller may
-/// see: a message in a folder an operator withheld is in neither.
+/// header from the first page and keeps it accurate without holding the rest. The two counts are of what the person may
+/// see: a message in a folder nothing mirrors or no mapping names is in neither, while one in a folder withheld from AI
+/// is counted like any other.
 /// </remarks>
 internal sealed record ClientMailThreadResponse(
     Guid ThreadId,
@@ -248,8 +250,9 @@ internal sealed record ClientMailThreadResponse(
 /// draws the head from one and the row's preview from the other, and neither is derived here.
 /// </para>
 /// <para>
-/// <c>answeredId</c> names a message the caller can see. One whose parent sits in a folder an operator withheld is
-/// published as a root naming nothing, so the withheld message is not disclosed by the gap it would leave.
+/// <c>answeredId</c> names a message the person can see. One whose parent sits in a folder nothing mirrors or no
+/// mapping names is published as a root naming nothing, so that message is not disclosed by the gap it would leave; a
+/// parent in a folder withheld from AI is named like any other.
 /// </para>
 /// </remarks>
 internal sealed record ClientMailThreadEmailResponse(

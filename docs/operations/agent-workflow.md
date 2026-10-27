@@ -119,10 +119,10 @@ answers: not whether a changed line is correct, and not whether the build
 accepts it, but whether the change left the rest of the repository consistent
 with itself. [What the change obliges elsewhere](#what-the-change-obliges-elsewhere)
 describes what it indexes and why it asserts nothing. It gates nothing and costs
-about thirteen seconds — a fixed cost rather than a small one, since it is what
-an empty diff measures too — which is still an order below every other step here,
-so it belongs in the loop rather than in a checklist somebody reaches for when a
-change looks like it needs one.
+a few seconds, most of it the fixed cost of reading every page's marker, which an
+empty diff pays too — an order below every other step here, so it belongs in the
+loop rather than in a checklist somebody reaches for when a change looks like it
+needs one.
 
 Ask whether a client screen still looks like the design it was built from:
 
@@ -245,7 +245,7 @@ reaches neither is proved by building neither. Both gates decide that from the
 changed paths, and the decision is not the person's who started the run: a change
 under `backend/` builds and tests `backend/MailFathom.slnx`, a change under
 `frontend/` reaches the client stack, a change to a file above both reaches both,
-and a documentation-only change reaches neither.
+and a documentation-only or workflow-only change reaches neither.
 
 **Two client checks are deliberately outside both gates.** `pnpm test:browser`
 builds the bundle, serves it, and drives it in a real browser, so it needs a
@@ -286,7 +286,20 @@ overlap to resolve: `.editorconfig` becomes a build failure through
 `EnforceCodeStyleInBuild` for the service and is what Prettier reads its client
 section from, `Version.props` is the version both stacks stamp, and `ci.yml`
 itself decides whether either job runs. A change to one of those reaches both
-flows because it genuinely moves both.
+flows in the pipeline because it genuinely moves both.
+
+The gates depart from the filters in one place: they pass over every path under
+`.github/workflows/` and `.github/actions/` before matching, the second holding the
+composite actions a workflow runs. The workflow entries are in the filters
+because in the pipeline a changed workflow runs itself, so building a stack is how
+its edit is verified. No gate here runs a workflow, so a Release build and a unit
+suite over a solution the change did not touch would prove nothing about it, and
+an edit to `ci.yml` would otherwise run both flows in full — no unit-test project
+names it, so `resolve_changed_unit_suites` could not narrow either. What reads a
+workflow locally is the contract suite, which the full gate runs for every change
+that is not C# alone. The skip sits in the matcher rather than in the lists, so the
+lists stay copies of `ci.yml`'s filters for the contract above, and it holds for
+both gates and for the unit-suite resolver from one place.
 
 Four files sit above both stacks and belong to one filter anyway, which is the
 same argument read the other way. `scripts/read-declared-version.sh` is the
@@ -548,6 +561,15 @@ on every branch carrying the file, `main` included, and that run attaches no che
 to a pull request, so no review and no gate sees it. A plain scalar holding `: `
 reached `main` that way.
 
+A tenth sweeps every tracked text file for the two kinds of string the root
+`AGENTS.md` forbids: the shortcut marker a coding-assistant plugin writes in
+front of a comment, and an address on Claude's own web surfaces, which names a
+session, an artifact, or a design project nobody reading the repository can
+open. The root `AGENTS.md` is exempt because it states the rule, and it is also
+the case's floor: it carries every pattern, so a pattern that stopped matching
+fails there rather than reading as a clean tree. Each match is reported with its
+file and line.
+
 The suite runs in two places and the second one is not a convenience. The
 `Workflow contracts` job of `repository-contracts.yml` runs it on every pull
 request, including a draft, on every push to `main` after a merge, and on the
@@ -564,15 +586,15 @@ above keeps is the earlier verdict — a contract broken here is answered before
 push rather than after it — and the job is the same command against the same tree,
 so the two cannot disagree.
 
-That is also what decides when the full gate runs it. All but one invariant the
+That is also what decides when the full gate runs it. All but two invariants the
 suite asserts is carried by a file no C# change can move: a licensing header
 outside `.cs`, a `describes:` marker, a table-of-contents entry, a link. So a
 branch that only added or edited C# files has almost nothing here to break, and
-the gate skips the suite for it. The exception is the NUL-byte sweep above, which
-reads every tracked text file rather than a list of extensions and so reads `.cs`
-too: a C#-only branch that plants one is answered by `CI` rather than by the
-local gate, which is the one verdict this skip defers instead of having nothing
-to ask for. A path the branch removed or moved runs it whatever the path was,
+the gate skips the suite for it. The exceptions are the NUL-byte sweep and the
+forbidden-string sweep above, which read every tracked text file rather than a
+list of extensions and so read `.cs` too: a C#-only branch that plants either is
+answered by `CI` rather than by the local gate, which are the two verdicts this
+skip defers instead of having nothing to ask for. A path the branch removed or moved runs it whatever the path was,
 because a marker and an entry name a path and the files that remain say nothing
 about one that left. So does a change list the script cannot determine, which is
 a repository state to fix rather than a verdict to guess at. `CI` is
@@ -710,11 +732,11 @@ worded as *does not exist* and is read as neither. One call, and the answer a
 
 What differs is narrow and is listed in both skills at the step it applies to,
 and it splits along those two facts. The repository decides the branch name and
-the linked worktree, every label the issue carries and its milestone, and which
+the linked worktree, the issue's type, every label it carries, and its milestone, and which
 remote is pushed to; the board probe decides the `Area`, `Queue`, and `Size`
 fields and the `Queue: Next` write when the pull request opens. A contributor the
 owner granted board write therefore places an issue exactly as the owner's
-checkout does while still not labelling it, which is the point of separating
+checkout does while still neither typing nor labelling it, which is the point of separating
 them. What does not differ is everything else, including both verification
 scripts, every gate, the pull request, and the `Closes #<issue>` reference.
 
@@ -739,8 +761,8 @@ the inference has a direction: this contract writes the owner's steps down in
 more places than the fork's, because those are the steps that need writing down.
 
 What a wrong inference costs is a turn each time, and every one of them is
-visible only after it fails: a board write that returns a permission error, a
-`type:*` label assigned where nothing can assign one, a push refused by
+visible only after it fails: a board write that returns a permission error, an
+issue type GitHub silently drops, a push refused by
 `fathomise/MailFathom`, a branch renamed to `agent/<short-description>` for
 nothing. So a contributor settles it once, in a file their harness loads before
 the first message and this repository ignores.
@@ -765,7 +787,7 @@ mirrors.
 
 Four sentences are enough, and what earns a place in one is what an agent would
 otherwise get wrong: which remote is which, that project `1` is unreachable and
-its label, milestone, and board fields belong to triage, that nothing is pushed
+its type, labels, milestone, and board fields belong to triage, that nothing is pushed
 to `fathomise/MailFathom`, and that the branch keeps the name it was given.
 The wording itself is written once, in
 `.agents/skills/get-started-contributors/SKILL.md`, and repeated once where a
@@ -819,7 +841,10 @@ The canonical skills are:
   context before edits. The refusal reads the issue's own `blocked by` list, so
   what stops the session is the order the tracker records rather than a judgement
   the session makes; an issue it opens carries that order out to the tracker in
-  the same pass that places it. Its brief also says whether the change looks large
+  the same pass that places it. An issue it opens also records the `main` commit
+  its body was written against, and an issue it takes is read against what landed
+  on `main` since that commit, so a finding the tree has moved past is re-checked
+  rather than trusted. Its brief also says whether the change looks large
   enough to split, which lands there rather than on the board's `Size` field
   because this is the last point before the first edit at which anything has read
   the issue against the repository, and the warning needs the surfaces a change
@@ -834,8 +859,8 @@ The canonical skills are:
   own, so every clone runs the whole design loop. The inventory's last section is
   the one that has to be there: the states the source gates and no preview
   reaches. One of those is a gap rather than a screen to invent — it is closed in
-  `design/` first, in a change whose issue asks for it, never in the client as a
-  guess. When the task is the design itself, the skill says what that change owes:
+  `design/`, ahead of the client or in the pull request that builds it, never in
+  the client as a guess. When the task is the design itself, the skill says what that change owes:
   the inventory and the parity pairing moved in the same change, sample data kept
   made up and in `data/`, and the artboard opened at the compositions it reaches.
   How that change is authored is `design/AGENTS.md`'s: the vendored design skills
@@ -887,9 +912,10 @@ The canonical skills are:
   without the skill.
 
 [Issue tracking and the roadmap board](issue-tracking.md) holds the issue rules
-themselves: which work needs an issue, what an issue body contains, the `type:*`
-label it carries, the `backend` or `frontend` label saying which stack the work
-lands in and the case that takes neither, the `agent:claude` or `agent:codex` marker a session
+themselves: which work needs an issue, what an issue body contains, the issue
+type it carries, the `backend` or `frontend` label saying which stack the work
+lands in and the case that takes neither, the `design` label on work that changes
+`design/` and how `finish-change` holds it against the diff, the `agent:claude` or `agent:codex` marker a session
 applies when it takes one, the `Area`, `Queue` and `Size` fields that place it on
 the board, the milestone that scopes it to a release, the dependency relation
 that records which issue has to land before which — distinct from both the
@@ -912,12 +938,12 @@ made, and a pull request opened by neither
 `finish-change` nor `prepare-release` moves nothing.
 
 Those rules describe an issue an agent opened. A public repository also receives
-issues nobody here opened, and one arrives with no `type:*` label, no stack
-label, and no board fields because none of the rules reached its author. The
-same page holds that path too: the missing `type:*` label is what marks an issue
+issues nobody here opened, and one arrives with no issue type, no stack or
+`design` label, and no board fields because none of the rules reached its author. The
+same page holds that path too: the missing issue type is what marks an issue
 untriaged, triage either places it by the ordinary rules or closes it as `not
-planned` with a reason, a question moves to Discussions instead of being given a
-label so the board has somewhere to put it, and a contribution is read
+planned` with a reason, a question moves to Discussions instead of being given an
+issue type so the board has somewhere to put it, and a contribution is read
 cheapest-check-first — required checks, then `Protected paths`, then a
 maintainer's review. The `Triage` board view is where an arrival waits, and an
 item the project opened itself never reaches it.
@@ -1037,9 +1063,13 @@ which is every pipeline here. The workflows are named one at a time because ther
 `workflows-ignore`, and naming them is also what keeps this workflow off its own list — a
 run that triggered itself would conclude, raise the event again, and chain until GitHub's
 three-level limit stopped it. `CodeQL` is left off for a different reason, the one the rules
-below leave it out for. `scripts/test-agent-workflow.sh` holds the list to exactly the
-workflows a pull request runs, in both directions, so a new pipeline cannot be forgotten
-into a pull request that then never reaches `Ready to merge`.
+below leave it out for. Every other workflow is listed whether a ruleset requires its checks
+today or not, because which checks are required is a repository setting that changes without
+a commit, and a listed workflow whose checks are not required only asks the same question
+again; `Fathom review` is listed because its verdict is a review rather than a check, and its
+run concluding is the event that says one arrived. `scripts/test-agent-workflow.sh` holds the
+list to exactly the workflows a pull request runs, in both directions, so a pipeline that
+becomes required later is already one whose conclusion decides the board.
 
 A **clean head**, below, is one the reviewer approved, or one it found nothing on and
 published as a `COMMENT` under `NO FINDINGS` because the author is not a maintainer. The rules
@@ -1054,9 +1084,9 @@ Six rules live in `.github/pull-request/select-board-status.sh`, read top to bot
   owner or the agent, and nothing on its head can say otherwise: the queue's checks run on the
   merge group's commit. The workflow also runs on the `enqueued` and `dequeued` events of a pull
   request for this reason alone, since no pipeline concluding on the head announces either.
-- A **check that failed** on the head earns `Changes requested`, whatever the review said.
-  That column says the change is waiting on the agent rather than on the owner, and a red
-  pipeline is exactly that whether the objection was written by a reader or produced by a
+- A **required check that failed** on the head earns `Changes requested`, whatever the review
+  said. That column says the change is waiting on the agent rather than on the owner, and a red
+  required check is exactly that whether the objection was written by a reader or produced by a
   build. `FAILURE`, `TIMED_OUT`, `ACTION_REQUIRED`, and `STARTUP_FAILURE` are what count;
   `SKIPPED` and `NEUTRAL` are the ordinary shape of a job a path filter turned off, and
   `CANCELLED` is what a superseded run leaves behind on a head that has since been read
@@ -1092,14 +1122,24 @@ Six rules live in `.github/pull-request/select-board-status.sh`, read top to bot
   that moved those would report the same conflict on every push to `main` for as long as it
   went unresolved.
 
-**Every rule but the merge queue's and a draft's is decided only once every pipeline outside
-the ignored set has finished** — the queue's because it reads no check on the head at all. That
-is one condition stated where the checks are counted rather than a copy of it in each rule, and
-it holds for every verdict because each claims something about the whole state of the change:
-`Ready to merge` says nothing is left to wait for but a merge, and `Changes requested` says what is owed is the agent's answer — while a run still in
-flight can add to what that answer has to cover. So a review published minutes before
-`Required CI` finishes moves nothing until it does, a check that failed beside one still
-running waits with it, and the pipeline that concludes last raises the event that asks again.
+**Every rule but the merge queue's and a draft's is decided only once every check the branch
+rules on `main` require has finished** — the queue's because it reads no check on the head at
+all. That is one condition stated where the checks are counted rather than a copy of it in each
+rule, and it holds for every verdict because each claims something about the whole state of the
+change: `Ready to merge` says nothing is left to wait for but a merge, and `Changes requested`
+says what is owed is the agent's answer — while a required run still in flight can add to what
+that answer has to cover. So a review published minutes before `Required CI` finishes moves
+nothing until it does, a required check that failed beside one still running waits with it, and
+the pipeline that concludes last raises the event that asks again.
+
+The required set is read on every run from `GET /repos/{owner}/{repo}/rules/branches/main`,
+which returns the effective rules of every active ruleset whatever level it is configured at,
+and `read-pull-request-state.sh` copies its status check contexts onto each pull request as
+`requiredChecks`. A required context with no check on the head yet counts as still running:
+a required check reports on every pull request, or nothing could merge, so its absence only
+means it has not started. A head that conflicts is the exception, because GitHub runs no
+`pull_request` workflow while a pull request conflicts with its base — the missing check will
+not start until a rebase, and waiting on it would keep the conflict off the board.
 
 **Whether the change still merges is asked after the verdicts, not before them.** A conflict
 is not an answer to what a reader or a pipeline objected to: a head the reviewer found
@@ -1108,18 +1148,15 @@ something is `Changes requested`. Asked first, the conflict rule would print a s
 write is refused everywhere but `Ready to merge`, and the verdict it shadowed would never be
 published — the item would stay in `In review` until a hand moved it.
 
-Two sets of checks are not read, and a draft earns none of the verdicts. `CodeQL`
-is not a required check on `main`: a finding there is worth acting on and does not make the
-change unmergeable, so reading it would hold every pull request out of `Ready to merge` for
-a question the ruleset does not ask. `Apply pull request rules`'s own checks are not read
-because nothing they publish says whether the change builds — they are a label and a board
-write — and a rule that read them would be deciding partly from its own run. And a draft is
-work being written rather than a change asking for anything, its checks red as often as not
+A check no rule requires is not read at all, running or failed, and a draft earns none of the
+verdicts. Merging does not wait on such a check, so neither does the column: `CodeQL`, a
+documentation build, `Fathom review`'s own jobs, and this workflow's checks would otherwise
+hold an item where the merge has already moved past — which is what kept an item in `In merge`
+for twelve minutes after the queue let its pull request go, while a documentation build nothing
+required ran three times its usual length. A failed run of `Fathom review` likewise turns
+nothing back; what the board reads from that workflow is the review it publishes. And a draft
+is work being written rather than a change asking for anything, its checks red as often as not
 while it is.
-
-That is also why `CodeQL` may still be running when a verdict is published: it is outside
-the wait for the same reason it is outside the rules, which is that merging does not wait on
-it either.
 
 A draft is still asked the last rule, and deliberately: it is true of an item already in
 `Ready to merge`, which is a pull request that had been ready and has since stopped merging.
@@ -1383,8 +1420,8 @@ bash scripts/report-related-pull-requests.sh
 It reads the open pull requests to `main` and their changed paths in one `gh pr list` call, and runs
 `relate-changes.sh` once, with all of their paths as the landed side and the working tree's change
 against its merge base as the changed side. One call is what keeps the cost flat however many pull
-requests are open, since the index behind the relation costs the same for two paths as for two
-thousand. Each pair is attributed to the open pull requests that touch its landed side, and each of
+requests are open, since the index behind the relation reads every page's marker once per call and
+starts the same handful of processes for two paths as for two thousand. Each pair is attributed to the open pull requests that touch its landed side, and each of
 those gets one row: its link, its related paths, and every pair folded beneath them — its path,
 then the path here, and the relation with its direction stated from this change's side, such as
 *its page describes the path here*. The naming relation is read from this change's added lines
@@ -2707,8 +2744,8 @@ pressing the button, and `Changes requested` says what is owed is the agent's
 answer — and a pipeline still running can add to what that answer has to cover.
 This workflow reads the diff and cannot see the pipeline, so both are asked in
 [The board status the state earns](#the-board-status-the-state-earns), where the
-review and the checks are visible at once and where both wait for every pipeline
-outside `CodeQL` to finish. An item therefore sits in `In review` for as long as
+review and the checks are visible at once and where both wait for every check
+the branch rules require to finish. An item therefore sits in `In review` for as long as
 the change is still being decided about — which is what that column says — and a
 run that publishes no verdict leaves it there too, where a reader sees that a
 review was asked for and produced nothing.

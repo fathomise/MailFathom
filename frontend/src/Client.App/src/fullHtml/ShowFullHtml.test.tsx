@@ -80,4 +80,21 @@ describe('ShowFullHtml', () => {
 
         expect(screen.getByRole('heading', { name: 'Show the original message?' })).toBeDefined();
     });
+
+    // A message marked spam keeps the control, and the press is answered by why its original stays shut.
+    it('asks nothing and opens nothing where the press is refused, handing the refusal back instead', () => {
+        const shown = vi.fn();
+        const refused = vi.fn();
+
+        render(
+            <LocalizationProvider>
+                <ShowFullHtml onShow={shown} onRefused={refused} />
+            </LocalizationProvider>,
+        );
+        press('Show the original message');
+
+        expect(refused).toHaveBeenCalledOnce();
+        expect(shown).not.toHaveBeenCalled();
+        expect(screen.queryByRole('heading', { name: 'Show the original message?' })).toBeNull();
+    });
 });

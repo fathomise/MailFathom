@@ -136,90 +136,6 @@ public sealed class MailboxSynchronizerTests
         await checkpointStore.Received(1).SaveCheckpointAsync(persistenceSession, accountId, folder.Id, Arg.Any<SynchronizationCheckpoint?>(), Arg.Is<SynchronizationCheckpoint>(checkpoint => checkpoint!.LastSeenUid == uid), CancellationToken.None);
     }
 
-    /// <summary>What a run reports as arrived mail: stored in the inbox, and unread on the server when it was stored.</summary>
-    [Fact]
-    public async Task SynchronizeAsync_UnreadMessageStoredInTheInbox_ReportsItAsArrivedMail()
-    {
-        // Arrange
-        var accountId = MailAccountId.Create("primary");
-        var uidValidity = ImapUidValidity.Create(5);
-        var occurrence = EmailOccurrenceId.Create(accountId, InboxFolder.Id, uidValidity, ImapUid.Create(10));
-        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
-        var arrangement = ArrangeContentRun(options, uidValidity, [MetadataOf(occurrence, 600)], occurrence.Uid);
-        StubRetrievedContent(arrangement.Session, options, occurrence, 600);
-
-        // Act
-        var result = await arrangement.Synchronizer.SynchronizeAsync(
-            accountId,
-            InboxMapping,
-            CancellationToken.None);
-
-        // Assert
-        Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(1, result.ArrivedEmailCount);
-    }
-
-    /// <summary>
-    /// Mail the server had already marked <c>\Seen</c> is news to nobody: the person read it somewhere else, and a run
-    /// that says it arrived is announcing a backfill rather than an arrival.
-    /// </summary>
-    [Fact]
-    public async Task SynchronizeAsync_MessageTheServerHadAlreadyMarkedRead_StoresItWithoutReportingItAsArrival()
-    {
-        // Arrange
-        var accountId = MailAccountId.Create("primary");
-        var uidValidity = ImapUidValidity.Create(5);
-        var occurrence = EmailOccurrenceId.Create(accountId, InboxFolder.Id, uidValidity, ImapUid.Create(10));
-        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
-        var arrangement = ArrangeContentRun(
-            options,
-            uidValidity,
-            [MetadataOf(occurrence, 600, isRemotelySeen: true)],
-            occurrence.Uid);
-        StubRetrievedContent(arrangement.Session, options, occurrence, 600);
-
-        // Act
-        var result = await arrangement.Synchronizer.SynchronizeAsync(
-            accountId,
-            InboxMapping,
-            CancellationToken.None);
-
-        // Assert
-        Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
-    }
-
-    /// <summary>
-    /// Only the inbox raises an arrival. Mail this run stored in an archive, a sent folder, or anywhere else the
-    /// account synchronizes is mail the run fetched rather than mail waiting for a person.
-    /// </summary>
-    [Fact]
-    public async Task SynchronizeAsync_UnreadMessageStoredOutsideTheInbox_StoresItWithoutReportingItAsArrival()
-    {
-        // Arrange
-        var accountId = MailAccountId.Create("primary");
-        var uidValidity = ImapUidValidity.Create(5);
-        var occurrence = EmailOccurrenceId.Create(accountId, ArchiveFolder.Id, uidValidity, ImapUid.Create(10));
-        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
-        var arrangement = ArrangeContentRun(
-            options,
-            uidValidity,
-            [MetadataOf(occurrence, 600)],
-            occurrence.Uid,
-            runFolder: ArchiveFolder);
-        StubRetrievedContent(arrangement.Session, options, occurrence, 600);
-
-        // Act
-        var result = await arrangement.Synchronizer.SynchronizeAsync(
-            accountId,
-            ArchiveMapping,
-            CancellationToken.None);
-
-        // Assert
-        Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
-    }
-
     /// <summary>
     /// On a held account a stored message lands in the local folder its source corresponds to, and the source is what
     /// the run resolved: its alias to match it by, its role to decide whether a protected folder takes it, and the last
@@ -245,7 +161,11 @@ public sealed class MailboxSynchronizerTests
             [MetadataOf(occurrence, 600)],
             occurrence.Uid,
             runFolder: ArchiveFolder,
-            localFolderArrivals: new LocalMailFolderArrivals(localFolders, signals, new FakeTimeProvider()));
+            localFolderArrivals: new LocalMailFolderArrivals(
+                localFolders,
+                localFolders.Composing(new FakeTimeProvider()).Custodians,
+                signals,
+                new FakeTimeProvider()));
         StubRetrievedContent(arrangement.Session, options, occurrence, 600);
 
         // Act
@@ -330,10 +250,7 @@ public sealed class MailboxSynchronizerTests
             ],
             second.Uid,
             runFolder: HeldSentFolder,
-            localFolderArrivals: new LocalMailFolderArrivals(
-                new InMemoryLocalMailFolderStore(account, MailAccountCustodyPhase.Held),
-                ClientSignalPublishers.ReachingNobody,
-                new FakeTimeProvider()));
+            localFolderArrivals: HeldArrivals(account));
         StubRetrievedContent(sent.Session, options, first, 600);
         StubRetrievedContent(sent.Session, options, second, 600);
         var filedCopy = StoredEmailId.Create(Guid.CreateVersion7(new DateTimeOffset(2026, 7, 24, 11, 0, 0, TimeSpan.Zero)));
@@ -730,8 +647,11 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
         Assert.Equal(0, result.RelocatedEmailCount);
+        await metadataRepository.Received(1).RecordSettledOnArrivalAsync(
+            persistenceSession,
+            storedEmailId,
+            Arg.Any<CancellationToken>());
         await metadataRepository.DidNotReceiveWithAnyArgs().TryCarryToOccurrenceAsync(
             Arg.Any<IPersistenceSession>(),
             Arg.Any<StoredEmailId>(),
@@ -2097,6 +2017,53 @@ public sealed class MailboxSynchronizerTests
             CancellationToken.None);
     }
 
+    /// <summary>
+    /// An arrival is extracted, and its organization verdict stored, the same way in every custody phase: a held source
+    /// keeps delivering new mail, which is extracted as an arrival before the drain takes it.
+    /// </summary>
+    [Theory]
+    [InlineData(MailAccountCustodyPhase.Mirrored)]
+    [InlineData(MailAccountCustodyPhase.Held)]
+    [InlineData(MailAccountCustodyPhase.Restoring)]
+    public async Task SynchronizeAsync_ArrivalAColleagueSignedInEachCustodyPhase_StoresTheOrganizationVerdict(MailAccountCustodyPhase phase)
+    {
+        // Arrange
+        var accountId = MailAccountId.Create("primary");
+        var uidValidity = ImapUidValidity.Create(5);
+        var occurrence = EmailOccurrenceId.Create(accountId, InboxFolder.Id, uidValidity, ImapUid.Create(10));
+        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
+        var organization = Guid.Parse("0199f000-0000-7000-8000-000000000001");
+        var localFolders = new InMemoryLocalMailFolderStore(accountId, phase);
+        var arrangement = ArrangeContentRun(
+            options,
+            uidValidity,
+            [MetadataOf(occurrence, 600)],
+            occurrence.Uid,
+            localFolderArrivals: new LocalMailFolderArrivals(
+                localFolders,
+                localFolders.Composing(new FakeTimeProvider()).Custodians,
+                ClientSignalPublishers.ReachingNobody,
+                new FakeTimeProvider()),
+            mimeReader: ReaderYielding(CreateExtractedMetadata(accountId) with
+            {
+                SenderTrust = SenderTrust.TrustedAsOrganizationMember(organization, SenderTrustPolicyRevision.None),
+            }));
+        StubRetrievedContent(arrangement.Session, options, occurrence, 600);
+
+        // Act
+        await arrangement.Synchronizer.SynchronizeAsync(accountId, InboxMapping, CancellationToken.None);
+
+        // Assert
+        await arrangement.MetadataRepository.Received(1).UpsertMetadataAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<RemoteEmailMetadata>(),
+            Arg.Is<ExtractedEmailMetadata?>(extracted => extracted != null
+                && extracted.SenderTrust.GrantedBy == SenderTrustSource.OrganizationMember
+                && extracted.SenderTrust.RecognizingOrganizationId == organization),
+            StoredEmailContentAvailability.Available,
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Nothing was read from the payload, so the row records only what the server's envelope reported.</summary>
     [Fact]
     public async Task SynchronizeAsync_MessageWhoseMimeCannotBeRead_PersistsTheOccurrenceWithoutExtractedMetadata()
@@ -2276,7 +2243,6 @@ public sealed class MailboxSynchronizerTests
 
     private static SpamClassificationSettings ClassifyingTheInbox() => SpamClassificationSettings.Create(
         isEnabled: true,
-        usesScanner: false,
         [InboxAlias]);
 
     private static EmailMimeExtractionResult CreateFailedExtraction(EmailMimeExtractionOutcome outcome) => outcome switch
@@ -2657,6 +2623,33 @@ public sealed class MailboxSynchronizerTests
         await context.ReconciliationStore.Received(1).RetireDeletesLeftFlaggedAsync(
             Arg.Any<IPersistenceSession>(),
             Arg.Is<IReadOnlyList<DeleteLeftFlaggedId>>(ids => ids!.SequenceEqual(new[] { undeleted.Id })),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A restored message is one the person already had, so it is stored settled rather than announced as an arrival.</summary>
+    [Fact]
+    public async Task SynchronizeAsync_AnErasedMessageUndeletedOnTheServer_IsStoredSettled()
+    {
+        // Arrange
+        var context = CreateReconciliationContext(storedCheckpoint: SynchronizationCheckpoint.None(ImapUidValidity.Create(5)));
+        ArrangeUndeletedErasedOccurrence(context, uid: 20);
+        var occurrence = EmailOccurrenceId.Create(
+            MailAccountId.Create("primary"),
+            InboxFolder.Id,
+            ImapUidValidity.Create(5),
+            ImapUid.Create(20));
+        var oversized = MetadataOf(occurrence, sizeOctets: new MailboxSynchronizationOptions().MaxRawMimeBytes + 1);
+        context.Session
+            .GetEmailBatchAfterAsync(ImapUid.Create(19), 100, MailSynchronizationWindow.Unbounded, CancellationToken.None)
+            .Returns(new RemoteEmailMetadataBatch([oversized], InspectedThroughUid: ImapUid.Create(20), HasMore: false));
+
+        // Act
+        await context.Synchronizer.SynchronizeAsync(MailAccountId.Create("primary"), InboxMapping, CancellationToken.None);
+
+        // Assert
+        await context.MetadataRepository.Received(1).RecordSettledOnArrivalAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<StoredEmailId>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -3125,7 +3118,6 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
         await context.AssertJoinedToTheSendAsync();
     }
 
@@ -3145,7 +3137,6 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
         await context.AssertJoinedToTheSendAsync();
     }
 
@@ -3161,7 +3152,6 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(1, result.ArrivedEmailCount);
         await context.AssertStoredAsArrivingMailAsync();
     }
 
@@ -3264,10 +3254,26 @@ public sealed class MailboxSynchronizerTests
                     classificationSettings ?? SpamClassificationSettings.Disabled,
                     ClassifiedAccount)),
             contactCollector ?? CreateCollectorThatCollectsNothing(persistenceSessionFactory, timeProvider),
-            localFolderArrivals ?? new LocalMailFolderArrivals(Substitute.For<ILocalMailFolderStore>(), ClientSignalPublishers.ReachingNobody, timeProvider),
+            localFolderArrivals ?? new LocalMailFolderArrivals(
+                Substitute.For<ILocalMailFolderStore>(),
+                new MailboxCustodianComposition(timeProvider).Custodians,
+                ClientSignalPublishers.ReachingNobody,
+                timeProvider),
             concurrencyRetryPolicy,
             timeProvider,
             options);
+    }
+
+    /// <summary>Builds the arrivals of an account MailFathom holds alone, over a store of its own.</summary>
+    private static LocalMailFolderArrivals HeldArrivals(MailAccountId account)
+    {
+        var store = new InMemoryLocalMailFolderStore(account, MailAccountCustodyPhase.Held);
+
+        return new LocalMailFolderArrivals(
+            store,
+            store.Composing(new FakeTimeProvider()).Custodians,
+            ClientSignalPublishers.ReachingNobody,
+            new FakeTimeProvider());
     }
 
     /// <summary>Builds a store whose folders hold nothing awaiting reconciliation, which is the case every forward-pass test is about.</summary>
@@ -3303,6 +3309,16 @@ public sealed class MailboxSynchronizerTests
             .ReadMetadataAsync(Arg.Any<MailAccountId>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult(
                 EmailMimeExtractionResult.Extracted(CreateExtractedMetadata(call.Arg<MailAccountId>()))));
+
+        return mimeReader;
+    }
+
+    private static IEmailMimeReader ReaderYielding(ExtractedEmailMetadata extracted)
+    {
+        var mimeReader = Substitute.For<IEmailMimeReader>();
+        mimeReader
+            .ReadMetadataAsync(Arg.Any<MailAccountId>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(EmailMimeExtractionResult.Extracted(extracted)));
 
         return mimeReader;
     }
@@ -3879,7 +3895,8 @@ public sealed class MailboxSynchronizerTests
         IAccountStoredContentLedger? accountContentLedger = null,
         SpamClassificationSettings? classificationSettings = null,
         MailFolderResolution? runFolder = null,
-        LocalMailFolderArrivals? localFolderArrivals = null)
+        LocalMailFolderArrivals? localFolderArrivals = null,
+        IEmailMimeReader? mimeReader = null)
     {
         var folder = runFolder ?? InboxFolder;
         var checkpointStore = Substitute.For<ISynchronizationCheckpointStore>();
@@ -3933,7 +3950,8 @@ public sealed class MailboxSynchronizerTests
             storedContentCeiling: storedContentCeiling,
             classificationSettings: classificationSettings,
             jobStore: jobStore,
-            localFolderArrivals: localFolderArrivals);
+            localFolderArrivals: localFolderArrivals,
+            mimeReader: mimeReader);
 
         return new ContentRunArrangement(
             synchronizer,
@@ -3962,10 +3980,7 @@ public sealed class MailboxSynchronizerTests
             [MetadataOf(occurrence, 600)],
             occurrence.Uid,
             runFolder: HeldSentFolder,
-            localFolderArrivals: new LocalMailFolderArrivals(
-                new InMemoryLocalMailFolderStore(account, MailAccountCustodyPhase.Held),
-                ClientSignalPublishers.ReachingNobody,
-                new FakeTimeProvider()));
+            localFolderArrivals: HeldArrivals(account));
         StubRetrievedContent(arrangement.Session, options, occurrence, 600);
 
         return arrangement;
@@ -4150,6 +4165,10 @@ public sealed class MailboxSynchronizerTests
                 Arg.Any<IPersistenceSession>(),
                 Arg.Any<StoredEmailId>(),
                 Arg.Any<OutgoingEmailId>(),
+                Arg.Any<CancellationToken>());
+            await this.metadataRepository.DidNotReceive().RecordSettledOnArrivalAsync(
+                Arg.Any<IPersistenceSession>(),
+                Arg.Any<StoredEmailId>(),
                 Arg.Any<CancellationToken>());
 
             await this.filings.DidNotReceive().RecordFilingObservedAsync(

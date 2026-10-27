@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Persistence;
@@ -37,7 +38,8 @@ namespace MailFathom.Infrastructure.Persistence.ThreadStates;
 internal sealed class StoredThreadStateStore(
     MailFathomDbContext dbContext,
     IDeploymentMailFolders deploymentFolders,
-    DerivedWorkGate derivedWorkGate)
+    DerivedWorkGate derivedWorkGate,
+    IEmailProvenanceReader provenanceReader)
     : IStoredThreadStateStore
 {
     /// <inheritdoc />
@@ -120,8 +122,11 @@ internal sealed class StoredThreadStateStore(
         var byThread = messages
             .GroupBy(static row => row.EmailThreadId)
             .ToDictionary(static wrote => wrote.Key, static wrote => wrote.ToArray());
+        var provenance = await provenanceReader.ReadAsync(
+            [.. messages.Select(static row => StoredEmailId.Create(row.StoredEmailId))],
+            cancellationToken);
 
-        return [.. awaiting.Select(conversation => Compose(conversation, byThread, maximumMessagesPerThread))];
+        return [.. awaiting.Select(conversation => Compose(conversation, byThread, provenance, maximumMessagesPerThread))];
     }
 
     /// <inheritdoc />
@@ -251,20 +256,30 @@ internal sealed class StoredThreadStateStore(
     /// A conversation past the bound is composed with no messages at all, which is what makes the answer honest: its
     /// text was never read out of the store, so there is nothing partial to send by mistake and the record written for
     /// it says the conversation was not read rather than summarizing the part that would have fitted.
+    /// <para>
+    /// A message whose provenance was not read was removed after it was selected, and is left out rather than handed
+    /// over without saying where it came from. The revision still names the shape that was selected, so the next pass
+    /// finds the conversation changed and derives it again.
+    /// </para>
     /// </remarks>
     /// <param name="conversation">The selected conversation.</param>
     /// <param name="byThread">The messages read for every selected conversation, oldest first, each already cut to its bound.</param>
+    /// <param name="provenance">Where each of those messages came from, keyed by its identity.</param>
     /// <param name="maximumMessagesPerThread">How many messages a conversation may carry and still be derived from.</param>
     /// <returns>The conversation as a derivation is handed it.</returns>
     internal static DerivableThread Compose(
         ThreadAwaitingStateRow conversation,
         IReadOnlyDictionary<Guid, DerivableThreadMessageRow[]> byThread,
+        IReadOnlyDictionary<StoredEmailId, EmailProvenance> provenance,
         int maximumMessagesPerThread)
     {
         var revision = new ThreadStateRevision(conversation.MessageCount, conversation.LatestArrival);
 
-        if (conversation.MessageCount > maximumMessagesPerThread
-            || !byThread.TryGetValue(conversation.EmailThreadId, out var rows))
+        var rows = byThread.TryGetValue(conversation.EmailThreadId, out var read)
+            ? read.Where(row => provenance.ContainsKey(StoredEmailId.Create(row.StoredEmailId))).ToArray()
+            : [];
+
+        if (conversation.MessageCount > maximumMessagesPerThread || rows.Length is 0)
         {
             return new DerivableThread(
                 EmailThreadId.Create(conversation.EmailThreadId),
@@ -279,12 +294,13 @@ internal sealed class StoredThreadStateStore(
             rows[0].Subject,
             revision,
             [
-                .. rows.Select(static (row, position) => new DerivableThreadMessage(
+                .. rows.Select((row, position) => new DerivableThreadMessage(
                     StoredEmailId.Create(row.StoredEmailId),
                     position,
                     row.SenderDisplayName,
                     row.SentAt,
-                    row.Text)),
+                    row.Text,
+                    provenance[StoredEmailId.Create(row.StoredEmailId)])),
             ],
             ExceedsBound: false);
     }

@@ -13,6 +13,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -68,6 +69,26 @@ public sealed class ContactRelationshipReaderTests
         // Assert
         Assert.False(card.WasDerived);
         Assert.Empty(deriver.Briefs);
+    }
+
+    /// <summary>What a card is derived from goes to a model, so the correspondence is read without a folder withheld from AI.</summary>
+    [Fact]
+    public async Task ReadAsync_AFolderWithheldFromAI_IsLeftOutOfTheCorrespondenceTheCardIsDerivedFrom()
+    {
+        // Arrange
+        var visible = new MailFolderIdentity(TheAccount, MailFolderAlias.Create("Inbox"));
+        var withheld = new MailFolderIdentity(TheAccount, MailFolderAlias.Create("Private"));
+        var index = new InMemoryContactCorrespondenceIndex();
+        var reader = ReaderOver(
+            index,
+            new RecordingContactRelationshipDeriver(DerivedCard()),
+            folderParticipation: StubMailFolderParticipation.Mapping(visible).Hiding(withheld));
+
+        // Act
+        await reader.ReadAsync(ContactOf("anna@example.com"), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([visible], index.Reads.SelectMany(static read => read.Scope.ReadableFolders).Distinct());
     }
 
     /// <summary>What the derivation answered is what the caller reads, note, next action and observations together.</summary>
@@ -151,7 +172,8 @@ public sealed class ContactRelationshipReaderTests
         IContactRelationshipDeriver deriver,
         SensitiveContentEgressGuard? egressGuard = null,
         AccessAuthorization? authorization = null,
-        UserLanguage language = UserLanguage.English)
+        UserLanguage language = UserLanguage.English,
+        StubMailFolderParticipation? folderParticipation = null)
     {
         var guard = egressGuard ?? SensitiveContentEgressGuards.Inactive();
         var granted = authorization ?? AccessAuthorizations.ForCallerGranted(
@@ -159,8 +181,8 @@ public sealed class ContactRelationshipReaderTests
             MailFathomPermission.MailRead);
         var scopeResolver = new MailboxScopeResolver(
             CatalogServing(TheAccount),
-            StubMailFolderParticipation.Nothing,
-            StubDeploymentMailFolders.None,
+            folderParticipation ?? StubMailFolderParticipation.Nothing,
+            StubDeploymentMailFolders.Of(folderParticipation ?? StubMailFolderParticipation.Nothing),
             StubMailFolderMappings.ResolvingNothing);
 
         return new ContactRelationshipReader(

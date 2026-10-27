@@ -26,8 +26,10 @@ export function Control({
     shape = 'labelled',
     className,
     pressed,
+    held = false,
     hint,
     onPress,
+    onHold,
 }: {
     readonly label: string;
     readonly icon?: IconName;
@@ -40,20 +42,41 @@ export function Control({
     /** Whether what this control turns on is on, for a control that turns something on, and absent for one that does not. */
     readonly pressed?: boolean;
 
+    /**
+     * Whether what this control asked for is still unanswered. It stays focusable and named, `aria-disabled` rather than
+     * `disabled`, because disabling the element somebody just pressed is what drops their focus to the body, and a
+     * press while it is held does nothing.
+     */
+    readonly held?: boolean;
+
     readonly onPress: () => void;
+
+    /** What holding the control does, for one that does a second thing on a hold — `useTip` says how it is reached. */
+    readonly onHold?: () => void;
 }) {
     const labelled = labelledShape(shape);
-    const { anchor, tip } = useTip({ says: hint ?? label, describes: hint !== undefined, onPress });
+    const pressedUnlessHeld = () => {
+        if (!held) {
+            onPress();
+        }
+    };
+    const { anchor, tip } = useTip({
+        says: hint ?? label,
+        describes: hint !== undefined,
+        onPress: pressedUnlessHeld,
+        onHold,
+    });
     const spoken = !labelled || hint !== undefined;
 
     return (
         <>
             <button
-                {...(spoken ? anchor : { onClick: onPress })}
+                {...(spoken ? anchor : { onClick: pressedUnlessHeld })}
                 type="button"
                 aria-label={labelled ? undefined : label}
                 aria-pressed={pressed}
-                className={`flex shrink-0 items-center whitespace-nowrap transition ${controlShapes[shape]} ${className ?? ''}`}
+                aria-disabled={held ? true : undefined}
+                className={`flex shrink-0 items-center whitespace-nowrap transition aria-disabled:cursor-default aria-disabled:opacity-60 ${controlShapes[shape]} ${className ?? ''}`}
             >
                 {icon === undefined || !symbolShown(shape) ? null : (
                     <Icon name={icon} className={shape === 'floating' ? 'size-icon-2xl' : 'size-icon-md'} />

@@ -80,6 +80,28 @@ public sealed class ClientMailThreadStateEndpointTests
         Assert.Equal(new DateTimeOffset(2026, 9, 12, 0, 0, 0, TimeSpan.Zero), block.Entries[1].DueAt);
     }
 
+    /// <summary>A folder withheld from AI is still the person's, so the state of a conversation in it is served like any other.</summary>
+    [Fact]
+    public async Task ReadStateAsync_AConversationInAFolderWithheldFromAI_AnswersThePersonWithTheBlock()
+    {
+        // Arrange
+        this.Holding(State(
+            [ThreadStateEntry.Create(ThreadStateAspect.Agreement, "The response time stays at two hours.", [FirstMessage])]));
+        var withheld = new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("inbox"));
+
+        // Act
+        var result = await this.ReadAsync(StubMailFolderParticipation.Nothing.Hiding(withheld));
+
+        // Assert
+        var block = Assert.IsType<Ok<ClientMailThreadStateResponse>>(result.Result).Value;
+
+        Assert.Equal(Conversation.Value, block!.ThreadId);
+        await this.stateReader.Received(1).ReadStateAsync(
+            Conversation,
+            Arg.Is<MailboxScope>(scope => scope != null && scope.ReadableFolders.Contains(withheld)),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>
     /// A source is followed through the same route a Discover answer's sources are, so it reaches the wire in exactly
     /// the spelling that route reads back.
@@ -238,28 +260,29 @@ public sealed class ClientMailThreadStateEndpointTests
             .ReadStateAsync(Arg.Any<EmailThreadId>(), Arg.Any<MailboxScope>(), Arg.Any<CancellationToken>())
             .Returns(state);
 
-    private Task<Results<Ok<ClientMailThreadStateResponse>, NotFound>> ReadAsync() =>
+    private Task<Results<Ok<ClientMailThreadStateResponse>, NotFound>> ReadAsync(
+        StubMailFolderParticipation? participation = null) =>
         ClientMailThreadStateEndpoint.ReadStateAsync(
             Conversation.Value,
-            this.Browser(),
+            this.Browser(participation),
             TestContext.Current.CancellationToken);
 
-    private MailThreadStateBrowser Browser()
+    private MailThreadStateBrowser Browser(StubMailFolderParticipation? participation = null)
     {
         var accountId = MailAccountId.Create("work");
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
         catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(accountId)]);
         catalog.User.Returns(SyntheticUser.Deployment);
 
-        var participation = StubMailFolderParticipation.Mapping(
+        var folders = participation ?? StubMailFolderParticipation.Mapping(
             [new MailFolderIdentity(accountId, MailFolderAlias.Create("inbox"))]);
 
         return new MailThreadStateBrowser(
             this.stateReader,
             new MailboxScopeResolver(
                 catalog,
-                participation,
-                StubDeploymentMailFolders.Of(participation),
+                folders,
+                StubDeploymentMailFolders.Of(folders),
                 StubMailFolderMappings.ResolvingNothing),
             SensitiveContentEgressGuards.Inactive(),
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));

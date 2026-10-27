@@ -26,6 +26,111 @@
         }
       ]
     },
+    "mail-outbox": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Outbox - 4 waiting to leave, 1 refused",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "Outbox"
+          }
+        }
+      ]
+    },
+    "mail-spam": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "text": "Spam"
+          }
+        },
+        {
+          "expect": {
+            "text": "Your mailbox password expires today"
+          }
+        }
+      ]
+    },
+    "mail-spam-phishing": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "text": "Spam"
+          }
+        },
+        {
+          "expect": {
+            "text": "Your mailbox password expires today"
+          }
+        },
+        {
+          "click": {
+            "text": "Your mailbox password expires today"
+          }
+        },
+        {
+          "expect": {
+            "text": "Phishing. This message is spam and a security risk."
+          }
+        }
+      ]
+    },
     "mail-thread": {
       "file": "prototype.dc.html",
       "properties": {
@@ -109,6 +214,123 @@
         {
           "expect": {
             "text": "Notifications"
+          }
+        }
+      ]
+    },
+    "mail-outbox-refused": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Outbox - 4 waiting to leave, 1 refused",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "text": "Re: Contract addendum - signatures"
+          }
+        },
+        {
+          "expect": {
+            "text": "Not sent - the server refused it"
+          }
+        }
+      ]
+    },
+    "mail-change-notice": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "notifications_active"
+          }
+        },
+        {
+          "click": {
+            "text": "A change did not reach your mailbox"
+          }
+        },
+        {
+          "expect": {
+            "text": "Not moved - your mailbox did not take this change"
+          }
+        }
+      ]
+    },
+    "composer-held-draft": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "notifications_active"
+          }
+        },
+        {
+          "click": {
+            "text": "Draft out of step with your server"
+          }
+        },
+        {
+          "expect": {
+            "text": "Your mail server's copy of this draft may be missing or out of date, so another mail app may not show what you see here. It is kept in MailFathom."
+          }
+        }
+      ]
+    },
+    "mail-drafts": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "text": "Drafts"
+          }
+        },
+        {
+          "expect": {
+            "role": "group",
+            "name": "Out of step with your server",
+            "exact": true
           }
         }
       ]
@@ -197,6 +419,128 @@
         }
       ]
     },
+    "message-source-menu": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "expect": {
+            "text": "Show source"
+          }
+        }
+      ]
+    },
+    "message-source": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "click": {
+            "text": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "text": "Contract addendum - signatures · as received, 2.9 kB"
+          }
+        }
+      ]
+    },
+    "message-source-toolbar": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "click": {
+            "text": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "text": "As received, 2.9 kB"
+          }
+        }
+      ]
+    },
+    "mail-link-ask": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Tickets Kraków-Berlin 12.09"
+          }
+        },
+        {
+          "click": {
+            "text": "travel.example/checkin/7QX4MB"
+          }
+        },
+        {
+          "expect": {
+            "text": "Open this link?"
+          }
+        }
+      ]
+    },
     "calendar": {
       "file": "prototype.dc.html",
       "properties": {
@@ -273,6 +617,210 @@
         {
           "expect": {
             "text": "This week"
+          }
+        }
+      ]
+    },
+    "composer": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "New message",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "Context"
+          }
+        }
+      ]
+    },
+    "mail-sender-details": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "Trusted"
+          }
+        },
+        {
+          "expect": {
+            "text": "Sender authentication"
+          }
+        }
+      ]
+    },
+    "mail-sender-organization": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Hiring summary - Frontend"
+          }
+        },
+        {
+          "click": {
+            "text": "Trusted"
+          }
+        },
+        {
+          "expect": {
+            "text": "Sender authentication"
+          }
+        }
+      ]
+    },
+    "mail-sender-organization-deleted": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Handover - supplier contracts"
+          }
+        },
+        {
+          "click": {
+            "text": "Trusted"
+          }
+        },
+        {
+          "expect": {
+            "text": "Sender authentication"
+          }
+        }
+      ]
+    },
+    "mail-sender-badge": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Invoice 08/2026"
+          }
+        },
+        {
+          "click": {
+            "text": "Suspicious"
+          }
+        },
+        {
+          "expect": {
+            "text": "Content unchanged"
+          }
+        }
+      ]
+    },
+    "message-source-failed": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Nightly report - build #2418"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "click": {
+            "text": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "text": "Try again"
+          }
+        }
+      ]
+    },
+    "message-source-loading": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Invoice 08/2026"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "click": {
+            "text": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "role": "status",
+            "name": "Reading the message source"
           }
         }
       ]

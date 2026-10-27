@@ -28,7 +28,7 @@ on:
       # rather than skipping the tests: a run somebody asked for and which then quietly proved
       # nothing is worse than one that never started.
       run_ai_provider_contract_tests:
-        description: 'Call the real AI providers. Spends provider credit; needs the EMBEDDING_PROVIDER_* and CHAT_PROVIDER_* secrets and variables'
+        description: 'Call the real AI providers. Spends provider credit; needs the EMBEDDING_PROVIDER_* and CHAT_PROVIDER_* secrets and variables, and reads the optional DECISION_PROVIDER_* ones'
         required: false
         default: false
         type: boolean
@@ -70,15 +70,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      # Versions are pinned centrally, NuGet.config decides which sources they may come from, and the
-      # lock files fix the resolved transitive closure, so the key covers all three. A key that
-      # ignored source policy would keep serving packages obtained under the previous one.
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'global.json', 'NuGet.config', '.config/dotnet-tools.json', '**/packages.lock.json') }}
-
       # The same script a developer runs, so the suite has one way to be started rather than two that
       # can drift. It restores tools and packages, builds, removes anything a previous run left behind,
       # runs the suite, and reports coverage over the classes marked [RequiresIntegrationCoverage].
@@ -103,6 +94,14 @@ jobs:
           # Which of the provider's two request APIs a call goes to is not set here: the chat tests
           # cover both, so the declared model has to serve both.
           MAILFATHOM_CHAT_REASONING_EFFORT: ${{ vars.CHAT_PROVIDER_REASONING_EFFORT }}
+          # The decision tests reach OpenRouter's Decisions API, which a chat key for OpenRouter already
+          # authenticates, so the chat key stands in until a decision key of its own is configured. The
+          # address is empty by default, which is the global router a deployment writing none reaches,
+          # and the default model is a versioned decision model with an endpoint that retains nothing,
+          # because every request asks the router for exactly that.
+          MAILFATHOM_DECISION_API_KEY: ${{ secrets.DECISION_PROVIDER_API_KEY || secrets.CHAT_PROVIDER_API_KEY }}
+          MAILFATHOM_DECISION_ADDRESS: ${{ vars.DECISION_PROVIDER_ADDRESS }}
+          MAILFATHOM_DECISION_MODEL: ${{ vars.DECISION_PROVIDER_MODEL || 'perplexity/pplx-decider-flash-v1.2' }}
 
       - name: Upload test results
         if: always()

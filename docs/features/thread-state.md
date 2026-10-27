@@ -89,18 +89,25 @@ whether more remains. There is no sweep of its own, because there is no mail the
 
 A **settled** derivation is written down and takes the conversation out of the queue until its shape changes — including
 a settled answer of no statements, and including `ThreadTooLarge`. A **withheld** one is not written down, and it ends
-the pass rather than moving to the next conversation, because every reason a derivation is withheld outlives one
-conversation:
+the pass rather than moving to the next conversation, because every reason a derivation is withheld is a fault of the
+deployment or its provider rather than a fact about the conversation, and the next conversation would most likely meet
+it too:
 
 | Withheld because | What it means |
 |---|---|
 | **Not activated** | The deployment has not turned the derivation on. The pass answers before it looks for work, so nothing is queried, nothing is read, and nothing is sent. |
 | **Allowance exhausted** | The answering period has no admission left for another call. |
 | **Provider unavailable** | The model failed, timed out, was unreachable, or its credential would not resolve — and where the deployment declared a fallback behind it, that model could not answer either. |
+| **Answer unreadable** | The model answered, but with nothing this build could read as the object it was asked for — prose, a reply cut off before its object closed, or text that does not parse. |
 
-A spent period today is an ordinary period tomorrow, and the conversation is still waiting. A provider that *answered*
-with something unreadable settles rather than withholds: the call was made and paid for, and asking again buys the same
-answer.
+A spent period today is an ordinary period tomorrow, and the conversation is still waiting. An unreadable answer was
+paid for and is withheld all the same: it says how one reply came back rather than anything about the conversation, and
+settling it would leave the conversation blank until it next changed. It is logged as a warning naming the endpoint, so
+a model that formats badly is told apart from conversations that have nothing to report. An answer that *was* read and
+carried nothing usable — an empty object, or statements that every one cited no message the turn published — is the
+other case and settles as a state of no statements, because asking again buys the same nothing. Nothing about a
+withholding is stored, so a conversation the model answers unreadably every time is asked again on every run, and the
+pass that reaches it ends there.
 
 ## The agent, and what leaves the deployment
 
@@ -112,8 +119,8 @@ of its own.
 agent in the turn, so an agent that could look something up would be an agent able to reach mail beyond the
 correspondence it was asked about.
 
-What leaves the deployment is the subject, each message's author, arrival instant and text — nothing else, and every
-one of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment
+What leaves the deployment is the subject, each message's author, arrival instant, provenance, and text — nothing else,
+and every quoted one of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment
 switched on. The messages are **numbered in the turn and cited by number**, and the model is shown no identifier at
 all, so a citation is a position in a list this deployment composed: an answer naming a message it was not given names
 nothing, and its statement is dropped.
@@ -122,6 +129,11 @@ The correspondence is data rather than an instruction, and the instruction says 
 this system reads: a message that asks to be recorded as an agreement is a sender writing on a block somebody else's
 decisions depend on. The instruction describes no action either — replying, filing and reminding are acts this
 deployment takes elsewhere, so a model cannot propose one.
+
+Each message carries where it came from, written by the service on its `<message>` element as the attributes [answering writes](mail-answering.md#where-a-message-came-from). The instruction asks the model to read what
+a message from a sender nobody authenticated, or from junk or a first contact, asks of the person as that sender's
+claim: such a request is not recorded as something the person agreed to or owes. A message whose provenance can no
+longer be read was erased since the conversation was selected, and is left out of it.
 
 ## What it costs, and turning it on
 

@@ -4,6 +4,7 @@
 
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import type { MailSpamVerdict } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { MailboxActControls } from './MailboxActControls';
 import type { ActRefusal, MoveDestination, MoveDestinationGroup } from './mailboxDestinations';
@@ -15,6 +16,7 @@ const invoice: ActedMessage = {
     folder: 'work-inbox',
     unread: false,
     flagged: false,
+    spam: null,
 };
 const receipt: ActedMessage = {
     storedEmailId: 'message-2',
@@ -22,6 +24,7 @@ const receipt: ActedMessage = {
     folder: 'work-inbox',
     unread: false,
     flagged: false,
+    spam: null,
 };
 
 const clients: MoveDestination = { folderId: 'work-clients', name: 'Projects / Clients', role: null };
@@ -36,11 +39,12 @@ function drawControls(
     acts: Partial<MailboxActs> = {},
     messages: readonly ActedMessage[] = [invoice],
     onActed: () => void = () => undefined,
+    spam: 'strip' | 'toolbar' | null = null,
 ): void {
     render(
         <LocalizationProvider>
             <MailboxActsContext value={{ ...nothingActed, refusalOf: () => null, ...acts }}>
-                <MailboxActControls messages={messages} shape="labelled" onActed={onActed} />
+                <MailboxActControls messages={messages} shape="labelled" spam={spam} onActed={onActed} />
             </MailboxActsContext>
         </LocalizationProvider>,
     );
@@ -249,4 +253,70 @@ describe('MailboxActControls', () => {
             expect(performed).not.toHaveBeenCalled();
         },
     );
+});
+
+describe('MailboxActControls, with the spam control', () => {
+    const judged: MailSpamVerdict = {
+        verdict: 'Spam',
+        decidedBy: 'Deterministic',
+        spamSubcategory: null,
+        spamSubcategoryNamedBy: null,
+        phishingRequest: null,
+        impersonatedParty: null,
+    };
+
+    function labels(): (string | null)[] {
+        return screen
+            .getAllByRole('button')
+            .map((control) => control.textContent)
+            .filter((said) => said !== '');
+    }
+
+    it('draws Spam just before Move on a selection bar', () => {
+        drawControls({ spamOffered: true }, [invoice], () => undefined, 'strip');
+
+        expect(labels()).toStrictEqual(['Archive', 'Delete', 'Flag', 'Mark unread', 'Spam', 'Move']);
+    });
+
+    it('draws Mark spam after the five on the toolbar', () => {
+        drawControls({ spamOffered: true }, [invoice], () => undefined, 'toolbar');
+
+        expect(labels().at(-1)).toBe('Mark spam');
+    });
+
+    it('draws no spam control where the strip asks for none', () => {
+        drawControls({ spamOffered: true });
+
+        expect(screen.queryByRole('button', { name: /spam/iu })).toBeNull();
+    });
+
+    // What the strip is told once a mark is sent is handed on rather than run on the press, so a question cancelled
+    // leaves the selection standing.
+    it('turns to Not spam where every message is spam, and presses the one spam control over them', () => {
+        const toggleSpam = vi.fn();
+        const acted = vi.fn();
+        const spam = [
+            { ...invoice, spam: judged },
+            { ...receipt, spam: judged },
+        ];
+
+        drawControls({ spamOffered: true, toggleSpam }, spam, acted, 'strip');
+        fireEvent.click(screen.getByRole('button', { name: 'Not spam' }));
+
+        expect(toggleSpam).toHaveBeenCalledWith(spam, acted);
+        expect(acted).not.toHaveBeenCalled();
+    });
+
+    it('reads a selection mixing spam with other mail as the way in', () => {
+        drawControls({ spamOffered: true }, [{ ...invoice, spam: judged }, receipt], () => undefined, 'strip');
+
+        expect(screen.getByRole('button', { name: 'Spam' })).toBeDefined();
+    });
+
+    // On the toolbar *Not spam* stands where the answers would, so the strip of acts leaves it out.
+    it('leaves Not spam out of the toolbar acts over an opened spam message', () => {
+        drawControls({ spamOffered: true }, [{ ...invoice, spam: judged }], () => undefined, 'toolbar');
+
+        expect(screen.queryByRole('button', { name: /spam/iu })).toBeNull();
+    });
 });

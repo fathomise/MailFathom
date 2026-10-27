@@ -213,7 +213,8 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
                     source.Citation.Id.Value,
                     source.Citation.Label.Value,
                     source.Extract,
-                    source.ReceivedAt)),
+                    source.ReceivedAt,
+                    source.Provenance)),
             ];
         }
 
@@ -231,7 +232,8 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
                     SensitiveContentEgressPoint.ChatPrompt,
                     source.Extract,
                     cancellationToken),
-                source.ReceivedAt));
+                source.ReceivedAt,
+                source.Provenance));
         }
 
         return guarded;

@@ -3,9 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.AgentConversations;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
+using MailFathom.Domain.Notifications;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.AgentConversations;
@@ -32,13 +35,32 @@ public sealed class AgentConversationInstructionsTests
         var askedAt = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero);
 
         // Act
-        var naming = AgentConversationComposition.ComposeTurn(askedAt, [MailAccountId.Create("primary")], AgentMessageScope.Mailbox(), "What is due?");
-        var silent = AgentConversationComposition.ComposeTurn(askedAt, [], AgentMessageScope.Mailbox(), "What is due?");
+        var naming = AgentConversationComposition.ComposeTurn(askedAt, [MailAccountId.Create("primary")], AgentMessageScope.Mailbox(), [], "What is due?");
+        var silent = AgentConversationComposition.ComposeTurn(askedAt, [], AgentMessageScope.Mailbox(), [], "What is due?");
 
         // Assert
         Assert.Contains("The person's accounts: primary.", naming, StringComparison.Ordinal);
         Assert.DoesNotContain("accounts", silent, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith("What is due?", silent, StringComparison.Ordinal);
+        Assert.EndsWith($"<{AgentTurnDocument.AskElementName}>What is due?</{AgentTurnDocument.AskElementName}>", silent, StringComparison.Ordinal);
+    }
+
+    /// <summary>A question about a merged arrival names its messages by identifier, for the model to read through its tools.</summary>
+    [Fact]
+    public void ComposeTurn_AQuestionAboutANotification_NamesTheMessagesItStandsFor()
+    {
+        // Arrange
+        var askedAt = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero);
+        var scope = AgentMessageScope.Notification(NotificationId.Create(Guid.CreateVersion7()));
+        var first = StoredEmailId.Create(Guid.CreateVersion7());
+        var second = StoredEmailId.Create(Guid.CreateVersion7());
+
+        // Act
+        var naming = AgentConversationComposition.ComposeTurn(askedAt, [], scope, [first, second], "Summarize these.");
+        var holdingNone = AgentConversationComposition.ComposeTurn(askedAt, [], scope, [], "Summarize these.");
+
+        // Assert
+        Assert.Contains($"by id: {first}, {second}.", naming, StringComparison.Ordinal);
+        Assert.Contains("none of which is still held", holdingNone, StringComparison.Ordinal);
     }
 
     /// <summary>A day and an hour written the way the mail and the calendar write them are the ones the person recognises.</summary>

@@ -158,6 +158,8 @@ public sealed class AdminApiEndpointsTests
         // path, which is the listing and the creation, three times at one account's path for the reading, the saving,
         // and the erasure, and once at each of the assignment paths, because assigning an account and ending an
         // assignment are published under different grants.
+        // An organization's signing keys are listed at one path, rotated at one beneath it, and one key is revoked at a
+        // path naming it, because rotating ahead of schedule and revoking a leaked key are different decisions.
         // The settings policy appears twice at the deployment's path and twice at an organization's, which is the
         // reading and the saving of each.
         // The roles and the groups each appear twice at their collection path, which is the listing and the recording; a
@@ -230,6 +232,9 @@ public sealed class AdminApiEndpointsTests
                 $"{AdminEndpointOptions.RoutePrefix}{SettingsPolicyEndpoints.OrganizationPolicyRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{SettingsPolicyEndpoints.OrganizationPolicyRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{OrganizationEndpoints.OrganizationShortNameRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationSigningKeyEndpoints.SigningKeysRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationSigningKeyEndpoints.RotationRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{OrganizationSigningKeyEndpoints.RevocationRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{OutboxEndpoints.OutboxRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{OutboxEndpoints.CancellationRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{OutboxEndpoints.RequeueRoute}",
@@ -401,6 +406,9 @@ public sealed class AdminApiEndpointsTests
                 $"DELETE {prefix}{OrganizationEndpoints.OrganizationRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name}",
                 $"PUT {prefix}{OrganizationEndpoints.UserOrganizationRoute} -> {MailFathomPermission.AdminCredentialsWrite.Name} over its target",
                 $"POST {prefix}{OrganizationEndpoints.MailAccountOrganizationRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"GET {prefix}{OrganizationSigningKeyEndpoints.SigningKeysRoute} -> {MailFathomPermission.AdminRead.Name} over its target",
+                $"POST {prefix}{OrganizationSigningKeyEndpoints.RotationRoute} -> {MailFathomPermission.AdminCredentialsWrite.Name}",
+                $"POST {prefix}{OrganizationSigningKeyEndpoints.RevocationRoute} -> {MailFathomPermission.AdminCredentialsWrite.Name}",
                 $"GET {prefix}{SettingsPolicyEndpoints.DeploymentPolicyRoute} -> {MailFathomPermission.AdminRead.Name}",
                 $"POST {prefix}{SettingsPolicyEndpoints.DeploymentPolicyRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name}",
                 $"GET {prefix}{SettingsPolicyEndpoints.OrganizationPolicyRoute} -> {MailFathomPermission.AdminRead.Name} over its target",

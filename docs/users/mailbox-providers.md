@@ -415,10 +415,17 @@ records — nothing on this side is consulted, and nothing on this side override
 **Where no such header is found, MailFathom verifies the message's own DKIM signatures for itself**, against the keys
 the signing domains publish in DNS. That is a fallback rather than a second opinion: it happens only for an account
 whose server wrote nothing MailFathom trusts, and it establishes a signing domain where there would otherwise be no
-author to hold `TrustedSenders` or `TrustOwnAccountDomains` against at all. It is what makes those settings work on a
-mailbox whose provider records nothing, and it is on by default. What it cannot reach is the part that needed the
-connection: no SPF result, and no DMARC outcome. It is also the one thing in MailFathom that sends a DNS query, so an
+author to hold your own addresses, `TrustedSenders`, or `TrustOwnAccountDomains` against at all. It is what makes those
+work on a mailbox whose provider records nothing, and it is on by default. What it cannot reach is the part that needed
+the connection: no SPF result, and no DMARC outcome. It is also the one thing in MailFathom that sends a DNS query, so an
 operator who wants none turns it off — see [the mail configuration](../operations/configuration-mail.md#mailsynchronization).
+
+**Mail you send from one of your own addresses is trusted with nothing to configure**, once its author authenticated:
+each account's user name where it is an address, and the address an account sends as. Trusting everybody at your
+accounts' domains is a separate, per-account `TrustOwnAccountDomains`, **off by default — and it belongs off on a mailbox
+at a large shared provider** such as Gmail, Outlook.com, or WP Poczta, where every stranger writes from the same domain
+as you. Turn it on only for an account whose domain is your own. [Sender
+authentication](../features/sender-authentication.md#a-users-own-addresses) states both rules in full.
 
 Check the mail you were actually delivered rather than the provider's documentation. Open a recently arrived message in
 any mail client, view its source or full headers, and look for `Authentication-Results`:

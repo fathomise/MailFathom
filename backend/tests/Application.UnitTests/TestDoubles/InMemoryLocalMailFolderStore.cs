@@ -7,15 +7,17 @@ using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.TestSupport;
 
 namespace MailFathom.Application.UnitTests.TestDoubles;
 
 /// <summary>Keeps one account's local folders and placements in memory, answering as the store does for any other account.</summary>
 /// <remarks>
-/// Folders are read back while the account holds its mailbox and while it is being restored, which is what the real store
-/// loads, so a test cannot see a hierarchy the use case could not. An erased folder's source alias is kept and reported, as the real store keeps the
-/// erased row, because it is what sends a later arrival from that source to the inbox. Writes naming another account
-/// change nothing, as the real store's writes are scoped to the account they name.
+/// Every folder row of the account is read back whatever its phase, as the real store reads them, and the phase itself
+/// lives beside them in <see cref="Custody" />, which is the account row a resolver reads it from. An erased folder's
+/// source alias is kept and reported, as the real store keeps the erased row, because it is what sends a later arrival
+/// from that source to the inbox. Writes naming another account change nothing, as the real store's writes are scoped
+/// to the account they name.
 /// </remarks>
 internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
 {
@@ -33,8 +35,19 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
 
     internal MailAccountId Account { get; }
 
+    /// <summary>Gets the account's custody, which the resolver of a test using this store reads.</summary>
+    internal InMemoryMailAccountCustodyStore Custody { get; } = new();
+
     /// <summary>Gets or sets the account's custody phase, which a test moves to arrange an account drained after something was appended.</summary>
-    internal MailAccountCustodyPhase Phase { get; set; }
+    internal MailAccountCustodyPhase Phase
+    {
+        get => this.Custody.StateOf(this.Account)!.Phase;
+        set => this.Custody.Place(
+            this.Account,
+            new MailAccountCustodyState(
+                value is MailAccountCustodyPhase.Held ? MailAccountCustody.HoldMailbox : MailAccountCustody.MirrorSource,
+                value));
+    }
 
     internal IReadOnlyCollection<LocalMailFolder> Folders => this.folders.Values;
 
@@ -45,6 +58,15 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
     internal IReadOnlyList<StoredEmailId> ErasedEmails => this.erasedEmails;
 
     internal int SaveCount { get; private set; }
+
+    /// <summary>Composes the custodians over this store and the custody beside it, substituting every other port.</summary>
+    /// <param name="clock">The clock every part mints and measures with.</param>
+    /// <returns>The composition.</returns>
+    internal MailboxCustodianComposition Composing(TimeProvider clock) => new(clock)
+    {
+        Custody = this.Custody,
+        LocalFolders = this,
+    };
 
     /// <summary>Gives the account a folder row outside any act, as synchronization's projection of the source would.</summary>
     internal void Add(LocalMailFolder folder) => this.folders[folder.Id] = folder;
@@ -57,9 +79,7 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
 
     public Task<LocalMailFolderHolding?> ReadAsync(MailAccountId account, CancellationToken cancellationToken) =>
         Task.FromResult(account == this.Account
-            ? this.Phase is MailAccountCustodyPhase.Held or MailAccountCustodyPhase.Restoring
-                ? new LocalMailFolderHolding(this.Phase, [.. this.folders.Values], [.. this.erasedSourceAliases])
-                : new LocalMailFolderHolding(this.Phase, [], [])
+            ? new LocalMailFolderHolding([.. this.folders.Values], [.. this.erasedSourceAliases])
             : null);
 
     public Task<IReadOnlyList<LocalMailFolder>> ReadFoldersAsync(MailAccountId account, CancellationToken cancellationToken) =>

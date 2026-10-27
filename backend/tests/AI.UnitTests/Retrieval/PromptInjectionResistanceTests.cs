@@ -113,7 +113,7 @@ public sealed class PromptInjectionResistanceTests
             CarriedText(sent[2]));
         Assert.All(
             chatClient.Calls,
-            static call => Assert.Equal(MailAnsweringInstructions.Text, call.Options?.Instructions));
+            static call => Assert.Equal(AgentComposition.InstructionFor(MailAnsweringInstructions.Text), call.Options?.Instructions));
     }
 
     /// <summary>

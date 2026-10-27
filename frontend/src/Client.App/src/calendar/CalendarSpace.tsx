@@ -22,12 +22,13 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { onlySelected, withToggled } from '../contextMenu/rowSelection';
 import { Control } from '../controls/Control';
 import { SecondaryButton } from '../controls/SecondaryButton';
+import { useTabSwipe } from '../controls/useTabSwipe';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
 import { AgendaView } from './AgendaView';
 import { CalendarNavigation } from './CalendarNavigation';
-import { movedBy, spanOf, startOfDay, type CalendarView } from './calendarSpan';
+import { calendarViews, movedBy, spanOf, startOfDay, type CalendarView } from './calendarSpan';
 import { DayView } from './DayView';
 import { EventDialog } from './EventDialog';
 import { EventMenu } from './EventMenu';
@@ -340,6 +341,13 @@ export function CalendarSpace({
         setSelected([]);
     }
 
+    function chooseView(chosen: CalendarView): void {
+        setView(chosen);
+        setSelected([]);
+    }
+
+    const viewSwipe = useTabSwipe(calendarViews, view, chooseView);
+
     // Four views is a choice with four answers rather than a ternary chain inside the markup, which is where a reader
     // stops being able to see the structure of the screen.
     function drawnView() {
@@ -397,10 +405,7 @@ export function CalendarSpace({
                 view={view}
                 anchor={anchor}
                 span={span}
-                onView={(chosen) => {
-                    setView(chosen);
-                    setSelected([]);
-                }}
+                onView={chooseView}
                 onMove={(spans) => {
                     setAnchor(movedBy(view, anchor, spans));
                     setSelected([]);
@@ -446,7 +451,8 @@ export function CalendarSpace({
 
             <div
                 aria-busy={reading.reading}
-                className="flex min-h-0 flex-1 flex-col overflow-y-auto desktop:flex-row desktop:overflow-hidden"
+                className="flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom flex-col overflow-y-auto desktop:flex-row desktop:overflow-hidden"
+                {...viewSwipe}
             >
                 {drawnView()}
 

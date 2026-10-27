@@ -85,6 +85,15 @@ export interface ClientPreferencesInForce {
      */
     readonly notificationSeconds: number;
 
+    /**
+     * The domains whose links open without the client asking first, as the deployment holds them.
+     *
+     * Read here and offered by no control: the list is set through the deployment's own route, and a write composed by
+     * any of the choices below says nothing about it, so the deployment keeps what it holds. Unset reads as none, so
+     * every link asks.
+     */
+    readonly trustedLinkDomains: readonly string[];
+
     /** Whether the deployment refused the last change, which is the one thing about this a screen has to say out loud. */
     readonly notStated: boolean;
 
@@ -166,7 +175,7 @@ export function useClientPreferences(
     // answers off the next person's screen without a reset anywhere. Signing out and back in on one tab keeps this
     // hook mounted, so what was read for the credential before is still in state when the new one arrives — and it
     // would otherwise be drawn until their own answer landed and, worse, merged into the first write they made, which
-    // states the whole document. Derived rather than cleared, because a value that no longer belongs to anything is
+    // states every preference it holds but the trusted list. Derived rather than cleared, because a value that no longer belongs to anything is
     // not state to correct: it is state to stop reading.
     const inForce = held.session === session ? held : heldForNobody;
 
@@ -206,9 +215,10 @@ export function useClientPreferences(
     }, [session, transport, person, setThemeChoice]);
 
     // What is on the screen changes because a person pressed something, so it changes in the handler rather than in an
-    // effect watching what the handler set. The write states the whole document — the route takes nothing less — which
-    // is why what was last read is kept: a preference this screen does not offer is sent back unchanged rather than
-    // reset to its unset answer by a client that had no opinion about it.
+    // effect watching what the handler set. The write states every preference but the trusted list, which it never
+    // sends and the deployment keeps — the route takes nothing less for the rest — which is why what was last read is
+    // kept: a preference this screen does not offer is sent back unchanged rather than reset to its unset answer by a
+    // client that had no opinion about it.
     function state(preferences: ClientPreferences, telemetryMoved = false): void {
         reading.current?.abort();
 
@@ -241,9 +251,18 @@ export function useClientPreferences(
 
             if (answer.outcome === 'read') {
                 // Taken, so the switch is the deployment's to keep again and the next write says nothing about it.
-                // Only where this is still the latest document: a switch moved again since is owed by that write.
+                // The answer carries the trusted list the write never stated, which is the first this session hears of
+                // it where the choice abandoned a read or followed one that failed. Only where this is still the latest
+                // document: a switch moved again since is owed by that write, and its answer carries the list too.
                 if (latest.current === chosen) {
-                    latest.current = { ...chosen, telemetryOwed: false };
+                    const taken = {
+                        ...chosen,
+                        preferences: { ...chosen.preferences, trustedLinkDomains: answer.value.trustedLinkDomains },
+                        telemetryOwed: false,
+                    };
+
+                    latest.current = taken;
+                    setHeld(taken);
                 }
 
                 return;
@@ -305,6 +324,7 @@ export function useClientPreferences(
         messageView: inForce.preferences.messageView,
         aiFiltersShown: inForce.preferences.aiFiltersShown,
         notificationSeconds: inForce.preferences.notificationSeconds,
+        trustedLinkDomains: inForce.preferences.trustedLinkDomains,
         notStated: inForce.notStated,
         chooseTheme: (choice) => {
             setThemeChoice(choice);

@@ -1,6 +1,6 @@
 # AI configuration
 
-<!-- describes: backend/src/Host/Configuration/Embeddings/**, backend/src/Host/Configuration/Chat/**, backend/src/Host/Configuration/Answering/**, backend/src/Host/Configuration/Spam/**, backend/src/Host/Configuration/SensitiveContent/**, backend/src/Host/Configuration/Providers/**, backend/src/AI/Descriptions/**, backend/src/Application/Emails/Extraction/Images/** -->
+<!-- describes: backend/src/Host/Configuration/Embeddings/**, backend/src/Host/Configuration/Chat/**, backend/src/Host/Configuration/Decisions/**, backend/src/Host/Configuration/Answering/**, backend/src/Host/Configuration/Spam/**, backend/src/Host/Configuration/SensitiveContent/**, backend/src/Host/Configuration/Providers/**, backend/src/AI/Descriptions/**, backend/src/Application/Emails/Extraction/Images/** -->
 
 Every key deciding what leaves this process for a model provider and what it may cost: what is scanned before it goes,
 which endpoint and model each capability reaches, what one question and one period may spend, what classification does
@@ -149,77 +149,51 @@ analyzed whole and only something pathological reaches it.
 
 ## `SpamClassification`
 
-Whether mail is classified as spam, and where. A root of its own rather than a per-account block, because what it
-switches on reaches the mailbox reads as well as the classification. [Spam classification](../features/spam-classification.md)
-records what a classification holds, which facts the deterministic stage reads, and why a scanner never overturns a
-provider's own verdict.
+How long derived work waits on a verdict, and how wide one pass of a classification run is.
+[Spam classification](../features/spam-classification.md) records what a classification holds, which facts the
+deterministic stage reads, and why it never overturns a provider's own verdict.
 
 **Nothing in this section decides which mail is classified.** Junk is a judgement about one mailbox, and the actions a
 verdict triggers write to that mailbox's mail server, so whether an account's mail is classified at all, over which of
-its folders, at what score, and what becomes of the result are what [that account's own
-record](configuration-mail.md#classifying-this-accounts-mail--spamclassification) states. What is left here is the
-scanner this deployment stands up and what the process may spend on it. The keys the two split into are named after the
-table.
+its folders, and what becomes of the result are what [that account's own
+record](configuration-mail.md#classifying-this-accounts-mail--spamclassification) states. What is left here is what the
+process may spend. The keys the two split into are named after the table.
 
-Every switch is off by default, and an absent section is that default rather than a startup failure. The deterministic
-stage works alone and is the whole of the feature without a sidecar; `UseScanner` adds the Apache SpamAssassin daemon
-described below.
+Every switch is off by default, and an absent section is that default rather than a startup failure. Nothing here moves
+a verdict: the deterministic stage reads what the message carried, and whether a decision model is asked as well is the
+account's own switch. What the section bounds of that model stage is what one replica spends on it.
 
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
-| `SpamClassification:Enabled` | bool | `false` | | reload |
-| `SpamClassification:UseScanner` | bool | `false` | Asking for a scanner while `Enabled` is false fails startup, because a scanner is only consulted where classification runs | restart |
+| `SpamClassification:Enabled` | bool | `false` | Read by no classification: whether mail is classified is each account's own, stated in that account's record. A switch under `Actions` turned on while this is false fails startup | — |
 | `SpamClassification:ScannedFolders:<n>` | string | unset | Read by no classification: the scope is each account's own, stated in that account's record | — |
-| `SpamClassification:ScannerThreshold` | double | unset | Read by no classification: the threshold is each account's own, stated in that account's record, and this range is what a record is judged against | — |
 | `SpamClassification:ClassificationWait` | TimeSpan | `00:15:00` | 1 s – 7 days; how long a stored message may wait for a verdict before it is derived from anyway | reload |
 | `SpamClassification:RunBatchSize` | int | `50` | 1 – 10 000 | reload |
 | `SpamClassification:MaxRunBatchesPerPass` | int | `4` | 1 – 1 000 | reload |
-| `SpamClassification:Scanner:Host` | string | unset | Required once `UseScanner` is on, and a host name or IP address rather than a URL or an address with the port on it | restart |
-| `SpamClassification:Scanner:Port` | int | `783` | 1 – 65535 | restart |
-| `SpamClassification:Scanner:ScanTimeoutSeconds` | int | `30` | 1 – 120 | restart |
-| `SpamClassification:Scanner:MaximumMessageBytes` | int | `512000` | 32 000 – 33 554 432 | restart |
-| `SpamClassification:Scanner:MaximumConcurrentScans` | int | `5` | 1 – 64 | restart |
 | `SpamClassification:Actions:MoveToJunkFolder` | bool | `false` | Read by no classification: what a verdict does is each account's own, stated in that account's record | — |
 | `SpamClassification:Actions:MarkAsRead` | bool | `false` | Read by no classification, for the reason above | — |
+| `SpamClassification:Actions:MarkWithJunkKeywords` | bool | `false` | Read by no classification, for the reason above | — |
 | `SpamClassification:Actions:JunkFolder` | string | `role:Junk` | Read by no classification, for the reason above | — |
-| `SpamClassification:Actions:Threshold` | double | unset | Read by no classification: this range is what a record's own value is judged against | — |
+| `SpamClassification:ModelStage:MaxConcurrentCalls` | int | `4` | 1 – 64; how many calls to the spam decision model one replica runs at once, so a deployment of several replicas runs this many on each. A call past it waits for a slot rather than failing | restart |
+| `SpamClassification:ModelStage:MaxBodyCharacters` | int | `8000` | 500 – 100 000; how many characters of a message's plain-text body one call carries. The rest is cut and the model is told so. Longer costs input tokens on every message and sends more of somebody's mail; shorter hides what a long scam says after its first paragraphs | restart |
 
-**Eight of those keys are one account's decision and the rest are the deployment's.** `Enabled`, `UseScanner`,
-`ScannedFolders`, `ScannerThreshold`, and the four settings under `Actions` are what an account decides about the mail
-in it, and are the whole of what its record may carry. `ClassificationWait`, `RunBatchSize`, `MaxRunBatchesPerPass`,
-and the `Scanner` block are the deployment's, because each of them is what the process holds open or spends rather than
-a judgement about anybody's mailbox — an account record naming one is refused. The bounds a threshold is judged
-against, `0.1` to `1000`, are the deployment's too and apply to an account's value unchanged.
+**Six of those keys are one account's decision and the rest are the deployment's.** `Enabled`, `ScannedFolders`, and
+the four settings under `Actions` are what an account decides about the mail in it, and are the whole of what its
+record may carry, beside the account's own `ModelStage` block. `ClassificationWait`, `RunBatchSize`,
+`MaxRunBatchesPerPass`, and the two `ModelStage` bounds are the deployment's, because each of them is what the process
+spends rather than a judgement about anybody's mailbox — an account record naming one is refused. The endpoint, the
+credential, and the per-call timeout the model stage reaches its model with belong to that model's own block under
+[`Decisions`](#decisions). The section is bound strictly, so a key it does not declare fails startup naming itself rather than being
+ignored.
 
-**An account's `UseScanner` asks for the deployment's scanner rather than deciding that one exists.** Whether any
-scanner is registered is read from this section alone, at startup, so an account switching the key on where the
-deployment registered none is neither refused nor a failed start: its mail is classified by the deterministic stage,
-exactly as it would be with the key off. Everything else in the eight means the same for an account as it does here.
-
-`UseScanner` and the `Scanner` block are read once, at startup: whether a scanner exists at all decides what is
-constructed and whether the host refuses to start without a daemon, which a reload cannot revisit. That is this
-section's key; the paragraph above is what an account's own copy of it can and cannot do. Everything else in
-this section is read per classification.
-
-`ClassificationWait` bounds the ordering rather than a scan. Wherever classification is on, a message it covers is not
-chunked, embedded, or offered to the rule set until a verdict exists — and this is how long that may hold before the
-message is derived from regardless, which is what stops a classifier nobody noticed was wedged from silently stopping
-the index. Lengthening it delays mail of a classified folder by that much longer in the worst case; shortening it
-narrows the window in which a verdict can arrive first. Zero is refused, because a wait of none releases every message
-before anything could have scored it.
+`ClassificationWait` bounds the ordering rather than a classification. Wherever classification is on, a message it
+covers is not chunked, embedded, or offered to the rule set until a verdict exists — and this is how long that may hold
+before the message is derived from regardless, which is what stops a classification that has stalled or fallen behind
+from silently stopping the index. Lengthening it delays mail of a classified folder by that much longer in the worst
+case; shortening it narrows the window in which a verdict can arrive first. Zero is refused, because a wait of none
+releases every message before anything could have classified it.
 [Junk is kept out of what a deployment derives from mail](../features/spam-classification.md#junk-is-kept-out-of-what-a-deployment-derives-from-mail)
 records what each answer means and what is counted.
-
-**A scanner switched on with no daemon answering fails startup**, with error code `81003` naming the key to repair
-rather than the address it tried. That is deliberate asymmetry with what one message gets, where a failed scan leaves
-the deterministic verdict standing: an instance whose sidecar never came up would classify everything from headers alone
-and look healthy doing it. The bounds are validated whether or not the scanner is switched on, so a value written wrong
-is reported before the run that first switches scanning on rather than during it.
-
-The daemon receives whole messages, so it belongs inside the deployment's own trust boundary; the feature page states
-what an address outside it gives up, and what the rule-update and DNS postures cost. The deployment assets carry the
-sidecar itself — [Kubernetes](deployment-kubernetes.md#spam-scanning),
-[Compose](deployment-compose.md#spam-scanning), and [Quadlet](deployment-quadlet.md#spam-scanning).
 
 The default scope follows the folder **role** rather than the text `INBOX`: it is whichever alias the account itself
 maps to `Inbox`, so a server presenting the inbox under another name is classified without the scope being restated
@@ -230,9 +204,7 @@ distinguishable — writing no key asks for that default, and writing an empty l
 work off without switching the section off.
 
 A folder alias that this system could never have issued **fails startup and names itself**, rather than being dropped by
-the binder and leaving the section reading as a scope that is covered. So does a threshold outside the range above: one
-at or below zero files every message whatever a scanner answered, and one beyond the ceiling can never be reached, so
-both are a typed digit rather than an intent.
+the binder and leaving the section reading as a scope that is covered.
 
 The section is read per classification rather than captured, so a reload takes effect on the next one. What a reload
 never does is revisit a message already classified: replacing a verdict is an explicit operation.
@@ -256,16 +228,12 @@ server the first time a filing needs it, exactly as a rule's destination is.
 `RunBatchSize` and `MaxRunBatchesPerPass` bound one pass of the [classification
 run](../features/spam-classification.md#classifying-the-mail-you-already-have) an operator asks for, and neither is a
 schedule: a pass is a step of the account's synchronization run, so how often one happens is that run's interval. What
-these decide is how much of a mailbox one pass takes in hand — raising them walks a mailbox nobody has scored in fewer
-account runs, and lowering them shortens the stretch an interrupted pass has to cover again and leaves more of each run
-for the folders it exists to fetch. Both defaults are smaller than the rule pass's, because a classification reads the
-stored message and, with a scanner configured, sends the whole of it across a socket and waits for a score.
-
-`Threshold` judges what a scanner scored, in the scanner's own scale, so an operator can label at `ScannerThreshold` and
-move mail only from a higher score. It reaches no other stage, exactly as `ScannerThreshold` does not: a verdict resting
-on a provider's header or on where the receiving server filed the message carries no score in this scale, and is acted
-on. Raising it is deliberately not the same edit as switching classification off — the verdicts go on being recorded.
-
+these decide is how much of a mailbox one pass takes in hand — raising them walks a mailbox nobody has classified in
+fewer account runs, and lowering them shortens the stretch an interrupted pass has to cover again and leaves more of
+each run for the folders it exists to fetch. Both defaults are smaller than the rule pass's, because a classification
+reads the stored message out of the content store and parses its headers. The same two bound the pass that holds every
+message in the junk folder or carrying `$Junk` at [no less than spam](../features/spam-classification.md#junk-mail-is-never-below-spam),
+which runs in every account's synchronization run whether or not the account classifies.
 
 ## `Embeddings`
 
@@ -1083,6 +1051,87 @@ an arrangement holds and what acting on one takes.
 | --- | --- | --- | --- | --- |
 | `Chat:DayLayout:Model:Alias` | string | *(empty)* | an alias `Chat:Models` declares, which arranging a day alone is routed to. Empty routes it to `Chat:MainModel`. One press is one short call carrying no mail, so this is a candidate for the cheap model a deployment already declares — and somebody is waiting in front of it | reload |
 | `Chat:DayLayout:Model:Fallback` | string | *(empty)* | an alias attempted where the model above could not answer, under the rules [`Chat:MainModel:Fallback`](#which-model-a-capability-runs-on--chatmainmodel-and-the-references-beside-it) states. A control somebody pressed is worth answering from a second model rather than not at all | reload |
+
+## `Decisions`
+
+Which model a closed question — a yes or no, a choice between named options, a place on a scale — is put to, with
+probabilities coming back rather than prose. A root of its own beside `Chat`, because the two reach different APIs on
+different terms: a chat model writes an answer under parameters the operator chooses, while a decision model answers a
+fixed question through [OpenRouter's Decisions API](https://openrouter.ai/docs), which takes no generation parameters at
+all. Writing nothing is a supported deployment and composes no decision client. **The one part of this build that asks a
+decision model is the [spam model stage](../features/spam-classification.md#the-model-stage)**, and only for an account
+whose record switched it on: declaring a model validates the section, composes the client each function resolves, and
+registers the `ai-decision-provider` check, and it changes no verdict until an account consults the stage. An account
+record switching the stage on is refused at the write while no declared model serves spam classification; one that
+asked for it before the model was taken away is classified deterministically, named in a startup warning, and counted
+as `not_activated`. [ADR
+0041](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0041-asking-a-model-a-closed-question-through-openrouters-decisions-api.md)
+holds the decision and its reasoning.
+
+**The section is a declared array and the references into it**, the way `Chat` is. A model is written once under
+`Decisions:Models` beneath an alias, and a function names that alias. `SpamClassification` is the one function a
+reference may name today. With one model declared nothing has to name it; with several, `Decisions:DefaultModel` says
+which one a function naming none is asked through. A reference is an alias and nothing else: there is no fallback
+model, because a verdict from a second model is a verdict calibrated against a different build.
+
+**What leaves the deployment is fixed in the adapter rather than in configuration.** Every request asks the router for
+an endpoint that retains nothing — `"provider": { "zdr": true, "data_collection": "deny" }` — and no key here can loosen
+that, which is why the block refuses `ExtraHeaders` and `AdditionalProperties`. No request carries a session, a user, or
+a trace identifier, which would let the router link one person's mail across requests, which is why it refuses
+`StickySessions` too. The router answers a model with no such endpoint by refusing the request, so a declared model has
+to have one. A request carries the mail it is asked about, the questions, and nothing else, and is refused before it is
+sent when it holds more than `…:MaxRequestCharacters`.
+
+**Routing is global unless the address says otherwise.** OpenRouter's in-region routing takes a regional host under
+`…:Address` and a Business or Enterprise plan. On 2026-10-25 its European host listed no decision model, so a deployment
+bound to keep mail processing in Europe cannot declare one yet.
+
+**Every key a chat model takes and a decision model does not is refused, not ignored.** The section binds strictly, so
+`Api`, `MaxOutputTokens`, `Temperature`, `TopP`, `ReasoningEffort`, `StickySessions`, `ExtraHeaders`,
+`AdditionalProperties`, `EntraCredential`, and a reference's `Fallback` each stop the start naming the key. So does an
+alias that a chat model or an embedding endpoint already declares, and a reference naming a chat model's alias: one
+credential source resolves every alias, and a chat model cannot answer a decision.
+
+**What a decision costs is charged where a question's cost is.** The tokens the provider reports are charged to the
+deployment's `MailAnswering` period as soon as the answer arrives, against the same
+[`MailAnswering:MaxTokensPerPeriod`](#mailanswering) a question is held to. The money figure the provider sends beside
+them is never read, because no other spend MailFathom records is in money.
+
+A failure is classified by what the provider answered: `401` and `403` as a rejected credential, `429` as a rate limit,
+`408` and `504` as a timeout, any other `5xx` — `524` and `529` included — as a transport failure worth repeating, and
+every other refusal, `402` among them, as a request refused. An answer that does not have the contract's shape — an
+answer of another type, a value no option names, a distribution that does not name exactly the options offered, a
+probability out of range, a token count below zero — is refused as unreadable rather than read generously, because the
+contract is alpha and a shape that changed is better reported than half understood. Its tokens are still charged
+wherever the provider reported them, since the model ran and was billed. A question the answer carries no key for is
+not unreadable: it comes back unanswered, which is the one gap the contract names on purpose. The
+`AiProviderInvocation` resilience budget repeats only the failures worth repeating, keyed by the alias, so one failing
+model does not open another's circuit.
+
+### One model — `Decisions:Models:<n>`
+
+| Key | Type | Default | Constraint | Change |
+| --- | --- | --- | --- | --- |
+| `…:Alias` | string | — | required; unique across every AI endpoint the deployment declares, chat models and embedding endpoints included. What a log line, a metric tag, a resilience circuit, a credential lookup, a failure message, and every reference call this model | restart |
+| `…:Model` | string | — | required; the dated build or versioned identifier a request is routed to. One of the router's moving aliases, which begin with `~`, is refused, because a threshold is calibrated against one build and an alias moves to the next one without anybody being told | restart |
+| `…:Address` | string | *(empty)* | absolute HTTP or HTTPS; a plain `http` one only for a model declaring `…:Unauthenticated`. Empty is `https://openrouter.ai`, and a regional host is written here. The adapter appends `/api/alpha/decisions` itself, so this is the host and never the API path | restart |
+| `…:RequestTimeout` | TimeSpan | `00:00:30` | positive; one request. Shorter than a chat request's, because a decision is a handful of probabilities rather than an answer the model writes out | restart |
+| `…:MaxRequestCharacters` | int | `32000` | 1 – 1000000; what one request body may hold as it is sent — the mail, the questions, and their criteria together. The adapter refuses a request past it rather than truncating it; the spam model stage cuts its input to fit first, so a long message is asked about rather than refused | restart |
+| `…:ApiKey` | secret block | *(absent)* | the OpenRouter key. Exactly one of this and `Unauthenticated` is declared | restart, value read per request |
+| `…:Unauthenticated` | bool | `false` | that this model asks for no credential, so a request presents none. Written rather than inferred from an absent key, because that is what a forgotten key reference looks like | restart |
+
+A plain `http` address carries the mail and the verdict in the clear, and startup logs a warning naming the alias, as it
+does for a chat model.
+
+### Which model a function asks — `Decisions:DefaultModel` and `Decisions:<Function>:Model`
+
+| Key | Type | Default | Constraint | Change |
+| --- | --- | --- | --- | --- |
+| `Decisions:DefaultModel:Alias` | string | *(empty)* | the declared alias a function naming no model of its own is asked through. Required once more than one model is declared and a function falls through to it; with exactly one model declared, empty means that one | restart |
+| `Decisions:SpamClassification:Model:Alias` | string | *(empty)* | the declared alias the `SpamClassification` decision function resolves to — the model the spam model stage asks about each message an account sends it. Empty takes `Decisions:DefaultModel` | restart |
+
+A reference naming no declared model, or naming a chat model, refuses the start and says which. A reference written
+with no model declared at all is refused the same way, so a forgotten `Models` block is not read as no capability.
 
 ## `MailAnswering`
 

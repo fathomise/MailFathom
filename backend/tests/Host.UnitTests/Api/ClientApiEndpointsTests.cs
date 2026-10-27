@@ -4,9 +4,17 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent;
+using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Mail.Delivery;
+using MailFathom.Application.Mail.Delivery.Operations;
+using MailFathom.Application.Mail.Delivery.Screening;
+using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Observability;
+using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.Tasks;
@@ -190,6 +198,7 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailAttachmentEndpoint.MailAttachmentRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailBodyEndpoint.MailBodyRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailCleanedBodyEndpoint.CleanedMailBodyRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientMailSourceEndpoint.MailSourceRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailMutationsEndpoint.MutationsRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailMutationsEndpoint.DeleteMutationsRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailMutationsEndpoint.DeleteReleasesRoute}",
@@ -198,6 +207,7 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailMutationsEndpoint.FlagWithdrawalsRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailMutationsEndpoint.MoveMutationsRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailMutationsEndpoint.MoveWithdrawalsRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientMailSpamMarksEndpoint.SpamMarksRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientNotificationEndpoints.NotificationsRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientNotificationEndpoints.DeletionsRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientNotificationEndpoints.MarkAllReadRoute}",
@@ -205,6 +215,8 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientNotificationEndpoints.ReadStateRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientOutboxEndpoints.OutboxRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientOutboxEndpoints.OutboxCancellationRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientOutboxEndpoints.OutboxDismissalRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientOutboxEndpoints.OutboxReopeningRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientOutboxEndpoints.OutboxRequeueRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientOutboxEndpoints.OutboxSendRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientPortraitEndpoint.PortraitRoute}",
@@ -317,6 +329,7 @@ public sealed class ClientApiEndpointsTests
                 $"GET {prefix}{ClientMailAttachmentEndpoint.MailAttachmentRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientMailBodyEndpoint.MailBodyRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientMailCleanedBodyEndpoint.CleanedMailBodyRoute} -> {MailFathomPermission.AssistantUse.Name}",
+                $"GET {prefix}{ClientMailSourceEndpoint.MailSourceRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientMailMutationsEndpoint.MutationsRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientNotificationEndpoints.NotificationsRoute} -> {MailFathomPermission.NotificationsRead.Name}",
                 $"GET {prefix}{ClientNotificationEndpoints.UnreadCountRoute} -> {MailFathomPermission.NotificationsRead.Name}",
@@ -363,10 +376,13 @@ public sealed class ClientApiEndpointsTests
                 $"POST {prefix}{ClientMailMutationsEndpoint.FlagWithdrawalsRoute} -> {MailFathomPermission.MailFlagsWrite.Name}",
                 $"POST {prefix}{ClientMailMutationsEndpoint.MoveMutationsRoute} -> {MailFathomPermission.MailMove.Name}",
                 $"POST {prefix}{ClientMailMutationsEndpoint.MoveWithdrawalsRoute} -> {MailFathomPermission.MailMove.Name}",
+                $"POST {prefix}{ClientMailSpamMarksEndpoint.SpamMarksRoute} -> {MailFathomPermission.MailFlagsWrite.Name}",
                 $"POST {prefix}{ClientNotificationEndpoints.DeletionsRoute} -> {MailFathomPermission.NotificationsWrite.Name}",
                 $"POST {prefix}{ClientNotificationEndpoints.MarkAllReadRoute} -> {MailFathomPermission.NotificationsWrite.Name}",
                 $"POST {prefix}{ClientNotificationEndpoints.ReadStateRoute} -> {MailFathomPermission.NotificationsWrite.Name}",
                 $"POST {prefix}{ClientOutboxEndpoints.OutboxCancellationRoute} -> {MailFathomPermission.MailSend.Name}",
+                $"POST {prefix}{ClientOutboxEndpoints.OutboxDismissalRoute} -> {MailFathomPermission.MailSend.Name}",
+                $"POST {prefix}{ClientOutboxEndpoints.OutboxReopeningRoute} -> {MailFathomPermission.MailSend.Name}",
                 $"POST {prefix}{ClientOutboxEndpoints.OutboxRequeueRoute} -> {MailFathomPermission.MailSend.Name}",
                 $"POST {prefix}{ClientPortraitEndpoint.PortraitRoute} -> {MailFathomPermission.ProfileWrite.Name}",
                 $"POST {prefix}{ClientPreferencesEndpoint.PreferencesRoute} -> {MailFathomPermission.ProfileWrite.Name}",
@@ -833,6 +849,7 @@ public sealed class ClientApiEndpointsTests
         services.AddScoped(_ => granted);
         services.AddSingleton(Substitute.For<IAuthorizationRefusalTelemetry>());
         services.AddSingleton(Options.Create(new MailDeliveryOptions()));
+        services.AddSingleton(Substitute.For<ISpamActionSettingsReader>());
         services.AddScoped(_ => UnreachedFreshnessReader(granted));
         services.AddScoped(_ => new OwnTasks(
             granted,
@@ -841,7 +858,8 @@ public sealed class ClientApiEndpointsTests
         services.AddScoped(_ => new MailFolderDirectoryReader(
             UnreachedFreshnessReader(granted),
             UnreachedScopeResolver(),
-            Substitute.For<IStoredMailFolderReader>()));
+            Substitute.For<IStoredMailFolderReader>(),
+            UnreachedOutbox(granted)));
 
         // A destination is registered so the telemetry routes are mapped, because every surface-wide claim in this
         // file — the group's requirement, the CORS policy, the prefix, the published decision — has to hold over them
@@ -922,6 +940,30 @@ public sealed class ClientApiEndpointsTests
         // Assert
         Assert.Null(stated);
     }
+
+    /// <summary>The organization a person belongs to is answered out of the composition this replica serves them from.</summary>
+    [Fact]
+    public void OrganizationOf_AUserInAnOrganization_AnswersThatOrganization()
+    {
+        // Arrange
+        var organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f");
+        var roster = ResolvedServedUsers.Serving(
+            new ServedUser(SyntheticUser.Deployment, "alex", []) { Organization = organization });
+
+        // Act
+        var answered = ClientApiEndpoints.OrganizationOf(roster, ActingFor(SyntheticUser.Deployment));
+
+        // Assert
+        Assert.Equal(organization, answered);
+    }
+
+    /// <summary>A request naming no user belongs to no organization, which is an answer rather than a refusal on a route requiring no permission.</summary>
+    [Fact]
+    public void OrganizationOf_ARequestNamingNoUser_AnswersNothing() =>
+        Assert.Null(ClientApiEndpoints.OrganizationOf(
+            ResolvedServedUsers.Serving(
+                new ServedUser(SyntheticUser.Deployment, "alex", []) { Organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f") }),
+            AuthorizedPrincipal.Caller("reader", [MailFathomPermission.MailRead])));
 
     /// <summary>A request that established no principal reads its grant as empty, and its level as the deployment's.</summary>
     [Fact]
@@ -1013,6 +1055,21 @@ public sealed class ClientApiEndpointsTests
                 Substitute.For<IMailboxReadTelemetry>(),
                 granted),
             new MailSynchronizationRunLedger(new FakeTimeProvider()));
+
+    private static UserOutbox UnreachedOutbox(AccessAuthorization granted) =>
+        new(
+            Substitute.For<ICallerMailAccountCatalog>(),
+            Substitute.For<IOutgoingEmailStore>(),
+            Substitute.For<IOutboxOperationStore>(),
+            Substitute.For<IEmailContentStore>(),
+            Substitute.For<IEmailContentRenderer>(),
+            Substitute.For<IOutgoingMailTextReader>(),
+            SensitiveContentEgressGuards.Inactive(),
+            new EmailContentReadOptions(),
+            Substitute.For<IUserLanguages>(),
+            granted,
+            ClientSignalPublishers.ReachingNobody,
+            new FakeTimeProvider());
 
     private static MailboxScopeResolver UnreachedScopeResolver() =>
         new(

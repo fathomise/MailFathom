@@ -40,6 +40,9 @@
     - name: Secret rotation
       href: secret-rotation.md
       description: Which credentials are rotated without restarting, what MailFathom does when one changes, and how to verify the rotation took.
+    - name: Organization signing keys
+      href: organization-signing-keys.md
+      description: How each organization gets the key its accounts' mail is signed with, when that key is rotated or revoked, and what a deployment with no key ring is left without.
 - name: Deployment
   items:
     - name: The container image
@@ -118,7 +121,7 @@
       description: The scripts and skills a repository change passes through, what each one asserts, and how a review runs on a pull request.
     - name: Issue tracking and the roadmap board
       href: issue-tracking.md
-      description: How work is tracked — the issue body, the one type label, the board's fields and views, and how an arrival from outside is triaged.
+      description: How work is tracked — the issue body, the one issue type, the board's fields and views, and how an arrival from outside is triaged.
     - name: The release procedure
       href: release-procedure.md
       description: Where the version number lives, how a build acquires it, and the sequence that turns a commit into a published release.

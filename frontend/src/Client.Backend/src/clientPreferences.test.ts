@@ -5,10 +5,12 @@
 import { describe, expect, it } from 'vitest';
 import {
     longestNotificationSeconds,
+    mostTrustedLinkDomains,
     readClientPreferences,
     shortestNotificationSeconds,
     unsetClientPreferences,
     writeClientPreferences,
+    type ClientPreferences,
 } from './clientPreferences';
 import type { ClientSession } from './session';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
@@ -27,8 +29,14 @@ const stored = {
     messageView: 'cleaned',
     aiFiltersShown: false,
     notificationSeconds: 12,
+    trustedLinkDomains: [],
 } as const;
 const storedBody = JSON.stringify(stored);
+
+// What a write sends, and what a replica built before the trusted list answers: the document without it.
+const withoutTheList = Object.fromEntries(
+    Object.entries(stored).filter(([preference]) => preference !== 'trustedLinkDomains'),
+);
 
 // The transport is the network boundary and the whole of what a test here fakes. Neither route reads a header off an
 // answer, so each helper supplies the empty set.
@@ -63,7 +71,7 @@ describe('readClientPreferences', () => {
         expect(requests[0]?.headers['Authorization']).toBe('Basic dGVzdA==');
     });
 
-    it('reads the eight preferences the deployment answered', async () => {
+    it('reads the nine preferences the deployment answered', async () => {
         const answer = await readClientPreferences(session, answering({ status: 200, body: storedBody }));
 
         expect(answer).toStrictEqual({ outcome: 'read', value: stored });
@@ -188,6 +196,46 @@ describe('readClientPreferences', () => {
             });
         },
     );
+
+    it('reads the trusted link domains as the deployment normalized them', async () => {
+        const trustedLinkDomains = ['nordwind.example', 'xn--bcher-kva.example'];
+        const answer = await readClientPreferences(
+            session,
+            answering({ status: 200, body: JSON.stringify({ ...unsetClientPreferences, trustedLinkDomains }) }),
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'read', value: { ...unsetClientPreferences, trustedLinkDomains } });
+    });
+
+    it('reads an answer with no trusted link domains, from a replica built before them, as a list trusting none', async () => {
+        const answer = await readClientPreferences(
+            session,
+            answering({ status: 200, body: JSON.stringify(withoutTheList) }),
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'read', value: { ...stored, trustedLinkDomains: [] } });
+    });
+
+    // An entry in any form but the one a link's host is compared in would match nothing while the list said it trusted
+    // something, and a list past the deployment's bound is an answer that was never a preferences document.
+    it.each([
+        ['not a list', 'nordwind.example'],
+        ['holding something that is not a name', [42]],
+        ['holding a name written in capitals', ['Nordwind.Example']],
+        ['holding a name in its own script', ['bücher.example']],
+        ['holding an empty name', ['']],
+        [
+            'longer than the list holds',
+            Array.from({ length: mostTrustedLinkDomains + 1 }, (_, at) => `s${String(at)}.example`),
+        ],
+    ])('refuses trusted link domains %s', async (_, trustedLinkDomains) => {
+        const answer = await readClientPreferences(
+            session,
+            answering({ status: 200, body: JSON.stringify({ ...unsetClientPreferences, trustedLinkDomains }) }),
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
 });
 
 describe('writeClientPreferences', () => {
@@ -199,7 +247,18 @@ describe('writeClientPreferences', () => {
         expect(requests[0]?.method).toBe('POST');
         expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/preferences');
         expect(requests[0]?.headers['Content-Type']).toBe('application/json');
-        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual(stored);
+        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual(withoutTheList);
+    });
+
+    // No control edits the list, so a write has nothing of the person's to say about it; the deployment keeps what it
+    // holds for a write that says nothing, where restating a list read before it changed would erase the change.
+    it('never states the trusted link domains, whatever it is handed', async () => {
+        const { transport, requests } = recording({ status: 200, body: storedBody });
+        const handed: ClientPreferences = { ...stored, trustedLinkDomains: ['nordwind.example'] };
+
+        await writeClientPreferences(session, transport, handed);
+
+        expect(JSON.parse(requests[0]?.body ?? '')).not.toHaveProperty('trustedLinkDomains');
     });
 
     // The one preference a write may leave unstated, and how it travels: a switch the caller holds no answer of the
@@ -210,7 +269,7 @@ describe('writeClientPreferences', () => {
 
         await writeClientPreferences(session, transport, { ...stored, telemetryEnabled: null });
 
-        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({ ...stored, telemetryEnabled: null });
+        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({ ...withoutTheList, telemetryEnabled: null });
     });
 
     it('answers with what is now stored', async () => {

@@ -7,6 +7,7 @@ using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Domain.Emails;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.CalendarEvents;
@@ -82,7 +83,8 @@ public sealed class InactiveCalendarEventExtractorTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking survey",
             new DateTimeOffset(2026, 9, 5, 12, 0, 0, TimeSpan.Zero),
-            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "shall we say Thursday at ten")]);
+            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "shall we say Thursday at ten")],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
     private static CalendarEventDescription Description()
     {

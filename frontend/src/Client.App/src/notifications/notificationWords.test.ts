@@ -3,10 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import type { ClientNotification, NotificationStatement } from '@mailfathom/client-backend';
+import type { ClientNotification, MailAccount, NotificationStatement } from '@mailfathom/client-backend';
 import { catalogues, type Locale } from '../localization/locale';
 import type { Translate } from '../localization/useLocalization';
-import { wordNotification } from './notificationWords';
+import { wordNotification, wordNotificationSource, wordNotificationToast } from './notificationWords';
 
 // What the deployment sends is a condition and its numbers, so this is where it becomes a sentence — and the sentence
 // is asserted as the literal words each language actually reads, in both of them. Anything less would pass for a
@@ -42,27 +42,58 @@ function translating(locale: Locale): Translate {
 }
 
 describe('wordNotification', () => {
-    it('says arrived mail in English, counting what the run committed', () => {
-        expect(said({ cause: 'MailArrived', counted: 3, outOf: null }, 'en')).toEqual({
-            title: 'New mail',
-            body: '3 new messages arrived.',
+    it('says merged arrivals in English, counting every message they stand for', () => {
+        expect(said({ cause: 'MailArrived', counted: 8, outOf: null }, 'en')).toEqual({
+            title: '8 new messages',
+            body: 'More than five arrived unread, so they are gathered here.',
         });
     });
 
-    // Polish inflects both the verb and the noun by the count, which is what `Intl.PluralRules` selects between and
-    // what a hand-written plural would get wrong for every number but the one it was written for. Which form it lands
-    // on is named as the entry rather than as the words that entry holds: the catalogue is the one place Polish prose
-    // is written, and a copy of a sentence here would be a second place to keep it in step. The title beside it stays
-    // literal, so the whole assertion is still that the Polish catalogue reached the screen rather than the English.
+    // Polish inflects the noun by the count, which is what `Intl.PluralRules` selects between and what a hand-written
+    // plural would get wrong for every number but the one it was written for. Which form it lands on is named as the
+    // entry rather than as the words that entry holds: the catalogue is the one place Polish prose is written, and a
+    // copy of a sentence here would be a second place to keep it in step. The body beside it stays literal, so the
+    // whole assertion is still that the Polish catalogue reached the screen rather than the English.
     it.each([
-        [1, 'notifications.said.mailArrived.body.one'],
-        [3, 'notifications.said.mailArrived.body.few'],
-        [12, 'notifications.said.mailArrived.body.many'],
-    ] as const)('says arrived mail in Polish in the form its count takes: %i', (count, form) => {
+        [6, 'notifications.said.mailArrived.title.many'],
+        [22, 'notifications.said.mailArrived.title.few'],
+    ] as const)('says merged arrivals in Polish in the form their count takes: %i', (count, form) => {
         expect(said({ cause: 'MailArrived', counted: count, outOf: null }, 'pl')).toEqual({
-            title: 'Nowa poczta',
-            body: translating('pl')(form, { count: digits.format(count) }),
+            title: translating('pl')(form, { count: digits.format(count) }),
+            body: 'Nieprzeczytanych przyszło więcej niż pięć, więc są zebrane tutaj.',
         });
+    });
+
+    // One message's row is its sender and its subject, which are the message's own words rather than a sentence, so
+    // both languages draw them as they arrived — and only a missing subject is the client's to say.
+    it.each(['en', 'pl'] as const)('says one arrived message in %s as its sender and its subject', (locale) => {
+        const message: ClientNotification = {
+            ...englishArrival,
+            title: 'Anna Kowalska',
+            body: 'Re: Contract addendum',
+            target: { kind: 'Message', storedEmailId: '0197a3c0-0000-7000-8000-000000000003' },
+            statement: { cause: 'MessageArrived', counted: 1, outOf: null },
+        };
+
+        expect(wordNotification(message, locale, translating(locale))).toEqual({
+            title: 'Anna Kowalska',
+            body: 'Re: Contract addendum',
+        });
+    });
+
+    it.each([
+        ['en', 'No subject'],
+        ['pl', 'Bez tematu'],
+    ] as const)('says a message that carried no subject in %s in its reader’s language', (locale, body) => {
+        const message: ClientNotification = {
+            ...englishArrival,
+            title: 'Anna Kowalska',
+            body: 'No subject',
+            target: { kind: 'Message', storedEmailId: '0197a3c0-0000-7000-8000-000000000003' },
+            statement: { cause: 'MessageArrived', counted: 0, outOf: null },
+        };
+
+        expect(wordNotification(message, locale, translating(locale)).body).toBe(body);
     });
 
     it('says an unfinished run in English, against how much it had scheduled', () => {
@@ -148,5 +179,59 @@ describe('wordNotification', () => {
     // knows, both reach a screen the same way: as the service's own English, which is better than a row nobody draws.
     it('falls back to what the deployment sent where it named no condition', () => {
         expect(said(null, 'pl')).toEqual({ title: 'New mail', body: '3 new messages arrived.' });
+    });
+});
+
+const work: MailAccount = {
+    id: 'work',
+    displayName: 'Nordwind · work',
+    synchronizationState: 'Synchronized',
+    lastSynchronizedAt: null,
+    behind: false,
+    filesJunk: false,
+};
+
+const refusal: ClientNotification = {
+    ...englishArrival,
+    title: 'Not sent - it waits in the Outbox',
+    body: 'Re: Contract addendum',
+    statement: { cause: 'SendRefused', counted: 1, outOf: null },
+    target: { kind: 'OutgoingEmail', outgoingEmailId: 'o-1' },
+};
+
+describe('wordNotificationSource', () => {
+    it('names the account a failure came from by the name a reader knows it by, never its identifier', () => {
+        expect(wordNotificationSource(refusal, [work], translating('en'))).toBe('Outbox · Nordwind · work');
+    });
+
+    it('says the place alone where the client holds no name for the account', () => {
+        expect(wordNotificationSource(refusal, [], translating('en'))).toBe('Outbox');
+    });
+
+    it('keeps the deployment’s own line for a notification that reports no failure', () => {
+        expect(wordNotificationSource({ ...englishArrival, statement: null }, [], translating('en'))).toBe('work');
+    });
+});
+
+describe('wordNotificationToast', () => {
+    it('places a refused send in its account’s Outbox and offers the way there', () => {
+        expect(wordNotificationToast(refusal, [work], 'en', translating('en'))).toEqual({
+            title: 'Not sent - it waits in the Outbox',
+            body: '“Re: Contract addendum” is in the Outbox of Nordwind · work. Send it again or edit it there.',
+            action: 'Show in Outbox',
+        });
+    });
+
+    it('says which act a change the mailbox did not take was, and offers its message', () => {
+        const change: ClientNotification = {
+            ...englishArrival,
+            statement: { cause: 'MailboxChangeAbandoned', counted: 2, outOf: null },
+            target: { kind: 'MailboxChange', storedEmailId: 'e-1', changeRecordId: 'r-1' },
+        };
+
+        expect(wordNotificationToast(change, [work], 'en', translating('en'))).toMatchObject({
+            title: 'A change did not reach your mailbox',
+            action: 'Show message',
+        });
     });
 });

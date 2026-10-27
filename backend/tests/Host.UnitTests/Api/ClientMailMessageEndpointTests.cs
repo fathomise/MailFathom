@@ -12,7 +12,9 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
 using Xunit;
 
@@ -52,6 +54,17 @@ public sealed class ClientMailMessageEndpointTests
         Assert.False(request.IncludeAttachmentDownloadLinks);
         Assert.False(request.RetainRemoteImageReferences);
         Assert.Equal([StoredEmailId.Create(Message)], request.StoredEmailIds);
+    }
+
+    /// <summary>The pane reads for the person rather than for an agent, so a message in a folder withheld from AI is still served to them.</summary>
+    [Fact]
+    public void RequestFor_AnyRead_ReadsForThePersonSoAFolderWithheldFromAIIsServed()
+    {
+        // Act
+        var request = ClientMailMessageEndpoint.RequestFor(Message);
+
+        // Assert
+        Assert.Equal(MailboxReaderKind.Person, request.Reader);
     }
 
     /// <summary>The header block a pane draws is what the message displayed, including what a list row deliberately narrows away.</summary>
@@ -226,6 +239,148 @@ public sealed class ClientMailMessageEndpointTests
         Assert.Null(response.Sender.AuthenticatedDomain);
     }
 
+    /// <summary>
+    /// The verdict carries what a details popup lists under sender authentication: who checked the message, the DKIM and
+    /// SPF domains that passed, and the DMARC outcome — each as stored, and none of them judged against the others.
+    /// </summary>
+    [Fact]
+    public void For_AMessageTheReceivingServerChecked_PublishesWhoCheckedTheDomainsThatPassedAndDmarc()
+    {
+        // Arrange
+        var evidence = new SenderAuthenticationEvidence
+        {
+            AuthenticatedDomain = SenderDomain.TryCreate("relay.example.test", out var relay) ? relay : default,
+            DkimDomain = relay,
+            SpfDomain = SenderDomain.TryCreate("example.test", out var author) ? author : default,
+            AuthenticatedBy = SenderAuthenticationMethod.DomainKeysIdentifiedMail,
+            Dmarc = DmarcOutcome.TemporaryError,
+            Source = SenderAuthenticationSource.ReceivingServer,
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(MessageWith(evidence)).Sender;
+
+        // Assert
+        Assert.Equal("ReceivingServer", sender.AuthenticationSource);
+        Assert.Equal("relay.example.test", sender.DkimDomain);
+        Assert.Equal("example.test", sender.SpfDomain);
+        Assert.Equal("TemporaryError", sender.Dmarc);
+    }
+
+    /// <summary>MailFathom's own DKIM check reports itself, with no SPF domain and no DMARC result, because it reads neither.</summary>
+    [Fact]
+    public void For_AMessageMailFathomCheckedItself_PublishesLocalVerificationWithNothingItCouldNotRead()
+    {
+        // Arrange
+        var evidence = new SenderAuthenticationEvidence
+        {
+            DkimDomain = SenderDomain.TryCreate("example.test", out var domain) ? domain : default,
+            AuthenticatedBy = SenderAuthenticationMethod.DomainKeysIdentifiedMail,
+            Dmarc = DmarcOutcome.NotReported,
+            Source = SenderAuthenticationSource.LocalVerification,
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(MessageWith(evidence)).Sender;
+
+        // Assert
+        Assert.Equal("LocalVerification", sender.AuthenticationSource);
+        Assert.Null(sender.SpfDomain);
+        Assert.Equal("NotReported", sender.Dmarc);
+    }
+
+    /// <summary>A trusted author's verdict says what recognized them, which is what the popup's trust step explains.</summary>
+    /// <param name="grantedBy">What recognized the author.</param>
+    /// <param name="published">The name the client reads it by.</param>
+    [Theory]
+    [InlineData(SenderTrustSource.OwnAccountDomain, "OwnAccountDomain")]
+    [InlineData(SenderTrustSource.ConfiguredTrustedSender, "ConfiguredTrustedSender")]
+    [InlineData(SenderTrustSource.StoredTrustedSender, "StoredTrustedSender")]
+    [InlineData(SenderTrustSource.OrganizationMember, "OrganizationMember")]
+    [InlineData(SenderTrustSource.OwnAccountAddress, "OwnAccountAddress")]
+    public void For_ATrustedAuthor_PublishesWhatRecognizedThem(SenderTrustSource grantedBy, string published)
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with
+            {
+                DeploymentTrustGrantedBy = grantedBy,
+            },
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message).Sender;
+
+        // Assert
+        Assert.Equal(published, sender.TrustSource);
+    }
+
+    /// <summary>
+    /// A member an organization's signature recognized publishes that organization's name beside the source, and none
+    /// where the organization has since been deleted.
+    /// </summary>
+    /// <param name="organizationName">The organization's current name, or <see langword="null" /> where it was deleted.</param>
+    [Theory]
+    [InlineData("Nordwind")]
+    [InlineData(null)]
+    public void For_AnOrganizationMember_PublishesTheOrganizationsCurrentName(string? organizationName)
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with
+            {
+                DeploymentTrust = SenderTrustLevel.Trusted,
+                DeploymentTrustGrantedBy = SenderTrustSource.OrganizationMember,
+                RecognizingOrganizationName = organizationName,
+            },
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message).Sender;
+
+        // Assert
+        Assert.Equal("OrganizationMember", sender.TrustSource);
+        Assert.Equal(organizationName, sender.TrustOrganization);
+    }
+
+    /// <summary>Only the organization source names an organization, so no other trust source carries a name.</summary>
+    [Fact]
+    public void For_AnAuthorATrustedSenderRecognized_PublishesNoOrganization()
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with
+            {
+                DeploymentTrust = SenderTrustLevel.Trusted,
+                DeploymentTrustGrantedBy = SenderTrustSource.StoredTrustedSender,
+                RecognizingOrganizationName = "Nordwind",
+            },
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message).Sender;
+
+        // Assert
+        Assert.Null(sender.TrustOrganization);
+    }
+
+    /// <summary>An author nothing recognized publishes no trust source, which is the ordinary state rather than missing data.</summary>
+    [Fact]
+    public void For_AnAuthorNothingRecognized_PublishesNoTrustSource()
+    {
+        // Arrange
+        var message = MessageWith() with { SenderVerification = SenderVerification.NotEstablished };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message).Sender;
+
+        // Assert
+        Assert.Null(sender.TrustSource);
+    }
+
     /// <summary>The flags a pane draws are the ones the mail server last showed, and unread is the absence of the seen flag.</summary>
     [Fact]
     public void For_AReadMessage_CarriesTheFlagsTheServerLastShowed()
@@ -237,6 +392,85 @@ public sealed class ClientMailMessageEndpointTests
         Assert.True(response.Unread);
         Assert.False(response.Flagged);
         Assert.False(response.Answered);
+    }
+
+    /// <summary>
+    /// A signature travels beside the sender verdict with each step's own result, so a popup draws the steps a
+    /// verification never reached as well as those it did, and a mismatched signer as a fact of its own.
+    /// </summary>
+    [Fact]
+    public void For_AMessageSignedBySomebodyElse_CarriesTheVerifiedStepsAndTheMismatch()
+    {
+        // Arrange
+        var checkedAt = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with
+            {
+                Signature = new EmailSignature
+                {
+                    Format = EmailSignatureFormat.OpenPgpMime,
+                    ContentCheck = SignatureCheckResult.Passed,
+                    AuthorityCheck = SignatureCheckResult.Passed,
+                    TrustAnchor = SignatureTrustAnchor.ConfiguredKey,
+                    ValidityCheck = SignatureCheckResult.Passed,
+                    RevocationCheck = SignatureCheckResult.Passed,
+                    RevocationMethod = RevocationCheckMethod.KeyRevocationSignature,
+                    RevocationCheckedAt = checkedAt,
+                    SignerCheck = SignatureCheckResult.Failed,
+                    Signer = new EmailSigner { Address = "robert@pgp.example.test", KeyId = "0123456789ABCDEF", KeyMaterial = new byte[] { 1, 2, 3 } },
+                },
+            },
+        };
+
+        // Act
+        var signature = ClientMailMessageResponse.For(message).Signature;
+
+        // Assert
+        Assert.Equal("Verified", signature.Outcome);
+        Assert.Equal("OpenPgpMime", signature.Format);
+        Assert.Equal(new ClientMailSignatureStepsResponse("Passed", "Passed", "Passed", "Passed", "Failed"), signature.Steps);
+        Assert.Equal("ConfiguredKey", signature.TrustAnchor);
+        Assert.Equal("KeyRevocationSignature", signature.RevocationMethod);
+        Assert.False(signature.SignerMatchesAuthor);
+        Assert.Equal("robert@pgp.example.test", signature.Signer?.Address);
+        Assert.Equal("0123456789ABCDEF", signature.Signer?.KeyId);
+    }
+
+    /// <summary>A message carrying no signature still carries the object, saying so, with every step skipped and no signer.</summary>
+    [Fact]
+    public void For_AnUnsignedMessage_CarriesNotSignedWithEveryStepSkipped()
+    {
+        // Act
+        var signature = ClientMailMessageResponse.For(MessageWith()).Signature;
+
+        // Assert
+        Assert.Equal("NotSigned", signature.Outcome);
+        Assert.Null(signature.Format);
+        Assert.Equal(new ClientMailSignatureStepsResponse("Skipped", "Skipped", "Skipped", "Skipped", "Skipped"), signature.Steps);
+        Assert.Null(signature.Signer);
+    }
+
+    /// <summary>An opened message carries the verdict its row carries, so a warning is drawn from the message already fetched.</summary>
+    [Fact]
+    public void For_AMessageThePersonMarkedSpam_CarriesTheirVerdictAndTheirSubcategory()
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            Spam = new EmailSpamVerdict(
+                SpamVerdict.Spam,
+                SpamClassificationStage.Person,
+                SpamSubcategory.Scam,
+                PhishingRequest: null,
+                ImpersonatedParty: null),
+        };
+
+        // Act
+        var response = ClientMailMessageResponse.For(message);
+
+        // Assert
+        Assert.Equal(new ClientMailSpamVerdictResponse("Spam", "Person", "Scam", "Person", null, null), response.Spam);
     }
 
     private static ReadEmailContent MessageWith(SenderAuthenticationEvidence? evidence = null) => new()

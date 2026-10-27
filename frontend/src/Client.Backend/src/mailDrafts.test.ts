@@ -8,6 +8,8 @@ import {
     mailDraftAttachmentUploadRequest,
     mostAttachmentsInDraft,
     mostRecipientsInDraft,
+    readMailDraft,
+    readMailDrafts,
     reviseMailDraft,
     sendMailDraft,
     stageMailDraftAttachment,
@@ -138,9 +140,25 @@ describe('writeMailDraft', () => {
                     attachments: [],
                     revision: 1,
                     sizeOctets: 812,
+                    serverCopy: 'Filed',
+                    divergence: null,
+                    lastFailureCode: null,
+                    revisedAt: '2026-09-03T08:00:00+00:00',
                 },
             },
         });
+    });
+
+    it.each([
+        ['a copy stage this client does not name', { serverCopy: 'Lost' }],
+        ['no copy stage at all', { serverCopy: undefined }],
+        ['a divergence this client does not name', { divergence: 'Vanished' }],
+        ['a failure code that is not a whole number', { lastFailureCode: 1.5 }],
+        ['no instant it was last revised at', { revisedAt: undefined }],
+    ])('refuses a draft carrying %s as unreadable', async (_named, fields) => {
+        const answer = await writeMailDraft(session, answering(draftBody(fields)), composition);
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('reads a recipient the sender wrote no name beside as one with no name on it', async () => {
@@ -468,5 +486,112 @@ describe('sendMailDraft', () => {
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+});
+
+describe('readMailDrafts', () => {
+    it('asks for one account’s drafts and reads each record with where its server copy stands', async () => {
+        const record = JSON.parse(
+            draftBody({ serverCopy: 'AppendIssued', divergence: 'AppendOutcomeUnknown' }).body,
+        ) as unknown;
+        const { transport, requests } = recording({
+            status: 200,
+            body: JSON.stringify({ drafts: [record], maximumCount: 200 }),
+        });
+
+        const answer = await readMailDrafts(session, transport, 'work & home');
+
+        expect(requests[0]?.method).toBe('GET');
+        expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/drafts?account=work%20%26%20home');
+        expect(answer).toStrictEqual({
+            outcome: 'read',
+            value: {
+                maximumCount: 200,
+                drafts: [
+                    expect.objectContaining({
+                        draftId,
+                        serverCopy: 'AppendIssued',
+                        divergence: 'AppendOutcomeUnknown',
+                    }),
+                ],
+            },
+        });
+    });
+
+    it('refuses a listing carrying more drafts than it says it lists at most', async () => {
+        const record = JSON.parse(draftBody().body) as unknown;
+        const answer = await readMailDrafts(
+            session,
+            answering({ status: 200, body: JSON.stringify({ drafts: [record, record], maximumCount: 1 }) }),
+            'work',
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
+    it('reads a refusal of the account as the failure its status names', async () => {
+        const answer = await readMailDrafts(session, answering({ status: 400, body: '' }), 'work');
+
+        expect(answer.outcome).toBe('failed');
+    });
+});
+
+describe('readMailDraft', () => {
+    function reading(fields: Readonly<Record<string, unknown>> = {}): Answer {
+        return {
+            status: 200,
+            body: JSON.stringify({
+                draft: JSON.parse(draftBody().body) as unknown,
+                plainTextBody: 'The figure in the third column.',
+                htmlBody: null,
+                document: null,
+                ...fields,
+            }),
+        };
+    }
+
+    it('opens one draft by its identity and reads its record and its words', async () => {
+        const { transport, requests } = recording(reading());
+
+        const answer = await readMailDraft(session, transport, draftId);
+
+        expect(requests[0]?.path).toBe(`https://mail.example.invalid/api/client/drafts/${draftId}`);
+        expect(answer).toMatchObject({
+            outcome: 'read',
+            value: {
+                draft: { draftId, subject: 'Renewal terms' },
+                plainTextBody: 'The figure in the third column.',
+                document: null,
+            },
+        });
+    });
+
+    it('reads the document the words were reduced to, which is what formatting is read back from', async () => {
+        const document = {
+            schemaVersion: 1,
+            refusal: 'None',
+            truncated: false,
+            removedRemoteReferenceCount: 0,
+            retainedRemoteImageCount: 0,
+            inlineImageCount: 0,
+            undrawnInlineImageCount: 0,
+            blocks: [],
+        };
+
+        const answer = await readMailDraft(session, answering(reading({ document })), draftId);
+
+        expect(answer.outcome === 'read' ? answer.value.document?.blocks : null).toStrictEqual([]);
+    });
+
+    it('refuses a document it could not read rather than opening the words without their formatting', async () => {
+        const answer = await readMailDraft(session, answering(reading({ document: { schemaVersion: 99 } })), draftId);
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
+    it('reads a draft this person does not hold as one that is missing', async () => {
+        const answer = await readMailDraft(session, answering({ status: 404, body: '' }), draftId);
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
     });
 });

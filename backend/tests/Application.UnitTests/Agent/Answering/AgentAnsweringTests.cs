@@ -6,9 +6,12 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Discovery.Presentation;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.Signals;
 using MailFathom.Application.UnitTests.Agent.Conversations;
+using MailFathom.Domain.Emails;
+using MailFathom.Domain.Notifications;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -38,6 +41,8 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
     private readonly IMailAnsweringSpendLedger spendLedger = Substitute.For<IMailAnsweringSpendLedger>();
 
     private readonly IUserLanguages languages = Substitute.For<IUserLanguages>();
+
+    private readonly INotificationStore notifications = Substitute.For<INotificationStore>();
 
     private readonly List<AgentConversationEntry> written = [];
 
@@ -102,6 +107,52 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A question asked about a merged arrival is handed the messages that notification names, read as the asker.</summary>
+    [Fact]
+    public async Task RunAsync_AQuestionAboutANotification_HandsTheComposerTheMessagesItNames()
+    {
+        // Arrange
+        var notification = NotificationId.Create(Guid.CreateVersion7());
+        IReadOnlyList<StoredEmailId> named =
+            [StoredEmailId.Create(Guid.CreateVersion7()), StoredEmailId.Create(Guid.CreateVersion7())];
+        this.notifications
+            .ReadNamedEmailsAsync(SyntheticUser.Deployment, notification, Arg.Any<CancellationToken>())
+            .Returns(named);
+
+        // Act
+        await this.Answering().RunAsync(
+            this.Question() with { Scope = AgentMessageScope.Notification(notification) },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.composer.Received(1).ComposeAsync(
+            Arg.Is<AgentAnswerBrief>(brief => brief.NamedEmails.SequenceEqual(named)),
+            Arg.Any<AgentAnswerJournal>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A notification the asker does not hold names nothing, exactly as one that never existed.</summary>
+    [Fact]
+    public async Task RunAsync_AQuestionAboutANotificationTheAskerDoesNotHold_HandsTheComposerNoMessages()
+    {
+        // Arrange
+        var notification = NotificationId.Create(Guid.CreateVersion7());
+        this.notifications
+            .ReadNamedEmailsAsync(SyntheticUser.Deployment, notification, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<StoredEmailId>?)null);
+
+        // Act
+        await this.Answering().RunAsync(
+            this.Question() with { Scope = AgentMessageScope.Notification(notification) },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.composer.Received(1).ComposeAsync(
+            Arg.Is<AgentAnswerBrief>(brief => brief.NamedEmails.Count == 0),
+            Arg.Any<AgentAnswerJournal>(),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>What the composer suggests asking next is what the completed ending carries.</summary>
     [Fact]
     public async Task RunAsync_AComposerSuggestingFollowUps_EndsTheAnswerCompletedCarryingThem()
@@ -136,7 +187,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         Assert.NotNull(brief);
         Assert.Equal(
             [(AgentMessageAuthor.Person, "Who sent the quote?"), (AgentMessageAuthor.Agent, "Northwind sent it.")],
-            brief.History.Select(static turn => (turn.Author, turn.Text)));
+            brief.History.Cast<AgentWrittenTurn>().Select(static turn => (turn.Author, turn.Text)));
     }
 
     /// <summary>A period already spent ends the answer as failed before anything is composed.</summary>
@@ -225,7 +276,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         Assert.Equal(this.answer, compaction.MessageId);
         Assert.Equal("They asked twice about the quote.", compaction.Summary);
         Assert.NotNull(brief);
-        Assert.EndsWith("They asked twice about the quote.", Assert.Single(brief.History).Text, StringComparison.Ordinal);
+        Assert.Equal(new AgentSummaryTurn("They asked twice about the quote."), Assert.Single(brief.History));
     }
 
     /// <summary>A summariser that produced nothing does not fail the turn: it sends the newest turns that fit, and records no summary.</summary>
@@ -247,7 +298,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         Assert.DoesNotContain(this.written, static entry => entry is AgentConversationCompacted);
         Assert.Equal(AgentAnswerOutcome.Completed, Assert.IsType<AgentAnswerEnded>(this.written[^1]).Outcome);
         Assert.NotNull(brief);
-        Assert.Equal([new string('c', 3_000)], brief.History.Select(static turn => turn.Text));
+        Assert.Equal([new AgentWrittenTurn(AgentMessageAuthor.Person, new string('c', 3_000))], brief.History);
     }
 
     /// <summary>A conversation inside the budget is sent whole and costs no summary.</summary>
@@ -315,6 +366,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         this.summarizer,
         this.budget,
         this.spendLedger,
+        this.notifications,
         this.signals,
         this.languages,
         this.clock);

@@ -263,7 +263,7 @@ internal sealed class MailAccountSensitiveContentPostures : ISensitiveContentPos
 
     /// <summary>Lets go of every answer read longer ago than <see cref="Freshness" />, once enough accounts are held for that to matter.</summary>
     /// <remarks>
-    /// ponytail: a sweep over every held answer whenever the count passes the threshold; a replica touching more distinct
+    /// A sweep over every held answer whenever the count passes the threshold; a replica touching more distinct
     /// accounts than that within one interval sweeps on every miss, and a bounded cache with its own eviction is the
     /// upgrade if that ever shows up in a profile.
     /// </remarks>

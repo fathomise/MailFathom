@@ -4,6 +4,9 @@
 
 using MailFathom.AI;
 using MailFathom.AI.Chat;
+using MailFathom.AI.DecisionModels;
+using MailFathom.AI.ProviderAdapters;
+using MailFathom.AI.Providers;
 using MailFathom.AppHost;
 using MailFathom.Application.Access;
 using MailFathom.Application.Access.Grants;
@@ -43,12 +46,14 @@ using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.Synchronization.Reconciliation;
+using MailFathom.Common.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery.Governance;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Policies;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
@@ -66,7 +71,6 @@ using MailFathom.Infrastructure.Resilience;
 using MailFathom.Infrastructure.Secrets.Discovery;
 using MailFathom.Infrastructure.Secrets.References;
 using MailFathom.Infrastructure.Secrets.Resolution;
-using MailFathom.Infrastructure.Spam;
 using MailFathom.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -194,6 +198,10 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
     /// questions. Absent everywhere but the class that asks one, because a registered answerer is what makes the
     /// capability report that this instance answers at all.
     /// </param>
+    /// <param name="decisionEndpoint">
+    /// The decision model a closed question is asked of, answering from a script, or <see langword="null" /> for a
+    /// deployment that declared none. Absent everywhere but the class that asks one.
+    /// </param>
     /// <param name="foldersWithoutEmbeddings">
     /// The folders this account is configured to leave unembedded, empty everywhere but the class proving that a
     /// message stored in one is cut into no passages at all.
@@ -210,11 +218,6 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
     /// What this deployment decided about classifying mail, or <see langword="null" /> for the shipped default of
     /// classifying nothing. Stated only by the class that classifies, because the switch decides whether the use case
     /// does anything at all.
-    /// </param>
-    /// <param name="spamScanner">
-    /// The daemon a scanned classification is scored against, or <see langword="null" /> for a deployment that deployed
-    /// no scanner. Absent everywhere but the class that scores, exactly as a deployment which never switched the scanner
-    /// on registers no implementation of the port.
     /// </param>
     /// <param name="contactCollection">
     /// What this deployment decided about collecting contacts from arriving mail, or <see langword="null" /> for the
@@ -250,11 +253,11 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
         IReadOnlyList<MailFolderIdentity>? foldersHiddenFromTools = null,
         IReadOnlyList<MailFolderIdentity>? foldersNotMirrored = null,
         SpamClassificationSettings? spamClassification = null,
-        SpamAssassinScannerProfile? spamScanner = null,
         ContactCollectionSettings? contactCollection = null,
         bool filesSentCopies = false,
         bool keepsDrafts = false,
-        bool storesContentInObjectStorage = false)
+        bool storesContentInObjectStorage = false,
+        ScriptedDecisionEndpoint? decisionEndpoint = null)
     {
         var builder = new HostApplicationBuilder();
         var account = new SyntheticMailAccount(
@@ -290,6 +293,9 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
         // section. Every delivery attempt reads it before it opens anything, so an account without it delivers nothing
         // rather than delivering as somebody unnamed.
         builder.Services.AddSingleton<IOutgoingSenderIdentityReader>(account);
+        // The same identity read across users, registered by the composition root for what extraction verifies: an
+        // organization's signature is held against the identities of every account the organization's users are served.
+        builder.Services.AddSingleton<ISenderIdentityDirectory>(account);
         // Whether an account files a copy of what it sends, registered by the composition root from the same options
         // section. Every outbox pass resolves it after an attempt settles, so a harness without it would fail to
         // compose rather than behave like a deployment that files nothing.
@@ -504,7 +510,8 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
         builder.Services.AddSingleton(provider => new UserAccountDocumentBinder(
             new PersistedSecretMaterial(provider.GetServices<ISecretSchemeResolver>()),
             provider.GetRequiredService<TimeProvider>(),
-            Options.Create(new SensitiveContentOptions())));
+            Options.Create(new SensitiveContentOptions()),
+            Options.Create(new DecisionModelOptions())));
         builder.Services.AddSingleton<IUserRecordPolicyJudge>(provider => new UserRecordPolicyJudge(
             provider.GetRequiredService<UserAccountDocumentBinder>()));
         builder.Services.AddSingleton<IMailAccountPolicyJudge>(provider => new MailAccountPolicyJudge(
@@ -555,6 +562,21 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
                 chatClient));
         }
 
+        // The decision half, registered only for a test that asks a closed question, and composed by the same call a
+        // composition root makes so the whole pipeline — ceilings, period charge, telemetry, resilience, adapter — is
+        // the deployment's. Only the transport's last hop is the test's: the endpoint answers from a script, which is what
+        // keeps a free run free while every layer above it reaches the real database and the real resilience pipelines.
+        if (decisionEndpoint is { } endpoint)
+        {
+            builder.Services.AddSingleton<IProviderEndpointCredentialSource>(new ScriptedDecisionEndpoint.NoCredential());
+            builder.Services.AddDecisionProviderAdapter(
+                new Dictionary<DecisionFunction, DecisionModelPlan> { [DecisionFunction.SpamClassification] = endpoint.Plan },
+                Telemetry.ActivitySource,
+                Telemetry.Meter);
+            builder.Services.AddHttpClient(OpenRouterDecisionClient.TransportName)
+                .ConfigurePrimaryHttpMessageHandler(endpoint.CreateHandler);
+        }
+
         // The ring a composition root would build from the DataEncryption section. It is supplied here for the reason
         // every other bound setting above is: the suite does not start the host resource, so nothing else binds it, and
         // a store that seals would otherwise fail to resolve its encryptor rather than fail to seal.
@@ -600,15 +622,6 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
         // nobody — which is the deployment every test here composes unless it says otherwise.
         builder.Services.AddSingleton<IContactCollectionSettingsReader>(
             new FixedContactCollectionSettingsReader(contactCollection ?? ContactCollectionSettings.CollectingNothing));
-
-        // Registered exactly as the composition root registers it, and only where a scanner was named — so a test that
-        // states none composes the deployment that deployed no sidecar, where the classifier resolves no scanner and the
-        // deterministic stage is the whole feature.
-        if (spamScanner is not null)
-        {
-            builder.Services.AddSingleton(spamScanner);
-            builder.Services.AddSpamAssassinScanning();
-        }
 
         var host = builder.Build();
         await host.StartAsync(cancellationToken);

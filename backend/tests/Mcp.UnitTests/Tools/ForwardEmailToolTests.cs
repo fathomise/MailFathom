@@ -206,10 +206,10 @@ public sealed class ForwardEmailToolTests
 
     /// <summary>An email nothing may read is an email nothing may forward, and the refusal says no more than that.</summary>
     [Fact]
-    public async Task ForwardEmailAsync_AnEmailOfAFolderWithheldFromTools_IsRefusedAsNoEmailItCanAnswer()
+    public async Task ForwardEmailAsync_AnEmailOfAFolderWithheldFromAI_IsRefusedAsNoEmailItCanAnswer()
     {
         // Arrange
-        var tool = ToolOver(out _, participationReader: StubMailFolderParticipation.Nothing);
+        var tool = ToolOver(out _, participationReader: AnsweredMailSubmissions.AnsweredFolderWithheldFromAI);
 
         // Act
         var refusal = await Assert.ThrowsAsync<MailSubmissionRefusedException>(

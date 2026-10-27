@@ -13,7 +13,8 @@ namespace MailFathom.Domain.Delivery;
 /// <para>
 /// A new message, a reply, and a forward are one request shape rather than three. Each needs the same answers — which
 /// account sends, who it goes to, and what asked — and the difference between them is entirely in the MIME, which this
-/// type does not carry and never sees.
+/// type does not carry and never sees. The one thing it carries out of that message is its subject, which the outbox
+/// names a send by without reading the MIME.
 /// </para>
 /// <para>
 /// The sending account is named and the sending address is not. A message is sent as the account that sends it and its
@@ -84,6 +85,13 @@ public sealed record OutgoingEmailRequest
     /// </remarks>
     public ZonedInstant? DueAt { get; }
 
+    /// <summary>Gets the subject the message was composed with, or <see langword="null" /> where whatever composed it did not say.</summary>
+    /// <remarks>
+    /// It is a copy of the <c>Subject</c> header the MIME already carries, written beside the record so the outbox can
+    /// name a send without loading its message. It is the person's correspondence and is never logged.
+    /// </remarks>
+    public string? Subject { get; init; }
+
     /// <summary>Asks for one message to be submitted through an account and delivered to the recipients it names.</summary>
     /// <param name="account">The account the message is sent as, by its generated identifier.</param>
     /// <param name="author">The user who asked, or <see langword="null" /> where the deployment's own configuration did.</param>
@@ -142,6 +150,9 @@ public sealed record OutgoingEmailRequest
     {
         ArgumentNullException.ThrowIfNull(dueAt);
 
-        return new OutgoingEmailRequest(this.Account, this.Author, this.Requester, this.Recipients, dueAt);
+        return new OutgoingEmailRequest(this.Account, this.Author, this.Requester, this.Recipients, dueAt)
+        {
+            Subject = this.Subject,
+        };
     }
 }

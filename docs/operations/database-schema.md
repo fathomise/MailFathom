@@ -414,7 +414,7 @@ documents a hundred per convergence interval, in identifier order, so one is rea
 while no more than a hundred trail, and a larger backlog drains at that rate whatever the replica count. Until then, the answers
 asked of every account at once — which mail is classified as spam, which folders a mailbox query admits, and which
 scanners a search across one user's accounts redacts for — answer from what the columns held, and an account the older
-build created takes part in none of them. So a scanner switched on, or a folder withheld from tools, through a replica
+build created takes part in none of them. So a scanner switched on, or a folder withheld from AI, through a replica
 of the previous build reaches those answers one interval later rather than at once. Finish the rollout before changing
 what an account is scanned for. The migration's own reading of each document is an approximation of the host's binding
 and is replaced the same way: every row it fills is read again, so a deployment of N accounts runs on it for about

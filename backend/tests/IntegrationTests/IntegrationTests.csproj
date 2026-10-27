@@ -34,6 +34,7 @@
     <Compile Include="..\shared\TestCertificates.cs" Link="TestCertificates.cs" />
     <Compile Include="..\shared\ClientSignalPublishers.cs" Link="ClientSignalPublishers.cs" />
     <Compile Include="..\shared\SyntheticUser.cs" Link="SyntheticUser.cs" />
+    <Compile Include="..\shared\StubEmailProvenanceReader.cs" Link="StubEmailProvenanceReader.cs" />
     <Compile Include="..\shared\SyntheticServedAccount.cs" Link="SyntheticServedAccount.cs" />
     <Compile Include="..\shared\StubMailFolderMappings.cs" Link="StubMailFolderMappings.cs" />
     <Compile Include="..\shared\StubSpamClassificationSettingsReader.cs" Link="StubSpamClassificationSettingsReader.cs" />

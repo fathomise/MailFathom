@@ -298,6 +298,30 @@ public sealed class MailBodyCleaningTests
         Assert.Null(cleaned);
     }
 
+    /// <summary>
+    /// A message in a folder withheld from AI is still the person's, so the view serves its reduced body and says why
+    /// rather than an empty pane, and nothing of it reaches the cleaner.
+    /// </summary>
+    [Fact]
+    public async Task CleanAsync_AMessageInAFolderWithheldFromAI_ServesTheReducedDocumentWithoutAskingTheCleaner()
+    {
+        // Arrange
+        var cleaner = ScriptedMailBodyCleaner.Keeping(new MailBodyCleaningSegment(0, 0, Keep: true));
+        var document = DocumentSaying("A private message");
+        var cleaning = CleaningOver(SummaryOf(), document, cleaner, withheldFromAI: true);
+
+        // Act
+        var cleaned = await cleaning.CleanAsync(
+            Message,
+            retainRemoteImageReferences: false,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailBodyCleaningOutcome.WithheldFromAI, cleaned?.Outcome);
+        Assert.Equal(document.Blocks, cleaned?.Document?.Blocks);
+        Assert.Empty(cleaner.Asked);
+    }
+
     private static MailBodyCleaning CleaningOf(MailDocument? document, IMailBodyCleaner cleaner) =>
         CleaningOver(SummaryOf(), document, cleaner);
 
@@ -311,9 +335,10 @@ public sealed class MailBodyCleaningTests
         MailDocument? document,
         IMailBodyCleaner cleaner,
         SensitiveContentEgressGuard? egressGuard = null,
-        MailFathomPermission[]? granted = null)
+        MailFathomPermission[]? granted = null,
+        bool withheldFromAI = false)
     {
-        var scopeResolver = ScopeResolverOver(summary);
+        var scopeResolver = ScopeResolverOver(summary, withheldFromAI);
 
         return new MailBodyCleaning(
             ReaderOver(summary, document, scopeResolver),
@@ -324,14 +349,17 @@ public sealed class MailBodyCleaningTests
                 granted ?? [MailFathomPermission.MailRead, MailFathomPermission.AssistantUse]));
     }
 
-    private static MailboxScopeResolver ScopeResolverOver(EmailSummary? summary)
+    private static MailboxScopeResolver ScopeResolverOver(EmailSummary? summary, bool withheldFromAI)
     {
         var accountCatalog = Substitute.For<ICallerMailAccountCatalog>();
         accountCatalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns(
             [SyntheticServedAccount.Of(MailAccountId.Create(SyntheticEmailSummaries.DefaultAccountId))]);
-        var participation = StubMailFolderParticipation.Mapping(summary is null
+        MailFolderIdentity[] folders = summary is null
             ? []
-            : [new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value)]);
+            : [new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value)];
+        var participation = withheldFromAI
+            ? StubMailFolderParticipation.Mapping(folders).Hiding(folders)
+            : StubMailFolderParticipation.Mapping(folders);
 
         return new MailboxScopeResolver(
             accountCatalog,

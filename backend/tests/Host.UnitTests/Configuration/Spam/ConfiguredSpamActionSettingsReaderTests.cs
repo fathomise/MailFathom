@@ -38,7 +38,7 @@ public sealed class ConfiguredSpamActionSettingsReaderTests
     }
 
     [Fact]
-    public void ActionsFor_BothSwitchesOn_CarriesTheDestinationAndTheThreshold()
+    public void ActionsFor_BothSwitchesOn_CarriesTheDestination()
     {
         // Arrange
         var reader = ReaderFor(Account(
@@ -51,7 +51,6 @@ public sealed class ConfiguredSpamActionSettingsReaderTests
                     MoveToJunkFolder = true,
                     MarkAsRead = true,
                     JunkFolder = "quarantine",
-                    Threshold = 9,
                 },
             }));
 
@@ -62,7 +61,29 @@ public sealed class ConfiguredSpamActionSettingsReaderTests
         Assert.True(settings.FilesJunk);
         Assert.True(settings.MarksJunkRead);
         Assert.Equal(MailFolderAlias.Create("quarantine"), settings.JunkFolder.Alias);
-        Assert.Equal(9, settings.Threshold);
+    }
+
+    /// <summary>The keyword switch is a third independent decision, carried on its own.</summary>
+    [Fact]
+    public void ActionsFor_TheKeywordSwitchAlone_MarksWithKeywordsAndNothingElse()
+    {
+        // Arrange
+        var reader = ReaderFor(Account(
+            PrimaryAccount,
+            new MailAccountSpamClassificationOptions
+            {
+                Enabled = true,
+                Actions = new MailAccountSpamActionOptions { MarkWithJunkKeywords = true },
+            }));
+
+        // Act
+        var settings = reader.ActionsFor(PrimaryAccount);
+
+        // Assert
+        Assert.True(settings.MarksJunkWithKeywords);
+        Assert.False(settings.FilesJunk);
+        Assert.False(settings.MarksJunkRead);
+        Assert.True(settings.IsAnyActionEnabled);
     }
 
     /// <summary>Classification switched off in a record answers for its actions too, whatever the switches beside it say.</summary>

@@ -188,7 +188,10 @@ public sealed class MailDraftPromotion
             draft.AccountId,
             draft.User,
             OutgoingEmailRequester.Draft(draftId),
-            [.. draft.Recipients.Select(recipient => recipient.Recipient)]);
+            [.. draft.Recipients.Select(recipient => recipient.Recipient)]) with
+        {
+            Subject = draft.Subject,
+        };
 
         // What this caller may be talked into, asked before the record is written and against the addresses the draft
         // stored rather than any the promotion could invent. Nothing about the draft has been written yet, which is

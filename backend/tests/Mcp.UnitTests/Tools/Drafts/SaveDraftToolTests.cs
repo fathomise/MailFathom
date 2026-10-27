@@ -2,15 +2,19 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Mail.Delivery.Drafts;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Folders;
 using MailFathom.Mcp.Failures;
 using MailFathom.Mcp.Tools.Drafts;
 using MailFathom.Mcp.Tools.Results;
 using MailFathom.Mcp.UnitTests.TestDoubles;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Mcp.UnitTests.Tools.Drafts;
@@ -296,6 +300,34 @@ public sealed class SaveDraftToolTests
                 "Thank you.",
                 answeredEmailId: Guid.CreateVersion7(DraftedMailDeployment.Moment).ToString(),
                 answering: answering,
+                cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.AnsweredEmailUnavailable, refusal.ErrorCode);
+        Assert.Empty(deployment.Drafts.Drafts);
+    }
+
+    /// <summary>An email in a folder withheld from AI is one an agent cannot answer, so drafting an answer to it is refused as one this deployment does not hold.</summary>
+    [Fact]
+    public async Task SaveDraftAsync_AnAnswerToAnEmailOfAFolderWithheldFromAI_IsRefusedAsAnEmailItCannotAnswer()
+    {
+        // Arrange
+        var answered = AnsweredMailSubmissions.AnsweredEmail() with
+        {
+            Account = MailAccountId.Create(DraftedMailDeployment.ServedAccount),
+        };
+        var deployment = new DraftedMailDeployment(
+            StubMailFolderParticipation.Nothing.Hiding(new MailFolderIdentity(answered.Account, answered.Folder.Alias!.Value)));
+        deployment.Summaries
+            .FindAsync(answered.StoredEmailId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<EmailSummary?>(answered));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailDraftRefusedException>(
+            () => deployment.SaveTool.SaveDraftAsync(
+                "Thank you.",
+                answeredEmailId: answered.StoredEmailId.Value.ToString(),
+                answering: DraftedAnswer.SenderOnly,
                 cancellationToken: TestContext.Current.CancellationToken));
 
         // Assert

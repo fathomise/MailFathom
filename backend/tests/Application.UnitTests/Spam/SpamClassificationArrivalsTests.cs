@@ -162,7 +162,7 @@ public sealed class SpamClassificationArrivalsTests
     }
 
     private static SpamClassificationSettings SettingsCovering(params MailFolderAlias[] aliases) =>
-        SpamClassificationSettings.Create(isEnabled: true, usesScanner: false, aliases);
+        SpamClassificationSettings.Create(isEnabled: true, aliases);
 
     private static EmailOccurrenceId OccurrenceIn(MailFolderAlias alias, uint uid) => EmailOccurrenceId.Create(
         Account,

@@ -14,6 +14,7 @@ function account(id: string, displayName: string): MailAccount {
         synchronizationState: 'Synchronized',
         lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
         behind: false,
+        filesJunk: false,
     };
 }
 
@@ -35,6 +36,7 @@ const directory: MailFolderDirectory = {
     accounts: [
         {
             account: account('work', 'Work'),
+            outbox: null,
             folders: [
                 folder({ id: 'INBOX', role: 'Inbox', unreadEmailCount: 12 }),
                 folder({ id: 'ARCHIVE', unreadEmailCount: 2 }),
@@ -42,6 +44,7 @@ const directory: MailFolderDirectory = {
         },
         {
             account: account('personal', 'Personal'),
+            outbox: null,
             folders: [folder({ id: 'INBOX', role: 'Inbox', unreadEmailCount: 3 })],
         },
     ],

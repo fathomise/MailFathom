@@ -5,6 +5,7 @@
 using MailFathom.Application.Discovery.Citations;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.Chunking;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
 using MailFathom.Host.Security.Endpoints;
@@ -213,6 +214,7 @@ internal sealed record ClientResolvedCitationResponse(
 /// <param name="Subject">The decoded subject, or <see langword="null" /> where the message carried none.</param>
 /// <param name="SentAt">When the sender says it was sent, or <see langword="null" /> where it wrote no usable date.</param>
 /// <param name="ReceivedAt">When the last receiving hop recorded it, or <see langword="null" /> where no header carried a usable date.</param>
+/// <param name="Provenance">Where it came from as this deployment recorded it, which a client shows beside the claim it supports.</param>
 /// <remarks>
 /// Enough to draw a source where it stands and no more. A client that wants the rest of the message asks the message
 /// route for it, which is the request a reader chose to make.
@@ -223,7 +225,8 @@ internal sealed record ClientCitedMessageResponse(
     string Folder,
     string? Subject,
     DateTimeOffset? SentAt,
-    DateTimeOffset? ReceivedAt)
+    DateTimeOffset? ReceivedAt,
+    ClientCitedProvenanceResponse Provenance)
 {
     /// <summary>Describes one cited message for the wire.</summary>
     /// <param name="message">The message the resolution carried.</param>
@@ -234,7 +237,34 @@ internal sealed record ClientCitedMessageResponse(
         message.Folder.Id.ToString(),
         message.Subject,
         message.SentAt,
-        message.ReceivedAt);
+        message.ReceivedAt,
+        ClientCitedProvenanceResponse.For(message.Provenance));
+}
+
+/// <summary>Where one cited message came from, as the deployment recorded it when the message arrived.</summary>
+/// <param name="AuthorAuthentication">What the receiving server established about the author the message displays, as the outcome's own name.</param>
+/// <param name="DeploymentTrust">Whether this deployment recognizes that author, as the level's own name.</param>
+/// <param name="InJunkFolder">Whether the message sits in the folder its account maps as junk.</param>
+/// <param name="FirstContact">Whether nothing the mailbox held before the message was written by its sender or addressed to them.</param>
+/// <remarks>
+/// The same verdict the message route publishes, under the same names, beside the two facts that route does not carry,
+/// so a client qualifies the claim a citation supports from what the service recorded rather than from anything a model
+/// wrote about it.
+/// </remarks>
+internal sealed record ClientCitedProvenanceResponse(
+    string AuthorAuthentication,
+    string DeploymentTrust,
+    bool InJunkFolder,
+    bool FirstContact)
+{
+    /// <summary>Describes one cited message's provenance for the wire.</summary>
+    /// <param name="provenance">The provenance the resolution carried.</param>
+    /// <returns>The response body.</returns>
+    internal static ClientCitedProvenanceResponse For(EmailProvenance provenance) => new(
+        provenance.Sender.AuthorAuthentication.ToString(),
+        provenance.Sender.DeploymentTrust.ToString(),
+        provenance.IsInJunkFolder,
+        provenance.IsFirstContact);
 }
 
 /// <summary>The passage one resolved citation points at.</summary>

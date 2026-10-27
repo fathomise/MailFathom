@@ -36,6 +36,15 @@ h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0; }
 .line1 { display: flex; align-items: baseline; gap: 8px; }
 .who { font-size: 14px; font-weight: 600; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .org { font-size: 12px; color: var(--faint); }
+/* The sender mark, as the folder list draws it: the glyph alone, its state in the tone, the glyph and the name. */
+.mark { all: unset; align-self: center; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+        width: 24px; height: 24px; margin: -4px -3px; border-radius: 8px; cursor: pointer; color: var(--muted);
+        font-family: 'Material Symbols Rounded'; font-variation-settings: 'wght' 300; font-size: 18px; line-height: 1; }
+.mark:hover { background: var(--hover); }
+.mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mark.ok { color: var(--ok-text); }
+.mark.accent { color: var(--accent-d); }
+.mark.err { color: var(--err-text); }
 .when { margin-left: auto; font-size: 11px; color: var(--faint); }
 .line2 { display: flex; align-items: baseline; gap: 8px; font-size: 14px; }
 .subject { max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -44,6 +53,11 @@ h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0; }
    reserves it, so a row with something to say is the same row, not a taller one. */
 .why { height: 16px; overflow: hidden; font-size: 12px; color: var(--faint); }
 .why mark { background: none; color: var(--accent-d); font-weight: 600; }
+/* A spam row folds to one muted line, as the folder list draws it outside the Spam folder. */
+.row.fold { flex-direction: row; align-items: center; gap: 8px; position: relative; }
+.row.fold .who { flex: 0 0 auto; font-size: 13px; font-weight: 400; color: var(--muted); }
+.row.fold .subject { flex: 1 1 auto; max-width: none; font-size: 13px; color: var(--muted); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .foot { padding: 8px 12px; font-size: 13px; color: var(--faint); }
 .banner { margin: 10px 12px; padding: 9px 11px; border-radius: 8px; font-size: 13px;
           background: var(--warn-soft); color: var(--warn-text); text-wrap: pretty; }

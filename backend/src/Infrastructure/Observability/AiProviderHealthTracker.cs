@@ -10,12 +10,12 @@ using Microsoft.Extensions.Logging;
 
 namespace MailFathom.Infrastructure.Observability;
 
-/// <summary>Holds what the last call to each AI provider established, and publishes both states as one instrument.</summary>
+/// <summary>Holds what the last call to each AI provider established, and publishes every role's state as one instrument.</summary>
 /// <remarks>
 /// <para>
-/// One tracker for both roles, with the role as a key rather than as a second class. That is what makes the two states
-/// independently observable without being independently implemented: a reader asks for one role and receives that
-/// role's answer, and the gauge below carries one measurement per role so a dashboard can show either without the other
+/// One tracker for every role — embedding, chat, and decision — with the role as a key rather than as a class apiece.
+/// That is what makes the states independently observable without being independently implemented: a reader asks for one role and receives that
+/// role's answer, and the gauge below carries one measurement per role so a dashboard can show any one without another
 /// hiding it.
 /// </para>
 /// <para>
@@ -30,7 +30,7 @@ namespace MailFathom.Infrastructure.Observability;
 /// one change that is not logged is a first call that succeeded, which restores nothing.
 /// </para>
 /// <para>
-/// Nothing here is mail or derived from it. The only tag is the role, one of two constants, and the only values are a
+/// Nothing here is mail or derived from it. The only tag is the role, one of three constants, and the only values are a
 /// state and the moment it was observed — which is also a cardinality rule, since anything per endpoint or per request
 /// would open a time series that grows with the deployment. The log lines carry the same two things and no credential,
 /// endpoint address, request, or provider response text.
@@ -128,6 +128,7 @@ public sealed partial class AiProviderHealthTracker : IAiProviderHealthRecorder,
     {
         AiProviderRole.Embedding => "embedding",
         AiProviderRole.Chat => "chat",
+        AiProviderRole.Decision => "decision",
         _ => "unknown",
     };
 

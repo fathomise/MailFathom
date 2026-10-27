@@ -34,7 +34,7 @@ internal static class CalendarEventExtractionScenario
         ArgumentNullException.ThrowIfNull(scenario);
 
         var turn = scenario.Compose();
-        var instruction = CalendarEventExtractionInstructions.Text;
+        var instruction = AgentComposition.InstructionFor(CalendarEventExtractionInstructions.Text);
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",

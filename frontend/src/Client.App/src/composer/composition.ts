@@ -6,6 +6,7 @@ import type {
     MailBody,
     MailDraftAnswer,
     MailDraftComposition,
+    MailDraftReading,
     MailMessage,
     MailParticipant,
 } from '@mailfathom/client-backend';
@@ -22,8 +23,8 @@ import { htmlOf, plainTextOf, type WrittenNode } from './writtenText';
 // deployment's and are never sent from here — `wireComposition` is where that shows.
 
 /**
- * What opening the composer is: a message of its own, an answer to one this deployment holds, or a draft already in a
- * drafts folder being carried on with.
+ * What opening the composer is: a message of its own, an answer to one this deployment holds, a draft already in a
+ * drafts folder being carried on with, or a draft MailFathom keeps being carried on with by its own identity.
  */
 export type ComposerOpening =
     | {
@@ -44,15 +45,33 @@ export type ComposerOpening =
           readonly storedEmailId: string;
 
           /**
-           * A draft the deployment already wrote for this answer, where it was written before the composer opened.
+           * The draft asked for before the composer opened, which it starts writing the moment it has opened.
            *
-           * The field under a correspondence drafts a reply in the thread, and *Open in composer* carries that draft
-           * here rather than asking for a second one: the composer opens holding its words, as a draft nobody has
-           * accepted yet. Absent for every other way of answering, which opens on an empty message as it always has.
+           * The drafter at the foot of a correspondence asks what the reply should say and opens the composer on the
+           * answer, so the draft is written where it can be edited and sent rather than in a card in front of it.
+           * Absent for every other way of answering, which opens on an empty message as it always has.
            */
-          readonly drafted?: string;
+          readonly drafting?: ReplyDraftAsked;
       }
-    | { readonly kind: 'draft'; readonly storedEmailId: string };
+    | { readonly kind: 'draft'; readonly storedEmailId: string }
+    | {
+          readonly kind: 'held';
+
+          /**
+           * A draft MailFathom keeps, carried on with under the same identity rather than copied: a refused send taken
+           * back to edit, and a draft whose copy on the mail server is out of step, are each that one draft.
+           */
+          readonly draftId: string;
+      };
+
+/** What a reply was asked to say before the composer opened on it. */
+export interface ReplyDraftAsked {
+    /** What was typed into the drafter, which may be nothing: the press alone asks for a reply. */
+    readonly asked: string;
+
+    /** The words selected in the message being answered, or `null` where none were. */
+    readonly passage: string | null;
+}
 
 /** What the author has written, and what it is being written against. */
 export interface Composition {
@@ -60,12 +79,14 @@ export interface Composition {
     readonly answering: { readonly storedEmailId: string; readonly answers: MailDraftAnswer } | null;
 
     /**
-     * The message in a drafts folder this was opened from, or `null` where it was not opened from one.
+     * The message in a drafts folder this was opened from, or the draft MailFathom keeps it was opened on, or `null`
+     * where it was opened from neither.
      *
-     * It says where the words came from and nothing else: a save still writes a draft of its own, because the client
-     * surface publishes no route that reads a draft back or takes a stored message over as the one being written. What
-     * it is for is telling one composition from another — a message of its own and a draft carried on with both answer
-     * nothing, so without it the tab would restore whichever of the two it kept last into either.
+     * It says where the words came from and nothing else: a draft carried on from a folder still saves as a draft of
+     * its own, and one opened on a kept draft goes on revising that draft because the composer adopts its identity
+     * rather than because of this. What it is for is telling one composition from another — a message of its own and a
+     * draft carried on with both answer nothing, so without it the tab would restore whichever of the two it kept last
+     * into either.
      */
     readonly continuing: string | null;
 
@@ -156,6 +177,29 @@ export function draftContinued(message: MailMessage, body: MailBody | null): Com
         cc: addressesOf(message.headers.participants, ['Cc']),
         bcc: addressesOf(message.headers.participants, ['Bcc']),
         words: body === null ? [] : draftWords(body),
+    };
+}
+
+/**
+ * A draft MailFathom keeps, opened to be carried on with: who it is for, what it is about, and its words.
+ *
+ * It opens as a message of its own whatever it began as, because the record names no message it answers — so a reply
+ * taken back to edit is revised as a message with the subject and the addresses it already had.
+ */
+export function draftHeld(reading: MailDraftReading): Composition {
+    const { draft } = reading;
+    const addressed = (role: 'To' | 'Cc' | 'Bcc') =>
+        draft.recipients.filter((recipient) => recipient.role === role).map((recipient) => recipient.address);
+
+    return {
+        answering: null,
+        continuing: draft.draftId,
+        account: draft.account,
+        subject: draft.subject,
+        to: addressed('To'),
+        cc: addressed('Cc'),
+        bcc: addressed('Bcc'),
+        words: draftWords({ document: reading.document, plainText: { text: reading.plainTextBody } }),
     };
 }
 

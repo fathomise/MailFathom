@@ -2,7 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { MailEnrichmentAspect, MailTimelineEntry, SignalledFlags } from '@mailfathom/client-backend';
+import type {
+    MailEnrichmentAspect,
+    MailSpamSubcategory,
+    MailSpamVerdictValue,
+    MailTimelineEntry,
+    SignalledFlags,
+} from '@mailfathom/client-backend';
+import { senderMarkOf, type SenderMark } from '../senderMark/senderMarks';
 import { leadingReading } from './messageReadings';
 
 // What a row draws, as one value two answers about the same message can be compared by. It is what decides whether a
@@ -42,6 +49,9 @@ export interface RowContents {
     readonly attachmentCount: number;
     readonly threadMessageCount: number | null;
 
+    /** The mark the row draws on its sender, which a later read can change — a sender trusted since, say. */
+    readonly senderMark: SenderMark;
+
     /**
      * The reading the row's reserved line says, or `null` where the message carries none.
      *
@@ -50,6 +60,9 @@ export interface RowContents {
      * added a second mark the row does not show is not a row that changed.
      */
     readonly reading: { readonly aspect: MailEnrichmentAspect; readonly text: string } | null;
+
+    /** The spam verdict and kind, which fold the row or badge it; who reached it is said only to a screen reader. */
+    readonly spam: { readonly verdict: MailSpamVerdictValue; readonly subcategory: MailSpamSubcategory | null } | null;
 }
 
 /** What a row draws, out of the answer the page carried about it. */
@@ -67,7 +80,9 @@ export function rowMark(email: MailTimelineEntry): RowContents {
         hasAttachments: email.hasAttachments,
         attachmentCount: email.attachmentCount,
         threadMessageCount: email.threadMessageCount,
+        senderMark: senderMarkOf(email.sender),
         reading: reading === null ? null : { aspect: reading.aspect, text: reading.text },
+        spam: email.spam === null ? null : { verdict: email.spam.verdict, subcategory: email.spam.spamSubcategory },
     };
 }
 
@@ -84,8 +99,11 @@ export function sameRow(one: RowContents, other: RowContents): boolean {
         one.hasAttachments === other.hasAttachments &&
         one.attachmentCount === other.attachmentCount &&
         one.threadMessageCount === other.threadMessageCount &&
+        one.senderMark === other.senderMark &&
         one.reading?.aspect === other.reading?.aspect &&
-        (one.reading?.text ?? null) === (other.reading?.text ?? null)
+        (one.reading?.text ?? null) === (other.reading?.text ?? null) &&
+        one.spam?.verdict === other.spam?.verdict &&
+        (one.spam?.subcategory ?? null) === (other.spam?.subcategory ?? null)
     );
 }
 

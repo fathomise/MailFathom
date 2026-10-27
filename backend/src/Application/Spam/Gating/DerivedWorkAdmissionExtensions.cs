@@ -7,8 +7,8 @@ namespace MailFathom.Application.Spam.Gating;
 /// <summary>Reads an admission as the one question every consumer of the gate actually asks.</summary>
 /// <remarks>
 /// Three of the five answers permit derived work and two do not, and writing that split out at each call site is how
-/// the two released answers eventually get treated as a held message somewhere. Naming it once is what keeps a wedged
-/// scanner from silently stopping the index in one path while releasing correctly in another.
+/// the two released answers eventually get treated as a held message somewhere. Naming it once is what keeps a stalled
+/// classification from silently stopping the index in one path while releasing correctly in another.
 /// </remarks>
 public static class DerivedWorkAdmissionExtensions
 {

@@ -7,7 +7,6 @@ using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Persistence;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Emails;
-using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using Microsoft.EntityFrameworkCore;
 using Pgvector;
@@ -48,12 +47,10 @@ internal sealed class EmailEmbeddingStore(MailFathomDbContext dbContext, TimePro
 
     /// <inheritdoc />
     /// <remarks>
-    /// The existing rows are read first and updated in place, so re-embedding a passage under the profile already
-    /// serving it replaces one row rather than violating the key it is unique on; the read is what keeps the ordinary
-    /// repeat from being a race at all. A losing writer in a genuine race reads none of the winner's rows inside its
-    /// own transaction and so still collides at commit, which is why
-    /// <see cref="PersistenceConcurrencyConflicts" /> names this key: the collision is classified as a
-    /// conflict, and the caller's policy retries it from a fresh read that finds the winner's rows and updates them.
+    /// One statement whose conflict clause replaces a passage's existing vector under this profile, so re-embedding a
+    /// passage and losing a race to a competing writer are one case rather than two: neither violates the key, so
+    /// neither reaches the retry policy and neither is logged as a failed command.
+    /// <see cref="EmailEmbeddingUpsertStatement" /> holds why the read-then-insert it replaced was the wrong shape.
     /// </remarks>
     public async Task SaveEmbeddingsAsync(
         IPersistenceSession session,
@@ -70,42 +67,25 @@ internal sealed class EmailEmbeddingStore(MailFathomDbContext dbContext, TimePro
         }
 
         var sessionDbContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
-        var profileId = profile.Id.Value;
-        Guid[] chunkIds = [.. embeddings.Select(embedding => embedding.ChunkId.Value)];
 
-        var storedVectors = await sessionDbContext.EmailEmbeddings
-            .Where(embedding => embedding.EmbeddingProfileId == profileId)
-            .Where(embedding => chunkIds.Contains(embedding.EmailChunkId))
-            .ToDictionaryAsync(embedding => embedding.EmailChunkId, cancellationToken);
-
-        var generatedAt = timeProvider.GetUtcNow();
-
-        foreach (var embedding in embeddings)
-        {
-            var vector = new Vector(embedding.Vector.Components);
-
-            if (storedVectors.TryGetValue(embedding.ChunkId.Value, out var storedVector))
+        // The width is written from the profile rather than inherited through the profile reference: it is half of
+        // what the check constraint compares, so the row has to state what this write believed it was storing.
+        object[] parameters =
+        [
+            profile.Id.Value,
+            profile.Identity.Dimension,
+            timeProvider.GetUtcNow(),
+            .. embeddings.SelectMany(embedding => new object[]
             {
-                storedVector.Dimension = profile.Identity.Dimension;
-                storedVector.Embedding = vector;
-                storedVector.GeneratedAt = generatedAt;
+                embedding.ChunkId.Value,
+                new Vector(embedding.Vector.Components),
+            }),
+        ];
 
-                continue;
-            }
-
-            sessionDbContext.EmailEmbeddings.Add(new EmailEmbeddingEntity
-            {
-                EmailChunkId = embedding.ChunkId.Value,
-                EmbeddingProfileId = profileId,
-
-                // Written rather than inherited from the profile navigation, which is deliberately not assigned: the
-                // width beside the vector is half of what the check constraint compares, and letting EF's key fixup
-                // supply it would mean the row no longer states what this write believed it was storing.
-                Dimension = profile.Identity.Dimension,
-                Embedding = vector,
-                GeneratedAt = generatedAt,
-            });
-        }
+        await sessionDbContext.Database.ExecuteSqlRawAsync(
+            EmailEmbeddingUpsertStatement.Compose(sessionDbContext.Model, embeddings.Count),
+            parameters,
+            cancellationToken);
     }
 
     /// <summary>One outstanding passage, as the projection returns it.</summary>

@@ -347,6 +347,8 @@ internal sealed record ClientMailTimelineResponse(
 /// <param name="Preview">The opening of the message's own text, bounded, or <see langword="null" /> where nothing has extracted the message yet.</param>
 /// <param name="Enrichment">What a derivation concluded about the message, or <see langword="null" /> where none has reached it.</param>
 /// <param name="ThreadMessageCount">How many messages this user may see in the row's conversation, or <see langword="null" /> where threading has placed the message in none.</param>
+/// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
+/// <param name="Sender">The facts about who sent the message that a row's sender mark is chosen from.</param>
 /// <remarks>
 /// <para>
 /// The three flags are published as the states a row draws rather than as the snapshot they came from, because a screen
@@ -399,7 +401,9 @@ internal sealed record ClientMailTimelineEntryResponse(
     long SizeOctets,
     string? Preview,
     ClientMailEnrichmentResponse? Enrichment,
-    int? ThreadMessageCount)
+    int? ThreadMessageCount,
+    ClientMailSpamVerdictResponse? Spam,
+    ClientMailListedSenderResponse Sender)
 {
     /// <summary>Describes one row for the wire.</summary>
     /// <param name="row">The row the use case read.</param>
@@ -443,5 +447,46 @@ internal sealed record ClientMailTimelineEntryResponse(
         email.SizeOctets,
         preview,
         ClientMailEnrichmentResponse.For(enrichment),
-        threadMessageCount);
+        threadMessageCount,
+        ClientMailSpamVerdictResponse.For(email.Spam),
+        ClientMailListedSenderResponse.For(email.SenderVerification));
+}
+
+/// <summary>What a row publishes about who sent its message: enough to choose the sender mark, and nothing more.</summary>
+/// <param name="AuthorAuthentication">What was established about the displayed author, as the outcome's own name.</param>
+/// <param name="DeploymentTrust">Whether this deployment recognizes that author, as the level's own name.</param>
+/// <param name="SignatureOutcome">What verifying the message's own signature concluded — <c>NotSigned</c>, <c>Verified</c>, <c>Failed</c>, or <c>NotVerifiable</c>.</param>
+/// <param name="SignerMatchesAuthor">Whether the signer is the author the message displays.</param>
+/// <remarks>
+/// <para>
+/// Four facts side by side and never a combined value, for the reason the message route publishes its verdict that
+/// way: a mark drawn from them is the client's rule, and a value combining them here would be a second copy of it. The
+/// evidence each was reached from — the domains, the DMARC result, the signer — stays on the message route, which is
+/// what a details popup opened from the row reads; a list page carrying it would publish what no row draws.
+/// </para>
+/// <para>
+/// Every row carries it, sent mail included, because the facts are the message's; which rows draw a mark is the
+/// screen's to decide. They are personal data like the rest of the row.
+/// </para>
+/// </remarks>
+internal sealed record ClientMailListedSenderResponse(
+    string AuthorAuthentication,
+    string DeploymentTrust,
+    string SignatureOutcome,
+    bool SignerMatchesAuthor)
+{
+    /// <summary>Describes one message's sender facts for a row.</summary>
+    /// <param name="verification">The conclusions the read carried.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="verification" /> is <see langword="null" />.</exception>
+    internal static ClientMailListedSenderResponse For(SenderVerification verification)
+    {
+        ArgumentNullException.ThrowIfNull(verification);
+
+        return new ClientMailListedSenderResponse(
+            verification.AuthorAuthentication.ToString(),
+            verification.DeploymentTrust.ToString(),
+            verification.Signature.Outcome.ToString(),
+            verification.Signature.SignerMatchesAuthor);
+    }
 }

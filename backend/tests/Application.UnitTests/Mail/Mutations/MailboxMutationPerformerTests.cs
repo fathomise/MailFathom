@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Mail.Mutations;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization.Sessions;
@@ -13,6 +14,7 @@ using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Mutations.Audit;
+using MailFathom.Domain.Notifications;
 using MailFathom.Domain.Transport;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
@@ -280,6 +282,83 @@ public sealed class MailboxMutationPerformerTests
         Assert.Equal(MailboxMutationStage.Abandoned, record.Stage);
         Assert.Equal(1, record.AttemptCount);
         Assert.Equal(MailFathomErrorCode.MailboxMutationUnsupported, record.LastFailure);
+    }
+
+    /// <summary>A change a person asked for and the server would not take is put in front of them, leading to the message.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenAPersonsChangeIsGivenUp_TellsTheAccountsUsersWhichActFailed()
+    {
+        // Arrange
+        var context = new PerformerContext(maximumAttempts: 5);
+        var request = MailboxMutationRequest.Relocate(
+            StoredEmailId.Create(Guid.CreateVersion7()),
+            Occurrence(42U),
+            MailboxMutationRequester.Command("client-move-1"),
+            ArchivePath);
+        context.FailRelocationWith(new MailboxMutationUnsupportedException(
+            Account,
+            InboxFolder.Alias,
+            MailboxMutation.Relocate.Name,
+            "UIDPLUS extension (RFC 4315)"));
+
+        // Act
+        await Assert.ThrowsAsync<MailboxMutationUnsupportedException>(
+            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+
+        // Assert
+        var notification = Assert.Single(context.Notifications.Recorded);
+        Assert.Equal(NotificationCause.MailboxChangeAbandoned, notification.Statement?.Cause);
+        Assert.Equal((int)MailboxChangeAct.Move, notification.Statement?.Counted);
+        Assert.Equal(context.Store.RecordOf(request).Id, notification.Target.MailboxChange);
+        Assert.Equal(request.StoredEmailId, notification.Target.Message);
+    }
+
+    /// <summary>A notification that cannot be written costs that notification and leaves the change given up as it was.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheNotificationOfAGivenUpChangeCannotBeWritten_StillAbandonsTheRecord()
+    {
+        // Arrange
+        var context = new PerformerContext(maximumAttempts: 5);
+        var request = MailboxMutationRequest.Relocate(
+            StoredEmailId.Create(Guid.CreateVersion7()),
+            Occurrence(42U),
+            MailboxMutationRequester.Command("client-move-1"),
+            ArchivePath);
+        context.FailRelocationWith(new MailboxMutationUnsupportedException(
+            Account,
+            InboxFolder.Alias,
+            MailboxMutation.Relocate.Name,
+            "UIDPLUS extension (RFC 4315)"));
+        context.Notifications.RefusesRecords = true;
+
+        // Act
+        await Assert.ThrowsAsync<MailboxMutationUnsupportedException>(
+            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+
+        // Assert
+        Assert.Equal(MailboxMutationStage.Abandoned, context.Store.RecordOf(request).Stage);
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
+    /// <summary>A rule's change is the rule's business rather than an act anybody watched happen, so nobody is told it was given up.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenARulesChangeIsGivenUp_TellsNobody()
+    {
+        // Arrange
+        var context = new PerformerContext(maximumAttempts: 5);
+        var request = RelocationRequest();
+        context.FailRelocationWith(new MailboxMutationUnsupportedException(
+            Account,
+            InboxFolder.Alias,
+            MailboxMutation.Relocate.Name,
+            "UIDPLUS extension (RFC 4315)"));
+
+        // Act
+        await Assert.ThrowsAsync<MailboxMutationUnsupportedException>(
+            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+
+        // Assert
+        Assert.Empty(context.Notifications.Recorded);
     }
 
     /// <summary>
@@ -853,11 +932,18 @@ public sealed class MailboxMutationPerformerTests
                     new PersistenceConcurrencyOptions { MaximumCommitAttempts = 1 },
                     TimeProvider.System),
                 this.AuditTrail,
+                new MailFailureNotifications(
+                    new NotificationRaiser(this.Notifications, ClientSignalPublishers.ReachingNobody),
+                    new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
+                    TimeProvider.System),
                 signals ?? ClientSignalPublishers.ReachingNobody,
                 new MailboxMutationOptions { MaximumAttempts = maximumAttempts });
         }
 
         internal InMemoryMailboxMutationRecordStore Store { get; } = new();
+
+        /// <summary>Gets what the account's one user was told about a change that never reached the server.</summary>
+        internal InMemoryNotificationStore Notifications { get; } = new();
 
 
         internal RecordingMailboxMutationAuditTrail AuditTrail { get; } = new();

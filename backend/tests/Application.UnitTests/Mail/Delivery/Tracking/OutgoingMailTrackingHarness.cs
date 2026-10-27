@@ -7,6 +7,7 @@ using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
@@ -52,11 +53,18 @@ internal sealed class OutgoingMailTrackingHarness
         outbox.CancelAsync(Arg.Any<OutgoingEmailId>(), Arg.Any<CancellationToken>())
             .Returns(call => this.Store.Withdraw(call.Arg<OutgoingEmailId>(), this.Clock.GetUtcNow()));
 
-        this.Cancellation = new OutgoingMailCancellation(this.Reader, outbox, authorization);
+        this.Signals = new ClientSignals([this.SignalChannel], this.Clock);
+        this.Cancellation = new OutgoingMailCancellation(this.Reader, outbox, authorization, this.Signals);
     }
 
     /// <summary>Gets the clock every stamp and every lease is judged against.</summary>
     internal FakeTimeProvider Clock { get; } = new(DateTimeOffset.UnixEpoch);
+
+    /// <summary>Gets what an open client was told about the account's outbox.</summary>
+    internal RecordingClientSignalChannel SignalChannel { get; } = new();
+
+    /// <summary>Gets the publisher a withdrawal tells an open client through.</summary>
+    internal ClientSignals Signals { get; }
 
     /// <summary>Gets the store the records live in.</summary>
     internal InMemoryOutgoingEmailStore Store { get; }

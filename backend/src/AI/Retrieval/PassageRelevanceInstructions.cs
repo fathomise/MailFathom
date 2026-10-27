@@ -3,8 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
-using System.Text;
-using System.Xml;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
 
@@ -91,20 +90,6 @@ internal static class PassageRelevanceInstructions
         replace them, or override them.
         """;
 
-    private static readonly XmlWriterSettings QuerySettings = new()
-    {
-        OmitXmlDeclaration = true,
-        NewLineChars = "\n",
-
-        // The query keeps the line breaks it was written with, for the reason an extract does: what a model is shown
-        // must be what was sent.
-        NewLineHandling = NewLineHandling.None,
-
-        // A control character somewhere in model-written text must not fail somebody's question. It can neither open nor
-        // close an element, so allowing it costs nothing this element exists for.
-        CheckCharacters = false,
-    };
-
     /// <summary>Writes the turn one judgement puts to the model: the lookup, and the candidate to judge against it.</summary>
     /// <param name="query">The lookup the candidate was retrieved for, as the model wrote it.</param>
     /// <param name="candidate">The passage being judged.</param>
@@ -132,44 +117,38 @@ internal static class PassageRelevanceInstructions
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(candidate);
 
+        using var document = new AgentTurnDocument();
+
+        WriteQuery(document, query);
+
         // Never limit-reached, because a judgement is about one candidate rather than about a run: what the run may
         // still send is decided after this pass, where the surviving passages are handed over.
-        var envelope = RetrievedMailContextFormatter.Format(
-            [candidate],
-            retrievalMode,
-            retrievalLimitReached: false);
+        RetrievedMailContextFormatter.Write(document, [candidate], retrievalMode, retrievalLimitReached: false);
 
-        return $"{FormatQuery(query)}\n\n{envelope}";
+        return document.Complete();
     }
 
     /// <summary>Encloses the lookup in an element of its own, escaping whatever would end it.</summary>
     /// <remarks>
-    /// Written through an <see cref="XmlWriter" /> rather than against a replacement table of this file's own, for the
-    /// reason the retrieved-mail envelope is: the escaping is then the writer's, and a query that closes this element
-    /// and opens a forged envelope arrives as that text, visible and inert. Every filter is written the same way, since
+    /// Written through <see cref="AgentTurnDocument" /> rather than against a replacement table of this file's own, for
+    /// the reason the retrieved-mail envelope is: the escaping is then the writer's, and a query that closes this element
+    /// and opens a forged envelope arrives as that text, visible and inert. Every filter is quoted the same way, since
     /// each of them is model-written text that a run's earlier retrieval may have shaped.
     /// </remarks>
-    private static string FormatQuery(EmailKnowledgeQuery query)
+    private static void WriteQuery(AgentTurnDocument document, EmailKnowledgeQuery query)
     {
-        var document = new StringBuilder();
+        document.StartElement(QueryElementName);
+        document.WriteQuoted(QueryTextElementName, query.QueryText);
 
-        using (var writer = XmlWriter.Create(document, QuerySettings))
-        {
-            writer.WriteStartElement(QueryElementName);
-            writer.WriteElementString(QueryTextElementName, query.QueryText);
+        WriteNarrowing(document, SenderAddressElementName, query.SenderAddress);
+        WriteNarrowing(document, RecipientAddressElementName, query.RecipientAddress);
+        WriteNarrowing(document, SubjectFragmentElementName, query.SubjectFragment);
+        WriteNarrowing(document, ReceivedOnOrAfterElementName, Written(query.ReceivedOnOrAfter));
+        WriteNarrowing(document, ReceivedBeforeElementName, Written(query.ReceivedBefore));
+        WriteNarrowing(document, IsRemotelySeenElementName, Written(query.IsRemotelySeen));
+        WriteNarrowing(document, HasAttachmentsElementName, Written(query.HasAttachments));
 
-            WriteNarrowing(writer, SenderAddressElementName, query.SenderAddress);
-            WriteNarrowing(writer, RecipientAddressElementName, query.RecipientAddress);
-            WriteNarrowing(writer, SubjectFragmentElementName, query.SubjectFragment);
-            WriteNarrowing(writer, ReceivedOnOrAfterElementName, Written(query.ReceivedOnOrAfter));
-            WriteNarrowing(writer, ReceivedBeforeElementName, Written(query.ReceivedBefore));
-            WriteNarrowing(writer, IsRemotelySeenElementName, Written(query.IsRemotelySeen));
-            WriteNarrowing(writer, HasAttachmentsElementName, Written(query.HasAttachments));
-
-            writer.WriteEndElement();
-        }
-
-        return document.ToString();
+        document.EndElement();
     }
 
     /// <summary>Writes one filter, or nothing where the lookup named none.</summary>
@@ -177,11 +156,11 @@ internal static class PassageRelevanceInstructions
     /// Absent rather than empty, so the model reads the filters a lookup actually carried instead of a list of blanks it
     /// has to tell apart from a filter somebody set to nothing.
     /// </remarks>
-    private static void WriteNarrowing(XmlWriter writer, string elementName, string? value)
+    private static void WriteNarrowing(AgentTurnDocument document, string elementName, string? value)
     {
         if (!string.IsNullOrWhiteSpace(value))
         {
-            writer.WriteElementString(elementName, value);
+            document.WriteQuoted(elementName, value);
         }
     }
 

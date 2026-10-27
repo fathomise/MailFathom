@@ -5,6 +5,8 @@
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -114,8 +116,9 @@ internal static class StoredEmailSelectionPredicate
     /// readable and the other reads have to agree with this one about that.
     /// </para>
     /// <para>
-    /// The folder decisions follow: the folders a mapping admits to tools, which no caller can widen, and the junk
-    /// folder unless the caller asked for it.
+    /// The folder decisions follow: the folders a mapping admits to the reader the scope was resolved for, which no caller can widen, and the junk
+    /// folder unless the caller asked for it. An agent's read is answered by the spam verdict instead of by that request,
+    /// which no caller can widen either.
     /// </para>
     /// <para>
     /// Naming one account replaces the scope's containment with an equality and changes nothing else, because the named
@@ -132,7 +135,7 @@ internal static class StoredEmailSelectionPredicate
         MailboxScope scope,
         MailAccountId? withinAccount = null)
     {
-        emails = emails.Where(StoredEmailTombstone.IsNotTombstoned);
+        emails = emails.Where(StoredEmailTombstone.IsNotTombstoned).Where(StoredEmailSettlement.IsSettled);
 
         // The containment is unconditional, which is what makes an empty account list fail closed. The generated
         // identifier names one mailbox across the deployment, so the accounts a caller is assigned are the whole of
@@ -151,9 +154,45 @@ internal static class StoredEmailSelectionPredicate
 
         emails = AccountScopedMailFolders.Admitting(emails, scope.ReadableFolders);
 
-        emails = AccountScopedMailFolders.Excluding(emails, scope.WithheldJunkFolders);
+        emails = scope.Reader is MailboxReaderKind.Person
+            ? AccountScopedMailFolders.Excluding(emails, scope.WithheldJunkFolders)
+            : WithoutMailJudgedSpam(emails, scope.JunkFolders);
 
         return NarrowedToWhatWasAskedAbout(emails, scope);
+    }
+
+    /// <summary>Narrows an agent's read to the mail no verdict withholds from it.</summary>
+    /// <remarks>
+    /// <para>
+    /// A message whose current verdict is spam is out, whichever stage reached it and whichever folder holds it, and the
+    /// junk folder's mail is out unless the person marked the message not spam. Both read the verdict row when the
+    /// query runs, so a message marked either way leaves or returns on the next read with nothing reindexed.
+    /// </para>
+    /// <para>
+    /// The verdict row is optional, so a message no stage has judged is ordinary mail outside the junk folder.
+    /// <c>MailboxScopeResolver</c> states the same rule about one email a read reaches by its identifier, and the two
+    /// change together.
+    /// </para>
+    /// </remarks>
+    private static IQueryable<StoredEmailEntity> WithoutMailJudgedSpam(
+        IQueryable<StoredEmailEntity> emails,
+        IReadOnlyList<MailFolderIdentity> junkFolders)
+    {
+        emails = emails.Where(email =>
+            email.SpamClassification == null || email.SpamClassification.Verdict != SpamVerdict.Spam);
+
+        foreach (var (accountId, aliases) in AccountScopedMailFolders.AliasesByAccount(junkFolders))
+        {
+            emails = emails.Where(email =>
+                email.MailboxAccountId != accountId
+                || email.Folder.Alias == null
+                || !aliases.Contains(email.Folder.Alias)
+                || (email.SpamClassification != null
+                    && email.SpamClassification.DecidedBy == SpamClassificationStage.Person
+                    && email.SpamClassification.Verdict == SpamVerdict.NotSpam));
+        }
+
+        return emails;
     }
 
     /// <summary>Narrows the emails to the conversation or the selection a question was asked about, where it named one.</summary>

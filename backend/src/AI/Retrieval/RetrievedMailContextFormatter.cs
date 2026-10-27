@@ -3,8 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
-using System.Text;
-using System.Xml;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
@@ -21,16 +20,21 @@ namespace MailFathom.AI.Retrieval;
 /// saying "ignore the previous instructions" is written in the same voice as the instruction it is imitating.
 /// </para>
 /// <para>
-/// Nothing a message contains can end an element or open one, because every value is written through an
-/// <see cref="XmlWriter" /> that escapes what would: a passage whose text closes the envelope and opens a fake
+/// Nothing a message contains can end an element or open one, because every value is written through
+/// <see cref="AgentTurnDocument" />, which escapes what would: a passage whose text closes the envelope and opens a fake
 /// instruction arrives as that text, visible and inert. That is why the escaping is the writer's rather than a
 /// replacement table of this file's own — a delimiter this formatter learns to write is escaped by the same mechanism on
-/// the day it is added.
+/// the day it is added, which is the mechanism every other turn is written through as well.
 /// </para>
 /// <para>
 /// Each extract carries the identity it was retrieved under, unchanged: the stable local identifier an answer cites, and
 /// the account and folder it is in. An answer that cannot say which message a claim came from cannot be
 /// checked, and the identity is what survives formatting to make that possible.
+/// </para>
+/// <para>
+/// Each message element also says where the message came from — the sender verdict, the junk folder, a first contact —
+/// as the attributes <see cref="AgentTurnDocument.WriteProvenance" /> writes from what this deployment recorded, so a
+/// claim resting on a message that only claims a name can be qualified, and no extract can claim a status of its own.
 /// </para>
 /// <para>
 /// A file the message carried is written in an element of its own, carrying the file and the page it was read from, and
@@ -131,21 +135,6 @@ internal static class RetrievedMailContextFormatter
     /// <summary>Names the attribute carrying that segment's one-based number in reading order.</summary>
     internal const string AttachmentSegmentNumberAttributeName = "segment-number";
 
-    private static readonly XmlWriterSettings EnvelopeSettings = new()
-    {
-        OmitXmlDeclaration = true,
-        Indent = true,
-        IndentChars = "  ",
-        NewLineChars = "\n",
-
-        // The extract keeps the line breaks the message had, because what a model is shown must be what was received.
-        NewLineHandling = NewLineHandling.None,
-
-        // A control character somewhere in a message must not fail somebody's question. It cannot open or close an
-        // element, so the reason the writer is here — that no content becomes a delimiter — is untouched by allowing it.
-        CheckCharacters = false,
-    };
-
     /// <summary>Writes one lookup's passages into the envelope the model reads them inside.</summary>
     /// <param name="passages">The extracts the lookup found, in the order it ranked them.</param>
     /// <param name="retrievalMode">How the lookup ranked the mail it drew them from.</param>
@@ -164,32 +153,47 @@ internal static class RetrievedMailContextFormatter
         EmailSearchRetrievalMode retrievalMode,
         bool retrievalLimitReached)
     {
+        using var document = new AgentTurnDocument();
+
+        Write(document, passages, retrievalMode, retrievalLimitReached);
+
+        return document.Complete();
+    }
+
+    /// <summary>Writes one lookup's passages into a document that may carry more than the envelope.</summary>
+    /// <param name="document">The document the envelope is written into.</param>
+    /// <param name="passages">The extracts the lookup found, in the order it ranked them.</param>
+    /// <param name="retrievalMode">How the lookup ranked the mail it drew them from.</param>
+    /// <param name="retrievalLimitReached">Whether this run may be handed no more mail than the envelope carries.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="document" /> or <paramref name="passages" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="retrievalMode" /> has no value this envelope publishes.</exception>
+    internal static void Write(
+        AgentTurnDocument document,
+        IReadOnlyList<EmailKnowledgePassage> passages,
+        EmailSearchRetrievalMode retrievalMode,
+        bool retrievalLimitReached)
+    {
+        ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(passages);
 
         var mode = Published(retrievalMode);
-        var envelope = new StringBuilder();
 
-        using (var writer = XmlWriter.Create(envelope, EnvelopeSettings))
+        document.StartElement(RetrievalElementName);
+        document.WriteAttribute(RetrievalModeAttributeName, mode);
+
+        if (retrievalLimitReached)
         {
-            writer.WriteStartElement(RetrievalElementName);
-            writer.WriteAttributeString(RetrievalModeAttributeName, mode);
-
-            if (retrievalLimitReached)
-            {
-                // Absent rather than written as false on an ordinary lookup, so the attribute's presence is the signal
-                // and a model reading the common case is not asked to parse a negation on every result.
-                writer.WriteAttributeString(RetrievalLimitReachedAttributeName, "true");
-            }
-
-            foreach (var passage in passages)
-            {
-                WriteMessage(writer, passage);
-            }
-
-            writer.WriteEndElement();
+            // Absent rather than written as false on an ordinary lookup, so the attribute's presence is the signal and a
+            // model reading the common case is not asked to parse a negation on every result.
+            document.WriteAttribute(RetrievalLimitReachedAttributeName, "true");
         }
 
-        return envelope.ToString();
+        foreach (var passage in passages)
+        {
+            WriteMessage(document, passage);
+        }
+
+        document.EndElement();
     }
 
     /// <summary>Writes the document a model reads when the search use case refused the lookup it wrote.</summary>
@@ -209,17 +213,14 @@ internal static class RetrievedMailContextFormatter
         ArgumentNullException.ThrowIfNull(filterName);
         ArgumentNullException.ThrowIfNull(reason);
 
-        var document = new StringBuilder();
+        using var document = new AgentTurnDocument();
 
-        using (var writer = XmlWriter.Create(document, EnvelopeSettings))
-        {
-            writer.WriteStartElement(RefusalElementName);
-            writer.WriteAttributeString(RefusedFilterAttributeName, filterName);
-            writer.WriteString(reason);
-            writer.WriteEndElement();
-        }
+        document.StartElement(RefusalElementName);
+        document.WriteAttribute(RefusedFilterAttributeName, filterName);
+        document.WriteQuotedContent(reason);
+        document.EndElement();
 
-        return document.ToString();
+        return document.Complete();
     }
 
     /// <summary>Maps the ranking the application reports onto the word this envelope publishes.</summary>
@@ -238,41 +239,43 @@ internal static class RetrievedMailContextFormatter
             "The retrieval mode has no value this envelope publishes."),
     };
 
-    private static void WriteMessage(XmlWriter writer, EmailKnowledgePassage passage)
+    private static void WriteMessage(AgentTurnDocument document, EmailKnowledgePassage passage)
     {
-        writer.WriteStartElement(MessageElementName);
+        document.StartElement(MessageElementName);
 
-        writer.WriteAttributeString(MessageIdAttributeName, passage.StoredEmailId.ToString());
-        writer.WriteAttributeString(AccountAttributeName, passage.AccountId.Value);
-        writer.WriteAttributeString(FolderAttributeName, passage.Folder.Path);
+        document.WriteAttribute(MessageIdAttributeName, passage.StoredEmailId.ToString());
+        document.WriteAttribute(AccountAttributeName, passage.AccountId.Value);
+        document.WriteAttribute(FolderAttributeName, passage.Folder.Path);
 
         if (passage.ReceivedAt is { } receivedAt)
         {
-            writer.WriteAttributeString(
+            document.WriteAttribute(
                 ReceivedAttributeName,
                 receivedAt.ToString("O", CultureInfo.InvariantCulture));
         }
+
+        document.WriteProvenance(passage.Provenance);
 
         // Absent rather than empty where the message carried none, so the model is not left reading a blank subject as
         // one somebody wrote.
         if (passage.Subject is { } subject)
         {
-            writer.WriteElementString(SubjectElementName, subject);
+            document.WriteQuoted(SubjectElementName, subject);
         }
 
         // Absent rather than empty where nothing was cut from the body, so a message whose words live entirely in a file
         // is not presented as one that said nothing.
         if (passage.Text.Length is not 0)
         {
-            writer.WriteElementString(ExtractElementName, passage.Text);
+            document.WriteQuoted(ExtractElementName, passage.Text);
         }
 
         foreach (var attachmentExtract in passage.AttachmentExtracts)
         {
-            WriteAttachmentExtract(writer, attachmentExtract);
+            WriteAttachmentExtract(document, attachmentExtract);
         }
 
-        writer.WriteEndElement();
+        document.EndElement();
     }
 
     /// <summary>Writes one file's contribution, in the element that says who wrote the words in it.</summary>
@@ -280,31 +283,30 @@ internal static class RetrievedMailContextFormatter
     /// The coordinate is written as attributes rather than into the text, so nothing a sender named a file can be read
     /// as part of the extract — and so an answer citing page fourteen of a report has the number to cite.
     /// </remarks>
-    private static void WriteAttachmentExtract(XmlWriter writer, EmailKnowledgeAttachmentExtract extract)
+    private static void WriteAttachmentExtract(AgentTurnDocument document, EmailKnowledgeAttachmentExtract extract)
     {
-        writer.WriteStartElement(extract.Kind is AttachmentTextKind.ImageDescription
+        document.StartElement(extract.Kind is AttachmentTextKind.ImageDescription
             ? ImageDescriptionElementName
             : AttachmentExtractElementName);
 
-        writer.WriteAttributeString(
+        document.WriteAttribute(
             AttachmentPositionAttributeName,
             extract.AttachmentPosition.ToString(CultureInfo.InvariantCulture));
 
         if (extract.FileName is { } fileName)
         {
-            writer.WriteAttributeString(AttachmentFileNameAttributeName, fileName);
+            document.WriteAttribute(AttachmentFileNameAttributeName, fileName);
         }
 
         if (extract.Segment is { } segment)
         {
-            writer.WriteAttributeString(AttachmentSegmentKindAttributeName, segment.Kind.ToString());
-            writer.WriteAttributeString(
+            document.WriteAttribute(AttachmentSegmentKindAttributeName, segment.Kind.ToString());
+            document.WriteAttribute(
                 AttachmentSegmentNumberAttributeName,
                 segment.Number.ToString(CultureInfo.InvariantCulture));
         }
 
-        writer.WriteString(extract.Text);
-
-        writer.WriteEndElement();
+        document.WriteQuotedContent(extract.Text);
+        document.EndElement();
     }
 }

@@ -7,6 +7,7 @@ using MailFathom.Domain.Transport;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure.Mail;
+using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.Secrets.Discovery;
 using Xunit;
 
@@ -159,6 +160,65 @@ public sealed class MailAccountDeliveryValidationTests
 
         // Assert
         Assert.Contains(results, result => result.ErrorMessage!.Contains("no submission host", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_SigningIdentityWithoutASubmissionHost_IsRefused()
+    {
+        // Arrange
+        var account = ConfiguredMailAccounts.Primary();
+        account.Delivery = new MailAccountDeliveryOptions
+        {
+            OpenPgpSigningKey = new ConfiguredSecret { SecretReference = "file:/etc/mailfathom/openpgp/signing.asc" },
+        };
+
+        // Act
+        var results = ConfiguredMailAccounts.Validate(ConfiguredMailAccounts.Holding(account));
+
+        // Assert
+        Assert.Contains(
+            results,
+            result => result.ErrorMessage!.Contains("names a signing identity and no submission host", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_SmimeCertificateWithoutItsPrivateKey_IsRefusedNamingTheMissingKey()
+    {
+        // Arrange
+        var account = ConfiguredMailAccounts.Primary();
+        account.Delivery = ConfiguredMailAccounts.Delivery();
+        account.Delivery.SmimeSigningCertificate = new SmimeSigningCertificateOptions
+        {
+            CertificateChain = new ConfiguredSecret { SecretReference = "file:/etc/mailfathom/smime/signing.pem" },
+        };
+
+        // Act
+        var results = ConfiguredMailAccounts.Validate(ConfiguredMailAccounts.Holding(account));
+
+        // Assert
+        Assert.Contains(
+            results,
+            result => result.ErrorMessage!.Contains("Delivery:SmimeSigningCertificate:PrivateKey — ", StringComparison.Ordinal));
+    }
+
+    /// <summary>Either format, both, or neither may be configured, and judging the material itself is left to the secret walk that resolves it.</summary>
+    [Fact]
+    public void Validate_BothSigningIdentitiesBesideACompleteEndpoint_ReportsNoError()
+    {
+        // Arrange
+        var account = ConfiguredMailAccounts.Primary();
+        account.Delivery = ConfiguredMailAccounts.Delivery();
+        account.Delivery.SmimeSigningCertificate = new SmimeSigningCertificateOptions
+        {
+            Bundle = new ConfiguredSecret { SecretReference = "file:/etc/mailfathom/smime/signing.p12" },
+        };
+        account.Delivery.OpenPgpSigningKey = new ConfiguredSecret { SecretReference = "file:/etc/mailfathom/openpgp/signing.asc" };
+
+        // Act
+        var results = ConfiguredMailAccounts.Validate(ConfiguredMailAccounts.Holding(account));
+
+        // Assert
+        Assert.Empty(results);
     }
 
     /// <summary>

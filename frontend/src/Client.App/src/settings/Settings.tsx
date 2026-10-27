@@ -10,6 +10,7 @@ import {
 } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { SymbolControl } from '../controls/SymbolControl';
+import { useTabSwipe } from '../controls/useTabSwipe';
 import type { IconName } from '../controls/icons';
 import { PersonAvatar } from '../controls/PersonAvatar';
 import { Switch } from '../controls/Switch';
@@ -122,6 +123,7 @@ export function Settings({
     const named = useId();
     const sectionId = useId();
     const [open, setOpen] = useState<SettingsSection>('profile');
+    const sectionSwipe = useTabSwipe(sections, open, setOpen);
     const twoPanes = useTwoPanes();
 
     // The one imperative browser API this surface synchronizes with, which is the whole of what an effect is for. It
@@ -219,7 +221,8 @@ export function Settings({
                         role="tabpanel"
                         id={`${sectionId}-panel`}
                         aria-labelledby={`${sectionId}-${open}`}
-                        className="flex min-h-0 flex-1 flex-col gap-2.75 overflow-y-auto px-4 pt-3.5 pb-7"
+                        className="flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom flex-col gap-2.75 overflow-y-auto px-4 pt-3.5 pb-7"
+                        {...sectionSwipe}
                     >
                         {body}
                     </div>

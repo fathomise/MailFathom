@@ -3,7 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Transport;
+using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.Policies;
+using MailFathom.Infrastructure.Secrets.Discovery;
 
 namespace MailFathom.Infrastructure.Mail;
 
@@ -131,6 +133,26 @@ public sealed class MailAccountDeliveryOptions
     /// unresolvable reference no operator wrote.
     /// </remarks>
     public MailAccountSecretOptions? Secrets { get; set; }
+
+    /// <summary>Gets or sets the S/MIME certificate this account's outgoing mail is signed with, or nothing to sign none with S/MIME.</summary>
+    /// <remarks>
+    /// It is an identity of this account rather than of the deployment, because a signature states who wrote the mail
+    /// and every account writes as somebody else. Absent by default for the reason <see cref="Secrets" /> is: secret
+    /// discovery walks the bound graph, and an empty block left here would be found for every account.
+    /// </remarks>
+    public SmimeSigningCertificateOptions? SmimeSigningCertificate { get; set; }
+
+    /// <summary>Gets or sets the ASCII-armored OpenPGP secret key this account's outgoing mail is signed with as PGP/MIME, whose nested password block supplies its passphrase.</summary>
+    /// <remarks>
+    /// Independent of <see cref="SmimeSigningCertificate" />: an account may configure either, both, or neither, since
+    /// its correspondents may read one format, the other, or both. Absent by default for the reason that block is.
+    /// </remarks>
+    public ConfiguredSecret? OpenPgpSigningKey { get; set; }
+
+    /// <summary>Gets whether this account configures any signing identity.</summary>
+    public bool ConfiguresSigningIdentity =>
+        this.SmimeSigningCertificate is { IsConfigured: true }
+        || !string.IsNullOrWhiteSpace(this.OpenPgpSigningKey?.SecretReference);
 
     /// <summary>Gets whether this account configures a submission endpoint at all.</summary>
     /// <remarks>The host is what decides it, because an endpoint without one names no server, while every other setting here has a usable default or an inherited value.</remarks>

@@ -133,6 +133,7 @@ public sealed class ThreadStateDerivationPassTests
     [InlineData(ThreadStateWithholding.NotActivated)]
     [InlineData(ThreadStateWithholding.AllowanceExhausted)]
     [InlineData(ThreadStateWithholding.ProviderUnavailable)]
+    [InlineData(ThreadStateWithholding.AnswerUnreadable)]
     public async Task RunAsync_ADerivationWithheld_WritesNothingAndEndsThePass(ThreadStateWithholding withholding)
     {
         // Arrange
@@ -261,6 +262,7 @@ public sealed class ThreadStateDerivationPassTests
     [Theory]
     [InlineData(ThreadStateWithholding.AllowanceExhausted)]
     [InlineData(ThreadStateWithholding.ProviderUnavailable)]
+    [InlineData(ThreadStateWithholding.AnswerUnreadable)]
     public async Task RunAsync_APassAWithholdingStopped_IsReportedRatherThanPassedOver(
         ThreadStateWithholding withholding)
     {
@@ -287,7 +289,8 @@ public sealed class ThreadStateDerivationPassTests
                     0,
                     "Karolina",
                     new DateTimeOffset(2026, 9, 7, 15, 0, 0, TimeSpan.Zero),
-                    "we can hold the two-hour response time"),
+                    "we can hold the two-hour response time",
+                    StubEmailProvenanceReader.KnownCorrespondent),
             ],
             ExceedsBound: false);
 

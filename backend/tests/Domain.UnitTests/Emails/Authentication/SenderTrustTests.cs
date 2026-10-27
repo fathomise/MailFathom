@@ -37,6 +37,19 @@ public sealed class SenderTrustTests
         Assert.Equal("grantedBy", refusal.ParamName);
     }
 
+    /// <summary>A verdict an organization's signature reached names that organization, so it is not reached without one.</summary>
+    [Fact]
+    public void Trusted_NamingTheOrganizationSourceWithoutTheOrganization_IsRefused()
+    {
+        // Act
+        var refusal = Assert.Throws<ArgumentException>(() => SenderTrust.Trusted(
+            SenderTrustSource.OrganizationMember,
+            SenderTrustPolicyRevision.None));
+
+        // Assert
+        Assert.Equal("grantedBy", refusal.ParamName);
+    }
+
     /// <summary>The same list always names itself the same way, including in another process.</summary>
     [Fact]
     public void Of_TheSameStatements_ProducesTheSameRevision()

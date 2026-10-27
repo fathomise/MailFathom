@@ -47,7 +47,7 @@ public sealed record SpamClassificationRunTerms
     /// Off, the run passes over a message whose record already names the terms in force and still acts on that record,
     /// which is what makes switching filing on a run that files rather than a run that re-reads a mailbox. On, every
     /// message in scope is read and scored afresh — the explicit request that re-scoring is, and the one form of this run
-    /// that costs a scanner call per message however recently the message was decided.
+    /// that reads every message however recently it was decided.
     /// </remarks>
     public bool Rescores { get; }
 

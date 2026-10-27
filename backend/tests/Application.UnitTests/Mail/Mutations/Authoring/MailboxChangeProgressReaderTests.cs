@@ -43,7 +43,7 @@ public sealed class MailboxChangeProgressReaderTests
         var reader = this.Reader();
 
         // Act
-        var progress = await reader.ReadAsync([opened.Id], TestContext.Current.CancellationToken);
+        var progress = await reader.ReadAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var entry = Assert.Single(progress);
@@ -75,7 +75,7 @@ public sealed class MailboxChangeProgressReaderTests
         var reader = this.Reader();
 
         // Act
-        var progress = await reader.ReadAsync([opened.Id], TestContext.Current.CancellationToken);
+        var progress = await reader.ReadAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var entry = Assert.Single(progress);
@@ -99,7 +99,7 @@ public sealed class MailboxChangeProgressReaderTests
         var reader = this.Reader();
 
         // Act
-        var progress = await reader.ReadAsync([opened.Id], TestContext.Current.CancellationToken);
+        var progress = await reader.ReadAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var entry = Assert.Single(progress);
@@ -110,7 +110,7 @@ public sealed class MailboxChangeProgressReaderTests
 
     /// <summary>A record recorded in a folder the caller may no longer read is absent, the same answer a read of that folder's mail gives.</summary>
     [Fact]
-    public async Task ReadAsync_ARecordInAFolderWithheldFromTools_IsAbsentFromTheAnswer()
+    public async Task ReadAsync_ARecordInAFolderWithheldFromAIReadForAnAgent_IsAbsentFromTheAnswer()
     {
         // Arrange
         var withheld = await this.OpenAsync(FlagRequestIn(Withheld, uid: 11));
@@ -120,10 +120,29 @@ public sealed class MailboxChangeProgressReaderTests
         // Act
         var progress = await reader.ReadAsync(
             [withheld.Id, readable.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(readable.Id, Assert.Single(progress).RecordId);
+    }
+
+    /// <summary>The person following their own change in a folder withheld from AI is told where it stands, exactly as anywhere else.</summary>
+    [Fact]
+    public async Task ReadAsync_ARecordInAFolderWithheldFromAIReadForThePerson_IsInTheAnswer()
+    {
+        // Arrange
+        var withheld = await this.OpenAsync(FlagRequestIn(Withheld, uid: 11));
+        var reader = this.Reader();
+
+        // Act
+        var progress = await reader.ReadAsync(
+            [withheld.Id],
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(withheld.Id, Assert.Single(progress).RecordId);
     }
 
     /// <summary>An identity this caller holds no record for is absent rather than reported, so asking cannot tell it whether somebody else's record exists.</summary>
@@ -136,6 +155,7 @@ public sealed class MailboxChangeProgressReaderTests
         // Act
         var progress = await reader.ReadAsync(
             [MailboxMutationRecordId.Create(Guid.CreateVersion7())],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -155,7 +175,7 @@ public sealed class MailboxChangeProgressReaderTests
 
         // Act
         var thrown = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            reader.ReadAsync(asked, TestContext.Current.CancellationToken));
+            reader.ReadAsync(asked, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal("recordIds.Count", thrown.ParamName);
@@ -171,7 +191,7 @@ public sealed class MailboxChangeProgressReaderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            reader.ReadAsync([opened.Id], TestContext.Current.CancellationToken));
+            reader.ReadAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);

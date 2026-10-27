@@ -96,14 +96,39 @@ public sealed class ThreadStateAgentTests
     }
 
     /// <summary>
-    /// A provider that answered and was paid for buys the same answer if asked again, so the conversation is settled as
-    /// having nothing to say rather than offered to the endpoint forever.
+    /// An answer with no object to read says how one reply came back rather than anything about the conversation, so it
+    /// is withheld and the conversation stays outstanding instead of being recorded as having nothing to say.
     /// </summary>
-    [Fact]
-    public async Task DeriveAsync_AProviderThatAnsweredWithProse_SettlesTheConversationWithNothingToSay()
+    [Theory]
+    [InlineData("I am afraid I cannot help with that.")]
+    [InlineData("""{ \"agreements\": [{ \"text\": \"The response time stays at two hours.\", \"messages\": [0] }""")]
+    public async Task DeriveAsync_AProviderThatAnsweredWithNothingReadable_WithholdsTheDerivationAsUnreadable(string answer)
     {
         // Arrange
-        using var provider = ScriptedTransport.Answering(Completion("I am afraid I cannot help with that."));
+        using var provider = ScriptedTransport.Answering(Completion(answer));
+        var agent = provider.DeriverOver();
+
+        // Act
+        var derivation = await agent.DeriveAsync(Derivable(), MailAccountLanguage.English, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
+        Assert.Empty(derivation.Entries);
+    }
+
+    /// <summary>
+    /// A readable answer that carried nothing usable buys the same answer if asked again, so the conversation is settled
+    /// as having nothing to say rather than offered to the endpoint forever — whether the model wrote nothing or wrote
+    /// statements that every one cited a message the turn never published.
+    /// </summary>
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("""{ \"agreements\": [{ \"text\": \"The response time stays at two hours.\", \"messages\": [9] }] }""")]
+    public async Task DeriveAsync_AProviderThatAnsweredWithAReadableObjectOfNoStatements_SettlesTheConversationWithNothingToSay(
+        string answer)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion(answer));
         var agent = provider.DeriverOver();
 
         // Act
@@ -219,7 +244,8 @@ public sealed class ThreadStateAgentTests
                     0,
                     Marker,
                     new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                    $"a colleague pasted {Marker} into this thread"),
+                    $"a colleague pasted {Marker} into this thread",
+                    StubEmailProvenanceReader.KnownCorrespondent),
             ],
         };
 
@@ -256,7 +282,8 @@ public sealed class ThreadStateAgentTests
                     0,
                     "Karolina",
                     new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                    "we can hold the two-hour response time"),
+                    "we can hold the two-hour response time",
+                    StubEmailProvenanceReader.KnownCorrespondent),
             ],
             ExceedsBound: false);
 

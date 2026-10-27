@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail.Mutations;
@@ -320,6 +321,48 @@ public sealed class SetMailFlagsToolTests
         Assert.Empty(records.OpenedRequests);
     }
 
+    /// <summary>An outbox entry is not a stored message, so its identifier is refused as the unknown email it is and nothing is recorded against it.</summary>
+    [Fact]
+    public async Task SetMailFlagsAsync_AnOutgoingEmailIdentifier_IsRefusedAsAnUnknownEmailWithoutRecording()
+    {
+        // Arrange
+        var outgoingEmailId = Guid.Parse("0198f0a0-3333-7000-8000-000000000003");
+        var tool = ToolOver(out var records, out var targets);
+        targets
+            .FindAsync(StoredEmailId.Create(outgoingEmailId), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<AuthoredMailboxTarget?>(null));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<AuthoredMailChangeTargetNotFoundException>(() =>
+            tool.SetMailFlagsAsync(
+                outgoingEmailId.ToString(),
+                flagged: true,
+                cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, refusal.ErrorCode);
+        Assert.Empty(records.OpenedRequests);
+    }
+
+    /// <summary>A message in a folder withheld from AI is one no agent may reach, so its flags are refused as an unknown email's and nothing is recorded.</summary>
+    [Fact]
+    public async Task SetMailFlagsAsync_AnEmailOfAFolderWithheldFromAI_IsRefusedAsAnUnknownEmailWithoutRecording()
+    {
+        // Arrange
+        var tool = ToolOver(out var records, out _, inboxWithheldFromAI: true);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<AuthoredMailChangeTargetNotFoundException>(() =>
+            tool.SetMailFlagsAsync(
+                Guid.CreateVersion7().ToString(),
+                flagged: true,
+                cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, refusal.ErrorCode);
+        Assert.Empty(records.OpenedRequests);
+    }
+
     /// <summary>Changing a mailbox is its own grant, asked for by the use case whatever entrypoint reached it.</summary>
     [Fact]
     public async Task SetMailFlagsAsync_ACallerHoldingOnlyTheReadingGrant_IsRefused()
@@ -349,12 +392,14 @@ public sealed class SetMailFlagsToolTests
         out RecordingMailboxMutationRecordStore records,
         out IAuthoredMailboxTargetReader targets,
         AccessAuthorization? authorization = null,
-        bool held = false)
+        bool held = false,
+        bool inboxWithheldFromAI = false)
     {
         records = new RecordingMailboxMutationRecordStore();
 
         var folder = MailFolderResolution.FirstBindingOf(Inbox, RemoteFolderPath.Create("INBOX", '/'));
         var localFolders = Substitute.For<ILocalMailFolderStore>();
+        var custody = Substitute.For<IMailAccountCustodyStore>();
         var states = Substitute.For<ILocalEmailStateStore>();
         var auditSettings = Substitute.For<IMailboxMutationAuditSettingsReader>();
 
@@ -362,8 +407,10 @@ public sealed class SetMailFlagsToolTests
         {
             localFolders
                 .ReadAsync(Arg.Any<IPersistenceSession>(), Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult<LocalMailFolderHolding?>(
-                    new LocalMailFolderHolding(MailAccountCustodyPhase.Held, [], [])));
+                .Returns(Task.FromResult<LocalMailFolderHolding?>(new LocalMailFolderHolding([], [])));
+            custody
+                .ReadAsync(Arg.Any<IPersistenceSession>(), Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
+                .Returns(new MailAccountCustodyState(MailAccountCustody.HoldMailbox, MailAccountCustodyPhase.Held));
             states
                 .ReadAsync(
                     Arg.Any<IPersistenceSession>(),
@@ -388,7 +435,9 @@ public sealed class SetMailFlagsToolTests
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
 
-        var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(Account, Inbox));
+        var participation = inboxWithheldFromAI
+            ? StubMailFolderParticipation.Nothing.Hiding(new MailFolderIdentity(Account, Inbox))
+            : StubMailFolderParticipation.Mapping(new MailFolderIdentity(Account, Inbox));
 
         return new SetMailFlagsTool(new MailFlagChangeRecorder(
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),
@@ -398,15 +447,14 @@ public sealed class SetMailFlagsToolTests
                 StubDeploymentMailFolders.Of(participation),
                 StubMailFolderMappings.ResolvingNothing),
             targets,
-            new MailboxChangeSubmission(
-                localFolders,
-                records,
-                states,
-                LocalMailCopiers.Over(localFolders),
-                auditSettings,
-                Substitute.For<IMailboxMutationAuditEntryStore>(),
-                ClientSignalPublishers.ReachingNobody,
-                new FakeTimeProvider()),
+            new MailboxCustodianComposition(new FakeTimeProvider())
+            {
+                Custody = custody,
+                LocalFolders = localFolders,
+                Records = records,
+                States = states,
+                AuditSettings = auditSettings,
+            }.Submission,
             new OptimisticConcurrencyRetryPolicy(
                 sessionFactory,
                 new PersistenceConcurrencyOptions(),

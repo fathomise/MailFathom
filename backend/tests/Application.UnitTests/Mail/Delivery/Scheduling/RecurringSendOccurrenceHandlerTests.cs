@@ -250,7 +250,9 @@ public sealed class RecurringSendOccurrenceHandlerTests
                 AccessAuthorizations.ForPrincipal(AuthorizedPrincipal.Process),
                 OutgoingMailGovernors.Permitting(),
                 OutgoingMailScreenings.Inactive(),
-                this.clock);
+                OrganizationMailSigners.SigningNothing(),
+                this.clock,
+                ClientSignalPublishers.ReachingNobody);
 
             this.Handler = new RecurringSendOccurrenceHandler(
                 this.RecurringSends,

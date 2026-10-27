@@ -3,7 +3,7 @@
 # Project repository: https://github.com/fathomise/MailFathom
 
 # The RESP server a client signal crosses from the instance that raised it to the instances holding the connections that
-# have to hear about it. It is optional in the way the analyzer, the scanner, and the object store are: Quadlet has no
+# have to hear about it. It is optional in the way the analyzer and the object store are: Quadlet has no
 # equivalent of Compose's profiles, so an operator who wants none of this copies the other files and never this one — and
 # then no image is pulled, no container exists, and none of the memory below is held. Installing it is half of the
 # arrangement; the other half is the SignalBackplane lines in mailfathom.container, and either one alone is a deployment

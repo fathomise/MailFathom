@@ -47,6 +47,20 @@ public sealed class SpamActionResultTests
         Assert.Null(result.MarkedReadRecordId);
     }
 
+    /// <summary>A keyword change asked for alone is a request in its own right, beside no flag and no filing.</summary>
+    [Fact]
+    public void Requested_TheKeywordChangeAlone_ReportsThatChangeAndNoOther()
+    {
+        // Act
+        var result = SpamActionResult.Requested(markedReadRecordId: null, filedRecordId: null, Record);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
+        Assert.Equal(Record, result.KeywordsRecordId);
+        Assert.Null(result.MarkedReadRecordId);
+        Assert.Null(result.FiledRecordId);
+    }
+
     [Fact]
     public void Applied_ARestoringAccountsRecords_ReportsThemBesideTheChangeThatAlreadyHappened()
     {

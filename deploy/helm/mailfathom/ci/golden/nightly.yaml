@@ -194,30 +194,6 @@ spec:
     app.kubernetes.io/name: mailfathom
     app.kubernetes.io/instance: mailfathom
 ---
-# Source: mailfathom/templates/spam-scanner-service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: mailfathom-spamassassin
-  labels:
-    helm.sh/chart: mailfathom-0.0.0
-    app.kubernetes.io/name: mailfathom-spamassassin
-    app.kubernetes.io/instance: mailfathom
-    app.kubernetes.io/version: "9bea393891c92a3531cb7081e9b2c478a654a048c9a6fa6f9d1df4300bf3ab8"
-    app.kubernetes.io/component: spam-scanner
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: mailfathom
-spec:
-  type: ClusterIP
-  selector:
-    app.kubernetes.io/name: mailfathom-spamassassin
-    app.kubernetes.io/instance: mailfathom
-  ports:
-    - name: spamd
-      port: 783
-      targetPort: spamd
-      protocol: TCP
----
 # Source: mailfathom/templates/analyzer-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -375,20 +351,6 @@ spec:
               value: "en"
             - name: SensitiveContent__PersonalDataAnalyzer__MinimumConfidence
               value: "0.4"
-            - name: SpamClassification__Enabled
-              value: "true"
-            - name: SpamClassification__UseScanner
-              value: "true"
-            - name: SpamClassification__Scanner__Host
-              value: "mailfathom-spamassassin"
-            - name: SpamClassification__Scanner__Port
-              value: "783"
-            - name: SpamClassification__Scanner__ScanTimeoutSeconds
-              value: "30"
-            - name: SpamClassification__Scanner__MaximumMessageBytes
-              value: "512000"
-            - name: SpamClassification__Scanner__MaximumConcurrentScans
-              value: "5"
           volumeMounts:
             - name: config
               mountPath: /etc/mailfathom/config
@@ -440,80 +402,6 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 64Mi
----
-# Source: mailfathom/templates/spam-scanner-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mailfathom-spamassassin
-  labels:
-    helm.sh/chart: mailfathom-0.0.0
-    app.kubernetes.io/name: mailfathom-spamassassin
-    app.kubernetes.io/instance: mailfathom
-    app.kubernetes.io/version: "9bea393891c92a3531cb7081e9b2c478a654a048c9a6fa6f9d1df4300bf3ab8"
-    app.kubernetes.io/component: spam-scanner
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: mailfathom
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mailfathom-spamassassin
-      app.kubernetes.io/instance: mailfathom
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: mailfathom-spamassassin
-        app.kubernetes.io/instance: mailfathom
-    spec:
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      automountServiceAccountToken: false
-      containers:
-        - name: spamassassin
-          image: "docker.io/axllent/spamassassin@sha256:9bea393891c92a3531cb7081e9b2c478a654a048c9a6fa6f9d1df4300bf3ab8b"
-          imagePullPolicy: IfNotPresent
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              add:
-              - SETUID
-              - SETGID
-              drop:
-              - ALL
-          env:
-            - name: DNS_CHECKS
-              value: "0"
-          ports:
-            - name: spamd
-              containerPort: 783
-              protocol: TCP
-          startupProbe:
-            tcpSocket:
-              port: spamd
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 60
-          readinessProbe:
-            tcpSocket:
-              port: spamd
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 3
-          livenessProbe:
-            tcpSocket:
-              port: spamd
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 3
-          resources:
-            limits:
-              cpu: "1"
-              memory: 512Mi
-            requests:
-              cpu: 100m
-              memory: 256Mi
 ---
 # Source: mailfathom/templates/postgres-statefulset.yaml
 apiVersion: apps/v1

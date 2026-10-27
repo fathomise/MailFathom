@@ -5,7 +5,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
-import { LinkOpenerContext, type OpenLink } from '../shellOperations/linkOpener';
+import { LinkOpenerContext, type FollowedLink, type OpenLink } from '../shellOperations/linkOpener';
 import { EmbeddedMessageMarkup, MessageMarkupFrame } from './MessageMarkupFrame';
 
 // The `sandbox` attribute is the one thing asserted here that is not what a person sees, and it is asserted anyway:
@@ -20,7 +20,7 @@ import { EmbeddedMessageMarkup, MessageMarkupFrame } from './MessageMarkupFrame'
 function opening(): { opened: string[]; openLink: OpenLink } {
     const opened: string[] = [];
 
-    return { opened, openLink: (target) => (opened.push(target), Promise.resolve()) };
+    return { opened, openLink: ({ target }) => (opened.push(target), Promise.resolve()) };
 }
 
 function frame(): HTMLIFrameElement {
@@ -185,6 +185,19 @@ describe('EmbeddedMessageMarkup', () => {
         expect(opened).toEqual(['mailto:someone@example.test']);
     });
 
+    it('hands on what the anchor showed, and reads words it cannot trust as none', () => {
+        const followed: FollowedLink[] = [];
+        embedding('<p>As the sender wrote it.</p>', (link) => (followed.push(link), Promise.resolve()));
+
+        reporting({ link: 'https://example.test/offer', words: 'travel.example', picture: true });
+        reporting({ link: 'https://example.test/offer', words: 42, picture: 'yes' });
+
+        expect(followed).toEqual([
+            { target: 'https://example.test/offer', picture: true, words: 'travel.example', warnings: [] },
+            { target: 'https://example.test/offer', picture: false, words: null, warnings: [] },
+        ]);
+    });
+
     it('opens nothing a report from any window but the frame’s own names', () => {
         const { opened, openLink } = opening();
         embedding('<p>As the sender wrote it.</p>', openLink);
@@ -216,7 +229,7 @@ describe('EmbeddedMessageMarkup', () => {
 
         reporting({ link: 'https://example.test/offer' });
         await vi.waitFor(() => {
-            expect(refusing).toHaveBeenCalledWith('https://example.test/offer');
+            expect(refusing).toHaveBeenCalledWith(expect.objectContaining({ target: 'https://example.test/offer' }));
         });
 
         expect(screen.getByText('Fitting the height to the content…')).toBeDefined();

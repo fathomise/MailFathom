@@ -11,6 +11,7 @@ using MailFathom.Host.Configuration.Persistence;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure;
 using MailFathom.Infrastructure.Certificates;
+using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Secrets.Discovery;
 using MailFathom.Infrastructure.Secrets.References;
@@ -337,6 +338,8 @@ public sealed class ValidatedSettingsSnapshotTests
         var validator = new SecretConfigurationValidator(
             secretReferenceResolver,
             new TrustAnchorLoader(secretReferenceResolver),
+            new SmimeSigningCertificateValidator(secretReferenceResolver, new FakeTimeProvider()),
+            new OpenPgpSigningKeyValidator(secretReferenceResolver, new FakeTimeProvider()),
             new DatabaseConnectionSettingsMapper(new ConfigurationBuilder().Build()),
             new StubDatabaseConnectionSettingsValidator(),
             PostgresTextSearchConfiguration.Default,

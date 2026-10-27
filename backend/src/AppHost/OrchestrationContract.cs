@@ -423,7 +423,7 @@ public static class OrchestrationContract
     /// The integration-test topology always starts it, because the claim the suite exists to prove about the backplane
     /// is that a statement raised on one process reaches a connection held by another — which no substitute settles. A
     /// developer's orchestration starts it only where <see cref="SignalBackplaneEnabledKey" /> asks for it, for the
-    /// reason the analyzer and the spam daemon are absent from it: one replica needs no backplane, so starting a
+    /// reason the analyzer is absent from it: one replica needs no backplane, so starting a
     /// container for one would cost every local run something only a scaled-out deployment uses.
     /// </para>
     /// </remarks>
@@ -466,34 +466,11 @@ public static class OrchestrationContract
     /// </remarks>
     public const string HostReplicaResourceName = "mailfathom-host-replica";
 
-    /// <summary>The spam daemon the integration-test topology scores against.</summary>
-    /// <remarks>
-    /// <para>
-    /// Present only under <see cref="IntegrationTestingArgument" />, for the reason the analyzer is: a developer's
-    /// orchestration deploys one only where the deployment they are running switched the scanner on, and starting one
-    /// beside every local run would cost a container and its rule corpus for a feature that is off by default.
-    /// </para>
-    /// <para>
-    /// The suite starts it because it is the one part of the spam scanner no substitute settles: a scripted daemon
-    /// proves the parser handles the payload somebody hand-wrote, not that the image an operator pulls answers the
-    /// request MailFathom builds in the shape MailFathom parses.
-    /// </para>
-    /// </remarks>
-    public const string SpamScannerResourceName = "spamassassin";
-
-    /// <summary>The daemon's own port, which its image publishes and its entrypoint binds.</summary>
-    public const int SpamScannerContainerPort = 783;
-
-    /// <summary>The endpoint the daemon answers its line protocol on.</summary>
-    /// <remarks>Declared with the <c>tcp</c> scheme because that is what it is: the daemon speaks neither HTTP nor anything Aspire can probe with a route.</remarks>
-    public const string SpamScannerEndpointName = "spamd";
-
     /// <summary>The S3-compatible endpoint the integration-test topology stores message content in.</summary>
     /// <remarks>
     /// <para>
-    /// Present only under <see cref="IntegrationTestingArgument" />, for the reason the analyzer and the spam daemon
-    /// are: a developer's orchestration deploys one only where the deployment they are running selected the object
-    /// backend, which is off by default, and starting one beside every local run would cost a container for a backend
+    /// Present only under <see cref="IntegrationTestingArgument" />, for the reason the analyzer is: a developer's
+    /// orchestration deploys one only where the deployment they are running selected the object backend, which is off by default, and starting one beside every local run would cost a container for a backend
     /// that run does not use.
     /// </para>
     /// <para>

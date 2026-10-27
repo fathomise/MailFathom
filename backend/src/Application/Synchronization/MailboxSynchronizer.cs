@@ -247,12 +247,6 @@ public sealed class MailboxSynchronizer
 
         var storedCount = 0;
 
-        // What the run reports as arrived mail, decided here rather than by a query afterwards: the folder's role and
-        // the server's own flag are both in hand at the moment an occurrence is stored, and neither survives to a later
-        // reader — the stored row's flag belongs to the backward pass, and no consumer of the count should have to
-        // reconstruct which of a run's messages were news.
-        var arrivedCount = 0;
-        var storesArrivingMail = folderRole == MailFolderSpecialUse.Inbox;
         var skippedOversizedCount = 0;
         var deferredForStorageCount = 0;
         var deferredForUserStorageCount = 0;
@@ -343,7 +337,7 @@ public sealed class MailboxSynchronizer
 
                     // A copy is stored like any other discovery, because the email it duplicates stays where it was and a
                     // second live occurrence is a second local email under ADR 0008. What the record settles is only whose
-                    // act the arrival was.
+                    // act the arrival was — and that it is no arrival at all, so the copy is stored settled.
                     var copy = placement is { } candidate && candidate.Request.Mutation == MailboxMutation.Copy
                         ? candidate
                         : null;
@@ -360,6 +354,7 @@ public sealed class MailboxSynchronizer
                         copy,
                         filing,
                         isFiledCopy: filing is not null,
+                        settlesOnArrival: copy is not null,
                         account,
                         budget,
                         collection,
@@ -384,17 +379,6 @@ public sealed class MailboxSynchronizer
                     {
                         case StoredEmailContentAvailability.Available:
                             storedCount++;
-
-                            // Nothing MailFathom itself put here is arrival, whichever of the two acts put it there:
-                            // a copy filed of the user's own outgoing message, which the person wrote, and a copy a
-                            // rule made into a folder mapped as the inbox, which carries the source's flags and would
-                            // otherwise announce as new mail the message it was copied from. Both are already
-                            // recognized as this deployment's own act, and the run suppresses the appearance each of
-                            // them raises for the same reason.
-                            if (storesArrivingMail && !metadata.IsRemotelySeen && filing is null && copy is null)
-                            {
-                                arrivedCount++;
-                            }
 
                             break;
 
@@ -532,7 +516,6 @@ public sealed class MailboxSynchronizer
         return MailboxSynchronizationResult.Synchronized(
             folder,
             storedCount,
-            arrivedCount,
             skippedOversizedCount,
             unreadableMimeCount + refill.UnreadableMimeEmailCount,
             relocatedCount,
@@ -714,6 +697,7 @@ public sealed class MailboxSynchronizer
                 placement: null,
                 filing: null,
                 isFiledCopy,
+                settlesOnArrival: false,
                 account,
                 budget,
                 collection,
@@ -761,7 +745,8 @@ public sealed class MailboxSynchronizer
     /// </para>
     /// <para>
     /// A restored message is announced to open clients as changed rather than as arrived, because it is one the person
-    /// already had and deleted, not one that has just reached them.
+    /// already had and deleted, not one that has just reached them — which is also why it is stored settled, with
+    /// nothing to wait for and no arrival to announce.
     /// </para>
     /// </remarks>
     private async Task RestoreUndeletedEmailsAsync(
@@ -811,6 +796,7 @@ public sealed class MailboxSynchronizer
                     placement: null,
                     filing: null,
                     isFiledCopy: false,
+                    settlesOnArrival: true,
                     account,
                     budget,
                     collection,
@@ -1096,6 +1082,7 @@ public sealed class MailboxSynchronizer
         MailboxMutationRecord? placement,
         OutgoingMailFilingRecord? filing,
         bool isFiledCopy,
+        bool settlesOnArrival,
         MailAccountId account,
         SynchronizationContentBudget budget,
         ContactCollectionRun collection,
@@ -1109,6 +1096,7 @@ public sealed class MailboxSynchronizer
                 metadata,
                 placement,
                 filing,
+                settlesOnArrival,
                 StoredEmailContentAvailability.ExceededSizeLimit,
                 StoredContentBound.None,
                 arrivalSource,
@@ -1123,6 +1111,7 @@ public sealed class MailboxSynchronizer
                 metadata,
                 placement,
                 filing,
+                settlesOnArrival,
                 StoredEmailContentAvailability.AwaitingStorageHeadroom,
                 refusedBound,
                 arrivalSource,
@@ -1147,6 +1136,7 @@ public sealed class MailboxSynchronizer
                 metadata,
                 placement,
                 filing,
+                settlesOnArrival,
                 StoredEmailContentAvailability.AwaitingStorageHeadroom,
                 storageAttempt.ReachedBound,
                 arrivalSource,
@@ -1179,6 +1169,7 @@ public sealed class MailboxSynchronizer
                 metadata,
                 placement,
                 filing,
+                settlesOnArrival,
                 StoredEmailContentAvailability.ExceededSizeLimit,
                 StoredContentBound.None,
                 arrivalSource,
@@ -1236,6 +1227,11 @@ public sealed class MailboxSynchronizer
 
                 await this.ObservePlacementAsync(persistenceSession, placement, attemptCancellationToken);
                 await this.ObserveFilingAsync(persistenceSession, filing, storedEmailId, attemptCancellationToken);
+
+                if (settlesOnArrival)
+                {
+                    await this.metadataRepository.RecordSettledOnArrivalAsync(persistenceSession, storedEmailId, attemptCancellationToken);
+                }
                 folderSetMoved = await this.localFolderArrivals.PlaceAsync(
                     persistenceSession,
                     metadata.OccurrenceId.AccountId,
@@ -1294,6 +1290,7 @@ public sealed class MailboxSynchronizer
         RemoteEmailMetadata metadata,
         MailboxMutationRecord? placement,
         OutgoingMailFilingRecord? filing,
+        bool settlesOnArrival,
         StoredEmailContentAvailability availability,
         StoredContentBound reachedStorageBound,
         LocalMailFolderArrivalSource arrivalSource,
@@ -1314,6 +1311,11 @@ public sealed class MailboxSynchronizer
 
                 await this.ObservePlacementAsync(persistenceSession, placement, attemptCancellationToken);
                 await this.ObserveFilingAsync(persistenceSession, filing, storedEmailId, attemptCancellationToken);
+
+                if (settlesOnArrival)
+                {
+                    await this.metadataRepository.RecordSettledOnArrivalAsync(persistenceSession, storedEmailId, attemptCancellationToken);
+                }
                 folderSetMoved = await this.localFolderArrivals.PlaceAsync(
                     persistenceSession,
                     metadata.OccurrenceId.AccountId,
@@ -1463,13 +1465,6 @@ public enum MailboxSynchronizationOutcome
 /// <param name="Outcome">Whether the run reached a folder.</param>
 /// <param name="Folder">The binding the run worked under, which is present exactly when <paramref name="Outcome" /> is <see cref="MailboxSynchronizationOutcome.Synchronized" />.</param>
 /// <param name="StoredEmailCount">How many occurrences were stored with their content.</param>
-/// <param name="ArrivedEmailCount">
-/// How many of the stored occurrences were mail arriving for the person: stored in the inbox, unread on the server when
-/// the run stored them, and placed there by neither of MailFathom's own two acts — filing a copy of the user's
-/// outgoing message, and a rule copying a message into a folder mapped as the inbox. It is a subset of
-/// <paramref name="StoredEmailCount" /> and is what a run reports as arrived mail, so no consumer has to rebuild the
-/// rule from a count that means something wider.
-/// </param>
 /// <param name="SkippedOversizedEmailCount">How many occurrences were stored as metadata only.</param>
 /// <param name="UnreadableMimeEmailCount">How many stored occurrences carried MIME that enrichment could not read.</param>
 /// <param name="RelocatedEmailCount">
@@ -1496,7 +1491,6 @@ public sealed record MailboxSynchronizationResult(
     MailboxSynchronizationOutcome Outcome,
     MailFolderResolution? Folder,
     int StoredEmailCount,
-    int ArrivedEmailCount,
     int SkippedOversizedEmailCount,
     int UnreadableMimeEmailCount,
     int RelocatedEmailCount,
@@ -1522,7 +1516,6 @@ public sealed record MailboxSynchronizationResult(
     /// <summary>Reports a run that reached its folder.</summary>
     /// <param name="folder">The binding the run worked under.</param>
     /// <param name="storedEmailCount">How many occurrences were stored with their content.</param>
-    /// <param name="arrivedEmailCount">How many of those were unread inbox mail that MailFathom did not place there itself.</param>
     /// <param name="skippedOversizedEmailCount">How many occurrences were stored as metadata only.</param>
     /// <param name="unreadableMimeEmailCount">How many stored occurrences carried unreadable MIME.</param>
     /// <param name="relocatedEmailCount">How many discovered occurrences carried an existing local email across.</param>
@@ -1536,7 +1529,6 @@ public sealed record MailboxSynchronizationResult(
     public static MailboxSynchronizationResult Synchronized(
         MailFolderResolution folder,
         int storedEmailCount,
-        int arrivedEmailCount,
         int skippedOversizedEmailCount,
         int unreadableMimeEmailCount,
         int relocatedEmailCount,
@@ -1554,7 +1546,6 @@ public sealed record MailboxSynchronizationResult(
             MailboxSynchronizationOutcome.Synchronized,
             folder,
             storedEmailCount,
-            arrivedEmailCount,
             skippedOversizedEmailCount,
             unreadableMimeEmailCount,
             relocatedEmailCount,
@@ -1588,7 +1579,6 @@ public sealed record MailboxSynchronizationResult(
         return new MailboxSynchronizationResult(
             outcome,
             Folder: null,
-            0,
             0,
             0,
             0,

@@ -36,6 +36,12 @@ const email = {
     sizeOctets: 84_213,
     preview: 'The figures you asked for are attached.',
     threadMessageCount: 2,
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        signatureOutcome: 'NotSigned',
+        signerMatchesAuthor: false,
+    },
 };
 
 const participant = { address: 'auditor@example.invalid', displayName: 'The auditor', messageCount: 2 };
@@ -59,7 +65,39 @@ const described = {
         references: [],
     },
     body: { availability: 'Readable', plainText: true, html: false },
-    sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        authenticatedDomain: null,
+        authenticationSource: 'ReceivingServer',
+        dkimDomain: null,
+        spfDomain: null,
+        dmarc: 'NotReported',
+        trustSource: null,
+        trustOrganization: null,
+    },
+    signature: {
+        outcome: 'NotSigned',
+        format: null,
+        secureMimeType: null,
+        unverifiableReason: null,
+        signedAt: null,
+        steps: {
+            content: 'NotChecked',
+            authority: 'NotChecked',
+            validity: 'NotChecked',
+            revocation: 'NotChecked',
+            signer: 'NotChecked',
+        },
+        trustAnchor: null,
+        chainEnd: null,
+        validityFailure: null,
+        revocationMethod: null,
+        revocationCheckedAt: null,
+        revokedAt: null,
+        signerMatchesAuthor: false,
+        signer: null,
+    },
     attachments: [],
     carried: null,
     unread: true,
@@ -165,7 +203,13 @@ describe('readMailThread', () => {
             value: {
                 threadId,
                 messages: [
-                    { position: 0, answeredId: null, email: { ...email, enrichment: null }, message: null, body: null },
+                    {
+                        position: 0,
+                        answeredId: null,
+                        email: { ...email, enrichment: null, spam: null },
+                        message: null,
+                        body: null,
+                    },
                 ],
                 participants: [participant],
                 messageCount: 1,
@@ -199,7 +243,7 @@ describe('readMailThread', () => {
 
         expect(answered.outcome === 'read' && answered.value.messages[1]).toStrictEqual({
             ...answer,
-            email: { ...answer.email, enrichment: null },
+            email: { ...answer.email, enrichment: null, spam: null },
             message: null,
             body: null,
         });
@@ -315,7 +359,10 @@ describe('readMailThread drawing the messages', () => {
             true,
         );
 
-        expect(answered.outcome === 'read' && answered.value.messages[0]?.message).toStrictEqual(described);
+        expect(answered.outcome === 'read' && answered.value.messages[0]?.message).toStrictEqual({
+            ...described,
+            spam: null,
+        });
         expect(answered.outcome === 'read' && answered.value.messages[0]?.body).toStrictEqual(said);
     });
 

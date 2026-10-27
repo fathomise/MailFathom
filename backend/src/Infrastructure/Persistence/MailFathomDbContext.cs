@@ -78,6 +78,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<OrganizationEntity> Organizations => this.Set<OrganizationEntity>();
 
+    internal DbSet<OrganizationSigningKeyEntity> OrganizationSigningKeys => this.Set<OrganizationSigningKeyEntity>();
+
     internal DbSet<SettingsPolicyEntity> SettingsPolicies => this.Set<SettingsPolicyEntity>();
 
     internal DbSet<UserAccountEntity> UserAccounts => this.Set<UserAccountEntity>();
@@ -132,6 +134,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<EmailSearchDocumentEntity> EmailSearchDocuments => this.Set<EmailSearchDocumentEntity>();
 
+    internal DbSet<StoredEmailSignerKeyEntity> StoredEmailSignerKeys => this.Set<StoredEmailSignerKeyEntity>();
+
     internal DbSet<EmailChunkEntity> EmailChunks => this.Set<EmailChunkEntity>();
 
     internal DbSet<EmailAttachmentTextEntity> EmailAttachmentTexts => this.Set<EmailAttachmentTextEntity>();
@@ -153,6 +157,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<EmailSpamClassificationSignalEntity> EmailSpamClassificationSignals =>
         this.Set<EmailSpamClassificationSignalEntity>();
+
+    internal DbSet<EmailSpamVerdictActEntity> EmailSpamVerdictActs => this.Set<EmailSpamVerdictActEntity>();
 
     internal DbSet<SpamClassificationRunEntity> SpamClassificationRuns => this.Set<SpamClassificationRunEntity>();
 
@@ -252,6 +258,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<NotificationEntity> Notifications => this.Set<NotificationEntity>();
 
+    internal DbSet<NotificationNamedEmailEntity> NotificationNamedEmails => this.Set<NotificationNamedEmailEntity>();
+
     internal DbSet<PersonalTaskEntity> PersonalTasks => this.Set<PersonalTaskEntity>();
 
     internal DbSet<DiscoveryRunEntity> DiscoveryRuns => this.Set<DiscoveryRunEntity>();
@@ -281,6 +289,7 @@ internal sealed class MailFathomDbContext : DbContext
 
         modelBuilder.ApplyConfiguration(new RootSettingsConfiguration());
         modelBuilder.ApplyConfiguration(new OrganizationConfiguration());
+        modelBuilder.ApplyConfiguration(new OrganizationSigningKeyConfiguration());
         modelBuilder.ApplyConfiguration(new SettingsPolicyConfiguration());
         modelBuilder.ApplyConfiguration(new UserAccountConfiguration());
         modelBuilder.ApplyConfiguration(new MailAccountRecordConfiguration());
@@ -307,6 +316,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new StoredEmailConfiguration());
         modelBuilder.ApplyConfiguration(new EmailMessageContentConfiguration());
         modelBuilder.ApplyConfiguration(new EmailSearchDocumentConfiguration(this.textSearchConfiguration));
+        modelBuilder.ApplyConfiguration(new StoredEmailSignerKeyConfiguration());
         modelBuilder.ApplyConfiguration(new EmailChunkConfiguration());
         modelBuilder.ApplyConfiguration(new EmailAttachmentTextConfiguration(this.textSearchConfiguration));
         modelBuilder.ApplyConfiguration(new EmbeddingProfileConfiguration());
@@ -317,6 +327,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new EmailContentRepairRequestConfiguration());
         modelBuilder.ApplyConfiguration(new EmailSpamClassificationConfiguration());
         modelBuilder.ApplyConfiguration(new EmailSpamClassificationSignalConfiguration());
+        modelBuilder.ApplyConfiguration(new EmailSpamVerdictActConfiguration());
         modelBuilder.ApplyConfiguration(new EmailEnrichmentConfiguration());
         modelBuilder.ApplyConfiguration(new EmailEnrichmentMarkConfiguration());
         modelBuilder.ApplyConfiguration(new EmailThreadStateConfiguration());
@@ -364,6 +375,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new JobScheduleConfiguration());
         modelBuilder.ApplyConfiguration(new WorkLeaseConfiguration());
         modelBuilder.ApplyConfiguration(new NotificationConfiguration());
+        modelBuilder.ApplyConfiguration(new NotificationNamedEmailConfiguration());
         modelBuilder.ApplyConfiguration(new PersonalTaskConfiguration());
         modelBuilder.ApplyConfiguration(new DiscoveryRunConfiguration());
         modelBuilder.ApplyConfiguration(new DiscoveryRunEventConfiguration());

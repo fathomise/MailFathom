@@ -24,24 +24,36 @@ public sealed class SpamActionOptionsTests
         Assert.Empty(errors);
         Assert.False(options.IsAnyActionEnabled);
         Assert.Null(options.JunkFolder);
-        Assert.Null(options.Threshold);
     }
 
-    /// <summary>Acting on a verdict nothing produces is the same shape of contradiction as a scanner with classification off.</summary>
+    /// <summary>Acting on a verdict nothing produces is a contradiction the operator is told about rather than given the quiet answer.</summary>
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void FindErrors_AnActionAskedForWhileClassificationIsOff_IsRefused(bool moveToJunkFolder, bool markAsRead)
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public void FindErrors_AnActionAskedForWhileClassificationIsOff_IsRefused(
+        bool moveToJunkFolder,
+        bool markAsRead,
+        bool markWithJunkKeywords)
     {
         // Arrange
-        var options = new SpamActionOptions { MoveToJunkFolder = moveToJunkFolder, MarkAsRead = markAsRead };
+        var options = new SpamActionOptions
+        {
+            MoveToJunkFolder = moveToJunkFolder,
+            MarkAsRead = markAsRead,
+            MarkWithJunkKeywords = markWithJunkKeywords,
+        };
 
         // Act
         var error = Assert.Single(options.FindErrors(classificationEnabled: false));
 
         // Assert
         Assert.Equal(
-            [nameof(SpamActionOptions.MoveToJunkFolder), nameof(SpamActionOptions.MarkAsRead)],
+            [
+                nameof(SpamActionOptions.MoveToJunkFolder),
+                nameof(SpamActionOptions.MarkAsRead),
+                nameof(SpamActionOptions.MarkWithJunkKeywords),
+            ],
             error.MemberNames);
     }
 
@@ -58,22 +70,6 @@ public sealed class SpamActionOptionsTests
 
         // Assert
         Assert.Equal([nameof(SpamActionOptions.JunkFolder)], error.MemberNames);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(100_000)]
-    public void FindErrors_AThresholdOutsideTheUsableRange_IsRefused(double threshold)
-    {
-        // Arrange
-        var options = new SpamActionOptions { MarkAsRead = true, Threshold = threshold };
-
-        // Act
-        var error = Assert.Single(options.FindErrors(classificationEnabled: true));
-
-        // Assert
-        Assert.Equal([nameof(SpamActionOptions.Threshold)], error.MemberNames);
     }
 
     [Fact]
@@ -112,7 +108,6 @@ public sealed class SpamActionOptionsTests
             MoveToJunkFolder = true,
             MarkAsRead = true,
             JunkFolder = $"{MailFolderReference.RoleScheme}{MailFolderSpecialUse.Junk}",
-            Threshold = 8,
         };
 
         // Act
@@ -122,6 +117,5 @@ public sealed class SpamActionOptionsTests
         Assert.True(settings.FilesJunk);
         Assert.True(settings.MarksJunkRead);
         Assert.Equal(MailFolderSpecialUse.Junk, settings.JunkFolder.Role);
-        Assert.Equal(8, settings.Threshold);
     }
 }

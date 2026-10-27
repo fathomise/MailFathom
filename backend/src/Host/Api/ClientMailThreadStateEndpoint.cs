@@ -6,6 +6,7 @@ using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -76,7 +77,7 @@ internal static class ClientMailThreadStateEndpoint
             return TypedResults.NotFound();
         }
 
-        var derived = await state.ReadStateAsync(EmailThreadId.Create(threadId), cancellationToken);
+        var derived = await state.ReadStateAsync(EmailThreadId.Create(threadId), MailboxReaderKind.Person, cancellationToken);
 
         return derived is null
             ? TypedResults.NotFound()

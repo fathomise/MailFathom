@@ -63,7 +63,11 @@ MailFathomDesign.fathomUi = (() => {
         self.notify(a.toast, { title: a.label, actionLabel: "Undo", onAction: () => self.hideToast() });
         return;
       }
-      if (a.do === "draft") { self.setState(closeAll); self.draftReply(); return; }
+      /* In a thread, drafting asks first what the reply should say, as the thread's own drafter does. */
+      if (a.do === "draft") {
+        if (self.state.screen === "mail" && self.state.threadOpen) { self.setState(Object.assign({}, closeAll, { replyDock: true })); return; }
+        self.setState(closeAll); self.draftReply(); return;
+      }
       if (a.do === "prep") {
         self.setState(Object.assign({ startPrep: "busy" }, closeAll));
         self.timers.push(setTimeout(() => self.setState({ startPrep: "ready" }), Math.max(600, (self.props.streamDelay ?? 550) * 1.6)));
@@ -180,7 +184,7 @@ MailFathomDesign.fathomUi = (() => {
       : st.screen === "cal" ? "this week" : st.screen === "tasks" ? "your tasks" : st.screen === "people" ? (peopleOpen ? person.name : "your contacts")
       : st.screen === "agent" ? "the conversation" : "your day";
     const space = { start: "Start", mail: "Mail", cal: "Calendar", tasks: "Tasks", people: "People", agent: "Agent" }[st.screen] || "Start";
-    const fabShown = !st.catchupOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings;
+    const fabShown = !st.catchupOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings && !st.replyDock;
     const fabSize = touch ? 56 : 52;
     /* 24 px from both edges, 20 on a phone; in the Agent it stands level with the field it sits beside (`fathomDock`). */
     const fabEdge = isMobile ? 20 : 24;

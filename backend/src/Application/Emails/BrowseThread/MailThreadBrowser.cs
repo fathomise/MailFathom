@@ -12,6 +12,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.BrowseThread;
 
@@ -139,7 +140,7 @@ public sealed class MailThreadBrowser
         // The junk folder takes part, unlike in a listing: a reply that landed in junk is part of the exchange somebody
         // is reading rather than mail they asked to be shown. Neither an account nor a folder narrows the read, because
         // a conversation is read by membership and the folder a caller opened it from would cut it.
-        var scope = await this.scopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, cancellationToken);
+        var scope = await this.scopeResolver.ReadableScopeAsync(MailboxReaderKind.Person, [], [], JunkMailInclusion.Included, cancellationToken);
 
         // Every value has been validated by this point, so a deployment serving this user no account answers the same
         // refusals a deployment serving several does, and only then reports that it holds no such conversation.

@@ -16,6 +16,33 @@ internal sealed record OutboxCancellationRequest(Guid? OutgoingEmail);
 /// <param name="RefusalRestated">Whether the caller has restated a permanent refusal, which is what a refused send needs before it is offered again.</param>
 internal sealed record OutboxRequeueRequest(Guid? OutgoingEmail, bool RefusalRestated);
 
+/// <summary>What a deployment is asked when one send is to be taken out of its account's outbox.</summary>
+/// <param name="OutgoingEmail">The identifier the outbox reading reports for the send.</param>
+internal sealed record OutboxDismissalRequest(Guid? OutgoingEmail);
+
+/// <summary>Names the one refused send to take back to the draft it was written in.</summary>
+/// <param name="OutgoingEmail">The send to take back.</param>
+internal sealed record OutboxReopeningRequest(Guid? OutgoingEmail);
+
+/// <summary>What became of a refused send somebody asked to take back to its draft.</summary>
+/// <param name="OutgoingEmail">The send the request named.</param>
+/// <param name="Outcome">What happened, by the same names every outbox decision answers with, and <c>NoDraftToReopen</c> for a send written from no draft of the caller's.</param>
+/// <param name="DraftId">The draft the send was taken back into, present exactly when the outcome is <c>Accepted</c>, which is what the client opens for editing.</param>
+internal sealed record OutboxReopeningResponse(Guid OutgoingEmail, string Outcome, Guid? DraftId)
+{
+    /// <summary>Describes one reopening for the wire.</summary>
+    /// <param name="outgoingEmailId">The send the request named.</param>
+    /// <param name="reopening">What happened.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="reopening" /> is <see langword="null" />.</exception>
+    internal static OutboxReopeningResponse For(OutgoingEmailId outgoingEmailId, OutboxReopening reopening)
+    {
+        ArgumentNullException.ThrowIfNull(reopening);
+
+        return new(outgoingEmailId.Value, reopening.Outcome.ToString(), reopening.Draft?.Value);
+    }
+}
+
 /// <summary>How much stands at each stage of an outbox.</summary>
 /// <param name="Stages">One count per declared stage, in the order the stages are declared.</param>
 /// <param name="OutstandingCount">How many sends nothing has finished with, which is the depth an operator means.</param>
@@ -193,7 +220,7 @@ internal sealed record OutboxRecipientResponse(
 
 /// <summary>What became of a send an operator decided about.</summary>
 /// <param name="OutgoingEmail">The send the decision named.</param>
-/// <param name="Outcome">What happened: <c>Accepted</c>, <c>RecordUnknown</c>, <c>StageDoesNotAllowIt</c>, <c>AttemptUnderWay</c>, or <c>RefusalNotRestated</c>.</param>
+/// <param name="Outcome">What happened: <c>Accepted</c>, <c>RecordUnknown</c>, <c>StageDoesNotAllowIt</c>, <c>AttemptUnderWay</c>, <c>RefusalNotRestated</c>, or — for taking a send back to its draft alone — <c>NoDraftToReopen</c>.</param>
 internal sealed record OutboxDecisionResponse(Guid OutgoingEmail, string Outcome)
 {
     /// <summary>Describes one decision as the administrative surface reports it.</summary>

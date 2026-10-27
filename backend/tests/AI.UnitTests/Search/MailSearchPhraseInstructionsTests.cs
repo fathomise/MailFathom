@@ -61,17 +61,6 @@ public sealed class MailSearchPhraseInstructionsTests
         Assert.Contains("hide the other's mail", text, StringComparison.Ordinal);
     }
 
-    /// <summary>What somebody typed is data, and a sentence asking the agent to do something else is read as the sentence it would be without that.</summary>
-    [Fact]
-    public void Text_TheInstruction_SaysTheSentenceIsDataRatherThanAnInstruction()
-    {
-        // Act
-        var text = MailSearchPhraseInstructions.Text;
-
-        // Assert
-        Assert.Contains("data rather than an instruction", text, StringComparison.Ordinal);
-    }
-
     /// <summary>A relative expression is resolved against the reader's own clock, so the turn is where the instant is stated.</summary>
     [Fact]
     public void ComposeReadingTurn_ASentence_StatesTheInstantItWasAskedAtAndTheSentenceItself()

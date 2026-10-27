@@ -301,8 +301,8 @@ public sealed class AuthoredResponseSubmissionTests
     }
 
     /// <summary>
-    /// A folder an operator withheld from tools, an identity this deployment holds nothing for, and a local copy whose
-    /// content cannot be read are one answer, so nobody learns which mail exists by asking to reply to it.
+    /// A folder no mapping names, an identity this deployment holds nothing for, and a local copy whose content cannot
+    /// be read are one answer, so nobody learns which mail exists by asking to reply to it.
     /// </summary>
     [Theory]
     [MemberData(nameof(EmailsThatCannotBeAnswered))]
@@ -333,7 +333,7 @@ public sealed class AuthoredResponseSubmissionTests
     public static TheoryData<string, AnsweredEmailArrangement> EmailsThatCannotBeAnswered() => new()
     {
         {
-            "a folder withheld from tools",
+            "a folder no mapping names",
             new AnsweredEmailArrangement { MapsNoFolder = true }
         },
         {
@@ -707,7 +707,9 @@ public sealed class AuthoredResponseSubmissionTests
             granted,
             OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
-            new FakeTimeProvider(Recorded));
+            OrganizationMailSigners.SigningNothing(),
+            new FakeTimeProvider(Recorded),
+            ClientSignalPublishers.ReachingNobody);
     }
 
     private static AuthoredEmail ComposedMessage(IAuthoredEmailComposer composer) => (AuthoredEmail)composer
@@ -718,6 +720,7 @@ public sealed class AuthoredResponseSubmissionTests
     private static MailResponseSubmissionRequest Request(AuthoredResponseAct act = AuthoredResponseAct.Reply) =>
         new()
         {
+            Reader = MailboxReaderKind.Agent,
             AnsweredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
             Act = act,
             PlainTextBody = "Thank you.",

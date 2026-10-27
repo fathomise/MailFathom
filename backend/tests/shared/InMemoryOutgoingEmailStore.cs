@@ -6,6 +6,7 @@ using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Persistence;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Filing;
@@ -100,6 +101,15 @@ internal sealed class InMemoryOutgoingEmailStore(
         row.Record = row.Record with { Stage = stage, StageChangedAt = this.clock.GetUtcNow() };
     }
 
+    /// <summary>Takes one record out of its account's outbox, the way a person dismissing it would have left it.</summary>
+    /// <param name="outgoingEmailId">The record to dismiss.</param>
+    /// <param name="dismissedBy">The user who dismissed it.</param>
+    internal void ArrangeDismissal(OutgoingEmailId outgoingEmailId, UserId dismissedBy)
+    {
+        var row = this.rows[outgoingEmailId];
+        row.Record = row.Record with { Dismissal = new OutgoingEmailDismissal(this.clock.GetUtcNow(), dismissedBy) };
+    }
+
     /// <summary>Reads back exactly what the store holds for one record, whatever stage it has reached.</summary>
     /// <param name="outgoingEmailId">The record to read.</param>
     /// <returns>The record.</returns>
@@ -152,13 +162,14 @@ internal sealed class InMemoryOutgoingEmailStore(
         IPersistenceSession session,
         OutgoingEmailRequest request,
         OutgoingEmailPrincipal principal,
-        long mimeByteLength,
+        ReadOnlyMemory<byte> rawMime,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(principal);
 
+        var mimeByteLength = rawMime.Length;
         this.openRequests.Add(request);
 
         if (this.identities.TryGetValue(IdentityOf(request), out var existing))
@@ -231,7 +242,9 @@ internal sealed class InMemoryOutgoingEmailStore(
             throw raise();
         }
 
-        return Task.FromResult(this.rows.TryGetValue(outgoingEmailId, out var row) ? row.Record : null);
+        return Task.FromResult(this.rows.TryGetValue(outgoingEmailId, out var row)
+            ? row.Record with { AttemptLeaseExpiresAt = row.LeaseExpiresAt }
+            : null);
     }
 
     public Task<IReadOnlyList<OutgoingEmailRecord>> ReadOutstandingAsync(
@@ -557,6 +570,7 @@ internal sealed class InMemoryOutgoingEmailStore(
             User = request.Author,
             Requester = request.Requester,
             Principal = principal,
+            Subject = request.Subject,
             Recipients = [.. request.Recipients.Select(OutgoingRecipientOutcome.Unanswered)],
             Stage = OutgoingEmailStage.Recorded,
             MimeByteLength = mimeByteLength,

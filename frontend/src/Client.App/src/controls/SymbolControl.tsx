@@ -18,6 +18,7 @@ export function SymbolControl({
     pressed,
     expanded,
     focusable = true,
+    ref,
     onPress,
     children,
 }: {
@@ -28,6 +29,9 @@ export function SymbolControl({
 
     /** Whether Tab stops here, which is off for a control inside a composite widget that moves focus by arrow keys. */
     readonly focusable?: boolean;
+
+    /** Hands the button to a caller that has to place the keyboard on it, beside the tip's own hold on it. */
+    readonly ref?: (element: HTMLButtonElement | null) => void;
 
     readonly onPress: () => void;
 
@@ -40,6 +44,10 @@ export function SymbolControl({
         <>
             <button
                 {...anchor}
+                ref={(element) => {
+                    anchor.ref(element);
+                    ref?.(element);
+                }}
                 type="button"
                 aria-label={label}
                 aria-pressed={pressed}

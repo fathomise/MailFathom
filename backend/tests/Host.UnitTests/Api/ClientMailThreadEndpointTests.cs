@@ -253,6 +253,33 @@ public sealed class ClientMailThreadEndpointTests
         });
     }
 
+    /// <summary>A folder withheld from AI is still the person's, so a conversation in it is drawn with every message and its words.</summary>
+    [Fact]
+    public async Task ReadThreadAsync_AConversationInAFolderWithheldFromAI_CarriesEachMessageAndItsWordsToThePerson()
+    {
+        // Arrange
+        var summaries = this.Holding(2);
+        var withheld = new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("INBOX"));
+
+        // Act
+        var result = await this.ReadDrawingAsync(summaries, StubMailFolderParticipation.Nothing.Hiding(withheld));
+
+        // Assert
+        var page = Assert.IsType<Ok<ClientMailThreadResponse>>(result.Result).Value;
+
+        Assert.NotNull(page);
+        Assert.Equal(2, page.Messages.Count);
+        Assert.All(page.Messages, message =>
+        {
+            Assert.NotNull(message.Message);
+            Assert.NotNull(message.Body);
+        });
+        await this.threadReader.Received().ReadEmailsAsync(
+            Conversation,
+            Arg.Is<MailboxScope>(scope => scope != null && scope.ReadableFolders.Contains(withheld)),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>A conversation read as a list of messages carries neither the message nor its words, so nothing is paid for what nobody asked for.</summary>
     [Fact]
     public async Task ReadThreadAsync_WithoutTheMessagesAsked_CarriesNeitherTheMessageNorItsWords()
@@ -540,14 +567,15 @@ public sealed class ClientMailThreadEndpointTests
 
     /// <summary>Reads the conversation with its messages drawn, over a content read that answers for the summaries given.</summary>
     private Task<Results<Ok<ClientMailThreadResponse>, NotFound, ProblemHttpResult>> ReadDrawingAsync(
-        EmailSummary[] summaries) =>
+        EmailSummary[] summaries,
+        StubMailFolderParticipation? participation = null) =>
         ClientMailThreadEndpoint.ReadThreadAsync(
             Conversation.Value,
             null,
             null,
             content: true,
-            this.Browser(),
-            this.ReadingDrawnMessages(summaries),
+            this.Browser(participation),
+            this.ReadingDrawnMessages(summaries, participation),
             TestContext.Current.CancellationToken);
 
     /// <summary>A content read that answers, so the route's own composition is exercised rather than only its refusals.</summary>
@@ -556,7 +584,9 @@ public sealed class ClientMailThreadEndpointTests
     /// over an unmapped alias answers with nothing, and a test arranged that way would pass while proving the opposite
     /// of what it claims.
     /// </remarks>
-    private EmailContentReader ReadingDrawnMessages(EmailSummary[] summaries)
+    private EmailContentReader ReadingDrawnMessages(
+        EmailSummary[] summaries,
+        StubMailFolderParticipation? participation = null)
     {
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
         catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(MailAccountId.Create("work"))]);
@@ -597,7 +627,7 @@ public sealed class ClientMailThreadEndpointTests
                     containsUnexpandedTnefPart: false),
                 []))));
 
-        var participation = StubMailFolderParticipation.Mapping(
+        var folders = participation ?? StubMailFolderParticipation.Mapping(
             new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("INBOX")));
 
         return new EmailContentReader(
@@ -608,8 +638,8 @@ public sealed class ClientMailThreadEndpointTests
             Substitute.For<IEmailContentRepairRequestStore>(),
             new MailboxScopeResolver(
                 catalog,
-                participation,
-                StubDeploymentMailFolders.Of(participation),
+                folders,
+                StubDeploymentMailFolders.Of(folders),
                 StubMailFolderMappings.ResolvingNothing),
             Substitute.For<IAttachmentDownloadLinkIssuer>(),
             SensitiveContentEgressGuards.Inactive(),
@@ -652,8 +682,11 @@ public sealed class ClientMailThreadEndpointTests
     }
 
     /// <summary>Builds the use case behind the route over the real scope resolution, with storage and the instruments stood in for.</summary>
-    private MailThreadBrowser Browser()
+    /// <param name="participation">What the caller's folders take part in, defaulting to a deployment that maps none.</param>
+    private MailThreadBrowser Browser(StubMailFolderParticipation? participation = null)
     {
+        var folders = participation ?? StubMailFolderParticipation.Nothing;
+
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
         catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(MailAccountId.Create("work"))]);
 
@@ -678,8 +711,8 @@ public sealed class ClientMailThreadEndpointTests
             enrichments,
             new MailboxScopeResolver(
                 catalog,
-                StubMailFolderParticipation.Nothing,
-                StubDeploymentMailFolders.None,
+                folders,
+                StubDeploymentMailFolders.Of(folders),
                 StubMailFolderMappings.ResolvingNothing),
             SensitiveContentEgressGuards.Inactive(),
             readTelemetry,

@@ -9,7 +9,7 @@
 # It is what validates the defaults themselves against `values.schema.json`: a default the schema would reject is
 # overridden by both of the other values documents here and would go unnoticed without a rendering that keeps it. It is
 # also the third shape of the chart, and the one an operator following the quick start gets: no ingress, no
-# personal-data scanning, no spam scanning, and the PostgreSQL the chart deploys itself.
+# personal-data scanning, and the PostgreSQL the chart deploys itself.
 image:
   repository: example/mailfathom
   tag: 0.1.0-verification

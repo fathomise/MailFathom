@@ -1,6 +1,6 @@
 # Telemetry and the Aspire dashboard
 
-<!-- describes: backend/src/Application/Observability/**, backend/src/Common/Observability/**, backend/src/Host/Observability/**, backend/src/Host/Signals/SignalBackplaneTelemetry.cs, backend/src/Host/ServiceDefaultsExtensions.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Hosting/Workers/**, backend/src/Infrastructure/Observability/**, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs, backend/src/Infrastructure/Mail/MailKit/MailKitImapClientFactory.cs, backend/src/Infrastructure/HostApplicationBuilderExtensions.cs, backend/src/Mcp/Observability/**, backend/src/Cli/Diagnostics/**, backend/src/AppHost/**, backend/src/AI/ProviderAdapters/OpenAiCompatibleClientFactory.cs, deploy/helm/mailfathom/templates/valkey-*.yaml, deploy/compose/compose.yaml, deploy/quadlet/mailfathom-valkey.container, frontend/src/Client.App/src/containment/**, frontend/src/Client.App/src/telemetry/**, frontend/src/Client.App/src/App.tsx, frontend/src/Client.App/src/main.tsx, frontend/src/Client.Backend/src/telemetry.ts, frontend/src/Client.Backend/src/mailAttachment.ts, frontend/src/Client.Backend/src/ownDisplayName.ts, frontend/src/Client.Backend/src/ownPortrait.ts -->
+<!-- describes: backend/src/Application/Observability/**, backend/src/Common/Observability/**, backend/src/Host/Observability/**, backend/src/Host/Signals/SignalBackplaneTelemetry.cs, backend/src/Host/ServiceDefaultsExtensions.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Hosting/Workers/**, backend/src/Infrastructure/Observability/**, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs, backend/src/Infrastructure/Mail/MailKit/MailKitImapClientFactory.cs, backend/src/Infrastructure/HostApplicationBuilderExtensions.cs, backend/src/Mcp/Observability/**, backend/src/Cli/Diagnostics/**, backend/src/AppHost/**, backend/src/AI/ProviderAdapters/OpenAiCompatibleClientFactory.cs, backend/src/AI/Orchestration/DecisionTelemetry.cs, backend/src/AI/Orchestration/ObservedDecisionClient.cs, deploy/helm/mailfathom/templates/valkey-*.yaml, deploy/compose/compose.yaml, deploy/quadlet/mailfathom-valkey.container, frontend/src/Client.App/src/containment/**, frontend/src/Client.App/src/telemetry/**, frontend/src/Client.App/src/App.tsx, frontend/src/Client.App/src/main.tsx, frontend/src/Client.Backend/src/telemetry.ts, frontend/src/Client.Backend/src/mailAttachment.ts, frontend/src/Client.Backend/src/ownDisplayName.ts, frontend/src/Client.Backend/src/ownPortrait.ts -->
 
 The host instruments itself with OpenTelemetry throughout — logs, metrics, and traces — and exports none of it unless
 the environment names a destination. Today exactly one environment does that out of the box: a local run under the
@@ -102,7 +102,8 @@ it builds the client, and an explicit value takes precedence, so **that variable
 is no configuration key for it either: a collector holding every question and answer would be a second copy of the mail,
 under a retention nobody chose and an access rule the mail store never granted, and this is not a trade an operator is
 offered. What remains is metadata — which operation ran, against which model and endpoint, how long it took, how many
-tokens it consumed, and whether it failed.
+tokens it consumed, and whether it failed. A decision model is reached through no provider library, so none of these
+decorators wrap it; [what a decision emits](#what-a-decision-emits) is MailFathom's own.
 
 ## The build every record names
 
@@ -331,9 +332,31 @@ MailFathom's own names, and nothing about a message reaches either. [Junk is kep
 mail](../features/spam-classification.md#junk-is-kept-out-of-what-a-deployment-derives-from-mail) holds what each answer
 means and what the wait is.
 
+Settling arriving mail publishes `mailfathom.mail.settlements`, one count per message a run settled, tagged with
+`mailfathom.mail.settlement` as one of `settled`, `released_as_unclassifiable`, `released_without_verdict`, or
+`released_after_waiting`. A message is kept out of every read until its verdict and its rules have placed it, and each
+wait is bounded, so the last three are mail shown before a stage finished: a message no classification can read, one
+whose verdict never came within the classification wait, and one still waiting on its content, a rule pass, or a move
+when the longest wait ran out. `released_after_waiting` is the one worth alerting on — a deployment releasing mail that
+way is one whose rule pass or move convergence has stalled. Only the run that actually settled a message counts it, so
+the counter is additive across replicas and is summed. [A message is shown once it has
+settled](../architecture/arrival-pipeline.md#a-message-is-shown-once-it-has-settled) holds what each wait is.
+
+The spam model stage publishes `mailfathom.spam.model_stage.consultations`, one count per message the stage would have
+asked a decision model about, tagged with `mailfathom.spam.model_stage.job` — `decide_verdict` or `name_subcategory` —
+and `mailfathom.spam.model_stage.outcome`: `answered`, `not_activated`, `budget_exhausted`, `provider_unavailable`,
+`answer_unreadable`, `input_too_large`, or `scanner_unavailable`. Every outcome but the first left the deterministic
+verdict in place, so the share of those is the share of consulted mail the model did not reach. `not_activated` is the
+one to read first: an account switched the stage on and the deployment declares no decision model for spam
+classification. A message whose stored content cannot be rendered is the one the counter does not see: there is nothing
+to show a model, so it is recorded deterministically under the account's own terms, uncounted, and no later run asks
+about it again. It is a count per replica and sums across them, and the call itself is reported again by the decision
+client's own instruments. Nothing about the message, the verdict, or the kind reaches it.
+[The model stage](../features/spam-classification.md#the-model-stage) holds what each outcome means.
+
 Each outbound AI provider publishes what its last call established about it, as `mailfathom.ai.provider.health` tagged
-with `mailfathom.ai.provider.role` — `embedding` or `chat`. The two roles carry one measurement each rather than one
-combined figure, because an instance may hold a working embedding provider and a failing chat one and the two ask
+with `mailfathom.ai.provider.role` — `embedding`, `chat`, or `decision`. The roles carry one measurement each rather than
+one combined figure, because an instance may hold a working embedding provider and a failing chat one and the two ask
 different things of an operator. The value is the state's own number rather than its name, since an instrument's value
 has to be one: `0` nothing called yet, `1` serving, `2` unavailable and worth waiting out, `3` failing for a reason a
 credential or a declaration has to change. A role nothing has called publishes no measurement at all, so a flat line
@@ -841,6 +864,14 @@ once a minute on one replica and a refused claim about once a minute on each of 
 refusals here is the ordinary reading of a deployment with more than one replica rather than contention worth acting
 on.
 
+The hourly [signing key](organization-signing-keys.md) pass holds `organization-signing-key/<organization>` — the
+organization's identifier — for as long as one organization's key is being minted or rotated, and only for an
+organization that is due one. On the gauge such a series appears for a moment on whichever replica renewed the
+organization, and on most hours none appears at all, because no organization is due. A deployment with no key ring is
+the exception: every organization without a key is due on every pass, so each replica claims up to a hundred of these
+scopes an hour and mints nothing. A refused claim is a replica that
+reached an organization while another was renewing it, and it leaves that organization to the replica that holds it.
+
 ### What a synchronization cycle emits
 
 No instrumentation package exists for the mail library, so without what follows the part of MailFathom that spends the
@@ -1034,6 +1065,38 @@ configured and writing nothing.
 The one tag is MailFathom's own closed set. No address, name, display name, folder, or message identity reaches an
 instrument from collection: the outcome is a decision about a person and never the person, and nothing here logs at all.
 
+### Organizations left without a signing key
+
+Every organization holds [a signing key](organization-signing-keys.md) whose private half is sealed under the
+deployment's key ring, so a deployment that configures no ring mints none: the organization is still recorded, and the
+pass that renews keys leaves it without one. `mailfathom.organization.signing_key.unminted` counts each time that pass
+reached an organization it could not mint a key for, in `{organization}`, with no dimension, and the pass logs the same
+count as a warning. A pass reaches at most a hundred organizations, so the count rises by at most a hundred per pass
+however many are waiting. A deployment that has configured `DataEncryption` reads zero for ever; one that has not reads a
+steady rise every hour for as long as it has organizations, which is the signal that they hold nothing to sign with and
+that the fix is the key ring rather than anything about the organizations.
+
+It is a counter and it is additive: each replica counts the organizations its own hourly passes reached, so a
+deployment of several replicas rises by up to one per organization per replica each hour, and a panel sums it across
+them. No organization identity, name, or key reaches the instrument or the log.
+
+The same absence reaches the mail itself. `mailfathom.organization.mail.unsigned` counts each send an organization's
+account asked the outbox to queue [without the organization's signature](organization-signing-keys.md#what-is-signed-and-when),
+in `{message}`, with no dimension: the organization held no active key, its active key's private half did not open under
+the key ring — a ring key removed while a signing key was still sealed under it — the message named no author whose
+domain the signature could carry, or the signature would have carried a message already near
+[`MailDelivery:MaxMessageBytes`](configuration-mail.md#maildelivery) past it. The message is sent all the same,
+because a signature is never a condition of delivery, so this counter is the only place the gap shows. It counts when
+the outbox is asked, before it knows whether the request is new, so a send asked for again with the same identity — a
+retried call, a rule that ran twice — counts again though only one message leaves, and so does an enqueue that then
+fails to commit. A sustained rise is mail colleagues will not be able to verify, and it is usually the key ring or the
+key: an organization without an active key, or one sealed under a ring key since removed. A message composed near
+`MailDelivery:MaxMessageBytes` and one naming no signable author are counted too and need no key change, so a
+deployment whose every organization holds an openable key reads close to zero rather than exactly zero when it sends
+messages that large. It is additive like the counter above — each replica counts the sends it was asked to queue — and mail from an
+account in no organization never moves it. Nothing identifying the account, the organization, the message, or the key
+reaches it.
+
 ### What delivering the outbox emits
 
 Sending is the other direction of the same absence: the mail library publishes nothing of its own here either, and a
@@ -1081,12 +1144,11 @@ never counted here, so the two series are read together rather than one being a 
 
 **Can the user see what they sent?** `mailfathom.mail.filing.attempts` counts every attempt to put a copy of an
 outgoing message into one of this account's own folders, tagged with the account alias, `mailfathom.mail.filing.place`
-— `draft`, `held`, `sent`, or `undetermined` where a failure ended before any place was chosen — and
+— `draft`, `sent`, or `undetermined` where a failure ended before any place was chosen — and
 `mailfathom.mail.filing.outcome`, whose values are `filed`, `already_filed`,
 `not_requested`, `destination_unavailable`, `outcome_unknown`, `failed`, and `withdrawn`. Most of them are ordinary:
 `not_requested` is an account that files no copy, `already_filed` is a settlement asked for twice, and `withdrawn` is a
-copy going away — a mirror because its message left, or a sent copy because the account's own provider filed one of its
-own beside it, which is the one the `sent` place names. Two are worth a dashboard. `destination_unavailable` is a deployment whose
+sent copy going away because the account's own provider filed one of its own beside it. Two are worth a dashboard. `destination_unavailable` is a deployment whose
 `Sent` folder mapping resolves to nothing, so every message it sends goes unrecorded in the mailbox — a configuration
 answer rather than a server one. And `outcome_unknown` means the same here as it does above and for the same reason:
 the append may or may not have reached the folder, nothing will attempt it again, and repeating it would put a second
@@ -1198,6 +1260,32 @@ same ledgers as a question asked over MCP. So these four report what this deploy
 than what one surface spends: a client asking on the client endpoint and an agent asking over MCP are both counted here,
 and neither is separable from the other in these instruments.
 
+### What a decision emits
+
+A decision model is reached through no provider library, so none of the [decorators a call to a model
+carries](#what-a-call-to-a-model-emits-and-what-it-never-does) wrap it, and what it emits is MailFathom's own. Each call
+opens one span, `decide`, on the host's own source, and records two instruments on its meter. The span sits outside the
+resilience pipeline, so it measures the call as the caller waited for it, retries included; the pipeline's own telemetry
+is what separates the attempts.
+
+| Signal | Unit | What it records | Across replicas |
+| --- | --- | --- | --- |
+| `mailfathom.decisions.duration` | `s` | How long one call took, by model and outcome | aggregated as a histogram, so the replicas' buckets add |
+| `mailfathom.decisions.tokens` | `{token}` | The tokens the provider reported for a call it billed, by model and direction | summed |
+
+Both carry `mailfathom.decision.endpoint`, the declared alias; `mailfathom.decision.model`, the dated build that
+answered, or the one declared where none answered; and `mailfathom.decision.provider`. The duration and the span add
+`mailfathom.decision.outcome` — `answered`, `failed`, or `cancelled` — and, on a failure,
+`mailfathom.decision.failure`, which names the class the failure was classified as, or `Unclassified` for a call refused
+before it was sent, such as a request over its model's character bound. The token counter adds
+`mailfathom.decision.direction`, `input` or `output`, and counts an answer refused as unreadable as well, whenever the
+provider still reported what it billed for it. A failed call sets the span's status to error; a call its caller
+cancelled does not, because the provider did not fail. **Nothing about the mail reaches either**: no subject, body,
+address, question, criterion, answer, or probability, and not the money figure the provider sends beside the tokens.
+
+Those tokens are charged to the same [answering spend](#answering-spend) ledgers a question is, so the period figures
+above include what decisions consumed.
+
 ### What a run records
 
 Those instruments describe what answering costs across a deployment. One span describes a single run, and it is the only
@@ -1251,7 +1339,7 @@ Sensitive-content scanning publishes six instruments, all of them tagged with
 `mailfathom.sensitive_content.egress_point` — `chat_prompt`, `hosted_embedding_input`, `mcp_snippet`,
 `mcp_email_content`, `outgoing_mail`, `client_mail_listing`, `client_mail_search`, `client_citation_resolution`,
 `client_thread_state`, `client_reply_draft`, `client_contact_correspondence`,
-`client_contact_relationship`, or `attachment_download`. The
+`client_contact_relationship`, `attachment_download`, or `spam_classification_input`. The
 egress point is on every one
 of them because it is
 what an operator acts
@@ -1439,14 +1527,18 @@ before the answer arrived is thrown away rather than flushed: a client that has 
 answer and records into the buffer described below, so an answer of off empties that buffer without ever addressing
 it. Turning it back on begins at that moment and reaches back over nothing.
 
-**The developer information surface is a view, not a recording.** While it is open it hears every occurrence the
-client could record, below the floor and whatever the switch says, together with the requests on the wire and what
-the page measured about itself, and draws them. Nothing it hears leaves the page, is written anywhere, or survives
-its closing. While it is closed it observes nothing, with two exceptions that cost no running work: the Web Vitals,
-which the browser buffers on its own, and whether the signal hub's connection stands and since when, which is noted
-only as a connection opens or ends. It is unlocked from the version line in *Settings* and
-forgotten on reload, and because it is a developer's tool it shows the identifiers of the person, their accounts,
-their runs, and their requests. It never shows what anybody wrote or was sent.
+**Developer mode is a view, not a recording that leaves the page.** Once it is switched on from the version line in
+*Settings* it hears every occurrence the client could record, below the floor and whatever the switch says, together
+with the requests on the wire and their headers, the signals the hub delivered, and what the page measured about
+itself, and keeps the latest 200 of each kind in memory, the oldest giving way first, whether its surface is open or
+closed. The surface draws that record newest first, and closing it lets nothing go. Nothing it hears leaves the page
+or is written anywhere, and a reload forgets developer mode and the record with it. Until it is switched on it
+observes nothing, with two exceptions that cost no running work: the Web Vitals, which the browser buffers on its own,
+and whether the signal hub's connection stands and since when, which is noted only as a connection opens or ends.
+Because it is a developer's tool it shows the identifiers of the person, their organization, their accounts, their
+runs, and their requests, and the revision of the deployment's image. It never shows what anybody wrote or was sent:
+no body is read, a header whose value is a credential or names an attachment's file is shown by its name alone, and a
+notification signal is shown without its two lines.
 
 **A deployment that takes no telemetry from a client offers no switch.** That is one that forwards none at all, one
 whose settings policy holds this person's switch off, and one that cannot say on this replica what governs them. Each
@@ -1836,8 +1928,10 @@ is bounded by the size of somebody's configuration, and a dashboard without it c
 
 What makes it a contract rather than a convention is that it is asserted over the emitted surface as a whole rather
 than per feature. A rule checked once per publisher is a rule the next publisher is not covered by, and a telemetry
-surface grows one publisher at a time — so the unit-test suite drives **every** publisher the two boundaries that own
-one hold, through a listener over MailFathom's activity source and meter, and holds what came out against four claims:
+surface grows one publisher at a time — so the unit-test suite drives **every** publisher the three boundaries that own
+one hold, through a listener over MailFathom's activity source and meter, and holds what came out against four claims.
+The AI boundary's decision telemetry is handed its source and meter rather than reaching MailFathom's, so its suite drives
+that publisher over a pair of its own and holds it to the same claims:
 
 - No span name, instrument name, or dimension key is named after a word from the refused list, matched whole segment by
   whole segment. That is what separates `token`, which names a credential, from `tokens`, which is how many a model
@@ -1849,7 +1943,7 @@ one hold, through a listener over MailFathom's activity source and meter, and ho
   sent, text read out of a message — and the assertion is where each was allowed to surface. A caller's text and
   anything mail-derived may reach nothing at all; an alias may reach the dimensions named for it and no others.
 
-Two things keep that from decaying quietly. Within each of those two boundaries a publisher is found by what it holds —
+Two things keep that from decaying quietly. Within each of those three boundaries a publisher is found by what it holds —
 an instrument field, or a declared span name — rather than by where it lives, so a publisher nobody added to the drive
 fails the suite instead of going unasserted. And the names every assembly of this deployment *declares*, the host's own
 included, are read and held against the same vocabulary, which reaches what no drive does: the span the extraction

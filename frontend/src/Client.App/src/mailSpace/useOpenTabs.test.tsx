@@ -22,6 +22,7 @@ const closeEverything = 'Close everything.';
 const reopenTheLastRead = 'Open the last message read.';
 const showTheMarkup = 'Show the quarterly figures as the sender sent it.';
 const closeTheMarkup = 'Close the markup surface.';
+const goBackToTheList = 'Go back to the list, as a phone does.';
 
 function Tabs({ inTabs }: { readonly inTabs: boolean }) {
     const { workspace, revise } = useWorkspace();
@@ -86,6 +87,15 @@ function Tabs({ inTabs }: { readonly inTabs: boolean }) {
                 }}
             >
                 {readDownTheConversation}
+            </button>
+
+            <button
+                type="button"
+                onClick={() => {
+                    revise({ selection: null, conversation: null });
+                }}
+            >
+                {goBackToTheList}
             </button>
 
             <button
@@ -248,6 +258,27 @@ describe('useOpenTabs, working in tabs', () => {
         expect(screen.getByText('In front of it: thread-9')).toBeDefined();
     });
 
+    // Going back to the list on a phone puts the reading column away without closing the tab, so the tab stays the
+    // active one while nothing of it is on the screen.
+    it('opens the message again, every time, after the reader went back to the list from it', () => {
+        renderTabs(true);
+
+        for (let round = 0; round < 3; round += 1) {
+            press(openTheQuarterly);
+
+            expect(reading()).toBe('Reading: message-1');
+
+            press(goBackToTheList);
+
+            expect(reading()).toBe('Reading: nothing');
+        }
+
+        press(openTheQuarterly);
+
+        expect(open()).toBe('Open: The quarterly figures');
+        expect(reading()).toBe('Reading: message-1');
+    });
+
     it('reads the last remaining tab when the one being read is closed', () => {
         renderTabs(true);
 
@@ -323,6 +354,16 @@ describe('useOpenTabs, not working in tabs', () => {
 
         expect(open()).toBe('Open: The invoice');
         expect(reading()).toBe('Reading: message-2');
+    });
+
+    it('opens the message again after the reader went back to the list from it', () => {
+        renderTabs(false);
+
+        press(openTheQuarterly);
+        press(goBackToTheList);
+        press(openTheQuarterly);
+
+        expect(reading()).toBe('Reading: message-1');
     });
 });
 

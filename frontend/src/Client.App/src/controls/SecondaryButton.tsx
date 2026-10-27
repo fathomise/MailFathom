@@ -28,14 +28,28 @@ const shapes: Readonly<Record<SecondaryButtonShape, string>> = {
 export function SecondaryButton({
     label,
     shape = 'compact',
+    held = false,
     onActivate,
 }: {
     readonly label: string;
     readonly shape?: SecondaryButtonShape;
+
+    /** Whether what this button asked for is still unanswered, which `Control` says how it is drawn. */
+    readonly held?: boolean;
+
     readonly onActivate: () => void;
 }) {
     return (
-        <button className={`${borderedControl} ${shapes[shape]}`} type="button" onClick={onActivate}>
+        <button
+            className={`${borderedControl} ${shapes[shape]} aria-disabled:cursor-default aria-disabled:opacity-60`}
+            type="button"
+            aria-disabled={held ? true : undefined}
+            onClick={() => {
+                if (!held) {
+                    onActivate();
+                }
+            }}
+        >
             {label}
         </button>
     );

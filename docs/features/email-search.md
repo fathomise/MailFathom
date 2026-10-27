@@ -16,8 +16,9 @@ This page documents the use case. `MailboxSearchReader` is where every rule belo
 cannot reach the query without them; the `search_emails` MCP tool maps protocol arguments onto it and publishes what it
 returns, and [MCP tools](mcp-tools.md#search_emails) documents that surface.
 
-**A screen searches the same mail through a second use case.** `MailSearchBrowser` composes the same scope, the same
-filters, both rankings, the same partition, the same body extracts, and the same attachment matches, and differs in the
+**A screen searches the same mail through a second use case.** `MailSearchBrowser` composes the same scope — read for
+the person rather than for an agent, so a folder [withheld from AI](mailbox-queries.md#folders-withheld-from-ai) takes
+part, reached by the lexical ranking alone since nothing of it is embedded — the same filters, both rankings, the same partition, the same body extracts, and the same attachment matches, and differs in the
 two things a screen needs and a tool does not: the results continue past the first window, and each one says which
 ranking found it. [Paging a ranking](#paging-a-ranking) is where the first of those is described and
 [What a result carries](#what-a-result-carries) the second; the route is
@@ -103,18 +104,17 @@ the same reason. It stays distinguishable from a message whose body was genuinel
 | `IsRemotelyFlagged` | The remote `\Flagged` state to require | either state |
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
-| `IncludeJunkMail` | Whether the account's junk folder takes part | it does not |
 | `ResultLimit` | How many ranked results to return | the default of 20 |
 
 The structured filters are the ones `ListEmails` takes and they mean exactly the same things, because both read models
 apply one validated `MailboxEmailSelection` and one SQL predicate.
 [Mailbox queries](mailbox-queries.md#what-each-filter-accepts-and-what-it-refuses) documents what each of them accepts
 and refuses, including the attachment-presence rule and the account-scope resolution; nothing about them changes here.
-A folder mapped with `VisibleToTools: false`, and a folder no mapping names at all, are outside a search for the same
-reason each is outside a listing, and by the same single decision —
-[folders withheld from tools](mailbox-queries.md#folders-withheld-from-tools).
-The account's junk folder is left out by the same one decision and lifted by the same caller override, which the
-result reports back — [the junk folder, withheld by default](mailbox-queries.md#the-junk-folder-withheld-by-default-and-reachable-on-request).
+A folder mapped with `VisibleToAI: false`, and a folder no mapping names at all, are outside an agent's search for the
+same reason each is outside an agent's listing, and by the same single decision —
+[folders withheld from AI](mailbox-queries.md#folders-withheld-from-ai).
+A message judged spam, and the junk folder's mail the person did not mark not spam, are left out by the same one
+predicate, and no argument lifts it — [mail judged spam, withheld from every agent](mailbox-queries.md#mail-judged-spam-withheld-from-every-agent).
 
 `SubjectFragment` and `QueryText` are unrelated. The fragment is a structured filter over the stored subject column that
 narrows which emails are eligible; the query text is what the eligible ones are matched and ranked against.

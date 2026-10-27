@@ -14,7 +14,7 @@ namespace MailFathom.Application.Emails.Threads;
 /// recognized and then read deliberately rather than being drawn out of a call that asked for one message.
 /// </para>
 /// <para>
-/// Only messages the caller may see are here, and the count is of those. A message in a folder withheld from tools is in
+/// Only messages the caller may see are here, and the count is of those. A message in a folder withheld from AI is in
 /// no thread a tool publishes and in no thread size a tool publishes, because a size counting a message the caller may
 /// not see reports that folder's contents one integer at a time.
 /// </para>

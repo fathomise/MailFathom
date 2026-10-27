@@ -163,8 +163,24 @@
           "Mailbox",
           "Thread",
           "CalendarEvent",
-          "DiscoveryRun"
+          "DiscoveryRun",
+          "Notification"
         ]
+      },
+      "AnswerLink": {
+        "properties": {
+          "appearsInCitedSources": {
+            "type": "boolean"
+          },
+          "link": {
+            "$ref": "#/components/schemas/MailDocumentLink"
+          }
+        },
+        "required": [
+          "link",
+          "appearsInCitedSources"
+        ],
+        "type": "object"
       },
       "AttachmentAvailability": {
         "enum": [
@@ -1199,6 +1215,9 @@
           "folder": {
             "type": "string"
           },
+          "provenance": {
+            "$ref": "#/components/schemas/ClientCitedProvenanceResponse"
+          },
           "receivedAt": {
             "format": "date-time",
             "type": [
@@ -1230,7 +1249,31 @@
           "folder",
           "subject",
           "sentAt",
-          "receivedAt"
+          "receivedAt",
+          "provenance"
+        ],
+        "type": "object"
+      },
+      "ClientCitedProvenanceResponse": {
+        "properties": {
+          "authorAuthentication": {
+            "type": "string"
+          },
+          "deploymentTrust": {
+            "type": "string"
+          },
+          "firstContact": {
+            "type": "boolean"
+          },
+          "inJunkFolder": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "authorAuthentication",
+          "deploymentTrust",
+          "inJunkFolder",
+          "firstContact"
         ],
         "type": "object"
       },
@@ -1718,6 +1761,16 @@
       },
       "ClientDraftReadingResponse": {
         "properties": {
+          "document": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailDocument"
+              }
+            ]
+          },
           "draft": {
             "$ref": "#/components/schemas/ClientDraftResponse"
           },
@@ -1734,7 +1787,8 @@
         "required": [
           "draft",
           "plainTextBody",
-          "htmlBody"
+          "htmlBody",
+          "document"
         ],
         "type": "object"
       },
@@ -1964,6 +2018,9 @@
           "displayName": {
             "type": "string"
           },
+          "filesJunk": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string"
           },
@@ -1983,7 +2040,8 @@
           "displayName",
           "synchronizationState",
           "lastSynchronizedAt",
-          "behind"
+          "behind",
+          "filesJunk"
         ],
         "type": "object"
       },
@@ -2553,11 +2611,22 @@
               "$ref": "#/components/schemas/ClientMailFolderResponse"
             },
             "type": "array"
+          },
+          "outbox": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOutboxCountResponse"
+              }
+            ]
           }
         },
         "required": [
           "account",
-          "folders"
+          "folders",
+          "outbox"
         ],
         "type": "object"
       },
@@ -2638,6 +2707,29 @@
         "required": [
           "synchronizationEnabled",
           "accounts"
+        ],
+        "type": "object"
+      },
+      "ClientMailListedSenderResponse": {
+        "properties": {
+          "authorAuthentication": {
+            "type": "string"
+          },
+          "deploymentTrust": {
+            "type": "string"
+          },
+          "signatureOutcome": {
+            "type": "string"
+          },
+          "signerMatchesAuthor": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "authorAuthentication",
+          "deploymentTrust",
+          "signatureOutcome",
+          "signerMatchesAuthor"
         ],
         "type": "object"
       },
@@ -2800,12 +2892,25 @@
           "sender": {
             "$ref": "#/components/schemas/ClientMailSenderVerdictResponse"
           },
+          "signature": {
+            "$ref": "#/components/schemas/ClientMailSignatureResponse"
+          },
           "sizeOctets": {
             "format": "int64",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
               "string"
+            ]
+          },
+          "spam": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailSpamVerdictResponse"
+              }
             ]
           },
           "storedEmailId": {
@@ -2832,11 +2937,13 @@
           "headers",
           "body",
           "sender",
+          "signature",
           "attachments",
           "carried",
           "unread",
           "flagged",
-          "answered"
+          "answered",
+          "spam"
         ],
         "type": "object"
       },
@@ -2877,6 +2984,12 @@
           "outcome": {
             "type": "string"
           },
+          "spamMarkChanges": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailRecordedChangeResponse"
+            },
+            "type": "array"
+          },
           "storedEmailId": {
             "format": "uuid",
             "type": "string"
@@ -2886,7 +2999,8 @@
           "storedEmailId",
           "outcome",
           "destinationFolder",
-          "change"
+          "change",
+          "spamMarkChanges"
         ],
         "type": "object"
       },
@@ -3165,6 +3279,9 @@
               "string"
             ]
           },
+          "sender": {
+            "$ref": "#/components/schemas/ClientMailListedSenderResponse"
+          },
           "senderAddress": {
             "type": [
               "null",
@@ -3197,6 +3314,16 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "spam": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailSpamVerdictResponse"
+              }
+            ]
           },
           "subject": {
             "type": [
@@ -3242,7 +3369,9 @@
           "snippets",
           "matchedBy",
           "attachmentMatches",
-          "isDepictedMatch"
+          "isDepictedMatch",
+          "spam",
+          "sender"
         ],
         "type": "object"
       },
@@ -3254,17 +3383,387 @@
               "string"
             ]
           },
+          "authenticationSource": {
+            "type": "string"
+          },
           "authorAuthentication": {
             "type": "string"
           },
           "deploymentTrust": {
             "type": "string"
+          },
+          "dkimDomain": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dmarc": {
+            "type": "string"
+          },
+          "spfDomain": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "trustOrganization": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "trustSource": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "required": [
           "authorAuthentication",
           "deploymentTrust",
-          "authenticatedDomain"
+          "authenticatedDomain",
+          "authenticationSource",
+          "dkimDomain",
+          "spfDomain",
+          "dmarc",
+          "trustSource",
+          "trustOrganization"
+        ],
+        "type": "object"
+      },
+      "ClientMailSignatureResponse": {
+        "properties": {
+          "chainEnd": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "format": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "revocationCheckedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "revocationMethod": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "secureMimeType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "signedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "signer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailSignerResponse"
+              }
+            ]
+          },
+          "signerMatchesAuthor": {
+            "type": "boolean"
+          },
+          "steps": {
+            "$ref": "#/components/schemas/ClientMailSignatureStepsResponse"
+          },
+          "trustAnchor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unverifiableReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validityFailure": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "outcome",
+          "format",
+          "secureMimeType",
+          "unverifiableReason",
+          "signedAt",
+          "steps",
+          "trustAnchor",
+          "chainEnd",
+          "validityFailure",
+          "revocationMethod",
+          "revocationCheckedAt",
+          "revokedAt",
+          "signerMatchesAuthor",
+          "signer"
+        ],
+        "type": "object"
+      },
+      "ClientMailSignatureStepsResponse": {
+        "properties": {
+          "authority": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "revocation": {
+            "type": "string"
+          },
+          "signer": {
+            "type": "string"
+          },
+          "validity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "authority",
+          "validity",
+          "revocation",
+          "signer"
+        ],
+        "type": "object"
+      },
+      "ClientMailSignerResponse": {
+        "properties": {
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "digestAlgorithm": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fingerprint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "issuer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "keyId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publicKeyAlgorithm": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serialNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "issuer",
+          "validFrom",
+          "validUntil",
+          "serialNumber",
+          "fingerprint",
+          "keyId",
+          "publicKeyAlgorithm",
+          "digestAlgorithm"
+        ],
+        "type": "object"
+      },
+      "ClientMailSpamMarkResultResponse": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailRecordedChangeResponse"
+            },
+            "type": "array"
+          },
+          "moved": {
+            "type": "boolean"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "storedEmailId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "storedEmailId",
+          "outcome",
+          "moved",
+          "changes"
+        ],
+        "type": "object"
+      },
+      "ClientMailSpamMarksRequest": {
+        "properties": {
+          "requestId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "spamSubcategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "storedEmailIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "verdict": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "verdict",
+          "spamSubcategory",
+          "storedEmailIds"
+        ],
+        "type": "object"
+      },
+      "ClientMailSpamMarksResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailSpamMarkResultResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
+      "ClientMailSpamVerdictResponse": {
+        "properties": {
+          "decidedBy": {
+            "type": "string"
+          },
+          "impersonatedParty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phishingRequest": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "spamSubcategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "spamSubcategoryNamedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "verdict": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "decidedBy",
+          "spamSubcategory",
+          "spamSubcategoryNamedBy",
+          "phishingRequest",
+          "impersonatedParty"
         ],
         "type": "object"
       },
@@ -3549,6 +4048,9 @@
               "string"
             ]
           },
+          "sender": {
+            "$ref": "#/components/schemas/ClientMailListedSenderResponse"
+          },
           "senderAddress": {
             "type": [
               "null",
@@ -3574,6 +4076,16 @@
             "type": [
               "integer",
               "string"
+            ]
+          },
+          "spam": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailSpamVerdictResponse"
+              }
             ]
           },
           "subject": {
@@ -3627,7 +4139,9 @@
           "sizeOctets",
           "preview",
           "enrichment",
-          "threadMessageCount"
+          "threadMessageCount",
+          "spam",
+          "sender"
         ],
         "type": "object"
       },
@@ -4044,10 +4558,31 @@
               "string"
             ]
           },
+          "changeRecordId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "draftId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "kind": {
             "type": "string"
           },
           "messageId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outgoingEmailId": {
             "format": "uuid",
             "type": [
               "null",
@@ -4073,7 +4608,179 @@
           "messageId",
           "screen",
           "calendarEventId",
-          "taskId"
+          "taskId",
+          "outgoingEmailId",
+          "changeRecordId",
+          "draftId"
+        ],
+        "type": "object"
+      },
+      "ClientOutboxCountResponse": {
+        "properties": {
+          "refused": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "waiting": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "waiting",
+          "refused"
+        ],
+        "type": "object"
+      },
+      "ClientOutboxEntryResponse": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "attemptCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "availableAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dueAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dueTimeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failure": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "heldByAttempt": {
+            "type": "boolean"
+          },
+          "lastFailureCode": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ]
+          },
+          "lastReplyCode": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ]
+          },
+          "otherRecipientCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "outgoingEmail": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/ClientOutboxRecipientResponse"
+            },
+            "type": "array"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "subject": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "outgoingEmail",
+          "account",
+          "stage",
+          "heldByAttempt",
+          "recipients",
+          "otherRecipientCount",
+          "subject",
+          "recordedAt",
+          "dueAt",
+          "dueTimeZone",
+          "availableAt",
+          "attemptCount",
+          "lastFailureCode",
+          "lastReplyCode",
+          "failure"
+        ],
+        "type": "object"
+      },
+      "ClientOutboxPageResponse": {
+        "properties": {
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sends": {
+            "items": {
+              "$ref": "#/components/schemas/ClientOutboxEntryResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sends",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "ClientOutboxRecipientResponse": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "role"
         ],
         "type": "object"
       },
@@ -4130,6 +4837,15 @@
               "null",
               "string"
             ]
+          },
+          "trustedLinkDomains": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
           }
         },
         "type": "object"
@@ -4170,6 +4886,12 @@
           },
           "theme": {
             "type": "string"
+          },
+          "trustedLinkDomains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -4180,7 +4902,8 @@
           "expandWholeThread",
           "messageView",
           "aiFiltersShown",
-          "notificationSeconds"
+          "notificationSeconds",
+          "trustedLinkDomains"
         ],
         "type": "object"
       },
@@ -4226,11 +4949,14 @@
       },
       "ClientReplyDraftRequest": {
         "properties": {
-          "answeredEmailId": {
-            "format": "uuid",
+          "contextEmailIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
             "type": [
               "null",
-              "string"
+              "array"
             ]
           },
           "instruction": {
@@ -4247,7 +4973,7 @@
           }
         },
         "required": [
-          "answeredEmailId",
+          "contextEmailIds",
           "selection",
           "instruction"
         ],
@@ -4344,11 +5070,21 @@
       },
       "ClientSessionResponse": {
         "properties": {
+          "organization": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "permissions": {
             "items": {
               "type": "string"
             },
             "type": "array"
+          },
+          "revision": {
+            "type": "string"
           },
           "service": {
             "type": "string"
@@ -4363,6 +5099,8 @@
         "required": [
           "service",
           "version",
+          "revision",
+          "organization",
           "permissions",
           "telemetry"
         ],
@@ -8974,6 +9712,117 @@
         ],
         "type": "object"
       },
+      "OrganizationSigningKeyListResponse": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationSigningKeyResponse"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "displayName",
+          "keys",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "OrganizationSigningKeyResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "keyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "retiredAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyId",
+          "state",
+          "createdAt",
+          "retiredAt",
+          "revokedAt"
+        ],
+        "type": "object"
+      },
+      "OrganizationSigningKeyRevokedResponse": {
+        "properties": {
+          "activeKeyId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "revokedKeyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "wasActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revokedKeyId",
+          "wasActive",
+          "activeKeyId"
+        ],
+        "type": "object"
+      },
+      "OrganizationSigningKeyRotatedResponse": {
+        "properties": {
+          "activeKeyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "retiredKeyId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "activeKeyId",
+          "retiredKeyId"
+        ],
+        "type": "object"
+      },
       "OutboxCancellationRequest": {
         "properties": {
           "outgoingEmail": {
@@ -9002,6 +9851,21 @@
         "required": [
           "outgoingEmail",
           "outcome"
+        ],
+        "type": "object"
+      },
+      "OutboxDismissalRequest": {
+        "properties": {
+          "outgoingEmail": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "outgoingEmail"
         ],
         "type": "object"
       },
@@ -9137,6 +10001,45 @@
           "status",
           "lastReplyCode",
           "answeredAt"
+        ],
+        "type": "object"
+      },
+      "OutboxReopeningRequest": {
+        "properties": {
+          "outgoingEmail": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "outgoingEmail"
+        ],
+        "type": "object"
+      },
+      "OutboxReopeningResponse": {
+        "properties": {
+          "draftId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "outgoingEmail": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outgoingEmail",
+          "outcome",
+          "draftId"
         ],
         "type": "object"
       },
@@ -9385,6 +10288,15 @@
           },
           "evidence": {
             "$ref": "#/components/schemas/PresentationEvidence"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/AnswerLink"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
           },
           "text": {
             "$ref": "#/components/schemas/PresentationText"
@@ -10421,12 +11333,6 @@
       },
       "SpamClassificationResponse": {
         "properties": {
-          "corpusRevision": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "decidedBy": {
             "type": "string"
           },
@@ -10440,6 +11346,18 @@
           },
           "folder": {
             "type": "string"
+          },
+          "impersonatedParty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phishingRequest": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "profile": {
             "type": [
@@ -10468,6 +11386,18 @@
             },
             "type": "array"
           },
+          "spamSubcategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "spamSubcategoryNamedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "threshold": {
             "format": "double",
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
@@ -10486,9 +11416,12 @@
           "folder",
           "verdict",
           "decidedBy",
+          "spamSubcategory",
+          "spamSubcategoryNamedBy",
+          "phishingRequest",
+          "impersonatedParty",
           "score",
           "threshold",
-          "corpusRevision",
           "profile",
           "signals",
           "evaluatedAt",
@@ -14358,6 +15291,169 @@
         "responses": {
           "204": {
             "description": "No Content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/signing-keys": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationSigningKeyListResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/signing-keys/rotation": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationSigningKeyRotatedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/signing-keys/{keyId}/revocation": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "keyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationSigningKeyRevokedResponse"
+                }
+              }
+            },
+            "description": "OK"
           },
           "404": {
             "content": {
@@ -18504,6 +19600,44 @@
         ]
       }
     },
+    "/api/client/messages/{storedEmailId}/source": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "storedEmailId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
     "/api/client/mutations": {
       "get": {
         "parameters": [
@@ -18822,6 +19956,46 @@
         ]
       }
     },
+    "/api/client/mutations/spam": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClientMailSpamMarksRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientMailSpamMarksResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
     "/api/client/notifications": {
       "get": {
         "parameters": [
@@ -19039,7 +20213,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OutboxPageResponse"
+                  "$ref": "#/components/schemas/ClientOutboxPageResponse"
                 }
               }
             },
@@ -19080,6 +20254,86 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OutboxDecisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/outbox/dismissal": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OutboxDismissalRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxDecisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/outbox/reopening": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OutboxReopeningRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReopeningResponse"
                 }
               }
             },

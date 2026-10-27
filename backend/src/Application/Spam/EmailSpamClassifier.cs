@@ -6,12 +6,15 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Gating;
-using MailFathom.Application.Spam.Scanning;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Spam;
 
 namespace MailFathom.Application.Spam;
@@ -21,13 +24,16 @@ namespace MailFathom.Application.Spam;
 /// <para>
 /// The operation is keyed to the occurrence and is idempotent: repeating it either leaves an existing record alone or
 /// replaces it with the same verdict the same inputs produce, so it is safe for a caller to retry and safe for two
-/// callers to ask together. It carries no scheduler, no retry policy of its own, and no execution identity — whatever
-/// asks for a classification owns those.
+/// callers to ask together. The person's own verdict is never replaced, whatever the mode or the terms in force: it is
+/// returned as it stands, for the caller to act on. It carries no scheduler, no retry policy of its own, and no
+/// execution identity — whatever asks for a classification owns those.
 /// </para>
 /// <para>
 /// It reaches no mail server. Content comes from the local store, which already holds it, so classification never
-/// triggers an IMAP fetch and cannot affect a remote <c>\Seen</c> flag. It writes no folder, no flag, and nothing about
-/// where the message lives.
+/// triggers an IMAP fetch and cannot affect a remote <c>\Seen</c> flag. It writes no folder, no flag, no keyword, and
+/// nothing about where the message lives; the keywords it reads are the ones the last synchronization stored. The one
+/// thing that may leave the deployment is the model stage's minimised input, and only for an account that consults it —
+/// <see cref="SpamModelStage" /> holds when, and what happens when the model cannot answer.
 /// </para>
 /// <para>
 /// It writes one thing besides the classification, and only when the verdict is spam: everything derived from the
@@ -49,14 +55,16 @@ public sealed class EmailSpamClassifier
     private readonly IEmailSpamHeaderReader headerReader;
     private readonly IJunkMailFolderCatalog junkFolders;
     private readonly DeterministicSpamClassifier deterministicClassifier;
+    private readonly SpamModelStage modelStage;
     private readonly ISpamClassificationSettingsReader settingsReader;
     private readonly IEmailSpamClassificationStore classificationStore;
+    private readonly ISpamVerdictActStore verdictActs;
+    private readonly IMailboxMutationRecordStore mutationRecords;
     private readonly IEmailChunkStore chunkStore;
     private readonly IStoredEmailAttachmentTextStore attachmentTextStore;
     private readonly IDerivedWorkGateTelemetry gateTelemetry;
     private readonly OptimisticConcurrencyRetryPolicy retryPolicy;
     private readonly TimeProvider timeProvider;
-    private readonly ISpamScanner? scanner;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="emailReader">Finds the folder of the email, within the account that holds it.</param>
@@ -64,42 +72,44 @@ public sealed class EmailSpamClassifier
     /// <param name="headerReader">Reads the spam-relevant headers out of that content.</param>
     /// <param name="junkFolders">Answers whether the occurrence's folder is its account's junk folder.</param>
     /// <param name="deterministicClassifier">Reaches a verdict from what the message already carried.</param>
+    /// <param name="modelStage">Asks a decision model about the message, where the account consults one.</param>
     /// <param name="settingsReader">Answers what the occurrence's account decided about the mail in it.</param>
     /// <param name="classificationStore">Records the classification.</param>
+    /// <param name="verdictActs">Says what this deployment's verdicts already did to the message, which is not evidence.</param>
+    /// <param name="mutationRecords">Says whether a verdict asked for the message to be filed before its acts were recorded.</param>
     /// <param name="chunkStore">Removes the passages and vectors of a message the verdict calls junk.</param>
     /// <param name="attachmentTextStore">Removes the attachment readings of a message the verdict calls junk.</param>
     /// <param name="gateTelemetry">Counts what a junk verdict had to remove, without describing any of it.</param>
     /// <param name="retryPolicy">Commits the record from a fresh read when a concurrent write conflicts.</param>
     /// <param name="timeProvider">Stamps the evaluation time.</param>
-    /// <param name="scanner">Scores the whole message, or <see langword="null" /> when no scanner is registered.</param>
-    /// <exception cref="ArgumentNullException">Thrown when any argument but <paramref name="scanner" /> is <see langword="null" />.</exception>
-    /// <remarks>
-    /// The scanner is the one optional dependency, because a deployment with no sidecar registers no implementation of
-    /// the port and the deterministic stage is the whole working feature without one. An absent scanner is therefore a
-    /// supported deployment rather than a misconfiguration, which is why it is a nullable dependency instead of a guard.
-    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public EmailSpamClassifier(
         IClassifiableEmailReader emailReader,
         IEmailContentStore contentStore,
         IEmailSpamHeaderReader headerReader,
         IJunkMailFolderCatalog junkFolders,
         DeterministicSpamClassifier deterministicClassifier,
+        SpamModelStage modelStage,
         ISpamClassificationSettingsReader settingsReader,
         IEmailSpamClassificationStore classificationStore,
+        ISpamVerdictActStore verdictActs,
+        IMailboxMutationRecordStore mutationRecords,
         IEmailChunkStore chunkStore,
         IStoredEmailAttachmentTextStore attachmentTextStore,
         IDerivedWorkGateTelemetry gateTelemetry,
         OptimisticConcurrencyRetryPolicy retryPolicy,
-        TimeProvider timeProvider,
-        ISpamScanner? scanner = null)
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(emailReader);
         ArgumentNullException.ThrowIfNull(contentStore);
         ArgumentNullException.ThrowIfNull(headerReader);
         ArgumentNullException.ThrowIfNull(junkFolders);
         ArgumentNullException.ThrowIfNull(deterministicClassifier);
+        ArgumentNullException.ThrowIfNull(modelStage);
         ArgumentNullException.ThrowIfNull(settingsReader);
         ArgumentNullException.ThrowIfNull(classificationStore);
+        ArgumentNullException.ThrowIfNull(verdictActs);
+        ArgumentNullException.ThrowIfNull(mutationRecords);
         ArgumentNullException.ThrowIfNull(chunkStore);
         ArgumentNullException.ThrowIfNull(attachmentTextStore);
         ArgumentNullException.ThrowIfNull(gateTelemetry);
@@ -111,14 +121,16 @@ public sealed class EmailSpamClassifier
         this.headerReader = headerReader;
         this.junkFolders = junkFolders;
         this.deterministicClassifier = deterministicClassifier;
+        this.modelStage = modelStage;
         this.settingsReader = settingsReader;
         this.classificationStore = classificationStore;
+        this.verdictActs = verdictActs;
+        this.mutationRecords = mutationRecords;
         this.chunkStore = chunkStore;
         this.attachmentTextStore = attachmentTextStore;
         this.gateTelemetry = gateTelemetry;
         this.retryPolicy = retryPolicy;
         this.timeProvider = timeProvider;
-        this.scanner = scanner;
     }
 
     /// <summary>Classifies one occurrence, on the terms decided for the mailbox it belongs to.</summary>
@@ -172,8 +184,16 @@ public sealed class EmailSpamClassifier
             return SpamClassificationResult.NotClassified(SpamClassificationOutcome.OutsideConfiguredScope);
         }
 
-        if (mode is SpamClassificationMode.FirstTimeOnly
-            && await this.classificationStore.FindAsync(emailId, cancellationToken) is not null)
+        var existing = await this.classificationStore.FindAsync(emailId, cancellationToken);
+
+        // Read here so a person's verdict costs no read of the message. It is not what protects that verdict: the write
+        // below is conditional on the row it would replace, which catches one recorded after this read.
+        if (existing is { DecidedBy: SpamClassificationStage.Person })
+        {
+            return SpamClassificationResult.PersonsVerdictKept(existing);
+        }
+
+        if (mode is SpamClassificationMode.FirstTimeOnly && existing is not null)
         {
             return SpamClassificationResult.NotClassified(SpamClassificationOutcome.AlreadyClassified);
         }
@@ -187,11 +207,17 @@ public sealed class EmailSpamClassifier
 
         var classification = await this.EvaluateAsync(email, settings, content, cancellationToken);
         var discardedPassageCount = 0;
+        var written = false;
 
         await this.retryPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
             {
-                await this.classificationStore.SaveAsync(session, classification, attemptCancellationToken);
+                written = await this.classificationStore.SaveAsync(session, classification, attemptCancellationToken);
+
+                if (!written)
+                {
+                    return;
+                }
 
                 // In the same transaction as the verdict that calls for it, so a crash never leaves a message recorded
                 // as junk while what was derived from it is still retrievable. An attempt the retry policy replays
@@ -215,6 +241,13 @@ public sealed class EmailSpamClassifier
             },
             cancellationToken);
 
+        if (!written)
+        {
+            return await this.classificationStore.FindAsync(emailId, cancellationToken) is { } kept
+                ? SpamClassificationResult.PersonsVerdictKept(kept)
+                : SpamClassificationResult.NotClassified(SpamClassificationOutcome.OccurrenceMissing);
+        }
+
         if (classification.Verdict is SpamVerdict.Spam)
         {
             this.gateTelemetry.RecordDiscardedPassages(discardedPassageCount);
@@ -223,7 +256,46 @@ public sealed class EmailSpamClassifier
         return SpamClassificationResult.Classified(classification);
     }
 
-    /// <summary>Runs both stages over one occurrence and composes the record they produce.</summary>
+    /// <summary>Reads what this deployment's verdicts already did to the message, so none of it is taken as evidence.</summary>
+    /// <remarks>
+    /// The record of verdict acts is the answer wherever it was written. A message filed before it was — by an earlier
+    /// build, or by an older replica during a rolling upgrade — left only the relocation a verdict asked for, so a message
+    /// in the junk folder with no recorded filing is looked up there too, which is the reading the action recorder makes
+    /// for the same gap. A message anywhere else needs no second read, because only a junk placement is in question.
+    /// </remarks>
+    private async Task<IReadOnlySet<SpamVerdictAct>> FindOwnActsAsync(
+        StoredEmailId emailId,
+        bool isJunkFolder,
+        CancellationToken cancellationToken)
+    {
+        var recorded = await this.verdictActs.FindAsync(emailId, cancellationToken);
+
+        if (!isJunkFolder
+            || recorded.Contains(SpamVerdictAct.FiledIntoJunk)
+            || !await this.mutationRecords.HasRecordAsync(
+                emailId,
+                MailboxMutation.Relocate,
+                MailboxMutationOrigin.Classification,
+                cancellationToken))
+        {
+            return recorded;
+        }
+
+        return new HashSet<SpamVerdictAct>(recorded) { SpamVerdictAct.FiledIntoJunk };
+    }
+
+    /// <summary>Answers the junk folder the message is in now, if it is in one.</summary>
+    /// <remarks>
+    /// The folder it is in now rather than the one it was stored from, because a held or restoring account moves a message
+    /// locally without its binding following, and the spam floor reads the same folder: a classification reading the
+    /// binding instead would write a verdict below spam over the floor's on a message the person put into junk.
+    /// </remarks>
+    private MailFolderAlias? JunkFolderHolding(ClassifiableEmail email) =>
+        email.CurrentFolderAlias is { } current && this.junkFolders.IsJunkFolder(email.AccountId, current)
+            ? current
+            : null;
+
+    /// <summary>Reads one occurrence and composes the record its verdict is kept as.</summary>
     private async Task<SpamClassification> EvaluateAsync(
         ClassifiableEmail email,
         SpamClassificationSettings settings,
@@ -231,83 +303,21 @@ public sealed class EmailSpamClassifier
         CancellationToken cancellationToken)
     {
         var facts = await this.headerReader.ReadAsync(content, cancellationToken);
-        var reading = this.deterministicClassifier.Read(
-            facts,
-            email.FolderAlias,
-            this.junkFolders.IsJunkFolder(email.AccountId, email.FolderAlias));
+        var junkFolder = this.JunkFolderHolding(email);
+        var isJunkFolder = junkFolder is not null;
+        var ownActs = await this.FindOwnActsAsync(email.Id, isJunkFolder, cancellationToken);
+        var reading = this.deterministicClassifier.LiftToFloor(
+            this.deterministicClassifier.Read(facts, junkFolder ?? email.FolderAlias, isJunkFolder, email.Keywords, ownActs),
+            junkFolder,
+            email.Keywords,
+            ownActs);
 
-        var scan = settings.UsesScanner && this.scanner is not null
-            ? await this.scanner.ScanAsync(content, cancellationToken)
-            : null;
-
-        var decision = Decide(reading, JudgedBy(scan, settings.ScannerThreshold));
-
-        return SpamClassification.Create(
-            email.Id,
-            decision.Verdict,
-            decision.DecidedBy,
-            decision.Assessment,
-            decision.CorpusRevision,
-            settings.Profile,
-            [.. reading.Signals, .. ScannerSignals(scan)],
-            this.timeProvider.GetUtcNow());
+        return await this.modelStage.DecideAsync(
+            email,
+            content,
+            reading,
+            settings,
+            this.timeProvider.GetUtcNow(),
+            cancellationToken);
     }
-
-    /// <summary>Re-judges a scanner's score by the threshold the operator configured, where they configured one.</summary>
-    /// <remarks>
-    /// The threshold is replaced rather than compared beside the scanner's own, so the record states one pair of numbers
-    /// in one scale and a reader is never left deciding which of two thresholds a verdict was reached under. A scanner
-    /// that answered with anything but a score is returned unchanged: there is nothing to re-judge.
-    /// </remarks>
-    private static SpamScanResult? JudgedBy(SpamScanResult? scan, double? configuredThreshold)
-    {
-        if (configuredThreshold is not { } threshold
-            || scan is not { Assessment: { } assessment, CorpusRevision: { } corpusRevision })
-        {
-            return scan;
-        }
-
-        return SpamScanResult.Scored(
-            SpamAssessment.Create(assessment.Score, threshold),
-            scan.FiredRules,
-            corpusRevision);
-    }
-
-    /// <summary>Decides which stage's verdict the record carries.</summary>
-    /// <remarks>
-    /// A deterministic verdict of spam stands whatever the scanner says. It rests on the provider's own decision or on
-    /// where the mailbox filed the message, both taken with context nothing after delivery has, and a scanner that
-    /// disagreed would be re-reading the message from a mailbox without the network view the receiving server had.
-    /// Otherwise the scanner decides when it scored, which is what an operator who deployed one asked for; a scanner
-    /// that did not answer leaves the deterministic verdict exactly as it was, including undetermined.
-    /// </remarks>
-    private static (SpamVerdict Verdict, SpamClassificationStage DecidedBy, SpamAssessment? Assessment, string? CorpusRevision) Decide(
-        DeterministicSpamReading reading,
-        SpamScanResult? scan)
-    {
-        if (reading.Verdict is SpamVerdict.Spam)
-        {
-            return (SpamVerdict.Spam, SpamClassificationStage.Deterministic, reading.Assessment, null);
-        }
-
-        if (scan is { Outcome: SpamScanOutcome.Scored, Assessment: { } assessment, CorpusRevision: { } corpusRevision })
-        {
-            return (
-                assessment.ClearsThreshold ? SpamVerdict.Spam : SpamVerdict.NotSpam,
-                SpamClassificationStage.Scanner,
-                assessment,
-                corpusRevision);
-        }
-
-        return (reading.Verdict, SpamClassificationStage.Deterministic, reading.Assessment, null);
-    }
-
-    private static IEnumerable<SpamSignal> ScannerSignals(SpamScanResult? scan) =>
-        scan is { CorpusRevision: { } corpusRevision }
-            ? scan.FiredRules.Select(rule => SpamSignal.Create(
-                SpamSignalKind.ScannerRule,
-                rule,
-                observation: null,
-                SpamSignalProvenance.FromScannerCorpus(corpusRevision)))
-            : [];
 }

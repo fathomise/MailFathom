@@ -23,6 +23,7 @@ function mailbox(id: string, displayName: string): MailAccount {
         synchronizationState: 'Synchronized',
         lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
         behind: false,
+        filesJunk: false,
     };
 }
 
@@ -34,6 +35,7 @@ const settings: ClientPreferencesInForce = {
     aiFiltersShown: true,
     messageView: 'reduced',
     notificationSeconds: 5,
+    trustedLinkDomains: [],
     notStated: false,
     chooseTheme: () => undefined,
     chooseTabMode: () => undefined,

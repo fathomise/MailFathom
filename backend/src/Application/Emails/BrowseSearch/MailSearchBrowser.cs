@@ -13,6 +13,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.BrowseSearch;
 
@@ -20,9 +21,10 @@ namespace MailFathom.Application.Emails.BrowseSearch;
 /// <remarks>
 /// <para>
 /// It is the search a screen is drawn from, beside <see cref="SearchEmails.MailboxSearchReader" />, which is the one a
-/// tool calls. The two share the scope, the filters, both rankings, the fusion, and the body extracts — a search and a
-/// search are the same question over the same mail — and differ in the two things a screen needs and a tool does not:
-/// the results continue past the first window, and each one says why it is in the list.
+/// tool calls. The two share the filters, both rankings, the fusion, and the body extracts, and differ in the scope and
+/// in two things a screen needs and a tool does not. The scope is the person's here, which covers every mirrored folder,
+/// and an agent's there, which covers only folders visible to AI. The results continue past the first window, and each
+/// one says why it is in the list.
 /// </para>
 /// <para>
 /// What a query matched inside an attached file is published here as it is to a tool, through the same step: a result
@@ -318,6 +320,7 @@ public sealed class MailSearchBrowser
     /// <summary>Validates what the request asked for and restricts the search to the accounts its user owns.</summary>
     private async Task<RankedSearchList> RankedListAsync(BrowseSearchRequest request, CancellationToken cancellationToken) => RankedSearchList.Create(
         await this.scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Person,
             request.Accounts,
             request.Folders,
             request.IncludeJunkMail ? JunkMailInclusion.Included : JunkMailInclusion.Excluded,

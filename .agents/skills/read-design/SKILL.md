@@ -70,7 +70,9 @@ every one of those is a fact about the design — the manifest in `frontend/` de
 in it whatever the browser was told — and both sides of a pair are captured under one `prefers-color-scheme`. Beyond
 that, a step names an element by its `text`, or by `role` and `name` where the artboard has an accessibility tree; `nth`
 picks one of several, and `exact` holds a `name` to the whole accessible name rather than a substring of one — which a
-name that is also the tail of another control's name needs.
+name that is also the tail of another control's name needs. A click marked `"optional": true` is pressed only where its
+element is drawn at that composition — opening the drawer a touch composition hides the folder tree in, say — and is
+passed over where it is not, so one list of steps reaches the same state at every size.
 
 ## What the inventory holds
 
@@ -81,12 +83,13 @@ produces, a composition only a width reaches. Each of those is a screen somebody
 a screenshot reports none of them.
 
 A state the source gates but nothing draws is not a screen to invent in the client. It is a gap in the design, and it is
-closed in `design/` first, in a change whose issue asks for it.
+closed in `design/` — ahead of the client, or in the pull request that builds the screen.
 
 ## When the task is the design itself
 
-A change to the design is a decision about the product, made in a change whose issue asks for it — never as a side
-effect of a client task making the design agree with what it built. `design/AGENTS.md` holds how it is authored: the
+A change to the design is a decision about the product, made in one of two places — on its own
+ahead of the client, or in the client pull request that would otherwise ship something the design does not show, as the
+root `AGENTS.md` § *The design leads the client, never the other way round* requires. `design/AGENTS.md` holds how it is authored: the
 vendored design skills a screen is drawn with, and the bar an artboard's own code is held to. In the same change it
 updates:
 
@@ -104,6 +107,5 @@ except `design/runtime/support.js`, which is generated and replaced whole rather
 - It takes no screenshots of its own. Holding a running screen against the design is its own step:
   `scripts/capture-design.sh`, `scripts/capture-client.sh` and `scripts/compare-captures.sh`, in that order, with
   `frontend/AGENTS.md` § *Holding a screen against the design* as the rule.
-- It never edits the design to match the client. Where the client is right for one of the three reasons
-  `design/README.md` names, the correction is named in the pull request and in an issue of its own, and the design moves
-  first.
+- It never redraws the design to excuse a client defect. Where the client is right for one of the three reasons
+  `design/README.md` names, the correction is named in the pull request and made in `design/` in that same pull request.

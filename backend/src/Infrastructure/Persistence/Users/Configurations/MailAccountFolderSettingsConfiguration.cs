@@ -20,6 +20,7 @@ internal sealed class MailAccountFolderSettingsConfiguration : IEntityTypeConfig
         entity.HasKey(folder => new { folder.MailAccountId, folder.Alias });
 
         entity.Property(folder => folder.Alias).HasMaxLength(MailAccountFolderSettingsEntity.MaximumAliasLength);
+        entity.Property(folder => folder.IsVisibleToAI).HasColumnName("IsVisibleToTools");
 
         entity.HasOne<MailAccountRecordEntity>()
             .WithMany()

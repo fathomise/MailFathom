@@ -68,6 +68,24 @@ public sealed class MailboxQuestionReaderTests
         Assert.Equal("The invoice was attached.", result.AnswerText);
     }
 
+    /// <summary>
+    /// The answer is a model's, so the retrieval it draws on is an agent's read: no passage of a message judged spam is
+    /// ever ranked into its context, whether or not the index holds one.
+    /// </summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AnyQuestion_RetrievesAsAnAgentWithholdingSpam()
+    {
+        // Arrange
+        var answerer = new RecordingMailQuestionAnswerer().Answering("Nothing about that.");
+        var reader = ReaderOver(answerer);
+
+        // Act
+        await AnswerAsync(reader, new AskMailRequest { QuestionText = "what did the bank ask for" });
+
+        // Assert
+        Assert.Equal(MailboxReaderKind.Agent, Assert.Single(answerer.Questions).Scope.Reader);
+    }
+
     /// <summary>A period in a question means that person's days, so the anchor is their zone rather than the host's.</summary>
     /// <remarks>
     /// The host's clock reads half past nine in the evening on the ninth in the coordinated zone, which is already the
@@ -115,6 +133,25 @@ public sealed class MailboxQuestionReaderTests
         var question = Assert.Single(answerer.Questions);
         Assert.Equal([MailAccountId.Create(ServedAccountId)], question.Scope.AccountIds);
         Assert.Equal([SyntheticEmailSummaries.FolderIdOf(ServedAccountId, "ARCHIVE")], question.Scope.SelectedFolders);
+    }
+
+    /// <summary>A folder whose mapping withholds it from AI is left out of the scope the run answers a question over.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AFolderWithheldFromAI_IsLeftOutOfTheScopeTheRunIsAsked()
+    {
+        // Arrange
+        var visible = new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("Inbox"));
+        var withheld = new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("Private"));
+        var answerer = new RecordingMailQuestionAnswerer();
+        var reader = ReaderOver(
+            answerer,
+            folderParticipation: StubMailFolderParticipation.Mapping(visible).Hiding(withheld));
+
+        // Act
+        await AnswerAsync(reader, new AskMailRequest { QuestionText = "was the invoice attached" });
+
+        // Assert
+        Assert.Equal([visible], Assert.Single(answerer.Questions).Scope.ReadableFolders);
     }
 
     /// <summary>The access decision is made before a provider is reached, so an unserved account costs nothing to refuse.</summary>
@@ -330,8 +367,8 @@ public sealed class MailboxQuestionReaderTests
         Assert.Equal(SyntheticEmailSummaries.FolderOf(ServedAccountId, "INBOX"), citation.Folder);
         Assert.Equal("Quarterly invoice", citation.Subject);
         Assert.Equal(Now, citation.ReceivedAt);
-        Assert.Equal(AuthorAuthenticationOutcome.Authenticated, citation.SenderVerification.AuthorAuthentication);
-        Assert.Equal(SenderTrustLevel.Trusted, citation.SenderVerification.DeploymentTrust);
+        Assert.Equal(AuthorAuthenticationOutcome.Authenticated, citation.Provenance.Sender.AuthorAuthentication);
+        Assert.Equal(SenderTrustLevel.Trusted, citation.Provenance.Sender.DeploymentTrust);
         Assert.Equal(MachineAuthorshipBand.Possible, citation.MachineAuthorship.Band);
         Assert.Equal(0.42, citation.MachineAuthorship.Likelihood);
         Assert.Equal(MachineAuthorshipSignals.HiddenCharacters, citation.MachineAuthorship.Signals);
@@ -355,6 +392,26 @@ public sealed class MailboxQuestionReaderTests
         Assert.False(result.CitationsWereTruncated);
     }
 
+    /// <summary>The answer reaches an MCP caller with no picture to fetch, and with each link saying whether the mail carries it.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AnAnswerWritingAPictureAndLinks_PublishesNoPictureAndTracesEveryLink()
+    {
+        // Arrange
+        var answerer = new RecordingMailQuestionAnswerer().Answering(
+            "Pay at [the portal](https://pay.example.test/a) or [there](https://other.example.test/). ![seal](https://cdn.example.test/s.png)",
+            PassageOf(1, "Pay through https://pay.example.test/a by Friday."));
+        var reader = ReaderOver(answerer);
+
+        // Act
+        var result = await AnswerAsync(reader, new AskMailRequest { QuestionText = "where do I pay" });
+
+        // Assert
+        Assert.DoesNotContain("![", result.AnswerText, StringComparison.Ordinal);
+        Assert.Equal(
+            [("https://pay.example.test/a", true), ("https://other.example.test/", false), ("https://cdn.example.test/s.png", false)],
+            result.Links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
+    }
+
     [Fact]
     public async Task AnswerQuestionAsync_AnAnswerLongerThanOneResponseCarries_IsCutAndSaysSo()
     {
@@ -367,6 +424,23 @@ public sealed class MailboxQuestionReaderTests
 
         // Assert
         Assert.Equal(20, result.AnswerText.Length);
+        Assert.True(result.AnswerWasTruncated);
+    }
+
+    /// <summary>Neutralising adds characters, so an answer the bound fitted as written is cut once it is neutralised, and says so.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AnAnswerNeutralisingLengthensPastTheBound_IsCutAndSaysSo()
+    {
+        // Arrange
+        var answerer = new RecordingMailQuestionAnswerer().Answering("<b>agreed</b> on it ok");
+        var reader = ReaderOver(answerer, bounds: MailAnswerBounds.Create(22, 20));
+
+        // Act
+        var result = await AnswerAsync(reader, new AskMailRequest { QuestionText = "what was agreed" });
+
+        // Assert
+        Assert.Equal(22, result.AnswerText.Length);
+        Assert.StartsWith("&lt;b>agreed&lt;/b>", result.AnswerText, StringComparison.Ordinal);
         Assert.True(result.AnswerWasTruncated);
     }
 
@@ -592,6 +666,22 @@ public sealed class MailboxQuestionReaderTests
         Assert.Equal("they sent the key [redacted:CloudKey] on Tuesday", result.AnswerText);
     }
 
+    /// <summary>A placeholder opens with a bracket, so a mark the model wrote in front of a detected value must not make it a picture.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AMarkInFrontOfADetectedValue_PublishesNoPictureOnceTheValueIsRedacted()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        var answerer = new RecordingMailQuestionAnswerer().Answering($"See !{Marker}(https://stranger.example.test/p.png) here.");
+        var reader = ReaderOver(answerer, egressGuard: egress.Guard);
+
+        // Act
+        var result = await AnswerAsync(reader, new AskMailRequest { QuestionText = "what key did they send" });
+
+        // Assert
+        Assert.Equal("See [redacted:CloudKey](https://stranger.example.test/p.png) here.", result.AnswerText);
+    }
+
     /// <summary>A citation carries one text of the message it names, and it is published to the caller like any other.</summary>
     [Fact]
     public async Task AnswerQuestionAsync_ASwitchedOnScanner_RedactsTheSubjectEveryCitationCarries()
@@ -782,7 +872,7 @@ public sealed class MailboxQuestionReaderTests
             Folder = SyntheticEmailSummaries.FolderOf(ServedAccountId, "INBOX"),
             Subject = "Quarterly invoice",
             ReceivedAt = Now,
-            SenderVerification = senderVerification ?? SenderVerification.NotEstablished,
+            Provenance = StubEmailProvenanceReader.KnownCorrespondent with { Sender = senderVerification ?? SenderVerification.NotEstablished },
             MachineAuthorship = machineAuthorship ?? MachineAuthorshipAssessment.NotAssessed,
             Text = text,
         };
@@ -799,7 +889,8 @@ public sealed class MailboxQuestionReaderTests
         IMailAnsweringAuditTrail? auditTrail = null,
         SensitiveContentEgressGuard? egressGuard = null,
         AccessAuthorization? authorization = null,
-        UserClock? userClock = null)
+        UserClock? userClock = null,
+        StubMailFolderParticipation? folderParticipation = null)
     {
         var healthReader = Substitute.For<IAiProviderHealthReader>();
         healthReader.Read(AiProviderRole.Embedding)
@@ -834,8 +925,8 @@ public sealed class MailboxQuestionReaderTests
                 answerer),
             new MailboxScopeResolver(
                 CatalogServing(MailAccountId.Create(ServedAccountId)),
-                StubMailFolderParticipation.Nothing,
-                StubDeploymentMailFolders.None,
+                folderParticipation ?? StubMailFolderParticipation.Nothing,
+                StubDeploymentMailFolders.Of(folderParticipation ?? StubMailFolderParticipation.Nothing),
                 StubMailFolderMappings.ResolvingNothing),
             spendLedger ?? LedgerAdmitting(),
             bounds ?? MailAnswerBounds.Default,

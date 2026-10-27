@@ -6,6 +6,7 @@ using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Synchronization;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -118,14 +119,16 @@ public sealed class OccurrenceSpamClassificationHandlerTests
     }
 
     private static SpamActionSettings MarksJunkRead =>
-        SpamActionSettings.Create(filesJunk: false, marksJunkRead: true, threshold: null);
+        SpamActionSettings.Create(filesJunk: false, marksJunkRead: true);
 
     private StoredEmailId StoreEmailAtTheOccurrence()
     {
         var emailId = this.harness.Emails.Add(new ClassifiableEmail(
             StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000001")),
             Account,
-            Inbox));
+            Inbox,
+            Inbox,
+            RemoteEmailKeywords.None));
 
         this.harness.Emails.AddOccurrence(Occurrence, emailId);
 
@@ -136,7 +139,7 @@ public sealed class OccurrenceSpamClassificationHandlerTests
     {
         var settingsReader = Substitute.For<ISpamClassificationSettingsReader>();
         settingsReader.SettingsFor(Arg.Any<MailAccountId>())
-            .Returns(SpamClassificationSettings.Create(isEnabled: true, usesScanner: false, [Inbox]));
+            .Returns(SpamClassificationSettings.Create(isEnabled: true, [Inbox]));
 
         var sessionFactory = this.harness.CommittingSessions();
         var commitPolicy = this.harness.CommitPolicyOver(sessionFactory);
@@ -150,6 +153,7 @@ public sealed class OccurrenceSpamClassificationHandlerTests
                     actions ?? SpamActionSettings.None,
                     SpamClassificationHarness.OccurrenceReader(Account, Inbox),
                     sessionFactory,
-                    commitPolicy)));
+                    commitPolicy),
+                new MailAccountRunSignal()));
     }
 }

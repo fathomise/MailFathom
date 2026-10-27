@@ -49,8 +49,8 @@ namespace MailFathom.Host.UnitTests;
 /// </para>
 /// <para>
 /// Which registrations exist at all follows from configuration, so one composition proves one deployment. The shapes
-/// below are the switches that decide it — an embedding chain, a chat endpoint, its relevance filter, each scanner, the
-/// spam daemon, and which surfaces are served — because a section nobody turned on in a test is a section whose
+/// below are the switches that decide it — an embedding chain, a chat endpoint, its relevance filter, each scanner, and
+/// which surfaces are served — because a section nobody turned on in a test is a section whose
 /// registrations are first composed on somebody's server.
 /// </para>
 /// <para>
@@ -86,6 +86,16 @@ public sealed class HostCompositionTests
         new("Chat:Models:0:Model", "a-model"),
         new("Chat:Models:0:Address", "http://models.example.test/v1/"),
         new("Chat:Models:0:Unauthenticated", "true"),
+    ];
+
+    /// <summary>One declared decision model, which is what makes the deployment one that can ask a closed question.</summary>
+    private static readonly KeyValuePair<string, string?>[] DecisionModel =
+    [
+        new("Decisions:Models:0:Alias", "decider"),
+        new("Decisions:Models:0:Model", "vendor/decider-2026-10-01"),
+        new("Decisions:Models:0:Address", "https://decisions.example.test"),
+        new("Decisions:Models:0:ApiKey:Name", "decision-key"),
+        new("Decisions:Models:0:ApiKey:SecretReference", "plaintext:not-a-real-decision-key"),
     ];
 
     /// <summary>The declared object-storage endpoint, which is what makes the deployment one that stores payloads outside the database.</summary>
@@ -299,6 +309,7 @@ public sealed class HostCompositionTests
                 new("Chat:ReplyDrafting:Enabled", "true"),
                 new("Chat:ReplyDrafting:StyleFromSentMail", "false"),
             ],
+            ["decision model declared"] = DecisionModel,
             ["content stored in a bucket"] = ObjectStorageBackend,
             ["secret scanning"] =
             [
@@ -308,12 +319,6 @@ public sealed class HostCompositionTests
             [
                 new("SensitiveContent:Pii:Enabled", "true"),
                 new("SensitiveContent:PersonalDataAnalyzer:Endpoint", "http://analyzer.example.test:5001"),
-            ],
-            ["spam classified by a scanner"] =
-            [
-                new("SpamClassification:Enabled", "true"),
-                new("SpamClassification:UseScanner", "true"),
-                new("SpamClassification:Scanner:Host", "spamd.example.test"),
             ],
             ["every capability at once"] =
             [
@@ -338,9 +343,8 @@ public sealed class HostCompositionTests
                 new("SensitiveContent:Pii:Enabled", "true"),
                 new("SensitiveContent:PersonalDataAnalyzer:Endpoint", "http://analyzer.example.test:5001"),
                 new("SpamClassification:Enabled", "true"),
-                new("SpamClassification:UseScanner", "true"),
-                new("SpamClassification:Scanner:Host", "spamd.example.test"),
                 .. ObjectStorageBackend,
+                .. DecisionModel,
             ],
         };
 

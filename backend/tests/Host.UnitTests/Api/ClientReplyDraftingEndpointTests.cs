@@ -80,7 +80,7 @@ public sealed class ClientReplyDraftingEndpointTests
     public async Task DraftReplyAsync_ARequestNamingNoMessage_IsRefused()
     {
         // Act
-        var result = await this.DraftAsync(new ClientReplyDraftRequest(Guid.Empty, null, null));
+        var result = await this.DraftAsync(new ClientReplyDraftRequest([Guid.Empty], null, null));
 
         // Assert
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
@@ -91,7 +91,7 @@ public sealed class ClientReplyDraftingEndpointTests
     public async Task DraftReplyAsync_ARequestNamingNeitherAMessageNorAnInstruction_IsRefused()
     {
         // Act
-        var result = await this.DraftAsync(new ClientReplyDraftRequest(AnsweredEmailId: null, null, "  "));
+        var result = await this.DraftAsync(new ClientReplyDraftRequest(ContextEmailIds: null, null, "  "));
 
         // Assert
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
@@ -108,7 +108,7 @@ public sealed class ClientReplyDraftingEndpointTests
 
         // Act
         var result = await this.DraftAsync(
-            new ClientReplyDraftRequest(AnsweredEmailId: null, null, "Ask Contoso for a 5% CPI cap."),
+            new ClientReplyDraftRequest(ContextEmailIds: [], null, "Ask Contoso for a 5% CPI cap."),
             drafting);
 
         // Assert
@@ -134,7 +134,7 @@ public sealed class ClientReplyDraftingEndpointTests
 
         // Act
         var result = await this.DraftAsync(
-            new ClientReplyDraftRequest(Guid.Empty, null, "Ask Contoso for a 5% CPI cap."),
+            new ClientReplyDraftRequest([Guid.Empty], null, "Ask Contoso for a 5% CPI cap."),
             drafting);
 
         // Assert
@@ -152,7 +152,7 @@ public sealed class ClientReplyDraftingEndpointTests
         var typed = new string('i', ReplyDraftRequest.MaximumInstructionLength + 1);
 
         // Act
-        var result = await this.DraftAsync(new ClientReplyDraftRequest(Answered.Value, null, typed));
+        var result = await this.DraftAsync(new ClientReplyDraftRequest([Answered.Value], null, typed));
 
         // Assert
         var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
@@ -168,7 +168,7 @@ public sealed class ClientReplyDraftingEndpointTests
         var typed = new string('s', ReplyDraftRequest.MaximumSelectionLength + 1);
 
         // Act
-        var result = await this.DraftAsync(new ClientReplyDraftRequest(Answered.Value, typed, null));
+        var result = await this.DraftAsync(new ClientReplyDraftRequest([Answered.Value], typed, null));
 
         // Assert
         var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
@@ -177,13 +177,79 @@ public sealed class ClientReplyDraftingEndpointTests
         Assert.DoesNotContain(typed, refusal.ProblemDetails.Detail!, StringComparison.Ordinal);
     }
 
+    /// <summary>A context past its bound is refused in the words of the bound rather than read in part.</summary>
+    [Fact]
+    public async Task DraftReplyAsync_AContextPastItsBound_IsRefusedWithoutQuotingIt()
+    {
+        // Arrange
+        Guid[] context = [.. Enumerable.Range(0, ReplyDraftRequest.MaximumContextMessages + 1).Select(static _ => Guid.CreateVersion7())];
+
+        // Act
+        var result = await this.DraftAsync(new ClientReplyDraftRequest(context, null, "Answer all of them."));
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.DoesNotContain(context[0].ToString(), refusal.ProblemDetails.Detail!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The bound counts messages rather than entries: a message named twice is one message, kept where it was first
+    /// named, and an all-zero identifier names none — so a context naming the most messages it may hold several times
+    /// over is drafted from those messages, in the order they were first named.
+    /// </summary>
+    [Fact]
+    public async Task DraftReplyAsync_AContextNamingMessagesTwiceAndEmptyIdentifiers_ReadsEachMessageOnceInTheOrderFirstNamed()
+    {
+        // Arrange
+        var sourceReader = SourceReader();
+        Guid[] distinct = [.. Enumerable.Range(0, ReplyDraftRequest.MaximumContextMessages).Select(static _ => Guid.CreateVersion7())];
+        Guid[] context = [Guid.Empty, distinct[1], .. distinct, distinct[1], Guid.Empty];
+
+        // Act
+        var result = await this.DraftAsync(
+            new ClientReplyDraftRequest(context, null, null),
+            Drafting(sourceReader, DraftingReturning(NothingDrafted())));
+
+        // Assert
+        Assert.IsType<Ok<ClientReplyDraftResponse>>(result.Result);
+        Assert.Equal(
+            [distinct[1], .. distinct.Where(id => id != distinct[1])],
+            sourceReader.ReceivedCalls().Select(static call => ((StoredEmailId)call.GetArguments()[0]!).Value));
+    }
+
+    /// <summary>A context holding a message this user does not hold answers as a message nobody holds, whatever else it names.</summary>
+    [Fact]
+    public async Task DraftReplyAsync_AContextWithAMessageThisUserDoesNotHold_IsNotFound()
+    {
+        // Arrange
+        var stranger = Guid.CreateVersion7();
+        var sourceReader = SourceReader();
+        sourceReader
+            .ReadSourcesAsync(
+                StoredEmailId.Create(stranger),
+                Arg.Any<MailboxScope>(),
+                Arg.Any<ReplyDraftBounds>(),
+                Arg.Any<CancellationToken>())
+            .Returns((ReplyDraftSources?)null);
+
+        // Act
+        var result = await this.DraftAsync(
+            new ClientReplyDraftRequest([Answered.Value, stranger], null, null),
+            Drafting(sourceReader, DraftingReturning(NothingDrafted())));
+
+        // Assert
+        Assert.IsType<NotFound>(result.Result);
+    }
+
     /// <summary>Somebody writing their own reply has made no mistake, so a deployment that drafts none says so and stops there.</summary>
     [Fact]
     public async Task DraftReplyAsync_ADeploymentThatDraftsNone_AnswersThatNothingWasDrafted()
     {
         // Act
         var result = await ClientReplyDraftingEndpoint.DraftReplyAsync(
-            new ClientReplyDraftRequest(Answered.Value, null, null),
+            new ClientReplyDraftRequest([Answered.Value], null, null),
             drafting: null,
             TestContext.Current.CancellationToken);
 
@@ -200,7 +266,7 @@ public sealed class ClientReplyDraftingEndpointTests
     {
         // Act
         var result = await this.DraftAsync(
-            new ClientReplyDraftRequest(Answered.Value, null, null),
+            new ClientReplyDraftRequest([Answered.Value], null, null),
             Drafting(SourceReader(holdsTheMessage: false), DraftingReturning(NothingDrafted())));
 
         // Assert
@@ -222,7 +288,7 @@ public sealed class ClientReplyDraftingEndpointTests
 
         // Act
         var result = await this.DraftAsync(
-            new ClientReplyDraftRequest(Answered.Value, null, null),
+            new ClientReplyDraftRequest([Answered.Value], null, null),
             DraftingReturning(written));
 
         // Assert
@@ -242,7 +308,7 @@ public sealed class ClientReplyDraftingEndpointTests
     public async Task DraftReplyAsync_ADraftingThatProducedNothing_AnswersThatNothingWasDrafted()
     {
         // Act
-        var result = await this.DraftAsync(new ClientReplyDraftRequest(Answered.Value, null, null));
+        var result = await this.DraftAsync(new ClientReplyDraftRequest([Answered.Value], null, null));
 
         // Assert
         var drafted = Assert.IsType<Ok<ClientReplyDraftResponse>>(result.Result).Value;
@@ -262,7 +328,7 @@ public sealed class ClientReplyDraftingEndpointTests
 
         // Act
         var result = await this.DraftAsync(
-            new ClientReplyDraftRequest(Answered.Value, null, null),
+            new ClientReplyDraftRequest([Answered.Value], null, null),
             Drafting(SourceReader(), writer));
 
         // Assert
@@ -311,7 +377,9 @@ public sealed class ClientReplyDraftingEndpointTests
                             0,
                             "Karolina",
                             new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                            "It is 4 200 zloty."),
+                            "It is 4 200 zloty.",
+                            IsChosen: true,
+                            Attachments: []),
                     ],
                     [new ReplyDraftParticipant(0, karolina)],
                     [])

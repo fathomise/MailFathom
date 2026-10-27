@@ -24,15 +24,14 @@ namespace MailFathom.Application.Spam.Runs;
 /// <para>
 /// It reaches no mail server for the mail it reads. Every message it scores was committed by an earlier run and is read
 /// through the local content store, so the MCP-reads-are-local invariant and the remote <c>\Seen</c> flag are both
-/// untouched however long a walk takes. What it can reach the network for is a scanner sidecar, which is a call the
-/// adapter bounds, and — where the run acts and a filing has to find its folder — the destination resolution every
-/// author of a mutation goes through.
+/// untouched however long a walk takes. What it can reach the network for is — where the run acts and a filing has to
+/// find its folder — the destination resolution every author of a mutation goes through.
 /// </para>
 /// <para>
 /// The run's terms are read from the run rather than from configuration. A walk that spans hours must mean the same
 /// thing at its end as at its start, so the scope, the posture, and whether it rescores are what the operator asked for
-/// and not what the file says now. What configuration is still read for is the profile, and a profile that has moved
-/// ends the run rather than being applied to the half of the mailbox that is left.
+/// and not what the file says now. The profile is not configuration either: the release fixes it, so a run bound to an
+/// earlier release's profile ends as superseded rather than being applied to the half of the mailbox that is left.
 /// </para>
 /// <para>
 /// Each batch commits the position it reached, so a restart resumes at the message nobody scored. The classification of
@@ -228,9 +227,10 @@ public sealed class SpamClassificationPass
     /// <summary>Reaches a verdict about one occurrence, or reuses the one it already carries, and applies the posture.</summary>
     /// <remarks>
     /// The existing record is read first and only where the run does not rescore, which is what makes a run over a
-    /// mailbox that has already been scored cost one lookup per message instead of one scanner call. It is reused only
+    /// mailbox that has already been scored cost one lookup per message instead of a read of each message. It is reused only
     /// where it names the profile the run is bound to: a record from before the profile was part of one, or from before
-    /// the operator moved a threshold, was decided under terms the run cannot compare and is therefore reached again.
+    /// the profile last changed, was decided under a profile the run cannot compare and is therefore reached again. The
+    /// person's own verdict is the exception the classifier keeps: it stands under every profile and is counted as skipped.
     /// <para>
     /// A reused verdict is still put to the recorder. Skipping the scoring is a saving; skipping the action would make
     /// switching filing on a run that files nothing, which is one of the two reasons this run exists.
@@ -269,7 +269,15 @@ public sealed class SpamClassificationPass
             }
 
             classification = scored;
-            tally.Classified(scored.Verdict);
+
+            if (result.Outcome is SpamClassificationOutcome.PersonsVerdictKept)
+            {
+                tally.Skipped(scored.Verdict);
+            }
+            else
+            {
+                tally.Classified(scored.Verdict);
+            }
         }
 
         var action = await this.actionRecorder.RecordAsync(

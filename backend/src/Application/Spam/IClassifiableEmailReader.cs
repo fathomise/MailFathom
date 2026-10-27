@@ -13,7 +13,7 @@ namespace MailFathom.Application.Spam;
 /// <para>
 /// A port of its own rather than a reuse of a mailbox read, because those apply the visibility a caller is entitled to
 /// and classification is not a caller: it runs over stored mail on the operator's behalf, including over a folder no
-/// tool may read. Reading it through a listing would silently leave such a folder unclassified.
+/// agent may read. Reading it through a listing would silently leave such a folder unclassified.
 /// </para>
 /// <para>
 /// Nothing here reaches a mail server. Both members read what an earlier synchronization run already committed, which is

@@ -47,12 +47,18 @@ export function cleanedMailBodyRoute(storedEmailId: string, remoteImages: boolea
 /**
  * What came of one cleaning, as the service names it.
  *
- * Five of the six say the cleaning did not happen, and each is a different sentence on the screen: a deployment that
+ * Six of the seven say the cleaning did not happen, and each is a different sentence on the screen: a deployment that
  * never turned it on, a period whose allowance is spent, an endpoint that did not answer, an answer the service could
- * not use, and a message with no document to clean at all. The reduced document comes back beside every one of them, where the message had one to reduce.
+ * not use, a message withheld from AI — in a folder withheld from it, or judged spam — and a message with no document to clean at all. The reduced document comes back beside every one of them, where the message had one to reduce.
  */
 export type MailBodyCleaning =
-    'Cleaned' | 'NothingToClean' | 'NotActivated' | 'AllowanceExhausted' | 'ProviderUnavailable' | 'AnswerRejected';
+    | 'Cleaned'
+    | 'NothingToClean'
+    | 'NotActivated'
+    | 'AllowanceExhausted'
+    | 'ProviderUnavailable'
+    | 'AnswerRejected'
+    | 'WithheldFromAI';
 
 /**
  * One message's body as the third rendering, or the reduced one beside the reason the cleaning did not happen.
@@ -320,6 +326,7 @@ const cleanings: readonly MailBodyCleaning[] = [
     'AllowanceExhausted',
     'ProviderUnavailable',
     'AnswerRejected',
+    'WithheldFromAI',
 ];
 
 const alignments: readonly MailBlockAlignment[] = ['Inherited', 'Start', 'Center', 'End', 'Justify'];
@@ -561,6 +568,20 @@ function parseText(value: unknown): MailBodyText | null {
     }
 
     return { text, originalCharacterCount, truncation };
+}
+
+/**
+ * Reads one reduced document out of an answer that carries it beside something other than a body, which is how an
+ * opened draft carries the words its author wrote.
+ *
+ * It admits no remote picture, because nothing that reads one asked to draw any.
+ *
+ * @returns The document, or `null` where what arrived is not one.
+ */
+export function parseMailDocument(value: unknown): MailDocument | null {
+    const record = asRecord(value);
+
+    return record === null ? null : parseDocument(record, false);
 }
 
 function parseDocument(record: Readonly<Record<string, unknown>>, remoteImages: boolean): MailDocument | null {
@@ -937,7 +958,11 @@ function parseColour(value: unknown): string | null | undefined {
     return typeof value === 'string' && colourNotation.test(value) ? value : undefined;
 }
 
-function parseLink(value: unknown): MailDocumentLink | null | undefined {
+/**
+ * One link as the service judged it, `null` where the wire says there is none, and `undefined` where what arrived is not
+ * a link this client may follow.
+ */
+export function parseLink(value: unknown): MailDocumentLink | null | undefined {
     if (value === null) {
         return null;
     }

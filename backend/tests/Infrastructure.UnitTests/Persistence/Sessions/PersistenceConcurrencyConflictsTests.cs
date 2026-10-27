@@ -26,8 +26,9 @@ public sealed class PersistenceConcurrencyConflictsTests
         PersistenceConstraintNames.MailRuleEvaluationRunPrimaryKeyConstraintName,
         PersistenceConstraintNames.SpamClassificationRunPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailSpamClassificationPrimaryKeyConstraintName,
+        PersistenceConstraintNames.EmailSpamVerdictActPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailChunkOrdinalUniqueIndexName,
-        PersistenceConstraintNames.EmailEmbeddingPrimaryKeyConstraintName,
+        PersistenceConstraintNames.StoredEmailSignerKeyPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailEnrichmentPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailEnrichmentMarkAspectUniqueIndexName,
         PersistenceConstraintNames.MailRederivationPositionPrimaryKeyConstraintName,
@@ -62,6 +63,20 @@ public sealed class PersistenceConcurrencyConflictsTests
         Assert.True(isConflict);
     }
 
+    /// <summary>The vector row is written by an upsert that cannot violate its key, so a violation of it is a defect rather than a race.</summary>
+    [Fact]
+    public void IsConcurrencyConflict_UniqueViolationOnTheVectorKey_IsNotAConflict()
+    {
+        // Arrange
+        var exception = CreateUniqueViolation(PersistenceConstraintNames.EmailEmbeddingPrimaryKeyConstraintName);
+
+        // Act
+        var isConflict = PersistenceConcurrencyConflicts.IsConcurrencyConflict(exception);
+
+        // Assert
+        Assert.False(isConflict);
+    }
+
     /// <summary>An unlisted constraint stays a failure, because retrying it would repeat a write that cannot succeed.</summary>
     [Fact]
     public void IsConcurrencyConflict_UniqueViolationOnAnUnlistedConstraint_IsNotAConflict()
@@ -85,7 +100,7 @@ public sealed class PersistenceConcurrencyConflictsTests
             "save failed",
             CreatePostgresException(
                 PostgresErrorCodes.ForeignKeyViolation,
-                PersistenceConstraintNames.EmailEmbeddingPrimaryKeyConstraintName));
+                PersistenceConstraintNames.EmailChunkOrdinalUniqueIndexName));
 
         // Act
         var isConflict = PersistenceConcurrencyConflicts.IsConcurrencyConflict(exception);

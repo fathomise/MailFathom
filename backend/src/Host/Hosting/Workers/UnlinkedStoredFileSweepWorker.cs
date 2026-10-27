@@ -20,7 +20,7 @@ internal sealed partial class UnlinkedStoredFileSweepWorker(
     TimeProvider timeProvider) : BackgroundService
 {
     /// <summary>How long the worker waits before each run.</summary>
-    /// <remarks>ponytail: a constant rather than a setting; an unlinked file is a failed upload, so make it configurable only once a deployment produces enough of them for an hour to matter.</remarks>
+    /// <remarks>A constant rather than a setting; an unlinked file is a failed upload, so make it configurable only once a deployment produces enough of them for an hour to matter.</remarks>
     internal static readonly TimeSpan Interval = TimeSpan.FromHours(1);
 
     /// <inheritdoc />

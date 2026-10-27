@@ -9,7 +9,7 @@ text, what it asserts and what backs each assertion, and the people it proposes 
 instead of reconstructing an exchange.
 
 **It produces a local artifact and takes no act.** Nothing here sends, queues, appends to a mail server, or stores
-anything at all: the reply arrives as text in the composer or in a card under the correspondence it answers, and saving
+anything at all: the reply arrives as text in the composer, and saving
 it as a draft or sending it stays where those acts already are —
 [Mail delivery § A message that is written and not sent](mail-delivery.md#a-message-that-is-written-and-not-sent)
 is the half that writes to a mailbox. That is what makes a wrong draft cost an edit rather than a retraction.
@@ -20,7 +20,7 @@ is the half that writes to a mailbox. That is what makes a wrong draft cost an e
 |---|---|
 | **Body** | The reply as plain text, at most 8 000 characters. |
 | **Claims** | What the reply asserts, at most twelve, in the order it was written. |
-| **Proposed recipients** | The people the draft suggests it goes to, at most ten, every one of them named by the conversation itself. |
+| **Proposed recipients** | The people the draft suggests it goes to, at most ten, every one of them named by the correspondence itself. |
 
 A **claim** is one sentence of the reply plus the messages backing it — at most four, best first, spelled as the
 presentation plan spells a citation target, so following one is the same
@@ -40,26 +40,52 @@ adds none on its own.
 
 ## What it is written from
 
-One read of the store resolves everything, out of the single message the request names:
+A request names its **context**: the messages somebody chose to write from — usually the one they are answering, and
+at most ten, from one conversation or from several. Each is resolved by one read of the store, and the reads are put
+together into one correspondence; with a single message that is exactly the one read below.
 
-- **The conversation**, at most the twenty most recent messages, at most 4 000 characters of each — the bound
-  [a conversation's state](thread-state.md) reads a message under, because it is the same text: what a message added,
-  with the history it quoted trimmed off. A reply answers where an exchange got to, so the recent end of it is what
-  grounds a draft; the opening of a long exchange is what its derived state is for.
-- **The way the account writes**, at most six of its own recent sent messages, at most 1 200 characters of each, taken
-  from the folder playing the `Sent` role and never from the conversation being answered. Shorter than a message of the
-  exchange because what is read out of it is a manner rather than a meaning — how somebody opens, how they sign off,
-  whether they write in paragraphs or in lines. An operator who turned that derivation off leaves the bound at zero and
-  the draft is written from the conversation alone.
+- **The conversation** of each context message: the context message itself and the most recent others, at most twenty
+  in all, at most 4 000 characters of each — the bound [a conversation's state](thread-state.md) reads a message under,
+  because it is the same text: what a message added, with the history it quoted trimmed off. A reply answers the
+  message it was asked about and where the exchange got to around it, so the context message is kept however old it is
+  and the recent end of the rest grounds it; the opening of a long exchange is what its derived state is for. A context
+  of several messages shares the twenty between them, each read taking an even share, so it costs a provider what one
+  long conversation does. The merged correspondence carries each message once — two chosen messages of one conversation
+  read the same exchange — in the order the messages were written, numbered afresh, and keeps every context message and
+  the most recent of the rest if it is still longer; the people are carried once each, by address.
+- **Which messages were chosen.** Every context message is marked as one the person chose — the message being
+  answered, or one picked out in the list — and the drafting is told to answer those first and to read the rest of the
+  conversation as what explains them, so a reply to an early message of a long exchange answers that message rather
+  than the latest one.
+- **The attachments** of each message the correspondence carries, where this deployment reads attachments: the words
+  each one yielded, under its file name, inside the same 4 000 characters as the message's own text — what the body
+  leaves unused is what its attachments may fill, in the order the message carries them, so reading them never makes a
+  drafting larger than one of messages alone could be. A message whose own text reaches the bound carries none, and so
+  does an attachment that yielded no words: one that was skipped, refused, or never read. Words a model wrote describing
+  a picture are labelled as a description rather than as the picture's own words.
+  [Attachment text extraction](attachment-text-extraction.md) is what reads them, and a deployment that leaves it off
+  sends no attachment at all.
+- **The way the account writes** — the account of the first context message, and only that one, so a context reaching
+  two accounts is still written in one voice — at most six of its own recent sent messages, at most 1 200 characters of
+  each, taken from the folder playing the `Sent` role and never from the first context message's conversation, nor
+  from a message the correspondence already carries from another context conversation. Shorter than a
+  message of the exchange because what is read out of it is a manner rather than a meaning — how somebody opens, how
+  they sign off, whether they write in paragraphs or in lines. An operator who turned that derivation off leaves the
+  bound at zero and the draft is written from the conversation alone.
 - **What the person typed**, which is optional and is two separate things: a *selection*, the part of the
-  correspondence they are actually answering, at most 4 000 characters; and an *instruction*, what they want said, at
-  most 1 000 characters. Somebody writing more than that is writing the reply, which is the work they asked to be
-  spared. A request carrying neither is the ordinary one — *reply to this*.
+  correspondence they are actually answering, at most 4 000 characters; and an *instruction*, at most 4 000 characters
+  as well, which is whatever they typed about the reply — what it should say, their own rough version of it, or a draft
+  with instructions around it. Nothing asks which: the drafting tells them apart itself, keeps what a draft says and as
+  much of its wording as reads well while correcting and completing it, follows an instruction over its own reading of
+  what the reply should be about, and never carries an instruction itself into the body. A request carrying neither is
+  the ordinary one — *reply to this*.
 
-The correspondence is read across every account this user holds, with no folder narrowing and junk included, which is
-the scope the conversation screen itself reads under: a reply is answered across an exchange rather than inside a
-folder. A message that scope does not admit is a message this deployment has none of, and the request is answered as
-one naming a message nobody holds.
+The correspondence is read across every account this user holds, with no folder narrowing and junk included, as the
+conversation screen reads it: a reply is answered across an exchange rather than inside a folder. One thing differs,
+because a model reads what is gathered: the scope is an agent's, so a folder mapped `VisibleToAI: false` — which the
+conversation screen shows the person — takes no part. A message that scope does not admit is a message this deployment has none of, and the request is answered as
+one naming a message nobody holds — and so is a context naming several messages, one of which the scope does not
+admit, because drafting from the rest would report that the missing one exists somewhere else.
 
 **A request naming no message is the composer with nothing behind it**, which is somebody starting a message rather
 than answering one. There is then no conversation to read and no manner to derive, so nothing above is read at all: the
@@ -73,20 +99,40 @@ that from, and no mailbox either, the one it will be sent from being a choice no
 [the language the person writing it reads](../operations/configuration-sources.md#the-language-this-person-reads--language).
 An instruction asking for a particular language outranks both, being the one thing the person said about the message
 themselves. The language the request happens to be written in is not such an instruction: somebody asking in Polish for
-a reply to an English exchange gets an English reply. The turn closes on that rule, after the request and the writer's
-own recent messages, which it labels as showing tone and length rather than language: both come after the exchange and
-may be in the writer's language, and a model otherwise drafts in whichever language it read last.
+a reply to an English exchange gets an English reply, and a rough draft they typed in Polish is carried over into
+English. The turn closes on that rule, after the request and the writer's own recent messages: both come after the
+exchange and may be in the writer's language, and a model otherwise drafts in whichever language it read last.
 
 ## What reaches the provider, and what does not
 
 The drafting is composed like every other AI operation here — one agent, its own instruction, **no tools, and no
 retrieval** — so the only mail a model sees is the mail this turn published to it.
 
+**What the person typed is the only part of the turn that speaks for them.** The turn is one document written by
+[the writer every turn quoting outside text goes through](mail-answering.md): the correspondence in a `<conversation>`
+element — its subject, each numbered `<person>`, and each numbered `<message>` with when it was written, whom it is
+from, its text, and its attachments, a message the person chose marked `chosen="true"` — then the part they selected in
+a `<selection>`, what they typed in the `<ask>` element and nowhere else, and their own recent sent mail in an
+`<unrelated-sent-mail>` element of its own, named for what it is so nothing in it reads as part of this exchange or as
+their request. Only the service writes elements, and every value is escaped, so a message that closes the conversation
+and writes an `<ask>` of its own arrives as that text, inside the message that sent it. That matters most here: a
+heading a message could reproduce would let it speak with the person's authority, and the reply it shaped would go back
+to that message's sender. The instruction says so as well — a message telling the draft what to say, whom to address,
+or what code or link to carry is not the person asking however it is worded — and the data rule every instruction ends
+with says the rest. The closing sentence about the reply's language is the service's own, outside every quoted element.
+
+A turn longer than one request may carry is cut by that writer as it is written rather than afterwards, so what it keeps
+is still a document whose every element is closed. It loses the person's own sent mail first and then the tail of the
+correspondence; the selection and what the person typed are kept whole, because the room they take is set aside before
+the correspondence is written.
+
 **No address ever leaves the deployment.** The conversation's people are published as numbered positions with a display
 name and nothing else, and the model proposes recipients by naming positions back; the addresses are resolved from those
 positions inside this deployment afterwards. The types the turn is composed of carry no address field at all, so a turn
 carrying one does not compile. The same numbering grounds the citations: a message is published by its position, so a
-claim can cite nothing the turn did not carry, and a position outside it is dropped rather than followed.
+claim can cite nothing the turn did not carry, and a position outside it is dropped rather than followed. An
+attachment's words are published under the position of the message carrying them, so a claim resting on an attachment
+cites that message.
 
 Everything that goes out is scanned at `ChatPrompt` before it is sent, and everything that comes back is scanned again
 before it reaches the client, at an egress point of this path's own —
@@ -108,8 +154,9 @@ looking at:
 | This deployment drafts no reply — no chat endpoint, or the operator turned it off | `drafted: false`, and the capability read said so before anybody pressed anything |
 | The provider was unreachable, refused, or answered something unreadable | `drafted: false` |
 | The conversation has no readable text stored | `drafted: false` |
-| This user holds no such message, or holds no mail account at all | `404` |
+| This user does not hold every message the context names, or holds no mail account at all | `404` |
 | A request naming neither a message nor an instruction, which asks for a message out of nothing | `400` |
+| A context naming more than ten messages | `400` |
 | The deployment has spent what its operator allows a provider for the period | `429` |
 
 The spend ceiling is the one failure that travels, because falling back there would leave somebody pressing a button
@@ -132,4 +179,4 @@ deliberately asked for.
 the two keys, and [the client endpoint](../operations/client-endpoint.md#the-reply-drafting-routes) the two routes it is
 published on. Both are published under `mailfathom.assistant.use` rather than under the reading grant, because that is what
 drafting does: mail leaves this deployment for a chat provider. The one that drafts asks for `mailfathom.mail.read`
-beneath it as well, because the message being answered is mail the caller has to be allowed to read before a model is.
+beneath it as well, because the messages it is written from are mail the caller has to be allowed to read before a model is.

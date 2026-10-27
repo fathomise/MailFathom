@@ -8,9 +8,9 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// <remarks>
 /// <para>
 /// Every member names something that can stop being true — an operator turning the derivation on, a period turning
-/// over, a provider coming back — which is why none of them is ever written down against a conversation. A withheld
-/// derivation leaves the conversation exactly where it was, outstanding, and the pass that met it stops rather than
-/// spending the rest of its batch on the same answer.
+/// over, a provider coming back, a model answering next time in a shape this build reads — which is why none of them is
+/// ever written down against a conversation. A withheld derivation leaves the conversation exactly where it was,
+/// outstanding, and the pass that met it stops rather than spending the rest of its batch on the same answer.
 /// </para>
 /// <para>
 /// A conversation longer than one derivation may take in is not one of these. Nothing about it stops being true on the
@@ -28,4 +28,7 @@ public enum ThreadStateWithholding
 
     /// <summary>The provider could not be reached, refused the call, or did not answer in time.</summary>
     ProviderUnavailable = 2,
+
+    /// <summary>The provider answered, but with no object this build could read as a state.</summary>
+    AnswerUnreadable = 3,
 }

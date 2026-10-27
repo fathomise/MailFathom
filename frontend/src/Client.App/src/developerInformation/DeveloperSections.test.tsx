@@ -4,22 +4,24 @@
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { writeClientEvent } from '@mailfathom/client-backend';
+import { writeClientEvent, type SignalChannelOpening } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { ThemeProvider } from '../theme/Theme';
 import { lockDeveloperInformation, pressesToUnlock, pressVersionLine } from './developerAccess';
 import { DeveloperInformation } from './DeveloperInformation';
 import { DeveloperInformationButton } from './DeveloperInformationButton';
-import { developerRecord } from './developerRecord';
+import { developerRecord, watchedByDeveloperRecord, watchedSignalChannel } from './developerRecord';
 import { DeveloperSections, type DeveloperContext } from './DeveloperSections';
 
 const context: DeveloperContext = {
     deploymentAddress: 'https://mail.example',
     deploymentVersion: '0.9.0',
+    deploymentRevision: 'a1b2c3d',
     permissions: ['mailfathom.mail.read'],
     telemetryLevel: 'debug',
     telemetryAllowed: true,
     person: 'person-4f2a',
+    organization: 'organization-7d1e',
     credential: { kind: 'session', expiresAt: '2026-10-24T03:00:00Z', issuer: null },
     reachable: true,
     synchronizationEnabled: true,
@@ -30,6 +32,7 @@ const context: DeveloperContext = {
             synchronizationState: 'Synchronized',
             lastSynchronizedAt: null,
             behind: false,
+            filesJunk: false,
         },
     ],
     space: 'mail',
@@ -62,8 +65,10 @@ describe('DeveloperSections', () => {
     it('shows the identifiers a developer looks a session up by, and never the name an account goes by', () => {
         renderSections(true);
 
-        expect(screen.getByText('account-91c7')).toBeDefined();
+        expect(screen.getAllByText('account-91c7')).not.toHaveLength(0);
         expect(screen.getByText('person-4f2a')).toBeDefined();
+        expect(screen.getByText('organization-7d1e')).toBeDefined();
+        expect(screen.getByText('a1b2c3d')).toBeDefined();
         expect(screen.getByText('mailfathom.mail.read')).toBeDefined();
         expect(screen.queryByText(/anna\.kowalska/u)).toBeNull();
     });
@@ -102,26 +107,70 @@ describe('DeveloperSections', () => {
                     synchronizationState: 'Synchronized',
                     lastSynchronizedAt: 'yesterday',
                     behind: false,
+                    filesJunk: false,
                 },
             ],
         });
 
-        expect(screen.getByText('account-91c7')).toBeDefined();
+        expect(screen.getAllByText('account-91c7')).not.toHaveLength(0);
     });
 
-    it('watches only while it is shown', () => {
-        const { unmount } = renderSections();
+    it('shows what developer mode recorded before it was shown, and goes on recording once it is gone', () => {
+        unlock();
+        writeClientEvent({ event: 'signals_opened' });
 
-        act(() => {
-            writeClientEvent({ event: 'signals_opened' });
-        });
+        const { unmount } = renderSections();
 
         expect(screen.getByText('opened')).toBeDefined();
 
         unmount();
         writeClientEvent({ event: 'signals_dropped' });
 
-        expect(developerRecord().events).toEqual([]);
+        expect(developerRecord().events.map((noticed) => noticed.event)).toEqual(['signals_opened', 'signals_dropped']);
+    });
+
+    it('draws a request newest first with its headers, a credential among them withheld', () => {
+        unlock();
+        watchedByDeveloperRecord('https://mail.example/api/client/first', {}).ended('read');
+        watchedByDeveloperRecord('https://mail.example/api/client/second', {
+            headers: { Authorization: 'Bearer secret-token' },
+        }).ended('read');
+
+        renderSections(true);
+
+        const paths = screen.getAllByText(/^\/api\/client\//u).map((path) => path.textContent);
+
+        expect(paths).toEqual(['/api/client/second', '/api/client/first']);
+        expect(screen.getByText('authorization')).toBeDefined();
+        expect(screen.getByText('withheld')).toBeDefined();
+        expect(screen.queryByText(/secret-token/u)).toBeNull();
+    });
+
+    it('lists the signals the hub delivered with a preview, and no line of a notification', async () => {
+        unlock();
+
+        let opening: SignalChannelOpening | undefined;
+
+        await watchedSignalChannel((handed) => {
+            opening = handed;
+
+            return Promise.resolve({ close: () => Promise.resolve() });
+        })({ url: 'https://mail.example/signals', ticket: 't', arrived: vi.fn(), dropped: vi.fn() });
+
+        opening?.arrived({
+            kind: 'notification.raised',
+            notificationKind: 'Mail',
+            headline: 'Anna Kowalska',
+            secondLine: 'The contract is attached',
+            count: 3,
+        });
+
+        renderSections(true);
+
+        expect(screen.getByText('notification.raised')).toBeDefined();
+        expect(document.body.textContent).toContain('"unreadCount": 3');
+        expect(document.body.textContent).not.toContain('Anna Kowalska');
+        expect(document.body.textContent).not.toContain('The contract is attached');
     });
 });
 
@@ -145,9 +194,12 @@ describe('DeveloperInformationButton', () => {
             }
         });
 
-        expect(screen.getByRole('button', { name: 'Developer information' }).getAttribute('aria-expanded')).toBe(
-            'false',
-        );
+        const button = screen.getByRole('button', {
+            name: 'Developer information',
+            description: 'Developer mode is recording',
+        });
+
+        expect(button.getAttribute('aria-expanded')).toBe('false');
     });
 
     it('opens the surface in a window of its own under a mouse, and closes it on the next press', () => {

@@ -32,10 +32,11 @@
 #   waiting on the queue rather than on the owner or the agent, and nothing its head carries can say
 #   otherwise: the queue's own checks run on the merge group's commit, not on the head.
 #
-# - A check that failed on the head earns `Changes requested`, whatever the review said. The column
-#   says the change is waiting on the agent rather than on the owner, and a red pipeline is exactly
-#   that whether the objection was written by a reader or produced by a build — so this rule names no
-#   required status and describes whatever item it finds, the way a review's verdict does.
+# - A required check that failed on the head earns `Changes requested`, whatever the review said.
+#   The column says the change is waiting on the agent rather than on the owner, and a red required
+#   check is exactly that whether the objection was written by a reader or produced by a build — so
+#   this rule names no required board status and describes whatever item it finds, the way a review's
+#   verdict does.
 #
 # - A head the reviewer found something on earns `Changes requested` as well. That verdict is
 #   published as a `COMMENT` review under `NEEDS CHANGES` on purpose, so that it cannot block a
@@ -64,14 +65,23 @@
 #   conflict is news, and a rule that moved those would be reporting the same conflict on every push
 #   to the base branch for as long as it went unresolved.
 #
-# **Every rule but the merge queue's and a draft's is decided only once every pipeline outside the
-# ignored set has finished** — the queue's because it reads no check on the head at all — which is the single condition stated at the point the counts are read rather than
-# repeated in each of them. Every verdict claims something about the whole state of the change: `Ready to merge`
-# says nothing is left to wait for but a merge, and `Changes requested` says what is owed is
-# an answer from the agent — and a run still in flight can add to what that answer has to cover. So a
-# review published minutes before `Required CI` finishes moves nothing until it does, and the pipeline
-# that concludes last raises the event that asks again. `CodeQL` is outside that wait for the reason it
-# is outside every other rule here: merging does not wait on it, so neither does the column.
+# **Every rule but the merge queue's and a draft's is decided only once every check the base branch
+# requires has finished** — the queue's because it reads no check on the head at all. That is the
+# single condition, stated at the point the counts are read rather than repeated in each rule. Every
+# verdict claims something about the whole state of the change: `Ready to merge` says nothing is left
+# to wait for but a merge, and `Changes requested` says what is owed is an answer from the agent — and
+# a required run still in flight can add to what that answer has to cover. So a review published
+# minutes before `Required CI` finishes moves nothing until it does, and the pipeline that concludes
+# last raises the event that asks again.
+#
+# A check the rules do not require is not read at all, running or failed. Merging does not wait on it,
+# so neither does the column: a slow documentation build, `CodeQL`, or this workflow's own checks
+# would otherwise hold an item in a column the merge has already moved past. The set is the
+# pull request's `requiredChecks`, which the caller reads from the branch rules rather than from a
+# list kept here, so it cannot drift from what the ruleset enforces. A required check that has not
+# appeared on the head yet counts as still running, because a required check reports on every pull
+# request and its absence only means it has not started — except on a head that conflicts, where
+# GitHub starts no pull request workflow at all.
 #
 # Rules are read top to bottom and the first match wins, because the field holds one value. Order is
 # therefore a decision, and whether the change still merges is asked after the verdicts rather than
@@ -85,9 +95,10 @@
 #
 # The JSON file holds one object with the fields the collecting caller read from GitHub — `number`,
 # `mergeable`, `isDraft`, `state`, `labels`, `headRefOid`, `inMergeQueue`, `removedFromMergeQueueAt`,
-# `reviews`, and `checks` — which is what lets this be run by hand and tested against a fixture
-# without a token. A `review` is `{author, state, body, submittedAt, commit}` and a `check` is `{workflow, name, status, conclusion}`, both as GitHub
-# spells them.
+# `reviews`, `checks`, and `requiredChecks` — which is what lets this be run by hand and tested against
+# a fixture without a token. A `review` is `{author, state, body, submittedAt, commit}`, a `check` is
+# `{workflow, name, status, conclusion}`, both as GitHub spells them, and `requiredChecks` is a list of
+# the context names the base branch's rules require, matched against a check's `name`.
 
 set -euo pipefail
 
@@ -96,20 +107,6 @@ set -euo pipefail
 # an approval by anybody else is a person's opinion about the code, and the board column this rule
 # writes claims the pipeline agrees with it as well.
 readonly REVIEWER_LOGIN='fathom-reviewer[bot]'
-
-# The checks the verdicts do not read, matched against a check's workflow and against its own name so
-# that either spelling is enough. `CodeQL` publishes under both — a run of the workflow and an
-# aggregate check of its own — and is here because it is not required to merge: a finding there is
-# worth acting on and does not make the change unmergeable, so reading it would hold every pull
-# request out of `Ready to merge` for a question the ruleset does not ask.
-#
-# `Apply pull request rules` is here because it is the workflow deciding this, and nothing it
-# publishes says whether the change builds: its checks are a label and a board write. Today they
-# would not block the answer anyway — the labelling run on the head has concluded long before, and a
-# run started by `workflow_run` is attributed to the default branch rather than to the head — but a
-# rule that read them would be deciding partly from its own run, which is a state to refuse outright
-# rather than one to keep re-deriving as safe.
-readonly IGNORED_CHECKS='["CodeQL","Apply pull request rules"]'
 
 # A check that failed, as GitHub concludes one. `SKIPPED` and `NEUTRAL` are the ordinary shape of a
 # job a path filter turned off, and `CANCELLED` is what a superseded run leaves behind on a head that
@@ -139,19 +136,32 @@ fi
 # change converted back to draft from `Ready to merge` owes the rebase when its branch stops merging
 # exactly as it did before.
 if [[ "$(jq -r '.isDraft // false' "$pull_request_file")" != 'true' ]]; then
-  # The two counts the verdicts are decided from, read in one pass so that the ignored set is applied
-  # once. `pending` is what makes any verdict premature, and `failed` is what turns a change back.
+  # The two counts the verdicts are decided from, one answer per required context. A context with a
+  # check still running is `pending`, and one with a check that failed is `failed`. A context can
+  # appear more than once — one workflow triggered by two events — and every copy is read, so a
+  # failure beside a running copy still waits with it.
+  #
+  # A context with no check on the head at all is `pending` too, except on a head that conflicts.
+  # GitHub runs no `pull_request` workflow while a pull request conflicts with its base, so there the
+  # absence is a check that will not start until a rebase, and waiting on it would keep the conflict
+  # off the board for exactly as long as it stands.
   IFS=$'\t' read -r failed pending <<< "$(
-    jq -r --argjson ignored "$IGNORED_CHECKS" --argjson failures "$FAILED_CONCLUSIONS" '
-      [.checks[]? | select(([.workflow // "", .name // ""] | any(. as $named | $ignored | index($named))) | not)]
-      | [([.[] | select(.conclusion as $conclusion | $failures | index($conclusion))] | length),
-         ([.[] | select((.status // "COMPLETED") != "COMPLETED")] | length)]
+    jq -r --argjson failures "$FAILED_CONCLUSIONS" --arg mergeable "$mergeable" '
+      . as $pull_request
+      | [.requiredChecks[]? as $required
+         | [$pull_request.checks[]? | select(.name == $required)] as $matching
+         | if ($matching | length) == 0 then (if $mergeable == "CONFLICTING" then "absent" else "pending" end)
+           elif any($matching[]; (.status // "COMPLETED") != "COMPLETED") then "pending"
+           elif any($matching[]; .conclusion as $conclusion | $failures | index($conclusion)) then "failed"
+           else "passed" end]
+      | [(map(select(. == "failed")) | length), (map(select(. == "pending")) | length)]
       | @tsv' \
       "$pull_request_file"
   )"
 
-  # No verdict is published while a pipeline is still deciding, and neither is the conflict rule's
-  # answer: a head whose pipelines have not finished is one a verdict may still be about to arrive on.
+  # No verdict is published while a required check is still deciding, and neither is the conflict
+  # rule's answer: a head whose required checks have not finished is one a verdict may still be about
+  # to arrive on.
   # This is the one place that wait is expressed, so every rule below it is a question about a
   # finished state rather than a copy of the same condition.
   if (( pending > 0 )); then

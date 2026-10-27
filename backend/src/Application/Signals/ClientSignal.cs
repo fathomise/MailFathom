@@ -79,7 +79,7 @@ public sealed class ClientSignal
         this.Sequence = sequence;
     }
 
-    /// <summary>Gets which of the seven kinds this is.</summary>
+    /// <summary>Gets which of the eight kinds this is.</summary>
     public ClientSignalKind Kind { get; }
 
     /// <summary>Gets the user whose connections this reaches, or nothing when the account decides who it reaches.</summary>
@@ -133,10 +133,10 @@ public sealed class ClientSignal
     /// <summary>Gets the scope two signals must share before one folds into the other.</summary>
     internal ClientSignalScope Scope => new(this.User, this.Kind, this.Account, this.Folder, this.Run, this.Conversation);
 
-    /// <summary>States that a synchronization run committed mail into one folder.</summary>
+    /// <summary>States that a run settled newly arrived mail, which every read now returns.</summary>
     /// <param name="account">The account the run was over.</param>
-    /// <param name="folder">The folder the mail was committed into, or <see langword="null" /> when the run cannot say, which a client reads as any folder of the account.</param>
-    /// <param name="newEmailCount">How many occurrences the run committed there.</param>
+    /// <param name="folder">The folder the mail settled in, or <see langword="null" /> when it settled across several, which a client reads as any folder of the account.</param>
+    /// <param name="newEmailCount">How many messages the run settled.</param>
     /// <returns>The signal.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="newEmailCount" /> is not positive, an arrival of nothing being no arrival.</exception>
     public static ClientSignal MailArrived(MailAccountId account, MailFolderId? folder, int newEmailCount)
@@ -244,6 +244,25 @@ public sealed class ClientSignal
     public static ClientSignal FoldersChanged(MailAccountId account) =>
         new(
             ClientSignalKind.FoldersChanged,
+            user: null,
+            account,
+            folder: null,
+            count: 0,
+            emails: [],
+            flags: [],
+            notificationKind: null,
+            headline: null,
+            secondLine: null,
+            run: null,
+            conversation: null,
+            sequence: 0);
+
+    /// <summary>States that what one account's outbox holds, or the stage of a send in it, moved.</summary>
+    /// <param name="account">The account whose outbox moved.</param>
+    /// <returns>The signal.</returns>
+    public static ClientSignal OutboxChanged(MailAccountId account) =>
+        new(
+            ClientSignalKind.OutboxChanged,
             user: null,
             account,
             folder: null,
@@ -435,7 +454,7 @@ public sealed class ClientSignal
 
 /// <summary>What two signals must share before one folds into the other: whose it is, what kind it is, and where it happened.</summary>
 /// <param name="User">Whose the statement is, where it is one person's rather than one mailbox's.</param>
-/// <param name="Kind">Which of the seven kinds it is.</param>
+/// <param name="Kind">Which of the eight kinds it is.</param>
 /// <param name="Account">The account it names, where the kind names one.</param>
 /// <param name="Folder">The folder it names, where the kind names one.</param>
 /// <param name="Run">The Discover run or Agent answer it names, where the kind names one.</param>

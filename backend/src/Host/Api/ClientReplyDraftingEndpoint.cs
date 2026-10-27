@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>Drafts the reply somebody is about to write, out of the conversation they are answering.</summary>
+/// <summary>Drafts the reply somebody is about to write, out of the messages they chose to write it from.</summary>
 /// <remarks>
 /// <para>
 /// Two routes on one address, because a composer has two different questions and only one of them costs anything. The
@@ -34,7 +34,7 @@ namespace MailFathom.Host.Api;
 /// <c>POST /citations/resolution</c> a Discover answer's sources are followed through.
 /// </para>
 /// <para>
-/// The answered message travels in a body rather than in a query string, and so does everything typed beside it. What
+/// The context messages travel in a body rather than in a query string, and so does everything typed beside it. What
 /// somebody is asking a reply to say is as revealing as the correspondence it answers, and a query string is the part
 /// of a request that reaches an access log by default, on this deployment and on every proxy in front of it.
 /// </para>
@@ -52,11 +52,12 @@ internal static class ClientReplyDraftingEndpoint
 
     /// <summary>The greatest request body a drafting reads before refusing it.</summary>
     /// <remarks>
-    /// Generous against the two texts the request carries and the envelope around them, and small enough that a body
-    /// over it is refused before it is read rather than after. The correspondence itself is not in it: a drafting names
-    /// the message it answers and reads the exchange out of the store.
+    /// Generous against the two texts the request carries — each up to four thousand characters, which UTF-8 spells in
+    /// up to three bytes apiece — and the envelope around them, and small enough that a body over it is refused before it
+    /// is read rather than after. The correspondence itself is not in it: a drafting names the messages it is written
+    /// from and reads the exchange out of the store.
     /// </remarks>
-    internal const int MaxDraftingRequestBytes = 16 * 1024;
+    internal const int MaxDraftingRequestBytes = 32 * 1024;
 
     /// <summary>Maps the routes into the client group, so they inherit its requirement, its policy, and its limits.</summary>
     /// <param name="api">The client route group.</param>
@@ -90,10 +91,10 @@ internal static class ClientReplyDraftingEndpoint
         TypedResults.Ok(new ClientReplyDraftingResponse(drafting is not null));
 
     /// <summary>Drafts one reply, or reports what was wrong with the request.</summary>
-    /// <param name="request">The message being answered, and what its author asked the reply to say.</param>
+    /// <param name="request">The messages the reply is written from, and what its author asked the reply to say.</param>
     /// <param name="drafting">Drafts the reply, or <see langword="null" /> where this deployment does not.</param>
     /// <param name="cancellationToken">Cancels the drafting when the client disconnects.</param>
-    /// <returns><c>200</c> with the draft, <c>400</c> naming what was wrong with the request, <c>404</c> where this user has no such message, <c>429</c> where the deployment has spent what it allows a provider, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.assistant.use</c>.</returns>
+    /// <returns><c>200</c> with the draft, <c>400</c> naming what was wrong with the request, <c>404</c> where this user does not hold every message the context names, <c>429</c> where the deployment has spent what it allows a provider, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.assistant.use</c>.</returns>
     /// <remarks>
     /// <para>
     /// A deployment that drafts nothing answers <c>200</c> saying so rather than <c>404</c>, because a person writing
@@ -116,15 +117,23 @@ internal static class ClientReplyDraftingEndpoint
             return Refuse("The request names no message to answer and no message to write.");
         }
 
-        // An all-zero identifier names no message, which is the same thing omitting the field says, so it is read as
-        // the same thing rather than refused separately. Two guards disagreeing about one condition is how a caller
-        // that sent the empty identifier *and* an instruction came to be turned away for saying nothing.
-        var answeredEmailId = request.AnsweredEmailId == Guid.Empty ? null : request.AnsweredEmailId;
+        // An all-zero identifier names no message, which is the same thing leaving it out says, so it is read as the
+        // same thing rather than refused separately. Two guards disagreeing about one condition is how a caller that
+        // sent the empty identifier *and* an instruction came to be turned away for saying nothing. A message named
+        // twice is one message, kept where it was first named, because the first one decides the subject and manner.
+        Guid[] context = [.. (request.ContextEmailIds ?? []).Where(static id => id != Guid.Empty).Distinct()];
+
+        if (context.Length > ReplyDraftRequest.MaximumContextMessages)
+        {
+            return Refuse(
+                $"A drafting is written from at most {ReplyDraftRequest.MaximumContextMessages} messages, "
+                + "which is the correspondence somebody chose rather than a sample of the mailbox.");
+        }
 
         // A composer with nothing behind it is a drafting like any other, and the instruction is what it is grounded
         // in instead of a conversation — so the one shape refused here is the request carrying neither, which would
         // be a provider call made to invent a message out of nothing at all.
-        if (answeredEmailId is null && string.IsNullOrWhiteSpace(request.Instruction))
+        if (context.Length is 0 && string.IsNullOrWhiteSpace(request.Instruction))
         {
             return Refuse("A drafting that answers no message says what the message should be about.");
         }
@@ -153,7 +162,7 @@ internal static class ClientReplyDraftingEndpoint
             var draft = await drafting.DraftAsync(
                 new ReplyDraftRequest
                 {
-                    AnsweredEmailId = answeredEmailId is { } named ? StoredEmailId.Create(named) : null,
+                    ContextEmailIds = [.. context.Select(StoredEmailId.Create)],
                     Selection = request.Selection,
                     Instruction = request.Instruction,
                 },
@@ -184,14 +193,14 @@ internal static class ClientReplyDraftingEndpoint
 /// </remarks>
 internal sealed record ClientReplyDraftingResponse(bool DraftsReplies);
 
-/// <summary>One reply to draft: the message being answered, and what its author asked for.</summary>
-/// <param name="AnsweredEmailId">The stored message the reply answers, as a message row published it, or <see langword="null" /> where the message being written answers none.</param>
+/// <summary>One reply to draft: the messages it is written from, and what its author asked for.</summary>
+/// <param name="ContextEmailIds">The stored messages the reply is written from, as message rows published them, the one deciding its subject and manner first — at most <see cref="ReplyDraftRequest.MaximumContextMessages" />, from one conversation or several — or empty or <see langword="null" /> where the message being written answers none.</param>
 /// <param name="Selection">The part of the correspondence being answered, or <see langword="null" /> to answer the conversation as a whole.</param>
 /// <param name="Instruction">What the reply should say, or <see langword="null" /> where the person asked for nothing in particular.</param>
 /// <remarks>
 /// <para>
-/// The message is named and nothing about it is stated. The conversation, the people, the subject, and the account
-/// whose manner the reply is written in are all read out of the stored copy that identifier resolves to, so a client
+/// The messages are named and nothing about them is stated. The conversations, the people, the subject, and the account
+/// whose manner the reply is written in are all read out of the stored copies those identifiers resolve to, so a client
 /// can state none of them and can state none of them wrongly.
 /// </para>
 /// <para>
@@ -200,7 +209,10 @@ internal sealed record ClientReplyDraftingResponse(bool DraftsReplies);
 /// own record rather than from an exchange there is none of.
 /// </para>
 /// </remarks>
-internal sealed record ClientReplyDraftRequest(Guid? AnsweredEmailId, string? Selection, string? Instruction);
+internal sealed record ClientReplyDraftRequest(
+    IReadOnlyList<Guid>? ContextEmailIds,
+    string? Selection,
+    string? Instruction);
 
 /// <summary>The drafted reply, as the client endpoint serves it.</summary>
 /// <param name="Drafted">Whether a reply was drafted at all, which is <see langword="false" /> where this deployment drafts none or the provider could not be reached.</param>

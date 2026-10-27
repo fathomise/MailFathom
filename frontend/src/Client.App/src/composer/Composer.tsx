@@ -5,12 +5,16 @@
 import { useEffect, useEffectEvent, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {
     draftMailReply,
+    longestDraftInstruction,
+    longestDraftSelection,
     readMailBody,
+    readMailDraft,
     readMailMessage,
     type ClientFailureReason,
     type ClientSession,
     type MailAccount,
     type MailAttachment,
+    type MailDraft,
     type MailDraftAnswer,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
@@ -23,16 +27,21 @@ import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useToasts, type Toast } from '../toasts/useToasts';
+import { showOutboxEntry } from '../outbox/showOutboxEntry';
+import { useWorkspace } from '../workspace/useWorkspace';
 import {
     anythingWritten,
     answerTo,
     draftContinued,
+    draftHeld,
     nothingWrittenYet,
     type ComposerOpening,
     type Composition,
+    type ReplyDraftAsked,
 } from './composition';
 import { DiscardConfirmation } from './DiscardConfirmation';
-import { DraftingBlock, DraftingStanding } from './DraftingBlock';
+import { DraftingBlock, DraftingStanding, type DraftingContextStart } from './DraftingBlock';
+import { contextPointedAt, sameMessages, type ListPointer } from './draftingContext';
 import { draftingRead, failureSaid } from './draftingRead';
 import { writtenParagraphs } from './draftWords';
 import { forgetComposition, rememberComposition, rememberedComposition } from './keptComposition';
@@ -122,9 +131,14 @@ const withdrawalTitle = {
 const reachableControls =
     'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]';
 
-const titles: Readonly<Record<'new' | 'draft' | MailDraftAnswer, MessageKey>> = {
+// What the deployment is told a reply asked for from the drafter should be, before whatever was typed there. It travels
+// in English however the screen is read, for the reason `DraftingBlock.tsx` gives.
+const writeTheReply = 'Write a reply to this message.';
+
+const titles: Readonly<Record<'new' | 'draft' | 'held' | MailDraftAnswer, MessageKey>> = {
     new: 'compose.titleNew',
     draft: 'compose.titleDraft',
+    held: 'compose.titleDraft',
     senderOnly: 'compose.titleReply',
     everyone: 'compose.titleReplyAll',
     forward: 'compose.titleForward',
@@ -137,6 +151,7 @@ export function Composer({
     opening,
     online,
     drafts,
+    showsOutbox = false,
     inFront = true,
     onClosed,
 }: {
@@ -157,6 +172,12 @@ export function Composer({
      * would move the fields under whoever was already writing in them.
      */
     readonly drafts: boolean;
+
+    /**
+     * Whether the session reads mail, which is what an Outbox is read under: a credential that only sends is offered no
+     * way to a send it could not open.
+     */
+    readonly showsOutbox?: boolean;
 
     /** Whether the mail space is the one in front, which the composer is written in and stays in while it is aside. */
     readonly inFront?: boolean;
@@ -184,6 +205,7 @@ export function Composer({
     // authored by definition — somebody wrote it, in this tab, before the reload.
     const [authored, setAuthored] = useState(() => composition !== null && anythingWritten(composition));
     const [reading, setReading] = useState<Reading>({ kind: 'reading' });
+
     const [participants, setParticipants] = useState<readonly RecipientSuggestion[]>([]);
 
     // Whether the copy headers are drawn, which is a choice only once somebody made one: before that they are drawn
@@ -197,12 +219,42 @@ export function Composer({
     // both the way back and the fact the send confirmation cautions about: a draft nobody has read is words somebody
     // else wrote, and accepting it is what makes them the author's own.
     const [drafting, setDrafting] = useState(false);
-    // A composer opened on a draft written in the thread opens on words nobody has accepted yet, exactly as though the
-    // block here had written them over what was there — so restoring gives back what this tab was writing for that
-    // answer, or the nothing an answer opens on.
-    const [beforeDrafting, setBeforeDrafting] = useState<readonly WrittenNode[] | null>(() =>
-        wordsBeforeTheDraft(opening),
-    );
+    const [beforeDrafting, setBeforeDrafting] = useState<readonly WrittenNode[] | null>(null);
+
+    // What the AI drafts from, as messages: a reply starts with the one it answers and a new message with none. The
+    // first context a composition takes is where it started, and a context that differs from that as a set is what the
+    // block warns about. Both are held here and nowhere else, so every way the composer closes empties them.
+    const { workspace, revise: reviseWorkspace } = useWorkspace();
+    const answered = opening.kind === 'answer' ? [opening.storedEmailId] : [];
+    const [context, setContext] = useState<readonly string[]>(answered);
+    const [contextStart, setContextStart] = useState<readonly string[] | null>(answered.length === 0 ? null : answered);
+
+    // Where the list pointed when the composer last looked, so a click on a row is read as the click it was. It is
+    // adjusted during render rather than in an effect, which is React's own shape for state following a value it does
+    // not own: the context changes with the click that changed what the list points at, and no render is drawn between.
+    // Only while the list stands beside the composer — narrow, the composer is the screen and nothing is pointed at.
+    const [pointer, setPointer] = useState<ListPointer>({
+        selection: workspace.selection,
+        selected: workspace.selected,
+    });
+
+    if (pointer.selection !== workspace.selection || pointer.selected !== workspace.selected) {
+        const now = { selection: workspace.selection, selected: workspace.selected };
+        const pointed = wide ? contextPointedAt(pointer, now) : null;
+
+        setPointer(now);
+
+        if (pointed !== null) {
+            setContext(pointed);
+            setContextStart((started) => started ?? pointed);
+        }
+    }
+
+    // What each message in the context is called, which only a read of it says. Held in memory for as long as the
+    // composer is open and never kept, like everything else read about mail; `null` for a message that answered no
+    // subject or could not be read.
+    const [subjects, setSubjects] = useState<ReadonlyMap<string, string | null>>(new Map());
+    const subjectsAsked = useRef(new Set(answered));
 
     // How many times the words have been replaced wholesale, which is what the editable region is keyed by: it renders
     // the tree it opens with once and never again, so a draft arriving has to be a new region rather than a new prop.
@@ -250,24 +302,43 @@ export function Composer({
 
             if (answer.outcome === 'failed') {
                 setReading({ kind: 'unread', reason: answer.failure.reason });
+                setSubjects((held) => new Map(held).set(opening.storedEmailId, null));
 
                 return;
             }
 
             setParticipants(offeredFrom(answer.value.headers.participants));
-            setComposition(
-                (held) =>
-                    held ?? {
-                        ...answerTo(answer.value, opening.answers),
-                        words: opening.drafted === undefined ? [] : writtenParagraphs(opening.drafted),
-                    },
-            );
+            setSubjects((held) => new Map(held).set(opening.storedEmailId, answer.value.headers.subject));
+            setComposition((held) => held ?? answerTo(answer.value, opening.answers));
         });
 
         return () => {
             listening = false;
         };
     }, [session, transport, opening]);
+
+    // Each message the list puts into the context is read once for what its chip is called. A request going out is what
+    // an effect is for; an answer arriving after the composer closed changes nothing.
+    useEffect(() => {
+        for (const storedEmailId of context) {
+            if (subjectsAsked.current.has(storedEmailId)) {
+                continue;
+            }
+
+            subjectsAsked.current.add(storedEmailId);
+
+            void readMailMessage(session, transport, storedEmailId).then((answer) => {
+                if (present.current) {
+                    setSubjects((held) =>
+                        new Map(held).set(
+                            storedEmailId,
+                            answer.outcome === 'failed' ? null : answer.value.headers.subject,
+                        ),
+                    );
+                }
+            });
+        }
+    }, [session, transport, context]);
 
     // The files a draft was filed with, taken into the message carrying it on. An effect event because it is what the
     // read below does once it answers, rather than something the read depends on.
@@ -312,6 +383,42 @@ export function Composer({
         };
     }, [session, transport, opening]);
 
+    // A draft MailFathom keeps is read through its own record and carried on with as itself: the composer adopts its
+    // identity, so every save revises it, and the files staged against it stay staged rather than being fetched and
+    // chosen again. What this tab was already writing on it wins over what the record says, as with any other opening.
+    const adoptTheDraft = useEffectEvent((held: MailDraft) => {
+        draft.adopt(held);
+    });
+
+    useEffect(() => {
+        if (opening.kind !== 'held') {
+            return;
+        }
+
+        let listening = true;
+
+        void readMailDraft(session, transport, opening.draftId).then((answer) => {
+            if (!listening) {
+                return;
+            }
+
+            if (answer.outcome === 'failed') {
+                setReading({ kind: 'unread', reason: answer.failure.reason });
+
+                return;
+            }
+
+            // A kept draft is somebody's writing whatever this tab has typed into it, so closing it asks first.
+            adoptTheDraft(answer.value.draft);
+            setAuthored(true);
+            setComposition((held) => held ?? draftHeld(answer.value));
+        });
+
+        return () => {
+            listening = false;
+        };
+    }, [session, transport, opening]);
+
     // The local draft, kept continuously so that a reload returns to what was being written rather than to nothing.
     // A browser store is something outside React, which is what an effect synchronizes with.
     useEffect(() => {
@@ -328,9 +435,7 @@ export function Composer({
     useEffect(() => {
         if (written) {
             frame.current
-                ?.querySelector<HTMLElement>(
-                    opening.kind === 'answer' || opening.kind === 'draft' ? '[contenteditable="true"]' : 'input',
-                )
+                ?.querySelector<HTMLElement>(opening.kind === 'new' ? 'input' : '[contenteditable="true"]')
                 ?.focus();
         }
     }, [written, opening.kind]);
@@ -344,7 +449,7 @@ export function Composer({
     // what comes back replaces the words in front of the person, with the way back beside it. The press is where the
     // guard lives — a second drafting while the first is in flight would spend the allowance twice and put whichever
     // answered last on the screen.
-    function askForADraft(instruction: string): void {
+    function askForADraft(instruction: string, passage: string | null = null): void {
         if (composition === null || drafting) {
             return;
         }
@@ -356,10 +461,16 @@ export function Composer({
         setDrafting(true);
 
         void draftMailReply(session, transport, {
-            answeredEmailId: composition.answering?.storedEmailId ?? null,
-            selection: null,
+            contextEmailIds: context,
+            selection: passage === null ? null : passage.slice(0, longestDraftSelection),
             instruction,
         }).then((answer) => {
+            // A draft asked for as the composer opened is often still in flight when it closes, and an answer for a
+            // composer nobody has open is neither written anywhere nor worth a notice.
+            if (!present.current) {
+                return;
+            }
+
             setDrafting(false);
 
             const read = draftingRead(answer);
@@ -379,6 +490,28 @@ export function Composer({
             revise({ words: writtenParagraphs(read.body) });
         });
     }
+
+    // A reply asked for from the drafter is written the moment there is a message to write it into, and once per ask:
+    // the answer it is written against has to be read first, and a render after that is not a second request. The ask
+    // is the opening itself, because asking again on a reply already open hands this composer a new opening rather than
+    // a new composer.
+    const draftAsked = useRef<ComposerOpening | null>(null);
+    const writeTheAskedDraft = useEffectEvent((asked: ReplyDraftAsked) => {
+        askForADraft(
+            [writeTheReply, asked.asked.trim()]
+                .filter((part) => part !== '')
+                .join(' ')
+                .slice(0, longestDraftInstruction),
+            asked.passage,
+        );
+    });
+
+    useEffect(() => {
+        if (written && opening.kind === 'answer' && opening.drafting !== undefined && draftAsked.current !== opening) {
+            draftAsked.current = opening;
+            writeTheAskedDraft(opening.drafting);
+        }
+    }, [written, opening]);
 
     // Putting back what the draft replaced, which is the one act that has to work whatever the draft turned out to be:
     // somebody who asked for one and did not want it is owed their own words rather than an undo they have to find.
@@ -466,9 +599,9 @@ export function Composer({
 
         void draft.send(sending).then((outcome) => {
             if (stopped) {
-                toasts.raise(sendReport(outcome));
+                toasts.raise(sendReport(outcome, sending.account));
             } else {
-                settled(sendReport(outcome));
+                settled(sendReport(outcome, sending.account));
             }
 
             const deploymentHasIt = outcome.kind === 'queued' || outcome.kind === 'withdrawn';
@@ -483,6 +616,15 @@ export function Composer({
                 rememberComposition(written);
             }
         });
+    }
+
+    // Opened at once, so the list's place says it is reading, and then on that account's Sent folder, as the mark on
+    // its Sent row opens it, so that whatever closes the Outbox leaves the reader where the send went. The folder lands
+    // only while that account's Outbox is still open: a reader who picked a folder or a message meanwhile has closed
+    // it, and a late directory answer must not take them back. One that does not answer leaves the Outbox open over
+    // whatever was listed, and *Go to Sent* asks for the folder again rather than trusting what is behind it.
+    function showInOutbox(account: string, outgoingEmailId: string): void {
+        showOutboxEntry(session, transport, reviseWorkspace, account, outgoingEmailId);
     }
 
     function withdrawAndReport(): void {
@@ -501,12 +643,28 @@ export function Composer({
     // already have been closed while the send was in flight, so this is the one place the outcome is always said, and a
     // title with nothing under it would leave somebody knowing a message did not go and not why.
     //
-    // **A queued message offers no way back.** The design draws none, and this client has nothing to draw one with: the
-    // one act that would have to outlive the composer is the one the composer is gone for.
-    function sendReport(outcome: DraftStanding): Toast {
+    // **A queued message offers no way back here.** The design draws none, and this client has nothing to draw one
+    // with: the one act that would have to outlive the composer is the one the composer is gone for. What it offers
+    // instead is the send itself, in its account's Outbox, which is where withdrawing it is offered for as long as it
+    // can be.
+    function sendReport(outcome: DraftStanding, account: string): Toast {
         switch (outcome.kind) {
             case 'queued':
-                return { kind: 'success', title: translate('compose.sentTitle'), body: translate('compose.queued') };
+                return {
+                    kind: 'success',
+                    title: translate('compose.sentTitle'),
+                    body: translate('compose.queued'),
+                    ...(showsOutbox
+                        ? {
+                              action: {
+                                  label: translate('compose.showInOutbox'),
+                                  take: () => {
+                                      showInOutbox(account, outcome.outgoingEmailId);
+                                  },
+                              },
+                          }
+                        : {}),
+                };
             case 'withdrawn':
                 return {
                     kind: outcome.withdrawal === 'withdrawn' ? 'success' : 'warning',
@@ -548,6 +706,21 @@ export function Composer({
     const sendable = online && stillBeingWritten && draft.standing.kind !== 'carrying';
 
     const title = translate(titles[opening.kind === 'answer' ? opening.answers : opening.kind]);
+
+    function subjectSaid(storedEmailId: string): string {
+        const subject = subjects.get(storedEmailId);
+
+        if (subject === undefined) {
+            return translate('compose.aiContextReading');
+        }
+
+        return subject === null || subject.trim() === '' ? translate('message.noSubject') : subject;
+    }
+
+    const changedFrom: DraftingContextStart | null =
+        contextStart === null || sameMessages(context, contextStart)
+            ? null
+            : { subject: subjectSaid(contextStart[0] ?? ''), more: contextStart.length - 1 };
     const copiesShown = copiesChosen ?? (composition !== null && composition.cc.length + composition.bcc.length > 0);
 
     return (
@@ -615,6 +788,18 @@ export function Composer({
                 <BeforeAnythingIsWritten reading={reading} opening={opening} />
             ) : (
                 <>
+                    {/* First, above everything it is about: what another mail app shows of this draft may not be what
+                        is written here, and the next save tries again, so it is said and nothing is offered. */}
+                    {(draft.record?.divergence ?? null) === null ? null : (
+                        <p
+                            role="status"
+                            className="flex items-start gap-2.25 border-b border-warning bg-warning-soft px-3.75 py-2.25 text-sm/relaxed text-warning-text pointer-coarse:py-2.75 pointer-coarse:text-base"
+                        >
+                            <Icon name="cloud_off" className="size-icon-md shrink-0" />
+                            <span className="min-w-0 flex-1 text-pretty">{translate('compose.noServerCopy')}</span>
+                        </p>
+                    )}
+
                     {accounts.length > 1 && composition.answering === null ? (
                         <div className="flex items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25">
                             <label
@@ -745,13 +930,25 @@ export function Composer({
 
                     {drafts ? (
                         <DraftingBlock
-                            context={
-                                composition.subject.trim() === ''
-                                    ? translate('compose.aiContextNothing')
-                                    : composition.subject
-                            }
+                            context={context.map((storedEmailId) => ({
+                                storedEmailId,
+                                subject: subjectSaid(storedEmailId),
+                            }))}
+                            noContextSaid={wide ? 'compose.aiContextNone' : 'compose.aiContextNoneHere'}
+                            changedFrom={changedFrom}
+                            asked={opening.kind === 'answer' ? (opening.drafting?.asked ?? '') : ''}
                             busy={drafting}
-                            onDraft={askForADraft}
+                            onDraft={(instruction) => {
+                                askForADraft(instruction);
+                            }}
+                            onRemove={(storedEmailId) => {
+                                setContext((held) => held.filter((message) => message !== storedEmailId));
+                            }}
+                            onRestore={() => {
+                                if (contextStart !== null) {
+                                    setContext(contextStart);
+                                }
+                            }}
                         />
                     ) : null}
 
@@ -770,6 +967,7 @@ export function Composer({
                             drafts ? (
                                 <DraftingStanding
                                     busy={drafting}
+                                    answering={composition.answering !== null}
                                     drafted={beforeDrafting !== null}
                                     onRestore={restoreWhatWasWritten}
                                     onAccept={() => {
@@ -883,31 +1081,11 @@ function opened(opening: ComposerOpening, accounts: readonly MailAccount[]): Com
     if (kept !== null && sameOpening(kept, opening)) {
         // What was being written is kept and whoever the opening named is added to it: somebody who asks to write to a
         // person while half a message of their own is open is addressing that message rather than starting a second
-        // one, and a repeat is not written down twice. A draft carried in from the thread is what somebody just asked
-        // to have written, so it takes the place of the words — which `wordsBeforeTheDraft` keeps as the way back.
-        return {
-            ...kept,
-            to: [...kept.to, ...addressed.filter((address) => !kept.to.includes(address))],
-            ...(opening.kind === 'answer' && opening.drafted !== undefined
-                ? { words: writtenParagraphs(opening.drafted) }
-                : {}),
-        };
+        // one, and a repeat is not written down twice.
+        return { ...kept, to: [...kept.to, ...addressed.filter((address) => !kept.to.includes(address))] };
     }
 
     return opening.kind === 'new' ? nothingWrittenYet(accounts[0]?.id ?? '', addressed) : null;
-}
-
-// What a draft carried in from the thread replaced, which the composer holds as the way back: the words this tab kept
-// for the same answer where it kept any, and the empty message an answer opens on otherwise. `null` for every other
-// opening, which carries no draft nobody has accepted.
-function wordsBeforeTheDraft(opening: ComposerOpening): readonly WrittenNode[] | null {
-    if (opening.kind !== 'answer' || opening.drafted === undefined) {
-        return null;
-    }
-
-    const kept = rememberedComposition();
-
-    return kept !== null && sameOpening(kept, opening) ? kept.words : [];
 }
 
 function sameOpening(kept: Composition, opening: ComposerOpening): boolean {
@@ -916,6 +1094,8 @@ function sameOpening(kept: Composition, opening: ComposerOpening): boolean {
             return kept.answering === null && kept.continuing === null;
         case 'draft':
             return kept.continuing === opening.storedEmailId;
+        case 'held':
+            return kept.continuing === opening.draftId;
         case 'answer':
             return (
                 kept.answering?.storedEmailId === opening.storedEmailId && kept.answering.answers === opening.answers
@@ -937,12 +1117,23 @@ function BeforeAnythingIsWritten({
 
     // What is being read differs between the two openings that read anything at all, and so does what a reader is
     // owed while it happens: an answer waits on the message it answers, a draft on the words that reader wrote.
-    const said = opening.kind === 'draft' ? 'compose.readingDraft' : 'compose.reading';
+    const said =
+        opening.kind === 'draft'
+            ? 'compose.readingDraft'
+            : opening.kind === 'held'
+              ? 'compose.readingHeldDraft'
+              : 'compose.reading';
 
     return (
         <div className="flex flex-1 flex-col items-start gap-3 px-4.25 py-6">
             <p aria-live="polite" className="text-base text-muted text-pretty">
-                {translate(reading.kind === 'reading' ? said : failureSaid[reading.reason])}
+                {translate(
+                    reading.kind === 'reading'
+                        ? said
+                        : opening.kind === 'held' && reading.reason === 'missing'
+                          ? 'compose.failedMissingDraft'
+                          : failureSaid[reading.reason],
+                )}
             </p>
         </div>
     );

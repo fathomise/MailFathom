@@ -15,7 +15,7 @@ namespace MailFathom.Mcp.UnitTests.Tools;
 /// It is the one tool on this surface whose annotations do not say read-only, so what they do say is the contract a
 /// client decides by: that the call changes state, that it is safe to retry, and that what it changes is not confined
 /// to this process. The description carries the two things no annotation can — that the answer is a record rather than
-/// a mailbox that has already changed, and that a replacement states the whole keyword set.
+/// a mailbox that has already changed, and which keyword changes the surface refuses.
 /// </remarks>
 public sealed class SetMailFlagsToolMetadataTests
 {
@@ -33,8 +33,8 @@ public sealed class SetMailFlagsToolMetadataTests
     /// <summary>A writing tool whose updates are not only additive, which is safe to repeat and whose effect leaves this process.</summary>
     /// <remarks>
     /// <c>destructiveHint</c> is <see langword="true" /> because the protocol defines it as whether the tool performs
-    /// only additive updates and this one does not: a keyword replacement drops labels it was not given, a removal takes
-    /// named ones off, and clearing either flag removes a value the message carried. It is the annotation a client reads
+    /// only additive updates and this one does not: a keyword removal takes named ones off, and clearing either flag
+    /// removes a value the message carried. It is the annotation a client reads
     /// before deciding whether a call needs a person, so reversibility is not what it answers.
     /// </remarks>
     [Fact]
@@ -82,16 +82,21 @@ public sealed class SetMailFlagsToolMetadataTests
         Assert.DoesNotContain("found by the changeRecordId", description, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>A replacement can drop labels the caller never saw, which is the one call worth a second thought.</summary>
+    /// <summary>
+    /// A replacement could drop labels the caller never saw, a junk keyword the person set among them, so the surface
+    /// refuses it and says so, together with the three junk keywords it refuses outright.
+    /// </summary>
     [Fact]
-    public void AddMailFathomServer_AdvertisesADescriptionStatingWhatAKeywordReplacementDoes()
+    public void AddMailFathomServer_AdvertisesADescriptionRefusingReplacementAndTheJunkKeywords()
     {
         // Arrange, Act
         var description = AdvertisedSetMailFlagsTool().Description;
 
         // Assert
         Assert.NotNull(description);
-        Assert.Contains("states the whole keyword set", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("replace, which would state the whole set", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("is refused", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("$Junk, $NotJunk, and $Phishing are refused", description, StringComparison.Ordinal);
         Assert.Contains("reversible", description, StringComparison.OrdinalIgnoreCase);
     }
 

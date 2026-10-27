@@ -7,6 +7,7 @@ using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -29,8 +30,9 @@ namespace MailFathom.Host.Api;
 /// </para>
 /// <para>
 /// It speaks to no mail server, so a request from a browser cannot wait on IMAP and cannot set the remote <c>\Seen</c>
-/// flag. The body is read from the local copy exactly as the tool surface reads it, through the same use case and under
-/// the same grant, so nothing about this transport widens what a caller may see.
+/// flag. The body is read from the local copy through the same use case and under the same grant as the tool surface,
+/// but for the person: it reaches every mirrored folder, a folder withheld from AI included, which the tool surface
+/// does not.
 /// </para>
 /// </remarks>
 internal static class ClientMailBodyEndpoint
@@ -99,6 +101,7 @@ internal static class ClientMailBodyEndpoint
     internal static GetEmailContentRequest RequestFor(Guid storedEmailId, bool? remoteImages, bool? fullHtml) =>
         GetEmailContentRequest.Create([StoredEmailId.Create(storedEmailId)]) with
         {
+            Reader = MailboxReaderKind.Person,
             IncludeMailDocument = true,
             IncludeSelfContainedHtml = fullHtml is true,
             RetainRemoteImageReferences = remoteImages is true,

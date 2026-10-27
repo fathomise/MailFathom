@@ -4,6 +4,7 @@
 
 import { expect } from '@playwright/test';
 
+import { workAccount } from './fixtures/deployment';
 import { markupOnlySubject } from './fixtures/messages';
 import { foldWindow, openSignedIn, phoneWindow, restingFirstRow, subjectOf, test } from './client.harness';
 
@@ -33,7 +34,7 @@ test('searches from the inbox, opens a result, goes back to the results, and the
 
     const [asked] = deployment.requests('GET', '/emails/search');
 
-    expect(asked?.query.get('account')).toBe('work');
+    expect(asked?.query.get('account')).toBe(workAccount.id);
     expect(asked?.query.get('folder')).toBe('INBOX');
 
     await found.getByRole('option', { name: new RegExp(markupOnlySubject, 'u') }).click();

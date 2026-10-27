@@ -69,6 +69,7 @@ internal sealed class SyntheticMailAccount(
     ITrustedAuthenticationAuthorityReader,
     ISenderTrustPolicyReader,
     IOutgoingSenderIdentityReader,
+    ISenderIdentityDirectory,
     IOutgoingMailFilingPolicyReader,
     IOutgoingSendPermissionReader,
     IMailAccountSettingsScope
@@ -121,6 +122,7 @@ internal sealed class SyntheticMailAccount(
         "lexical-search",
         "local-email-state",
         "mail-ownership",
+        "mail-settlement",
         "manual-move-source",
         "manual-move-target",
         "mcp-tool-contract",
@@ -145,6 +147,9 @@ internal sealed class SyntheticMailAccount(
         "rule-evaluation",
         "rule-evaluation-parked",
         "seen-state-provenance",
+        "spam-classifications",
+        "spam-floor-archive",
+        "spam-floor-junk",
         "spam-scan",
         "stale-derived-data",
         "stored-content-move-hold",
@@ -299,7 +304,7 @@ internal sealed class SyntheticMailAccount(
         {
             MailFolderSelection.Mapped => this.FoldersMapped,
             MailFolderSelection.Synchronized => this.FoldersSynchronized,
-            MailFolderSelection.VisibleToTools => this.FoldersVisibleToTools,
+            MailFolderSelection.VisibleToAI => this.FoldersVisibleToAI,
             MailFolderSelection.GeneratingEmbeddings => this.FoldersGeneratingEmbeddings,
             _ => (IReadOnlyList<MailFolderIdentity>)[],
         });
@@ -324,7 +329,7 @@ internal sealed class SyntheticMailAccount(
     /// <summary>Gets every folder this suite maps, whatever a test stopped mirroring or withheld, which is what being mapped means.</summary>
     public IReadOnlyList<MailFolderIdentity> FoldersMapped => MappedFolders;
 
-    /// <summary>Gets every folder this suite maps, less the ones a test withheld from tools.</summary>
+    /// <summary>Gets every folder this suite maps, less the ones a test withheld from AI.</summary>
     /// <remarks>
     /// Every folder this suite maps, less the ones a test withheld. The subtraction is stated that way round because a
     /// withholding is what a test arranges, while being mapped at all is what makes MailFathom have the folder: an
@@ -332,7 +337,7 @@ internal sealed class SyntheticMailAccount(
     /// answers with nothing. The one class that withholds a mapped folder needs it, because whether the narrowing
     /// translates to SQL at all is settled by a real database and nothing else.
     /// </remarks>
-    public IReadOnlyList<MailFolderIdentity> FoldersVisibleToTools =>
+    public IReadOnlyList<MailFolderIdentity> FoldersVisibleToAI =>
         [.. this.FoldersSynchronized.Where(folder => !(foldersHiddenFromTools ?? []).Contains(folder))];
 
     /// <summary>Gets every folder this suite maps, less the ones a test left unembedded.</summary>
@@ -403,7 +408,7 @@ internal sealed class SyntheticMailAccount(
             ? MailFolderParticipation.Create(
                 this.FoldersSynchronized.Contains(folder),
                 this.FoldersGeneratingEmbeddings.Contains(folder),
-                this.FoldersVisibleToTools.Contains(folder))
+                this.FoldersVisibleToAI.Contains(folder))
             : MailFolderParticipation.Unmapped;
     }
 
@@ -535,6 +540,16 @@ internal sealed class SyntheticMailAccount(
 
         return OutgoingSenderIdentity.Create(AccountId, sender);
     }
+
+    /// <inheritdoc />
+    /// <remarks>The one user this mailbox is assigned to is served it and nothing else, which is what the host composes from that user's record.</remarks>
+    public Task<IReadOnlyDictionary<MailAccountId, OutgoingSenderIdentity>> ReadServedIdentitiesAsync(
+        IReadOnlyCollection<UserId> users,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<MailAccountId, OutgoingSenderIdentity>>(
+            users.Contains(User) && this.FindSenderIdentity(AccountId) is { } identity
+                ? new Dictionary<MailAccountId, OutgoingSenderIdentity> { [AccountId] = identity }
+                : new Dictionary<MailAccountId, OutgoingSenderIdentity>());
 
     /// <inheritdoc />
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership of the resolved material passes to the connection attempt that requested it, which disposes it when the attempt ends.")]

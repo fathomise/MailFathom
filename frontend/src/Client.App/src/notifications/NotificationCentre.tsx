@@ -3,7 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useId, useRef, useState } from 'react';
-import type { ClientFailureReason, ClientNotification } from '@mailfathom/client-backend';
+import {
+    readMailMessage,
+    type ClientFailureReason,
+    type ClientNotification,
+    type ClientSession,
+    type MailAccount,
+    type MailFathomTransport,
+} from '@mailfathom/client-backend';
 import { Confirmation } from '../confirmation/Confirmation';
 import { ChoiceSegment } from '../controls/ChoiceSegment';
 import { Control } from '../controls/Control';
@@ -11,11 +18,16 @@ import { Icon } from '../controls/Icon';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useChangeDecision, type AskingAgain, type ChangeQuestion } from '../pendingChanges/useChangeDecision';
+import { useAgentHandOver } from '../routing/agentHandOver';
+import { useToasts } from '../toasts/useToasts';
+import { failureOf } from './failures';
 import { useScreenLayer } from '../shell/screenLayers';
 import { useCurrentMinute } from './notificationAge';
-import { NotificationRow } from './NotificationRow';
+import { NotificationRow, type RowDecision } from './NotificationRow';
+import { notificationKindLabels } from './notificationKinds';
 import { NotificationRowMenu } from './NotificationRowMenu';
-import { wordNotification } from './notificationWords';
+import { wordNotification, wordNotificationSource } from './notificationWords';
 import type { NotificationCentre as Centre, NotificationFilter } from './useNotificationCentre';
 import type { PanelSwipe } from './usePanelSwipe';
 import { Departing } from '../shell/Departing';
@@ -77,21 +89,54 @@ const deletingCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'notifications.deleteManyConsequence.other',
 };
 
+const summarizeQuestions: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'notifications.summarizeQuestion.other',
+    one: 'notifications.summarizeQuestion.one',
+    two: 'notifications.summarizeQuestion.other',
+    few: 'notifications.summarizeQuestion.few',
+    many: 'notifications.summarizeQuestion.many',
+    other: 'notifications.summarizeQuestion.other',
+};
+
 export function NotificationCentre({
     centre,
     swipe,
+    session = null,
+    transport,
+    accounts = noAccounts,
+    onDecideSend = decidesNoSend,
 }: {
     readonly centre: Centre;
 
     /** The two gestures a finger drives the panel with, which the frame holds because the navigation carries half of them. */
     readonly swipe: PanelSwipe;
+
+    /**
+     * Who is asking and how, which a change asked again from its row needs: the act is performed on the message as it
+     * stands, and the row knows only which message that is.
+     */
+    readonly session?: ClientSession | null;
+    readonly transport?: MailFathomTransport;
+
+    /** The person's mail accounts, which is what a failure names the account it came from by. */
+    readonly accounts?: readonly MailAccount[];
+
+    /** Takes a refused send to its Outbox and decides it there, which is where the decision under way is seen. */
+    readonly onDecideSend?: (outgoingEmailId: string, decision: 'again' | 'edit', onTaken: () => void) => void;
 }) {
     const { locale, translate } = useLocalization();
+    const handToAgent = useAgentHandOver();
+    const changes = useChangeDecision();
+    const toasts = useToasts();
     const now = useCurrentMinute();
     const panel = useRef<HTMLDialogElement>(null);
     const tabs = useId();
     const [filter, setFilter] = useState<NotificationFilter>('unread');
     const [selected, setSelected] = useState<readonly string[]>([]);
+
+    // The changes being asked again from their rows while the message they are about is read, so a second press asks
+    // nothing twice.
+    const [askingFor, setAskingFor] = useState<readonly string[]>([]);
     const [menu, setMenu] = useState<{ readonly notification: ClientNotification; readonly at: MenuPoint } | null>(
         null,
     );
@@ -149,6 +194,138 @@ export function NotificationCentre({
         setSelected((held) => (held.includes(id) ? held.filter((chosen) => chosen !== id) : [...held, id]));
     }
 
+    // Only a merged arrival stands for messages a question can be about, and only where this credential has an agent to
+    // ask. Pressing it is read as having read the row, so it marks it read before the panel goes; the conversation it
+    // opens asks for the summary in the reader's own words, which is what they see asked.
+    function summarizing(notification: ClientNotification): (() => void) | null {
+        const statement = notification.statement;
+
+        if (handToAgent === null || statement?.cause !== 'MailArrived') {
+            return null;
+        }
+
+        const count = statement.counted ?? 0;
+        const said = wordNotification(notification, locale, translate);
+        const form = new Intl.PluralRules(locale).select(count);
+
+        return () => {
+            if (!notification.read) {
+                centre.markRead([notification.id], true);
+            }
+
+            leave();
+            handToAgent({
+                scope: { kind: 'notification', subject: notification.id },
+                title: translate('notifications.summarizeContext', {
+                    arrivals: said.title,
+                    source: notification.source ?? translate(notificationKindLabels[notification.kind]),
+                }),
+                question: translate(summarizeQuestions[form], { count: new Intl.NumberFormat(locale).format(count) }),
+            });
+        };
+    }
+
+    // A refused send is decided in its Outbox, so the panel goes on the way there and the row is read once the Outbox has
+    // the send in front of it; a change is decided where it stands, and deciding it is what marks its row read. A change
+    // that needs a folder chosen is the one taken to its message, whose notice asks for the folder. A decision on the
+    // unread tab takes its row off the list, so focus stays in the panel rather than going with the row.
+    function decisionsFor(notification: ClientNotification): readonly RowDecision[] {
+        const failure = failureOf(notification);
+
+        if (failure?.kind === 'send') {
+            const decideSend = (decision: 'again' | 'edit') => () => {
+                leave();
+                onDecideSend(failure.outgoingEmailId, decision, () => {
+                    if (!notification.read) {
+                        centre.markRead([notification.id], true);
+                    }
+                });
+            };
+
+            return [
+                { decision: 'sendAgain', take: decideSend('again') },
+                { decision: 'edit', take: decideSend('edit') },
+            ];
+        }
+
+        const question = failure?.kind === 'change' ? changes.questionOf(failure.recordId) : null;
+
+        if (question === null) {
+            return [];
+        }
+
+        const again = changes.askingAgain(question);
+
+        return [
+            ...(again === null
+                ? []
+                : [
+                      {
+                          decision: again === 'choosesFolder' ? ('moveAgain' as const) : ('askAgain' as const),
+                          underWay: askingFor.includes(question.change.recordId),
+                          take: () => {
+                              askAgain(notification, question, again);
+                              keepFocusInPanel();
+                          },
+                      },
+                  ]),
+            {
+                decision: 'letGo',
+                take: () => {
+                    changes.letGo(question);
+                    keepFocusInPanel();
+                },
+            },
+        ];
+    }
+
+    function keepFocusInPanel(): void {
+        if (filter === 'unread') {
+            panel.current?.focus();
+        }
+    }
+
+    function askAgain(notification: ClientNotification, question: ChangeQuestion, again: AskingAgain): void {
+        if (question.kind === 'followed') {
+            changes.askAgain(question, null);
+
+            return;
+        }
+
+        if (again === 'choosesFolder' || session === null || transport === undefined) {
+            clear();
+            centre.follow(notification);
+
+            return;
+        }
+
+        const recordId = question.change.recordId;
+
+        if (askingFor.includes(recordId)) {
+            return;
+        }
+
+        setAskingFor((asking) => [...asking, recordId]);
+
+        void readMailMessage(session, transport, question.change.storedEmailId).then((answer) => {
+            setAskingFor((asking) => asking.filter((asked) => asked !== recordId));
+
+            if (answer.outcome === 'failed') {
+                toasts.raise({
+                    kind: 'error',
+                    title: translate('pendingChange.undecided'),
+                    body: translate('change.notAskedAgain', {
+                        reason: translate(failureLabels[answer.failure.reason]),
+                    }),
+                });
+
+                return;
+            }
+
+            changes.askAgain(question, answer.value);
+        });
+    }
+
     // The question is put in front of every delete, one row or a selection, because a notification that has gone does
     // not come back. What it is asked about is recorded here and the dialog is opened imperatively, which is the shape
     // the confirmation publishes: the element is what holds whether it is standing.
@@ -168,9 +345,10 @@ export function NotificationCentre({
                 swipe.attachPanel(element);
             }}
             aria-label={translate('notifications.title')}
+            tabIndex={-1}
             style={swipe.offset === null ? undefined : { transform: `translateY(${String(swipe.offset)}px)` }}
-            // The two compositions are the design's own: a sheet that stops above the bottom navigation in a
-            // narrow window, and a panel standing beside the rail in a wide one. Where it comes from differs with it,
+            // The two compositions are the design's own: a sheet that covers the whole window, the bottom navigation
+            // it came out of included, in a narrow one, and a panel standing beside the rail in a wide one. Where it comes from differs with it,
             // which is what the two motions and the two closed positions below say.
             //
             // Each closed position is written under the composition it belongs to rather than one of them under the
@@ -178,10 +356,10 @@ export function NotificationCentre({
             // `translate` property, so a vertical offset left standing outside the breakpoint composes with the
             // horizontal one above it and the panel travels diagonally out of the corner instead of in from the side.
             // `max-workspace:` and `workspace:` never both apply, which is what keeps each composition to one axis.
-            // The panel is in the platform's top layer, where the frame's safe-area padding is not around it: the top
-            // inset is padded away inside it, and the bottom one is a margin because what the sheet stops above is the
-            // bottom navigation, which the frame has already lifted clear of the gesture bar.
-            className={`fixed inset-x-0 top-0 bottom-navigation m-0 mb-safe-bottom hidden h-auto max-h-none w-auto max-w-none open:flex flex-col overflow-visible rounded-t-xl border-line bg-panel pt-safe-top text-text shadow-dialog backdrop:bg-scrim workspace:end-auto workspace:bottom-0 workspace:start-rail workspace:w-notifications workspace:rounded-none workspace:border-e ${
+            // The panel is in the platform's top layer, where the frame's safe-area padding is not around it, so both
+            // insets are padded away inside it: the sheet reaches the screen's edges and its content stays clear of the
+            // status bar and the gesture bar.
+            className={`fixed inset-x-0 top-0 bottom-0 m-0 hidden h-auto max-h-none w-auto max-w-none open:flex flex-col overflow-visible rounded-t-xl border-line bg-panel pt-safe-top pb-safe-bottom text-text shadow-dialog backdrop:bg-scrim workspace:end-auto workspace:start-rail workspace:w-notifications workspace:rounded-none workspace:border-e ${
                 swipe.dragging
                     ? 'transition-none'
                     : swipe.springing
@@ -331,7 +509,11 @@ export function NotificationCentre({
                 ref={(element) => {
                     swipe.attachList(element);
                 }}
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                // Rows raised off a hairline of the list's own surface, as the message list's are, and the sentence that
+                // stands in for them on the same surface.
+                className={`min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain bg-sunken py-px ${
+                    drawn.length === 0 ? 'hidden' : 'flex'
+                }`}
             >
                 {drawn.map((notification) => (
                     <NotificationRow
@@ -351,6 +533,9 @@ export function NotificationCentre({
                         onToggleRead={() => {
                             centre.markRead([notification.id], !notification.read);
                         }}
+                        onSummarize={summarizing(notification)}
+                        decisions={decisionsFor(notification)}
+                        source={wordNotificationSource(notification, accounts, translate)}
                         onPress={(at) => {
                             setMenu({ notification, at });
                         }}
@@ -375,6 +560,8 @@ export function NotificationCentre({
                             clear();
                             centre.follow(menu.notification);
                         }}
+                        onSummarize={summarizing(menu.notification)}
+                        decisions={decisionsFor(menu.notification)}
                         onDelete={() => {
                             askToDelete(
                                 [menu.notification.id],
@@ -432,6 +619,12 @@ export function NotificationCentre({
     );
 }
 
+const noAccounts: readonly MailAccount[] = [];
+
+function decidesNoSend(): void {
+    return undefined;
+}
+
 // The three things an empty list can mean, each said as what it is rather than as an absence: a read still in flight, a
 // read that did not answer, and a centre with nothing in it. The last is the design's own, and it says the
 // thing a reader actually wants to know — that nothing is waiting — rather than that a list is empty.
@@ -450,7 +643,10 @@ function Nothing({
 
     if (reading) {
         return (
-            <p role="status" className="flex flex-1 items-center justify-center px-6 py-13 text-base text-muted">
+            <p
+                role="status"
+                className="flex flex-1 items-center justify-center bg-sunken px-6 py-13 text-base text-muted"
+            >
                 {translate('notifications.reading')}
             </p>
         );
@@ -458,14 +654,17 @@ function Nothing({
 
     if (failure !== null) {
         return (
-            <p role="alert" className="flex flex-1 items-center justify-center px-6 py-13 text-base text-error-text">
+            <p
+                role="alert"
+                className="flex flex-1 items-center justify-center bg-sunken px-6 py-13 text-base text-error-text"
+            >
                 {translate('notifications.failed', { reason: translate(failureLabels[failure]) })}
             </p>
         );
     }
 
     return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2.25 px-6 py-13 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2.25 bg-sunken px-6 py-13 text-center">
             <Icon name="notifications_off" className="size-icon-3xl text-faint" />
             <p className="text-base text-pretty text-muted">
                 {translate(filter === 'unread' ? 'notifications.empty' : 'notifications.emptyAll')}

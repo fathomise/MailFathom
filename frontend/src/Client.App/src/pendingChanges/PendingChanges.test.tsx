@@ -20,6 +20,7 @@ import {
     followedChangeInterval,
     mostFollowingAttempts,
     usePendingChanges,
+    type AbandonedChange,
     type PendingChanges,
 } from './usePendingChanges';
 import type { ChangeSubmission } from './changeStandings';
@@ -126,17 +127,22 @@ let queue: { current: PendingChanges } | null = null;
 // lets one mounted tree be handed a second credential the way signing out and back in on one tab hands it one.
 let signedInAs: ClientSession | null = session;
 
+// What the notification centre says the mailbox gave up on, which is read while the wrapper renders like the session.
+let abandonedHere: readonly AbandonedChange[] = [];
+
 function following(
     transport: MailFathomTransport,
     signedIn: ClientSession | null = session,
+    abandoned: readonly AbandonedChange[] = [],
 ): { signInAsSomebodyElse: () => void } {
     signedInAs = signedIn;
+    abandonedHere = abandoned;
 
     const view = renderHook(() => usePendingChanges(), {
         wrapper: ({ children }: { readonly children: ReactNode }) => (
             <LocalizationProvider>
                 <ToastsProvider>
-                    <PendingChangesProvider session={signedInAs} transport={transport}>
+                    <PendingChangesProvider session={signedInAs} transport={transport} abandoned={abandonedHere}>
                         <PendingChangeLines />
                         {children}
                     </PendingChangesProvider>
@@ -191,6 +197,16 @@ afterEach(() => {
 });
 
 describe('PendingChangesProvider', () => {
+    // The notification a given-up change raises can arrive while this tab is still following that change, and one
+    // change is one question: the queue keeps it until the queue itself gives up on it.
+    it('does not ask about a change it is still following as one the mailbox gave up on', () => {
+        following(standingAt('pending').transport, session, [{ recordId, storedEmailId, act: 'markRead' }]);
+
+        hand(submission(recorded(recordId)));
+
+        expect(queue?.current.abandoned).toStrictEqual([]);
+    });
+
     it('says how many changes the mailbox has not taken yet', () => {
         following(standingAt('pending').transport);
 

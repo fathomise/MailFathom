@@ -2,14 +2,19 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ClientSession, MailFathomTransport, MailThreadMessage } from '@mailfathom/client-backend';
+import {
+    isSpam,
+    type ClientSession,
+    type MailFathomTransport,
+    type MailThreadMessage,
+} from '@mailfathom/client-backend';
+import { drawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useMessageBody } from '../messageBody/useMessageBody';
 import { OpenedMessage } from '../readingPane/OpenedMessage';
 import { useAccountName } from '../shell/accountNames';
-import { ReplyDraftCard } from '../threadAgent/ReplyDraftCard';
 import type { ArrivalMark } from './threadOpening';
 
 // One message of a conversation, drawn out in full — which is the whole of what this component decides, because what a
@@ -86,7 +91,15 @@ export function ThreadMessage({
     // The body the conversation already answered with, which is what makes revealing the history cost no request. The
     // read behind it stays reachable for the asks that are the reader's own — the sender's pictures, the sender's own
     // markup, and reading again after a failure — and it is wanted at all only where there is a message to draw it in.
-    const body = useMessageBody(session, transport, email.id, online && message.message !== null, message.body);
+    const acts = useMailboxActs();
+    const body = useMessageBody(
+        session,
+        transport,
+        email.id,
+        online && message.message !== null,
+        isSpam(drawnSpam(acts, { id: email.id, spam: email.spam })),
+        message.body,
+    );
 
     return (
         <li
@@ -141,8 +154,6 @@ export function ThreadMessage({
                     </p>
                 </div>
             </article>
-
-            <ReplyDraftCard under={email.id} />
         </li>
     );
 }

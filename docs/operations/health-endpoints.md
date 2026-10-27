@@ -80,7 +80,7 @@ Kestrel's own default address.
 
 | Probe | Path | Consults | A failure means |
 |---|---|---|---|
-| Startup | `/started` | The host's own startup gates: every secret reference the deployment's own sections carry resolved, the database schema verified, every user the deployment serves reconciled against the rows it holds and their own mailboxes' secrets resolved with them, and — only where its own switch is on — the spam scanner naming the corpus it scores under | The process has not finished coming up; the grace period continues |
+| Startup | `/started` | The host's own startup gates: every secret reference the deployment's own sections carry resolved, the database schema verified, every user the deployment serves reconciled against the rows it holds and their own mailboxes' secrets resolved with them, and the default administrator recorded, or known to have been removed, with its password setting applied | The process has not finished coming up; the grace period continues |
 | Readiness | `/health` | The dependencies a request needs: the database, each declared AI provider, and — only where something actually runs against it — the personal-data analyzer and the object-storage bucket, or, where no endpoint is configured, whether stored content points into one anyway | The instance stops receiving traffic; it is not restarted |
 | Liveness | `/alive` | Process-local state only | The container is restarted |
 
@@ -94,13 +94,13 @@ framework's default is to include every registered check in every endpoint, whic
 able to restart the process. Because a probe over no checks reports healthy, composition refuses to start when any of
 the three would answer without consulting anything.
 
-**A declared AI provider degrades the readiness probe rather than failing it.** An embedding provider and a chat
-provider each register a check of their own — `ai-embedding-provider` and `ai-chat-provider` — when the deployment
-declared one, and neither ever reports worse than degraded. Neither serves a request path: an instance whose embedding
-provider is failing still answers every search lexically, and one whose chat provider is failing still answers every
-search at all. So `/health` reads `Degraded` while a provider is unreachable, the instance keeps its traffic, and the
-liveness probe is untouched — restarting the process could not fix a provider and would turn one outage into two.
-Neither check calls a provider to find out; each reports the outcome of the last real call, which is what keeps a
+**A declared AI provider degrades the readiness probe rather than failing it.** An embedding provider, a chat
+provider, and a decision model each register a check of their own — `ai-embedding-provider`, `ai-chat-provider`, and
+`ai-decision-provider` — when the deployment declared one, and none ever reports worse than degraded. None serves a
+request path: an instance whose embedding provider is failing still answers every search lexically, and one whose chat
+provider is failing still answers every search at all. So `/health` reads `Degraded` while a provider is unreachable,
+the instance keeps its traffic, and the liveness probe is untouched — restarting the process could not fix a provider
+and would turn one outage into two. No check calls a provider to find out; each reports the outcome of the last real call, which is what keeps a
 health scrape from spending an operator's money. [Chat generation](../features/chat-generation.md#provider-health-is-tracked-per-provider)
 records the states and what each asks of an operator.
 
@@ -216,8 +216,8 @@ opens no connection and costs nothing, and once it turns healthy it stays health
 
 Only the secret-reference gate runs before the listener opens, because it is the one registered as a hosted *lifecycle*
 service and the host runs that stage ahead of every hosted service's start. The schema gate, the user gate, and the
-spam-scanner gate are ordinary hosted services, and the web host registers its own while the builder runs, so it starts
-first and the port is already accepting connections while those three run. That window is exactly what the probe is
+default-administrator gate are ordinary hosted services, and the web host registers its own while the builder runs, so
+it starts first and the port is already accepting connections while those three run. That window is exactly what the probe is
 for: hold traffic off an instance until `/started` succeeds rather than inferring readiness from the port answering.
 A gate that refuses still aborts startup, so the process exits rather than serving with a gate unmet.
 

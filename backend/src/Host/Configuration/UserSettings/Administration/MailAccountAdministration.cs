@@ -13,6 +13,7 @@ using MailFathom.Host.Configuration.Administration;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.Policies;
 using MailFathom.Host.Signals;
+using MailFathom.Infrastructure.Mail;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Users;
 using MailFathom.Infrastructure.Secrets.Discovery;
@@ -91,6 +92,23 @@ internal sealed class MailAccountAdministration(
 
     /// <summary>The document of an account that states nothing, which a creation is judged against.</summary>
     private const string StatingNothing = "{}";
+
+    private const string DeliveryProperty = nameof(MailSynchronizationAccountOptions.Delivery);
+
+    /// <summary>The settings a signing identity's material is read under, one per kind of identity.</summary>
+    private static readonly string[] SigningIdentityPrefixes =
+    [
+        $"{DeliveryProperty}:{nameof(MailAccountDeliveryOptions.SmimeSigningCertificate)}:",
+        $"{DeliveryProperty}:{nameof(MailAccountDeliveryOptions.OpenPgpSigningKey)}:",
+    ];
+
+    /// <summary>The plain settings a signing identity is judged against beside its own material.</summary>
+    private static readonly string[] SettingsASigningIdentityIsJudgedAgainst =
+    [
+        $"{DeliveryProperty}:{nameof(MailAccountDeliveryOptions.Host)}",
+        $"{DeliveryProperty}:{nameof(MailAccountDeliveryOptions.FromAddress)}",
+        nameof(MailSynchronizationAccountOptions.UserName),
+    ];
 
     /// <summary>Lists one page of the accounts this deployment holds.</summary>
     /// <param name="query">The page asked for.</param>
@@ -729,21 +747,39 @@ internal sealed class MailAccountAdministration(
     private static MailAccountRecord? AssignedAccount(UserSettingsDocument record, string accountId) =>
         Guid.TryParse(accountId, out var id) ? record.MailAccounts.FirstOrDefault(account => account.Id == id) : null;
 
-    /// <summary>Reports whether a candidate carries every secret-bearing setting exactly as the account holds it.</summary>
-    /// <remarks>Compared as settings rather than as the problems the walk reports, because a sentence names a path and a failure and never the target behind it: a broken reference replaced by a different broken one reads the same.</remarks>
-    private static bool LeavesEverySecretAsItWas(string standingDocument, string candidateDocument)
+    /// <summary>Reports whether a candidate carries every setting the problem walk judges exactly as the account holds it.</summary>
+    /// <remarks>
+    /// <para>
+    /// Compared as settings rather than as the problems the walk reports, because a sentence names a path and a failure
+    /// and never the target behind it: a broken reference replaced by a different broken one reads the same.
+    /// </para>
+    /// <para>
+    /// The walk judges every secret, and a signing identity against three plain settings beside its material: the
+    /// submission host that makes it count, the sending address it has to name, and the user name that address falls
+    /// back to. So where either side names a signing identity those three are compared as well, and an edit moving
+    /// the address under an identity that cannot sign as it is refused rather than reported as already held.
+    /// </para>
+    /// </remarks>
+    private static bool LeavesEveryJudgedSettingAsItWas(string standingDocument, string candidateDocument)
     {
-        var standing = SecretsOf(standingDocument);
-        var candidate = SecretsOf(candidateDocument);
+        var standingSettings = RedactedDocumentSave.Flatten(standingDocument);
+        var candidateSettings = RedactedDocumentSave.Flatten(candidateDocument);
+        var judgesSigning = NamesASigningIdentity(standingSettings) || NamesASigningIdentity(candidateSettings);
+        var standing = JudgedSettingsOf(standingSettings, judgesSigning);
+        var candidate = JudgedSettingsOf(candidateSettings, judgesSigning);
 
         return standing.Count == candidate.Count
             && standing.All(setting => candidate.TryGetValue(setting.Key, out var value)
                 && string.Equals(value, setting.Value, StringComparison.Ordinal));
     }
 
-    private static Dictionary<string, string> SecretsOf(string document) =>
-        RedactedDocumentSave.Flatten(document)
-            .Where(setting => SecretPropertyNaming.NamesASecret(setting.Key.Split(':')[^1]))
+    private static bool NamesASigningIdentity(Dictionary<string, string> settings) =>
+        settings.Keys.Any(key => SigningIdentityPrefixes.Any(prefix => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
+
+    private static Dictionary<string, string> JudgedSettingsOf(Dictionary<string, string> settings, bool judgesSigning) =>
+        settings
+            .Where(setting => SecretPropertyNaming.NamesASecret(setting.Key.Split(':')[^1])
+                || (judgesSigning && SettingsASigningIdentityIsJudgedAgainst.Contains(setting.Key, StringComparer.OrdinalIgnoreCase)))
             .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.OrdinalIgnoreCase);
 
     private static IReadOnlyList<MailAccountRecord> WithCandidate(
@@ -1068,7 +1104,7 @@ internal sealed class MailAccountAdministration(
             ? []
             : await secrets.FindUserMailAccountErrorsAsync(DeclarationPath, judged.Declared, cancellationToken);
 
-        if (unusable.Count > 0 && !LeavesEverySecretAsItWas(standing?.Document ?? StatingNothing, candidate.Document))
+        if (unusable.Count > 0 && !LeavesEveryJudgedSettingAsItWas(standing?.Document ?? StatingNothing, candidate.Document))
         {
             return new OpenedWrite(
                 UserRecordWriteOutcome.Refused(MailFathomErrorCode.ConfigurationCandidateInvalid, versionInForce, unusable),

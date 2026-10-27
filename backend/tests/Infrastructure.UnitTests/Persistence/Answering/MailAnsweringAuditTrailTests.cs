@@ -3,7 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.Mailboxes;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
@@ -260,7 +259,7 @@ public sealed class MailAnsweringAuditTrailTests : IDisposable
         Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("caadbcff-ec90-7811-8a56-42fc15e5aa67")), "inbox", MailFolderAlias.Create("inbox")),
         Subject = "Quarterly invoice",
         ReceivedAt = StartedAt,
-        SenderVerification = SenderVerification.NotEstablished,
+        Provenance = StubEmailProvenanceReader.KnownCorrespondent,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         Text = "the invoice is attached",
     };

@@ -128,6 +128,10 @@ does anything: it keeps an Agent conversation on the upstream provider whose pro
 against any other entry it is ignored with a startup warning — [chat generation § a conversation can stay on one
 provider](../features/chat-generation.md#a-conversation-can-stay-on-one-provider) says what it groups.
 
+OpenRouter is also the one service a decision model is reached at, and that entry sits outside this page's mechanism:
+its Decisions API is not the OpenAI wire protocol, so it has an adapter of its own and is declared under
+[`Decisions`](configuration-ai.md#decisions) rather than as a row here.
+
 Fireworks documents `dimensions` as accepted but honoured only by particular models, so the value is a property of the
 model an entry names rather than of the service. It also documents `normalize` as defaulting to false, which is a
 declaration to check against `NormalizeVectors` rather than to assume.
@@ -268,8 +272,8 @@ returns an answer or a vector in the shape the port publishes.
 They are skipped unless asked for, and asking for one without what it needs fails the run rather than skipping it.
 `MAILFATHOM_AI_CONTRACT_TESTS` turns them on; the embedding half then reads `MAILFATHOM_EMBEDDING_ADDRESS`,
 `MAILFATHOM_EMBEDDING_MODEL`, `MAILFATHOM_EMBEDDING_DIMENSION`, and `MAILFATHOM_EMBEDDING_API_KEY`, with
-`MAILFATHOM_EMBEDDING_ROUTED_MODEL` where the routed name differs, and the chat half reads the corresponding
-`MAILFATHOM_CHAT_*` variables. The address is the same string an `Address` key would carry, so an entry is checked
+`MAILFATHOM_EMBEDDING_ROUTED_MODEL` where the routed name differs, the chat half reads the corresponding
+`MAILFATHOM_CHAT_*` variables, and the decision half the `MAILFATHOM_DECISION_*` ones. The address is the same string an `Address` key would carry, so an entry is checked
 exactly as it would be deployed. [Local development](local-development.md) holds how the suite is run at all.
 
 **One limit of the instrument is worth knowing before an entry is trusted.** A contract run reads the key variable as

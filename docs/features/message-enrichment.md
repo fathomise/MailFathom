@@ -165,8 +165,8 @@ of its own.
 in the turn, so an agent that could look something up would be an agent able to reach mail beyond the message it was
 asked about.
 
-What leaves the deployment is the subject, the arrival instant, and the selected passages — nothing else, and every one
-of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment switched
+What leaves the deployment is the subject, the arrival instant, where the message came from, and the selected passages —
+nothing else, and every quoted one of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment switched
 on. The passages are **numbered in the turn and cited by number**, and the model is shown no identifier at all, so a
 citation is a position in a list this deployment composed: an answer naming a passage it was not given names nothing,
 and its mark is dropped.
@@ -176,6 +176,13 @@ against now, which is what makes the same message derived again next month resol
 
 The message is data rather than an instruction, and the instruction says so. Mail is the most adversarial text this
 system reads: a message asking to be marked urgent is a sender writing on a row somebody else's triage depends on.
+
+Where it came from is written by the service on the message's `<message>` element, as the same attributes
+[answering writes](mail-answering.md#where-a-message-came-from) — the sender verdict always, and the junk and first-contact
+flags where they hold. The instruction asks the model to read a request from a sender nobody authenticated, or from junk
+or a first contact, as a claim: a request there to change payment details or credentials, or to act urgently, becomes
+no commitment the person owes and no task on their list. A message whose provenance can no longer be read was erased
+since it was selected, and is not derived.
 
 ## What it costs, and turning it on
 

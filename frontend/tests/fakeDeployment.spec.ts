@@ -10,6 +10,7 @@ import * as fixtures from './fixtures/deployment';
 import * as discovery from './fixtures/discovery';
 import * as mail from './fixtures/mail';
 import * as notifications from './fixtures/notifications';
+import * as outbox from './fixtures/outbox';
 
 // The fake deployment every browser check signs in to, asked directly rather than through a page: what a journey
 // relies on is that a read after a write answers what the write left behind, and a check that got that wrong would
@@ -112,28 +113,46 @@ test('takes a deleted folder out of both folder routes, the mail filed in it out
     });
 
     expect(
-        ask(deployment, 'POST', '/managed-folders/deletions', { account: 'work', folderId: 'ARCHIVE/2024' }),
+        ask(deployment, 'POST', '/managed-folders/deletions', {
+            account: fixtures.workAccount.id,
+            folderId: 'ARCHIVE/2024',
+        }),
     ).toMatchObject({
         change: 'Deleted',
         folder: { id: 'ARCHIVE/2024' },
         mailErasureDeferred: false,
     });
 
-    const managed = ask(deployment, 'GET', '/managed-folders?account=work') as { folders: { id: string }[] };
+    const managed = ask(deployment, 'GET', `/managed-folders?account=${fixtures.workAccount.id}`) as {
+        folders: { id: string }[];
+    };
     const folders = ask(deployment, 'GET', '/folders') as { accounts: { folders: { id: string }[] }[] };
     const searchedAgain = ask(deployment, 'GET', '/emails/search?query=renewal') as { results: { id: string }[] };
 
-    expect(managed.folders.map(({ id }) => id)).toStrictEqual(['INBOX', 'DRAFTS', 'ARCHIVE', 'FILED', 'TRASH']);
+    expect(managed.folders.map(({ id }) => id)).toStrictEqual([
+        'INBOX',
+        'DRAFTS',
+        'SENT',
+        'ARCHIVE',
+        'FILED',
+        'JUNK',
+        'TRASH',
+    ]);
     expect(folders.accounts.flatMap((account) => account.folders.map(({ id }) => id))).toStrictEqual([
         'INBOX',
         'DRAFTS',
+        'SENT',
         'FILED',
+        'JUNK',
         'TRASH',
     ]);
     expect(searchedAgain.results.map(({ id }) => id)).not.toContain(searched);
     expect(ask(deployment, 'GET', `/messages/${searched}`)).toBe(404);
     expect(
-        ask(deployment, 'POST', '/managed-folders/deletions', { account: 'work', folderId: 'ARCHIVE/2024' }),
+        ask(deployment, 'POST', '/managed-folders/deletions', {
+            account: fixtures.workAccount.id,
+            folderId: 'ARCHIVE/2024',
+        }),
     ).toMatchObject({
         refusal: 'FolderMissing',
     });
@@ -150,21 +169,39 @@ test('answers a folder made, renamed, and moved at the place each act put it, un
     };
 
     expect(
-        ask(deployment, 'POST', '/managed-folders', { account: 'work', parentId: 'ARCHIVE/2024', name: 'Suppliers' }),
+        ask(deployment, 'POST', '/managed-folders', {
+            account: fixtures.workAccount.id,
+            parentId: 'ARCHIVE/2024',
+            name: 'Suppliers',
+        }),
     ).toMatchObject({ change: 'Created', folder: { id: 'SUPPLIERS', parentId: 'ARCHIVE/2024', name: 'Suppliers' } });
     expect(placed()).toStrictEqual(['Archive', '2024', 'Suppliers']);
 
-    ask(deployment, 'POST', '/managed-folders/renames', { account: 'work', folderId: 'SUPPLIERS', name: 'Vendors' });
+    ask(deployment, 'POST', '/managed-folders/renames', {
+        account: fixtures.workAccount.id,
+        folderId: 'SUPPLIERS',
+        name: 'Vendors',
+    });
     expect(placed()).toStrictEqual(['Archive', '2024', 'Vendors']);
 
-    ask(deployment, 'POST', '/managed-folders/moves', { account: 'work', folderId: 'SUPPLIERS', parentId: 'INBOX' });
+    ask(deployment, 'POST', '/managed-folders/moves', {
+        account: fixtures.workAccount.id,
+        folderId: 'SUPPLIERS',
+        parentId: 'INBOX',
+    });
     expect(placed()).toStrictEqual(['INBOX', 'Vendors']);
 
-    const managed = ask(deployment, 'GET', '/managed-folders?account=work') as { folders: { id: string }[] };
+    const managed = ask(deployment, 'GET', `/managed-folders?account=${fixtures.workAccount.id}`) as {
+        folders: { id: string }[];
+    };
 
     expect(managed.folders.map(({ id }) => id)).toContain('SUPPLIERS');
     expect(
-        ask(deployment, 'POST', '/managed-folders', { account: 'work', parentId: null, name: 'suppliers' }),
+        ask(deployment, 'POST', '/managed-folders', {
+            account: fixtures.workAccount.id,
+            parentId: null,
+            name: 'suppliers',
+        }),
     ).toMatchObject({ folder: { id: 'SUPPLIERS-2' } });
 });
 
@@ -193,6 +230,97 @@ test('answers a later read with the flags a change left, and filters on them', (
 
     expect(page.emails[0]).toMatchObject({ id: 'message-0', unread: false, flagged: true });
     expect(listed(deployment, 'folder=INBOX&flagged=true')).toStrictEqual(['message-0']);
+});
+
+// A row's mark and the details it opens are chosen from two answers, so the two have to state one sender.
+test('lists each message with the sender facts its own answer states, the Spam folder and the Inbox alike', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const rows = ['folder=JUNK', 'folder=INBOX'].flatMap(
+        (query) =>
+            (
+                ask(deployment, 'GET', `/emails?${query}`) as {
+                    emails: {
+                        id: string;
+                        sender: {
+                            authorAuthentication: string;
+                            deploymentTrust: string;
+                            signatureOutcome: string;
+                            signerMatchesAuthor: boolean;
+                        };
+                    }[];
+                }
+            ).emails,
+    );
+
+    const listedFacts = rows.map((row) => ({ id: row.id, ...row.sender }));
+    const answeredFacts = rows.map((row) => {
+        const message = ask(deployment, 'GET', `/messages/${row.id}`) as {
+            sender: { authorAuthentication: string; deploymentTrust: string };
+            signature: { outcome: string; signerMatchesAuthor: boolean };
+        };
+
+        return {
+            id: row.id,
+            authorAuthentication: message.sender.authorAuthentication,
+            deploymentTrust: message.sender.deploymentTrust,
+            signatureOutcome: message.signature.outcome,
+            signerMatchesAuthor: message.signature.signerMatchesAuthor,
+        };
+    });
+
+    expect(rows).toHaveLength(104);
+    expect(listedFacts).toStrictEqual(answeredFacts);
+});
+
+test('answers every later read with the spam verdict a mark left, the Spam folder listing what arrived there', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    expect(listed(deployment, 'folder=JUNK')).toStrictEqual([
+        'message-spam-desk',
+        'message-spam-supplier',
+        'message-spam-parcel',
+        'message-spam-threat',
+    ]);
+
+    const marked = ask(deployment, 'POST', '/mutations/spam', {
+        verdict: 'Spam',
+        spamSubcategory: 'Scam',
+        storedEmailIds: ['message-0', 'message-gone'],
+    }) as { results: { storedEmailId: string; outcome: string; moved: boolean }[] };
+
+    expect(marked.results).toMatchObject([
+        { storedEmailId: 'message-0', outcome: 'applied', moved: false },
+        { storedEmailId: 'message-gone', outcome: 'message-not-found', moved: false },
+    ]);
+
+    const inbox = ask(deployment, 'GET', '/emails?folder=INBOX') as { emails: { id: string; spam?: unknown }[] };
+
+    expect(inbox.emails[0]).toMatchObject({
+        id: 'message-0',
+        spam: { verdict: 'Spam', decidedBy: 'Person', spamSubcategory: 'Scam', spamSubcategoryNamedBy: 'Person' },
+    });
+    expect(ask(deployment, 'GET', '/messages/message-0')).toMatchObject({ spam: { verdict: 'Spam' } });
+
+    ask(deployment, 'POST', '/mutations/spam', {
+        verdict: 'NotSpam',
+        spamSubcategory: null,
+        storedEmailIds: ['message-0'],
+    });
+
+    expect(ask(deployment, 'GET', '/messages/message-0')).toMatchObject({
+        spam: { verdict: 'NotSpam', spamSubcategory: null },
+    });
+});
+
+test('records a move into the Spam folder as the person’s own spam mark, with no kind', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    ask(deployment, 'POST', '/mutations/moves', { moves: [{ storedEmailId: 'message-4', destinationFolder: 'JUNK' }] });
+
+    expect(listed(deployment, 'folder=JUNK')).toContain('message-4');
+    expect(ask(deployment, 'GET', '/messages/message-4')).toMatchObject({
+        spam: { verdict: 'Spam', decidedBy: 'Person', spamSubcategory: null },
+    });
 });
 
 test('answers an inbox marked read past the count it states with nothing unread rather than fewer than nothing', () => {
@@ -228,7 +356,7 @@ test('pages the folder on from where the last page ended, and back from where it
 test('keeps a draft across saves as a revision each time, and forgets it once it is sent', () => {
     const deployment = new FakeDeployment('0.0.0');
     const composition = {
-        account: 'work',
+        account: fixtures.workAccount.id,
         subject: 'The yard',
         plainTextBody: 'Tuesday?',
         to: ['yard@example.invalid'],
@@ -253,7 +381,7 @@ test('keeps a draft across saves as a revision each time, and forgets it once it
 test('files a draft with its staged file in the drafts folder, reads it back whole, and takes it out once sent', () => {
     const deployment = new FakeDeployment('0.0.0');
     const composition = {
-        account: 'work',
+        account: fixtures.workAccount.id,
         subject: 'The yard',
         plainTextBody: 'Tuesday?',
         to: ['yard@example.invalid'],
@@ -301,7 +429,7 @@ test('files a draft with its staged file in the drafts folder, reads it back who
 test('puts a send taken back into the drafts folder as it was sent, and knows nothing of one it never queued', () => {
     const deployment = new FakeDeployment('0.0.0');
     const composition = {
-        account: 'work',
+        account: fixtures.workAccount.id,
         subject: 'The yard',
         plainTextBody: 'Tuesday?',
         to: ['yard@example.invalid'],
@@ -321,6 +449,177 @@ test('puts a send taken back into the drafts folder as it was sent, and knows no
     expect(ask(deployment, 'GET', `/messages/${filed}/body`)).toMatchObject({ plainText: { text: 'Tuesday?' } });
     expect(ask(deployment, 'POST', '/outbox/cancellation', { outgoingEmail: queued.outgoingEmail })).toMatchObject({
         outcome: 'RecordUnknown',
+    });
+});
+
+/** A deployment whose session may send, which is the session the folders route counts an Outbox for. */
+function sendingDeployment(): FakeDeployment {
+    const deployment = new FakeDeployment('0.0.0');
+
+    deployment.grant('mailfathom.mail.send');
+
+    return deployment;
+}
+
+/** The identities the Outbox lists, newest first, and what the folders route counts in it. */
+function inTheOutbox(deployment: FakeDeployment): { sends: string[]; counted: unknown } {
+    const page = ask(deployment, 'GET', `/outbox?account=${fixtures.workAccount.id}&pageSize=200`) as {
+        sends: { outgoingEmail: string }[];
+    };
+    const folders = ask(deployment, 'GET', '/folders') as { accounts: { outbox: unknown }[] };
+
+    return { sends: page.sends.map(({ outgoingEmail }) => outgoingEmail), counted: folders.accounts[0]?.outbox };
+}
+
+test('counts no Outbox for a session that reads mail and cannot send it, as the service answers', () => {
+    const folders = ask(new FakeDeployment('0.0.0'), 'GET', '/folders') as { accounts: { outbox: unknown }[] };
+
+    expect(folders.accounts.map(({ outbox: counted }) => counted)).toStrictEqual(folders.accounts.map(() => null));
+});
+
+test('lists a queued send in the Outbox and counts it until it is taken back', () => {
+    const deployment = sendingDeployment();
+    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
+        draft: { draftId: string };
+    };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+
+    expect(inTheOutbox(deployment)).toStrictEqual({
+        sends: [queued.outgoingEmail, ...outbox.outboxPage.sends.map(({ outgoingEmail }) => outgoingEmail)],
+        counted: { waiting: 5, refused: 1 },
+    });
+    expect(ask(deployment, 'GET', `/outbox/${queued.outgoingEmail}`)).toMatchObject({ subject: 'The yard' });
+
+    ask(deployment, 'POST', '/outbox/cancellation', { outgoingEmail: queued.outgoingEmail });
+
+    expect(inTheOutbox(deployment).counted).toStrictEqual(fixtures.waitingOutbox);
+    expect(ask(deployment, 'GET', `/outbox/${queued.outgoingEmail}`)).toMatchObject({
+        stage: 'Cancelled',
+        inOutbox: false,
+    });
+});
+
+test('names a queued send’s first three recipients on its row and counts the rest, as the service does', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const to = ['a', 'b', 'c', 'd'].map((name) => `${name}@example.invalid`);
+    const recipients = to.map((address) => ({ address, role: 'To' }));
+    const written = ask(deployment, 'POST', '/drafts', {
+        account: fixtures.workAccount.id,
+        subject: 'Four of them',
+        to,
+        cc: ['e@example.invalid'],
+    }) as { draft: { draftId: string } };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+    const page = ask(deployment, 'GET', `/outbox?account=${fixtures.workAccount.id}&pageSize=200`) as {
+        sends: { outgoingEmail: string; recipients: unknown[]; otherRecipientCount: number }[];
+    };
+    const row = page.sends.find(({ outgoingEmail }) => outgoingEmail === queued.outgoingEmail);
+
+    expect(row).toMatchObject({ recipients: recipients.slice(0, 3), otherRecipientCount: 2 });
+    expect(
+        (ask(deployment, 'GET', `/outbox/${queued.outgoingEmail}`) as { recipients: unknown[] }).recipients,
+    ).toHaveLength(5);
+});
+
+test('answers the preview of a send that left at the stage it ended at, out of the Outbox', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    deployment.sendLeaves(outbox.waitingSend.outgoingEmail);
+    ask(deployment, 'POST', '/outbox/dismissal', { outgoingEmail: outbox.refusedOutgoingSend.outgoingEmail });
+
+    expect(ask(deployment, 'GET', `/outbox/${outbox.waitingSend.outgoingEmail}`)).toMatchObject({
+        stage: 'Sent',
+        inOutbox: false,
+        dismissedAt: null,
+    });
+    expect(ask(deployment, 'GET', `/outbox/${outbox.refusedOutgoingSend.outgoingEmail}`)).toMatchObject({
+        stage: 'Refused',
+        inOutbox: false,
+        dismissedAt: outbox.refusedOutgoingSend.recordedAt,
+    });
+    expect(ask(deployment, 'GET', '/outbox/never-made')).toBe(404);
+});
+
+test('lets a send it queued leave the Outbox as one the corpus held does, out of the list, the count and the preview', () => {
+    const deployment = sendingDeployment();
+    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
+        draft: { draftId: string };
+    };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+
+    deployment.sendLeaves(queued.outgoingEmail);
+
+    expect(inTheOutbox(deployment)).toStrictEqual({
+        sends: outbox.outboxPage.sends.map(({ outgoingEmail }) => outgoingEmail),
+        counted: fixtures.waitingOutbox,
+    });
+    expect(ask(deployment, 'GET', `/outbox/${queued.outgoingEmail}`)).toMatchObject({
+        subject: 'The yard',
+        stage: 'Sent',
+        inOutbox: false,
+    });
+});
+
+test('withdraws a waiting send and refuses to withdraw one an attempt holds or the server refused', () => {
+    const deployment = sendingDeployment();
+    const cancelled = (send: { outgoingEmail: string }) =>
+        ask(deployment, 'POST', '/outbox/cancellation', { outgoingEmail: send.outgoingEmail });
+
+    expect(cancelled(outbox.sendingSend)).toMatchObject({ outcome: 'AttemptUnderWay' });
+    expect(cancelled(outbox.refusedOutgoingSend)).toMatchObject({ outcome: 'StageDoesNotAllowIt' });
+    expect(cancelled(outbox.waitingSend)).toMatchObject({ outcome: 'Accepted' });
+    expect(inTheOutbox(deployment)).toStrictEqual({
+        sends: [
+            outbox.sendingSend.outgoingEmail,
+            outbox.retryingSend.outgoingEmail,
+            outbox.unknownSend.outgoingEmail,
+            outbox.refusedOutgoingSend.outgoingEmail,
+        ],
+        counted: { waiting: 3, refused: 1 },
+    });
+});
+
+test('offers a refused send again only once its refusal was restated, as one no attempt has reached', () => {
+    const deployment = sendingDeployment();
+    const { outgoingEmail } = outbox.refusedOutgoingSend;
+
+    expect(ask(deployment, 'POST', '/outbox/requeue', { outgoingEmail, refusalRestated: false })).toMatchObject({
+        outcome: 'RefusalNotRestated',
+    });
+    expect(ask(deployment, 'POST', '/outbox/requeue', { outgoingEmail, refusalRestated: true })).toMatchObject({
+        outcome: 'Accepted',
+    });
+    expect(ask(deployment, 'GET', `/outbox/${outgoingEmail}`)).toMatchObject({ stage: 'Recorded', failure: null });
+    expect(inTheOutbox(deployment).counted).toStrictEqual({ waiting: 5, refused: 0 });
+});
+
+test('dismisses a send nobody knows the fate of and lets a delivered one leave, each out of the Outbox', () => {
+    const deployment = sendingDeployment();
+
+    expect(
+        ask(deployment, 'POST', '/outbox/dismissal', { outgoingEmail: outbox.unknownSend.outgoingEmail }),
+    ).toMatchObject({ outcome: 'Accepted' });
+    expect(
+        ask(deployment, 'POST', '/outbox/dismissal', { outgoingEmail: outbox.waitingSend.outgoingEmail }),
+    ).toMatchObject({ outcome: 'StageDoesNotAllowIt' });
+
+    deployment.sendLeaves(outbox.sendingSend.outgoingEmail);
+
+    expect(inTheOutbox(deployment)).toStrictEqual({
+        sends: [
+            outbox.waitingSend.outgoingEmail,
+            outbox.retryingSend.outgoingEmail,
+            outbox.refusedOutgoingSend.outgoingEmail,
+        ],
+        counted: { waiting: 2, refused: 1 },
+    });
+    expect(ask(deployment, 'GET', `/outbox/${outbox.unknownSend.outgoingEmail}`)).toMatchObject({
+        stage: 'TransmissionBegun',
+        inOutbox: false,
+    });
+    expect(ask(deployment, 'GET', `/outbox/${outbox.sendingSend.outgoingEmail}`)).toMatchObject({
+        stage: 'Sent',
+        inOutbox: false,
     });
 });
 
@@ -391,17 +690,17 @@ test('answers the centre and the bell with every notification raised, marked, an
     deployment.raiseNotification();
 
     expect(centre().notifications[0]).toMatchObject({ id: notifications.arrivingNotification.id, read: false });
-    expect(ask(deployment, 'GET', '/notifications/unread-count')).toStrictEqual({ unreadCount: 3 });
+    expect(ask(deployment, 'GET', '/notifications/unread-count')).toStrictEqual({ unreadCount: 6 });
 
     expect(
         ask(deployment, 'POST', `/notifications/${notifications.notificationId}/read-state`, { read: true }),
-    ).toStrictEqual({ id: notifications.notificationId, read: true, unreadCount: 2 });
+    ).toStrictEqual({ id: notifications.notificationId, read: true, unreadCount: 5 });
     expect(
         ask(deployment, 'POST', '/notifications/deletions', {
             notificationIds: [notifications.arrivingNotification.id, notifications.notificationId],
         }),
-    ).toStrictEqual({ deleted: 2, unreadCount: 1 });
-    expect(ask(deployment, 'POST', '/notifications/read')).toStrictEqual({ markedRead: 1, unreadCount: 0 });
+    ).toStrictEqual({ deleted: 2, unreadCount: 4 });
+    expect(ask(deployment, 'POST', '/notifications/read')).toStrictEqual({ markedRead: 4, unreadCount: 0 });
 
     expect(centre().notifications.map(({ id }) => id)).not.toContain(notifications.notificationId);
     expect(centre().notifications.every(({ read }) => read)).toBe(true);
@@ -703,7 +1002,7 @@ test('lists mail it delivered at the head of the inbox, moves both counts, and s
     expect(connection.received.at(-1)).toStrictEqual({
         type: 1,
         target: 'signal',
-        arguments: [{ kind: 'mail.arrived', account: 'work', folder: 'INBOX', count: 1 }],
+        arguments: [{ kind: 'mail.arrived', account: fixtures.workAccount.id, folder: 'INBOX', count: 1 }],
     });
     expect(listed(deployment, 'folder=INBOX').slice(0, 2)).toStrictEqual([mail.arrivingRow.id, 'message-0']);
     expect(listed(deployment, 'folder=INBOX')).toHaveLength(mail.rowsPerPage);
@@ -743,14 +1042,22 @@ test('answers the folders and the accounts with what moved elsewhere, and says w
 
     deployment.makeFolderElsewhere('Receipts 2026');
 
-    expect(connection.received.at(-1)).toMatchObject({ arguments: [{ kind: 'folders.changed', account: 'work' }] });
+    expect(connection.received.at(-1)).toMatchObject({
+        arguments: [{ kind: 'folders.changed', account: fixtures.workAccount.id }],
+    });
     expect(counts(deployment, 'RECEIPTS 2026')).toStrictEqual({ stored: 0, unread: 0 });
 
     deployment.troubleTheAccounts();
 
-    expect(connection.received.at(-1)).toMatchObject({ arguments: [{ kind: 'account.state', account: 'club' }] });
+    expect(connection.received.at(-1)).toMatchObject({
+        arguments: [{ kind: 'account.state', account: fixtures.failingAccount.id }],
+    });
     expect(ask(deployment, 'GET', '/accounts')).toMatchObject({
-        accounts: [{ id: 'work' }, { id: 'club', synchronizationState: 'Failing' }, { id: 'personal' }],
+        accounts: [
+            { id: fixtures.workAccount.id },
+            { id: fixtures.failingAccount.id, synchronizationState: 'Failing' },
+            { id: fixtures.accountBehind.id },
+        ],
     });
 });
 
@@ -801,4 +1108,21 @@ test('keeps the telemetry answer it holds through a preferences write that state
 
     expect(written).toMatchObject({ telemetryEnabled: false, theme: 'dark' });
     expect(ask(deployment, 'GET', '/preferences')).toMatchObject({ telemetryEnabled: false, theme: 'dark' });
+});
+
+test('keeps the trusted link domains it holds through a preferences write that states none', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    ask(deployment, 'POST', '/preferences', { ...fixtures.clientPreferences, trustedLinkDomains: ['example.com'] });
+
+    // The client never states the list, so every write it makes is this one.
+    const withoutTheList: Record<string, unknown> = { ...fixtures.clientPreferences, theme: 'dark' };
+
+    delete withoutTheList['trustedLinkDomains'];
+
+    expect(ask(deployment, 'POST', '/preferences', withoutTheList)).toMatchObject({
+        trustedLinkDomains: ['example.com'],
+        theme: 'dark',
+    });
+    expect(ask(deployment, 'GET', '/preferences')).toMatchObject({ trustedLinkDomains: ['example.com'] });
 });

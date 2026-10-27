@@ -34,6 +34,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.TestSupport;
 using NSubstitute;
 using Xunit;
@@ -653,6 +654,38 @@ public sealed class EmailContentReaderTests
         Assert.Equal(string.Empty, body.PlainText.Text);
     }
 
+    /// <summary>
+    /// An opened message carries the spam verdict its row carries, whether or not its content was stored, so a warning on
+    /// the message and the badge on its row cannot disagree.
+    /// </summary>
+    [Theory]
+    [InlineData(StoredEmailContentAvailability.Available)]
+    [InlineData(StoredEmailContentAvailability.ExceededSizeLimit)]
+    public async Task ReadContentAsync_AClassifiedEmail_CarriesTheSpamVerdictOfItsSummary(
+        StoredEmailContentAvailability availability)
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create() with
+        {
+            ContentAvailability = availability,
+            Spam = new EmailSpamVerdict(
+                SpamVerdict.Spam,
+                SpamClassificationStage.Model,
+                SpamSubcategory.Phishing,
+                SpamPhishingRequest.OneTimeCode,
+                SpamImpersonatedParty.Courier),
+        };
+        var reader = ReaderOver(summary, RendererReturning(RenderingOf()));
+
+        // Act
+        var result = await reader.ReadContentAsync(
+            RequestFor([summary.StoredEmailId], includeAttachmentDownloadLinks: false) with { Reader = MailboxReaderKind.Person },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(summary.Spam, ContentOf(Assert.Single(result.Emails)).Spam);
+    }
+
     /// <summary>Mail the size limit kept out of storage is answered with what exists, and no repair is asked for.</summary>
     [Fact]
     public async Task ReadContentAsync_ContentNeverStoredBecauseItExceededTheSizeLimit_AnswersFromTheRowAndRequestsNoRepair()
@@ -864,9 +897,9 @@ public sealed class EmailContentReaderTests
             .ReadContentAsync(RequestFor([summary.StoredEmailId]), TestContext.Current.CancellationToken);
     }
 
-    /// <summary>A folder an operator withheld from tools is unreadable by identifier too, and refused the same way as mail that is not there.</summary>
+    /// <summary>A folder an operator withheld from AI is unreadable to an agent by identifier too, and refused the same way as mail that is not there.</summary>
     [Fact]
-    public async Task ReadContentAsync_EmailOfAFolderWithheldFromTools_IsReportedAsNotFound()
+    public async Task ReadContentAsync_EmailOfAFolderWithheldFromAIReadForAnAgent_IsReportedAsNotFound()
     {
         // Arrange
         var summary = SyntheticEmailSummaries.Create();
@@ -885,6 +918,73 @@ public sealed class EmailContentReaderTests
         // Assert
         var failure = FailureOf(Assert.Single(result.Emails));
         Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, failure.ErrorCode);
+    }
+
+    /// <summary>
+    /// A message judged spam is never an agent's to read, and asking for it by its identifier is answered exactly as
+    /// asking for one that does not exist, so the answer does not tell the agent something is there.
+    /// </summary>
+    [Fact]
+    public async Task ReadContentAsync_AMessageJudgedSpamReadForAnAgent_AnswersExactlyAsAnUnknownIdentifierDoes()
+    {
+        // Arrange
+        var spam = SyntheticEmailSummaries.Create() with { Spam = VerdictOf(SpamVerdict.Spam, SpamClassificationStage.Model) };
+        var holdingTheSpam = ReaderOver(spam, RendererReturning(RenderingOf()));
+        var holdingNothing = ReaderOver(
+            summary: null,
+            RendererReturning(RenderingOf()),
+            accountCatalog: CatalogServing(spam.Account));
+
+        // Act
+        var spamRead = await holdingTheSpam.ReadContentAsync(
+            RequestFor([spam.StoredEmailId]),
+            TestContext.Current.CancellationToken);
+        var unknownRead = await holdingNothing.ReadContentAsync(
+            RequestFor([spam.StoredEmailId]),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(FailureOf(Assert.Single(unknownRead.Emails)), FailureOf(Assert.Single(spamRead.Emails)));
+        Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, FailureOf(spamRead.Emails[0]).ErrorCode);
+    }
+
+    /// <summary>The person reads a message judged spam like any other, because the client draws spam rather than hiding it.</summary>
+    [Fact]
+    public async Task ReadContentAsync_AMessageJudgedSpamReadForThePerson_ServesIt()
+    {
+        // Arrange
+        var spam = SyntheticEmailSummaries.Create() with { Spam = VerdictOf(SpamVerdict.Spam, SpamClassificationStage.Person) };
+        var reader = ReaderOver(spam, RendererReturning(RenderingOf()));
+
+        // Act
+        var result = await reader.ReadContentAsync(
+            RequestFor([spam.StoredEmailId]) with { Reader = MailboxReaderKind.Person },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(spam.StoredEmailId, ContentOf(Assert.Single(result.Emails)).StoredEmailId);
+    }
+
+    /// <summary>The person opening a message in a folder withheld from AI reads it like any other, because the withholding is from AI alone.</summary>
+    [Fact]
+    public async Task ReadContentAsync_EmailOfAFolderWithheldFromAIReadForThePerson_ServesIt()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create();
+        var reader = ReaderOver(
+            summary,
+            RendererReturning(RenderingOf()),
+            folderParticipation: StubMailFolderParticipation
+                .Mapping(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value))
+                .Hiding(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value)));
+
+        // Act
+        var result = await reader.ReadContentAsync(
+            RequestFor([summary.StoredEmailId]) with { Reader = MailboxReaderKind.Person },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(summary.StoredEmailId, ContentOf(Assert.Single(result.Emails)).StoredEmailId);
     }
 
     /// <summary>
@@ -1923,6 +2023,9 @@ public sealed class EmailContentReaderTests
 
     private static EmailSummary[] SummariesOf(int count) =>
         [.. Enumerable.Range(0, count).Select(_ => SyntheticEmailSummaries.Create())];
+
+    private static EmailSpamVerdict VerdictOf(SpamVerdict verdict, SpamClassificationStage decidedBy) =>
+        new(verdict, decidedBy, Subcategory: null, PhishingRequest: null, ImpersonatedParty: null);
 
     /// <summary>The grant is the authority here rather than at the transport, so an entrypoint that passed no filter meets the same refusal.</summary>
     [Fact]

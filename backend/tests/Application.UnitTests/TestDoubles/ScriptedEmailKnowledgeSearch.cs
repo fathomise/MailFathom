@@ -4,11 +4,11 @@
 
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.TestSupport;
 
 namespace MailFathom.Application.UnitTests.TestDoubles;
 
@@ -94,7 +94,7 @@ internal sealed class ScriptedEmailKnowledgeSearch : IEmailKnowledgeSearch
         Folder = SyntheticEmailSummaries.FolderOf("primary", "INBOX"),
         Subject = null,
         ReceivedAt = null,
-        SenderVerification = SenderVerification.NotEstablished,
+        Provenance = StubEmailProvenanceReader.KnownCorrespondent,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         Text = text,
     };

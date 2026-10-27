@@ -44,11 +44,13 @@ public sealed class QueuedSendRefusedException : MailFathomException
     /// <remarks>
     /// A record another principal queued and a record nobody queued are one answer deliberately. A caller able to tell
     /// them apart would learn, from an identifier alone, that this mailbox sent something — which is the enumeration
-    /// this surface refuses to offer, reached one guess at a time instead of through a listing.
+    /// this surface refuses to offer, reached one guess at a time instead of through a listing. The message names what
+    /// the caller may be told about rather than what it queued, because a caller that may also read mail is answered
+    /// from its accounts' outboxes, and the same words have to be true of both scopes.
     /// </remarks>
     public static QueuedSendRefusedException NotFound() => new(
         MailFathomErrorCode.OutgoingEmailNotFound,
-        "No message this caller queued is held under that identifier.");
+        "No message this caller may be told about is held under that identifier.");
 
     /// <summary>Reports a send that can no longer be withdrawn.</summary>
     /// <returns>The failure to raise.</returns>

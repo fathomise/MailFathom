@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace MailFathom.Application.Spam.Actions;
 
 /// <summary>How one attempt to act on a spam verdict ended.</summary>
@@ -10,21 +12,20 @@ namespace MailFathom.Application.Spam.Actions;
 /// of them is a failure. They
 /// are separate members rather than one negative because a caller reporting what a run did — above all a run an operator
 /// asked for over a whole mailbox — has to say why a message was left alone, and <em>nothing to change</em> and <em>the
-/// user has already moved this back</em> are different answers to that question.
+/// user has already moved this back</em> are different answers to that question. <c>3</c> is absent because the reason
+/// that held it went with the score it compared, and the number is not reissued.
 /// </remarks>
+[SuppressMessage("Design", "CA1027:Mark enums with FlagsAttribute", Justification = "The members are alternatives; the analyzer reads the gap a retired value left as a set of flags.")]
 public enum SpamActionOutcome
 {
     /// <summary>At least one change was written down for the account's convergence pass to carry out.</summary>
     Requested = 0,
 
-    /// <summary>Neither switch is on, so nothing was read and nothing was asked for.</summary>
+    /// <summary>No switch is on, so nothing was read and nothing was asked for.</summary>
     NoActionConfigured = 1,
 
     /// <summary>The verdict is not spam, which includes a classification that concluded nothing either way.</summary>
     NotSpam = 2,
-
-    /// <summary>A scanner decided the verdict and its score is below the score the operator acts at.</summary>
-    BelowThreshold = 3,
 
     /// <summary>
     /// There is no occurrence to issue a change against: nothing is stored under that identifier, which is what an
@@ -42,10 +43,10 @@ public enum SpamActionOutcome
     /// and startup validation already refuses the configuration that produces the first of them, naming the account.
     /// </para>
     /// <para>
-    /// Nothing at all is written down in this case, including a <c>\Seen</c> change asked for beside the filing. Marking
-    /// a message read while leaving it where it is takes the unread marker off spam that is still in the inbox, which is
-    /// worse than waiting: the two switches together describe one intent, and a later attempt performs it whole once the
-    /// folder is there.
+    /// Nothing at all is written down in this case, including a <c>\Seen</c> or keyword change asked for beside the
+    /// filing. Marking a message read while leaving it where it is takes the unread marker off spam that is still in the
+    /// inbox, which is worse than waiting: the switches together describe one intent, and a later attempt performs it whole
+    /// once the folder is there.
     /// </para>
     /// </remarks>
     DestinationUnresolved = 5,
@@ -53,8 +54,9 @@ public enum SpamActionOutcome
     /// <summary>Filing this message was asked for once already, and it is not in the destination.</summary>
     /// <remarks>
     /// <para>
-    /// It is the one outcome that outranks both switches, and it covers two readings that are the same decision: somebody
-    /// moved the message back out, which is the correction a false positive is meant to have, or the change is written
+    /// It is the one outcome that outranks every switch but the removal of a <c>$Junk</c> and <c>$NotJunk</c> pair, which
+    /// is asked for on its own instead and reported as requested. It covers two readings that are the same decision:
+    /// somebody moved the message back out, which is the correction a false positive is meant to have, or the change is written
     /// down and the account's convergence pass has not carried it out yet. Asking again would either argue with the
     /// person whose mailbox it is or duplicate a change already in flight.
     /// </para>
@@ -72,7 +74,7 @@ public enum SpamActionOutcome
     /// <summary>A reload has withdrawn the account, so what it keeps of mail leaving the mirror is unknown.</summary>
     /// <remarks>
     /// Reachable only for an unmirrored destination, which is the one case a filing has to carry that answer. Like an
-    /// unresolved destination it withholds both changes, for the same reason: the intent is one, and it is performed
+    /// unresolved destination it withholds every change, for the same reason: the intent is one, and it is performed
     /// whole once the account is declared again.
     /// </remarks>
     AccountNoLongerConfigured = 8,
@@ -81,7 +83,7 @@ public enum SpamActionOutcome
     /// <remarks>
     /// It is reached at exactly the point <see cref="Requested" /> is: the switches, the destination, and every reason to
     /// leave the message alone have all been read by then, so a dry run reports the decision the acting run would have
-    /// taken rather than a guess at it. What is absent is the pair of record identifiers, because no record was opened.
+    /// taken rather than a guess at it. It carries no record identifier, because no record was opened.
     /// </remarks>
     WouldRequest = 9,
 

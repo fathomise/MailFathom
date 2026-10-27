@@ -412,7 +412,7 @@ public sealed class MailAnsweringAgentCompositionTests
         Assert.Equal(2, chatClient.Calls.Count);
         Assert.All(
             chatClient.Calls,
-            call => Assert.Equal(MailAnsweringInstructions.Text, call.Options?.Instructions));
+            call => Assert.Equal(AgentComposition.InstructionFor(MailAnsweringInstructions.Text), call.Options?.Instructions));
     }
 
     /// <summary>
@@ -494,7 +494,7 @@ public sealed class MailAnsweringAgentCompositionTests
         Assert.Equal(expectedEnvelope, CarriedText(sent[2]));
         Assert.All(
             chatClient.Calls,
-            call => Assert.Equal(MailAnsweringInstructions.Text, call.Options?.Instructions));
+            call => Assert.Equal(AgentComposition.InstructionFor(MailAnsweringInstructions.Text), call.Options?.Instructions));
     }
 
     /// <summary>

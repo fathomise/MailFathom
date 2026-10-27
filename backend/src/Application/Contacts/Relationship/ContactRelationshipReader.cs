@@ -9,6 +9,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Contacts.Relationship;
 
@@ -98,7 +99,7 @@ public sealed class ContactRelationshipReader
         using var actingFor = this.egressGuard.ActingFor(
             await this.egressGuard.ReadPostureAcrossAccountsOfAsync(this.scopeResolver.User, cancellationToken));
 
-        var correspondence = await this.correspondenceReader.ReadAsync(contact, cancellationToken);
+        var correspondence = await this.correspondenceReader.ReadAsync(contact, MailboxReaderKind.Agent, cancellationToken);
 
         if (correspondence.Threads.Count is 0 && correspondence.Documents.Count is 0)
         {

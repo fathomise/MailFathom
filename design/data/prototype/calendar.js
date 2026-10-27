@@ -10,11 +10,11 @@ MailFathomDesign.data.calendarDays = [
     { time: "12:30", h: 12, t: "CPI calculation from Marta", kind: "mail", src: "CPI calculation 2027" },
   ] },
   { dow: "WED", d: "26", today: false, ev: [
-    { time: "09:00", h: 9, t: "Fabrikam rollout review", kind: "meeting", src: "Q4 delivery dates" },
+    { time: "09:00", h: 9, t: "Fabrikam rollout review", kind: "meeting", src: "Q4 delivery dates", link: "https://meet.fabrikam.example/j/4821-rollout-review" },
   ] },
   { dow: "THU", d: "27", today: true, ev: [
     { time: "10:00", h: 10, t: "Reply to Marta - calculation", kind: "deadline", src: "CPI calculation 2027" },
-    { time: "15:00", h: 15, t: "Rollout status with Piotr", kind: "meeting", src: "Re: rollout schedule" },
+    { time: "15:00", h: 15, t: "Rollout status with Piotr", kind: "meeting", src: "Re: rollout schedule", link: "https://meet.nordwind.example/r/rollout-status" },
   ] },
   { dow: "FRI", d: "28", today: false, ev: [
     { time: "all day", h: 0, t: "Decision: Contoso addendum", kind: "deadline", src: "Contract addendum - signatures" },

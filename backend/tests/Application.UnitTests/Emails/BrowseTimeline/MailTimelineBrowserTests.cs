@@ -17,6 +17,7 @@ using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.TestSupport;
 using NSubstitute;
 using Xunit;
@@ -660,6 +661,24 @@ public sealed class MailTimelineBrowserTests
             TestContext.Current.CancellationToken));
     }
 
+    /// <summary>The timeline is the person's own view of their mail, so a folder withheld from AI is part of what it reads.</summary>
+    [Fact]
+    public async Task BrowsePageAsync_AFolderWithheldFromAI_IsInTheScopeThePersonReads()
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(EveryAccountTheSyntheticTimelineUses[0], MailFolderAlias.Create("Private"));
+        var timeline = new InMemoryStoredEmailTimeline();
+        var browser = BrowserOver(
+            timeline,
+            folderParticipation: StubMailFolderParticipation.Mapping(withheld).Hiding(withheld));
+
+        // Act
+        await browser.BrowsePageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(withheld, Assert.Single(timeline.Calls).Filter.Selection.Scope.ReadableFolders);
+    }
+
     private static MailTimelineBrowser BrowserOver(
         InMemoryStoredEmailTimeline timeline,
         IStoredEmailPreviewReader? previewReader = null,
@@ -668,15 +687,16 @@ public sealed class MailTimelineBrowserTests
         ICallerMailAccountCatalog? accountCatalog = null,
         SensitiveContentEgressGuard? egressGuard = null,
         IMailboxReadTelemetry? readTelemetry = null,
-        AccessAuthorization? authorization = null) => new(
+        AccessAuthorization? authorization = null,
+        StubMailFolderParticipation? folderParticipation = null) => new(
         timeline,
         previewReader ?? new InMemoryStoredEmailPreviews(),
         enrichmentReader ?? new InMemoryStoredEmailEnrichments(),
         threadReader ?? new StubEmailThreadReader(),
         new MailboxScopeResolver(
             accountCatalog ?? CatalogServing(EveryAccountTheSyntheticTimelineUses),
-            StubMailFolderParticipation.Nothing,
-            StubDeploymentMailFolders.None,
+            folderParticipation ?? StubMailFolderParticipation.Nothing,
+            StubDeploymentMailFolders.Of(folderParticipation ?? StubMailFolderParticipation.Nothing),
             StubMailFolderMappings.ResolvingNothing),
         egressGuard ?? SensitiveContentEgressGuards.Inactive(),
         readTelemetry ?? new RecordingMailboxReadTelemetry(),

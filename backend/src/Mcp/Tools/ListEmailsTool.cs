@@ -68,7 +68,6 @@ internal sealed class ListEmailsTool(
     /// <param name="direction">Which end of the timeline to read from.</param>
     /// <param name="pageSize">How many summaries to return, or none to take the default.</param>
     /// <param name="cursor">The cursor a previous page returned.</param>
-    /// <param name="includeJunkMail">Whether the account's junk folder takes part in the listing.</param>
     /// <param name="cancellationToken">Cancels the read when the caller disconnects or the host shuts down.</param>
     /// <returns>The page, with the cursor of the next one and how current each covered folder is.</returns>
     /// <exception cref="MailboxQueryFilterInvalidException">Thrown when text naming an account or a folder is not a value this system could have issued.</exception>
@@ -89,14 +88,15 @@ internal sealed class ListEmailsTool(
         + "default. Filters by account, folder, sender address, recipient address, subject text, received date range, "
         + "remote seen state, remote flagged (starred) state, a keyword the mail server reported, and attachment "
         + "presence. Reads the local copy only: it never contacts a mail server, never "
-        + "marks mail as read, and never returns body text, raw MIME, or attachment content. Mail in the account's junk "
-        + "folder is left out unless includeJunkMail is set. Returns at most 100 "
+        + "marks mail as read, and never returns body text, raw MIME, or attachment content. Never returns a message "
+        + "judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. "
+        + "Returns at most 100 "
         + "summaries per call, with an opaque cursor for the next page and a per-folder statement of how current the "
         + "local copy is.")]
     public async Task<ListEmailsToolResult> ListEmailsAsync(
         [Description("MailFathom accounts to read, each named by the identifier the deployment generated for it or by the display name it is published under; the identifier is unique across the deployment and the display name within your own accounts. Omit to read every account you may read; call list_accounts to see what they are. At most 64 may be named, and a name that resolves to none of them is refused rather than answered with an empty page — the same refusal whether nothing carries that name or it names a mailbox that is not yours.")]
         string[]? accounts = null,
-        [Description("MailFathom folders to read, each named by its identity — the folderId a listed email carries, or the id list_accounts reports for each folder — or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one reads whichever folder each account in scope maps with that role, whatever it is called there. Omit to read every folder of the accounts in scope. At most 64 may be named. A folder named any other way is refused.")]
+        [Description("MailFathom folders to read, each named by its identity — the folderId a listed email carries, or the id list_accounts reports for each folder — or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, and Important; naming one reads whichever folder each account in scope maps with that role, whatever it is called there. Omit to read every folder of the accounts in scope. At most 64 may be named. A folder named any other way is refused. The outbox is no folder, so role:Outbox is refused too: read what an account has not sent yet with list_outgoing_emails.")]
         string[]? folders = null,
         [Description(MailboxFilterDescriptions.SenderAddress)]
         string? senderAddress = null,
@@ -122,8 +122,6 @@ internal sealed class ListEmailsTool(
         int? pageSize = null,
         [Description("The nextCursor value from a previous call, to read the following page. Reuse it only with the same filters and direction; presenting it with different ones is refused. Changing only the page size is allowed.")]
         string? cursor = null,
-        [Description("Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folders does not include it; only this does. A cursor issued with one answer cannot be presented with the other. The result reports which answer produced it.")]
-        bool includeJunkMail = false,
         CancellationToken cancellationToken = default)
     {
         var request = new ListEmailsRequest
@@ -142,7 +140,6 @@ internal sealed class ListEmailsTool(
             Direction = DomainDirection(direction),
             PageSize = pageSize,
             Cursor = cursor,
-            IncludeJunkMail = includeJunkMail,
         };
 
         var result = await mailboxTimelineReader.ListEmailsAsync(request, cancellationToken);

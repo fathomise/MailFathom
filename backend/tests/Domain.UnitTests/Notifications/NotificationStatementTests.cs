@@ -23,6 +23,21 @@ public sealed class NotificationStatementTests
         Assert.Null(statement.OutOf);
     }
 
+    /// <summary>One message counts whether it carried a subject, which is what tells a client to word a missing one itself.</summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void MessageArrived_AMessageWithOrWithoutASubject_CountsTheSubject(bool carriesSubject, int expectedCount)
+    {
+        // Arrange, Act
+        var statement = NotificationStatement.MessageArrived(carriesSubject);
+
+        // Assert
+        Assert.Equal(NotificationCause.MessageArrived, statement.Cause);
+        Assert.Equal(expectedCount, statement.Counted);
+        Assert.Null(statement.OutOf);
+    }
+
     /// <summary>An unfinished run counts the folders it did not finish against the folders it scheduled.</summary>
     [Fact]
     public void SynchronizationIncomplete_ARunThatLeftFoldersUnfinished_CountsThemAgainstWhatItScheduled()
@@ -122,6 +137,47 @@ public sealed class NotificationStatementTests
         Assert.Equal(NotificationCause.SynchronizationIncomplete, statement.Cause);
         Assert.Equal(2, statement.Counted);
         Assert.Equal(5, statement.OutOf);
+    }
+
+    /// <summary>A refused send and a draft out of step count whether they carried a subject, as one arriving message does.</summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void SendRefusedAndDraftCopyNotKept_WithOrWithoutASubject_CountTheSubject(bool carriesSubject, int expectedCount)
+    {
+        // Arrange, Act
+        var refused = NotificationStatement.SendRefused(carriesSubject);
+        var notKept = NotificationStatement.DraftCopyNotKept(carriesSubject);
+
+        // Assert
+        Assert.Equal(
+            [(NotificationCause.SendRefused, expectedCount, (int?)null), (NotificationCause.DraftCopyNotKept, expectedCount, null)],
+            [(refused.Cause, refused.Counted, refused.OutOf), (notKept.Cause, notKept.Counted, notKept.OutOf)]);
+    }
+
+    /// <summary>An abandoned change counts the act it was, which is what a client words and what asking again repeats.</summary>
+    [Fact]
+    public void MailboxChangeAbandoned_AnyDeclaredAct_CountsTheAct()
+    {
+        // Arrange, Act
+        var statement = NotificationStatement.MailboxChangeAbandoned(MailboxChangeAct.Move);
+
+        // Assert
+        Assert.Equal(NotificationCause.MailboxChangeAbandoned, statement.Cause);
+        Assert.Equal((int)MailboxChangeAct.Move, statement.Counted);
+        Assert.Null(statement.OutOf);
+    }
+
+    /// <summary>An act no client could word is refused rather than written down.</summary>
+    [Fact]
+    public void MailboxChangeAbandoned_UndeclaredAct_IsRefused()
+    {
+        // Act
+        var refusal = Assert.Throws<ArgumentOutOfRangeException>(
+            () => NotificationStatement.MailboxChangeAbandoned((MailboxChangeAct)99));
+
+        // Assert
+        Assert.Equal("act", refusal.ParamName);
     }
 
     /// <summary>A count a hand-edited row could carry and no producer could is refused rather than drawn.</summary>

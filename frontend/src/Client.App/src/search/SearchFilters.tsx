@@ -183,7 +183,7 @@ export function SearchFilters({
                             it needs no second read of the folders route to offer. A folder that plays no role reaches
                             a search by being what the reader was looking at when they started it, which is on the
                             search as a filter they can see and take off.
-                            ponytail: roles only; offer the whole tree here once a screen holds one already read. */}
+                            Roles only; offer the whole tree here once a screen holds one already read. */}
                         <label className="flex flex-col gap-1">
                             {translate('search.narrowing.folderField')}
                             <select

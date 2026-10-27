@@ -6,6 +6,7 @@ using MailFathom.CodeCoverage;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 
 namespace MailFathom.Infrastructure.Persistence.Entities;
 
@@ -204,6 +205,13 @@ internal sealed class StoredEmailEntity
     /// </remarks>
     public string? SenderTrustPolicyRevision { get; set; }
 
+    /// <summary>Gets or sets the organization whose signature recognized the author, set only where <see cref="SenderTrustGrantedBy" /> is <see cref="SenderTrustSource.OrganizationMember" />.</summary>
+    /// <remarks>
+    /// A reference rather than a copy of anything about the organization. Deleting the organization clears it and leaves
+    /// the source standing, so the reason survives without the organization.
+    /// </remarks>
+    public Guid? SenderTrustOrganizationId { get; set; }
+
     /// <summary>Gets or sets how much this message's own text read as machine written.</summary>
     /// <remarks>
     /// <para>
@@ -247,6 +255,97 @@ internal sealed class StoredEmailEntity
     /// than judged and found ordinary.
     /// </remarks>
     public string? MachineAuthorshipProfileRevision { get; set; }
+
+    /// <summary>Gets or sets what verifying the message's own S/MIME or OpenPGP signature concluded.</summary>
+    /// <remarks>
+    /// <para>
+    /// Columns on the email for the reason the sender-authentication group is: every message whose MIME was read
+    /// carries an answer, including the not-signed one nearly all mail records, and every reader that publishes the
+    /// sender verdict publishes this beside it. The outcome is stored although the steps below decide it, so a query can
+    /// ask for verified or failed mail without restating that derivation in SQL.
+    /// </para>
+    /// <para>
+    /// The whole group is written by extraction and re-derivable from the stored raw MIME, which is how a revocation
+    /// answer that was unavailable when the message arrived is asked again. Everything that names the signer is personal
+    /// data classified like the message itself.
+    /// </para>
+    /// </remarks>
+    public EmailSignatureOutcome SignatureOutcome { get; set; }
+
+    /// <summary>Gets or sets the form the signature arrived in, absent for a message with no signed part.</summary>
+    public EmailSignatureFormat? SignatureFormat { get; set; }
+
+    /// <summary>Gets or sets the <c>smime-type</c> an opaque S/MIME part declared.</summary>
+    public SecureMimeContentType? SignatureSecureMimeType { get; set; }
+
+    /// <summary>Gets or sets why the signature is not verifiable here, absent where it is.</summary>
+    public EmailSignatureUnverifiableReason? SignatureUnverifiableReason { get; set; }
+
+    /// <summary>Gets or sets the signing time the signature claims.</summary>
+    public DateTimeOffset? SignatureSignedAt { get; set; }
+
+    /// <summary>Gets or sets whether the signature matched the signed content.</summary>
+    public SignatureCheckResult SignatureContentCheck { get; set; } = SignatureCheckResult.Skipped;
+
+    /// <summary>Gets or sets whether the signer chained to a trusted authority or is a configured key.</summary>
+    public SignatureCheckResult SignatureAuthorityCheck { get; set; } = SignatureCheckResult.Skipped;
+
+    /// <summary>Gets or sets where that trust came from.</summary>
+    public SignatureTrustAnchor? SignatureTrustAnchor { get; set; }
+
+    /// <summary>Gets or sets the subject name of the certificate the S/MIME chain ended at.</summary>
+    public string? SignatureChainEnd { get; set; }
+
+    /// <summary>Gets or sets whether the signer was valid at the signing time and meant for signing email.</summary>
+    public SignatureCheckResult SignatureValidityCheck { get; set; } = SignatureCheckResult.Skipped;
+
+    /// <summary>Gets or sets what the validity check objected to.</summary>
+    public EmailSignatureUnverifiableReason? SignatureValidityFailure { get; set; }
+
+    /// <summary>Gets or sets whether the signer is free of a revocation.</summary>
+    public SignatureCheckResult SignatureRevocationCheck { get; set; } = SignatureCheckResult.Skipped;
+
+    /// <summary>Gets or sets how the revocation status was established.</summary>
+    public RevocationCheckMethod? SignatureRevocationMethod { get; set; }
+
+    /// <summary>Gets or sets when the revocation answer was obtained.</summary>
+    public DateTimeOffset? SignatureRevocationCheckedAt { get; set; }
+
+    /// <summary>Gets or sets when the signer was revoked, where the answer said so.</summary>
+    public DateTimeOffset? SignatureRevokedAt { get; set; }
+
+    /// <summary>Gets or sets whether the signer names the displayed author.</summary>
+    public SignatureCheckResult SignatureSignerCheck { get; set; } = SignatureCheckResult.Skipped;
+
+    /// <summary>Gets or sets the signer's certificate subject name or OpenPGP user ID.</summary>
+    public string? SignerName { get; set; }
+
+    /// <summary>Gets or sets the address the signer's certificate or key names.</summary>
+    public string? SignerAddress { get; set; }
+
+    /// <summary>Gets or sets the authority that issued the signer's certificate.</summary>
+    public string? SignerIssuer { get; set; }
+
+    /// <summary>Gets or sets when the signer's certificate became valid, or its key was created.</summary>
+    public DateTimeOffset? SignerValidFrom { get; set; }
+
+    /// <summary>Gets or sets when the signer's certificate or key stops being valid.</summary>
+    public DateTimeOffset? SignerValidUntil { get; set; }
+
+    /// <summary>Gets or sets the signer's certificate serial number.</summary>
+    public string? SignerSerialNumber { get; set; }
+
+    /// <summary>Gets or sets the signer's certificate or key fingerprint.</summary>
+    public string? SignerFingerprint { get; set; }
+
+    /// <summary>Gets or sets the signer's OpenPGP key ID.</summary>
+    public string? SignerKeyId { get; set; }
+
+    /// <summary>Gets or sets the public-key algorithm the signature was made with.</summary>
+    public string? SignerPublicKeyAlgorithm { get; set; }
+
+    /// <summary>Gets or sets the digest or hash algorithm the signature was made over.</summary>
+    public string? SignerDigestAlgorithm { get; set; }
 
     /// <summary>Gets or sets the normalized <c>To</c> addresses, which recipient filters test for containment.</summary>
     /// <remarks>
@@ -306,7 +405,7 @@ internal sealed class StoredEmailEntity
 
     public bool IsEncrypted { get; set; }
 
-    /// <summary>Gets or sets whether a signature part is present. Nothing here has verified it, and the name says so.</summary>
+    /// <summary>Gets or sets whether a signature part is present anywhere; the verification of the message's own signature is the <c>Signature</c> group.</summary>
     public bool CarriesUnverifiedSignature { get; set; }
 
     public bool ContainsUnexpandedTnefPart { get; set; }
@@ -412,7 +511,7 @@ internal sealed class StoredEmailEntity
     /// <summary>Gets or sets the outgoing record this email is MailFathom's own filed copy of, and <see langword="null" /> for every message it did not send.</summary>
     /// <remarks>
     /// <para>
-    /// A copy MailFathom appends to the sent or outbox folder comes back through synchronization as ordinary new mail,
+    /// A copy MailFathom appends to the sent folder comes back through synchronization as ordinary new mail,
     /// and this is what tells it apart afterwards. It is the join everything reacting to newly synchronized mail filters
     /// on: a rule conditioned on arriving mail must not fire on the user's own outgoing message the moment its copy is
     /// discovered.
@@ -462,6 +561,37 @@ internal sealed class StoredEmailEntity
     /// </para>
     /// </remarks>
     public DateTimeOffset? RulesEvaluatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets when the message settled, or <see langword="null" /> while it is still settling.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A message synchronization has just stored is settling until its spam verdict and its moving rules have decided
+    /// where it belongs, and a settling message is absent from every read a person or a tool makes. The value is written
+    /// once, by the settlement pass, and never cleared, so the read predicate, the arrival signal, and the arrival
+    /// notification all answer from one durable fact rather than each deriving it again.
+    /// </para>
+    /// <para>
+    /// A message MailFathom wrote itself — a filed copy of a send or a draft, or a held account's local copy — is stored
+    /// settled, because nothing arrived. The migration that adds the column settles every row already stored, so an
+    /// upgrade hides nothing.
+    /// </para>
+    /// </remarks>
+    public DateTimeOffset? SettledAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the folder synchronization stored the message into, or <see langword="null" /> for a row stored
+    /// before arrivals were recorded and for a message no source delivered.
+    /// </summary>
+    /// <remarks>
+    /// Written once, at the arrival, and never moved with the message. The settlement reads it to tell a message that
+    /// reached the inbox from one that arrived in another folder, which is the line the arrival notification is drawn on
+    /// once a rule or a spam verdict has moved the message on.
+    /// </remarks>
+    public Guid? ArrivalFolderId { get; set; }
+
+    public MailFolderEntity? ArrivalFolder { get; set; }
 
     public uint ConcurrencyVersion { get; set; }
 

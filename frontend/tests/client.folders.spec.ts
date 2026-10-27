@@ -4,6 +4,7 @@
 
 import { expect, type Page } from '@playwright/test';
 
+import { workAccount } from './fixtures/deployment';
 import { markupOnlySubject, newsletterSubject } from './fixtures/messages';
 import { bodiesOf, folder, holdTheClock, notice, openSignedIn, row, tabletWindow, test } from './client.harness';
 
@@ -61,7 +62,7 @@ test('deletes a folder holding mail, and the tree, the move targets, a search, a
 
     await expect(notices).toContainText('Deleted 2024 on your mail server. The mail stored from it was removed.');
     expect(deployment.requests('POST', '/managed-folders/deletions').map(({ body }) => body)).toStrictEqual([
-        { account: 'work', folderId: 'ARCHIVE/2024' },
+        { account: workAccount.id, folderId: 'ARCHIVE/2024' },
     ]);
 
     // The folder is gone from each reading of the mailbox, and so is the mail the notice said was removed with it.
@@ -153,7 +154,7 @@ test('makes a folder inside another, renames it, and moves it under a third, and
     await making.getByRole('button', { name: 'Create folder' }).click();
     await expect(notices).toContainText('Created Suppliers in Work.');
     expect(deployment.requests('POST', '/managed-folders').map(({ body }) => body)).toStrictEqual([
-        expect.objectContaining({ account: 'work', parentId: 'ARCHIVE/2024', name: 'Suppliers' }),
+        expect.objectContaining({ account: workAccount.id, parentId: 'ARCHIVE/2024', name: 'Suppliers' }),
     ]);
     await agreesItSitsAt(['2024'], 'Suppliers', 'Archive / 2024 / Suppliers');
     await page.reload();
@@ -182,8 +183,8 @@ test('makes a folder inside another, renames it, and moves it under a third, and
             ...deployment.requests('POST', '/managed-folders/moves'),
         ].map(({ body }) => body),
     ).toStrictEqual([
-        { account: 'work', folderId: 'SUPPLIERS', name: 'Vendors' },
-        { account: 'work', folderId: 'SUPPLIERS', parentId: 'INBOX' },
+        { account: workAccount.id, folderId: 'SUPPLIERS', name: 'Vendors' },
+        { account: workAccount.id, folderId: 'SUPPLIERS', parentId: 'INBOX' },
     ]);
     await agreesItSitsAt([/^Inbox/u], 'Vendors', 'INBOX / Vendors');
     await page.reload();

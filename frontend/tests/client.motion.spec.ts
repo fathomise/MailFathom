@@ -211,3 +211,43 @@ test('unfolds the list’s filters from no height and folds them back before the
     await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
     await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBe(0);
 });
+
+// The message source opens on a skeleton while its octets are on the wire, and a reader who asked for less motion keeps
+// the reserved block and loses its travel. A route this check puts in front of the deployment holds the source on the
+// wire, so the skeleton is still standing whenever its style is read.
+const theSourceSkeletonsAnimationDurations = `[...new Set([...document.querySelectorAll(
+    '[role="status"][aria-label="Reading the message source"] [aria-hidden="true"]'
+)].map((block) => getComputedStyle(block).animationDuration))].join(', ')`;
+
+async function sourceHeldOnTheWire(page: Page): Promise<string[]> {
+    await page.route('**/api/client/messages/*/source', () => undefined);
+    await openSignedIn(page, '/#/mail');
+
+    await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
+    await page.getByRole('button', { name: 'More actions', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Show source' }).click();
+    await expect(page.getByRole('status', { name: 'Reading the message source' })).toBeVisible();
+
+    const stated = await page.evaluate(theSourceSkeletonsAnimationDurations);
+
+    // A read that found no block answers an empty string, which would satisfy both checks below while measuring nothing.
+    expect(typeof stated).toBe('string');
+    expect(String(stated)).not.toBe('');
+
+    return String(stated).split(', ');
+}
+
+test('shimmers the message source’s skeleton while the source is on the wire', async ({ page }) => {
+    expect(await sourceHeldOnTheWire(page)).not.toEqual(['0s']);
+});
+
+test('stands the message source’s skeleton still for a reader who asked for less motion', async ({
+    browser,
+    deployment,
+}) => {
+    const context = await browser.newContext({ reducedMotion: 'reduce' });
+
+    await deployment.serve(context);
+
+    expect(await sourceHeldOnTheWire(await context.newPage())).toEqual(['0s']);
+});

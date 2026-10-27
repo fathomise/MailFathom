@@ -19,7 +19,6 @@ public sealed class StubSpamClassificationSettingsReaderTests
         // Arrange
         var settings = SpamClassificationSettings.Create(
             isEnabled: true,
-            usesScanner: false,
             [MailFolderAlias.Create("INBOX")]);
         var account = MailAccountId.Create("primary");
 
@@ -41,7 +40,6 @@ public sealed class StubSpamClassificationSettingsReaderTests
         // Arrange
         var settings = SpamClassificationSettings.Create(
             isEnabled: true,
-            usesScanner: false,
             [MailFolderAlias.Create("INBOX")]);
 
         // Act
@@ -64,7 +62,6 @@ public sealed class StubSpamClassificationSettingsReaderTests
         // Arrange
         var settings = SpamClassificationSettings.Create(
             isEnabled: true,
-            usesScanner: false,
             [MailFolderAlias.Create("INBOX")]);
 
         // Act, Assert
@@ -77,7 +74,6 @@ public sealed class StubSpamClassificationSettingsReaderTests
         // Arrange
         var settings = SpamClassificationSettings.Create(
             isEnabled: true,
-            usesScanner: false,
             [MailFolderAlias.Create("INBOX")]);
         var account = MailAccountId.Create("primary");
 

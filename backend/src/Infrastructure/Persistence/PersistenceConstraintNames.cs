@@ -90,6 +90,8 @@ internal static class PersistenceConstraintNames
     /// <summary>The queue of mail no rule pass has evaluated, which is read once per account run and is usually empty.</summary>
     internal const string StoredEmailAwaitingRuleEvaluationIndexName = "ix_stored_emails_awaiting_rule_evaluation";
 
+    internal const string StoredEmailSettlingIndexName = "ix_stored_emails_settling";
+
     /// <summary>The sent copies a held account filed locally that no server has returned yet, found by their <c>Message-ID</c>.</summary>
     internal const string StoredEmailFiledSentCopyIndexName = "ix_stored_emails_filed_sent_copy";
 
@@ -146,6 +148,13 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string EmailAttachmentTextPrimaryKeyName = "PK_email_attachment_texts";
 
+    /// <summary>The primary key over a stored email's signer key material, one row per signed message.</summary>
+    /// <remarks>
+    /// Named because the row is written by update-or-insert: two runs re-deriving or backfilling one signed message both
+    /// find no row and both insert, and the loser violates this key and is retried onto the row the winner wrote.
+    /// </remarks>
+    internal const string StoredEmailSignerKeyPrimaryKeyConstraintName = "pk_stored_email_signer_keys";
+
     /// <summary>The unique index over an embedding profile's identity, which is what makes activation idempotent.</summary>
     /// <remarks>
     /// Named because a losing writer is recognized by the constraint its insert violated: two operators activating the
@@ -198,6 +207,9 @@ internal static class PersistenceConstraintNames
     /// which is how classifying twice produces one record.
     /// </remarks>
     internal const string EmailSpamClassificationPrimaryKeyConstraintName = "pk_email_spam_classifications";
+
+    /// <summary>The key that records one act per email, and which a second replica recording the same act is recognized by.</summary>
+    internal const string EmailSpamVerdictActPrimaryKeyConstraintName = "pk_email_spam_verdict_acts";
 
     /// <summary>The order one classification's signals are read back in, and what stops an ordinal being written twice.</summary>
     internal const string EmailSpamClassificationSignalOrdinalUniqueIndexName =
@@ -443,6 +455,23 @@ internal static class PersistenceConstraintNames
     /// account after it so one account's count reads the same range without visiting a record.
     /// </remarks>
     internal const string OutgoingEmailPeriodUsageIndexName = "ix_outgoing_emails_period_usage";
+
+    /// <summary>Names the index each account's outbox is listed and counted through.</summary>
+    internal const string OutgoingEmailOutboxIndexName = "ix_outgoing_emails_outbox";
+
+    /// <summary>The foreign key from a stored message's trust verdict to the organization that recognized its author.</summary>
+    internal const string StoredEmailSenderTrustOrganizationForeignKeyName = "fk_stored_emails_sender_trust_organization";
+
+    /// <summary>The partial index deleting an organization clears its verdicts' references through.</summary>
+    internal const string StoredEmailSenderTrustOrganizationIndexName = "ix_stored_emails_sender_trust_organization";
+
+    /// <summary>Names the index a receiving account finds the send behind a blind copy through.</summary>
+    /// <remarks>
+    /// It leads on the <c>Message-ID</c> because that is what a signed arrival names, and carries the account after it
+    /// because the record must also have been sent through the signed author's account. Partial over records that
+    /// carry one, since a send whose MIME named none can never be looked up this way.
+    /// </remarks>
+    internal const string OutgoingEmailInternetMessageIdIndexName = "ix_outgoing_emails_internet_message_id";
 
     /// <summary>The foreign key that removes an outgoing email's recipients with the record.</summary>
     /// <remarks>
@@ -694,6 +723,23 @@ internal static class PersistenceConstraintNames
     /// <remarks>Stated because the store reads it: a write that violates it is a short name another organization signs in under, which an operator acts on rather than a provider failure.</remarks>
     internal const string OrganizationShortNameUniqueIndexName = "ix_organizations_short_name";
 
+    /// <summary>The partial index that keeps an organization to at most one active signing key.</summary>
+    /// <remarks>Stated because the store reads it: an insert that meets it is the replica that lost a race to mint or rotate, which reads the winner's key back rather than failing.</remarks>
+    internal const string OrganizationSigningKeyActiveUniqueIndexName = "ix_organization_signing_keys_active";
+
+    /// <summary>The index an organization's signing keys are paged through by, in identifier order.</summary>
+    internal const string OrganizationSigningKeyOrganizationIndexName = "ix_organization_signing_keys_organization";
+
+    /// <summary>The foreign key that refuses a signing key for an organization that does not exist, and removes it with the organization.</summary>
+    internal const string OrganizationSigningKeyOrganizationForeignKeyName = "fk_organization_signing_keys_organization";
+
+    /// <summary>The check that keeps a sealed private half and the ring key that sealed it present or absent together.</summary>
+    internal const string OrganizationSigningKeySealedPairCheckConstraintName = "ck_organization_signing_keys_sealed_pair";
+
+    /// <summary>The check that refuses a retired or revoked signing key still holding its private half.</summary>
+    internal const string OrganizationSigningKeySpentHoldsNoPrivateKeyCheckConstraintName =
+        "ck_organization_signing_keys_spent_holds_no_private_key";
+
     /// <summary>The index that keeps one settings policy to one scope: the deployment, or one organization.</summary>
     /// <remarks>Nulls are not distinct in it, so the deployment's own row is as unique as an organization's, and it is what the write storing a scope's first policy loses to when another stored one first.</remarks>
     internal const string SettingsPolicyScopeUniqueIndexName = "ix_settings_policies_scope";
@@ -773,6 +819,9 @@ internal static class PersistenceConstraintNames
     /// person's notifications newest first, and retention erases the same person's oldest.
     /// </remarks>
     internal const string NotificationTimelineIndexName = "ix_notifications_user_occurred";
+
+    /// <summary>The index a message's erasure reaches the merged notifications naming it through.</summary>
+    internal const string NotificationNamedEmailStoredEmailIndexName = "ix_notification_named_emails_stored_email";
 
     /// <summary>The order the spent client assertions are aged out through.</summary>
     /// <remarks>

@@ -3,12 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.Discovery;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.Discovery;
@@ -65,6 +65,18 @@ public sealed class DiscoveryComposedSourcesTests
         Assert.Equal(arrivedAt, Assert.Single(sources).ReceivedAt);
     }
 
+    /// <summary>Where a message came from travels with its source, so the turn can qualify a finding drawn on it.</summary>
+    [Fact]
+    public void Declare_AMessageFromAFirstContactInJunk_CarriesThatProvenance()
+    {
+        // Act
+        var sources = DiscoveryComposedSources.Declare(
+            [Passage(Correction, "our account has changed") with { Provenance = StubEmailProvenanceReader.UnverifiedStranger }]);
+
+        // Assert
+        Assert.Same(StubEmailProvenanceReader.UnverifiedStranger, Assert.Single(sources).Provenance);
+    }
+
     private static EmailKnowledgePassage Passage(StoredEmailId message, string text) => new()
     {
         StoredEmailId = message,
@@ -72,7 +84,7 @@ public sealed class DiscoveryComposedSourcesTests
         Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         Subject = "Kestrel Quay move",
         ReceivedAt = null,
-        SenderVerification = SenderVerification.NotEstablished,
+        Provenance = StubEmailProvenanceReader.KnownCorrespondent,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         Text = text,
     };

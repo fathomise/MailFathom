@@ -68,6 +68,7 @@ public sealed class AuthoredResponseDrafting(
             new AuthoredResponseRequest
             {
                 AnsweredEmailId = request.AnsweredEmailId,
+                Reader = request.Reader,
                 Act = request.Act,
                 PlainTextBody = request.PlainTextBody,
                 HtmlBody = request.HtmlBody,

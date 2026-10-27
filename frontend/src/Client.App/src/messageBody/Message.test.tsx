@@ -83,14 +83,16 @@ function ReadMessage({
     storedEmailId,
     quotedHistoryOnRequest = false,
     onBodyDrawn = () => undefined,
+    readOnly = false,
 }: {
     readonly storedEmailId: string;
     readonly quotedHistoryOnRequest?: boolean;
     readonly onBodyDrawn?: () => void;
+    readonly readOnly?: boolean;
 }) {
     return (
         <Message
-            body={useMessageBody(session, transport, storedEmailId, true)}
+            body={useMessageBody(session, transport, storedEmailId, true, readOnly)}
             storedEmailId={storedEmailId}
             quotedHistoryOnRequest={quotedHistoryOnRequest}
             onBodyDrawn={onBodyDrawn}
@@ -140,11 +142,11 @@ function readingReported(onBodyDrawn: () => void, storedEmailId = 'stub-message'
 }
 
 /** The same message read under whichever of the three renderings a reader chose. */
-function readingUnder(view: ClientMessageView) {
+function readingUnder(view: ClientMessageView, readOnly = false) {
     return (
         <Screen>
             <MessageViewContext value={view}>
-                <ReadMessage storedEmailId="stub-message" />
+                <ReadMessage storedEmailId="stub-message" readOnly={readOnly} />
             </MessageViewContext>
         </Screen>
     );
@@ -566,6 +568,20 @@ describe('Message and the cleaned rendering', () => {
         ]);
     });
 
+    // A message drawn spam is read as words alone, so neither the model's cleaning nor the sender's markup is asked for
+    // whatever the reader chose: neither would be drawn.
+    it.each([['cleaned'], ['embeddedHtml']] as const)(
+        'asks for nothing but the words of a message drawn spam under the %s view',
+        async (view) => {
+            answeringCleaning('Cleaned');
+
+            render(readingUnder(view, true));
+            await screen.findByText('A drawn message.');
+
+            expect(readsAsked()).toStrictEqual([`${baseAddress}/api/client/messages/stub-message/body`]);
+        },
+    );
+
     it('asks for no cleaning at all for a reader on the reduced document', async () => {
         render(readingUnder('reduced'));
         await screen.findByText('A drawn message.');
@@ -616,6 +632,7 @@ describe('Message and the cleaned rendering', () => {
         ['AllowanceExhausted', "This server's allowance for the period is spent, so the simplified version is shown."],
         ['ProviderUnavailable', 'The AI did not answer, so the simplified version is shown.'],
         ['AnswerRejected', 'The answer the model gave could not be used, so the simplified version is shown.'],
+        ['WithheldFromAI', 'This message is withheld from AI, so the simplified version is shown.'],
     ])('states %s over the reduced document rather than leaving the pane empty', async (cleaning, said) => {
         answeringCleaning(cleaning, null);
 

@@ -1,0 +1,32 @@
+From: Signer <erik@pgp.example.test>
+To: bob@example.test
+Subject: Quarterly invoice
+Date: Thu, 27 Aug 2026 09:13:00 +0000
+Message-ID: <pgp-erik@example.test>
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/pgp-signature"; micalg=pgp-sha256; boundary="----=_signed_9f1c"
+
+This is a cryptographically signed message in MIME format.
+
+------=_signed_9f1c
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Dzie=C5=84 dobry,
+
+The quarterly invoice is attached to the next message.
+
+------=_signed_9f1c
+Content-Type: application/pgp-signature; name="signature.asc"
+Content-Description: OpenPGP digital signature
+Content-Disposition: attachment; filename="signature.asc"
+
+-----BEGIN PGP SIGNATURE-----
+Version: BouncyCastle.NET Cryptography (net6.0) v2.7.0+4007498b13
+
+iHUEABYIAB0FAmqP/5wWIQQKETTiDTYPnXA+SP21Iu1dzL5m/QAKCRC1Iu1dzL5m
+/d6eAQC6U47F18Nnoiq8x36RiX9IS9+RGur+a+83q88IW7AV6QD+LKTTjJ9uVGM0
+Ix/jio9o3ezMflYKvZVk8e7Q3zkqeAI=
+=lf20
+-----END PGP SIGNATURE-----
+------=_signed_9f1c--

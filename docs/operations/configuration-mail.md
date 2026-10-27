@@ -1,6 +1,6 @@
 # Mail configuration
 
-<!-- describes: backend/src/Host/Configuration/Mail/**, backend/src/Host/Configuration/Rules/**, backend/src/Host/Configuration/Spam/MailAccount*.cs, backend/src/Host/Configuration/SensitiveContent/MailAccount*.cs, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs -->
+<!-- describes: backend/src/Host/Configuration/Mail/**, backend/src/Host/Configuration/Rules/**, backend/src/Host/Configuration/Spam/MailAccount*.cs, backend/src/Host/Configuration/SensitiveContent/MailAccount*.cs, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs, backend/src/Infrastructure/Mail/Signing/** -->
 
 Every key deciding which mail is fetched and how, what is sent, what a deployment records about either, what a mailbox
 query and a stored message may cost, and which rules run over what arrives. The tables read as
@@ -46,8 +46,11 @@ budget or the coordinator loop itself are marked *restart* below.
 | `MailSynchronization:MaxConsecutivePushFailures` | int | `3` | 1 – 100 | reload |
 | `MailSynchronization:PushDegradationPeriod` | TimeSpan | `00:15:00` | 10 s – 1 day | reload |
 | `MailSynchronization:MaxSubscribedFolders` | int | `20` | 1 – 100; how many folders one push subscription may name on a server supporting `NOTIFY`, the rest synchronizing on the account's interval | reload |
-| `MailSynchronization:TrustOwnAccountDomains` | bool | `true` | Whether an author writing from a domain one of the configured accounts uses counts as trusted on the other accounts of the person who owns it. The set is read from each account's `UserName` where that is an address, so it needs no list of its own, and it is read per user rather than across the deployment: two people this deployment serves are two correspondents, so one's mail domain is not somebody the other recognizes | reload; the next extraction judges against it |
 | `MailSynchronization:VerifyDkimLocally` | bool | `true` | Whether extraction verifies a message's own DKIM signatures where no trusted `Authentication-Results` header was found. A fallback and never a supplement: an account whose server writes the header verifies nothing locally. It is the only path that makes an outbound DNS query | reload; the next extraction verifies against it |
+| `MailSynchronization:SignatureVerification:TrustSystemStore` | bool | `true` | Whether an S/MIME signer certificate chaining to the operating system's trust store can verify. Off trusts only the authorities named below | reload; the next extraction verifies against it |
+| `MailSynchronization:SignatureVerification:TrustedAuthorities` | list of named secret blocks | empty | Certificate authorities an S/MIME signer may chain to beside the system store, each loaded and validated as a certificate without a private key at startup and on every reload. Several entries rotate an authority by overlap | reload |
+| `MailSynchronization:SignatureVerification:TrustedOpenPgpKeys` | list of named secret blocks | empty | The OpenPGP public keys whose signatures can verify — armored or binary, one or several per entry, each validated when read; the same key listed twice is refused at its second position. Nothing else is trusted for OpenPGP | reload |
+| `MailSynchronization:SignatureVerification:RevocationTimeout` | TimeSpan | `00:00:10` | 1 s – 1 min; how long establishing one certificate's revocation status may take over every responder it names. The signer and each authority above it that names a source are asked in turn, each under its own deadline. A check that runs out of time makes the signature not verifiable rather than verified | reload |
 | `MailSynchronization:AssessMachineAuthorship` | bool | `true` | Whether extraction reads how much each message's own text reads as machine written. What the reading weighs is the project's and is not configurable; this decides only whether it runs | reload; the next extraction reads against it |
 
 ### One account — a mailbox in a user's record
@@ -85,12 +88,13 @@ than met later by a run.
 | `…:RuleActions:Delete` | bool | `false` | Whether a rule may remove this account's mail; the one action that is opt-in | reload; the same |
 | `…:RuleActions:MarkAsRead` | bool | `true` | Whether a rule may set or clear this account's remote `\Seen` flag | reload; the same |
 | `…:RuleActions:MarkAsFlagged` | bool | `true` | Whether a rule may set or clear this account's remote `\Flagged` flag | reload; the same |
-| `…:RuleActions:WriteKeywords` | bool | `true` | Whether a rule may add, remove, or replace this account's keywords; one switch for all three, since permitting an addition while refusing a removal would leave labels nothing may take off | reload; the same |
+| `…:RuleActions:WriteKeywords` | bool | `true` | Whether a rule, a spam verdict under `…:SpamClassification:Actions:MarkWithJunkKeywords`, or the junk keywords the person's own spam or not-spam mark carries may add, remove, or replace this account's keywords; one switch for all three, since permitting an addition while refusing a removal would leave labels nothing may take off | reload; the same |
 | `…:AuditTrail:Enabled` | bool | `false` | Whether a finished change to this account's mailbox leaves a durable audit entry | reload; governs changes authored from then on |
 | `…:AuditTrail:Retention` | TimeSpan | `90.00:00:00` | 1 day – 3650 days; how long this account's audit entries are kept | reload; the next account run erases against the new window |
 | `…:AnsweringAuditTrail:Enabled` | bool | `false` | Whether a finished `ask_mail` run leaves a durable entry naming the mail it read from this account | reload; governs runs from then on |
 | `…:AnsweringAuditTrail:Retention` | TimeSpan | `30.00:00:00` | 1 day – 3650 days; how long this account's answering entries are kept | reload; the next account run erases against the new window |
-| `…:TrustedSenders` | list | empty | The authors this account recognizes on top of the domains its own owner's accounts use; each entry below | reload; the next extraction judges against it |
+| `…:TrustOwnAccountDomains` | bool | `false` | Whether this account recognizes every author writing from a domain one of its owner's accounts uses. The set is read from the `UserName` of each account the same person owns, where that is an address, so it needs no list of its own; two people this deployment serves are two correspondents, so one's mail domain is never something the other recognizes. **Leave it off on a large shared provider** — `gmail.com`, `outlook.com`, `wp.pl` — where every stranger writes from the same domain; turn it on for an account whose domain is the owner's own. The owner's own addresses are recognized whatever it says | reload; the next extraction judges against it |
+| `…:TrustedSenders` | list | empty | The authors this account recognizes on top of its owner's own addresses and, where `TrustOwnAccountDomains` is on, domains; each entry below | reload; the next extraction judges against it |
 | `…:TrustedSenders:<n>:Domain` | string | unset | A domain this account recognizes. Exactly one of `Domain` and `Address` is written, and an entry writing neither or both fails startup naming the account and the entry's position | reload |
 | `…:TrustedSenders:<n>:Address` | string | unset | A single mailbox this account recognizes. It matches when the established author's domain is that address's own **and** the message's `From` displays exactly that address | reload |
 | `…:TrustedSenders:<n>:IncludeSubdomains` | bool | `false` | Whether a domain entry also reaches the names beneath that domain. Refused on an address entry, where it could mean nothing | reload |
@@ -112,9 +116,16 @@ established for the `From` header, or, where no server wrote a verdict, a locall
 same domain — and never against the raw header, so naming a correspondent here cannot be exploited by writing their
 address into a message. Most legitimate mail stays unknown and that is the
 intended outcome: the claim is that this deployment does not know the author, not that the message is suspicious.
-Turning `TrustOwnAccountDomains` off is the right move for a deployment whose accounts sit on a large shared provider,
-since every user of that provider writes from the same domain; the same page states what an address entry rests on and
-what it deliberately does not establish. Both are unreachable where no trusted header is read at all — an account
+One thing is recognized with nothing configured: an authenticated author whose `From` is exactly one of the owner's own
+addresses — each account's `UserName` where that is an address, and the `Delivery:FromAddress` of an account that
+sends — which is mail from the owner to themselves, held against the authenticated author exactly as an `Address`
+entry is. `TrustOwnAccountDomains` widens that to everybody at the owner's domains and is off unless an account turns
+it on, because on a large shared provider every user of that provider writes from the same domain; the same page
+states what an address entry rests on and what it deliberately does not establish. Neither is consulted for an author the receiving account's [organization
+signature](../features/sender-authentication.md#a-colleague-in-the-receiving-accounts-organization) proves a member,
+which needs no setting and no authenticated domain, so a colleague on that shared provider is recognized by the
+signature their organization's accounts sign their mail with.
+Both lists are unreachable where no trusted header is read at all — an account
 that names no authority, and equally one whose receiving server records no results — because a message with no
 established author reaches unknown without either being consulted. [Whether your server says who sent a
 message](../users/mailbox-providers.md#whether-your-server-says-who-sent-a-message) is how that is checked against a
@@ -130,9 +141,7 @@ it changes nothing for an account whose server does write the header, which goes
 **It is the one path in MailFathom that makes an outbound DNS query, and what it sends is
 `<selector>._domainkey.<signing-domain>`**: a low-cardinality name the signing domain published in order to be asked
 for, shared by every message that domain signs, carrying nothing about the message, the mailbox, or the recipient, and
-resolved when a message is stored rather than when one is read. That is a different transaction from the spam scanner's
-DNS checks, which every deployment asset here leaves off: those would send the sending address and the URI hosts taken
-out of the body. The lookups are bounded by an explicit deadline, after which the verdict is simply not established,
+resolved when a message is stored rather than when one is read. The lookups are bounded by an explicit deadline, after which the verdict is simply not established,
 and cached per selector and signing domain for as long as the record's own time-to-live allows. **An operator who wants
 no egress from the extraction path at all sets this to `false`**, which gives exactly the behaviour of a deployment
 that never had it. [Sender authentication](../features/sender-authentication.md#where-no-server-said-anything-the-signature-still-does)
@@ -190,7 +199,7 @@ no user.
 
 A folder entry names `Alias` (required — your stable name for the folder) and **at least one** of `RemotePath` (the
 server's own path) or `SpecialUse` (`Inbox`, `Archive`, `Drafts`, `Sent`, `Junk`, `Trash`, `All`, `Flagged`,
-`Important`, `Outbox`). Configuring no folder synchronizes the inbox by role.
+`Important`). Configuring no folder synchronizes the inbox by role.
 
 **An alias is a name and not a place.** It may carry `/`, but that nests nothing: where a folder sits is its
 `RemotePath`, and that is what MailFathom's own client draws its tree from — `Archive/Suppliers` on a server nesting
@@ -199,10 +208,10 @@ is your stable name for the folder, which is why renaming or moving the folder o
 `RemotePath` and never its alias. Nothing here requires a parent to be declared: a path whose outer level no entry
 names simply draws that level as a heading with no folder of its own.
 
-`Outbox` is the one role that cannot be written alone: no mail server advertises one, so it names a folder only beside
-a `RemotePath` and startup refuses it without one, naming the alias. It is the folder a message waiting for an instant
-still ahead is [mirrored into](../features/mail-delivery.md#the-copy-in-the-accounts-own-folders); mapping none is the
-default and mirrors nothing.
+**`SpecialUse: Outbox` is refused at startup**, with or without a `RemotePath`, naming the alias and saying to remove
+the mapping. Each account's outbox is MailFathom's own — the sends written down for it that have not left, and the
+refused ones nobody dismissed — and is [served beside its folders](client-endpoint.md#the-outbox-routes) rather than as one of them, so no folder on the mail
+server plays that role. A provider folder named like an outbox is an ordinary folder, mapped like any other.
 
 **This list is what the deployment has.** A folder no entry names does not exist for any reader: nothing lists, searches,
 reads, or answers from it, no rule is evaluated against its mail, nothing cuts it into passages or embeds it, and no
@@ -230,15 +239,16 @@ whether the folder may be created at all, through a fourth that defaults to `fal
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
 | `…:Folders:<n>:Synchronize` | bool | `true` | With `false`, no run schedules the folder: no connection is opened for it and nothing further of it is stored | reload; the next run stops scheduling it and keeps everything already stored for it |
-| `…:Folders:<n>:GenerateEmbeddings` | bool | `true` | With `false`, stored mail of the folder is never cut into passages and never reaches an embedding provider; refused alongside `Synchronize: false` | reload; governs what is stored from then on, and passages already produced stay |
-| `…:Folders:<n>:VisibleToTools` | bool | `true` | With `false`, no MCP tool lists, searches, reads, or answers from the folder; refused alongside `Synchronize: false` | reload; the next request reads the new value |
+| `…:Folders:<n>:GenerateEmbeddings` | bool | `true` | With `false`, stored mail of the folder is never cut into passages and never reaches an embedding provider; refused alongside `Synchronize: false` and alongside `VisibleToAI: false`, and off whenever either of those is `false` | reload; governs what is stored from then on, and passages already produced stay |
+| `…:Folders:<n>:VisibleToAI` | bool | `true` | With `false`, the folder is withheld from every AI function and from nothing else: no MCP tool, agent, or model or embedding provider lists, searches, reads, answers from, or derives anything from it, and no act an agent or MCP caller asks for reaches its mail, while the person still reads and acts on it in the client; refused alongside `Synchronize: false`, and for a folder this account's [spam model stage](#classifying-this-accounts-mail--spamclassification) classifies | reload; the next request reads the new value |
 | `…:Folders:<n>:CreateIfMissing` | bool | `false` | With `true`, the folder is created on the mail server when the server advertises none at `RemotePath`; refused on a mapping that names no `RemotePath` | reload; the next resolution of the alias creates it |
 
-Startup refuses a folder that asks for embedding or tool visibility while `Synchronize` is `false`, naming the alias,
-because a folder that stores nothing has nothing to embed and nothing a tool could read. Leaving a switch out is not
-asking for it, so `Synchronize: false` on its own binds. Mirrored, embedded, and withheld from tools binds as well and
-costs what it says: the vectors are produced and paid for while no reader reaches them, since the tools are the only
-readers there are.
+Startup refuses a folder that asks for embeddings or for visibility to AI while `Synchronize` is `false`, naming the
+alias, because a folder that stores nothing has nothing to embed and nothing AI could read. It refuses
+`GenerateEmbeddings: true` beside `VisibleToAI: false` too, naming the alias and both keys, because an embedding is
+computed by a provider a folder withheld from AI never reaches. Leaving a switch out is not asking for it, so
+`Synchronize: false` on its own binds, and so does `VisibleToAI: false` with `GenerateEmbeddings` left out — the folder
+is then never embedded.
 
 `CreateIfMissing` is the one switch here that authorizes an act against your mail server rather than withdrawing an
 existing folder from something MailFathom does locally, which is why it defaults to `false` while the other three
@@ -257,7 +267,8 @@ a server's refusal reports.
 Switching `Synchronize` off for a folder that was mirrored **keeps what is stored for it**. Nothing is removed, and the
 folder's checkpoint stays where the last run left it, so switching the folder back on resumes: the next run fetches
 what arrived while it was off and reconciles the retained mail rather than mirroring the folder again. What is kept is
-inert — no tool lists, searches, reads, or answers from it, nothing of it is embedded, and no rule evaluates it — so
+inert — neither the person in the client nor any AI function lists, searches, reads, or answers from it, nothing of it
+is embedded, and no rule evaluates it — so
 the only thing an operator gives up by leaving the switch off is the storage it occupies. No configuration value erases
 stored mail: taking a folder's local copy away is an act somebody performs, never something a switch performs on their
 behalf. The mapping stays too, so the alias goes on resolving, any role the mapping names goes on being answered, and
@@ -266,6 +277,74 @@ schedules it.
 [What a mapping decides beyond where the folder is](../features/imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
 states all three switches together, what an unmapped folder is instead, and what becomes of the local copy of a message
 relocated into a folder nothing mirrors.
+
+### Verifying a message's own signature — `SignatureVerification`
+
+Every received message's own S/MIME or PGP/MIME signature is verified when the message is stored, whatever this block
+says; what it decides is which signers a verification can end in *verified* for. The result and every step behind it are
+stored with the message and published to the client and to the MCP tools as described in [the client
+endpoint](client-endpoint.md#the-message-route) and [the MCP tools](../features/mcp-tools.md). Inline PGP, decrypting an
+encrypted message, and verifying a signature on a forwarded message are not done, and a verification failing for any
+reason never stops a message from being stored.
+
+```jsonc
+"MailSynchronization": {
+  "SignatureVerification": {
+    "TrustSystemStore": true,
+    "TrustedAuthorities": [
+      { "Name": "company-mail-ca", "SecretReference": "file:/run/secrets/company-mail-ca.pem" }
+    ],
+    "TrustedOpenPgpKeys": [
+      { "Name": "release-signing-key", "SecretReference": "file:/run/secrets/release-signing-key.asc" }
+    ],
+    "RevocationTimeout": "00:00:10"
+  }
+}
+```
+
+**S/MIME is verified the way a mail client verifies it.** The signer's certificate must chain to the system trust store
+or to a configured authority using only the certificates the signature carries — no missing intermediate is fetched —
+be valid at the time the message says it was signed, name the `emailProtection` extended key usage where it names any,
+and carry the digital-signature or non-repudiation key usage. The system store is consulted first, so a certificate a
+public authority issued is reported as the public authority's whatever else is configured. **OpenPGP has no
+authorities**, so with nothing configured every OpenPGP signature is not verifiable here; a key a message carries about
+itself — an attached key, an `Autocrypt` header — is never consulted, and nothing is fetched from a key server. A
+configured key's expiry and revocation are read off the key itself, and only from self-signatures that verify. A
+signature made over MD5, SHA-1, or RIPEMD-160 is not verifiable, as RFC 9580 requires, and a signature block that is
+compressed is read as malformed rather than opened. A subkey
+signs for its primary only through a binding signature the primary made that allows signing, so a subkey appended to a
+ring by somebody else — as a key server accepting extra packets can serve it — makes its signature not verifiable.
+
+**Revocation is checked online, and this is outbound traffic the deployment did not make before.** For a signer whose
+chain is trusted, MailFathom asks the OCSP responder the certificate names and, where none answers, reads the CRL its
+distribution point names — at most two of each, over plain HTTP or HTTPS, through the bounded and retried outbound
+client the service uses for every other dependency, which follows no redirect. A responder learns that this deployment checked that certificate,
+and when; nothing about the message, the mailbox, or the recipient is sent. A certificate whose chain is not trusted is
+never checked, so the addresses asked are always ones a trusted authority wrote. An answer is cached for as long as it
+says it is valid, between one minute and one day, and an unreachable responder is asked again after a minute. An OCSP
+answer counts only when the certificate's issuer, or a responder it delegated to whose own certificate is valid at the
+moment of the check, signed it, about this certificate; a CRL counts only when the issuer signed it, it is a complete
+list rather than a delta, and its issuing distribution point — where it names one — covers every certificate of the
+kind being asked about, end-entity or authority, from the address it was read at. An answer that names no
+next update is believed for one day from when it was issued. Anything else is no answer. Every certificate between the
+signer and the root is asked about the same way, against the authority that issued it, so a revoked intermediate
+authority makes its signers revoked too; an intermediate that names no responder and no list is passed over, since
+nobody could revoke it, while the signer's own certificate still has to name one. The check stops at the first answer
+that is not good, so a signature waits at most `RevocationTimeout` for each certificate actually asked about. The cache
+is one per replica, so a deployment of several replicas asks each responder up to `× replicaCount` as often. Every check
+has the hard `RevocationTimeout`; one that cannot complete — no network, a timeout, every responder unreachable — makes
+the signature *not verifiable*, never verified and never failed. Verification runs at extraction — when synchronization
+stores a message, when a re-derivation or the extraction backfill reads one again, and when MailFathom writes a message
+into a mailbox itself: a copy committed to a held or restoring mailbox and the filed copy of a sent message are read the
+same way, so those acts can wait on a responder for up to `RevocationTimeout` per certificate asked about. Opening a message never waits
+on one. A deployment that must make no such request sets `TrustSystemStore` to `false` and names no
+authority, which leaves every S/MIME signature not verifiable and asks nobody.
+
+**Changing the trust re-judges stored mail only when it is re-derived.** A message is verified once, when it is
+stored; `mfctl mailbox rederive` verifies the stored mail again against the trust and the revocation answers of that
+moment, and is also what brings mail stored before signatures were verified from *not signed* to its actual result.
+The signer's name, address, and certificate or key are personal data and are stored with the message, inheriting its
+retention and erasure.
 
 ### How a settings policy resolves a mail account
 
@@ -294,9 +373,9 @@ states its own.
 
 **The identity properties take no value from a policy.** `EmailAddress`, `DisplayName`, `UserName`,
 `Delivery:UserName`, `Delivery:FromAddress`, and `Delivery:FromDisplayName` say who or which rather than how, and the
-five secret blocks — `Secrets:Password`, `OAuth:ClientSecret`, `OAuth:RefreshToken`,
-`TransportSecurity:TrustedCertificateAuthority`, and `Delivery:Secrets:Password` — name material admissible for one
-user, so no policy states a default or a forced value for any of them and each is always the declaration's own. What
+secret blocks — `Secrets:Password`, `OAuth:ClientSecret`, `OAuth:RefreshToken`,
+`TransportSecurity:TrustedCertificateAuthority`, `Delivery:Secrets:Password`, `Delivery:OpenPgpSigningKey`, and the
+three of `Delivery:SmimeSigningCertificate` — name material admissible for one user, so no policy states a default or a forced value for any of them and each is always the declaration's own. What
 a policy may still say about them is who changes them, through its `Editing` block. `AccountId` is outside every
 policy: the deployment generates it.
 
@@ -420,8 +499,8 @@ and nothing at all for the rest.
 ### Classifying this account's mail — `SpamClassification`
 
 `…:SpamClassification` is where a mailbox's own classification posture is written, and it is the only source of
-one: the deployment's [`SpamClassification`](configuration-ai.md#spamclassification) section registers the scanner and
-bounds what the process spends on it, and reaches no mailbox's scope at all. The two are never unioned, which is what
+one: the deployment's [`SpamClassification`](configuration-ai.md#spamclassification) section bounds what the
+process spends, and reaches no mailbox's scope at all. The two are never unioned, which is what
 makes switching classification off here actually switch it off. Every switch is off when the block is absent, so an
 account whose record states none of it is classified as nothing.
 
@@ -434,10 +513,9 @@ verdict may do.
 {
   "SpamClassification": {
     "Enabled": true,
-    "UseScanner": true,
     "ScannedFolders": [ "inbox" ],
-    "ScannerThreshold": 6.5,
-    "Actions": { "MoveToJunkFolder": true, "MarkAsRead": false, "JunkFolder": "role:Junk", "Threshold": 8 }
+    "Actions": { "MoveToJunkFolder": true, "MarkAsRead": false, "JunkFolder": "role:Junk" },
+    "ModelStage": { "Enabled": true, "NameSubcategoriesOfDeterministicSpam": false, "Threshold": 0.5 }
   }
 }
 ```
@@ -445,22 +523,29 @@ verdict may do.
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
 | `…:SpamClassification:Enabled` | bool | `false` | Whether the mail in this account is classified at all | reload; the next classification reads it |
-| `…:SpamClassification:UseScanner` | bool | `false` | Whether the deployment's scanner is consulted after the deterministic stage. Asking for it while `Enabled` is false is refused; asking for it where the deployment registered no scanner is accepted and answered by the deterministic stage alone | reload; the same |
 | `…:SpamClassification:ScannedFolders:<n>` | string | unset (this account's inbox) | A folder alias, resolved within this account's own `Folders` — one only another account maps reaches no mail. Writing no key takes whichever alias this account maps to the `Inbox` role, and writing an empty list asks for no folder at all | reload; the same |
-| `…:SpamClassification:ScannerThreshold` | double | unset (the scanner's own) | `0.1` – `1000`, the range the deployment states; outside it a value either files every message or can never be reached | reload; the same |
-| `…:SpamClassification:Actions:MoveToJunkFolder` | bool | `false` | Whether junk is filed into this account's junk destination. Asking for an action while `Enabled` is false is refused, there being no verdict to act on | reload; governs verdicts from then on |
+| `…:SpamClassification:Actions:MoveToJunkFolder` | bool | `false` | Whether junk is filed into this account's junk destination. It also decides whether the person marking mail spam moves it there, and marking it not spam moves it from the junk folder to the inbox. Asking for an action while `Enabled` is false is refused, there being no verdict to act on | reload; governs verdicts from then on |
 | `…:SpamClassification:Actions:MarkAsRead` | bool | `false` | Whether junk has this account's remote `\Seen` flag set; the same refusal | reload; the same |
+| `…:SpamClassification:Actions:MarkWithJunkKeywords` | bool | `false` | Whether junk is given RFC 9051's `$Junk` keyword, and `$Phishing` beside it where the verdict names phishing; `RuleActions:WriteKeywords` still governs it. With it on, a message carrying both `$Junk` and `$NotJunk` has the `$Junk` taken off once: the pair whole, with a `$Phishing` beside it, where somebody else set both, the deployment's own `$Junk` (and `$Phishing`) alone where the `$NotJunk` is a person's correction of it. The same refusal | reload; the same |
 | `…:SpamClassification:Actions:JunkFolder` | string | `role:Junk` | A folder alias, or one of the special uses written as `role:<name>`. Once filing is switched on, **this account** has to map it, because MailFathom creates a folder on nobody's server; the syntax is judged whatever the switches say | reload; the same |
-| `…:SpamClassification:Actions:Threshold` | double | unset (every spam verdict) | The score a scanner has to reach before the mail is touched, judged against the same `0.1` – `1000` range | reload; the same |
+| `…:SpamClassification:ModelStage:Enabled` | bool | `false` | Whether a decision model is asked about this account's mail after the deterministic stage. **Switching it on sends this mailbox's mail to two third parties**, the router and the provider it picks, as [what the model is shown](../features/spam-classification.md#what-the-model-is-shown) lists. Refused while `Enabled` is false, while any folder this account classifies is withheld from AI (`VisibleToAI: false` or `Synchronize: false`), and while the deployment declares no decision model that `Decisions:SpamClassification:Model` reaches | reload; the next classification reads it |
+| `…:SpamClassification:ModelStage:NameSubcategoriesOfDeterministicSpam` | bool | `false` | Whether the model also names the kind of mail the deterministic stage already called spam. Off, such a verdict carries no kind and costs no call, which matters because junk is often most of a mailbox | reload; the same |
+| `…:SpamClassification:ModelStage:Threshold` | double | `0.5` | Above 0 and at most 1; the spam probability at or above which the model's judgement is a spam verdict. A threshold belongs to one model build, so move it with the model, and set it from the evaluation's false-positive rate on legitimate mail | reload; the same |
 
 **A junk destination is judged against this account alone.** Junk is filed into the mailbox it was found in, so a
 destination this account does not map is refused exactly as one nobody maps — from inside the record the two are the
 same thing. That is what the block being the account's buys over one held on the person: an account no longer has to
 map a folder some other mailbox of the same user wanted junk filed into.
 
-**A record may hold only what is this mailbox's.** The daemon's address, the per-scan bounds, the scan concurrency, the
-classification wait, and the run batch sizes are what the process holds open or spends rather than a judgement about
-anybody's mailbox, so an account naming one of them is refused at the write, naming the key.
+**The model stage reads only what AI may read.** It is an AI function, so a record that switches it on while a folder
+it classifies — the `ScannedFolders`, or this account's inbox where none are written — is withheld from AI, mapped
+`VisibleToAI: false` or `Synchronize: false`, is refused naming the account and the folder, and so is a record that withholds such a folder while the stage is on.
+The deterministic stage is not AI and is not affected. Each of the three keys joins the profile a verdict is recorded
+under, so changing one re-decides this account's mail on the next classification run.
+
+**A record may hold only what is this mailbox's.** The classification wait, the run batch sizes, and the model stage's
+call and body bounds are what the process spends rather than a judgement about anybody's mailbox, so an account naming one of them is refused at the
+write, naming the key, and so is one naming a key the block does not declare.
 
 ### Scanning this account's mail — `SensitiveContent`
 
@@ -605,6 +690,10 @@ what it does not.
 | `…:Delivery:FromDisplayName` | string | unset (the address alone) | The name recipients see this mailbox sign itself with; deliberately not the account's `DisplayName` | reload |
 | `…:Delivery:FileSentCopy` | bool | `true` | Whether a delivered message is appended to the folder this account maps to the `Sent` role | reload |
 | `…:Delivery:WithdrawDuplicateSentCopy` | bool | `true` | Whether that appended copy is taken back out once the provider files one of its own beside it | reload |
+| `…:Delivery:SmimeSigningCertificate:Bundle` | secret block | unset | A PKCS#12 bundle holding the signing certificate, its private key, and any intermediates; its nested `Password` opens it. Never beside the PEM pair below | reload |
+| `…:Delivery:SmimeSigningCertificate:CertificateChain` | secret block | unset | PEM; the first certificate is the signing certificate and the rest are its chain. Never without `PrivateKey` beside it | reload |
+| `…:Delivery:SmimeSigningCertificate:PrivateKey` | secret block | unset | The PEM private key of that certificate; its nested `Password` decrypts it when it is encrypted. Never without `CertificateChain` beside it | reload |
+| `…:Delivery:OpenPgpSigningKey` | secret block | unset | An ASCII-armored OpenPGP secret key holding exactly one key; its nested `Password` is the passphrase when the key is protected | reload |
 
 **`Enabled` is off on every account of every deployment, and turning it on is the act that makes sending possible.** An
 installation upgrading into a release that can send therefore does not thereby become able to: the release meets a
@@ -637,6 +726,48 @@ that nothing else can be. No request, rule, or tool argument names a sender, so 
 to send through an account an operator configured that way. Most deployments write neither key: a provider that
 authenticates the mailbox by its address has already stated it as `UserName`, and the address alone is what recipients
 see.
+
+#### The identities this account signs with
+
+`SmimeSigningCertificate` and `OpenPgpSigningKey` name the S/MIME certificate and the OpenPGP secret key this account
+would sign its outgoing mail with, as itself. Either may be configured, both, or neither, because an account's
+correspondents may read one format, the other, or both; an account configuring neither behaves exactly as one that never
+heard of them. **No message is signed with them yet.** This release reads and judges them so a wrong one is refused when
+the record is written and when the deployment starts, rather than discovered at the first signed send.
+
+Both are secret blocks resolved through the ordinary [secret sources](configuration-sources.md), the public certificate
+chain included, so each part is a file, a systemd credential, or an environment variable. The S/MIME certificate takes
+the two shapes a TLS server certificate does: one PKCS#12 bundle, or a PEM chain beside a PEM private key. A block
+naming no reference is an account that does not sign in that format. Either identity is refused, naming the account,
+when the delivery block names no submission `Host`, because nothing it signed could ever be sent.
+
+Each identity is then read and judged against the address the account sends from, `FromAddress` or the user name it
+falls back to. A refusal names the setting's path and one failure identity in brackets, and never the material, the
+password, the passphrase, or anything read out of the certificate or the key:
+
+| Format | Refused when | Identity |
+| --- | --- | --- |
+| S/MIME | The reference or its password resolves nothing | `SecretNotResolvable` |
+| S/MIME | The material is not a certificate in the shape its setting expects, does not parse, or a bundle carries no certificate | `EncodingNotRecognized`, `EncodingNotSupportedForRole`, `InlineEncodingNotSupported`, `MaterialNotReadable`, `BundleCarriesNoCertificate` |
+| S/MIME | A bundle does not open with the configured password, or needs one and none is configured | `BundlePasswordIncorrect`, `BundlePasswordMissing` |
+| S/MIME | The certificate comes without its private key, the key does not parse or decrypt, or the key belongs to another certificate | `PrivateKeyMissing`, `PrivateKeyNotReadable`, `PrivateKeyDoesNotMatchCertificate` |
+| S/MIME | More than one certificate could be the signing one, or a certificate supplied beside it is no authority, is outside its validity period, or issues nothing in the chain | `ChainCarriesSeveralLeaves`, `ChainCarriesNonAuthorityCertificate`, `ChainCertificateNotCurrentlyValid`, `ChainCarriesUnrelatedCertificate` |
+| S/MIME | The certificate is outside its validity period | `CertificateNotYetValid`, `CertificateExpired` |
+| S/MIME | Its key usage permits neither `digitalSignature` nor `nonRepudiation` | `DigitalSignatureNotPermitted` |
+| S/MIME | Its extended key usage names neither email protection nor any purpose | `EmailProtectionNotPermitted` |
+| S/MIME | Neither an `rfc822Name` alternative name nor the subject's `emailAddress` is the sending address, compared without regard to case | `AddressNotCoveredByCertificate` |
+| OpenPGP | The reference or its passphrase resolves nothing | `SecretNotResolvable` |
+| OpenPGP | The material is not an ASCII-armored private key block — an armored public key is refused here too — or does not parse as one | `NotAnArmoredSecretKey`, `MaterialNotReadable` |
+| OpenPGP | The material holds more than one key, whether in one armored block or in several concatenated | `MaterialCarriesSeveralKeys` |
+| OpenPGP | The key, or every signing-capable key in it, carries a revocation or has passed its expiry | `KeyRevoked`, `KeyExpired` |
+| OpenPGP | No user ID of the key is the sending address, counting only one whose latest self-certification no later revocation of it withdrew | `UserIdDoesNotMatchAddress` |
+| OpenPGP | Neither the primary key nor a subkey has an algorithm that signs, key flags that permit signing where its self-signatures state any, and its secret part present | `SigningKeyMissing` |
+| OpenPGP | A signing key is protected and no passphrase is configured, or the configured one does not open it | `PassphraseMissing`, `PassphraseIncorrect` |
+
+Neither certificate nor key is chained to a trust anchor or checked for revocation online: which authorities and keys a
+recipient trusts is the recipient's, and the material is the operator's own. A revocation or an expiry the OpenPGP key
+itself carries is honored as stated. Nothing read here is kept — every certificate, key, password, and passphrase is
+released or erased once it has been judged.
 
 ## `MailDelivery`
 

@@ -2,8 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
+using MailFathom.Domain.Emails;
 using MailFathom.Evaluations.AgentConversations;
 using MailFathom.Evaluations.Corpus;
 
@@ -20,8 +22,7 @@ internal sealed record LabelledCandidate(int MessagePosition, string Evidence, b
     /// <exception cref="InvalidOperationException">Thrown, naming the phrase, when no passage of the message carries it within what one passage may carry.</exception>
     /// <remarks>
     /// The passage is the search's extract of the message, read through the deployment's own reading of a match, so it is
-    /// bounded as a deployment bounds it. Nothing about the sender is established, which is what a judgement is shown for
-    /// mail nobody verified.
+    /// bounded as a deployment bounds it, and it carries the provenance the corpus records for the message.
     /// </remarks>
     public EmailKnowledgePassage Resolve()
     {
@@ -33,6 +34,7 @@ internal sealed record LabelledCandidate(int MessagePosition, string Evidence, b
 
         var passage = MailboxKnowledgeSearch.PassagesOf(
                 [new EmailSearchMatch(CorpusReaders.SummaryOf(message, thread: null), RelevanceRank: 1, [extract.Text])],
+                new Dictionary<StoredEmailId, EmailProvenance> { [message.Id] = message.Provenance },
                 EmailKnowledgeBounds.Default)
             .Single();
 

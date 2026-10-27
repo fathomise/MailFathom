@@ -128,57 +128,63 @@ if [[ -s "$work_directory/type-names" ]]; then
     | "\($path)\t\(.)"
   ' "$files_json" > "$work_directory/added-test-lines" || true
 
+  # The line alone is searched, never its path, so a type named by the directory a test sits in is
+  # not read as a reference. `-n` numbers each match by the line it came from, which is how it finds
+  # its way back to that line's path.
   if [[ -s "$work_directory/added-test-lines" ]]; then
-    grep -Fw -f "$work_directory/type-names" "$work_directory/added-test-lines" 2>/dev/null \
-      | while IFS=$'\t' read -r path line; do
-          grep -oFw -f "$work_directory/type-names" <<< "$line" \
-            | while IFS= read -r match; do
-                printf '%s\t%s\n' "$match" "$path"
-              done
-        done >> "$work_directory/type-references" || true
+    cut -f 2- "$work_directory/added-test-lines" > "$work_directory/added-test-line-texts"
+    grep -noFw -f "$work_directory/type-names" "$work_directory/added-test-line-texts" 2>/dev/null \
+      | awk -F'\t' '
+          FILENAME == ARGV[1] { path[FNR] = $1; next }
+          {
+            separator = index($0, ":")
+            print substr($0, separator + 1) "\t" path[substr($0, 1, separator - 1)]
+          }
+        ' "$work_directory/added-test-lines" - \
+      >> "$work_directory/type-references" || true
   fi
 fi
 
 sort -u "$work_directory/type-references" -o "$work_directory/type-references"
 
-# Whether the change touched a file is recorded against that file rather than against the entry it
-# belongs to. An entry-level flag would have to mean "any of these", and any-of-these answers the
-# wrong question twice over: a change that updates one of two pages would read as having discharged
-# its obligation to both, and a change that happens to touch an unrelated test naming the same type
-# would read as having tested the behavior that moved.
-with_changed_flag() {
-  local path
+# Every path is read into a set once, so the loops below decide membership without starting a
+# process per path. Nothing from here on starts a process per item: on a busy machine starting one
+# costs far more than the work it does, and a count that grows with the change turns seconds into
+# minutes.
+declare -A changed_path_set=() present_path_set=()
 
-  while IFS= read -r path; do
-    [[ -n "$path" ]] || continue
+while IFS= read -r path; do
+  [[ -n "$path" ]] || continue
+  changed_path_set["$path"]=1
+done < "$work_directory/changed-paths"
 
-    local changed='false'
-    if path_is_changed "$path"; then
-      changed='true'
-    fi
+while IFS= read -r path; do
+  [[ -n "$path" ]] || continue
+  present_path_set["$path"]=1
+done < "$work_directory/present-paths"
 
-    jq -nc --arg path "$path" --argjson changed "$changed" \
-      '{path: $path, changed_by_this_pull_request: $changed}'
-  done | jq -sc .
-}
+# The tests naming each type, in the order `sort -u` gives a type's own list: the sort keys on the
+# path within a type, so the order is the one the list would have sorted alone.
+declare -A reference_counts=()
 
-references_for_type() {
-  local type_name="$1"
+sort -t $'\t' -k 1,1 -k 2,2 -u "$work_directory/type-references" > "$work_directory/references-by-type"
 
-  awk -F'\t' -v wanted="$type_name" '$1 == wanted { print $2 }' "$work_directory/type-references" \
-    | sort -u \
-    | awk -v limit="$max_references_per_type" 'NR <= limit' \
-    | with_changed_flag
-}
+# The count is copied out of the array before any arithmetic, because a subscript inside `(( ))` is
+# evaluated again, and a type name is a file name the pull request chose.
+while IFS=$'\t' read -r type_name test_path; do
+  reference_count="${reference_counts["$type_name"]:-0}"
+  reference_count=$(( reference_count + 1 ))
+  reference_counts["$type_name"]="$reference_count"
+  if (( reference_count <= max_references_per_type )); then
+    printf '%s\t%s\n' "$type_name" "$test_path"
+  fi
+done < "$work_directory/references-by-type" > "$work_directory/listed-references"
 
-count_references_for_type() {
-  awk -F'\t' -v wanted="$1" '$1 == wanted { print $2 }' "$work_directory/type-references" \
-    | sort -u \
-    | grep -c . \
-    || true
-}
-
-: > "$work_directory/tests.ndjson"
+# One row per entry, `path, type, project, count`, and one row per covering test,
+# `entry, test`, which the JSON is assembled from once at the end. `count` is empty for a client
+# entry, whose count is the length of its list.
+: > "$work_directory/test-entries"
+: > "$work_directory/test-references"
 
 test_entry_count=0
 
@@ -190,27 +196,31 @@ while IFS= read -r source_path; do
     break
   fi
 
-  type_name="$(basename "$source_path" .cs)"
-  boundary="$(cut -d'/' -f3 <<< "$source_path")"
-  reference_count="$(count_references_for_type "$type_name")"
+  type_name="${source_path##*/}"
+  type_name="${type_name%.cs}"
+  boundary="${source_path#backend/src/}"
+  boundary="${boundary%%/*}"
+  reference_count="${reference_counts["$type_name"]:-0}"
 
   if (( reference_count > max_references_per_type )); then
     notes+=("${type_name} is named by ${reference_count} tests and the first ${max_references_per_type} are listed; a name that common says little about what covers the behavior.")
   fi
 
-  jq -nc \
-    --arg path "$source_path" \
-    --arg type "$type_name" \
-    --arg status "$(jq -r --arg path "$source_path" 'map(select(.filename == $path)) | .[0].status // ""' "$files_json")" \
-    --arg project "backend/tests/${boundary}.UnitTests" \
-    --argjson count "$reference_count" \
-    --argjson tests "$(references_for_type "$type_name")" \
-    '{path: $path, type: $type, status: $status, expected_test_project: $project,
-      referencing_test_count: $count, referencing_tests: $tests}' \
-    >> "$work_directory/tests.ndjson"
+  printf '%s\t%s\t%s\t%s\n' "$source_path" "$type_name" "backend/tests/${boundary}.UnitTests" "$reference_count" \
+    >> "$work_directory/test-entries"
 
   test_entry_count=$(( test_entry_count + 1 ))
 done < "$work_directory/changed-sources"
+
+# Each backend entry's tests, joined on its type. The entries were written in order, so the row
+# number is the entry's index in the final list.
+awk -F'\t' '
+  FILENAME == ARGV[1] { tests[$1] = tests[$1] $2 "\n"; next }
+  {
+    count = split(tests[$2], listed, "\n")
+    for (position = 1; position < count; position++) print FNR "\t" listed[position]
+  }
+' "$work_directory/listed-references" "$work_directory/test-entries" >> "$work_directory/test-references"
 
 # The client's half of the same section, into the same list and under the same ceiling, because what
 # bounds it is the reviewer's context rather than which stack an entry came from.
@@ -233,30 +243,6 @@ grep -E '^frontend/src/[^/]+/src/.+\.(ts|tsx)$' "$work_directory/present-paths" 
 # change adding a module together with its test is exactly where reporting a missing test is most
 # obviously wrong. A candidate this change *removed* is neither: it is in the base tree and gone from
 # the branch, so it is skipped rather than listed as covering anything.
-sibling_tests_for_source() {
-  local source_path="$1"
-  local directory module_name candidate extension
-
-  directory="$(dirname "$source_path")"
-  module_name="$(basename "$source_path")"
-  module_name="${module_name%.tsx}"
-  module_name="${module_name%.ts}"
-
-  for extension in ts tsx; do
-    candidate="$directory/${module_name}.test.${extension}"
-
-    if grep -qxF "$candidate" "$work_directory/changed-paths" \
-      && ! grep -qxF "$candidate" "$work_directory/present-paths"; then
-      continue
-    fi
-
-    if [[ -f "$repository_root/$candidate" ]] \
-      || grep -qxF "$candidate" "$work_directory/present-paths"; then
-      printf '%s\n' "$candidate"
-    fi
-  done
-}
-
 while IFS= read -r source_path; do
   [[ -n "$source_path" ]] || continue
 
@@ -267,28 +253,30 @@ while IFS= read -r source_path; do
 
   # The module rather than a type: a `.ts` file declares no single one, and what the file is named
   # after is what `frontend/tests/AGENTS.md` names the test after and what `describe` states.
-  module_name="$(basename "$source_path")"
+  module_name="${source_path##*/}"
   module_name="${module_name%.tsx}"
   module_name="${module_name%.ts}"
 
   # The package the test belongs to, which is what `backend/tests/<Boundary>.UnitTests` is for the
   # service. A client test lives inside the package it covers rather than in one of its own, for the
   # resolver reason `frontend/tests/AGENTS.md` gives.
-  client_package="$(cut -d'/' -f1-3 <<< "$source_path")"
+  client_package="${source_path#frontend/src/}"
+  client_package="frontend/src/${client_package%%/*}"
 
-  sibling_tests_json="$(sibling_tests_for_source "$source_path" | with_changed_flag)"
-
-  jq -nc \
-    --arg path "$source_path" \
-    --arg type "$module_name" \
-    --arg status "$(jq -r --arg path "$source_path" 'map(select(.filename == $path)) | .[0].status // ""' "$files_json")" \
-    --arg project "$client_package" \
-    --argjson tests "$sibling_tests_json" \
-    '{path: $path, type: $type, status: $status, expected_test_project: $project,
-      referencing_test_count: ($tests | length), referencing_tests: $tests}' \
-    >> "$work_directory/tests.ndjson"
-
+  printf '%s\t%s\t%s\t\n' "$source_path" "$module_name" "$client_package" >> "$work_directory/test-entries"
   test_entry_count=$(( test_entry_count + 1 ))
+
+  for extension in ts tsx; do
+    candidate="${source_path%/*}/${module_name}.test.${extension}"
+
+    if [[ -n "${changed_path_set["$candidate"]:-}" && -z "${present_path_set["$candidate"]:-}" ]]; then
+      continue
+    fi
+
+    if [[ -f "$repository_root/$candidate" || -n "${present_path_set["$candidate"]:-}" ]]; then
+      printf '%s\t%s\n' "$test_entry_count" "$candidate" >> "$work_directory/test-references"
+    fi
+  done
 done < "$work_directory/changed-client-sources"
 
 # ---------------------------------------------------------------------------
@@ -314,74 +302,122 @@ done < "$work_directory/changed-client-sources"
 #
 # Each rewrite is parked as a byte no path contains and restored at the end, so the narrower pattern
 # can never consume the wider one first.
-glob_to_regex() {
-  printf '%s' "$1" | awk '
-    {
-      pattern = $0
-      gsub(/[.^$+(){}|\[\]\\]/, "\\\\&", pattern)
-      sub(/^\*\*\//, "\003", pattern)
-      gsub(/\/\*\*\//, "\002", pattern)
-      gsub(/\*\*/, "\001", pattern)
-      gsub(/\*/, "[^/]*", pattern)
-      gsub(/\?/, "[^/]", pattern)
-      gsub(/\001/, ".*", pattern)
-      gsub(/\002/, "/(.*/)?", pattern)
-      gsub(/\003/, "(.*/)?", pattern)
-      printf "^%s$", pattern
-    }'
-}
-
+#
+# Only the preamble is read for a marker. A page that documents the convention writes the syntax out
+# as an example — `docs/AGENTS.md` does — and a scan of the whole file would read that example as a
+# declaration, so every path the example names would acquire a document that says nothing about it.
+# The preamble is where a real marker goes and where an example does not: the longest one here is an
+# ADR, whose front matter puts the heading on line 10. The first line in it carrying a marker is the
+# one read, and every marker on that line counts.
+#
+# All of it is one `awk` over every page, because the edges are read on every run before a single
+# changed path is, and a process per page and per pattern made that fixed cost most of the run.
 : > "$work_directory/documentation-edges"
 
 if [[ -d "$repository_root/docs" ]]; then
-  while IFS= read -r document; do
-    relative_document="${document#"$repository_root"/}"
+  (
+    cd "$repository_root"
+    find docs -type f -name '*.md' -print0 | xargs -0 -r awk -v preamble="$marker_preamble_lines" '
+      function glob_to_regex(pattern) {
+        gsub(/[.^$+(){}|\[\]\\]/, "\\\\&", pattern)
+        sub(/^\*\*\//, "\003", pattern)
+        gsub(/\/\*\*\//, "\002", pattern)
+        gsub(/\*\*/, "\001", pattern)
+        gsub(/\*/, "[^/]*", pattern)
+        gsub(/\?/, "[^/]", pattern)
+        gsub(/\001/, ".*", pattern)
+        gsub(/\002/, "/(.*/)?", pattern)
+        gsub(/\003/, "(.*/)?", pattern)
+        return "^" pattern "$"
+      }
 
-    # Only the preamble is read for a marker. A page that documents the convention writes the
-    # syntax out as an example — `docs/AGENTS.md` does — and a scan of the whole file would read
-    # that example as a declaration, so every path the example names would acquire a document that
-    # says nothing about it. The preamble is where a real marker goes and where an example does not:
-    # the longest one here is an ADR, whose front matter puts the heading on line 10.
-    marker="$(head -n "$marker_preamble_lines" "$document" \
-      | grep -m 1 -oE '<!--[[:space:]]*describes:[^>]*-->' 2>/dev/null || true)"
-    [[ -n "$marker" ]] || continue
+      FNR == 1 { marker_found = 0 }
+      marker_found || FNR > preamble { nextfile }
 
-    patterns="$(sed -E 's|^<!--[[:space:]]*describes:[[:space:]]*||; s|[[:space:]]*-->$||' <<< "$marker")"
-    [[ "$patterns" == 'none' ]] && continue
+      {
+        line = $0
+        markers = 0
+        patterns = ""
+        while (match(line, /<!--[[:space:]]*describes:[^>]*-->/)) {
+          marker = substr(line, RSTART, RLENGTH)
+          line = substr(line, RSTART + RLENGTH)
+          sub(/^<!--[[:space:]]*describes:[[:space:]]*/, "", marker)
+          sub(/[[:space:]]*-->$/, "", marker)
+          patterns = (markers++ ? patterns "\n" : "") marker
+        }
+        if (!markers) next
+        marker_found = 1
 
-    while IFS= read -r pattern; do
-      pattern="$(sed -E 's|^[[:space:]]+||; s|[[:space:]]+$||' <<< "$pattern")"
-      [[ -n "$pattern" ]] || continue
+        sub(/\n+$/, "", patterns)
+        if (patterns == "none") next
 
-      printf '%s\t%s\n' "$relative_document" "$(glob_to_regex "$pattern")" \
-        >> "$work_directory/documentation-edges"
-    done < <(tr ',' '\n' <<< "$patterns")
-  done < <(find "$repository_root/docs" -type f -name '*.md' | sort)
+        count = split(patterns, pieces, /[,\n]/)
+        for (piece = 1; piece <= count; piece++) {
+          pattern = pieces[piece]
+          sub(/^[[:space:]]+/, "", pattern)
+          sub(/[[:space:]]+$/, "", pattern)
+          if (pattern != "") print FILENAME "\t" glob_to_regex(pattern)
+        }
+      }
+    '
+  ) > "$work_directory/documentation-edges"
 fi
 
-: > "$work_directory/documentation.ndjson"
+# Every changed path against every edge in one pass. The edges are the outer loop so each pattern is
+# compiled once rather than once per path. A change to the documentation itself owes no
+# documentation, and a marker that covered `docs/` would otherwise make every page describe every
+# other one. The sort orders the pages under each path the way `sort -u` orders a list of them.
+awk -F'\t' '
+  FILENAME == ARGV[1] { if ($0 != "" && $0 !~ /^docs\//) path[++paths] = $0; next }
+  $2 != "" {
+    for (position = 1; position <= paths; position++)
+      if (path[position] ~ $2) print position "\t" path[position] "\t" $1
+  }
+' "$work_directory/changed-paths" "$work_directory/documentation-edges" \
+  | sort -t $'\t' -k 1,1n -k 3,3 -u \
+  > "$work_directory/documentation-matches"
 
-while IFS= read -r changed_path; do
-  [[ -n "$changed_path" ]] || continue
+# Whether the change touched a file is recorded against that file rather than against the entry it
+# belongs to. An entry-level flag would have to mean "any of these", and any-of-these answers the
+# wrong question twice over: a change that updates one of two pages would read as having discharged
+# its obligation to both, and a change that happens to touch an unrelated test naming the same type
+# would read as having tested the behavior that moved.
+read -r -d '' assemble_definitions <<'JQ' || true
+def rows: split("\n") | map(select(. != "") | split("\t"));
+($changed | split("\n") | map(select(. != "") | {key: ., value: true}) | from_entries) as $changed_set
+| def flagged: {path: ., changed_by_this_pull_request: ($changed_set[.] // false)};
+JQ
 
-  # A change to the documentation itself owes no documentation, and a marker that covered `docs/`
-  # would otherwise make every page describe every other one.
-  [[ "$changed_path" == docs/* ]] && continue
+jq -nc \
+  --rawfile changed "$work_directory/changed-paths" \
+  --rawfile entries "$work_directory/test-entries" \
+  --rawfile references "$work_directory/test-references" \
+  --slurpfile files "$files_json" \
+  "$assemble_definitions"'
+  ($files[0] | reduce .[] as $file ({};
+      if has($file.filename) then . else .[$file.filename] = $file.status end)) as $status
+  | ($references | rows | reduce .[] as [$entry, $test] ({}; .[$entry] += [$test])) as $tests_by_entry
+  | $entries | rows | to_entries[]
+  | .value as [$path, $type, $project, $count]
+  | ($tests_by_entry[.key + 1 | tostring] // []) as $tests
+  | {path: $path, type: $type, status: ($status[$path] // "" | if type == "string" then . else tojson end),
+     expected_test_project: $project,
+     referencing_test_count: (if $count == "" then ($tests | length) else ($count | tonumber) end),
+     referencing_tests: ($tests | map(flagged))}
+' > "$work_directory/tests.ndjson"
 
-  describing_documents="$(
-    awk -F'\t' -v path="$changed_path" '$2 != "" && path ~ $2 { print $1 }' \
-      "$work_directory/documentation-edges" \
-      | sort -u
-  )"
-
-  [[ -n "$describing_documents" ]] || continue
-
-  jq -nc \
-    --arg path "$changed_path" \
-    --argjson documents "$(with_changed_flag <<< "$describing_documents")" \
-    '{path: $path, describing_documents: $documents}' \
-    >> "$work_directory/documentation.ndjson"
-done < "$work_directory/changed-paths"
+jq -nc \
+  --rawfile changed "$work_directory/changed-paths" \
+  --rawfile matches "$work_directory/documentation-matches" \
+  "$assemble_definitions"'
+  $matches | rows
+  | reduce .[] as [$position, $path, $document] ([];
+      if length > 0 and .[length - 1].position == $position
+      then .[length - 1].documents += [$document]
+      else . + [{position: $position, path: $path, documents: [$document]}] end)
+  | .[]
+  | {path, describing_documents: (.documents | map(flagged))}
+' > "$work_directory/documentation.ndjson"
 
 # ---------------------------------------------------------------------------
 # Registers

@@ -4,6 +4,7 @@
 
 using System.ComponentModel;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Domain.Synchronization;
 using MailFathom.Mcp.Tools.Accounts;
 
@@ -43,12 +44,24 @@ internal sealed record ListedMailAccount
     [Description("Every folder of this account, with the identity the folders argument of a mailbox tool names it by, its place in the hierarchy, its role, and how current its local copy is. Empty when the account has no folder yet, which for a mirrored account means synchronization has never reached it and its mail may be absent entirely.")]
     public required IReadOnlyList<ListedMailFolder> Folders { get; init; }
 
+    /// <summary>Gets how much the account's outbox holds, or <see langword="null" /> where the caller may not read it.</summary>
+    /// <remarks>
+    /// Absent rather than zero for a caller that may not read the outbox, so a credential that may only read or only
+    /// send is not told its size.
+    /// </remarks>
+    [Description("What this account has not sent yet: how many messages are waiting and how many were refused. The outbox is not a folder and is read-only; list its messages with list_outgoing_emails. Present only when you may both read and send mail.")]
+    public ListedAccountOutbox? Outbox { get; init; }
+
     /// <summary>Publishes one account the use case described.</summary>
     /// <param name="account">The described account to publish.</param>
     /// <param name="accountNames">Reads the name each folder entry's account is published under.</param>
+    /// <param name="outbox">How much the account's outbox holds, or <see langword="null" /> where the caller may not read it.</param>
     /// <returns>The wire representation of <paramref name="account" />.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="account" /> or <paramref name="accountNames" /> is <see langword="null" />.</exception>
-    public static ListedMailAccount From(DescribedMailAccount account, PublishedAccountNames accountNames)
+    public static ListedMailAccount From(
+        DescribedMailAccount account,
+        PublishedAccountNames accountNames,
+        AccountOutboxCount? outbox)
     {
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(accountNames);
@@ -64,6 +77,7 @@ internal sealed record ListedMailAccount
                     folder,
                     account.Folders.FirstOrDefault(freshness => freshness.Folder?.Id == folder.Id))),
             ],
+            Outbox = outbox is null ? null : ListedAccountOutbox.From(outbox),
         };
     }
 

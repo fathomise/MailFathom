@@ -33,4 +33,7 @@ public enum AgentScopeKind
 
     /// <summary>One Discover run, whose answer the person is carrying on from.</summary>
     DiscoveryRun = 3,
+
+    /// <summary>One merged notification about mail that arrived, whose messages the question is about.</summary>
+    Notification = 4,
 }

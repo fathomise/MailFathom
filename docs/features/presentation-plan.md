@@ -1,6 +1,6 @@
 # The presentation plan
 
-<!-- describes: backend/src/Application/Discovery/Presentation/**, backend/src/Application/Discovery/Citations/** -->
+<!-- describes: backend/src/Application/Discovery/Presentation/**, backend/src/Application/Discovery/Citations/**, backend/src/Application/Answers/** -->
 
 An answer about a mailbox is rarely a paragraph. A comparison wants a table, a course of events wants dates in order,
 a question about people wants people. The presentation plan is the contract that lets a run say which of those an
@@ -32,7 +32,12 @@ when that block's own shape does, and for no other reason. A release that change
 
 A block's version is written from the catalogue rather than supplied by whatever composed the plan, so nothing can
 stamp a revision it did not write, and it is checked again on the way in: reading a plan whose block claims a revision
-this build does not implement is refused rather than read as though it were the revision this build knows. Degrading
+this build does not implement is refused rather than read as though it were the revision this build knows. An earlier
+revision is read where the catalogue says it still can be — a revision that only adds a member a block may go without
+reads its predecessors, because a run's blocks and an Agent conversation's entries are stored as the JSON they were
+written as, and refusing them would leave every stored run unreadable after an upgrade. An `answer` block stored at
+revision `1` therefore reads as a revision-`2` block carrying no links; a revision that changed what a member means
+would refuse its predecessors instead. Degrading
 such a block instead of refusing the plan is a decision for a reader that has chosen to make it, and a reader making it
 takes the number out of the JSON rather than binding it to a catalogue of its own.
 
@@ -73,7 +78,7 @@ beside the data below.
 
 | Block | Used when | What it carries |
 |---|---|---|
-| `answer` | one synthesized answer | the text, and how far it is worth trusting beyond its sources |
+| `answer` | one synthesized answer | the text, how far it is worth trusting beyond its sources, and every link the text writes, judged |
 | `evidenceList` | the messages themselves are the point | per entry: one source, the part worth reading, a relevance, and how current the copy was |
 | `timeline` | the question is about change over time | per entry: when, what happened, what it happened to, and its sources |
 | `factTable` | amounts, terms, or versions are compared | columns from a closed catalogue, and one cell per column per row, each with its sources |
@@ -91,7 +96,21 @@ read. A Discover run's answer is drawn read-only throughout, so nothing there ac
 record does, writing a block the person can answer as a proposal it can then record an outcome against, and everything
 else as a reading.
 
-Four of them are worth a note.
+Five of them are worth a note.
+
+**An answer's text carries no picture, and every link in it is judged as a link in mail is.** The text is Markdown a
+model wrote after reading mail anybody can send, so a message can ask it to write a picture that would call a stranger's
+host the moment a client drew it, or a link whose words name one host and whose address goes to another. Before an
+answer is published its picture markup is neutralised — `![` loses its `!`, so the picture is left as a link to the
+same address, and the opening bracket of an HTML tag, comment, declaration or processing instruction is written as the
+character reference `&lt;`, which opens nothing in any renderer or inside a code span, so it stays text — and links are kept, because they are often the
+answer. Each link the published text writes is then read with the same `MailLinkReader` a link in a message body is,
+and the block carries the result beside the text: where it goes, its host in the form a person reads and the ASCII form
+where the two differ, whether its own words name another host — read as a renderer shows them, so emphasis, code-span
+marks and escapes around a host change nothing — and whether its address appears in any source the answer cites. A link whose address appears in none was written by the model or by a message it read, and a client warns about
+it separately. One rule, `AnswerMarkup`, does this for Discover and for the Agent alike, and `ask_mail` publishes its
+answer through it too; at most thirty-two links are judged per answer, in the order they first appear, and an answer persisted before links were
+judged reads as one carrying none, its text neutralised as it is read, since the block applies the rule itself. The block type's version is `2` because of this member.
 
 **A fact table's columns come from a catalogue** rather than from the producer, and a column carries no heading. A
 heading is words in somebody's language and the client is localized, so a producer that shipped the word "Amount"
@@ -220,9 +239,10 @@ rather than of that route:
   reported **unresolvable**, never the nearest remaining passage, which would be evidence for a fact it was not drawn
   from.
 - **A resolution carries enough to draw the source in place** — the passage with the offsets it was cut from, the
-  message it belongs to, and its dates — so checking a fact is reading a sentence rather than opening a document and
-  searching it. The offsets are what make the reference verifiable: the same span of the same extracted text returns
-  exactly that passage.
+  message it belongs to, its dates, and where it came from — so checking a fact is reading a sentence rather than opening
+  a document and searching it. The offsets are what make the reference verifiable: the same span of the same extracted
+  text returns exactly that passage, and the provenance is the one the composing model was shown, so a client can say
+  why a claim resting on an unverified, junk, or first-contact message was qualified.
 
 ## How a plan cannot become code
 

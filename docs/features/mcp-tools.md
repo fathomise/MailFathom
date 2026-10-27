@@ -17,13 +17,15 @@ serves.
 `ModelContextProtocol.AspNetCore` 2.2.0 hosts the server. The `Mcp` project owns the tool descriptors, the conversion of
 protocol arguments into the domain identities a use case is expressed in, and the mapping from a use case's result back
 onto the published contract. It holds no query, no persistence, and no mail-protocol code: `list_accounts` calls the
-`MailAccountDirectoryReader` use case and nothing else, `list_emails` calls the `MailboxTimelineReader` use case and
+`MailAccountDirectoryReader` use case, and the `UserOutbox` use case for each account's outbox count, and nothing
+else, `list_emails` calls the `MailboxTimelineReader` use case and
 nothing else, `get_email_content` calls the `EmailContentReader` use case and nothing else, `search_emails` calls the
 `MailboxSearchReader` use case and nothing else, `set_mail_flags` calls the `MailFlagChangeRecorder` use case and
 nothing else, `send_email` calls the `AuthoredMailSubmission` use case and nothing else, `reply_to_email` and
 `forward_email` call the `AuthoredResponseSubmission` use case and nothing else,
-`get_outgoing_email` calls the `OutgoingMailReader` use case and nothing else, `cancel_outgoing_email` calls the
-`OutgoingMailCancellation` use case and nothing else, `save_draft` and `update_draft` call the `AuthoredMailDrafting`
+`get_outgoing_email` calls the `OutgoingMailReader` use case, or the `UserOutbox` use case for a caller that may read
+the outbox, and nothing else, `cancel_outgoing_email` calls the `OutgoingMailCancellation` use case and nothing else,
+`list_outgoing_emails` calls the `UserOutbox` use case and nothing else, `save_draft` and `update_draft` call the `AuthoredMailDrafting`
 and `AuthoredResponseDrafting` use cases and nothing else, `delete_draft` calls the `MailDraftBook` use case and
 nothing else, `send_draft` calls the `MailDraftPromotion` use case and nothing else,
 `ask_mail` calls the `MailboxQuestionReader` use case and nothing else,
@@ -44,15 +46,28 @@ the boundary owns is the one thing a use case cannot: turning a caller's text in
 identity or role, and refusing text that names neither.
 
 Where a table below says a tool reads every folder of the accounts in scope, "every folder" means every folder the
-deployment lets tools read: a folder configuration maps and does not withhold. A folder mapped with
-`VisibleToTools: false` and a folder **no mapping names** are both outside every mailbox tool and are never
+deployment leaves visible to AI: a folder configuration maps and does not withhold from AI. A folder mapped with
+`VisibleToAI: false` and a folder **no mapping names** are both outside every mailbox tool and are never
 mentioned by one — a request naming such a folder's identity comes back empty rather than refused, and an email of it
-reads as not found. `set_mail_flags` resolves what it may change through that same scope, so a folder no tool may read is a folder no
-tool may write. The decision is made once, where the scope a read is expressed in is resolved, and what it carries is the list of
+reads as not found. `set_mail_flags`, `reply_to_email`, `forward_email`, and the draft tools resolve what they may act on
+through that same scope, so a folder no tool may read is a folder no tool may write. The switch withholds the folder
+from AI and from nothing else: the person still reads and acts on it in the client. The decision is made once, where the scope a read is expressed in is resolved, and what it carries is the list of
 folders that may be read, so it holds for a tool added later without that tool doing anything, and an account whose
 configuration maps no folder reads as empty;
-[folders withheld from tools](mailbox-queries.md#folders-withheld-from-tools) states what a caller sees and why nothing
+[folders withheld from AI](mailbox-queries.md#folders-withheld-from-ai) states what a caller sees and why nothing
 says the folder exists.
+
+Mail judged spam is withheld from every tool that reads mail in the same way, on top of that: a message whose verdict
+is spam, in any folder, and the junk folder's mail unless the person marked the message not spam, are listed by no
+tool, searched by none, retrieved into no `ask_mail` answer, and an email of them reads as not found.
+[Spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states the rule. `set_mail_flags`
+returns no message content and is not narrowed by it, but it refuses the three junk keywords: a call adding or removing
+`$Junk`, `$NotJunk`, or `$Phishing` is refused with `MailFlagChangeInvalid` before anything is recorded, and so is every
+`replace`, which takes off whatever it does not name from the set the server carries when it is performed and so could
+strip one the person set in another client since the last synchronization. Those keywords carry the spam verdict and
+the person's correction of it, so a caller steered by the mail it read could otherwise turn the verdict on that very
+message; the person sets them, and replaces keywords, through the client, and every other keyword stays writable with
+`add` and `remove`.
 
 Four properties hold for every tool and are proven by test rather than asserted here:
 
@@ -77,20 +92,23 @@ Four properties hold for every tool and are proven by test rather than asserted 
 - No result carries raw MIME. Message content itself is a result only where the tool exists to return it:
   `get_email_content` returns bounded bodies and, for a call that asked to describe the attachments, the files under
   bounds of their own; `search_emails` returns bounded extracts of a body; `list_emails` returns summaries and no body
-  text at all; and `ask_mail` returns prose written about mail plus the subjects of the emails it cites. Attachment
+  text at all; `ask_mail` returns prose written about mail plus the subjects of the emails it cites;
+  `list_outgoing_emails` returns the subjects of what an account has not sent yet and no body text; and
+  `get_outgoing_email`'s preview returns one unsent message's bounded text and describes its files. Attachment
   content reaches exactly one property of one result, and no other tool publishes any.
 - Every tool bounds how much one call can draw out of the database, in the count of items and in their volume alike:
   `list_emails` pages at 100 summaries, `search_emails` windows at 50 ranked matches, `get_email_content` reads at
   most 10 emails under a shared character budget and a shared attachment-byte budget, `ask_mail` publishes by
   default at most 20 000 characters of
-  answer citing at most 20 emails, having read at most 20 000 characters of mail to write it, and `list_contacts` pages
-  at 200 people. A caller can never raise any of them, and the `ask_mail` set is the operator's to lower or raise in
+  answer citing at most 20 emails, having read at most 20 000 characters of mail to write it, `list_contacts` pages
+  at 200 people, and `list_outgoing_emails` pages at 200 sends. A caller can never raise any of them, and the
+  `ask_mail` set is the operator's to lower or raise in
   [`MailAnswering`](../operations/configuration-ai.md#mailanswering). `get_outgoing_email` and `cancel_outgoing_email`
-  are bounded by construction rather than by a number: each answers about the one record its argument names, and
-  neither has a listing shape to bound.
+  are bounded by construction rather than by a number: each answers about the one record its argument names, and the
+  text the preview carries is bounded as `get_email_content` bounds one email's.
 
-One property holds for twenty of the twenty-one and is stated where it stops. `list_accounts`, `list_emails`,
-`get_email_content`, `search_emails`, `set_mail_flags`, the three sending tools, the two over a queued send, the four
+One property holds for twenty-one of the twenty-two and is stated where it stops. `list_accounts`, `list_emails`,
+`get_email_content`, `search_emails`, `set_mail_flags`, the three sending tools, the three over the outbox, the four
 draft tools, and the six
 contact tools are within
 reach of every deployment, because local state is all they need — the sending tools included, since each writes a
@@ -99,7 +117,7 @@ the tool. A draft tool needs less than that: an account that maps no drafts fold
 user none of them, which is a state the result reports rather than a reason to withhold a tool. `ask_mail`
 needs two AI providers an operator configures separately, so it is advertised only while both are configured and
 working; the [`ask_mail`](#ask_mail) section records what decides that and what a call meets when it arrives anyway.
-Whether any of the twenty-one is offered to a particular caller is a second question, which the next section answers.
+Whether any of the twenty-two is offered to a particular caller is a second question, which the next section answers.
 
 ## What a caller is offered
 
@@ -148,7 +166,7 @@ grant says *this caller may reach it*, and a category says *this endpoint offers
 | --- | --- | --- |
 | `mailbox` | `list_accounts`, `list_emails`, `get_email_content`, `search_emails` | Reading the local mailbox copy |
 | `flags` | `set_mail_flags` | Marking mail on the user's own mail server |
-| `sending` | `send_email`, `reply_to_email`, `forward_email`, `send_draft`, `get_outgoing_email`, `cancel_outgoing_email` | Mail this deployment was asked to send, and the queued sends it holds |
+| `sending` | `send_email`, `reply_to_email`, `forward_email`, `send_draft`, `get_outgoing_email`, `cancel_outgoing_email`, `list_outgoing_emails` | Mail this deployment was asked to send, and each account's outbox of what has not left yet |
 | `drafts` | `save_draft`, `update_draft`, `delete_draft` | Composing a message that is never sent |
 | `answering` | `ask_mail` | Answering a question by sending mail content to a model provider |
 | `contacts` | `list_contacts`, `get_contact`, `create_contact`, `update_contact`, `promote_contact`, `delete_contact` | The contact book |
@@ -219,7 +237,7 @@ it calls anything:
 
 | Element | Convention |
 |---|---|
-| `name` | Snake case, as the MCP tool ecosystem spells tool names — `list_accounts`, `list_emails`, `get_email_content`, `search_emails`, `set_mail_flags`, `send_email`, `reply_to_email`, `forward_email`, `get_outgoing_email`, `cancel_outgoing_email`, `save_draft`, `update_draft`, `delete_draft`, `send_draft`, `ask_mail`, `list_contacts`, `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `promote_contact` |
+| `name` | Snake case, as the MCP tool ecosystem spells tool names — `list_accounts`, `list_emails`, `get_email_content`, `search_emails`, `set_mail_flags`, `send_email`, `reply_to_email`, `forward_email`, `get_outgoing_email`, `cancel_outgoing_email`, `list_outgoing_emails`, `save_draft`, `update_draft`, `delete_draft`, `send_draft`, `ask_mail`, `list_contacts`, `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `promote_contact` |
 | `title` | A human-readable label for display — `List accounts`, `List emails`, `Get email content`, `Search emails`, `Set mail flags`, `Send email`, `Reply to email`, `Forward email`, `Get outgoing email`, `Cancel outgoing email`, `Save draft`, `Update draft`, `Delete draft`, `Send draft`, `Ask about mail`, `List contacts`, `Get contact`, `Create contact`, `Update contact`, `Delete contact` |
 | `description` | States what the tool reads or changes, that the call itself reaches no mail server, and what it bounds |
 | `inputSchema` | Every argument is a top-level property carrying its own description, unit, and absence meaning |
@@ -231,7 +249,7 @@ per tool rather than per surface:
 
 | Tool | `readOnlyHint` | `destructiveHint` | `idempotentHint` |
 |---|---|---|---|
-| `list_accounts`, `list_emails`, `get_email_content`, `search_emails`, `ask_mail`, `get_outgoing_email` | `true` | `false` | `true` |
+| `list_accounts`, `list_emails`, `get_email_content`, `search_emails`, `ask_mail`, `get_outgoing_email`, `list_outgoing_emails` | `true` | `false` | `true` |
 | `set_mail_flags` | `false` | `true` | `true` |
 | `send_email`, `reply_to_email`, `forward_email` | `false` | `true` | `true` |
 | `cancel_outgoing_email` | `false` | `true` | `true` |
@@ -256,8 +274,7 @@ record where none was held and so has nothing to drop. `promote_contact` is idem
 person is rewritten, what it adds is the caller's own copy of a record the mail account keeps, and a second call finds
 that copy already answering for the address and so leaves the book as the first one left it. `set_mail_flags` is idempotent because each value it writes is stated rather than adjusted, so a
 second identical call asks for exactly what the first one asked for. It is destructive in the sense the protocol
-gives that word — whether the tool performs only additive updates — and it does not: a keyword replacement states the
-whole set and so removes a label the caller never listed, a removal takes named labels off, and clearing `\Seen` or
+gives that word — whether the tool performs only additive updates — and it does not: a removal takes named labels off, and clearing `\Seen` or
 `\Flagged` takes a flag off the message. That every one of those is reversible with the gesture that would have made
 it, in MailFathom or in any mail client the user opens, is true and is a separate fact: the annotation is what a
 client reads before deciding whether a call needs a person, so it answers what the call takes away rather than how
@@ -357,8 +374,8 @@ configured name for an account and carries nothing the caller did not already wr
 
 | Code | Meaning | Typical cause |
 |---|---|---|
-| `51001` | A page size outside the range the query serves | A page size of 0 or above 100, refused rather than clamped |
-| `51002` | A filter carries a value, a count, or a length the query does not accept | An unusable address, a subject fragment over 256 characters or carrying a control character, a received range that ends before it starts, more than 64 accounts or folders, an account identifier that is blank, over 256 characters, or carrying a control character, a folder named by anything but a `folderId` or a `role:` form, a keyword over 64 characters or carrying a control character, a search query that is blank, over 512 characters, or carrying a control character |
+| `51001` | A page size outside the range the query serves | A page size of 0 or above 100 — above 200 for `list_outgoing_emails` — refused rather than clamped |
+| `51002` | A filter carries a value, a count, or a length the query does not accept | An unusable address, a subject fragment over 256 characters or carrying a control character, a received range that ends before it starts, more than 64 accounts or folders, an account identifier that is blank, over 256 characters, or carrying a control character, a folder named by anything but a `folderId` or a `role:` form, a keyword over 64 characters or carrying a control character, a search query that is blank, over 512 characters, or carrying a control character, and `role:Outbox` in a `folders` argument, whose message names `list_outgoing_emails` because the outbox is not a folder |
 | `51003` | A search asked for more ranked results than a search serves | A `resultLimit` of 0 or above 50, refused rather than clamped |
 | `51004` | The call named an email with text that is no identifier this system issues | A `storedEmailIds` element, or the `storedEmailId` a flag change, a reply, or a forward names, that is blank, not a UUID, or the all-zero UUID, refused before anything is looked up |
 | `51005` | A content read named no emails, or more than one call serves | A `storedEmailIds` list that is empty or holds more than 10 entries, refused rather than truncated |
@@ -368,7 +385,7 @@ configured name for an account and carries nothing the caller did not already wr
 | `51009` | A contact listing carries a page size, an origin, or a search the book does not serve | A `pageSize` of 0 or above 200, refused rather than clamped; an `origin` that is neither published name; a `search` over 320 characters or carrying a character that renders as nothing |
 | `51010` | The call named a contact with text that is no identifier and no usable address | A `contactId` that is blank, not a UUID, or the all-zero UUID; an `address` that is no address; or a `get_contact` call naming both or neither |
 | `51011` | A contact record breaks a rule the book holds | No name or one over 256 characters, no address or more than 32, an address that is not one, a preferred address the record does not name, or a note over 4000 characters — the message names the rule and never the value |
-| `51012` | A flag change asks for nothing, states half a keyword change, names a value no record could carry, or reuses a request identity for a different change | A call naming an email and no value at all; `keywordChange` without `keywords` or the reverse; an empty list under `add` or `remove`; a keyword that is no IMAP atom, one over 64 characters, or more than 64 of them; a `requestId` that is blank, over 128 characters, or carrying a control character; or a `requestId` already used on that email for a different value, which is answered by sending a new one rather than by retrying — the message names the rule and never the keyword |
+| `51012` | A flag change asks for nothing, states half a keyword change, names a value no record could carry, or reuses a request identity for a different change | A call naming an email and no value at all; `keywordChange` without `keywords` or the reverse; an empty list under `add` or `remove`; a keyword that is no IMAP atom, one over 64 characters, or more than 64 of them; a `requestId` that is blank, over 128 characters, or carrying a control character; a `requestId` already used on that email for a different value, which is answered by sending a new one rather than by retrying; or a keyword change naming `$Junk`, `$NotJunk`, or `$Phishing`, or any `replace` — the message names the rule and never the keyword |
 | `51013` | A field of a message a caller authored carries a value no message can be composed from | A subject or a recipient carrying a line break, which would smuggle a header nobody wrote; text naming no mailbox; an address outside ASCII, which is refused because a message is written down long before a submission server has said whether it carries one; an `account` or an `idempotencyKey` that is blank, too long, or carrying a control character — the message names the field and never the value |
 | `51014` | A message a caller authored is larger than this deployment composes | More recipients than an outgoing record holds, more than `MailDelivery:MaxRecipientCount` across the three headers, a body over `MailDelivery:MaxBodyCharacters`, or a forward whose original carries more files or larger ones than `MailDelivery` sends — the message names the field and the configured number, never what was measured |
 | `51016` | The call named a queued send with text that is no identifier this system issues | An `outgoingEmailId` that is blank, not a UUID, or the all-zero UUID, refused before anything is looked up — separate from a send nobody may be told about, because this one is true whatever this deployment has queued |
@@ -381,7 +398,7 @@ configured name for an account and carries nothing the caller did not already wr
 | `53004` | A recipient named by naming somebody resolved to nobody the contact book holds | No tool published today produces it: `send_email`, `reply_to_email`, and `forward_email` all take addresses, so nothing on this surface names a contact as a recipient. It is the answer the shared resolution behind those tools already gives — a contact identity or name the book does not hold, a name several contacts carry, or an address the named contact does not hold — and it is stated here because the code is allocated and the resolution is one argument shape away rather than a path that does not exist |
 | `53005` | The call named no email this deployment can answer | `reply_to_email` or `forward_email` naming an identifier nothing is held under, an email of an account this deployment no longer serves, an email in a folder the calling grant does not read, or one whose stored content is no longer readable — four situations and deliberately one answer, so a caller cannot learn from a refusal which of them it met |
 | `53006` | The call named a recipient this deployment's recipient policy does not admit | Any of the three sending tools, or `send_draft` promoting a draft, naming somebody a denied entry of `MailDelivery:RecipientPolicy` covers, or somebody outside the allowed entries where an operator wrote any; the whole message is refused rather than sent to the remaining recipients, and the answer names which half of the policy refused and never the address |
-| `53007` | The call named no queued send this caller may be told about | `get_outgoing_email` or `cancel_outgoing_email` naming an identifier nothing is held under, or one held for a send some other caller queued — two situations and deliberately one answer, so an identifier alone never establishes that this mailbox sent something |
+| `53007` | The call named no queued send this caller may be told about | `get_outgoing_email` or `cancel_outgoing_email` naming an identifier nothing is held under, or one held for a send some other caller queued — two situations and deliberately one answer, so an identifier alone never establishes that this mailbox sent something. A `get_outgoing_email` caller that may also read mail is answered with the preview of another caller's send, so for it `53007` means only an identifier nothing is held under or a send of an account it is not assigned; `cancel_outgoing_email` keeps the first reading for every caller |
 | `53008` | The call named no draft this deployment holds | Any of the four draft tools naming an identifier nothing is held under, one already given up, one already sent with `send_draft`, one another account holds, or text that is no identifier at all — five situations and deliberately one answer, so nothing is learnt about which drafts exist by asking about identifiers one at a time. A draft the user wrote in their own mail client is in that set by construction rather than by a check, because MailFathom holds it under no identifier |
 | `53009` | The call named a recipient this deployment holds no record of | Any of the three sending tools naming an address the caller wrote out itself, on a deployment whose `MailDelivery:UnvouchedRecipients` is `Refuse` and whose contact book and own sending addresses hold none of it; a recipient this deployment derived — whoever a reply answers, whoever a reply-to-all keeps — is never judged by it, and the answer names neither the address nor how many were refused. `send_draft` reaches it as well, judged by what the draft recorded about each of its addresses when it was written and against the contact book as it stands at the promotion |
 | `53010` | A draft asked to be sent names nobody to send it to | `send_draft` on a draft addressed by neither `to`, `cc`, nor `bcc`. It is the one draft refusal that is about the draft rather than about the deployment, and the remedy is `update_draft` rather than a second save — a draft addressed to nobody is an ordinary draft, so `save_draft` never refuses one |
@@ -397,6 +414,7 @@ configured name for an account and carries nothing the caller did not already wr
 | `59002` | The message is more than one screen covers, so nothing read the part that would have left | The same six tools, where either of two ceilings is passed. One screened value — the subject, the plain-text body, the HTML alternative, or the extracted text of one attached document — is longer than `SensitiveContent:MaximumAnalyzedCharacters`; that ceiling is applied to each value on its own rather than to the message, so a message of three eight-thousand-character values is scanned whole under a ten-thousand-character ceiling. Or the documents attached to the message together exhaust `Embeddings:AttachmentText:MaxAttachmentsPerEmail` or `MaxInputOctetsPerEmail`, which stops the read with files still unopened. Either way the act is stopped because part of the message was never analyzed rather than because anything was found, and only an operator raising the ceiling — or a shorter message, or fewer attached documents — changes the answer |
 | `59003` | The message carries a file nothing here could read, so nothing screened what would have left | The same six tools, on a screened deployment, where one attached document is encrypted, malformed, in a format this deployment extracts no text from, or larger or slower than the ceilings that one attachment is read within. A message whose documents were all read and merely came to more than a whole message may be read within is `59002` instead, because no form of a document that was read successfully changes that answer. The answer names neither which file nor why — not the category, not the file name, not its position — because an attachment that was not read is never treated as clean and saying which one it was would report what the reader found in somebody's file. A finding is reported ahead of it: a message that also carries screened material answers `59001`, which is the answer the author can act on. Sending the message without that file, or attaching it in a form that can be read, is the remedy |
 | `59004` | This deployment screens the files it serves, and this one is not served | `GET /mcp/attachments/<capability>` and the client surface's own attachment route, on a screened deployment, for any of four reasons: a scanner named something in the file's extracted text; that text was longer than `SensitiveContent:MaximumAnalyzedCharacters`, so the screen could not judge all of it; nothing could read the file at all; or a scanner could not answer. Three of the four reach the operator's instruments and never the caller. The fourth does not: a file nothing could read is refused before a scanner is asked anything, so it writes no series at all and is visible only as a `409` on the route. It is deliberately a different status from the single `404` every other refusal of a download shares, because the caller is already admitted to that message and that position; the answer names no scanner, no category, and nothing about the file. It is not one of the tool codes above — no tool returns it — and it is recorded here because it is allocated from the same category |
+| `59005` | This deployment screens the mail it serves, and a message's raw source cannot be screened, so it is not served | The client surface's [source route](../operations/client-endpoint.md#the-source-route), for a reader any of whose accounts sensitive-content scanning covers, whichever account the message came from. A read of the message is redacted value by value and its raw source cannot be, so the route refuses before any of the stored copy is read. It is a `409` rather than the `404` every other refusal of a source shares, because the reader is already admitted to that message; the answer names no scanner and no category. No tool returns it, and it is recorded here because it is allocated from the same category |
 
 Codes `51001` through `53010`, `55001`, `56001` through `56003`, `57001`, `57002`, `58001`, `59001`, `59002`, and `59003` are the use cases' own, allocated in the
 MCP-boundary category because that is
@@ -464,7 +482,8 @@ get wrong and nothing to bound.
 | `accountId` | The identifier the deployment generated for the account, unique across the whole deployment. It is what every other result reports as `accountId`, and it is stable across a change of the display name |
 | `displayName` | The readable name given to the account, unique within the set the reading user is assigned |
 | `synchronizationMode` | `polling` or `push`, stating what the operator asked to start the account's next pass |
-| `folders` | One entry per folder of the account that tools may read, ordered by its place in the account's hierarchy: `folderId`, the identity every other tool names the folder by; `folderPath`, its names from the top of the hierarchy down joined by `/`; `role`, the role it plays or null; `isSynchronized`, whether synchronization keeps it as the copy of a folder on the mail server; and `synchronizedAt`, when synchronization last committed progress for it |
+| `folders` | One entry per folder of the account that is visible to AI, ordered by its place in the account's hierarchy: `folderId`, the identity every other tool names the folder by; `folderPath`, its names from the top of the hierarchy down joined by `/`; `role`, the role it plays or null; `isSynchronized`, whether synchronization keeps it as the copy of a folder on the mail server; and `synchronizedAt`, when synchronization last committed progress for it |
+| `outbox` | Present only for a caller that may both read and send mail: `waiting`, how many messages are queued or being sent, and `refused`, how many a mail server refused that nobody has decided about. The outbox is not a folder and never appears among `folders`; [`list_outgoing_emails`](#list_outgoing_emails) lists it. Absent rather than zero for any other caller, so a credential that may not read the outbox is not told its size |
 
 **Either name may be used to select the account.** The identifier is matched exactly and the display name without regard
 to case, and configuration refuses a display name that another account the same user is assigned already carries as an
@@ -498,7 +517,7 @@ listing, a search, and a content read report the folder by. `folderPath` is for 
 alias configuration keys a folder by is never published and never accepted.
 
 **The list is the same set every other tool reads.** It is resolved through the one scope every mailbox read is
-expressed in, so a folder mapped with `VisibleToTools: false` and a folder no mapping names are both absent from it —
+expressed in, so a folder mapped with `VisibleToAI: false` and a folder no mapping names are both absent from it —
 naming a folder here is publishing that it exists, which is the whole of what this answer does. The account's junk
 folder is present, because withholding that one is about not returning its mail unasked and no mail is returned here.
 
@@ -535,7 +554,6 @@ Every argument is optional.
 | `isRemotelyFlagged` | `boolean` | The remote `\Flagged` state to require, which is the star a mail client shows. Unrelated to the `Flagged` folder role, which names a folder rather than a flag |
 | `keyword` | `string` | One keyword the email must carry, matched whole and without regard to case, up to 64 characters. A value no stored keyword could be is refused with `51002` |
 | `hasAttachments` | `boolean` | Whether to match only emails with attachments or only those without |
-| `includeJunkMail` | `boolean` | Whether the account's junk folder takes part. Omitted leaves it out, and the result says which of the two answers it gave |
 | `direction` | `newestFirst` \| `oldestFirst` | Which end of the timeline to read from |
 | `pageSize` | `integer` | 1 to 100. Omitted takes the default of 25; a value outside the range is refused rather than clamped |
 | `cursor` | `string` | The `nextCursor` of a previous call, reused with the same filters and direction |
@@ -551,13 +569,11 @@ Both lists are converted to domain values at this boundary, and their counts are
 already run over a million-element array is not a ceiling. Text that could name nothing this system issues is then
 refused with `51002`, and the refusal never repeats the value.
 
-**The junk folder is left out unless it is asked for.** Mail a filter already set aside is mail written to be read by
-somebody who did not ask for it, and a model reasoning over a page of summaries cannot tell it from correspondence, so
-the default is the safe one and `includeJunkMail` is how a caller looking for a message a filter took reaches it. The
-answer is reported back in `includedJunkMail`, and it takes part in the continuation cursor, so a page and its follower
-are always one walk. Which folder that is comes from the account's `Junk` mapping;
-[spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) records why the override
-can never reveal a folder an operator withheld.
+**No message judged spam is ever listed.** A message whose verdict is spam is left out in any folder, and the junk
+folder's mail is left out unless the person marked the message not spam, because a model reasoning over a page of
+summaries cannot tell mail written to deceive it from correspondence. No argument asks for it back, and naming
+`role:Junk` lists only what the person marked not spam. The same rule holds on every tool and agent that reads mail;
+[spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states it and the surfaces it covers.
 
 **Which account a name refers to is not settled here.** An account may be named by its identifier or by its display
 name, and the two are matched against the served accounts inside the use case, so text naming nothing meets exactly the
@@ -572,9 +588,8 @@ would otherwise be a way to write arbitrary text into that contract and into the
 
 ### Result
 
-`emails` carries the page, `nextCursor` reads the following one and is absent on the last page, `includedJunkMail`
-states whether the account's junk folder took part, and `folderFreshness` states how current the local copy of each
-covered folder is.
+`emails` carries the page, `nextCursor` reads the following one and is absent on the last page, and `folderFreshness`
+states how current the local copy of each covered folder is.
 
 Each summary carries the stable local identifier a content read is performed by, the account identifier and the display
 name it is published under, the folder's identity and path, the message identifier, the conversation identifier, the subject, the sender address and display name, the sender verdict, the machine-authorship reading, the `To` addresses, the sent and received timestamps, the
@@ -585,7 +600,7 @@ untested. [Mailbox queries](mailbox-queries.md#what-a-summary-carries) records w
 
 Six parts of it are worth reading before a caller writes against them:
 
-- **`senderVerification` is two answers, never one.** `senderAddress` beside it is a claim the email wrote about itself,
+- **`senderVerification` is three answers, never one.** `senderAddress` beside it is a claim the email wrote about itself,
   and nothing on the way to a listing verified it. `authorAuthentication` is what was established about the author the
   email displays — by the receiving mail server, or, where that server wrote nothing, by this deployment verifying the
   message's own DKIM signatures — `authenticated`, `failed`, or `notEstablished`, and `deploymentTrust` is
@@ -595,7 +610,18 @@ Six parts of it are worth reading before a caller writes against them:
   is also what an email whose author failed carries, which is why the pair is read together. Both values are read from
   what synchronization stored; a listing evaluates nothing and contacts no mail server. [Sender
   authentication](sender-authentication.md#what-the-read-tools-publish) records what each value means and what it
-  deliberately does not claim.
+  deliberately does not claim. **`signature` is the third**: what verifying the email's own S/MIME or OpenPGP signature
+  found, as provenance. `outcome` is `verified` where the signature is sound, its signer is trusted by this deployment,
+  valid, not revoked, and the signed content is unchanged; `failed` where the content does not match the signature;
+  `notVerifiable` with an `unverifiableReason` where it could not be verified here — `untrustedRoot` and `unknownKey`
+  mean only that this deployment does not trust the signer, not that anything is forged; and `notSigned` for an email
+  carrying no signature of its own, which is also what mail stored before signatures were verified carries until a
+  re-derivation reaches it. `signerMatchesAuthor` is a fact beside the outcome rather than part of it — a verified
+  signature by somebody other than the displayed author is worth telling the person — and `signerAddress`, `format`, and
+  `signedAt` say who signed and how. It says what the cryptography said and **never that the email is safe**: a verified
+  signature proves who signed and that the content is unchanged, not that what it says is true. The step-by-step answer
+  and the signer's certificate are not published here; the first is the client's, and the second is published by
+  neither. The same object reaches every tool that publishes `senderVerification`, an answer's citations included.
 - **`machineAuthorship` is about the text, not about the sender.** `state` is how much the email's own text reads as
   machine written — `likely`, `possible`, `unlikely`, or `notAssessed` — and `likelihood` is the number that reading
   came from. It is **a heuristic estimate rather than a measured probability, and it is informational rather than a
@@ -613,7 +639,9 @@ Six parts of it are worth reading before a caller writes against them:
 - **`attachments` as a group rather than one flag.** `attachmentCount` and `inlineResourceCount` are separate values
   beside the total size and the encrypted, unverified-signature, and unexpanded-TNEF markers, because MailFathom's
   classification rule does not count an embedded logo or a signature part as an attachment. Without the second count a
-  caller could not tell an email carrying a document from one carrying a picture in its signature block.
+  caller could not tell an email carrying a document from one carrying a picture in its signature block. The
+  unverified-signature marker states that a signature part is present anywhere in the email and nothing about whether it
+  verified; `senderVerification.signature` is that.
 - **`threadId`, or nothing.** The conversation the message belongs to, which
   [`get_email_content`](#the-conversation-a-message-belongs-to) reads a whole exchange by. It is absent for a message no
   pass has assembled yet, which is what a mailbox synchronized before this release holds until `mfctl mailbox rederive`
@@ -734,7 +762,7 @@ in it.
 |---|---|
 | `accountId`, `folderId`, `folderPath` | Where the email is: the account, the identity of the folder, and its place in the account's hierarchy |
 | `sizeBytes` | The size of the whole email as the mail server reported it |
-| `senderVerification` | The same verdict pair a listing publishes: what was established about the displayed author, and what this deployment made of them |
+| `senderVerification` | The same verdict a listing publishes: what was established about the displayed author, what this deployment made of them, and what the email's own signature proves |
 | `machineAuthorship` | The same reading a listing publishes: how much the email's own text reads as machine written, as a band and a number |
 | `authorshipEvidence` | What that reading was computed from — the signals the text carried, strongest first, and the weighting they were judged under |
 | `headers` | Subject, sent and received timestamps, every participant with its header role, the three threading identifiers, and `senderAuthentication` — the evidence the verdict was reached from |
@@ -862,7 +890,8 @@ Four things about it are worth reading before a caller writes against them:
   it answers whatever the two clocks say, because a sender's clock is not something MailFathom can check; two replies to
   one message are ordered by their sent timestamps, and messages that still tie are settled on their local identity. The
   same conversation read twice comes back in the same order.
-- **Withheld mail is absent from all of it.** A message in a folder withheld from tools appears in no `otherMessages`
+- **Withheld mail is absent from all of it.** A message in a folder withheld from AI, one judged spam, or one in the
+  junk folder that the person has not marked not spam appears in no `otherMessages`
   list, is in no `messageCount`, and is returned by no call naming its conversation — and a message whose parent is
   withheld is published as a root naming no ancestor, rather than pointing at something the caller may not see. A
   conversation whose messages are all withheld is published nowhere, so asking about its identifier returns no email
@@ -908,7 +937,6 @@ how the extracts are cut, and why there is no cursor — where those are enforce
 | `isRemotelyFlagged` | `boolean` | The remote `\Flagged` state to require |
 | `keyword` | `string` | One keyword the email must carry, matched whole and without regard to case |
 | `hasAttachments` | `boolean` | Whether to match only emails with attachments or only those without |
-| `includeJunkMail` | `boolean` | Whether the account's junk folder takes part. Omitted leaves it out, and the result says which of the two answers it gave |
 | `resultLimit` | `integer` | 1 to 50. Omitted takes the default of 20; a value outside the range is refused with `51003` rather than clamped |
 
 The structured filters are `list_emails`' own and mean exactly the same things, because both read models apply one
@@ -938,7 +966,6 @@ because an argument added later would be the one thing that quietly changes what
 | `matches` | The matched emails, most relevant first, ties broken by the newest received. Empty when nothing matched |
 | `retrievalMode` | How this call's results were ranked — `lexical` or `hybrid` |
 | `semanticSearch` | What this server can do with embeddings — `inactive`, `available`, or `degraded` |
-| `includedJunkMail` | Whether the account's junk folder took part in this search |
 | `folderFreshness` | How current the local copy of each covered folder is, exactly as a listing reports it |
 
 Each match carries `summary`, which is the same shape `list_emails` publishes and is documented above, together with
@@ -1059,7 +1086,7 @@ than the value.
 
 ## `set_mail_flags`
 
-Marks one email read or unread, stars or unstars it, and adds, removes, or replaces its keywords — the labels a mail
+Marks one email read or unread, stars or unstars it, and adds or removes its keywords — the labels a mail
 client shows as tags. It is the one tool that changes the user's mailbox rather than MailFathom's copy of it, and the
 three values are one tool because they are one act: a caller triaging a message decides what to do with it once, and a
 mail server writes all three with the same command against the same UID.
@@ -1085,17 +1112,17 @@ Three things follow, and the tool's description states each of them:
 | `storedEmailId` | `string` | **Required.** The email to change, as a listing, a search, or a read returned it. Blank, not a UUID, or the all-zero UUID is refused with `51004` before anything is looked up |
 | `seen` | `boolean` | `true` marks the email read, `false` marks it unread. Omitted leaves the flag where it stands. Reading mail through MailFathom never sets it, so this is the only way it moves from here |
 | `flagged` | `boolean` | `true` stars the email, `false` unstars it — the flag a mail client draws as a star or a flag |
-| `keywordChange` | `string` | `add`, `remove`, or `replace`. Sent together with `keywords`; either one alone is refused with `51012` |
-| `keywords` | `string[]` | The keywords the change names, at most 64, each at most 64 characters and each an IMAP atom. The count is checked as sent, before anything normalizes the list, so a longer one is refused with `51012` rather than deduplicated first. Two spellings differing only in case are one keyword. An empty list is accepted only with `replace`, where it clears every keyword |
+| `keywordChange` | `string` | `add` or `remove`. Sent together with `keywords`; either one alone is refused with `51012`. `replace` is in the schema and refused with `51012` before anything is recorded |
+| `keywords` | `string[]` | The keywords the change names, at most 64, each at most 64 characters and each an IMAP atom. The count is checked as sent, before anything normalizes the list, so a longer one is refused with `51012` rather than deduplicated first. Two spellings differing only in case are one keyword. An empty list is refused |
 | `requestId` | `string` | The caller's own identity for this request, up to 128 characters. The same value on a retry makes it the same request; a new value, or none, is a new request |
 
 At least one of `seen`, `flagged`, and the keyword pair has to be given. A call that names an email and asks for nothing
 is refused with `51012` rather than answered with a change of nothing.
 
-`replace` states the whole keyword set, so a keyword the caller did not list is removed. That is what makes this tool
-`destructiveHint` true, so a client that asks before calling a destructive tool asks before this one. The description
-says it as well, and points a caller working from a partial view of a message's labels at `add` and `remove`, which
-touch only what they name.
+`replace` would state the whole keyword set and take off whatever the caller did not list, from what the server carries
+when the change is performed, so it is refused here and the description points a caller at `add` and `remove`, which
+touch only what they name. A removal and clearing either flag still take a value off the message, which is what makes
+this tool `destructiveHint` true, so a client that asks before calling a destructive tool asks before this one.
 
 ### Result
 
@@ -1150,7 +1177,7 @@ deployment that lets an agent read mail has not thereby let it star, unstar, or 
 an entrypoint added later reaches the same refusal without passing this boundary.
 
 Which mail may be written is the same question as which mail may be read, answered by the same resolver. An email of an
-account this deployment does not serve, an email in a folder mapped `VisibleToTools: false`, and an email no row is held
+account this deployment does not serve, an email in a folder mapped `VisibleToAI: false`, and an email no row is held
 for are one answer — `53002`, the same one a read gives — so a write surface is neither a way round a withheld folder
 nor a way to learn which identifiers exist by asking about them.
 
@@ -1420,9 +1447,10 @@ no permission here implies another — so a deployment that means an agent to re
 the sending grant is offered the tools and refused by the use case behind them. The sending grant is what narrows the
 listing, because that is the effect that leaves this deployment.
 
-**Four ways of naming an email that cannot be answered are one answer.** An identifier nothing is held under, an email
-of an account this deployment no longer serves, an email in a folder mapped `VisibleToTools: false`, and one whose
-stored content is no longer readable all produce `53005`, with the same message. That is deliberate and it is the whole
+**Six ways of naming an email that cannot be answered are one answer.** An identifier nothing is held under, an email
+of an account this deployment no longer serves, an email in a folder mapped `VisibleToAI: false`, an email judged spam,
+an email in the junk folder that the person has not marked not spam, and one whose stored content is no longer readable
+all produce `53005`, with the same message. That is deliberate and it is the whole
 reason the code exists: telling them apart would let a caller discover which mail this deployment holds, and which of it
 an operator withheld, by replying to identifiers one at a time. Below the boundary the distinction survives where it is
 useful — a damaged copy still records a repair request — and it stops at the answer.
@@ -1435,7 +1463,7 @@ so no refusal carries an address, a subject, or a line of the message being answ
 
 ## `get_outgoing_email`
 
-Reports what became of one message this caller queued. It is the other half of `queued`: a sending tool answers with an
+Reports what became of one message. It is the other half of `queued`: a sending tool answers with an
 identifier and no outcome, because a call that waited for an SMTP exchange would be a call that blocks on a mail server,
 and a caller left holding that identifier with no way to learn what happened does the one thing that cannot be taken
 back — it sends again. So the three sending tools and `send_draft` name this tool in their own descriptions, and a client reading
@@ -1445,12 +1473,15 @@ back — it sends again. So the three sending tools and `send_draft` name this t
 live check with a provider, which is what lets the tool be `readOnlyHint` `true` and `openWorldHint` `false` at the same
 time as reporting what a mail server said.
 
-**It reads one send and cannot enumerate.** There is no listing of a mailbox's outgoing mail on this surface, and no
-argument here that could be widened into one: the call names a record the caller already holds the identifier for, and a
-caller that kept none reaches nothing. The view of the whole outbox is the operator's, through `mfctl outbox` against
-the administrative surface, which is a different endpoint reached with a different grant —
-[what an operator sees while mail is leaving](mail-delivery.md#what-an-operator-sees-while-mail-is-leaving) records
-it.
+**It answers in one of two shapes, chosen by the caller's grants.** A caller holding `mailfathom.mail.send` alone
+reads back a send it queued itself, status only, exactly as it always has. A caller holding `mailfathom.mail.read` as
+well reads the **outbox preview** of any send an account its user is assigned holds — whoever queued it, the person, an
+agent, or a rule — which adds the subject, the address the message is sent as, its text, and its attachments. That
+caller is already entitled to the account's Sent folder, and the outbox is its not-yet-sent half, so the preview tells
+it nothing it could not read once the message leaves; a credential that may only send is not handed the correspondence
+of everybody sending from the account. [`list_outgoing_emails`](#list_outgoing_emails) lists what the preview is read
+from. [ADR 0040](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0040-each-account-outbox-as-a-read-only-list-beside-its-folders.md)
+records the decision.
 
 ### Arguments
 
@@ -1469,6 +1500,17 @@ it.
 | `queuedAt` | When the send was first written down |
 | `recipients` | One entry per person the message is addressed to, in the order the headers name them |
 | `failureCode` | The five-digit code the last delivery attempt failed with, absent while none has failed |
+| `isBeingTransmitted` | Preview only. Whether a delivery attempt holds the message right now; a `sending` message no attempt holds stopped mid-attempt, and nobody knows whether it arrived |
+| `failure` | Preview only. The failure the last attempt ended in, stated in words in the user's language, absent while none has failed |
+| `sendAt` | Preview only. The time the message was written to leave at, absent when it leaves as soon as it can |
+| `subject` | Preview only. The subject the message was written with, absent when it has none |
+| `sentAs` | Preview only. The `From` address the message is sent as, with its `role`, `address`, and `displayName` as `get_email_content` publishes a participant |
+| `text` | Preview only. The message's plain text as `get_email_content` publishes one representation of a body — `text`, `originalCharacterCount`, and `truncatedBy` — under the same character bound; absent when the stored message could not be read or is encrypted |
+| `attachments` | Preview only. One entry per file, with `fileName`, `wasFileNameNormalized`, `mediaType`, and `sizeBytes`; the outbox serves no link to fetch one |
+
+Every preview member is absent from the send-only answer rather than empty, so a caller tells a message with no
+subject from an answer that carries none. The subject, the sender, and the text pass the deployment's sensitive-content
+scan before they are published, exactly as `get_email_content`'s do.
 
 Each entry under `recipients` carries the `address` exactly as the send named it, the `header` it is named in — `to`,
 `cc`, or `bcc` — the `state` a mail server has left it in — `pending`, `accepted`, or `refused` — and the
@@ -1479,9 +1521,10 @@ code is a stable identity an operator can look up, and a failure message is text
 repeat what a remote server wrote. A code can be present on a message that later succeeds, because an attempt that
 failed is not a send that ended.
 
-**The answer carries only what the caller supplied.** The recipients are the addresses that caller wrote down and the
-account is the one it named. There is no subject, no body, no raw MIME, no `Message-ID`, no folder the copy was filed
-into, and no address the caller did not already know — reading back a send is not reading the message.
+**The send-only answer carries only what the caller supplied.** The recipients are the addresses that caller wrote
+down and the account is the one it named. There is no subject, no body, no raw MIME, no `Message-ID`, no folder the copy
+was filed into, and no address the caller did not already know — for that caller, reading back a send is not reading
+the message.
 
 ## `cancel_outgoing_email`
 
@@ -1537,11 +1580,16 @@ the other direction: what a caller may stop is exactly what it was allowed to st
 for taking back what one grant already permitted. Both tools are absent from `tools/list` for a caller without it, and a
 call is answered as a call naming a tool that does not exist. The use cases ask for the same grant on their own.
 
-**What a caller may reach is what it queued.** A record another principal queued and a record nobody queued are one
-answer — `53007`, with one message — deliberately, because a caller able to tell them apart would learn from an
+**What a send-only caller may reach is what it queued.** A record another principal queued and a record nobody queued
+are one answer — `53007`, with one message — deliberately, because a caller able to tell them apart would learn from an
 identifier alone that this mailbox sent something. The scoping is on the record rather than on the argument: the
 principal a send was queued under is stamped by the outbox when the send is written down, never stated by a caller, and
-a send a mail rule queued is reachable by no caller at all.
+a send a mail rule queued is reachable by no such caller at all. `cancel_outgoing_email` keeps that scope for every
+caller, so withdrawing stays limited to a caller's own sends whatever else it may read.
+
+**A caller that may also read mail reaches every send of its user's accounts through `get_outgoing_email`**, because the
+preview is the outbox's and the outbox belongs to the account. A send of an account its user is not assigned is the same
+`53007` as a send nobody holds, so the account set is not learned through it either.
 
 Text that names no send and a send that may not be reached are told apart, for the mirror-image reason: `51016` says the
 argument is not an identifier this system issues, which is true whatever this deployment has queued, and answering it as
@@ -1550,6 +1598,57 @@ a send nobody holds would tell a caller its own malformed argument was somebody 
 `58001` covers three situations with one message — a send being transmitted, one already transmitted, and one already
 given up on — because nothing was withdrawn in any of them and which it was reads from the `state` the same record
 carries. It is never produced for a send that was already cancelled: that one succeeds.
+
+## `list_outgoing_emails`
+
+Lists one account's **outbox**: every message it has not sent yet — queued, being sent, or refused by a mail server —
+newest first, whoever queued it. A refused message stays until the person decides about it in the client, so this is
+the tool that answers *what has not gone out* and *what bounced* without the caller holding an identifier first.
+[ADR 0040](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0040-each-account-outbox-as-a-read-only-list-beside-its-folders.md)
+records the decision, and [mail delivery](mail-delivery.md) describes the stages it lists.
+
+**The outbox is not a folder, and it is read-only by construction.** An entry is named by its `outgoingEmailId`, which
+no tool that takes an email identifier accepts — `get_email_content` and `set_mail_flags` answer it as the unknown email
+it is — and the outbox carries no folder identity, so `role:Outbox` in the `folders` argument of `list_emails`,
+`search_emails`, or `ask_mail` is refused with `51002` naming this tool. Nothing about an entry can be flagged, moved,
+copied, or deleted, because nothing that does those acts can name one. `cancel_outgoing_email` is the one decision a tool
+can take, for a send the caller queued itself and only while it waits. Offering a refused message again would transmit
+mail, which no tool does, and dismissing a refusal hides a failure from the person, which is not an agent's to do; both
+stay in the client.
+
+It is `readOnlyHint` `true`, `idempotentHint` `true`, and `openWorldHint` `false`, in the `sending` category, offered
+under `mailfathom.mail.send`, and it answers only where the caller also holds `mailfathom.mail.read`: a page names
+recipients and subjects, which is correspondence. A caller holding the sending grant alone is offered the tool and refused by the use case behind it with `14001`.
+
+### Arguments
+
+| Argument | Type | Meaning |
+|---|---|---|
+| `account` | `string` | **Required.** The account whose outbox to read, by the identifier or the display name `list_accounts` reports. Text no account could be named by is refused with `51002`; an account the caller's user is not assigned is refused exactly as one nobody configured |
+| `stage` | `string` | `queued`, `sending`, or `refused`, to narrow the listing to one. Omitted, all three are listed |
+| `pageSize` | `integer` | How many sends one page may hold, from 1 to 200; 50 when omitted. Outside that range is refused with `51001` |
+| `cursor` | `string` | The `nextCursor` a previous page returned. One this tool did not issue is refused with `52001`, and one issued for another account or stage with `52002` |
+
+### Result
+
+`outgoingEmails` holds the page and `nextCursor` the cursor of the next one, absent on the last. Each entry carries:
+
+| Field | Meaning |
+|---|---|
+| `outgoingEmailId` | The identifier the sending tool answered with; `get_outgoing_email` reads the entry in full |
+| `accountId` | The account the message is sent as |
+| `state` | `queued`, `sending`, or `refused`, in `get_outgoing_email`'s spellings |
+| `isBeingTransmitted` | Whether a delivery attempt holds the message right now |
+| `recipients` | Up to three addresses, from `To`, or from `Cc` when `To` names nobody, or from `Bcc` when neither does |
+| `otherRecipientCount` | How many more addresses the message names |
+| `subject` | The subject the message was written with, absent when it has none |
+| `queuedAt` | When the send was first written down |
+| `sendAt` | The time it was written to leave at, absent when it leaves as soon as it can |
+| `attemptCount` | How many delivery attempts it has taken |
+| `failureCode` | The five-digit code the last attempt failed with, absent while none has failed |
+| `failure` | That failure in words, in the user's language |
+
+The subject on a page passes the deployment's sensitive-content scan before it is published.
 
 ## The drafting surface
 
@@ -1831,15 +1930,29 @@ same refusals; the section above records that rule once.
 
 | Field | Meaning |
 |---|---|
-| `answer` | The answer, in prose, written in the language the question was asked in, whatever language the mail behind it was written in |
+| `answer` | The answer, written in the language the question was asked in, whatever language the mail behind it was written in. It may be Markdown, and it carries no picture |
+| `links` | The links `answer` writes, at most thirty-two in the order they first appear, each judged as a link in mail is before anybody follows it; a link in `answer` with no entry here was not judged and is treated as appearing in no cited email |
 | `citations` | The emails the run retrieved, one entry per email, in the order it first reached each |
 | `answerTruncated` | Whether the answer was cut to the length one response carries |
 | `citationsTruncated` | Whether the run reached more emails than `citations` names |
 | `retrievalTruncated` | Whether the run hit this deployment's ceiling on how much mail one question may read |
 
+A model reads mail anybody can send, and a message can ask it to write something into the answer that works against the
+person reading it: a picture whose address calls a stranger's host the moment a client draws it, or a link whose words
+name one host while it goes to another. So the answer's picture markup is neutralised before it is published — `![`
+loses its `!`, which leaves the picture as a link to the same address, and the opener of an HTML tag, comment,
+declaration or processing instruction has its opening bracket written as the character reference `&lt;`, which opens
+nothing in any renderer, so it stays text — and links are kept, because they are often the answer. Each entry in `links` then carries the `target` the link
+goes to, the `host` as a person reads it and `asciiHost` where its ASCII form differs, `wordsNameAnotherHost` where the
+words the link shows name a different host, and `appearsInCitedEmails`, which is false where no retrieved email carries
+the address — a link the model wrote, or one a message asked it to write. A caller showing the answer to a person shows
+those facts beside the link. A link past the thirty-second, or one written in a form the service's reading does not
+recognise, has no entry, and the client draws such a link as the least trusted it can: as one no cited email carries. [The presentation plan § The eleven block types](presentation-plan.md#the-eleven-block-types)
+holds the rule, which Discover and the Agent apply to their answers too.
+
 Each citation carries the `storedEmailId` a content read is performed by, the account identifier and the display name it
-is published under, the folder's identity and path, the subject, the received time, `senderVerification`, `machineAuthorship`, and
-`attachments`. It deliberately carries
+is published under, the folder's identity and path, the subject, the received time, `senderVerification`, `inJunkFolder`,
+`firstContact`, `machineAuthorship`, and `attachments`. It deliberately carries
 no extract: the passage the run retrieved has already reached a model, and returning it here would put mail content into
 a response whose purpose is an answer. The subject and the received time
 are what let a reader recognize a message before fetching it.
@@ -1852,11 +1965,16 @@ the place, so a claim can be checked against the words rather than against the m
 `source` is `imageDescription` is a claim resting on a model's account of a picture rather than on words anybody wrote,
 which is worth saying when reporting it.
 
-`senderVerification` is the same pair a listing publishes, in the same shape and without the evidence, so an answer says
-what was established about the author of each message it was drawn from. It is what a reader weighs a claim by: an
+`senderVerification` is the same object a listing publishes, in the same shape and without the evidence, so an answer
+says what was established about the author of each message it was drawn from and what its signature proves. It is what a reader weighs a claim by: an
 answer is worth what the mail behind it is worth, and a claim traced to a message whose displayed author failed
 authentication is worth reading differently from one traced to a correspondent this deployment recognizes. The evidence
 behind the verdict stays with the single-email read the citation points at.
+
+`inJunkFolder` and `firstContact` travel beside the verdict and finish what the model was told about the message:
+whether it sits in the folder its account maps as junk, and whether nothing the mailbox held before it was written by or
+to its sender. The answer was asked to qualify a claim resting on such a message, so a caller reading the citations can
+see why it did; [mail answering](mail-answering.md#where-a-message-came-from) holds the rule.
 
 `machineAuthorship` travels beside it on the same terms and answers a different question: how the text of the cited
 message reads rather than who sent it. It is informational and is not a reason to discount a citation — mail drafted

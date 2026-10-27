@@ -96,7 +96,7 @@ test('puts the navigation beside the workspace in a wide window and under it in 
     // because the column the rail stacks the bell and the account in is standing in a row. A box read on either side
     // of that render is a measurement of a different screen, and the pair below is read on one side of it by waiting
     // for the control only the bar draws.
-    await expect(page.getByRole('button', { name: 'More' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'More', exact: true })).toBeVisible();
 
     const bottomBar = await boxOf(navigation);
     const narrowSpace = await boxOf(space);
@@ -107,7 +107,7 @@ test('puts the navigation beside the workspace in a wide window and under it in 
     // say, the platform's own popover being what opens and what closes it.
     await expect(page.getByRole('link', { name: 'Tasks' })).toBeHidden();
 
-    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('button', { name: 'More', exact: true }).click();
     await expect(page.getByRole('link', { name: 'Tasks' })).toBeVisible();
 
     await page.keyboard.press('Escape');
@@ -158,7 +158,7 @@ test('moves a keyboard through a narrow window in the order the window shows', a
     await expect(page.getByRole('button', { name: 'Notifications' })).toBeFocused();
 
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', { name: 'More' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'More', exact: true })).toBeFocused();
 
     // Nothing in the bar comes after the overflow, so the account is reached by opening it rather than by tabbing past
     // it — which is what a bar of five places costs and what the sheet is for.
@@ -187,7 +187,7 @@ test('stays usable at the narrowest width a supported head presents', async ({ p
 
     await expect(bar.getByRole('link')).toHaveCount(3);
 
-    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('button', { name: 'More', exact: true }).click();
     await expect(bar.getByRole('link')).toHaveCount(5);
     await expect(page.getByRole('button', { name: 'Account and preferences' })).toBeVisible();
 });
@@ -279,8 +279,8 @@ test.describe('driven by a finger', () => {
 
             await expect(list.getByRole('option').first()).toBeVisible();
 
-            // The mailboxes stand behind a drawer at every one of the three, opened from the list's own head and
-            // closed again from inside it. The drawer is the platform's modal dialog, so closing it is what hands focus
+            // The mailboxes stand behind a drawer at every one of the three, opened from the toolbar where one stands
+            // and from the list's own head on the phone, and closed again from inside it. The drawer is the platform's modal dialog, so closing it is what hands focus
             // back to the control that opened it.
             const opener = page.getByRole('button', { name: 'Folders and filters' });
             const drawer = page.getByRole('dialog', { name: 'Folders and filters' });
@@ -473,7 +473,7 @@ test.describe('driven by a finger', () => {
         // Folded again, which is known by the bottom bar's overflow: the message is in front with the list put aside
         // behind it, and the way back — which closes the message, as it does on any phone — finds the list where it was.
         await page.setViewportSize(phoneWindow);
-        await expect(page.getByRole('button', { name: 'More' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'More', exact: true })).toBeVisible();
         await holdsTheMessage();
 
         await page.getByRole('button', { name: 'Back to the list' }).click();
@@ -539,7 +539,7 @@ test('keeps the open message, the folder, and the selection as the window crosse
     // Down to the phone, which is known by the bottom bar's overflow: the message stands in front, and the way back
     // finds the list of the folder it was left in, still holding what was picked out.
     await page.setViewportSize(phoneWindow);
-    await expect(page.getByRole('button', { name: 'More' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'More', exact: true })).toBeVisible();
     await holdsWhatItHeld();
     await expect(page.getByRole('region', { name: 'Message list' })).toBeHidden();
 

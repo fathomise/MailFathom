@@ -9,7 +9,7 @@ import { telemetryForwardedBy } from './telemetryForwarding';
 const address = 'https://mail.example.invalid';
 
 function answering(telemetryLevel: DeploymentTelemetryLevel): DeploymentSession {
-    return { version: '0.8.7', permissions: [], telemetryLevel };
+    return { version: '0.8.7', permissions: [], telemetryLevel, revision: null, organization: null };
 }
 
 describe('telemetryForwardedBy', () => {

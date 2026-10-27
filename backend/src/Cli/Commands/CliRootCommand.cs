@@ -90,11 +90,13 @@ internal static class CliRootCommand
             RuleHistoryCommand.Create(context),
         };
 
-        // Running and reading, and nothing that writes a setting. Whether mail is classified at all, what a scanner is
-        // judged by, and what happens to junk are configuration for the reason a rule is, so there is deliberately no
+        // Running and reading, and nothing that writes a setting. Whether mail is classified at all, over which
+        // folders, and what happens to junk are configuration for the reason a rule is, so there is deliberately no
         // command here that switches any of them — what an operator does from here is apply them to the mail they
         // already have, and find out what was decided.
-        Command spamCommand = new("spam", "Classify the mail a deployment already holds, and read what it concluded.")
+        Command spamCommand = new(
+            "spam",
+            "Classify the mail a deployment already holds, and read what it concluded. On an account MailFathom holds, whose source may only relay mail, a verdict rests on the headers and folder the source delivered a message with and on the $Junk or $NotJunk a person set.")
         {
             ClassifyMailCommand.Create(context),
             ClassificationRunStatusCommand.Create(context),
@@ -281,6 +283,12 @@ internal static class CliRootCommand
             RenameOrganizationCommand.Create(context),
             SetOrganizationShortNameCommand.Create(context),
             RemoveOrganizationCommand.Create(context),
+            new Command("signing-key", "Read, rotate, and revoke the keys an organization signs its accounts' mail with.")
+            {
+                ListOrganizationSigningKeysCommand.Create(context),
+                RotateOrganizationSigningKeyCommand.Create(context),
+                RevokeOrganizationSigningKeyCommand.Create(context),
+            },
         };
 
         // What the deployment and each organization state once for the users and the mail accounts beneath them. A

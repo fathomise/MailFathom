@@ -166,10 +166,9 @@ const nothingBeingWritten = {
 const opensTheMessage = 'Open a message, as pressing a row would.';
 const opensAnotherMessage = 'Open another message, as pressing a second row would.';
 
-// What the list draws for its fold, read from the context the space publishes: the strip's head widens it, and the
-// widened list's head folds it again.
-const listFoldedToAStrip = 'Show the list, as the strip would.';
-const listWidened = 'Narrow the list, as the widened head would.';
+// How the list stands at the fold, read from the context the space publishes; the toolbar's own control turns it.
+const listFoldedToAStrip = 'The list stands as a strip of senders.';
+const listWidened = 'The list stands widened.';
 
 // What the list column hands the space: a list whose head draws the way into the mailboxes drawer wherever the space
 // publishes one, which is what the real list's search row does.
@@ -201,11 +200,7 @@ function HandedList() {
             >
                 {opensAnotherMessage}
             </button>
-            {fold === null ? null : (
-                <button type="button" onClick={fold.turn}>
-                    {fold.folded ? listFoldedToAStrip : listWidened}
-                </button>
-            )}
+            {fold === null ? null : <p>{fold.folded ? listFoldedToAStrip : listWidened}</p>}
             <p>{handedTheList}</p>
         </>
     );
@@ -656,7 +651,8 @@ describe('MailSpace, in the four compositions', () => {
     it('keeps the mailboxes behind a control at the fold, there being no room for a column of them', () => {
         renderSpace(fold);
 
-        expect(screen.getByRole('button', { name: 'Folders and filters' })).toBeDefined();
+        expect(within(screen.getByRole('toolbar')).getByRole('button', { name: 'Folders and filters' })).toBeDefined();
+        expect(screen.getAllByRole('button', { name: 'Folders and filters' })).toHaveLength(1);
         expect(screen.queryByRole('complementary', { name: 'Folders and filters' })).toBeNull();
     });
 
@@ -666,6 +662,21 @@ describe('MailSpace, in the four compositions', () => {
         expect(screen.getByText(handedTheList)).toBeDefined();
         expect(screen.getByText(handedToMail)).toBeDefined();
         expect(screen.getByRole('button', { name: 'Folders and filters' })).toBeDefined();
+    });
+
+    it.each([
+        ['the fold', fold],
+        ['a tablet width', tablet],
+    ])('keeps the way into the drawer in the list’s head at %s while messages are picked out', (_name, pixels) => {
+        renderSpace(pixels, { selection: 'stored-1', selected: ['stored-1', 'stored-2'] });
+
+        expect(screen.queryByRole('toolbar', { name: 'Mail actions' })).toBeNull();
+        expect(screen.getAllByRole('button', { name: 'Folders and filters' })).toHaveLength(1);
+        expect(
+            within(screen.getByRole('region', { name: 'Message list' })).getByRole('button', {
+                name: 'Folders and filters',
+            }),
+        ).toBeDefined();
     });
 
     it('gives the mailboxes a column of their own at a desktop width, rather than a control that opens one', () => {
@@ -700,6 +711,14 @@ describe('MailSpace, in the four compositions', () => {
         expect(screen.getByText(handedToMail)).toBeDefined();
     });
 
+    // An Outbox draws no control to bring panels back, so a send picked in one would otherwise leave its list gone with
+    // nothing on the screen to restore it.
+    it('keeps the Outbox list at a tablet width while the panels are hidden', () => {
+        renderSpace(tablet, { outbox: { account: 'work', entry: 'o1' }, panelsHidden: true });
+
+        expect(listStandsAside()).toBe(false);
+    });
+
     it('keeps the list at a tablet width while nothing is open, the correspondence having nothing to stand alone with', () => {
         renderSpace(tablet, { panelsHidden: true });
 
@@ -732,43 +751,79 @@ describe('MailSpace, in the four compositions', () => {
 });
 
 describe('MailSpace, at the fold under a finger', () => {
-    it('folds the list to a strip while a message is open, and widens it from the strip', () => {
+    it('folds the list to a strip while a message is open, and widens it from the toolbar', () => {
         fingered = true;
         renderSpace(fold, { selection: 'stored-1' });
 
-        fireEvent.click(screen.getByRole('button', { name: listFoldedToAStrip }));
+        expect(screen.getByText(listFoldedToAStrip)).toBeDefined();
 
-        expect(screen.getByRole('button', { name: listWidened })).toBeDefined();
+        fireEvent.click(within(screen.getByRole('toolbar')).getByRole('button', { name: 'Show the list' }));
+
+        expect(screen.getByText(listWidened)).toBeDefined();
     });
 
     it('folds the widened list again once another message is opened from it', () => {
         fingered = true;
         renderSpace(fold, { selection: 'stored-1' });
 
-        fireEvent.click(screen.getByRole('button', { name: listFoldedToAStrip }));
+        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
         fireEvent.click(screen.getByRole('button', { name: opensAnotherMessage }));
 
-        expect(screen.getByRole('button', { name: listFoldedToAStrip })).toBeDefined();
+        expect(screen.getByText(listFoldedToAStrip)).toBeDefined();
+    });
+
+    it('keeps a widened list open on a hold as other messages are opened, until it is held again', () => {
+        fingered = true;
+        renderSpace(fold, { selection: 'stored-1' });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
+        fireEvent.contextMenu(screen.getByRole('button', { name: 'Narrow the list' }));
+        fireEvent.click(screen.getByRole('button', { name: opensAnotherMessage }));
+        const keptAcrossAnOpening = screen.queryByText(listWidened);
+
+        fireEvent.contextMenu(screen.getByRole('button', { name: 'Narrow the list' }));
+        const widenedUntilTheNextOne = screen.queryByText(listWidened);
+        fireEvent.click(screen.getByRole('button', { name: opensTheMessage }));
+
+        expect(keptAcrossAnOpening).not.toBeNull();
+        expect(widenedUntilTheNextOne).not.toBeNull();
+        expect(screen.getByText(listFoldedToAStrip)).toBeDefined();
+    });
+
+    it('narrows a list kept open on a tap, and lets go of keeping it', () => {
+        fingered = true;
+        renderSpace(fold, { selection: 'stored-1' });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
+        fireEvent.contextMenu(screen.getByRole('button', { name: 'Narrow the list' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Narrow the list' }));
+        const narrowed = screen.queryByText(listFoldedToAStrip);
+        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
+        fireEvent.click(screen.getByRole('button', { name: opensAnotherMessage }));
+
+        expect(narrowed).not.toBeNull();
+        expect(screen.getByText(listFoldedToAStrip)).toBeDefined();
     });
 
     it('keeps the whole list while nothing is open beside it', () => {
         fingered = true;
         renderSpace(fold);
 
-        expect(screen.queryByRole('button', { name: listFoldedToAStrip })).toBeNull();
-        expect(screen.queryByRole('button', { name: listWidened })).toBeNull();
+        expect(screen.queryByText(listFoldedToAStrip)).toBeNull();
+        expect(screen.queryByText(listWidened)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Show the list' })).toBeNull();
     });
 
     it('keeps the whole list at the tablet, which has the width for both', () => {
         fingered = true;
         renderSpace(tablet, { selection: 'stored-1' });
 
-        expect(screen.queryByRole('button', { name: listFoldedToAStrip })).toBeNull();
+        expect(screen.queryByText(listFoldedToAStrip)).toBeNull();
     });
 
     it('keeps the whole list at the fold under a mouse', () => {
         renderSpace(fold, { selection: 'stored-1' });
 
-        expect(screen.queryByRole('button', { name: listFoldedToAStrip })).toBeNull();
+        expect(screen.queryByText(listFoldedToAStrip)).toBeNull();
     });
 });

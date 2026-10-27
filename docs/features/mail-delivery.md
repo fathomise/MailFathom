@@ -45,7 +45,7 @@ capability flags:
 | Fact | Read from | Absent means |
 | --- | --- | --- |
 | Maximum message bytes | `SIZE` | The server declared no bound, and the session reports none. |
-| Eight-bit content accepted | `8BITMIME` | Content has to be transfer-encoded to seven bits. |
+| Eight-bit content accepted | `8BITMIME` | An address outside ASCII cannot be carried. The body is seven-bit either way. |
 | Internationalized addresses accepted | `SMTPUTF8` | Addresses have to be all-ASCII. |
 
 `PermitsMessageOfSize` answers the size question in one place, so no caller re-derives what a missing `SIZE` means: a
@@ -78,6 +78,14 @@ name. They exist for the account whose login is a bare name rather than an addre
 an address it is not reached at. An endpoint that resolves to no address at all is refused at startup, because it would
 compose nothing — and the display name is deliberately not the account's own `DisplayName`, which is the alias an
 operator invented for their tooling rather than a name to sign somebody's mail with.
+
+**It names the identities this account signs as, too, and nothing is signed with them yet.** `SmimeSigningCertificate`
+and `OpenPgpSigningKey` take an S/MIME certificate with its private key and an OpenPGP secret key with its passphrase,
+either, both, or neither. Each is read and judged against the sending address when the account's record is written and
+when the deployment starts, so a certificate for another address, a key that cannot sign, or a passphrase that does not
+open it is refused before anything is sent; no message carries a signature in this release.
+[The identities this account signs with](../operations/configuration-mail.md#the-identities-this-account-signs-with)
+lists every material form and every refusal.
 
 **The endpoint's own choice is where it is and how it is encrypted; everything else stays the account's.** A provider
 serving implicit TLS for reading and STARTTLS for submission is the ordinary case, which is why `ConnectionSecurity`
@@ -322,7 +330,11 @@ authored contract carries no sender at all, which is a stronger guarantee than v
 comes from the account's `Delivery` block instead. The `Message-ID` is minted here from a cryptographically secure
 random half and the account's own domain, so nothing outside this deployment can predict the identity of a message it
 has not seen and forge a reply into its thread. The `Date` comes from the injected clock, as every timestamp in this
-system does.
+system does. Every message names the product that wrote it as `User-Agent: Fathomise MailFathom`, and nothing beyond
+the name: a version, a runtime, or a platform would tell every recipient which build a deployment runs, which is a
+fingerprint nobody reading the header needs. No `X-Mailer` is written beside it. A send, a draft, and an occasion of a
+recurring send all carry it exactly once, because it is written where each of them is serialized and replaces whatever
+a stored draft carried.
 
 **The threading headers are owned here too.** `In-Reply-To` and `References` are what every mail client threads by and are
 the whole of what it threads by, so a message answering another carries both or neither. Nothing above the composer
@@ -348,6 +360,15 @@ refused instead of composed — sending nothing to those same recipients is the 
 prevent — and an alternative present but blank is refused for the same reason read from the other side. Each attachment
 carries the media type its author declared it as, because deriving one from the octets would be this system asserting
 what somebody else's file is.
+
+**Every message is sent seven-bit**, from every account and whatever the submission server advertises: every text part
+goes as quoted-printable or base64, and no part carries an `8bit` or `binary` transfer encoding. `8BITMIME` is one hop's
+promise and says nothing about the servers after it, and a relay that rescans or converts a message may re-encode an
+eight-bit body on the way. A re-encoded body breaks every signature made over it — the
+[organization's signature](../operations/organization-signing-keys.md), S/MIME, and PGP/MIME alike — so one rule holds
+for every message rather than one per signing path. Headers are not affected, so an internationalized address still needs
+`SMTPUTF8`, and the size bound is checked after the encoding, so a message it grows past the bound is refused as any
+other is. A draft an earlier build stored keeps the encoding it was stored with.
 
 **And some are bounds.** A recipient count, a body length, an attachment count, a per-file size, and a whole-message
 size are all the deployment's numbers rather than whatever a caller passed, and each is checked before a connection is
@@ -492,10 +513,12 @@ several times their own length once they are markup — and a bound measured bef
 correspondent's name decide whether somebody else's answer can be composed at all. The attribution line is bounded the
 same way in both bodies, so the sender's name is what gives way rather than the sentence saying whose message this is.
 
-**The stored email is a permission boundary as well as a source.** An email nothing may read is an email nothing may
-forward, so an account this deployment no longer serves and a folder mapped `VisibleToTools: false` are both refused with
-`28006` — the same not-found answer a read of that email gives, because telling them apart would let a caller learn which
-mail exists by trying to reply to it. An email whose content this deployment cannot read is refused with `28007` instead:
+**The stored email is a permission boundary as well as a source.** An email its author may not read is an email that
+author may not answer or forward, so an account this deployment no longer serves is refused with `28006` whoever asks,
+and so is a folder mapped `VisibleToAI: false` when an agent or an MCP caller asks — the same not-found answer a read of
+that email gives, because telling them apart would let a caller learn which mail exists by trying to reply to it. A
+reply or forward the person writes in the client reaches such a folder's mail like any other, because the switch
+withholds the folder from AI and from nothing else. An email whose content this deployment cannot read is refused with `28007` instead:
 content synchronization deliberately left unstored, a local copy that has gone missing or is damaged, bytes that no
 longer parse, and a body inside a cryptographic envelope all arrive there, because an answer quoting nothing reads to its
 recipient as an answer to an empty message. A damaged copy records a repair request on the way out, exactly as reading
@@ -607,6 +630,12 @@ scanning § outgoing mail is screened rather than
 redacted](sensitive-content-scanning.md#outgoing-mail-is-screened-rather-than-redacted) holds the whole of it. With no
 scanner switched on nothing here runs, and an enqueue costs exactly what it did before.
 
+**A message that clears the screen is signed before it is stored** when the sending account belongs to an organization:
+the outbox adds the organization's signature above the composed bytes, and the signed bytes are the ones stored, sent on
+every attempt, and filed into the sent folder. A refused message is never signed, and nothing about signing can refuse
+one. [Organization signing keys § what is signed, and when](../operations/organization-signing-keys.md#what-is-signed-and-when)
+holds the whole of it.
+
 ## Asking for a message to be sent
 
 `AuthoredMailSubmission` is the one use case a boundary reaches to send a message that answers nothing, and it composes
@@ -635,7 +664,7 @@ and each of its three values is the answer that stays correct whatever the serve
 | Fact | Value | Why that one |
 | --- | --- | --- |
 | Maximum message bytes | None declared | The deployment's own bound is applied at composition regardless, and the server's is checked against the stored length before the message is offered, so assuming a number here would refuse a message a server would have taken without protecting one it would not. |
-| Eight-bit content accepted | No | Content encoded to seven bits is accepted by a server that would also have taken it unencoded, at a fraction more size. Composing eight-bit and meeting a server that takes none produces a message that can never be delivered. |
+| Eight-bit content accepted | No | The body is seven-bit whatever the server says, so this decides only, with the row below, whether an address outside ASCII can be carried. |
 | Internationalized addresses accepted | No | This one is a refusal rather than a cost. An address outside ASCII is refused while the caller is still there to be told, instead of being queued to fail against the server hours later with nobody to answer for it. |
 
 **The grant is asked for twice on the way in, and neither ask is the duplicate.** The use case asks first, so a caller
@@ -713,9 +742,9 @@ exactly the stage [a withdrawal](#what-an-operator-sees-while-mail-is-leaving) a
 asked for by whoever wrote the message rather than by an operator: it asks for the grant that lets a caller send —
 stopping somebody's message is a decision about their correspondents exactly as sending one is — and then reaches the
 one conditional statement that writes the transition, so neither caller can withdraw a message the other could not, and
-a record an attempt holds a live lease on is refused to both. During the hold the message is also visible as a copy in
-[the mapped outbox folder](#the-copy-in-the-accounts-own-folders), and deleting that copy in a mail client cancels
-nothing — the record is the truth about what will be sent.
+a record an attempt holds a live lease on is refused to both. During the hold the message stands in
+[its account's outbox](../operations/client-endpoint.md#the-outbox-routes), which is read from the record itself, so
+what a client shows waiting is exactly what will be sent.
 
 Today the due time is a property of the application-level submission rather than an argument on an MCP tool:
 [`send_email`](mcp-tools.md#send_email) names no time, so every message a tool call submits is due at once.
@@ -872,6 +901,14 @@ holds the column.
 cases, and both take the sending grant rather than the reading one — what a caller may read back and stop is exactly
 what it was allowed to start.
 
+**A caller that may also read mail reads the account's outbox instead.** Holding `mailfathom.mail.read` beside
+`mailfathom.mail.send` is being entitled to the account's Sent folder and to send as it, so such a caller reaches every
+send of an account its user is assigned, whoever queued it, through `UserOutbox` rather than through the principal
+stamp: [`list_outgoing_emails`](mcp-tools.md#list_outgoing_emails) lists what has not left, and `get_outgoing_email`
+answers with the outbox preview. Withdrawing stays where it was — `cancel_outgoing_email` reaches only the caller's own
+sends — and nothing on MCP offers a refused send again or dismisses one, because the first would transmit mail and the
+second would hide a failure from the person.
+
 ## The window that cannot be decided
 
 A crash immediately after the body went out and immediately before the acknowledgement was read leaves a record nobody
@@ -958,18 +995,16 @@ answering about nothing and is dropped.
 
 SMTP files nothing. A message a submission server accepted leaves no trace in the mailbox it was sent from, so a
 deployment that only submits sends mail its user's mail client shows they never sent. **Filing** is the answer: one
-mechanism appends a copy of an outgoing message to the folder playing the role the message's own state calls for, and
-takes it back out when that state changes.
+mechanism appends a copy of an outgoing message to the folder playing the role the message's own state calls for.
 
-A message's own state is what decides both halves of that, and an outgoing message has two states worth a copy:
+A message's own state is what decides that, and an outgoing message has one state worth a copy:
 
 | The message is | The copy goes to the folder playing | And carries |
 | --- | --- | --- |
-| waiting for an instant still ahead | the **outbox** role | `\Draft`, and is withdrawn when it leaves |
 | accepted by a submission server | the **sent** role | `\Seen` |
 
-The flags travel with the role rather than being chosen by a caller, so a draft cannot be filed as read and a sent copy
-cannot arrive as unread mail somebody has to open. The copy's internal date is the instant the injected clock reports,
+The flags travel with the role rather than being chosen by a caller, so a sent copy cannot arrive as unread mail
+somebody has to open. The copy's internal date is the instant the injected clock reports,
 which is the same clock everything else in this system is stamped from.
 
 **The outgoing record stays the truth about what will be sent.** A copy in a folder is a view of it: deleting the copy
@@ -977,13 +1012,27 @@ in a mail client cancels nothing, cancelling is [a command of its own](#holding-
 and nothing reads a folder to decide what to send. That is what makes the copy safe to write and safe to leave out — a
 deployment that appends nothing loses visibility and loses no mail.
 
-**No server has an outbox, so nothing looks for one.** RFC 6154 defines the special-use attributes a server may
-advertise and there is no `\Outbox` among them, because the outbox a mail client shows is that client's own local queue
-of what it has not managed to send. MailFathom's outbox is the durable record above. So the outbox role is MailFathom's
-own: it is never read off a server, a provider folder merely *named* like one plays no role — nothing here reads a
-folder's name — and a folder plays it only where an operator mapped a path to it by hand. A mapping naming the role
-with no path is refused at startup, naming the alias and the key it wants, because discovery has nothing to look for.
-Nothing is mirrored until somebody writes that mapping.
+**A message waiting to leave is filed nowhere.** RFC 6154 defines the special-use attributes a server may advertise
+and there is no `\Outbox` among them, because the outbox a mail client shows is that client's own local queue of what
+it has not managed to send. MailFathom's outbox is the durable record above, and each account's is served as
+[a read-only list beside its folders](../operations/client-endpoint.md#the-outbox-routes) rather than as a folder on
+the server: what has not left, and what was refused and nobody dismissed. No folder plays that role, a mapping naming
+`SpecialUse: Outbox` is refused at startup, and a provider folder merely *named* like an outbox is an ordinary folder —
+nothing here reads a folder's name.
+
+**A refusal decided after the send answered is put in front of the people the account belongs to.** The send was
+already answered as queued, so nobody is at the screen when the server refuses it for good or the pass finds it past
+the moment it was due. The pass that recorded the refusal raises one
+[notification](../operations/client-endpoint.md#the-notification-routes) per user assigned the account, deduplicated
+per send and leading to the send in its outbox. It is written in its own transaction after the refusal commits, so a
+notification that could not be written loses that notification and nothing else: the send stays refused in the outbox
+either way. A refused send that was written from a draft can be [taken back to that draft to be
+edited](../operations/client-endpoint.md#the-outbox-routes), which dismisses the send in the same statement.
+
+**A draft whose copy on the server stopped following it is put in front of its writer.** An append the server never
+answered, and an earlier revision's copy that could not be taken back out, each leave the user's drafts folder showing
+something other than what MailFathom holds. The filer raises one notification for the draft's writer when it first
+records either, leading to the draft; a draft being given up raises none.
 
 **The sent copy is appended after a delivery the server acknowledged, and only then.** Whether it is appended at all is
 `Delivery:FileSentCopy`, a per-account setting that defaults to on. Whether it is appended is never decided by looking
@@ -1056,13 +1105,12 @@ what changes it, including
 [creating the folder](imap-synchronization.md#a-folder-the-mapping-asked-for-is-created) where the mapping asked for
 that — and the message is untouched either way.
 
-The withdrawal of an outbox mirror reaches that copy and nothing else: `\Deleted` followed by `UID EXPUNGE` against the
-UID the append reported. A server without `UIDPLUS` leaves the copy standing rather than expunging the folder, and so
-does a copy the server never named — one copy of the user's own message in a folder they mapped, deletable with the
-gesture they would have used anyway. A mirror whose append the server never answered is left alone entirely: nobody
-knows whether that copy reached the folder, so the record goes on reporting the outcome as unknown rather than claiming
-the copy was taken back out. A sent copy is withdrawn by one thing only, which is the provider having filed its own
-beside it; nothing else takes it back out, because it is what the user keeps.
+A sent copy is withdrawn by one thing only, which is the provider having filed its own beside it; nothing else takes
+it back out, because it is what the user keeps. The withdrawal reaches that copy and nothing else: `\Deleted` followed by
+`UID EXPUNGE` against the UID the append reported. A server without `UIDPLUS` leaves the copy standing rather than
+expunging the folder, and so does a copy the server never named. A copy whose append the server never answered is left
+alone entirely: nobody knows whether it reached the folder, so the record goes on reporting the outcome as unknown
+rather than claiming the copy was taken back out.
 
 **An account whose mailbox MailFathom holds alone is filed locally, and nothing above reaches its server.** Its source
 is drained, so a copy appended there would be drained straight back, and filing would wait on IMAP for a message that
@@ -1071,9 +1119,8 @@ account's local sent folder, in the same transaction that records the delivery �
 state the account can be in, and a delivery recorded once files once. The message is placed from the stored bytes and
 searched, threaded, and listed like any other; it is bound to the source folder mapped to the sent role, and an account
 that maps none, or whose binding of it is gone by the time the delivery commits, records the delivery and files
-nothing, with the reason on the filing. Such an account has no outbox
-mirror either, because its outgoing record is its outbox, and it withdraws nothing: a mirror or a sent copy appended
-while the account was still mirrored stays in the source until the drain removes it.
+nothing, with the reason on the filing. It withdraws nothing: a sent copy appended while the account was still
+mirrored stays in the source until the drain removes it.
 
 **A copy the provider files on its own is recognised rather than stored a second time.** When synchronization meets a
 message in the held account's sent folder carrying the `Message-ID` this deployment minted for a send, and a local sent
@@ -1287,8 +1334,9 @@ Composition is settled entirely in the unit suite, because it reaches nothing: t
 bytes back with the same parser this system reads arriving mail with. What they establish is each refusal against the
 field it names, the sending address and the minted identity against an account that supplied neither, one mailbox named
 in two headers becoming one offer in the more visible one, a blind recipient appearing in the envelope and in none of
-the transmitted bytes, an eight-bit body transfer-encoded when the server takes none, the two threading headers written
-together or not at all, and the line ending a stored message carries — which matters precisely because the bytes are
+the transmitted bytes, every body transfer-encoded to seven bits even against a server advertising `8BITMIME`, the two threading headers written
+together or not at all, one `User-Agent` naming the product on a send, a draft, and an occasion recomposed from a draft
+that carried it already or carried another, and the line ending a stored message carries — which matters precisely because the bytes are
 transmitted verbatim rather than re-serialized.
 
 Resolving a recipient named as a person is settled in the unit suite too, against an in-memory book rather than a
@@ -1305,7 +1353,7 @@ Authoring a reply or a forward is settled in the unit suite for the same reason,
 the tests establish there is the threading of an answer to a message with and without a `References` header and to one
 carrying no identity of its own, a reply to all against a message naming the answering account in both `To` and `Cc`, the
 subject-prefix comparison across the spellings clients write, the forward of a message whose files exceed each of the
-three bounds in turn, the refusal of an email withheld from tools and of one whose content this deployment cannot read,
+three bounds in turn, the refusal of an email withheld from AI and of one whose content this deployment cannot read,
 and the repair request a damaged copy leaves behind on the way out.
 
 The integration suite opens a real session against the orchestrated GreenMail server and records what it advertises:
@@ -1319,7 +1367,7 @@ is presented.
 
 Filing is split the same way again. The unit suite carries what a scripted session settles: an account that files no
 sent copy appending nothing at all, a delivered message appended from the stored bytes with `\Seen` at the clock's
-instant, a mirrored message appended with `\Draft` and never with `\Seen`, an append the server never answered not
+instant, an append the server never answered not
 being appended a second time however often the pass runs, and a failed append after a successful delivery leaving the
 record at `Sent` with a filing failure beside it and its attempt count unmoved. The adapter's own half is asserted as
 the commands it issues — the flags, the internal date, the `APPENDUID` read back, and a withdrawal that names one UID

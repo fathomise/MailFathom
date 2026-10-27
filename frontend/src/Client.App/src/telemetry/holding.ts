@@ -135,7 +135,7 @@ export function heldMetricExporter(): PushMetricExporter & Held<PushMetricExport
 
         // Nothing is buffered here, for the reason above, so throwing away what was held is holding. What the
         // instruments themselves carry is not reset with it — the totals are cumulative and the provider belongs to
-        // the run — which is the ceiling the same `ponytail:` note in `exporting.ts` already names against #1227.
+        // the run — which is the ceiling the same note in `exporting.ts` already names against #1227.
         // Nothing personal is in them either way: they count moves between a closed set of space names.
         hold() {
             destination = null;

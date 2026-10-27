@@ -1009,6 +1009,14 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("EvaluatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ImpersonatedParty")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("PhishingRequest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("Profile")
                         .HasMaxLength(12)
                         .HasColumnType("character(12)")
@@ -1016,6 +1024,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.Property<double?>("Score")
                         .HasColumnType("double precision");
+
+                    b.Property<string>("SpamSubcategory")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<double?>("Threshold")
                         .HasColumnType("double precision");
@@ -1076,6 +1088,24 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_email_spam_classification_signals_classification_ordinal");
 
                     b.ToTable("email_spam_classification_signals", (string)null);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailSpamVerdictActEntity", b =>
+                {
+                    b.Property<Guid>("StoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Act")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("StoredEmailId", "Act")
+                        .HasName("pk_email_spam_verdict_acts");
+
+                    b.ToTable("email_spam_verdict_acts", (string)null);
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailThreadEntity", b =>
@@ -1444,8 +1474,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsSynchronized")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsVisibleToTools")
-                        .HasColumnType("boolean");
+                    b.Property<bool>("IsVisibleToAI")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsVisibleToTools");
 
                     b.Property<int?>("SpecialUse")
                         .HasColumnType("integer");
@@ -2725,6 +2756,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid?>("TargetMailDraftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TargetMailboxMutationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TargetOutgoingEmailId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("TargetPersonalTaskId")
                         .HasColumnType("uuid");
 
@@ -2747,6 +2787,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TargetCalendarEventId");
 
+                    b.HasIndex("TargetMailDraftId");
+
+                    b.HasIndex("TargetMailboxMutationId");
+
+                    b.HasIndex("TargetOutgoingEmailId");
+
                     b.HasIndex("TargetPersonalTaskId");
 
                     b.HasIndex("TargetStoredEmailId");
@@ -2760,6 +2806,22 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_notifications_user_occurred");
 
                     b.ToTable("notifications", (string)null);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.NotificationNamedEmailEntity", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("NotificationId", "StoredEmailId");
+
+                    b.HasIndex("StoredEmailId")
+                        .HasDatabaseName("ix_notification_named_emails_stored_email");
+
+                    b.ToTable("notification_named_emails", (string)null);
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", b =>
@@ -2787,6 +2849,52 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_organizations_short_name");
 
                     b.ToTable("organizations", (string)null);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OrganizationSigningKeyEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DataEncryptionKeyId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("PublicKey")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTimeOffset?>("RetiredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("SealedPrivateKey")
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_organization_signing_keys_active")
+                        .HasFilter("\"RetiredAt\" IS NULL AND \"RevokedAt\" IS NULL");
+
+                    b.HasIndex("OrganizationId", "Id")
+                        .HasDatabaseName("ix_organization_signing_keys_organization");
+
+                    b.ToTable("organization_signing_keys", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_organization_signing_keys_sealed_pair", "(\"SealedPrivateKey\" IS NULL) = (\"DataEncryptionKeyId\" IS NULL)");
+
+                            t.HasCheckConstraint("ck_organization_signing_keys_spent_holds_no_private_key", "(\"RetiredAt\" IS NULL AND \"RevokedAt\" IS NULL) OR \"SealedPrivateKey\" IS NULL");
+                        });
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailContentEntity", b =>
@@ -2852,12 +2960,22 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
+                    b.Property<DateTimeOffset?>("DismissedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DismissedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("DueAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DueZoneId")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<string>("InternetMessageId")
+                        .HasMaxLength(998)
+                        .HasColumnType("character varying(998)");
 
                     b.Property<int?>("LastFailureCode")
                         .HasColumnType("integer");
@@ -2907,10 +3025,17 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("StageChangedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Subject")
+                        .HasColumnType("text");
+
                     b.Property<Guid?>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("InternetMessageId", "MailboxAccountId")
+                        .HasDatabaseName("ix_outgoing_emails_internet_message_id")
+                        .HasFilter("\"InternetMessageId\" IS NOT NULL");
 
                     b.HasIndex("MailboxAccountId", "RecordedAt")
                         .HasDatabaseName("ix_outgoing_emails_outstanding")
@@ -2922,6 +3047,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasIndex("MailboxAccountId", "AvailableAt", "Id")
                         .HasDatabaseName("ix_outgoing_emails_claimable")
                         .HasFilter("\"Stage\" = 'Recorded'");
+
+                    b.HasIndex("MailboxAccountId", "RecordedAt", "Id")
+                        .HasDatabaseName("ix_outgoing_emails_outbox")
+                        .HasFilter("\"DismissedAt\" IS NULL AND \"Stage\" IN ('Recorded', 'TransmissionBegun', 'Refused')");
 
                     b.HasIndex("MailboxAccountId", "UserId", "RequesterOrigin", "RequesterIdentity")
                         .IsUnique()
@@ -3530,6 +3659,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ArrivalFolderId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("AttachmentCount")
                         .HasColumnType("integer");
 
@@ -3742,11 +3874,134 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasDefaultValue("Unknown");
 
+                    b.Property<Guid?>("SenderTrustOrganizationId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("SenderTrustPolicyRevision")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
                     b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("SettledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SignatureAuthorityCheck")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("Skipped");
+
+                    b.Property<string>("SignatureChainEnd")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("SignatureContentCheck")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("Skipped");
+
+                    b.Property<string>("SignatureFormat")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SignatureOutcome")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("NotSigned");
+
+                    b.Property<string>("SignatureRevocationCheck")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("Skipped");
+
+                    b.Property<DateTimeOffset?>("SignatureRevocationCheckedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SignatureRevocationMethod")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("SignatureRevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SignatureSecureMimeType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("SignatureSignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SignatureSignerCheck")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("Skipped");
+
+                    b.Property<string>("SignatureTrustAnchor")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SignatureUnverifiableReason")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SignatureValidityCheck")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("Skipped");
+
+                    b.Property<string>("SignatureValidityFailure")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SignerAddress")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("SignerDigestAlgorithm")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SignerFingerprint")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SignerIssuer")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("SignerKeyId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SignerName")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("SignerPublicKeyAlgorithm")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SignerSerialNumber")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset?>("SignerValidFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("SignerValidUntil")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("SizeOctets")
@@ -3778,6 +4033,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ArrivalFolderId");
+
                     b.HasIndex("CcAddresses")
                         .HasDatabaseName("ix_stored_emails_cc_addresses");
 
@@ -3800,6 +4057,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SenderNormalizedAddress")
                         .HasDatabaseName("ix_stored_emails_sender");
+
+                    b.HasIndex("SenderTrustOrganizationId")
+                        .HasDatabaseName("ix_stored_emails_sender_trust_organization")
+                        .HasFilter("\"SenderTrustOrganizationId\" IS NOT NULL");
 
                     b.HasIndex("ToAddresses")
                         .HasDatabaseName("ix_stored_emails_to_addresses");
@@ -3858,10 +4119,29 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_stored_emails_filed_sent_copy")
                         .HasFilter("\"FiledFromOutgoingEmailId\" IS NOT NULL AND \"UidValidity\" IS NULL");
 
+                    b.HasIndex(new[] { "MailboxAccountId", "Id" }, "ix_stored_emails_settling")
+                        .HasDatabaseName("ix_stored_emails_settling")
+                        .HasFilter("\"SettledAt\" IS NULL");
+
                     b.ToTable("stored_emails", null, t =>
                         {
                             t.HasCheckConstraint("ck_stored_emails_occurrence_complete", "(\"UidValidity\" IS NULL) = (\"Uid\" IS NULL)");
                         });
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredEmailSignerKeyEntity", b =>
+                {
+                    b.Property<Guid>("StoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("KeyMaterial")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("StoredEmailId")
+                        .HasName("pk_stored_email_signer_keys");
+
+                    b.ToTable("stored_email_signer_keys", (string)null);
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredFileEntity", b =>
@@ -4464,6 +4744,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Navigation("Classification");
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailSpamVerdictActEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailThreadEntity", b =>
                 {
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailboxAccountEntity", null)
@@ -4754,6 +5043,21 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TargetCalendarEventId")
                         .OnDelete(DeleteBehavior.Cascade);
 
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailDraftEntity", "TargetMailDraft")
+                        .WithMany()
+                        .HasForeignKey("TargetMailDraftId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailboxMutationEntity", "TargetMailboxMutation")
+                        .WithMany()
+                        .HasForeignKey("TargetMailboxMutationId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailEntity", "TargetOutgoingEmail")
+                        .WithMany()
+                        .HasForeignKey("TargetOutgoingEmailId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.PersonalTaskEntity", "TargetPersonalTask")
                         .WithMany()
                         .HasForeignKey("TargetPersonalTaskId")
@@ -4772,9 +5076,40 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.Navigation("TargetCalendarEvent");
 
+                    b.Navigation("TargetMailDraft");
+
+                    b.Navigation("TargetMailboxMutation");
+
+                    b.Navigation("TargetOutgoingEmail");
+
                     b.Navigation("TargetPersonalTask");
 
                     b.Navigation("TargetStoredEmail");
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.NotificationNamedEmailEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.NotificationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OrganizationSigningKeyEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_organization_signing_keys_organization");
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailContentEntity", b =>
@@ -4911,6 +5246,11 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", b =>
                 {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailFolderEntity", "ArrivalFolder")
+                        .WithMany()
+                        .HasForeignKey("ArrivalFolderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.EmailThreadEntity", null)
                         .WithMany()
                         .HasForeignKey("EmailThreadId")
@@ -4938,9 +5278,28 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ParentStoredEmailId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SenderTrustOrganizationId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_stored_emails_sender_trust_organization");
+
+                    b.Navigation("ArrivalFolder");
+
                     b.Navigation("Folder");
 
                     b.Navigation("MailFolderBinding");
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredEmailSignerKeyEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", "StoredEmail")
+                        .WithOne()
+                        .HasForeignKey("MailFathom.Infrastructure.Persistence.Entities.StoredEmailSignerKeyEntity", "StoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("StoredEmail");
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredFileEntity", b =>

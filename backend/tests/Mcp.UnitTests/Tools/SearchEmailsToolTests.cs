@@ -647,9 +647,12 @@ public sealed class SearchEmailsToolTests
         new FakeTimeProvider(),
         textEmbeddingGenerator: null);
 
-    /// <summary>Junk is mail a filter already set aside, so a search that says nothing about it leaves it out.</summary>
+    /// <summary>
+    /// A search is an agent's read, so the query it runs withholds mail judged spam and the junk folder's mail the
+    /// person did not mark not spam — and no argument asks for it back.
+    /// </summary>
     [Fact]
-    public async Task SearchEmailsAsync_NoAnswerAboutJunk_LeavesTheJunkFolderOutAndSaysSo()
+    public async Task SearchEmailsAsync_AnySearch_ReadsAsAnAgentWithholdingTheJunkFolder()
     {
         // Arrange
         var index = new StubEmailSearchIndexReader();
@@ -657,33 +660,12 @@ public sealed class SearchEmailsToolTests
         var tool = ToolOver(index, junkFolders: StubJunkMailFolderCatalog.Naming(junkFolder));
 
         // Act
-        var result = await tool.SearchEmailsAsync(Query, cancellationToken: TestContext.Current.CancellationToken);
+        await tool.SearchEmailsAsync(Query, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(index.LastSelection);
-        Assert.Equal([junkFolder], index.LastSelection.Scope.WithheldJunkFolders);
-        Assert.False(result.IncludedJunkMail);
-    }
-
-    /// <summary>Somebody looking for a message a filter took asks for it, and the answer says which search they got.</summary>
-    [Fact]
-    public async Task SearchEmailsAsync_JunkAskedFor_SearchesItAndSaysSo()
-    {
-        // Arrange
-        var index = new StubEmailSearchIndexReader();
-        var junkFolder = new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("JUNK"));
-        var tool = ToolOver(index, junkFolders: StubJunkMailFolderCatalog.Naming(junkFolder));
-
-        // Act
-        var result = await tool.SearchEmailsAsync(
-            Query,
-            includeJunkMail: true,
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.NotNull(index.LastSelection);
-        Assert.Empty(index.LastSelection.Scope.WithheldJunkFolders);
-        Assert.True(result.IncludedJunkMail);
+        Assert.Equal(MailboxReaderKind.Agent, index.LastSelection.Scope.Reader);
+        Assert.Equal([junkFolder], index.LastSelection.Scope.JunkFolders);
     }
 
     /// <summary>

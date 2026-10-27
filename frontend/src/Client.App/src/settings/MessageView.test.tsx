@@ -27,6 +27,7 @@ function inForce(
         aiFiltersShown: true,
         messageView,
         notificationSeconds: 5,
+        trustedLinkDomains: [],
         chooseTheme: () => undefined,
         chooseTelemetry: () => undefined,
         chooseTabMode: () => undefined,

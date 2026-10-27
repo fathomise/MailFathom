@@ -7,6 +7,7 @@ using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Emails;
@@ -61,28 +62,33 @@ public sealed class CitationResolver
 
     private readonly EmailContentReader content;
     private readonly ICitedFragmentReader fragments;
+    private readonly IEmailProvenanceReader provenanceReader;
     private readonly MailboxScopeResolver scopeResolver;
     private readonly SensitiveContentEgressGuard egressGuard;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="content">Reads a cited message from the local copy, under the caller's own scope.</param>
     /// <param name="fragments">Reads the persisted passages a citation names within a message.</param>
+    /// <param name="provenanceReader">Reads where each cited message came from, which a resolution states beside it.</param>
     /// <param name="scopeResolver">Answers whose mail this work is acting for.</param>
     /// <param name="egressGuard">Scans a passage before it crosses to the caller, where this deployment scans anything.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public CitationResolver(
         EmailContentReader content,
         ICitedFragmentReader fragments,
+        IEmailProvenanceReader provenanceReader,
         MailboxScopeResolver scopeResolver,
         SensitiveContentEgressGuard egressGuard)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(fragments);
+        ArgumentNullException.ThrowIfNull(provenanceReader);
         ArgumentNullException.ThrowIfNull(scopeResolver);
         ArgumentNullException.ThrowIfNull(egressGuard);
 
         this.content = content;
         this.fragments = fragments;
+        this.provenanceReader = provenanceReader;
         this.scopeResolver = scopeResolver;
         this.egressGuard = egressGuard;
     }
@@ -109,9 +115,12 @@ public sealed class CitationResolver
         ArgumentOutOfRangeException.ThrowIfGreaterThan(citations.Count, MaximumCitations, nameof(citations));
 
         var messages = await this.ReadMessagesAsync(citations, cancellationToken);
+        var provenance = await this.provenanceReader.ReadAsync(
+            [.. messages.Values.Where(static outcome => outcome.Content is not null).Select(static outcome => outcome.StoredEmailId)],
+            cancellationToken);
         var passages = await this.ReadPassagesAsync(citations, messages, cancellationToken);
 
-        return [.. citations.Select(citation => Resolve(citation, messages, passages))];
+        return [.. citations.Select(citation => Resolve(citation, messages, provenance, passages))];
     }
 
     /// <summary>Reads every message the citations name, once each, under the caller's own scope.</summary>
@@ -208,9 +217,15 @@ public sealed class CitationResolver
     }
 
     /// <summary>Answers for one citation from what the reads produced.</summary>
+    /// <remarks>
+    /// A message read a moment ago whose provenance is gone was removed in between, which is mail this deployment no
+    /// longer holds and is answered as a private source is: a source drawn without saying where it came from would be
+    /// the one thing a resolution exists to prevent.
+    /// </remarks>
     private static ResolvedCitation Resolve(
         PresentationCitationTarget citation,
         IReadOnlyDictionary<StoredEmailId, EmailContentReadOutcome> messages,
+        IReadOnlyDictionary<StoredEmailId, EmailProvenance> provenance,
         IReadOnlyDictionary<(StoredEmailId Email, EmailChunkId Fragment), CitedFragment> passages)
     {
         if (!messages.TryGetValue(citation.Email, out var outcome))
@@ -225,7 +240,12 @@ public sealed class CitationResolver
                 : ResolvedCitation.PrivateSource(citation.Email);
         }
 
-        var source = CitedMessageOf(message);
+        if (!provenance.TryGetValue(citation.Email, out var recorded))
+        {
+            return ResolvedCitation.PrivateSource(citation.Email);
+        }
+
+        var source = CitedMessageOf(message, recorded);
 
         // The remaining case is the citation that names the message as such, the target hierarchy being closed to these
         // three.
@@ -242,13 +262,14 @@ public sealed class CitationResolver
     }
 
     /// <summary>Describes the message a resolution belongs to, from the reading the content use case produced.</summary>
-    private static CitedMessage CitedMessageOf(ReadEmailContent message) => new(
+    private static CitedMessage CitedMessageOf(ReadEmailContent message, EmailProvenance provenance) => new(
         message.StoredEmailId,
         message.AccountId,
         message.Folder,
         message.Headers.Subject,
         message.Headers.SentAt,
-        message.Headers.ReceivedAt);
+        message.Headers.ReceivedAt,
+        provenance);
 
     /// <summary>Describes the file at one position, or reports that the message carries none there.</summary>
     /// <remarks>

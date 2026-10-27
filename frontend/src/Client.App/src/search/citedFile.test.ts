@@ -47,6 +47,13 @@ function found(carried: Partial<MailSearchResult> = {}): MailSearchResult {
         preview: 'The renewal falls due.',
         enrichment: null,
         threadMessageCount: null,
+        spam: null,
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            signatureOutcome: 'NotSigned',
+            signerMatchesAuthor: false,
+        },
         snippets: [],
         matchedBy: 'LexicalRanking',
         attachmentMatches: [],

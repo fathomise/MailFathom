@@ -8,6 +8,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { onlySelected, withToggled } from '../contextMenu/rowSelection';
 import { ChoiceSegment } from '../controls/ChoiceSegment';
 import { SecondaryButton } from '../controls/SecondaryButton';
+import { useTabSwipe } from '../controls/useTabSwipe';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { estimatedRowHeight, offsetOfRow, windowOf } from '../messageRows/rowWindow';
@@ -111,6 +112,8 @@ export function ContactBook({
     const scroller = useRef<HTMLDivElement>(null);
     const elements = useRef(new Map<number, HTMLLIElement>());
     const wantsFocus = useRef(false);
+
+    const bookSwipe = useTabSwipe(books, book, onBook);
 
     const contacts = reading.contacts;
     const drawn = windowOf(contacts.length, rowHeight, scrollTop, viewport);
@@ -268,7 +271,8 @@ export function ContactBook({
 
             <div
                 ref={scroller}
-                className="min-h-0 flex-1 overflow-y-auto bg-sunken"
+                className="min-h-0 flex-1 touch-pan-y touch-pinch-zoom overflow-y-auto bg-sunken"
+                {...bookSwipe}
                 onScroll={(event) => {
                     scrolled(event.currentTarget);
                 }}

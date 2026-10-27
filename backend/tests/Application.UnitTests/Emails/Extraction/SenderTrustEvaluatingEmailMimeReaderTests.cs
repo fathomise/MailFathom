@@ -64,7 +64,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         // Arrange
         Assert.True(TrustedSenderEntry.TryCreateForAddress("alice@partner.example", out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var reader = new SenderTrustEvaluatingEmailMimeReader(
             ReaderYielding(WrittenBy("partner.example"), from: "alice@partner.example", sender: "relay@partner.example"),
             PolicyReaderFor("primary", policy));
@@ -83,7 +83,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         // Arrange
         Assert.True(TrustedSenderEntry.TryCreateForAddress("relay@partner.example", out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var reader = new SenderTrustEvaluatingEmailMimeReader(
             ReaderYielding(WrittenBy("partner.example"), from: "alice@partner.example", sender: "relay@partner.example"),
             PolicyReaderFor("primary", policy));
@@ -109,7 +109,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
                     new EmailParticipant(EmailAddressRole.From, AddressOf("alice@partner.example")),
                     new EmailParticipant(EmailAddressRole.From, AddressOf("mallory@partner.example")),
                 ]),
-            PolicyReaderFor("primary", SenderTrustPolicy.Create([], [entry], [])));
+            PolicyReaderFor("primary", SenderTrustPolicy.Create([], [], [entry], [])));
 
         // Act
         var extraction = await reader.ReadMetadataAsync(Account, Content(), TestContext.Current.CancellationToken);
@@ -125,7 +125,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         // Arrange
         Assert.True(TrustedSenderEntry.TryCreateForAddress("alice@partner.example", out var entry));
         Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [entry], []);
+        var policy = SenderTrustPolicy.Create([], [], [entry], []);
         var reader = new SenderTrustEvaluatingEmailMimeReader(
             ReaderYielding(
                 WrittenBy("partner.example"),
@@ -177,6 +177,29 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         Assert.Equal("Subject", extraction.Metadata?.Subject);
     }
 
+    /// <summary>What the parse established about the receiving organization reaches the verdict, which records the organization.</summary>
+    [Fact]
+    public async Task ReadMetadataAsync_AnAuthorTheReceivingOrganizationsSignatureProved_IsRecordedAsAMember()
+    {
+        // Arrange
+        var organization = Guid.Parse("0199f000-0000-7000-8000-000000000001");
+        var inner = Substitute.For<IEmailMimeReader>();
+        inner.ReadMetadataAsync(Account, Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(EmailMimeExtractionResult.Extracted(
+                MetadataOf(Account, SenderAuthentication.NotEstablished(), ParticipantsOf("anna@org.example", sender: null)) with
+                {
+                    OrganizationVerification = new OrganizationSenderVerification(organization, SenderIsMember: true),
+                }));
+        var reader = new SenderTrustEvaluatingEmailMimeReader(inner, PolicyReaderFor("primary", PolicyRecognizing("partner.example")));
+
+        // Act
+        var extraction = await reader.ReadMetadataAsync(Account, Content(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SenderTrustSource.OrganizationMember, extraction.Metadata?.SenderTrust.GrantedBy);
+        Assert.Equal(organization, extraction.Metadata?.SenderTrust.RecognizingOrganizationId);
+    }
+
     private static ISenderTrustPolicyReader PolicyReaderFor(string accountId, SenderTrustPolicy policy)
     {
         var policies = Substitute.For<ISenderTrustPolicyReader>();
@@ -191,7 +214,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         Assert.True(TrustedSenderEntry.TryCreateForDomain(domain, includeSubdomains: false, out var entry));
         Assert.NotNull(entry);
 
-        return SenderTrustPolicy.Create([], [entry], []);
+        return SenderTrustPolicy.Create([], [], [entry], []);
     }
 
     /// <summary>Builds the verdict of a message whose displayed author the receiving server established.</summary>
@@ -215,19 +238,26 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
         var reader = Substitute.For<IEmailMimeReader>();
 
         reader.ReadMetadataAsync(Arg.Any<MailAccountId>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult(EmailMimeExtractionResult.Extracted(new ExtractedEmailMetadata(
-                call.Arg<MailAccountId>(),
-                Subject: "Subject",
-                SentAt: null,
-                ReceivedAt: null,
-                participants,
-                EmailThreadReferences.None,
-                EmailAttachmentSummary.None,
-                ExtractedEmailText.FromPlainTextBody("body", "body"),
-                authentication))));
+            .Returns(call => Task.FromResult(EmailMimeExtractionResult.Extracted(
+                MetadataOf(call.Arg<MailAccountId>(), authentication, participants))));
 
         return reader;
     }
+
+    private static ExtractedEmailMetadata MetadataOf(
+        MailAccountId account,
+        SenderAuthentication authentication,
+        IReadOnlyList<EmailParticipant> participants) =>
+        new(
+            account,
+            Subject: "Subject",
+            SentAt: null,
+            ReceivedAt: null,
+            participants,
+            EmailThreadReferences.None,
+            EmailAttachmentSummary.None,
+            ExtractedEmailText.FromPlainTextBody("body", "body"),
+            authentication);
 
     private static IReadOnlyList<EmailParticipant> ParticipantsOf(string from, string? sender) => sender is null
         ? [new EmailParticipant(EmailAddressRole.From, AddressOf(from))]

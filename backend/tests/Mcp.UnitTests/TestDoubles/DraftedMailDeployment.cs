@@ -8,26 +8,18 @@ using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Repair;
 using MailFathom.Application.EmailContent.Storage;
-using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
-using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Jobs;
-using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Drafts;
-using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Screening;
-using MailFathom.Application.Mail.Mutations;
-using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
-using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
 using MailFathom.Mcp.Tools.Drafts;
 using MailFathom.TestSupport;
@@ -77,6 +69,13 @@ internal sealed class DraftedMailDeployment
     {
     }
 
+    /// <summary>Assembles the deployment over the folder mappings a test arranged, for a caller granted every draft permission.</summary>
+    /// <param name="folderParticipation">What each folder an answered email may be stored in takes part in.</param>
+    internal DraftedMailDeployment(StubMailFolderParticipation folderParticipation)
+        : this(OutgoingMailScreenings.Inactive(), folderParticipation, [])
+    {
+    }
+
     /// <summary>Assembles the deployment of an operator who screens what a draft and a send carry.</summary>
     /// <param name="screening">The screening both the draft book and the outbox judge a composed message through.</param>
     /// <param name="granted">What the entry that admitted the caller resolved to.</param>
@@ -86,6 +85,14 @@ internal sealed class DraftedMailDeployment
     /// written and again when it is promoted.
     /// </remarks>
     internal DraftedMailDeployment(OutgoingMailScreening screening, params MailFathomPermission[] granted)
+        : this(screening, StubMailFolderParticipation.Nothing, granted)
+    {
+    }
+
+    private DraftedMailDeployment(
+        OutgoingMailScreening screening,
+        StubMailFolderParticipation folderParticipation,
+        MailFathomPermission[] granted)
     {
         ArgumentNullException.ThrowIfNull(screening);
 
@@ -127,7 +134,7 @@ internal sealed class DraftedMailDeployment
                 book,
                 authorization),
             new AuthoredResponseDrafting(
-                this.AuthoringOver(authorization),
+                this.AuthoringOver(authorization, folderParticipation),
                 this.Composer,
                 book,
                 authorization));
@@ -148,7 +155,9 @@ internal sealed class DraftedMailDeployment
                 authorization,
                 OutgoingMailGovernors.Permitting(),
                 screening,
-                this.clock),
+                OrganizationMailSigners.SigningNothing(),
+                this.clock,
+                ClientSignalPublishers.ReachingNobody),
             this.OutgoingEmails,
             commitPolicy,
             Bounds,
@@ -213,49 +222,19 @@ internal sealed class DraftedMailDeployment
         OptimisticConcurrencyRetryPolicy commitPolicy,
         TimeProvider clock)
     {
-        var transportSecurityPolicies = Substitute.For<IMailTransportSecurityPolicyReader>();
-        var folderResolutions = Substitute.For<IMailFolderResolutionStore>();
-        var writeSessions = Substitute.For<IMailboxWriteSessionFactory>();
-
-        var destinations = new MailboxDestinationResolver(
-            StubMailFolderMappings.Nothing.Resolver,
-            folderResolutions,
-            new MailFolderResolver(
-                Substitute.For<IRemoteFolderCatalog>(),
-                Substitute.For<IRemoteFolderCreator>(),
-                folderResolutions,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                persistenceSessions,
-                ClientSignalPublishers.ReachingNobody,
-                clock),
-            transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
-
-        var localFiler = new LocalMailFiler(
-            Substitute.For<ILocalMailFolderStore>(),
-            Substitute.For<IEmailMetadataRepository>(),
-            contents,
-            Substitute.For<IEmailMimeReader>(),
-            StubMailFolderMappings.Nothing,
-            folderResolutions,
-            Substitute.For<IOutgoingMailFilingPolicyReader>(),
-            Substitute.For<IOutgoingMailFilingStore>(),
-            ClientSignalPublishers.ReachingNobody,
-            clock);
-
-        return new MailDraftFiler(
-            new MailboxCopyAppender(writeSessions, destinations, contents, transportSecurityPolicies, clock),
-            localFiler,
-            writeSessions,
-            destinations,
-            drafts,
-            transportSecurityPolicies,
-            commitPolicy,
-            clock);
+        return new MailboxCustodianComposition(clock)
+        {
+            PersistenceSessions = persistenceSessions,
+            Drafts = drafts,
+            Contents = contents,
+            CommitPolicy = commitPolicy,
+        }.DraftFiler;
     }
 
     /// <summary>Builds the authoring an answer is derived through, over a mailbox holding whatever a test put in it.</summary>
-    private StoredEmailResponseAuthoring AuthoringOver(AccessAuthorization authorization)
+    private StoredEmailResponseAuthoring AuthoringOver(
+        AccessAuthorization authorization,
+        StubMailFolderParticipation folderParticipation)
     {
         var catalog = new StubMailAccountCatalog(ServedAccount);
 
@@ -267,8 +246,8 @@ internal sealed class DraftedMailDeployment
             Substitute.For<IEmailContentRepairRequestStore>(),
             new MailboxScopeResolver(
                 catalog,
-                StubMailFolderParticipation.Nothing,
-                StubDeploymentMailFolders.None,
+                folderParticipation,
+                StubDeploymentMailFolders.Of(folderParticipation),
                 StubMailFolderMappings.ResolvingNothing),
             Substitute.For<IOutgoingSenderIdentityReader>(),
             new NamedRecipientResolver(Substitute.For<IContactDirectory>(), ContactBookOwnerships.For(authorization)),

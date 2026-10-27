@@ -77,7 +77,6 @@ public sealed class SearchEmailsToolMetadataTests
             "isRemotelyFlagged",
             "keyword",
             "hasAttachments",
-            "includeJunkMail",
             "resultLimit",
         ];
 

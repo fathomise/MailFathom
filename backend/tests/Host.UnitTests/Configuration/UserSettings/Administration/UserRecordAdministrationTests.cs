@@ -7,6 +7,7 @@ using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Failures;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
 using MailFathom.Host.Configuration.UserSettings.Administration;
@@ -1053,7 +1054,8 @@ public sealed class UserRecordAdministrationTests
                 new UserAccountDocumentBinder(
                     new PersistedSecretMaterial(DeclaredSecretScheme.Registered),
                     new FakeTimeProvider(Today),
-                    Options.Create(scanning ?? new SensitiveContentOptions())),
+                    Options.Create(scanning ?? new SensitiveContentOptions()),
+                    Options.Create(new DecisionModelOptions())),
                 SecretValidation.OverRegisteredSchemes(),
                 this.ServedUsers,
                 this.Files,

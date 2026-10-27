@@ -12,6 +12,8 @@ using MailFathom.Host.Configuration.UserSettings;
 using MailFathom.Infrastructure.Certificates;
 using MailFathom.Infrastructure.DataEncryption;
 using MailFathom.Infrastructure.Mail;
+using MailFathom.Infrastructure.Mail.Signatures;
+using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Secrets;
 using MailFathom.Infrastructure.Secrets.Database;
@@ -48,6 +50,8 @@ internal sealed partial class SecretConfigurationValidator
 
     private readonly ISecretReferenceResolver secretReferenceResolver;
     private readonly TrustAnchorLoader trustAnchorLoader;
+    private readonly SmimeSigningCertificateValidator smimeSigningCertificateValidator;
+    private readonly OpenPgpSigningKeyValidator openPgpSigningKeyValidator;
     private readonly DatabaseConnectionSettingsMapper connectionSettingsMapper;
     private readonly IDatabaseConnectionSettingsValidator connectionSettingsValidator;
     private readonly PostgresTextSearchConfiguration schemaTextSearchConfiguration;
@@ -62,6 +66,8 @@ internal sealed partial class SecretConfigurationValidator
     public SecretConfigurationValidator(
         ISecretReferenceResolver secretReferenceResolver,
         TrustAnchorLoader trustAnchorLoader,
+        SmimeSigningCertificateValidator smimeSigningCertificateValidator,
+        OpenPgpSigningKeyValidator openPgpSigningKeyValidator,
         DatabaseConnectionSettingsMapper connectionSettingsMapper,
         IDatabaseConnectionSettingsValidator connectionSettingsValidator,
         PostgresTextSearchConfiguration schemaTextSearchConfiguration,
@@ -71,6 +77,8 @@ internal sealed partial class SecretConfigurationValidator
     {
         this.secretReferenceResolver = secretReferenceResolver;
         this.trustAnchorLoader = trustAnchorLoader;
+        this.smimeSigningCertificateValidator = smimeSigningCertificateValidator;
+        this.openPgpSigningKeyValidator = openPgpSigningKeyValidator;
         this.connectionSettingsMapper = connectionSettingsMapper;
         this.connectionSettingsValidator = connectionSettingsValidator;
         this.schemaTextSearchConfiguration = schemaTextSearchConfiguration;
@@ -244,7 +252,7 @@ internal sealed partial class SecretConfigurationValidator
     /// <param name="candidate">The bound snapshot, which may be the startup one or a reloaded one.</param>
     /// <remarks>
     /// The mailboxes are not in this section and therefore not in this walk: they are each user's own record, and the
-    /// secrets and trust anchors they name are proven when a user's record is read and composed.
+    /// secrets, trust anchors, and signing identities they name are proven when a user's record is read and composed.
     /// What is left here is whatever secret-bearing value the deployment's own synchronization keys carry.
     /// </remarks>
     /// <param name="cancellationToken">Cancels the resolution and the certificate loading.</param>
@@ -256,11 +264,84 @@ internal sealed partial class SecretConfigurationValidator
     {
         ArgumentNullException.ThrowIfNull(candidate);
 
-        return await this.FindSecretReferenceErrorsAsync(
+        var errors = new List<string>(await this.FindSecretReferenceErrorsAsync(
             MailSynchronizationConfigurationPath,
             candidate,
             null,
-            cancellationToken);
+            cancellationToken));
+
+        errors.AddRange(await this.FindSignatureTrustErrorsAsync(candidate.SignatureVerification, cancellationToken));
+
+        return errors;
+    }
+
+    /// <summary>Loads every authority and key the signature verification trusts and reports the ones no verification could use.</summary>
+    /// <remarks>
+    /// Resolving the reference is not enough, for the reason the other anchors are loaded too: material that resolves
+    /// but is not a certificate, or not an OpenPGP public key, would pass a reference check and then quietly trust
+    /// nothing. Each one is discarded once it has proven loadable, because a verification loads its own. The keys are
+    /// also judged together, because one key configured at two positions is refused only when both are seen.
+    /// </remarks>
+    private async Task<IReadOnlyList<string>> FindSignatureTrustErrorsAsync(
+        MailSignatureVerificationOptions candidate,
+        CancellationToken cancellationToken)
+    {
+        var errors = new List<string>();
+        var sectionPath = $"{MailSynchronizationConfigurationPath}:{nameof(MailSynchronizationOptions.SignatureVerification)}";
+
+        foreach (var (index, configuredAuthority) in candidate.TrustedAuthorities.Index())
+        {
+            var configurationPath = $"{sectionPath}:{nameof(MailSignatureVerificationOptions.TrustedAuthorities)}:{index}";
+
+            using var loadResult = await this.trustAnchorLoader.LoadAsync(configuredAuthority, cancellationToken);
+
+            if (loadResult.TrustAnchor is { } authority)
+            {
+                this.LogTrustAnchorLoaded(configurationPath, authority.Subject, authority.Thumbprint);
+            }
+            else
+            {
+                errors.Add($"{configurationPath} — the certificate authority could not be loaded [{loadResult.Failure}].");
+            }
+        }
+
+        var keysSectionPath = $"{sectionPath}:{nameof(MailSignatureVerificationOptions.TrustedOpenPgpKeys)}";
+        var firstPositionOfKey = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var (index, configuredKey) in candidate.TrustedOpenPgpKeys.Index())
+        {
+            var configurationPath = $"{keysSectionPath}:{index}";
+
+            var resolved = await this.secretReferenceResolver.ResolveAsync(configuredKey.SecretReference, cancellationToken);
+            if (resolved.Secret is not { } material)
+            {
+                errors.Add($"{configurationPath} — the OpenPGP key could not be resolved [{resolved.Failure}].");
+
+                continue;
+            }
+
+            using (material)
+            {
+                if (OpenPgpPublicKeyMaterial.PrimaryKeyIdsOf(material.RevealBytes()) is not { } keyIds)
+                {
+                    errors.Add($"{configurationPath} — the material is not an OpenPGP public key.");
+
+                    continue;
+                }
+
+                // One key configured twice — a refreshed copy added during rotation is the usual way — cannot be put
+                // into one key set, so it is refused here rather than left to fail every verification later.
+                foreach (var keyId in keyIds)
+                {
+                    if (!firstPositionOfKey.TryAdd(keyId, index))
+                    {
+                        errors.Add($"{configurationPath} — holds an OpenPGP key already trusted at {keysSectionPath}:{firstPositionOfKey[keyId]}; configure each key once.");
+                    }
+                }
+            }
+        }
+
+        return errors;
     }
 
     /// <summary>Finds everything an operator must fix before one user's own mail accounts can be connected with.</summary>
@@ -296,6 +377,11 @@ internal sealed partial class SecretConfigurationValidator
             await this.FindSecretReferenceErrorsAsync(userConfigurationPath, user, null, cancellationToken));
 
         errors.AddRange(await this.FindTrustAnchorErrorsAsync(
+            $"{userConfigurationPath}:{nameof(UserAccountOptions.MailAccounts)}",
+            mailAccounts,
+            cancellationToken));
+
+        errors.AddRange(await this.FindSigningIdentityErrorsAsync(
             $"{userConfigurationPath}:{nameof(UserAccountOptions.MailAccounts)}",
             mailAccounts,
             cancellationToken));
@@ -674,6 +760,59 @@ internal sealed partial class SecretConfigurationValidator
             else
             {
                 errors.Add($"{configurationPath} — the trusted certificate authority material could not be loaded [{loadResult.Failure}].");
+            }
+        }
+
+        return errors;
+    }
+
+    /// <summary>Reads every configured signing identity and reports the ones that could not sign the account's mail.</summary>
+    /// <remarks>
+    /// <para>
+    /// Resolving the references is not enough, for the reason a trust anchor is loaded rather than merely resolved: a
+    /// certificate for the wrong address or a key whose passphrase does not open it resolves cleanly and fails the first
+    /// signature. Each identity is judged against the address the account sends from and discarded once judged, because
+    /// signing reads its own.
+    /// </para>
+    /// <para>
+    /// An account whose block the account's own validation already refuses is skipped: no submission endpoint, no
+    /// address to send from, or an S/MIME block naming both shapes or half of one. Judging the material there would
+    /// report one mistake twice.
+    /// </para>
+    /// </remarks>
+    private async Task<IReadOnlyList<string>> FindSigningIdentityErrorsAsync(
+        string accountsConfigurationPath,
+        IReadOnlyList<MailSynchronizationAccountOptions> accounts,
+        CancellationToken cancellationToken)
+    {
+        var errors = new List<string>();
+
+        // The loop stays, because each step awaits a retrieval and the position is part of the reported path.
+        foreach (var (accountIndex, account) in accounts.Index())
+        {
+            if (account.Delivery is not { IsConfigured: true } delivery
+                || delivery.ResolveFromAddress(account.UserName) is not { } fromAddress)
+            {
+                continue;
+            }
+
+            var deliveryPath =
+                $"{accountsConfigurationPath}:{accountIndex}:{nameof(MailSynchronizationAccountOptions.Delivery)}";
+
+            if (delivery.SmimeSigningCertificate is { IsConfigured: true } smime
+                && smime.FindConfigurationErrors(deliveryPath).Count == 0
+                && await this.smimeSigningCertificateValidator.FindUnusabilityAsync(smime, fromAddress, cancellationToken)
+                    is { } smimeFailure)
+            {
+                errors.Add($"{deliveryPath}:{nameof(MailAccountDeliveryOptions.SmimeSigningCertificate)} — the S/MIME signing certificate cannot sign mail from this account [{smimeFailure}].");
+            }
+
+            if (delivery.OpenPgpSigningKey is { } openPgp
+                && !string.IsNullOrWhiteSpace(openPgp.SecretReference)
+                && await this.openPgpSigningKeyValidator.FindUnusabilityAsync(openPgp, fromAddress, cancellationToken)
+                    is { } openPgpFailure)
+            {
+                errors.Add($"{deliveryPath}:{nameof(MailAccountDeliveryOptions.OpenPgpSigningKey)} — the OpenPGP signing key cannot sign mail from this account [{openPgpFailure}].");
             }
         }
 

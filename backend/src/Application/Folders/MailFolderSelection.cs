@@ -21,8 +21,12 @@ public enum MailFolderSelection
     /// </remarks>
     Synchronized = 1,
 
-    /// <summary>The folders an MCP tool may list, search, read, or answer from.</summary>
-    VisibleToTools = 2,
+    /// <summary>The folders any AI function may reach: an agent, an MCP tool, or a model or embedding provider.</summary>
+    /// <remarks>
+    /// A subset of <see cref="Synchronized" />, and a superset of <see cref="GeneratingEmbeddings" />: a folder withheld
+    /// from AI is still mirrored, and is embedded by nobody.
+    /// </remarks>
+    VisibleToAI = 2,
 
     /// <summary>The folders whose content is cut into passages and embedded.</summary>
     GeneratingEmbeddings = 3,

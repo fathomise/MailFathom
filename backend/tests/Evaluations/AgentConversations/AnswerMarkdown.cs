@@ -57,6 +57,7 @@ internal static partial class AnswerMarkdown
     [GeneratedRegex(@"(?<!!)\[[^\]]+\]\([^)\s]+\)|<[A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*>|<[^<>\s@]+@[^<>\s@]+>|^ {0,3}\[[^\]]+\]:[ \t]*\S", RegexOptions.Multiline)]
     private static partial Regex Link();
 
-    [GeneratedRegex(@"</?[A-Za-z][A-Za-z0-9-]*(\s[^<>]*)?/?>")]
+    // A tag as the model wrote it, or as the answer is published, with its opening bracket a character reference.
+    [GeneratedRegex(@"(?:<|&lt;)/?[A-Za-z][A-Za-z0-9-]*(\s[^<>]*)?/?>")]
     private static partial Regex Html();
 }

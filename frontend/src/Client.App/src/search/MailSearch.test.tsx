@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientSession, MailAccount, MailFathomTransport } from '@mailfathom/client-backend';
@@ -13,6 +13,7 @@ import { everything, type MailScope } from '../workspace/mailScope';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { MailSearch } from './MailSearch';
 import { resultsPerPage } from './searchAsk';
+import { listedSender } from '../../../../tests/fixtures/senders';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -22,6 +23,7 @@ const work: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 const result = {
@@ -42,6 +44,7 @@ const result = {
     attachmentCount: 0,
     sizeOctets: 1_024,
     preview: 'The invoice for August is attached.',
+    sender: listedSender('unrecognized'),
     snippets: ['The **invoice** for August'],
     matchedBy: 'LexicalRanking',
     attachmentMatches: [],
@@ -157,18 +160,6 @@ function searchUnder(transport: MailFathomTransport, scope: MailScope = everythi
             </WorkspaceProvider>
         </LocalizationProvider>
     );
-}
-
-// A list whose fold turns when it is asked to, as the Mail space's does.
-function TurningList() {
-    const [folded, setFolded] = useState(true);
-
-    return searchInAFoldedList({
-        folded,
-        turn: () => {
-            setFolded((was) => !was);
-        },
-    });
 }
 
 function searchInAFoldedList(fold: ListFold): ReactElement {
@@ -463,35 +454,11 @@ describe('MailSearch', () => {
 });
 
 describe('MailSearch, at the fold', () => {
-    it('stands as the one control that widens the list while the list is folded to a strip', () => {
-        const turn = vi.fn();
-        render(searchInAFoldedList({ folded: true, turn }));
+    it.each([true, false])('leaves turning the list to the toolbar, folded or not (%s)', (folded) => {
+        render(searchInAFoldedList({ folded, kept: false, turn: vi.fn(), keep: vi.fn() }));
 
-        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
-
-        expect(turn).toHaveBeenCalledOnce();
-        expect(screen.getByText(mailInScope)).toBeTruthy();
-    });
-
-    it('leads the widened list with the control that folds it again', () => {
-        const turn = vi.fn();
-        render(searchInAFoldedList({ folded: false, turn }));
-
-        fireEvent.click(screen.getByRole('button', { name: 'Narrow the list' }));
-
-        expect(turn).toHaveBeenCalledOnce();
         expect(screen.queryByRole('button', { name: 'Show the list' })).toBeNull();
-    });
-
-    it('puts focus on the control that turns the list back, the pressed one having gone with its head', () => {
-        render(<TurningList />);
-
-        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
-
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Narrow the list' }));
-
-        fireEvent.click(screen.getByRole('button', { name: 'Narrow the list' }));
-
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Show the list' }));
+        expect(screen.queryByRole('button', { name: 'Narrow the list' })).toBeNull();
+        expect(screen.getByText(mailInScope)).toBeTruthy();
     });
 });

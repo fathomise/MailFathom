@@ -11,7 +11,6 @@ using MailFathom.Application.EmailContent.Cleaning;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
-using MailFathom.Domain.Emails;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -179,21 +178,9 @@ internal sealed class MailBodyCleanupAgent : IMailBodyCleaner
         SensitiveContentEgressGuard egressGuard,
         ChatGenerationPlan plan,
         CancellationToken cancellationToken) =>
-        Bounded(
-            MailBodyCleanupInstructions.ComposeOutlineTurn(await GuardedAsync(body, egressGuard, cancellationToken)),
+        MailBodyCleanupInstructions.ComposeOutlineTurn(
+            await GuardedAsync(body, egressGuard, cancellationToken),
             plan.MaximumRequestCharacters);
-
-    /// <summary>Cuts a turn down to what one call may carry, without splitting a character in half.</summary>
-    /// <remarks>
-    /// A bound rather than a refusal, and the trade here is the gentlest of the three passes that make it: what a cut costs
-    /// is the tail of the outline, so the blocks past the cut are ones the answer will not name — which the partition check
-    /// then reads as an answer that did not cover the document, and the reader is shown the uncleaned message. A truncated
-    /// turn therefore cannot produce a cleaning that silently dropped the end of a message.
-    /// </remarks>
-    private static string Bounded(string turn, int maximumCharacters) =>
-        turn.Length <= maximumCharacters
-            ? turn
-            : MailTextBounds.TruncateAtTextElementBoundary(turn, maximumCharacters);
 
     /// <summary>Puts every text of the outline through the egress guard before any of it is composed into a turn.</summary>
     /// <remarks>

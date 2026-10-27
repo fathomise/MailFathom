@@ -192,7 +192,7 @@ public sealed record MailboxMutationAuditEntry
                 nameof(sourceFolder));
         }
 
-        // ponytail: a local act still names the occurrence and the source path, because every message this path reaches
+        // A local act still names the occurrence and the source path, because every message this path reaches
         // still has one — the target readers refuse a row without it. Once the drain clears occurrences, the entry's
         // occurrence columns become nullable and name the local folders instead, as ADR 0034 states.
         return new MailboxMutationAuditEntry

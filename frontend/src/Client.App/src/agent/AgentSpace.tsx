@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
     answerAgentProposal,
     archiveAgentConversation,
@@ -95,6 +95,7 @@ const contextSaid: Readonly<Record<AgentHandOver['scope']['kind'], MessageKey>> 
     thread: 'agent.context.thread',
     calendarEvent: 'agent.context.calendarEvent',
     discoveryRun: 'agent.context.discoveryRun',
+    notification: 'agent.context.notification',
 };
 
 const deletingCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
@@ -107,7 +108,6 @@ const deletingCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
 };
 
 /**
- * @param status What the deployment is doing, which every space shows somewhere and this one shows in its header.
  * @param handOver What another space last handed to the agent, and `null` before any has. Each hand-over is a new
  * value, and a new one opens a new conversation carrying it as the context, whatever was open before.
  * @param schedule How the follower waits, which a test replaces so nothing polls in it.
@@ -116,14 +116,12 @@ const deletingCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
 export function AgentSpace({
     session,
     transport,
-    status,
     handOver = null,
     schedule = whileTheConversationIsSilent,
     onLook = null,
 }: {
     readonly session: ClientSession | null;
     readonly transport: MailFathomTransport;
-    readonly status: ReactNode;
     readonly handOver?: AgentHandOver | null;
     readonly schedule?: RunFollowingSchedule;
     readonly onLook?: ((where: ProposalLook) => void) | null;
@@ -161,6 +159,11 @@ export function AgentSpace({
     // for as long as it lives, and a screen drawn again under a new session must not open on a thread from the last.
     const [handedOver, setHandedOver] = useState(handOver);
 
+    // A hand-over that carries its question, held until the conversation it opens is the one in front — which is the
+    // render after the one that took it.
+    const [asking, setAsking] = useState<AgentHandOver | null>(null);
+    const questionAsked = useRef<AgentHandOver | null>(null);
+
     // Adjusted while rendering rather than in an effect, so the conversation that was open is never drawn under the
     // context of the one being opened.
     if (handOver !== handedOver) {
@@ -171,6 +174,7 @@ export function AgentSpace({
             setCurrent(null);
             setUnsent(null);
             setComposerFocusAsked((before) => before + 1);
+            setAsking(handOver.question === undefined ? null : handOver);
         }
     }
 
@@ -321,6 +325,21 @@ export function AgentSpace({
 
         return conversation;
     }
+
+    // Sending is a request going out, so it is an effect's — and a remembered hand-over rather than a cleared state,
+    // so the question is asked once however often the effect runs.
+    const askHandedOver = useEffectEvent((question: string): void => {
+        void send(question);
+    });
+
+    useEffect(() => {
+        if (asking?.question === undefined || questionAsked.current === asking) {
+            return;
+        }
+
+        questionAsked.current = asking;
+        askHandedOver(asking.question);
+    }, [asking]);
 
     // A decision is addressed to the conversation it was pressed in, and whatever it recorded — the phase it moved to,
     // or the refusal of one somebody had already answered — arrives by reading that conversation again.
@@ -508,10 +527,6 @@ export function AgentSpace({
                     history and the way to a new conversation; the wider compositions keep it after both. */}
                 {wide ? newConversation : title}
                 {wide ? title : newConversation}
-
-                {/* The phone gives the connection a line of its own under the bar, where it would otherwise take the
-                    title's width; it draws nothing at all while the connection is fine. */}
-                {wide ? status : <div className="basis-full empty:hidden has-[>div:empty]:hidden">{status}</div>}
             </header>
 
             <div className="relative flex min-h-0 flex-1">

@@ -6,6 +6,7 @@ using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Correspondence;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -82,7 +83,7 @@ internal static class ClientContactCorrespondenceEndpoint
             return TypedResults.NotFound();
         }
 
-        var correlated = await correspondence.ReadAsync(contact, cancellationToken);
+        var correlated = await correspondence.ReadAsync(contact, MailboxReaderKind.Person, cancellationToken);
 
         return TypedResults.Ok(ClientContactCorrespondenceResponse.For(contactId, correlated));
     }

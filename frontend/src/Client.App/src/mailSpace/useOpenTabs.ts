@@ -163,8 +163,13 @@ export function useOpenTabs(inTabs: boolean): OpenTabsInForce {
 
             // The message already being read is already open, so opening it again is nothing — and doing the work
             // anyway would put the reading column back where this tab was opened, closing a conversation the reader
-            // has in front of it.
+            // has in front of it. A tab the reader stepped back out of to the list is still the active one and is not
+            // being read, so opening it again draws it afresh.
             if (held.active === tab.key) {
+                if (here.selection === null && here.conversation === null) {
+                    revise(tab.opened);
+                }
+
                 return;
             }
 

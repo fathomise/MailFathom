@@ -11,7 +11,9 @@ The protocol adapter is not part of this: `MailboxTimelineReader` is an applicat
 tool that publishes it is described by [MCP tools](mcp-tools.md).
 
 `MailTimelineBrowser` is the same walk read for a screen rather than for a tool, and everything on this page about the
-scope, the filters, the order, the bound and the cursor holds for it unchanged. What it adds is stated in two places
+scope, the filters, the order, the bound and the cursor holds for it unchanged — except that it answers for the person
+rather than for an agent, so [a folder withheld from AI](#folders-withheld-from-ai) is one it reads. What it adds is
+stated in two places
 below: [a preview on every row](#the-preview-a-list-row-shows), and [a page that can be asked for in either
 direction](#reading-a-page-backwards). [`GET /api/client/emails`](../operations/client-endpoint.md#the-mail-list-route)
 is what publishes it.
@@ -36,7 +38,7 @@ divergence neither copy would look wrong for on its own.
 | Field | Meaning | Absent means |
 |---|---|---|
 | `Accounts` | The accounts to list from, each named by its identifier or by its display name | every account the caller is assigned |
-| `Folders` | The folders to list from, each named by its identity or by the role it plays | every folder of those accounts that tools may read |
+| `Folders` | The folders to list from, each named by its identity or by the role it plays | every folder of those accounts that is visible to AI |
 | `SenderAddress` | The address the sender must carry, in any case | any sender |
 | `RecipientAddress` | The address a `To` or `Cc` recipient must carry | any recipient |
 | `SubjectFragment` | Text the subject must contain, compared without regard to case | any subject |
@@ -47,7 +49,6 @@ divergence neither copy would look wrong for on its own.
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
 | `Mark` | The reading an enrichment must have left, and the range a commitment falls due in | any reading, and mail with none |
-| `IncludeJunkMail` | Whether the account's junk folder takes part | it does not |
 | `Direction` | Which end of the timeline to read from | `NewestFirst` |
 | `PageSize` | How many emails the page returns | the default of 25 |
 | `Cursor` | The cursor a previous page returned | the first page |
@@ -62,9 +63,11 @@ written `role:Junk`, and the role is read against the role each account's own fo
 folder on each account, so it contributes each of their own folders once the accounts in scope are settled. A role no
 account in scope maps is refused with `53003 MailFolderRoleUnmapped`, unlike an identity no folder carries, which selects
 nothing — an identity is already a name the caller chose to use, while a role that reached no folder anywhere would
-leave a caller reading an empty page as an empty folder.
+leave a caller reading an empty page as an empty folder. `role:Outbox` is refused by the MCP adapter on its own terms
+with `51002`, its message naming `list_outgoing_emails`: an account's outbox is its not-yet-sent mail rather than a
+folder, so no folder plays the role and no mailbox query reads it.
 
-A listing that names no folder reads every folder the account maps and lets tools read, so a message that exists in two
+A listing that names no folder reads every folder the account maps and leaves visible to AI, so a message that exists in two
 of them — because it was copied, by
 the mailbox user or by MailFathom — is two entries, one per folder. Nothing collapses them, because a stored row is one
 stored email in one folder and no identity spans two;
@@ -171,24 +174,32 @@ Because the resolved accounts are what the query runs with, they are also what t
 issued while three accounts were served is therefore refused after one of them is removed, which is correct: the result
 set it named no longer exists.
 
-### Folders withheld from tools
+### Folders withheld from AI
 
-A folder mapped with `VisibleToTools: false` is outside every read a tool performs, whatever the request named. It is not
-listed, not searched, not answered from, and not readable by identifier: naming its identity in `Folders` narrows the
-listing to a folder that is then excluded, so the page is empty rather than refused, and asking for one of its emails by
-identifier reports the email as not found rather than as withheld. An attachment link minted before the switch was set
-stops serving for the same reason, because the question is asked where the download is served rather than where the link
-was issued. None of those answers says the folder exists, because a refusal naming it would publish exactly what the
-switch withholds.
+Every read states who it answers for: an **agent** — an MCP tool, the in-app agent conversation, a Discover run, reply
+drafting, a contact's relationship card — or the **person** reading their own mail in the client. A folder mapped with
+`VisibleToAI: false` is outside every read that answers for an agent, whatever the request named, and inside every read
+that answers for the person exactly as any other mirrored folder is. For an agent it is not listed, not searched, not
+answered from, and not readable by identifier: naming its identity in `Folders` narrows the listing to a folder that is
+then excluded, so the page is empty rather than refused, and asking for one of its emails by identifier reports the
+email as not found rather than as withheld. An attachment link an MCP read minted before the switch was set stops
+serving for the same reason, because the question is asked where the download is served rather than where the link was
+issued. None of those answers says the folder exists, because a refusal naming it would publish exactly what the switch
+withholds. The person's timeline, search, conversations, opened messages, and attachment downloads read the folder as
+they read any other.
 
-**The same list decides what a tool may write.** `set_mail_flags` resolves the email it was given through this scope
-before anything is recorded, so a folder the switch withholds is one no caller can mark, star, or label, and what it
-meets is the not-found answer above rather than one that says the folder exists. A write surface that reached what a
-read withholds would be a way round the switch rather than a second capability.
+**The same list decides what an agent may write.** `set_mail_flags`, `reply_to_email`, `forward_email`, a draft an agent
+or MCP caller saves, and every act an agent conversation performs resolve the email they were given through this scope
+before anything is recorded, so a folder the switch withholds is one no agent can mark, star, label, answer, or forward
+from, and what it meets is the not-found answer above rather than one that says the folder exists. A write surface that
+reached what a read withholds would be a way round the switch rather than a second capability. What the person does
+through the client — flags, moves, deletes, withdrawals, releases, and the drafts and replies they write — resolves
+through the person's scope and reaches the folder like any other.
 
-A folder **configuration stopped naming** gives the same answers, and for a stronger reason: the scope carries the
-folders a mapping names and leaves visible, so a read admits that list and nothing else among the folders an alias
-feeds. Mail stored under an alias whose mapping was later removed is therefore mail no page reaches, no search matches,
+A folder **configuration stopped naming** gives the same answers to both readers, and for a stronger reason: the scope
+carries the folders a mapping names — and, for an agent, also leaves visible to AI; for the person, also mirrors — so a
+read admits that list and nothing else among the folders an alias feeds. A folder nothing mirrors is withheld from the
+person as well, because what it keeps is an inert copy nothing refreshes. Mail stored under an alias whose mapping was later removed is therefore mail no page reaches, no search matches,
 and no identifier resolves — the rows stay in the table and stop being readable the moment configuration stops naming
 their folder, until the withdrawn folder's erasure removes them. A folder no alias feeds at all — one a person made, or a
 server folder no configuration names — is no folder configuration withheld, so it is read on any account the caller is
@@ -201,39 +212,43 @@ name — against the alias recorded on the folder row a message names.
 It deliberately takes no part in the cursor's fingerprint: a cursor stays valid across the change, and the pages after it
 simply stop admitting the folder, which is what an operator withholding it or removing its mapping meant.
 
-Freshness follows the same rule, so a folder a mapping withholds or does not name is absent from the entries a listing
-reports rather than present with a timestamp nothing may read behind it.
+Freshness follows the same rule, so a folder a mapping withholds from AI or does not name is absent from the entries an
+agent's listing reports rather than present with a timestamp nothing may read behind it.
 [What a mapping decides beyond where the folder is](imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
 states the switch beside the other two, what an unmapped folder is instead, and how to empty one.
 
-### The junk folder, withheld by default and reachable on request
+### Mail judged spam, withheld from every agent
 
-A folder mapped to the `Junk` special use is outside a listing and a search unless the request asks for it. The default
-is the one that matters: mail a filter already set aside is mail written to be read by somebody who did not ask for it,
-and an agent reasoning over a timeline has no way to tell it from correspondence. `IncludeJunkMail` is the caller's
-override, and the result reports which of the two answers it gave, so a reader is never left guessing whether an absent
-message was missing or withheld.
+An agent's read never reaches a message whose current verdict is spam, whichever stage reached it and whichever folder
+holds it, and never reaches the junk folder's mail unless the person marked the message not spam. A spam message is
+written by somebody hostile and an agent is a model acting on what it reads, so no request lifts this: `ListEmails` and
+`SearchEmails` carry no junk override, and naming `role:Junk` reads only what the person marked not spam.
+[Spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states the rule and every surface
+it covers.
 
-This is not the switch above, and the difference is the point. `VisibleToTools: false` is an operator's decision that no
-tool may read a folder; the junk exclusion is a default a caller may lift. The two are held apart and a query is handed
-their union, so asking for junk can never reveal a folder the operator withheld — a folder that is both is still outside
-every read.
+It is a property of the scope rather than of a read model. `MailboxScopeResolver` records whose read a scope answers
+for, and the one predicate every mail-returning read composes narrows an agent's scope by the stored verdict row as the
+query runs — the timeline, both search windows, the vector window `ask_mail` retrieves from, a conversation, a
+contact's correspondence. Nothing is written beside the message, so a message marked spam leaves the next read and one
+marked not spam returns to it with nothing reindexed. A read that reaches one email by its identifier asks the resolver
+the same question about that email's summary, and a withheld message is answered exactly as one that does not exist.
 
-Both sets are read from the account records when a read resolves its scope, narrowed to the accounts that read reaches,
-and the read keeps them for as long as it runs: a conversation assembled from several threads, or a page of a timeline,
-is judged by the one reading its scope was resolved with. They are held in the columns
+The person's read through the client is not an agent's. It reaches spam like any other mail, and the junk folder is a
+default it may lift: the client's browse and search requests carry their own junk override, which takes part in the
+cursor's fingerprint because including junk adds rows in the middle of an ordering.
+
+This is not the switch above, and the difference is the point. `VisibleToAI: false` is an operator's decision that no AI
+function may read a folder, and it holds whatever the folder's mail's verdicts are; the spam rule withholds individual
+messages from an agent inside the folders it may read. The two narrow a query independently, so a folder that is both
+is outside every agent read.
+
+The junk folders are read from the account records when a read resolves its scope, narrowed to the accounts that read
+reaches, and the read keeps them for as long as it runs: a conversation assembled from several threads, or a page of a
+timeline, is judged by the one reading its scope was resolved with. They are held in the columns
 [every account is asked about at once](../architecture/stored-email-schema.md#what-every-account-is-asked-about-at-once),
-written with the account's settings, so a folder switched out of tool visibility leaves the next read rather than the
-next restart.
-
-The override is the caller's own filter rather than configuration, so it **does** take part in the cursor's fingerprint:
-including junk adds rows in the middle of an ordering, and a walk resumed under the other answer would skip or repeat.
-The junk folders themselves stay out of the fingerprint, exactly as the withheld folders above do, so mapping one does
-not invalidate an outstanding cursor.
-
-`get_email_content` is unaffected: a message reached by its identifier is a message somebody already has in hand.
-`ask_mail` excludes junk and offers no override, for the reason
-[spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) gives.
+written with the account's settings, so a folder withheld from AI leaves the next agent read rather than the next
+restart. They stay out of the cursor's fingerprint, exactly as the withheld folders above do, so mapping one does not
+invalidate an outstanding cursor.
 
 ### Attachment presence
 
@@ -253,7 +268,8 @@ values, beside the total attachment size and the encrypted, unverified-signature
 email by, its account and folder — the folder's identity and its place in the account's hierarchy — the message identifier, the identifier of the
 [conversation](../architecture/stored-email-schema.md#the-conversation-a-message-belongs-to) it belongs to, subject,
 sent and received timestamps, size, the sender's display name and address, the sender verdict, the machine-authorship
-reading, the `To` addresses, the attachment summary, whether raw MIME is stored locally, and the remote flag snapshot.
+reading, the `To` addresses, the attachment summary, whether raw MIME is stored locally, the remote flag snapshot, and
+the spam verdict where one is recorded.
 
 The conversation identifier is absent for a message nothing has assembled one for, which is what a mailbox stored before
 threading existed holds until `mfctl mailbox rederive` reaches it. It is MailFathom's own identifier and carries nothing
@@ -321,8 +337,9 @@ at all asks nothing.
 **It counts under the same scope the conversation route reads under**, which is neither the account nor the folder the
 listing was narrowed to, with the junk folder included. A count narrowed to the folder somebody is listing would answer
 one for nearly every row in it, which is the opposite of what the number is drawn for. What the scope does narrow is
-unchanged: a folder [withheld from tools](#folders-withheld-from-tools) is counted nowhere, which is what keeps a
-withheld folder's size from being published one integer at a time.
+unchanged, and it is the person's: a folder [withheld from AI](#folders-withheld-from-ai) is counted like any other,
+and a folder nothing mirrors or no mapping names is counted nowhere, which is what keeps such a folder's size from
+being published one integer at a time.
 
 **What it does not share with that read is the assembly bound.** A conversation is assembled to at most
 `IEmailThreadReader.MaximumAssembledEmails` messages and says `MoreMessagesNotAssembled` when it ran further, so
@@ -338,13 +355,16 @@ says.
 
 The sender's address is what the message wrote about itself, so the summary carries beside it what somebody else
 established: `SenderVerification`, the pair of *what was concluded about the displayed author* and *whether this
-deployment recognizes that author*. Both are read from the columns synchronization wrote. A listing evaluates no policy,
+deployment recognizes that author* — with what recognized it, the trusted senders, a domain of the owner's own
+accounts, or the organization's signature proving a member — beside a third fact folded into neither, *what the message's own S/MIME or OpenPGP
+signature proves*. All of it is read from the columns synchronization wrote. A listing evaluates no policy,
 resolves no DNS, and re-reads no header — a query that reached a verdict of its own would answer a different question
 from the one the message was stored with. That holds unchanged now that a verdict may have been reached here rather than
 by the receiving server: verifying a signature is a step of storing a message, never of answering a query.
 
 The summary carries a second value the listing does not publish: `SenderAuthenticationEvidence`, the domain that
-authenticated, the domain the `From` header displayed, which check established the first, the DMARC result, and which of
+authenticated, the domain the `From` header displayed, the domains whose DKIM signature and SPF check passed, which
+check established the first, the DMARC result, and which of
 the two readings produced all of it — the receiving server's `Authentication-Results` header, or MailFathom's own
 verification of the message's DKIM signatures where no such header was found. One projection reads both because the
 single-email read is built from this same summary and is where the evidence is published; a second query for it would let the two reads disagree about one message. [Sender
@@ -364,6 +384,16 @@ from the columns extraction wrote, so a listing reads no body, weighs nothing, a
 It is **informational and never a finding against the message**. Nothing in the query path filters, sorts, ranks, or
 refuses on it, and it takes no part in the freshness reporting or the bounds around a page. [Machine
 authorship](machine-authorship.md) holds what the reading is made of and what it deliberately does not claim.
+
+### The spam verdict a summary carries
+
+`EmailSpamVerdict` is what [spam classification](spam-classification.md) concluded about the message: the verdict, the
+stage that reached it, and the subcategory, the stage that named it, and the phishing detail where those were named. It
+is five columns of the message's classification row, read by the same query through a join on the message's identity —
+never the classification's signals, score, or profile — and it is absent for a message no stage has reached, which is
+not the same as `NotSpam`. Every part of it is a closed value, so it reaches no sensitive-content scanner. The person's
+query path neither filters, sorts, nor ranks on it; an agent's read is narrowed by the same row, as
+[mail judged spam, withheld from every agent](#mail-judged-spam-withheld-from-every-agent) describes.
 
 ### The remote flag snapshot
 
@@ -498,7 +528,8 @@ question without the answer. `MailThreadBrowser` is that read —
 and it takes no account and no folder at all. What narrows it is ownership alone, which is the same
 `MailboxScopeResolver` every read on this page narrows through, and the junk folder takes part rather than being
 withheld: a reply that landed in junk is part of the exchange somebody is reading rather than mail they asked to be
-shown. A folder [withheld from tools](#folders-withheld-from-tools) stays withheld here as everywhere.
+shown. The read answers for the person, so a folder [withheld from AI](#folders-withheld-from-ai) takes part like any
+other, while a folder nothing mirrors stays out here as in every read.
 
 **Membership, order and count come from the thread reader the MCP content read already uses**, so a conversation is one
 thing however it is asked for. `IEmailThreadReader` assembles at most 500 messages the caller may see and reads one row
@@ -615,8 +646,8 @@ is drawn at the top of the hierarchy until the next pass places it beneath its p
 
 The freshness a folder carries is the one the composed reading reported for the alias its row stands for, and
 `NeverSynchronized` where that reading names none — a folder declared and not mirrored. A folder no alias feeds is one
-MailFathom keeps itself and carries no freshness at all. A folder an operator withheld from tools is the one that stays
-absent, for the same reason it is absent from every other read: the resolved scope left it out on purpose. That reading
+MailFathom keeps itself and carries no freshness at all. The tree answers for the person, so a folder an operator
+withheld from AI is drawn like any other: the switch withholds a folder from AI and from nothing else. That reading
 is what [`GET /api/client/folders`](../operations/client-endpoint.md#the-folders-route) publishes; the whole configured
 list, mirrored or not and withheld or not, is [the administrative status route](../operations/admin-endpoint.md).
 
@@ -662,7 +693,9 @@ list, mirrored or not and withheld or not, is [the administrative status route](
   readers that return mail because every read model attaches freshness.
 - `MailFathom.Infrastructure.Persistence.Emails` — `StoredEmailTimelineReader`, which evaluates every filter, the keyset
   boundary, the ordering, and the row limit in PostgreSQL and tracks no entities. `StoredEmailSelectionPredicate` is the
-  filter predicate, shared with search, and `StoredEmailSummaryRow` carries the column list and the mapping, shared with
+  filter predicate, shared with search, and it admits no tombstoned row and no row still
+  [settling](../architecture/arrival-pipeline.md#a-message-is-shown-once-it-has-settled) — a message a run stored whose
+  verdict and rules have not placed it yet, which the single-email lookup answers as absent too. `StoredEmailSummaryRow` carries the column list and the mapping, shared with
   search and with the single-email lookup. Both are written once because each is a control that decides what a mailbox
   read can return at all: a second copy would have to be found and read before anyone could say what that is.
   `StoredEmailPreviewReader` is beside them, reading the opening of the derived text of one page's rows by identity and

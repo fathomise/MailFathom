@@ -121,9 +121,9 @@ services:
       # whole backup the moment this says ObjectStorage: docs/operations/deployment-compose.md § Backup and what
       # survives removal states the order the two stores are backed up and restored in.
       #
-      # The settings below are read only under the object backend, so they are set unconditionally like the spam
-      # scanner's address further down and cost a Database deployment nothing. Under ObjectStorage the address, the
-      # bucket, and both credential files are required, and MailFathom refuses to start without them rather than signing
+      # The settings below are read only under the object backend, so they are set unconditionally like the analyzer's
+      # address further down and cost a Database deployment nothing. Under ObjectStorage the address, the bucket, and
+      # both credential files are required, and MailFathom refuses to start without them rather than signing
       # requests as whatever identity the host carries.
       ContentStorage__Backend: ${MAILFATHOM_CONTENT_STORAGE:-Database}
       ContentStorage__ObjectStorage__Endpoint: ${MAILFATHOM_OBJECT_STORAGE_ENDPOINT:-}
@@ -170,18 +170,6 @@ services:
       SensitiveContent__PersonalDataAnalyzer__Languages__0: ${MAILFATHOM_PERSONAL_DATA_LANGUAGE:-en}
       #SensitiveContent__PersonalDataAnalyzer__Languages__1: pl
       SensitiveContent__PersonalDataAnalyzer__MinimumConfidence: ${MAILFATHOM_PERSONAL_DATA_MINIMUM_CONFIDENCE:-0.4}
-      # Spam classification with a scanner, paired with the `spam-scanning` profile the same way: the profile decides
-      # whether the daemon container exists and these decide whether MailFathom classifies and asks it. Both switches
-      # are one variable because MailFathom refuses to start with a scanner switched on and classification off, and the
-      # address defaults to the daemon this file starts. Classification without a scanner is the other half of the
-      # feature and is set in ./config instead, where the folders it covers and the threshold it judges by already live.
-      SpamClassification__Enabled: ${MAILFATHOM_SPAM_SCANNING:-false}
-      SpamClassification__UseScanner: ${MAILFATHOM_SPAM_SCANNING:-false}
-      SpamClassification__Scanner__Host: ${MAILFATHOM_SPAM_SCANNER_HOST:-spamassassin}
-      SpamClassification__Scanner__Port: ${MAILFATHOM_SPAM_SCANNER_PORT:-783}
-      SpamClassification__Scanner__ScanTimeoutSeconds: ${MAILFATHOM_SPAM_SCAN_TIMEOUT_SECONDS:-30}
-      SpamClassification__Scanner__MaximumMessageBytes: ${MAILFATHOM_SPAM_SCAN_MAXIMUM_MESSAGE_BYTES:-512000}
-      SpamClassification__Scanner__MaximumConcurrentScans: ${MAILFATHOM_SPAM_SCAN_MAXIMUM_CONCURRENT:-5}
       # The RESP endpoint this deployment's replicas carry client signals to each other over. Commented out rather than
       # defaulted to an empty reference, for the reason the trust anchor above is: writing the section at all is what
       # says a backplane exists, so a block present with nothing in it is refused at startup rather than read as a
@@ -324,68 +312,9 @@ services:
           # never became ready.
           memory: ${MAILFATHOM_PRESIDIO_MEMORY_LIMIT:-2g}
 
-  spamassassin:
-    # Started only under its profile, for the reason the analyzer is: an opt-in nobody took pulls no image, runs no
-    # container, and holds none of the memory below.
-    profiles:
-      - spam-scanning
-    # A digest rather than a tag, because the upstream publishes no immutable version tag — the digest is the only pin
-    # that names one artifact, and it is the same pin the Helm chart and the integration suite use. It runs Apache
-    # SpamAssassin 4.0.2 on Alpine under an MIT-licensed build and bundles no Razor2, no Pyzor, and no DCC, so nothing
-    # in it sends anything derived from the user's mail anywhere. THIRD_PARTY_LICENSES.md records all of it.
-    image: ${MAILFATHOM_SPAMASSASSIN_IMAGE:-docker.io/axllent/spamassassin@sha256:9bea393891c92a3531cb7081e9b2c478a654a048c9a6fa6f9d1df4300bf3ab8b}
-    restart: unless-stopped
-    environment:
-      # **The DNS posture, and it is off.** The daemon's blocklist rules would send sending addresses and URI host names
-      # out of the user's mail to third-party lists, which is what scanning inside the trust boundary exists to avoid.
-      # Off, it runs local rules only. docs/features/spam-classification.md says what each choice costs.
-      DNS_CHECKS: ${MAILFATHOM_SPAM_SCANNER_DNS_CHECKS:-0}
-    healthcheck:
-      # The daemon speaks a line protocol of its own, so the check asks it the one command that answers without scanning
-      # anything. It exists for the same reason the analyzer's does: the container fetches its rule updates and compiles
-      # the corpus before it listens, so a merely running daemon answers nothing.
-      test: ["CMD-SHELL", "printf 'PING SPAMC/1.5\\r\\n\\r\\n' | nc -w 3 127.0.0.1 783 | grep -q PONG"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 90s
-    # No `depends_on` in either direction, for the reason the analyzer has none. MailFathom's own startup gate refuses to
-    # serve while the daemon is not answering, and `restart: unless-stopped` turns that refusal into a retry.
-    cap_drop:
-      - ALL
-    cap_add:
-      # **What the daemon needs in order to give up privilege**, and the one place this file adds a capability back. It
-      # binds its port as root and then runs every scan as `nobody`, which is the account that parses the mail; without
-      # these two it cannot make that switch and refuses to start. Nothing else is granted and no privilege can be
-      # regained, which the option below enforces.
-      - SETUID
-      - SETGID
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      # The internal network is how MailFathom reaches it. The second one is a route out of the host, and it is here for
-      # exactly one thing: the daemon fetches its rule updates over HTTP on start and daily afterwards, and a corpus
-      # frozen at whatever the image was built with scores today's mail badly. Nothing derived from the user's mail
-      # goes out that route — the blocklist rules that would are off above, and the image carries no plugin that reports
-      # checksums anywhere. Remove this line for a daemon that can reach nothing at all, at the cost of those updates.
-      - backend
-      - frontend
-    logging:
-      driver: json-file
-      options:
-        max-size: ${MAILFATHOM_LOG_MAX_SIZE:-10m}
-        max-file: ${MAILFATHOM_LOG_MAX_FILES:-3}
-    deploy:
-      resources:
-        limits:
-          cpus: ${MAILFATHOM_SPAMASSASSIN_CPU_LIMIT:-1}
-          # Modest: the daemon holds its compiled rule corpus in memory and forks a child per scan. Below roughly 256m
-          # it is killed while compiling rules, which reaches MailFathom as a scanner that never answered.
-          memory: ${MAILFATHOM_SPAMASSASSIN_MEMORY_LIMIT:-512m}
-
   silo:
-    # Started only under its profile, for the reason the two services above are: an opt-in nobody took pulls no image,
-    # runs no container, and holds none of the disk below. A deployment that leaves MAILFATHOM_CONTENT_STORAGE at
+    # Started only under its profile, for the reason the analyzer is: an opt-in nobody took pulls no image, runs no
+    # container, and holds none of the disk below. A deployment that leaves MAILFATHOM_CONTENT_STORAGE at
     # Database brings up exactly the two services it always did.
     profiles:
       - object-storage
@@ -449,8 +378,8 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
-    # No `depends_on` in either direction, for the reason the two services above have none. MailFathom starts whether or
-    # not the store answers, reports itself unready on `/health` while it does not, and becomes ready by itself.
+    # No `depends_on` in either direction, for the reason the analyzer has none. MailFathom starts whether or not the
+    # store answers, reports itself unready on `/health` while it does not, and becomes ready by itself.
     ports:
       # The console, and nothing else: the S3 API is reachable from MailFathom over the internal network and from
       # nothing outside the host, exactly as the database is. This port is bound to loopback and answers only once
@@ -483,7 +412,7 @@ services:
           memory: ${MAILFATHOM_SILO_MEMORY_LIMIT:-1g}
 
   valkey:
-    # Started only under its profile, for the reason the three services above are: an opt-in nobody took pulls no image,
+    # Started only under its profile, for the reason the two services above are: an opt-in nobody took pulls no image,
     # runs no container, and holds none of the memory below.
     #
     # **On one host it does nothing, and that is the expected state.** A backplane carries a client signal from the

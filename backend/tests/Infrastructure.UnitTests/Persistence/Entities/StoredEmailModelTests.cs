@@ -203,6 +203,78 @@ public sealed class StoredEmailModelTests
         Assert.Equal(DeleteBehavior.SetNull, reference.DeleteBehavior);
     }
 
+    /// <summary>
+    /// Deleting an organization withdraws the membership a verdict named rather than the mail it was given to, so the
+    /// reference clears and the message keeps its verdict until extraction derives it again.
+    /// </summary>
+    [Fact]
+    public void StoredEmailModel_SenderTrustOrganizationReference_ClearsTheColumnRatherThanErasingTheMessage()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var reference = StoredEmailEntityType(context)
+            .GetForeignKeys()
+            .Single(key => key.GetConstraintName() == PersistenceConstraintNames.StoredEmailSenderTrustOrganizationForeignKeyName);
+
+        // Assert
+        Assert.Equal([nameof(StoredEmailEntity.SenderTrustOrganizationId)], reference.Properties.Select(property => property.Name));
+        Assert.Equal(typeof(OrganizationEntity), reference.PrincipalEntityType.ClrType);
+        Assert.Equal(DeleteBehavior.SetNull, reference.DeleteBehavior);
+    }
+
+    /// <summary>The settling queue holds only what has not settled, so it stays the size of the last few runs' mail.</summary>
+    [Fact]
+    public void StoredEmailModel_SettlingIndex_HoldsOnlyRowsStillSettling()
+    {
+        // Act
+        var index = FindStoredEmailIndex(PersistenceConstraintNames.StoredEmailSettlingIndexName);
+
+        // Assert
+        Assert.Equal([nameof(StoredEmailEntity.MailboxAccountId), nameof(StoredEmailEntity.Id)], index.Properties.Select(property => property.Name));
+        Assert.Equal($"\"{nameof(StoredEmailEntity.SettledAt)}\" IS NULL", index.GetFilter());
+    }
+
+    /// <summary>
+    /// A message has usually left the folder it arrived in by the time it settles, so removing that folder clears the
+    /// reference rather than being refused by it or erasing the message.
+    /// </summary>
+    [Fact]
+    public void StoredEmailModel_ArrivalFolderReference_ClearsTheColumnWhenTheFolderIsRemoved()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var reference = StoredEmailEntityType(context)
+            .GetForeignKeys()
+            .Single(key => key.Properties.Any(property => property.Name == nameof(StoredEmailEntity.ArrivalFolderId)));
+
+        // Assert
+        Assert.Equal(typeof(MailFolderEntity), reference.PrincipalEntityType.ClrType);
+        Assert.Equal(DeleteBehavior.SetNull, reference.DeleteBehavior);
+    }
+
+    /// <summary>
+    /// EF Core leaves a value equal to the property's sentinel out of an insert and lets the column default write it, so a
+    /// column whose default differs from its sentinel stores the default in place of a value written as the CLR default.
+    /// </summary>
+    [Fact]
+    public void StoredEmailModel_ColumnWithADefault_LeavesOutOfAnInsertOnlyTheValueItsDefaultWrites()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var storedEmail = context.Model.FindEntityType(typeof(StoredEmailEntity))!;
+
+        // Assert
+        Assert.Empty(storedEmail.GetProperties()
+            .Where(property => property.GetDefaultValue() is not null && !Equals(property.Sentinel, property.GetDefaultValue()))
+            .Select(property => property.Name));
+    }
+
     /// <summary>Raw MIME lives in its own table so that no mailbox query can pull a <c>bytea</c> value into the change tracker.</summary>
     [Fact]
     public void StoredEmailModel_MetadataTable_HoldsNoBinaryColumn()

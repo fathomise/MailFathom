@@ -5,13 +5,15 @@
 import { useEffect } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { MailSpamVerdict } from '@mailfathom/client-backend';
 import type { Composing } from '../composer/useComposing';
 import { ComposingContext } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
 import { MailboxActsContext, nothingActed, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { ListedMailContext, nothingListed } from '../messageList/useListedMail';
+import type { ListFold } from '../messageRows/listFold';
 import { WorkspaceProvider } from '../workspace/Workspace';
-import { useWorkspace } from '../workspace/useWorkspace';
+import { useWorkspace, type OpenOutbox } from '../workspace/useWorkspace';
 import { MailToolbar } from './MailToolbar';
 import type { StripFit } from './useStripFit';
 
@@ -19,14 +21,21 @@ const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia')
 
 const messageId = '00000000-0000-4000-8000-000000000000';
 
-const place = { storedEmailId: messageId, account: 'work', folder: 'work-inbox', unread: false, flagged: false };
+const place = {
+    storedEmailId: messageId,
+    account: 'work',
+    folder: 'work-inbox',
+    unread: false,
+    flagged: false,
+    spam: null,
+};
 
-function Opens({ selection }: { readonly selection: string | null }) {
+function Opens({ selection, outbox }: { readonly selection: string | null; readonly outbox: OpenOutbox | null }) {
     const { revise } = useWorkspace();
 
     useEffect(() => {
-        revise({ selection });
-    }, [revise, selection]);
+        revise(outbox === null ? { selection } : { outbox });
+    }, [revise, selection, outbox]);
 
     return null;
 }
@@ -36,6 +45,11 @@ function drawToolbar(
     selection: string | null = null,
     acts: MailboxActs = nothingActed,
     fit: StripFit = 'labelled',
+    lead: { readonly openMailboxes: (() => void) | null; readonly listFold: ListFold | null } = {
+        openMailboxes: null,
+        listFold: null,
+    },
+    outbox: OpenOutbox | null = null,
 ): { composed: ReturnType<typeof vi.fn> } {
     const composed = vi.fn();
     const composing: Composing = { offered, drafts: false, opening: null, compose: composed, close: () => undefined };
@@ -46,8 +60,13 @@ function drawToolbar(
                 <ListedMailContext value={{ ...nothingListed, placeOf: () => place }}>
                     <MailboxActsContext value={acts}>
                         <ComposingContext value={composing}>
-                            <Opens selection={selection} />
-                            <MailToolbar strip={() => undefined} fit={fit} />
+                            <Opens selection={selection} outbox={outbox} />
+                            <MailToolbar
+                                strip={() => undefined}
+                                fit={fit}
+                                openMailboxes={lead.openMailboxes}
+                                listFold={lead.listFold}
+                            />
                         </ComposingContext>
                     </MailboxActsContext>
                 </ListedMailContext>
@@ -198,6 +217,17 @@ describe('MailToolbar', () => {
         expect(showing.getAttribute('aria-pressed')).toBe('true');
     });
 
+    it('takes More actions over from the head once the panels are hidden at the desktop composition', () => {
+        theCompositionHasTwoPanes();
+        drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled');
+
+        expect(screen.queryByRole('button', { name: /^More actions/u })).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Hide the panels - the correspondence alone' }));
+
+        expect(screen.getByRole('button', { name: /^More actions/u })).toBeDefined();
+    });
+
     it('leads with the control that hides the mailbox column wherever the column stands beside the list', () => {
         theCompositionHasTwoPanes();
         drawToolbar(true);
@@ -224,6 +254,64 @@ describe('MailToolbar', () => {
         expect(screen.queryByRole('button', { name: 'Hide folders and filters' })).toBeNull();
     });
 
+    it('leads with the fold’s list control and then the drawer where the mailboxes are a drawer, ahead of composing', () => {
+        const opened = vi.fn();
+        drawToolbar(true, messageId, nothingActed, 'labelled', {
+            openMailboxes: opened,
+            listFold: { folded: true, kept: false, turn: vi.fn(), keep: vi.fn() },
+        });
+
+        const buttons = screen.getAllByRole('button');
+        fireEvent.click(screen.getByRole('button', { name: 'Folders and filters' }));
+
+        expect(buttons.slice(0, 3).map((button) => button.getAttribute('aria-label') ?? button.textContent)).toEqual([
+            'Show the list',
+            'Folders and filters',
+            'New message',
+        ]);
+        expect(opened).toHaveBeenCalledOnce();
+    });
+
+    it('turns the fold’s list either way from one control, and keeps nothing open from the strip', () => {
+        const fold = { kept: false, turn: vi.fn(), keep: vi.fn() };
+        drawToolbar(true, messageId, nothingActed, 'labelled', {
+            openMailboxes: null,
+            listFold: { ...fold, folded: true },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
+        fireEvent.contextMenu(screen.getByRole('button', { name: 'Show the list' }));
+
+        expect(fold.turn).toHaveBeenCalledOnce();
+        expect(fold.keep).not.toHaveBeenCalled();
+    });
+
+    it('keeps a widened list open on a hold, and names the hold on the control either way', () => {
+        const fold = { folded: false, turn: vi.fn(), keep: vi.fn() };
+        drawToolbar(true, messageId, nothingActed, 'labelled', {
+            openMailboxes: null,
+            listFold: { ...fold, kept: false },
+        });
+        const narrowing = screen.getByRole('button', { name: 'Narrow the list' });
+
+        fireEvent.contextMenu(narrowing);
+
+        expect(fold.keep).toHaveBeenCalledOnce();
+        expect(describedBy(narrowing)).toBe('Narrow the list. Hold to keep it open as you open other messages.');
+    });
+
+    it('says how to let a list kept open fold again', () => {
+        drawToolbar(true, messageId, nothingActed, 'labelled', {
+            openMailboxes: null,
+            listFold: { folded: false, kept: true, turn: vi.fn(), keep: vi.fn() },
+        });
+        const kept = screen.getByRole('button', { name: 'Narrow the list' });
+
+        expect(describedBy(kept)).toBe(
+            'The list stays open as you open other messages. Hold to let it fold again, or tap to narrow it.',
+        );
+    });
+
     it('leaves the panel control out of a single-pane composition, which the design gives it nothing to do in', () => {
         drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled');
 
@@ -237,6 +325,24 @@ describe('MailToolbar', () => {
         expect(screen.getByRole('button', { name: 'Reply' }).textContent).toBe('Reply');
     });
 
+    // An Outbox holds sends rather than messages in a folder, so while one is open the strip offers writing a new message
+    // and nothing that would answer, file, flag, or delete — and no panels to hide, the Outbox drawing none.
+    it('offers no mail act and no panel control while an Outbox stands in the list’s place', () => {
+        theCompositionHasTwoPanes();
+        drawToolbar(
+            true,
+            null,
+            actsOffering(() => undefined),
+            'labelled',
+            { openMailboxes: null, listFold: null },
+            { account: 'work', entry: null },
+        );
+
+        expect(
+            screen.getAllByRole('button').map((control) => control.getAttribute('aria-label') ?? control.textContent),
+        ).toStrictEqual(['Hide folders and filters', 'New message']);
+    });
+
     it('asks about no message at all while nothing is open, rather than about the last one that was', () => {
         const asked = vi.fn(() => null);
 
@@ -245,3 +351,54 @@ describe('MailToolbar', () => {
         expect(asked).toHaveBeenCalledWith('archive', []);
     });
 });
+
+// The person's own mark from this session is what the toolbar reads the open message's verdict through first, so the
+// harness's one listed place stays the same message whether or not it is spam.
+function actsWhereTheOpenMessageIsMarkedSpam(toggleSpam: MailboxActs['toggleSpam']): MailboxActs {
+    const verdict: MailSpamVerdict = {
+        verdict: 'Spam',
+        decidedBy: 'Person',
+        spamSubcategory: null,
+        spamSubcategoryNamedBy: null,
+        phishingRequest: null,
+        impersonatedParty: null,
+    };
+
+    return {
+        ...actsOffering(vi.fn()),
+        spamOffered: true,
+        toggleSpam,
+        spamMarked: new Map([[messageId, { verdict, from: place.folder, leaves: false }]]),
+    };
+}
+
+describe('MailToolbar, the spam control', () => {
+    it('marks the open message spam from the control after its acts', () => {
+        const toggleSpam = vi.fn();
+
+        drawToolbar(true, messageId, { ...actsOffering(vi.fn()), spamOffered: true, toggleSpam });
+        fireEvent.click(screen.getByRole('button', { name: 'Mark spam' }));
+
+        expect(toggleSpam).toHaveBeenCalledWith([place], undefined);
+    });
+
+    it('draws Not spam where the three answers would stand over an open message marked spam', () => {
+        const toggleSpam = vi.fn();
+
+        drawToolbar(true, messageId, actsWhereTheOpenMessageIsMarkedSpam(toggleSpam));
+
+        for (const name of ['Reply', 'Reply all', 'Forward', 'Mark spam']) {
+            expect(screen.queryByRole('button', { name })).toBeNull();
+        }
+
+        fireEvent.click(screen.getByRole('button', { name: 'Not spam' }));
+
+        expect(toggleSpam).toHaveBeenCalledWith([place], undefined);
+    });
+});
+
+function describedBy(element: HTMLElement): string | null {
+    const id = element.getAttribute('aria-describedby');
+
+    return id === null ? null : (document.getElementById(id)?.textContent ?? null);
+}

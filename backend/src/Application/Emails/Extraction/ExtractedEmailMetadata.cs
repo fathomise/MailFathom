@@ -8,6 +8,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 
 namespace MailFathom.Application.Emails.Extraction;
 
@@ -54,6 +55,24 @@ public sealed record ExtractedEmailMetadata(
     /// answer for it would be re-reading the same headers this reading already has in hand.
     /// </remarks>
     public EmailAutomation Automation { get; init; } = EmailAutomation.None;
+
+    /// <summary>Gets what verifying the message's own S/MIME or OpenPGP signature found.</summary>
+    /// <remarks>
+    /// Read out of the message like <see cref="SenderAuthentication" /> and stored beside it, and a separate fact from
+    /// it: a receiving server authenticating the sending domain and a signature binding the content to a certificate or
+    /// key are two answers to two questions. An init property rather than a parameter only so that every reading that
+    /// predates it states the honest default, which is a message nothing verified a signature on.
+    /// </remarks>
+    public EmailSignature Signature { get; init; } = EmailSignature.NotSigned;
+
+    /// <summary>Gets what verifying the message against the receiving account's organization established.</summary>
+    /// <remarks>
+    /// Read out of the message's bytes beside the local DKIM verification and not stored on its own:
+    /// <see cref="SenderTrustEvaluatingEmailMimeReader" /> takes it into <see cref="SenderTrust" />, which is where the
+    /// recognizing organization is recorded. It is <see langword="null" /> where the receiving account belongs to no
+    /// organization, which verifies nothing and leaves the message judged exactly as before.
+    /// </remarks>
+    public OrganizationSenderVerification? OrganizationVerification { get; init; }
 
     /// <summary>Gets how much this message's own text reads as machine written.</summary>
     /// <remarks>

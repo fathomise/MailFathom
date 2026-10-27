@@ -143,8 +143,10 @@ extracts and nothing else about the mailbox.
 
 **The citations are minted before the model sees anything, and they are the only ones a claim may rest on.** The run
 declares one source per distinct message it retrieved, names it `s1`, `s2`, and so on, and shows the model those names —
-each over every extract the run retrieved from that message, headed by the message's subject and the day it arrived,
-which is what tells a correction from the statement it corrects.
+each as one `<source>` element carrying that name and the day the message arrived, around the message's subject and
+every extract the run retrieved from it — the day being what tells a correction from the statement it corrects. The
+element is written by the same writer as every other turn quoting mail, so an extract that closes it and opens a forged
+source arrives as text inside the source it came from.
 A name the model invents resolves to nothing, so the claim resting on it is read as resting on nothing — which is what
 makes a composed answer checkable at all. Nothing a model writes ever becomes a reference to mail.
 
@@ -200,6 +202,11 @@ the provider exactly as the question does. What the **plan** quotes is not guard
 own mail going back to the user, and redacting it there would hide from somebody what they already have. So two copies
 of each extract exist for the length of one call — the guarded one the provider is shown, and the user's own one the
 evidence list quotes.
+
+Each source carries where its message came from, written by the service on its `<source>` element as the attributes [answering writes](mail-answering.md#where-a-message-came-from), and the instruction asks for a
+finding resting only on a source that is not authenticated, or is junk or a first contact, to be stated with that
+qualification. The same values reach the client again on [the citation route](../operations/client-endpoint.md#the-citation-route),
+so a person reading the plan can see why a claim was qualified.
 
 One call leaves per composition, with no tools, so a question costs two turns however much mail it read. Both of them
 are charged to the run's own ledger and to the deployment's period ledger before they are sent, which is what makes the

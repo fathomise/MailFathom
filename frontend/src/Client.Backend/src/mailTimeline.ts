@@ -5,6 +5,8 @@
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord } from './json';
 import { parseEnrichment, type MailEnrichment, type MailEnrichmentAspect } from './mailEnrichment';
+import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
+import { parseListedSender, type MailListedSender } from './senderFacts';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
 import { send, type MailFathomTransport } from './transport';
@@ -143,6 +145,19 @@ export interface MailTimelineEntry {
      * placed the message in none, or the route that answered does not count them — which the search results do not.
      */
     readonly threadMessageCount: number | null;
+
+    /**
+     * What spam classification concluded about the message, or `null` where no stage has reached it — every message on a
+     * deployment that classifies nothing. Published on every row of every surface, search results included, so a row is
+     * folded or badged the same way wherever it is drawn.
+     */
+    readonly spam: MailSpamVerdict | null;
+
+    /**
+     * What was established about who sent the message: the facts a sender mark is chosen from, which every surface
+     * drawing this row carries so the list, the search results, and a conversation mark one sender alike.
+     */
+    readonly sender: MailListedSender;
 }
 
 /** One page of the list, and the two cursors the pages either side of it are asked with. */
@@ -385,11 +400,21 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         return null;
     }
 
+    const judged = parseSpamVerdict(record['spam']);
+    if (judged === null) {
+        return null;
+    }
+
     const threadMessageCount = record['threadMessageCount'] ?? null;
 
     // A conversation holds at least the message the row is about, so a count of zero is an answer no deployment
     // produces and the row is refused rather than drawn from it.
     if (threadMessageCount !== null && (!isCount(threadMessageCount) || threadMessageCount < 1)) {
+        return null;
+    }
+
+    const sender = parseListedSender(record['sender']);
+    if (sender === null) {
         return null;
     }
 
@@ -413,6 +438,8 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         preview,
         enrichment: derived.enrichment,
         threadMessageCount,
+        spam: judged.spam,
+        sender,
     };
 }
 

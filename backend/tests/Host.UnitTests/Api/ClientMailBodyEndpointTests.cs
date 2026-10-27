@@ -46,6 +46,17 @@ public sealed class ClientMailBodyEndpointTests
         Assert.Equal([StoredEmailId.Create(Message)], request.StoredEmailIds);
     }
 
+    /// <summary>The pane reads for the person rather than for an agent, so the body of a message in a folder withheld from AI is still served to them.</summary>
+    [Fact]
+    public void RequestFor_AnyRead_ReadsForThePersonSoAFolderWithheldFromAIIsServed()
+    {
+        // Act
+        var request = ClientMailBodyEndpoint.RequestFor(Message, remoteImages: null, fullHtml: null);
+
+        // Assert
+        Assert.Equal(MailboxReaderKind.Person, request.Reader);
+    }
+
     /// <summary>A reader who said nothing is a reader who did not ask, so an absent query withholds exactly as a refusal does.</summary>
     [Theory]
     [InlineData(null, false)]

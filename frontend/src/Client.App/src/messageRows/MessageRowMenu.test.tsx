@@ -4,7 +4,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { MailTimelineEntry } from '@mailfathom/client-backend';
+import type { MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
 import type { ActRefusal } from '../mailboxActs/mailboxDestinations';
@@ -16,7 +16,10 @@ import {
     type MailboxActs,
 } from '../mailboxActs/useMailboxActs';
 import { AgentHandOverContext, type AgentHandOver } from '../routing/agentHandOver';
+import { ToastContext, type Toast } from '../toasts/useToasts';
 import { MessageRowMenu } from './MessageRowMenu';
+import type { SenderMark } from '../senderMark/senderMarks';
+import { listedSender } from '../../../../tests/fixtures/senders';
 
 const email = {
     id: 'message-1',
@@ -36,15 +39,29 @@ const email = {
     attachmentCount: 0,
     sizeOctets: 1_024,
     preview: 'The opening of the message.',
+    sender: listedSender('trusted'),
 } as unknown as MailTimelineEntry;
 
 const messages: readonly ActedMessage[] = [
-    { storedEmailId: email.id, account: 'work', folder: 'INBOX', unread: false, flagged: false },
+    { storedEmailId: email.id, account: 'work', folder: 'INBOX', unread: false, flagged: false, spam: null },
 ];
 
 function actsWhere(refusalOf: (act: MailboxAct) => ActRefusal | null, perform = vi.fn()): MailboxActs {
     return { ...nothingActed, refusalOf, perform };
 }
+
+const phishing: MailSpamVerdict = {
+    verdict: 'Spam',
+    decidedBy: 'Model',
+    spamSubcategory: 'Phishing',
+    spamSubcategoryNamedBy: 'Model',
+    phishingRequest: null,
+    impersonatedParty: null,
+};
+
+const spamMessages: readonly ActedMessage[] = [
+    { storedEmailId: email.id, account: 'work', folder: 'INBOX', unread: false, flagged: false, spam: phishing },
+];
 
 const writing: Composing = { offered: true, drafts: false, opening: null, compose: vi.fn(), close: vi.fn() };
 
@@ -57,6 +74,9 @@ function menuUnder({
     onCheckReadings,
     row = email,
     handToAgent = null,
+    raise = vi.fn(),
+    senderMark = null,
+    onSenderDetails,
 }: {
     acts?: MailboxActs;
     composing?: Composing;
@@ -66,24 +86,31 @@ function menuUnder({
     onCheckReadings?: () => void;
     row?: MailTimelineEntry;
     handToAgent?: ((handOver: AgentHandOver) => void) | null;
+    raise?: (toast: Toast) => void;
+    senderMark?: SenderMark | null;
+    onSenderDetails?: () => void;
 } = {}): void {
     render(
         <LocalizationProvider>
-            <AgentHandOverContext value={handToAgent}>
-                <ComposingContext value={composing}>
-                    <MailboxActsContext value={acts}>
-                        <MessageRowMenu
-                            email={row}
-                            messages={about}
-                            at={{ x: 20, y: 30 }}
-                            onSelect={onSelect}
-                            onAsk={onAsk}
-                            onCheckReadings={onCheckReadings}
-                            onClose={vi.fn()}
-                        />
-                    </MailboxActsContext>
-                </ComposingContext>
-            </AgentHandOverContext>
+            <ToastContext value={{ raise, raiseOperation: () => () => undefined }}>
+                <AgentHandOverContext value={handToAgent}>
+                    <ComposingContext value={composing}>
+                        <MailboxActsContext value={acts}>
+                            <MessageRowMenu
+                                email={row}
+                                messages={about}
+                                at={{ x: 20, y: 30 }}
+                                onSelect={onSelect}
+                                onAsk={onAsk}
+                                onCheckReadings={onCheckReadings}
+                                senderMark={senderMark}
+                                onSenderDetails={onSenderDetails}
+                                onClose={vi.fn()}
+                            />
+                        </MailboxActsContext>
+                    </ComposingContext>
+                </AgentHandOverContext>
+            </ToastContext>
         </LocalizationProvider>,
     );
 }
@@ -116,11 +143,37 @@ describe('MessageRowMenu', () => {
         expect(screen.getByText('Anna Kowalska')).toBeDefined();
     });
 
+    it('names the sender mark beside who the message is from, since a finger cannot rest on the row’s mark', () => {
+        menuUnder({ senderMark: 'trusted', onSenderDetails: vi.fn() });
+
+        expect(screen.getByText('Anna Kowalska - Trusted sender')).toBeDefined();
+    });
+
+    it('offers the sender’s details last, which is the keyboard’s way to them from a row', () => {
+        const onSenderDetails = vi.fn();
+
+        menuUnder({ senderMark: 'trusted', onSenderDetails });
+
+        expect(drawn().at(-1)).toBe('Sender details');
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Sender details' }));
+
+        expect(onSenderDetails).toHaveBeenCalledOnce();
+    });
+
+    it('offers no sender details for a row that draws no mark', () => {
+        menuUnder({ senderMark: null, onSenderDetails: vi.fn() });
+
+        expect(screen.queryByRole('menuitem', { name: 'Sender details' })).toBeNull();
+    });
+
     // The design draws the row's context menu with *Remove the flag* over a flagged message, so the menu reads the flag
     // the way it reads the read mark: the opposite of the state the row is in.
     it('offers to take the flag off a flagged row, which is the other direction of the one act', () => {
         menuUnder({
-            about: [{ storedEmailId: email.id, account: 'work', folder: 'INBOX', unread: false, flagged: true }],
+            about: [
+                { storedEmailId: email.id, account: 'work', folder: 'INBOX', unread: false, flagged: true, spam: null },
+            ],
         });
 
         expect(drawn()).toContain('Remove the flag');
@@ -131,7 +184,9 @@ describe('MessageRowMenu', () => {
     // in, so what it says is decided by the row rather than fixed in the list of acts.
     it('offers to mark an unread row read, which is the other direction of the one act', () => {
         menuUnder({
-            about: [{ storedEmailId: email.id, account: 'work', folder: 'INBOX', unread: true, flagged: false }],
+            about: [
+                { storedEmailId: email.id, account: 'work', folder: 'INBOX', unread: true, flagged: false, spam: null },
+            ],
         });
 
         expect(drawn()).toContain('Mark as read');
@@ -262,5 +317,103 @@ describe('MessageRowMenu', () => {
             answers: 'forward',
             storedEmailId: 'message-1',
         });
+    });
+});
+
+describe('MessageRowMenu, over a message marked spam', () => {
+    const spamRow: MailTimelineEntry = { ...email, spam: phishing };
+    const offering = (over: Partial<MailboxActs> = {}): MailboxActs => ({
+        ...actsWhere(() => null),
+        spamOffered: true,
+        ...over,
+    });
+
+    // A folded spam row draws neither its verdict nor its sender's mark in words a finger can reach, so both join who
+    // wrote it under the subject, in the order the design draws them.
+    it('names the verdict and then the sender mark beside who the message is from', () => {
+        menuUnder({ row: spamRow, about: spamMessages, senderMark: 'trusted', onSenderDetails: vi.fn() });
+
+        expect(screen.getByText('Anna Kowalska - phishing spam - Trusted sender')).toBeDefined();
+    });
+
+    it('offers to mark a message that is not spam spam, asking first, just before Move', () => {
+        menuUnder({ acts: offering() });
+
+        const items = drawn();
+
+        expect(items[items.indexOf('Move…') - 1]).toBe('Spam…');
+    });
+
+    // Marking spam is the flag grant, so a credential that may not file mail still reaches it, in Move's place.
+    it('offers the spam item where this credential may mark mail but not file it', () => {
+        menuUnder({ acts: offering({ refusalOf: (act) => (act === 'move' ? 'notOffered' : null) }) });
+
+        const items = drawn();
+
+        expect(items).not.toContain('Move…');
+        expect(items[items.indexOf('Spam…') + 1]).toBe('Delete');
+    });
+
+    it('offers no spam item where this credential may not mark mail', () => {
+        menuUnder();
+
+        expect(screen.queryByRole('menuitem', { name: /spam/iu })).toBeNull();
+    });
+
+    it('offers to mark spam not spam, saying it asks first where that would move it out of the Spam folder', () => {
+        menuUnder({ acts: offering({ notSpamMoves: () => true }), row: spamRow, about: spamMessages });
+
+        expect(drawn()).toContain('Not spam…');
+    });
+
+    it('offers to mark spam not spam at once where nothing would move', () => {
+        menuUnder({ acts: offering(), row: spamRow, about: spamMessages });
+
+        expect(drawn()).toContain('Not spam');
+    });
+
+    it('presses the one spam control over the messages the menu is about', () => {
+        const toggleSpam = vi.fn();
+
+        menuUnder({ acts: offering({ toggleSpam }), row: spamRow, about: spamMessages });
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Not spam' }));
+
+        expect(toggleSpam).toHaveBeenCalledWith(spamMessages);
+    });
+
+    // A folded spam row draws no badge and a finger has no hover, so the kind is said under the header.
+    it('names the kind of spam beside who the message is from under its subject', () => {
+        menuUnder({ row: spamRow, about: spamMessages });
+
+        expect(screen.getByText('Anna Kowalska - phishing spam')).toBeDefined();
+    });
+
+    it.each([
+        ['Reply', 'Spam cannot be answered. Mark it not spam first.'],
+        ['Forward', 'Spam cannot be forwarded. Mark it not spam first.'],
+    ])('refuses to %s spam with a warning saying why, writing nothing', (item, body) => {
+        const composing: Composing = { ...writing, compose: vi.fn() };
+        const raise = vi.fn();
+
+        menuUnder({ composing, row: spamRow, about: spamMessages, raise });
+        fireEvent.click(screen.getByRole('menuitem', { name: item }));
+
+        expect(composing.compose).not.toHaveBeenCalled();
+        expect(raise).toHaveBeenCalledWith(
+            { kind: 'warning', title: 'This message is marked spam', body },
+            expect.any(Number),
+        );
+    });
+
+    it('offers nothing that reads spam for the person, neither the agent nor its readings', () => {
+        menuUnder({
+            row: { ...spamRow, threadId: '0198f4a1-0000-7000-8000-00000000b001' },
+            about: spamMessages,
+            handToAgent: vi.fn(),
+            onCheckReadings: vi.fn(),
+        });
+
+        expect(screen.queryByRole('menuitem', { name: 'Ask the agent' })).toBeNull();
+        expect(screen.queryByRole('menuitem', { name: 'AI summary' })).toBeNull();
     });
 });

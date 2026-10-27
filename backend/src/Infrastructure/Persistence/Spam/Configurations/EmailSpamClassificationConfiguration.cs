@@ -31,6 +31,9 @@ internal sealed class EmailSpamClassificationConfiguration : IEntityTypeConfigur
         entity.Property(classification => classification.StoredEmailId).ValueGeneratedNever();
         entity.Property(classification => classification.Verdict).HasConversion<string>().HasMaxLength(64).IsRequired();
         entity.Property(classification => classification.DecidedBy).HasConversion<string>().HasMaxLength(64).IsRequired();
+        entity.Property(classification => classification.SpamSubcategory).HasConversion<string>().HasMaxLength(64);
+        entity.Property(classification => classification.PhishingRequest).HasConversion<string>().HasMaxLength(64);
+        entity.Property(classification => classification.ImpersonatedParty).HasConversion<string>().HasMaxLength(64);
         entity.Property(classification => classification.CorpusRevision)
             .HasMaxLength(EmailSpamClassificationEntity.MaximumCorpusRevisionLength);
         entity.Property(classification => classification.Profile)

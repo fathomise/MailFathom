@@ -5,6 +5,7 @@
 using MailFathom.Application.Discovery.Streaming;
 using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Notifications;
 
 namespace MailFathom.Application.Agent.Conversations;
 
@@ -96,4 +97,16 @@ public sealed record AgentMessageScope
     /// <exception cref="ArgumentException">Thrown when <paramref name="run" /> is the struct default.</exception>
     public static AgentMessageScope DiscoveryRun(DiscoveryRunId run) =>
         new(AgentScopeKind.DiscoveryRun, run.Value);
+
+    /// <summary>The scope of a question asked about the messages one merged arrival notification stands for.</summary>
+    /// <param name="notification">The notification the question is about.</param>
+    /// <returns>The scope naming that notification.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="notification" /> is the struct default.</exception>
+    /// <remarks>
+    /// The notification rather than its messages, so a question is no longer to state than any other scope and the
+    /// messages are read under the asker's own identity when the answer is composed: a notification somebody else
+    /// holds names nothing to them.
+    /// </remarks>
+    public static AgentMessageScope Notification(NotificationId notification) =>
+        new(AgentScopeKind.Notification, notification.Value);
 }

@@ -62,6 +62,7 @@ public sealed class MailAccountFreshnessReader
     }
 
     /// <summary>Reads the caller's accounts and how current each one and each of its folders is.</summary>
+    /// <param name="reader">Who the accounts are read for, which decides whether folders withheld from AI are counted.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>One entry per account the caller's user owns, and whether the deployment refreshes them.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the use case was reached by anything but a caller granted <see cref="MailFathomPermission.MailRead" /> that is acting for a user.</exception>
@@ -71,9 +72,9 @@ public sealed class MailAccountFreshnessReader
     /// state a client renders and not a failure. A caller whose grant does not carry the permission is refused instead,
     /// which is what keeps the two answers from arriving as the same empty collection.
     /// </remarks>
-    public async Task<MailAccountFreshnessDirectory> ReadAsync(CancellationToken cancellationToken)
+    public async Task<MailAccountFreshnessDirectory> ReadAsync(MailboxReaderKind reader, CancellationToken cancellationToken)
     {
-        var directory = await this.directoryReader.ReadAsync(cancellationToken);
+        var directory = await this.directoryReader.ReadAsync(reader, cancellationToken);
 
         return new MailAccountFreshnessDirectory(
             directory.SynchronizationEnabled,

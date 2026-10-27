@@ -70,6 +70,7 @@ internal sealed record CalendarEventExtractionCase(
         FromMail("Hostile.DirectInstruction", static () => HostileMail.DirectInstruction[^1], static _ => null),
         FromMail("Hostile.ForgedTurn", static () => HostileMail.ForgedTurn[^1], static _ => null),
         FromMail("Hostile.OwnerImpersonation", static () => HostileMail.OwnerImpersonation[^1], static _ => null),
+        FromMail("Hostile.StructureImitation", static () => HostileMail.StructureImitation[^1], static _ => null),
 
         // A move confirmed for Saturday, 26 September 2026, with the goods lift booked from 8:00 to 12:00 — a day the
         // message fixes and an hour a reader may or may not take from the lift, so only the day is asked about.

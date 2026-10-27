@@ -9,6 +9,7 @@ using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Policies.MailAccounts;
+using MailFathom.Infrastructure.Security.SigningKeys;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -36,6 +37,7 @@ internal sealed class PersistedOrganizations(
     IGrantChangeAnnouncer grantChanges,
     IUserRecordPolicyJudge judge,
     IMailAccountPolicyJudge accountJudge,
+    OrganizationSigningKeyMinter signingKeyMinter,
     TimeProvider timeProvider)
     : IOrganizationStore
 {
@@ -129,7 +131,7 @@ internal sealed class PersistedOrganizations(
     {
         ArgumentNullException.ThrowIfNull(within);
 
-        // ponytail: still reads every covered organization's short name over the wire; a SQL predicate mirroring
+        // Still reads every covered organization's short name over the wire; a SQL predicate mirroring
         // OrganizationShortName's accepted form is the upgrade if this scan is measured slow.
         var stored = ListingScope.Covering(dbContext.Organizations.AsNoTracking(), within)
             .OrderBy(organization => organization.Id)
@@ -164,6 +166,15 @@ internal sealed class PersistedOrganizations(
 
         var storedShortName = RequireShortName(shortName);
 
+        // Generated and sealed before the transaction opens, because sealing resolves the ring's key and nothing remote
+        // belongs inside one. A deployment with no ring creates the organization without a key, and the renewal pass
+        // counts it until a ring is configured.
+        var signingKey = signingKeyMinter.CanMint
+            ? await signingKeyMinter.MintAsync(Guid.CreateVersion7(createdAt), cancellationToken)
+            : null;
+
+        await using var creation = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
         // The identifier is freshly minted, so the short name's index is the one constraint a loser can meet.
         var written = await dbContext.Database.ExecuteSqlAsync(
             $"""
@@ -173,8 +184,19 @@ internal sealed class PersistedOrganizations(
              """,
             cancellationToken);
 
-        return OrganizationWriteResult.Of(
-            written == 1 ? OrganizationWriteOutcome.Written : OrganizationWriteOutcome.ShortNameTaken);
+        if (written != 1)
+        {
+            return OrganizationWriteResult.Of(OrganizationWriteOutcome.ShortNameTaken);
+        }
+
+        if (signingKey is not null)
+        {
+            await OrganizationSigningKeyRows.InsertActiveAsync(dbContext, organizationId, signingKey, createdAt, cancellationToken);
+        }
+
+        await creation.CommitAsync(cancellationToken);
+
+        return OrganizationWriteResult.Of(OrganizationWriteOutcome.Written);
     }
 
     /// <inheritdoc />

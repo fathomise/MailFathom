@@ -14,6 +14,8 @@
 // case that would tempt one: a sender who wrote no text part at all, whose message route answer says exactly that and
 // whose body still carries the words.
 
+import { workAccount } from './deployment';
+
 /** The identity the newsletter is addressed by, everywhere the corpus names one message. */
 export const newsletterId = '00000000-0000-4000-8000-000000000000';
 
@@ -31,6 +33,50 @@ export const markupOnlySubject = 'Your order is on its way';
 
 /** What the one attached file holds — small enough to state here, and large enough to arrive as more than nothing. */
 export const attachedOctets = 'order,quantity\nkettle,1\n';
+
+/** The second row of the inbox, whose source the deployment fails to serve, so asking for it answers `503`. */
+export const unavailableSourceId = 'message-1';
+
+/** The third row of the inbox, whose source is asked for and never answered, so a capture finds it still on the wire. */
+export const waitingSourceId = 'message-2';
+
+/**
+ * What the newsletter's source route answers: the message as it arrived, every header and every part in its transfer
+ * encoding. It is served as text rather than JSON, so it is a string here rather than a record.
+ */
+export const newsletterSource = [
+    'Return-Path: <news@example.invalid>',
+    'Delivered-To: reader@example.invalid',
+    'Received: from mail.example.invalid (mail.example.invalid [192.0.2.41])',
+    '\tby mx.example.invalid with ESMTPS id 4Xq7Lm2Kd9zT',
+    '\tfor <reader@example.invalid>; Mon, 31 Aug 2026 09:41:07 +0000',
+    'Authentication-Results: mx.example.invalid;',
+    '\tdkim=pass header.d=example.invalid header.s=s2026;',
+    '\tspf=pass smtp.mailfrom=news@example.invalid;',
+    '\tdmarc=pass (p=quarantine) header.from=example.invalid',
+    'Message-ID: <newsletter.20260831@example.invalid>',
+    'Date: Mon, 31 Aug 2026 09:41:00 +0000',
+    'From: Example <news@example.invalid>',
+    'To: reader@example.invalid',
+    `Subject: ${newsletterSubject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: multipart/alternative; boundary="b1_example"',
+    '',
+    '--b1_example',
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    newsletterHeading,
+    '',
+    '--b1_example',
+    'Content-Type: text/html; charset=utf-8',
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    `<h1>${newsletterHeading}</h1>`,
+    '',
+    '--b1_example--',
+    '',
+].join('\r\n');
 
 /** A one-pixel transparent picture, standing in for a part a message carried itself rather than asked to be fetched. */
 export const transparentPicture = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
@@ -178,8 +224,8 @@ export function newsletterBody({ remoteImages = false, fullHtml = false } = {}) 
         storedEmailId: newsletterId,
         availability: 'Readable',
         plainText: {
-            text: 'A newsletter, as words.\n\nRead it at example.invalid.',
-            originalCharacterCount: 48,
+            text: 'A newsletter, as words.\n\nRead it at example.invalid. The bay plan is at https://bays.example/plan.',
+            originalCharacterCount: 98,
             truncation: 'None',
         },
         document: {
@@ -202,7 +248,7 @@ export function newsletterBody({ remoteImages = false, fullHtml = false } = {}) 
 /** What the message route answers for the newsletter: everything a pane draws around a body it never carries. */
 export const newsletterMessage = {
     storedEmailId: newsletterId,
-    account: 'work',
+    account: workAccount.id,
     folder: 'INBOX',
     threadId: null,
     sizeOctets: 40_960,
@@ -219,7 +265,39 @@ export const newsletterMessage = {
         references: [],
     },
     body: { availability: 'Readable', plainText: true, html: true },
-    sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        authenticatedDomain: null,
+        authenticationSource: 'ReceivingServer',
+        dkimDomain: null,
+        spfDomain: null,
+        dmarc: 'NotReported',
+        trustSource: null,
+        trustOrganization: null,
+    },
+    signature: {
+        outcome: 'NotSigned',
+        format: null,
+        secureMimeType: null,
+        unverifiableReason: null,
+        signedAt: null,
+        steps: {
+            content: 'NotChecked',
+            authority: 'NotChecked',
+            validity: 'NotChecked',
+            revocation: 'NotChecked',
+            signer: 'NotChecked',
+        },
+        trustAnchor: null,
+        chainEnd: null,
+        validityFailure: null,
+        revocationMethod: null,
+        revocationCheckedAt: null,
+        revokedAt: null,
+        signerMatchesAuthor: false,
+        signer: null,
+    },
     attachments: [
         {
             position: 0,
@@ -278,6 +356,99 @@ export const markupOnlyBody = {
                 type: 'paragraph',
                 version: 1,
                 content: [run('Your order left this morning and should reach you on Thursday.')],
+                alignment: 'Inherited',
+            },
+        ],
+        refusal: 'None',
+        removedRemoteReferenceCount: 0,
+        retainedRemoteImageCount: 0,
+        inlineImageCount: 0,
+        undrawnInlineImageCount: 0,
+        truncated: false,
+    },
+    selfContainedHtml: null,
+    remoteImagesRequested: false,
+};
+
+/**
+ * What the message route answers for one of the Spam folder's messages: the row's own sender, subject, and verdict
+ * around the newsletter's shape, with no files, since the corpus has no reason to state one a spam message would refuse.
+ */
+export function spamMessage(row: {
+    readonly id: string;
+    readonly subject: string;
+    readonly receivedAt: string;
+    readonly senderAddress: string;
+    readonly senderDisplayName: string;
+    readonly unread: boolean;
+    readonly spam: unknown;
+}) {
+    return {
+        ...newsletterMessage,
+        storedEmailId: row.id,
+        folder: 'JUNK',
+        headers: {
+            ...newsletterMessage.headers,
+            subject: row.subject,
+            sentAt: row.receivedAt,
+            receivedAt: row.receivedAt,
+            participants: [
+                { role: 'From', address: row.senderAddress, displayName: row.senderDisplayName },
+                { role: 'To', address: 'reader@example.invalid', displayName: null },
+            ],
+            messageId: `${row.id}@example.invalid`,
+        },
+        attachments: [],
+        unread: row.unread,
+        spam: row.spam,
+    };
+}
+
+/** The host the phishing message's one link would have gone to, which a spam message names and never opens. */
+export const spamLinkHost = 'nordwind-support.example';
+
+/** What the body route answers for a message in the Spam folder: a short phishing text with one link in it. */
+export const spamBody = {
+    storedEmailId: newsletterId,
+    availability: 'Readable',
+    plainText: {
+        text: 'Your mailbox password expires today. Keep your current password by signing in below.',
+        originalCharacterCount: 84,
+        truncation: 'None',
+    },
+    document: {
+        schemaVersion: 1,
+        blocks: [
+            {
+                type: 'paragraph',
+                version: 1,
+                content: [
+                    run(
+                        'Your mailbox password expires today. Mail sent to you after 23:59 will be held until it is renewed.',
+                    ),
+                ],
+                alignment: 'Inherited',
+            },
+            {
+                type: 'paragraph',
+                version: 1,
+                content: [run('Keep your current password by signing in below. It takes less than a minute.')],
+                alignment: 'Inherited',
+            },
+            {
+                type: 'paragraph',
+                version: 1,
+                content: [
+                    run('Keep my current password', {
+                        link: {
+                            target: `https://${spamLinkHost}/renew`,
+                            host: spamLinkHost,
+                            asciiHost: null,
+                            deception: 'None',
+                            isWorthWarningAbout: false,
+                        },
+                    }),
+                ],
                 alignment: 'Inherited',
             },
         ],

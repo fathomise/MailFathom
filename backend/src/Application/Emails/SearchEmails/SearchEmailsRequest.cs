@@ -37,13 +37,6 @@ public sealed record SearchEmailsRequest
     /// <remarks>A folder may be named by its alias or by the role it plays, and the use case settles which folder of which account each one means.</remarks>
     public IReadOnlyList<MailFolderReference> Folders { get; init; } = [];
 
-    /// <summary>Gets whether the account's junk folder is searched too, which it is not unless the caller asks.</summary>
-    /// <remarks>
-    /// Naming the junk folder in <see cref="Folders" /> is not asking, for the reason a listing states: the folder list
-    /// narrows the readable folders and this decides which are readable at all.
-    /// </remarks>
-    public bool IncludeJunkMail { get; init; }
-
     /// <summary>Gets the address the sender must carry, in any case, or <see langword="null" /> for any sender.</summary>
     public string? SenderAddress { get; init; }
 
@@ -75,7 +68,7 @@ public sealed record SearchEmailsRequest
     /// <summary>Gets the scope a caller has already resolved, which is read instead of <see cref="Accounts" /> and <see cref="Folders" />.</summary>
     /// <remarks>
     /// Internal because resolving a scope is what refuses an account this deployment does not serve and withholds a
-    /// folder no tool may read, so a protocol adapter must never be able to hand one in ready-made. The one caller that
+    /// folder withheld from AI, so a protocol adapter must never be able to hand one in ready-made. The one caller that
     /// may is a use case that resolved its own scope through <see cref="MailboxScopeResolver" /> and then searches with
     /// it: an answering run resolves once and searches several times. Re-resolving there would be wrong rather than
     /// merely repeated, because a folder named by role resolves to a different alias on each account and re-reading

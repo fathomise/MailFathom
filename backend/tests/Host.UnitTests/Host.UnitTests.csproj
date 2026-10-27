@@ -12,6 +12,7 @@
     <Compile Include="..\shared\RecordingClientSignalChannel.cs" Link="RecordingClientSignalChannel.cs" />
     <Compile Include="..\shared\ClientSignalPublishers.cs" Link="ClientSignalPublishers.cs" />
     <Compile Include="..\shared\LocalMailCopiers.cs" Link="LocalMailCopiers.cs" />
+    <Compile Include="..\shared\MailboxCustodianComposition.cs" Link="MailboxCustodianComposition.cs" />
     <!-- The Discover routes reach a run through the same store the application writes it through, so both suites drive one fake. -->
     <Compile Include="..\shared\InMemoryDiscoveryRunStore.cs" Link="InMemoryDiscoveryRunStore.cs" />
     <Compile Include="..\shared\RecordingLoggerFactory.cs" Link="RecordingLoggerFactory.cs" />
@@ -35,6 +36,7 @@
     <Compile Include="..\shared\StubMailFolderParticipation.cs" Link="StubMailFolderParticipation.cs" />
     <Compile Include="..\shared\StubDeploymentMailFolders.cs" Link="StubDeploymentMailFolders.cs" />
     <Compile Include="..\shared\StubJunkMailFolderCatalog.cs" Link="StubJunkMailFolderCatalog.cs" />
+    <Compile Include="..\shared\StubEmailProvenanceReader.cs" Link="StubEmailProvenanceReader.cs" />
     <!-- The synchronization harness composes the classification gate, which reports through this. -->
     <Compile Include="..\shared\RecordingDerivedWorkGateTelemetry.cs" Link="RecordingDerivedWorkGateTelemetry.cs" />
     <Compile Include="..\shared\InMemoryAttachmentDerivationSpendLedger.cs" Link="InMemoryAttachmentDerivationSpendLedger.cs" />
@@ -79,5 +81,6 @@
     <!-- The defaults every image ships, carried as a resource so the composition test layers the real file without
          reaching the file system. -->
     <EmbeddedResource Include="..\..\src\Host\appsettings.json" LogicalName="MailFathom.Host.appsettings.json" />
+    <EmbeddedResource Include="..\Infrastructure.UnitTests\Mail\Signatures\Fixtures\pgp-robert.asc" LogicalName="Signatures.pgp-robert.asc" />
   </ItemGroup>
 </Project>

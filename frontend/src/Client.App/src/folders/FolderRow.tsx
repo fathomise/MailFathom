@@ -9,6 +9,7 @@ import { Icon } from '../controls/Icon';
 import { MailboxMark } from '../controls/MailboxMark';
 import { useTip } from '../controls/useTip';
 import { useLocalization } from '../localization/useLocalization';
+import { OutboxMark, OutboxStrip, type OutboxMarking } from '../outbox/OutboxMark';
 import { folderRoleIcons } from '../workspace/mailScope';
 import { folderRowName } from './folderRowNames';
 import type { FolderTreeRow } from './folderTreeRows';
@@ -94,6 +95,7 @@ export function FolderRow({
     onDrop,
     onKeyDown,
     onElement,
+    outbox,
 }: {
     readonly row: FolderTreeRow;
     readonly position: number;
@@ -122,9 +124,25 @@ export function FolderRow({
 
     readonly onKeyDown: (event: KeyboardEvent<HTMLLIElement>) => void;
     readonly onElement: (element: HTMLLIElement | null) => void;
+
+    /** The mark of the account's Outbox, which only its Sent row carries and only while something has not left. */
+    readonly outbox?: OutboxMarking | undefined;
 }) {
-    const { translate } = useLocalization();
     const press = useRowPress(onPress);
+
+    // The tap that ends a hold which already opened this row's menu opens nothing else, the mark included: one held
+    // finger opens one surface.
+    const mark: OutboxMarking | undefined =
+        outbox === undefined
+            ? undefined
+            : {
+                  ...outbox,
+                  onOpen: () => {
+                      if (!press.tapSuppressed()) {
+                          outbox.onOpen();
+                      }
+                  },
+              };
     const group = groupOrdinal !== null;
     const indent = group ? '' : (levelIndents[Math.min(Math.max(row.level - 2, 0), levelIndents.length - 1)] ?? '');
     const [draggedOver, setDraggedOver] = useState(false);
@@ -148,6 +166,25 @@ export function FolderRow({
         event.dataTransfer.dropEffect = 'move';
         setDraggedOver(true);
     }
+
+    const drawn = `flex items-center transition ${rowShape({ group, folded, selected, droppedOn, indent })}`;
+    const line = (
+        <RowLine
+            row={row}
+            group={group}
+            groupOrdinal={groupOrdinal}
+            folded={folded}
+            selected={selected}
+            expanded={expanded}
+            focusable={focusable}
+            outbox={mark}
+            onToggle={onToggle}
+        />
+    );
+
+    // A rail has no end to a row to put the mark at, so there it stands under the row it belongs to, inside the same
+    // item of the tree: what it opens is still that account's, and a reader walking the tree meets it with Sent.
+    const stripped = folded && outbox !== undefined;
 
     return (
         <li
@@ -188,9 +225,50 @@ export function FolderRow({
                 }
             }}
             onKeyDown={onKeyDown}
-            className={`flex items-center transition ${row.scope === null ? '' : 'cursor-pointer'} ${rowShape({ group, folded, selected, droppedOn, indent })}`}
+            className={
+                stripped
+                    ? `flex flex-col gap-0.5 ${row.scope === null ? '' : 'cursor-pointer'}`
+                    : `${drawn} ${row.scope === null ? '' : 'cursor-pointer'}`
+            }
         >
-            {group ? (
+            {folded && mark !== undefined ? (
+                <>
+                    <div className={drawn}>{line}</div>
+                    <OutboxStrip marking={mark} focusable={focusable} />
+                </>
+            ) : (
+                line
+            )}
+        </li>
+    );
+}
+
+function RowLine({
+    row,
+    group,
+    groupOrdinal,
+    folded,
+    selected,
+    expanded,
+    focusable,
+    outbox,
+    onToggle,
+}: {
+    readonly row: FolderTreeRow;
+    readonly group: boolean;
+    readonly groupOrdinal: number | null;
+    readonly folded: boolean;
+    readonly selected: boolean;
+    readonly expanded: boolean | null;
+    readonly focusable: boolean;
+    readonly outbox: OutboxMarking | undefined;
+    readonly onToggle: () => void;
+}) {
+    const { translate } = useLocalization();
+
+    return (
+        <>
+            {group && groupOrdinal !== null ? (
                 <MailboxMark ordinal={groupOrdinal} />
             ) : (
                 <Icon
@@ -217,7 +295,9 @@ export function FolderRow({
                     }}
                 />
             )}
-        </li>
+
+            {folded || outbox === undefined ? null : <OutboxMark marking={outbox} focusable={focusable} />}
+        </>
     );
 }
 

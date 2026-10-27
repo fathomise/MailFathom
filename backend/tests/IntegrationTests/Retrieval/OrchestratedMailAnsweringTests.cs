@@ -556,6 +556,8 @@ public sealed class OrchestratedMailAnsweringTests(MailFathomOrchestrationFixtur
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);
 
+        await OrchestratedSettlement.ApplyAsync(services, [storedEmailId], receivedAt, cancellationToken);
+
         return storedEmailId;
     }
 

@@ -34,6 +34,13 @@ function message(
             preview: null,
             enrichment: null,
             threadMessageCount: null,
+            spam: null,
+            sender: {
+                authorAuthentication: 'Authenticated',
+                deploymentTrust: 'Unknown',
+                signatureOutcome: 'NotSigned',
+                signerMatchesAuthor: false,
+            },
         },
         message: null,
         body: null,

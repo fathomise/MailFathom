@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
@@ -34,24 +35,29 @@ public sealed class OutboxOperations
     private readonly IOutgoingEmailStore outgoingEmails;
     private readonly IOutboxOperationStore outbox;
     private readonly AccessAuthorization authorization;
+    private readonly ClientSignals clientSignals;
 
     /// <summary>Initializes the operations over a deployment's outbox.</summary>
     /// <param name="outgoingEmails">Reads one send back by the identifier every decision names it by.</param>
     /// <param name="outbox">Counts and pages the outbox, and performs a decision about one send.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
+    /// <param name="clientSignals">Tells an open client that a decision moved a send in its account's outbox.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public OutboxOperations(
         IOutgoingEmailStore outgoingEmails,
         IOutboxOperationStore outbox,
-        AccessAuthorization authorization)
+        AccessAuthorization authorization,
+        ClientSignals clientSignals)
     {
         ArgumentNullException.ThrowIfNull(outgoingEmails);
         ArgumentNullException.ThrowIfNull(outbox);
         ArgumentNullException.ThrowIfNull(authorization);
+        ArgumentNullException.ThrowIfNull(clientSignals);
 
         this.outgoingEmails = outgoingEmails;
         this.outbox = outbox;
         this.authorization = authorization;
+        this.clientSignals = clientSignals;
     }
 
     /// <summary>Reports how much stands at each stage of an outbox.</summary>
@@ -119,13 +125,16 @@ public sealed class OutboxOperations
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the use case was reached by anything but a caller granted <see cref="MailFathomPermission.AdminOperate" />.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the caller cancels.</exception>
     /// <remarks>It is the only point at which sending is reversible at all, which is exactly why it refuses everything past that point rather than trying to catch up with it.</remarks>
-    public Task<OutboxDecisionOutcome> CancelAsync(
+    public async Task<OutboxDecisionOutcome> CancelAsync(
         OutgoingEmailId outgoingEmailId,
         CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.AdminOperate);
 
-        return this.outbox.CancelAsync(outgoingEmailId, cancellationToken);
+        return await this.SignalledAsync(
+            outgoingEmailId,
+            await this.outbox.CancelAsync(outgoingEmailId, cancellationToken),
+            cancellationToken);
     }
 
     /// <summary>Offers one send again, which is the decision the system deliberately will not take on its own.</summary>
@@ -136,17 +145,43 @@ public sealed class OutboxOperations
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the use case was reached by anything but a caller granted <see cref="MailFathomPermission.AdminOperate" />.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the caller cancels.</exception>
     /// <remarks>
+    /// <para>
     /// A send whose transmission was never answered may already be in somebody's mailbox, and offering it again may put
     /// a second copy there. Nothing in this system will decide that, which is why the record stays where it is until an
     /// operator says so — and why this is an act on one named send rather than anything that can be asked for in bulk.
+    /// </para>
+    /// <para>
+    /// A dismissed send is offered again like any other, and doing so clears the dismissal: the send is back in its
+    /// account's outbox, which is where a send being attempted belongs. Only an operator can, because a dismissed send is
+    /// in no outbox a person reads.
+    /// </para>
     /// </remarks>
-    public Task<OutboxDecisionOutcome> RequeueAsync(
+    public async Task<OutboxDecisionOutcome> RequeueAsync(
         OutgoingEmailId outgoingEmailId,
         bool refusalRestated,
         CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.AdminOperate);
 
-        return this.outbox.RequeueAsync(outgoingEmailId, refusalRestated, cancellationToken);
+        return await this.SignalledAsync(
+            outgoingEmailId,
+            await this.outbox.RequeueAsync(outgoingEmailId, refusalRestated, reachesDismissedSend: true, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>Tells an open client about a decision that moved a send, and passes its outcome through.</summary>
+    /// <remarks>The account is read back only after a decision landed, because the statement that took it names no account.</remarks>
+    private async Task<OutboxDecisionOutcome> SignalledAsync(
+        OutgoingEmailId outgoingEmailId,
+        OutboxDecisionOutcome outcome,
+        CancellationToken cancellationToken)
+    {
+        if (outcome == OutboxDecisionOutcome.Accepted
+            && await this.outgoingEmails.FindAsync(outgoingEmailId, cancellationToken) is { } record)
+        {
+            this.clientSignals.Publish(ClientSignal.OutboxChanged(record.AccountId));
+        }
+
+        return outcome;
     }
 }

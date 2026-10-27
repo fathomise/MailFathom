@@ -96,10 +96,13 @@ internal sealed class AgentConversationSummarizer : IAgentConversationSummarizer
     {
         ArgumentNullException.ThrowIfNull(turns);
 
-        var turn = await this.egressGuard.GuardAsync(
+        // Each value is scanned before the document is written around it, so no redaction can reach into its elements.
+        var guardedSummary = await this.egressGuard.GuardOptionalAsync(
             SensitiveContentEgressPoint.ChatPrompt,
-            AgentConversationSummaryInstructions.ComposeTurn(previousSummary, turns),
+            previousSummary,
             cancellationToken);
+        var guardedTurns = await AgentHistoryDocument.GuardAsync(this.egressGuard, turns, cancellationToken);
+        var turn = AgentConversationSummaryInstructions.ComposeTurn(guardedSummary, guardedTurns);
         var runLedger = new MailAnsweringRunLedger(this.runBounds);
 
         try

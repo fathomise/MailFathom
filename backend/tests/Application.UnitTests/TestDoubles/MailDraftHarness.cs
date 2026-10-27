@@ -3,16 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
-using MailFathom.Application.Folders;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Drafts;
-using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Application.Mail.Mutations;
-using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -176,6 +174,9 @@ internal sealed class MailDraftHarness
     /// <summary>Gets what has been written down about every draft and every copy of one.</summary>
     internal InMemoryMailDraftStore Drafts { get; } = new();
 
+    /// <summary>Gets what a draft's writer was told about a copy on the server that stopped following the draft.</summary>
+    internal InMemoryNotificationStore Notifications { get; } = new();
+
     /// <summary>Gets the messages the drafts are held as, which is what an append is issued from.</summary>
     internal InMemoryMailDraftContentStore Contents { get; } = new();
 
@@ -233,34 +234,24 @@ internal sealed class MailDraftHarness
     /// </remarks>
     internal void BeginNewScope()
     {
-        var destinations = new MailboxDestinationResolver(
-            this.mappings.Resolver,
-            this.folderResolutions,
-            new MailFolderResolver(
-                Substitute.For<IRemoteFolderCatalog>(),
-                Substitute.For<IRemoteFolderCreator>(),
-                this.folderResolutions,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                this.persistenceSessions,
-                ClientSignalPublishers.ReachingNobody,
-                this.clock),
-            this.transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
+        var held = this.Held;
+        var composition = new MailboxCustodianComposition(this.clock)
+        {
+            Custody = held?.Folders.Custody ?? Substitute.For<IMailAccountCustodyStore>(),
+            LocalFolders = held?.Folders ?? Substitute.For<ILocalMailFolderStore>(),
+            LocalFilerOver = held is null ? null : custodians => held.FilerOver(this.Contents, custodians),
+            Mappings = this.mappings,
+            FolderResolutions = this.folderResolutions,
+            PersistenceSessions = this.persistenceSessions,
+            TransportPolicies = this.transportSecurityPolicies,
+            WriteSessions = this.writeSessions,
+            Contents = this.Contents,
+            Drafts = this.Drafts,
+            CommitPolicy = this.commitPolicy,
+            Notifications = this.Notifications,
+        };
 
-        this.Filer = new MailDraftFiler(
-            new MailboxCopyAppender(
-                this.writeSessions,
-                destinations,
-                this.Contents,
-                this.transportSecurityPolicies,
-                this.clock),
-            this.Held?.FilerOver(this.Contents) ?? LocalMailFilers.HoldingNothing(this.clock),
-            this.writeSessions,
-            destinations,
-            this.Drafts,
-            this.transportSecurityPolicies,
-            this.commitPolicy,
-            this.clock);
+        this.Filer = composition.DraftFiler;
 
         this.Book = new MailDraftBook(
             this.Drafts,

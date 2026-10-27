@@ -39,7 +39,7 @@ internal static class EmailEnrichmentScenario
 
         var message = scenario.Message().Enrichable;
         var language = scenario.Language ?? MailAccountLanguage.English;
-        var instruction = EmailEnrichmentInstructions.TextFor(language);
+        var instruction = AgentComposition.InstructionFor(EmailEnrichmentInstructions.TextFor(language));
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",

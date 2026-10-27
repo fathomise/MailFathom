@@ -45,7 +45,7 @@ MailFathom synchronizes mailboxes read-only, on a bounded schedule, and — for 
 starts one `AccountSynchronizationSupervisor` per served account and supervises those supervisors; everything a
 run actually does belongs to the supervisor of the account it runs for.
 [The arrival pipeline](../architecture/arrival-pipeline.md) draws what a run does after its folders have finished — the
-classification pass, the rules, the cut that produces a message's passages, the reading of what its attachments say,
+spam floor, the classification pass, the rules, the cut that produces a message's passages, the reading of what its attachments say,
 and the derivation of what a message is about — and in what order. A run also drains
 the account's outbox there, which is what makes sending correct without anything watching for it;
 [mail delivery](mail-delivery.md#how-a-written-down-send-reaches-a-server) states why that step can never fail the run.
@@ -225,48 +225,62 @@ are reported and nothing else is:
 
 | What the run observed | What it says | Where it leads |
 | --- | --- | --- |
-| Mail arrived for the person | One notification for the run, carrying the count — never one per message | The mailbox |
+| Mail arrived for the person and settled | One per message while five or fewer stand unread, then one carrying the count | The message, or the mailbox |
 | It ended with folders it did not finish | How many of how many, and that MailFathom will try again | Nowhere |
 | A mail server refused this account's credential | That the account needs signing in again and is no longer being fetched | The settings |
 
-**Arrival is narrower than what a run stored, and the run decides it where it stores rather than by a query
-afterwards.** A message counts as arrival when all three of these hold, and it is not arrival when any one of them
+**Arrival is said when a message settles, not when it is stored, and it is narrower than what a run stored.** A message
+the run stores waits out of every read until its spam verdict and its moving rules have placed it, as
+[the arrival pipeline](../architecture/arrival-pipeline.md#a-message-is-shown-once-it-has-settled) describes, and the
+notification is raised by the stage that settles it — so it names a message the person can already open, in the folder
+it ended up in. A settled message counts as arrival when all of these hold, and it is not arrival when any one of them
 fails:
 
-| The run stored it | Why it decides arrival |
+| The settled message | Why it decides arrival |
 | --- | --- |
-| in a folder whose role is the inbox | Mail the run brought into an archive, a sent folder, or a junk folder is mail it fetched rather than mail waiting for somebody. A server-side rule delivering into a custom folder is real mail arriving, and whether MailFathom says so is a question left open rather than answered here |
-| while the server had not marked it `\Seen` | The person read it somewhere else, so it is news to nobody. The flag is the one the server reported when it described the message, which rides the discovery fetch and costs no second round trip and no write |
-| and MailFathom did not put it there itself | Two of its own acts land a message in a folder like any other arrival: a copy it filed of the user's own outgoing message, which the person wrote, and a copy a rule made into a folder mapped as the inbox, which carries the source's flags and would otherwise announce the message it was copied from. Each is recognized by the record of the act rather than by the folder or the flag, and the run already suppresses the appearance each of them raises |
+| is in the inbox, or reached the inbox and a rule moved it on into a folder other than junk or trash | Mail the run brought into an archive, a sent folder, or any other folder directly is mail it fetched rather than mail waiting for somebody. Mail one of the person's own rules filed out of the inbox is still mail that arrived for them, so it is announced in the folder the rule chose |
+| was not judged spam, and is not in junk or trash | A message filed as junk is never news, whether a verdict or a rule put it there |
+| was not marked `\Seen` by the server when it was stored | The person read it somewhere else, so it is news to nobody. The flag is the one the server reported when it described the message, which rides the discovery fetch and costs no second round trip and no write |
+| was not put there by MailFathom itself | Two of its own acts land a message in a folder like any other arrival: a copy it filed of the user's own outgoing message, which the person wrote, and a copy a rule made, which duplicates a message already shown. Each is recognized by the record of the act when it is stored, and is stored already settled, so the settlement never sees it. So is a message stored again because a delete was undone on the server, which the person already had |
 
-Everything else a run stores is still stored, still indexed, and still searchable; it is only the sentence about
-arrival that it is left out of. A mailbox's first runs therefore backfill years of history without announcing it, which
-is what the narrowing is chiefly for.
+Everything else a run stores is still stored, still indexed, and still searchable once it settles; it is only the
+sentence about arrival that it is left out of. A mailbox's first runs therefore backfill years of history without
+announcing it, which is what the narrowing is chiefly for.
 
-**One notification for the run is the rule rather than this worker's choice.** A run that commits forty messages is one
-arrival to somebody who was away, and forty rows would bury every other kind of notification under one mailbox's
-traffic. A run whose arrival count is zero says nothing at all — a run that stored nothing, a run that stored only
-outside the inbox, and a run that stored only mail already read are the same silence — and neither does a run that
-finished every folder it scheduled.
+**A few messages are said one at a time, and more than five as one.** While an account's unread arrivals number five or
+fewer, each message is a notification of its own, naming who sent it and what it is about and leading to it, because
+what somebody away from the screen wants to know is whether anything that arrived needs them. The arrival that would
+take them past five replaces every one of those with a single notification counting them all, and while that one stands
+unread each later arrival replaces it again with a count that includes its own — raised anew, so it is newest in the
+centre and announced like any other. Reading it ends the merge. A run that commits forty messages is therefore still one
+row to somebody who was away, and forty would bury every other kind of notification under one mailbox's traffic. The
+rule is counted per person and per account, so one busy account never folds another's mail into its count. A run whose
+settled arrival is empty says nothing at all — a run that settled nothing, a run whose mail settled only outside the
+inbox, and a run that settled only mail already read are the same silence — and neither does a run that finished every
+folder it scheduled.
 
 **A condition already standing unread is not said twice.** Each notification names the condition it was raised for, and
 the schema refuses a second unread row for the same one — so an account whose credential is refused on every run for a
 week leaves one statement rather than a week of them, and reading it frees the condition to be said again if it recurs.
 [The deduplication index](../architecture/stored-email-schema.md#what-happened-while-nobody-was-looking) is where that
-is enforced. Arrived mail is one of those conditions, so a standing unread arrival keeps the count of the run that
-raised it: a later run bringing more mail adds no second row and does not restate the first one's number. What the row
-says is that mail arrived rather than how much is waiting, which the mailbox itself answers when the row is opened.
+is enforced. Each arrived message is one of those conditions, so a message reported twice is said once, and so is each
+account's merged arrival — which is why a later arrival replaces it rather than standing beside it.
 
-**Nothing in a notification is read from mail.** The condition it was raised for, the counts stating it, an account
-identifier, and the service's own English sentence are what a row carries, so no subject, address, body fragment,
-filename, or credential material can reach it. What makes it derived
-personal data anyway is that it says something reached this person's mailbox and when, which the thirty-day retention
-bound and the two cascades answer for; the bound is swept on each account's own run beside the audit-trail retention
-passes.
+**A notification about one message is the only one that reads mail, and it reads two things.** Its headline is the
+sender — the name they gave, else the address they wrote from — and its second line the subject, both shortened to the
+row's bounds. Every other notification carries the condition it was raised for, the counts stating it, an account
+identifier, and the service's own English sentence, and no notification carries a recipient, a body fragment, a
+filename, or credential material. A merged arrival is not read at all: the messages it stands for are named by
+identifier, the newest hundred of them, so [asking the Agent about it](../operations/client-endpoint.md#the-agent-conversation-routes)
+reads them under the asker's own identity. Neither the sender nor the subject reaches a log or telemetry, and the
+operating system's own notification stays a count by kind. What makes every row derived personal data is that it says
+something reached this person's mailbox and when, and for one about a message who sent it and what about, which the
+thirty-day retention bound and the cascades from the message answer for; the bound is swept on each account's own run
+beside the audit-trail retention passes.
 
-**Reporting never fails a run.** It happens after every pass that can still commit mail, so the count is the run's whole
-arrival rather than whatever had landed when the report was composed, and a failure there is logged without putting the
-account into backoff — fetching an account's mail less often because a report could not be written would answer the
+**Reporting never fails a run.** The unfinished folders and the refused credential are reported after every pass that
+can still commit mail, and arrival by the settlement stage as each message settles; a failure in either is logged without
+putting the account into backoff — fetching an account's mail less often because a report could not be written would answer the
 wrong problem with the wrong remedy. Nothing is replayed either: what the next run says is what that run observed,
 because a stale count is worse than a missing one.
 
@@ -680,7 +694,7 @@ a change to the interval rather than dropping it. One arriving while the account
 than a corner, since the record is usually written while a run is under way, so it is kept until something answers it.
 
 **A run under way answers it at its next stage boundary.** A run converges before it reads its folders and again between
-each of the passes that follow them — the delivery, the retention sweep, the classification, the rules, the cut, the
+each of the passes that follow them — the delivery, the retention sweep, the spam floor, the classification, the rules, the cut, the
 attachment reading, the two derivations, and the report — so a change recorded while any one of those is running is
 carried at the boundary after it rather than waiting out the stages left. That matters because those stages are where a
 run spends its time: the folders of a settled account take a couple of seconds and the derivations behind them take tens
@@ -693,9 +707,8 @@ landing past the last boundary is taken by that wait and carried by the run it b
 The record answers three questions with one row.
 
 **Whether asking again is the same request.** Its identity is the email occurrence, the mutation, and who asked — a rule
-together with the revision of it that matched, the identity of one invocation, or the profile a spam verdict was decided
-under, which is the deciding stage's rule corpus together with the score the operator acts at. The three are told apart
-on the record by their origin, so an operator reading a change knows whether a rule they wrote, something they did, or
+together with the revision of it that matched, the identity of one invocation, or the stage that decided a spam
+verdict. The three are told apart on the record by their origin, so an operator reading a change knows whether a rule they wrote, something they did, or
 [spam classification](spam-classification.md#what-an-operator-can-let-a-verdict-do) asked for it. Two callers asking for
 the same change at the same moment both reach the database and the unique index refuses one of them, so the same request
 twice performs one change rather than two. That is enforced by the constraint rather than by a check, because no check
@@ -882,6 +895,14 @@ destination folder for a message that looks right would replace a fact with a gu
 refuses. Those wait `UnknownMutationOutcomeGrace` for an observation that may still settle them, and are then given up
 on so they stand as dead-lettered rather than as changes still apparently happening.
 
+**A change a person asked for and MailFathom gave up on is put in front of them.** Whichever way it was given up —
+every attempt spent, a server that cannot carry it, a destination folder the server does not have, or an outcome
+nobody could establish — the one path that ends a record as given up
+raises one [notification](../operations/client-endpoint.md#the-notification-routes) per user assigned the account,
+naming the act and leading to the message, deduplicated per change. A change a rule or the spam classifier asked for
+raises none, because nobody watched it happen. The record is already terminal when the notification is written, so a
+notification that could not be written leaves the change given up exactly as it would otherwise be.
+
 | Bound | Setting | Default | What it decides |
 | --- | --- | --- | --- |
 | Changes per run | `MaxMutationsPerConvergencePass` | 50 | How much of a backlog one run takes on; the rest waits for the next run, oldest first |
@@ -984,7 +1005,7 @@ account's folders through `IRemoteFolderCatalog` and matches the mapping against
 | Mapping | Matches |
 | --- | --- |
 | `RemotePath` | The advertised folder whose path is the configured text. |
-| `SpecialUse`, alone | The advertised folder carrying that RFC 6154 role. `Outbox` is refused here, because no server advertises one. |
+| `SpecialUse`, alone | The advertised folder carrying that RFC 6154 role. |
 | `RemotePath` and `SpecialUse` together | The advertised folder whose path is the configured text; the role is what that folder *plays* rather than how it is found. |
 
 A role several folders carry does **not** resolve to whichever the server listed first. `LIST` ordering is a response
@@ -992,12 +1013,12 @@ order rather than an identity contract, so taking the first would let a reordere
 generation, and resynchronize a different folder with no configuration having changed. The alias is reported ambiguous
 instead, and the log names the remedy: configure its `RemotePath`.
 
-One role is MailFathom's own and is therefore never matched against what a server advertised. RFC 6154 defines no
-outbox attribute — the outbox a mail client shows is that client's own local queue — so `SpecialUse: Outbox` names a
-folder only beside a `RemotePath`, and startup refuses the role written alone, naming the alias and the key it wants. A
-provider folder merely *named* like an outbox plays no role either, because nothing here reads a folder's name. What
-the role is for is [the copy of a waiting message](mail-delivery.md#the-copy-in-the-accounts-own-folders), which is
-mirrored into that folder and withdrawn when the message leaves; an account that maps none mirrors nothing.
+No folder plays an outbox. RFC 6154 defines no outbox attribute — the outbox a mail client shows is that client's own
+local queue — and each account's outbox is MailFathom's own record of what it has not sent, served
+[beside the account's folders](../operations/client-endpoint.md#the-outbox-routes) rather than synchronized from one.
+So `SpecialUse: Outbox` is refused at startup, with or without a `RemotePath`, naming the alias and the mapping to
+remove, and a provider folder merely *named* like an outbox is an ordinary folder, because nothing here reads a
+folder's name.
 
 A `SpecialUse: Inbox` mapping additionally falls back to the folder named `INBOX` when the server advertises no
 special-use attribute at all, because RFC 3501 mandates that name and makes it case-insensitive. That fallback exists
@@ -1144,26 +1165,27 @@ Each exclusion costs that entry rather than the account's whole listing, which w
 
 A mapping also says what MailFathom does with the folder once it has found it. Three switches on the same entry answer
 that, and each one defaults to `true`, so a mapping that names none of them is a folder that is mirrored, embedded, and
-readable by tools:
+visible to AI:
 
 | Switch | With it `false` |
 | --- | --- |
 | `Synchronize` | No run schedules the folder, so no connection is opened for it and nothing further of it is stored. |
 | `GenerateEmbeddings` | What is stored is never cut into passages, its attachments are never read, and nothing of it reaches an embedding provider. |
-| `VisibleToTools` | No MCP tool lists, searches, reads, or answers from the folder. |
+| `VisibleToAI` | The folder is withheld from every AI function and from nothing else: no MCP tool, agent, or model or embedding provider lists, searches, reads, answers from, or derives anything from it, and no act an agent or MCP caller asks for reaches its mail. The person still reads and acts on it in the client exactly as on any other mirrored folder. |
 
-One role decides something beyond where the folder is too. A mapping of `SpecialUse: Junk` names the folder that
-`list_emails` and `search_emails` leave out unless a caller asks for it, and that `ask_mail` leaves out with no way to
-ask — [spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) records why. It is
+One role decides something beyond where the folder is too. A mapping of `SpecialUse: Junk` names the folder whose mail
+no agent reads unless the person marked the message not spam —
+[spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) records why. It is
 read from the configured role rather than from what a server advertised for the same reason the alias is: the role is
 what an operator decided, and a folder is withheld by their decision rather than by a `LIST` response. An account
-mapping no junk folder withholds nothing, and every mailbox read behaves as it did before this existed.
+mapping no junk folder withholds only what a verdict names.
 
 None of them changes what an **unmapped** folder is, because an unmapped folder is not a folder with its switches turned
 down. A folder no mapping names is not discovered into a binding, stores nothing, and has no alias anything can name it
-by: it does not exist for this deployment. Every reader is expressed over the folders configuration maps — the tools and
-the two reads that name an email by its identifier over the ones a mapping also leaves visible, chunking and the
-embedding backfill over the ones a mapping also leaves embedded, and both rule passes over the ones a mapping mirrors —
+by: it does not exist for this deployment. Every reader is expressed over the folders configuration maps — every read
+answering for an agent over the ones a mapping also leaves visible to AI, every read answering for the person in the
+client over the ones a mapping mirrors, chunking and the embedding backfill over the ones a mapping also leaves embedded,
+and both rule passes over the ones a mapping mirrors —
 so a folder outside that list is outside the answer, and an account mapping nothing has nothing any of them can read.
 That is a different thing from `Synchronize: false`, where the mapping goes on naming the folder and the alias goes on
 resolving.
@@ -1208,18 +1230,18 @@ occurrence is observed gone. There is no setting of its own for this case, and t
 relocation it was rather than as a deletion. A **copy** into such a folder leaves the local store untouched, because the
 message it duplicates stayed where it was and the duplicate is in a folder nothing mirrors.
 
-**Configuration that asks for embedding or tool visibility on an unsynchronized folder is refused when it binds**, naming
-the alias, because a folder that stores nothing has nothing to embed and nothing a tool could read. Leaving a switch out
-is not asking for it, so `Synchronize: false` alone binds. The opposite combination — mirrored and embedded but withheld
-from tools — binds as well, and it is worth naming what it costs: the passages and their vectors are produced and paid
-for, and no reader reaches them today, since the tools are the only readers there are. It is a mapping to write when the
-folder is expected to become visible, not one to leave in place indefinitely.
+**Configuration that asks for embedding or for visibility to AI on an unsynchronized folder is refused when it binds**,
+naming the alias, because a folder that stores nothing has nothing to embed and nothing AI could read. **Asking for
+embedding on a folder withheld from AI is refused the same way**, naming the alias and both keys, because an embedding
+is computed by a provider such a folder never reaches. Leaving a switch out is not asking for it, so `Synchronize: false`
+alone binds, and so does `VisibleToAI: false` with `GenerateEmbeddings` left out — the mapping then derives embedding off
+from it.
 
 **Mail already stored for a folder whose synchronization is switched off is kept.** Nothing is removed, no pass runs
 over the folder, and the checkpoint stays exactly where the last run left it. Rows nobody may read are not stale in a
 way anybody observes: an unsynchronized folder is withdrawn from every reader there is, because the mapping derives the
-other two switches from this one, so no tool lists, searches, reads, or answers from it, nothing of it is embedded, and
-no rule pass reaches it. Erasing them would charge an operator a whole remirror for a switch they may flip back the
+other two switches from this one and the person's reads cover only mirrored folders, so neither the client nor any AI
+function lists, searches, reads, or answers from it, nothing of it is embedded, and no rule pass reaches it. Erasing them would charge an operator a whole remirror for a switch they may flip back the
 same week, so nothing in MailFathom takes local mail away because a configuration value changed.
 
 **Getting the storage back is a command rather than a setting.** [`mfctl folder
@@ -1239,12 +1261,14 @@ for a folder that simply went unread for a while. A
 reconciliation resolves what the invalidation leaves behind. There is no branch anywhere that tells a re-enabled folder
 from a newly mapped one.
 
-The tool switch is applied in exactly one place. `MailboxScopeResolver` resolves the scope every read model is expressed
-in, attaches to it the folders a mapping both names and leaves visible, and answers the same question for the two reads
-that name an email by its identifier, so a tool added later inherits the whole rule — the withheld folder and the
-unmapped one alike — instead of having to remember either. What it attaches is the list of what may be read rather than
-a list of what may not, which is what makes an account with no mapped folder read as nothing rather than as everything.
-[Mailbox queries](mailbox-queries.md#folders-withheld-from-tools) states what a caller sees.
+The AI switch is applied in exactly one place. `MailboxScopeResolver` resolves the scope every read model is expressed
+in for the reader the read answers for — a `MailboxReaderKind` of `Agent` or `Person` — and attaches to it the folders
+that reader may see: for an agent, the folders a mapping both names and leaves visible to AI; for the person, every
+folder a mapping mirrors. It answers the same question for the reads that name an email by its identifier, so an AI
+function added later inherits the whole rule — the withheld folder and the unmapped one alike — instead of having to
+remember either. What it attaches is the list of what may be read rather than a list of what may not, which is what
+makes an account with no mapped folder read as nothing rather than as everything.
+[Mailbox queries](mailbox-queries.md#folders-withheld-from-ai) states what a caller sees.
 
 ### Where an arrival lands on a held account
 
@@ -1332,6 +1356,7 @@ write. Nothing is fetched twice, and no extraction path can select a folder or s
 | Thread identifiers | `Message-ID`, `In-Reply-To`, `References` | Angle brackets and the whitespace around them removed; `References` keeps header order and collapses duplicates. |
 | Attachment summary | the message structure | Counts, total decoded size, inline-resource count, three markers, and one record per attachment. |
 | Sender-authentication verdict | the trusted `Authentication-Results` header, or the message's own DKIM signatures | What was established about who sent the message, and which of the two readings established it. Only the header carrying the account's configured authserv-id is read, and only the topmost such header. Where no such header is found, extraction verifies the message's DKIM signatures itself against the keys their domains publish, which is the one step of a run that queries DNS; the verdict records which of the two readings produced it. [Sender authentication](sender-authentication.md) holds the whole rule. |
+| Message signature | the `multipart/signed` container or the opaque S/MIME part | Whether the message's own S/MIME or PGP/MIME signature verifies against what this deployment trusts, each step that decided it, and who signed. Verifying a certificate may ask its authority's revocation responder, which is the one other step of a run that reaches the network; [verifying a message's own signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) holds what is trusted and what is asked, and [the stored-email schema](../architecture/stored-email-schema.md#the-messages-own-signature) what is recorded. |
 | Automation claim | `List-Id`, `List-Post`, `List-Unsubscribe`, `Auto-Submitted`, `Precedence` | What the message says about itself: a list posting, something submitted automatically, or bulk. It is read for [contact collection](contacts.md#collecting-contacts-from-arriving-mail), which refuses the whole message rather than one of its addresses, and it is deliberately not persisted — it is a claim one message makes rather than a property of the mail, and a reader wanting it has the headers. |
 
 An address is normalized to an upper-cased comparison form and keeps what the message wrote alongside it, and that
@@ -1405,8 +1430,9 @@ Outlook sends an invitation, and an attachment when it is a separate part, which
 
 Attachment presence means the attachment count is greater than zero, so an inline-only or signature-only message does
 not have attachments. The signature marker states **presence only** and its name says so: anyone can attach a
-signature-typed part, nothing here verifies one, and a marker named after signing would be read downstream as an
-authenticity result that was never established. Decryption and verification are out of scope and tracked separately.
+signature-typed part, and the marker is read off the structure whatever the signature turns out to be. Whether the
+signature verifies is the separate message-signature answer in the table above, and a marker named after signing would
+be read downstream as that answer. Decryption is out of scope and tracked separately.
 
 Size is the **decoded** octet count, measured by streaming the part through a counter that discards the bytes. MIME
 declares no per-part length, so this is measured rather than read, and the sum over a message's attachments does not
@@ -2095,7 +2121,7 @@ The extraction backfill has a section of its own rather than a block inside the 
 
 Every declared account carries a `DisplayName`, whether or not synchronization is enabled, because the stored copy stays readable after the switch is turned off and the name is what a caller reads the account back as. There is no fallback to the generated identifier: a name MailFathom invented would be published to callers as though an operator had chosen it. The two share one naming space — a request may name an account by either — so a write is refused where a display name another of that user's accounts already carries as an identifier or a display name, compared without regard to case. Display names are judged within each assigned user's set rather than across the deployment; the address is the one name judged across the deployment.
 
-An enabled synchronization needs no account: a deployment holding no user, or holding users assigned no mailbox, starts and reports that it has nothing to synchronize rather than refusing. A declared account carries an `EmailAddress`, a `DisplayName`, a host, and a user name, and the write that declares it is refused where it does not; it carries no `AccountId`, which the deployment generates. The account password is not a configuration value at all: `Secrets.Password` carries a reference, and the declaration is refused where it cannot be resolved. Each entry of `Folders` names an alias and at least one of `RemotePath` and `SpecialUse`; naming neither, or naming a role that does not exist, is refused with a message identifying the alias. Naming both is how a folder found by its path still [plays a role](#what-a-role-says-beside-how-a-folder-is-found), and two folders of one account naming the same role is refused with a message identifying both aliases and the role. Supported roles are `Inbox`, `Archive`, `Drafts`, `Sent`, `Junk`, `Trash`, `All`, `Flagged`, `Important`, and `Outbox`; `Outbox` is MailFathom's own rather than one RFC 6154 defines, so an entry naming it without a `RemotePath` is refused naming the alias. An entry naming a `RemotePath` may additionally set `CreateIfMissing`, which defaults to `false` and is what [creates the folder](#a-folder-the-mapping-asked-for-is-created) when the server advertises none at that path; setting it on an entry that names no `RemotePath` is refused naming the alias. If an account omits `Folders`, its supervisor applies the post-binding default of one alias `inbox` mapped to the inbox role; explicit folder lists replace that default.
+An enabled synchronization needs no account: a deployment holding no user, or holding users assigned no mailbox, starts and reports that it has nothing to synchronize rather than refusing. A declared account carries an `EmailAddress`, a `DisplayName`, a host, and a user name, and the write that declares it is refused where it does not; it carries no `AccountId`, which the deployment generates. The account password is not a configuration value at all: `Secrets.Password` carries a reference, and the declaration is refused where it cannot be resolved. Each entry of `Folders` names an alias and at least one of `RemotePath` and `SpecialUse`; naming neither, or naming a role that does not exist, is refused with a message identifying the alias. Naming both is how a folder found by its path still [plays a role](#what-a-role-says-beside-how-a-folder-is-found), and two folders of one account naming the same role is refused with a message identifying both aliases and the role. Supported roles are `Inbox`, `Archive`, `Drafts`, `Sent`, `Junk`, `Trash`, `All`, `Flagged`, and `Important`; `Outbox` is refused outright, with or without a `RemotePath`, for the reason [Folder aliases and discovery](#folder-aliases-and-discovery) gives. An entry naming a `RemotePath` may additionally set `CreateIfMissing`, which defaults to `false` and is what [creates the folder](#a-folder-the-mapping-asked-for-is-created) when the server advertises none at that path; setting it on an entry that names no `RemotePath` is refused naming the alias. If an account omits `Folders`, its supervisor applies the post-binding default of one alias `inbox` mapped to the inbox role; explicit folder lists replace that default.
 
 ### Bounding how far back a run reaches
 

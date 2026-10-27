@@ -2,17 +2,28 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Security.Cryptography;
 using System.Text;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent;
+using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Localization;
 using MailFathom.Application.Mail.Delivery.Operations;
+using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Application.Signals;
+using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Failures;
 using MailFathom.TestSupport;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
@@ -31,20 +42,21 @@ public sealed class UserOutboxTests
     /// <summary>A mailbox this deployment serves that the caller under test is not assigned.</summary>
     private static readonly MailAccountId Unassigned = MailAccountId.Create("theirs");
 
+    private static readonly ReadOnlyMemory<byte> RawMime =
+        Encoding.ASCII.GetBytes("Subject: Quarterly figures\r\n\r\nHello.");
+
+    /// <summary>A credential the scanning guard recognises, standing in for anything a scan withholds.</summary>
+    private const string Marker = "AKIAEXAMPLEKEY";
+
     /// <summary>A page is read for the account the request named, narrowed to the mailboxes the caller is assigned.</summary>
     [Fact]
-    public async Task ReadPageAsync_AMailboxThisUserIsAssigned_ReadsThePageForThatAccountAlone()
+    public async Task ReadPageAsync_AMailboxThisUserIsAssigned_ReadsTheOutboxOfThatAccountAlone()
     {
         // Arrange
-        var operations = Substitute.For<IOutboxOperationStore>();
-        operations
-            .ReadPageAsync(Arg.Any<OutboxQuery>(), Arg.Any<CancellationToken>())
-            .Returns(new OutboxPage([], NextCursor: null));
-
-        var outbox = OutboxOver(new InMemoryOutgoingEmailStore(), operations);
+        await using var context = new OutboxContext();
 
         // Act
-        var result = await outbox.ReadPageAsync(
+        var result = await context.Outbox.ReadPageAsync(
             MailAccountSelector.For(Work),
             stage: null,
             pageSize: null,
@@ -53,7 +65,7 @@ public sealed class UserOutboxTests
 
         // Assert
         Assert.Equal(OutboxQueryOutcome.Accepted, result.Outcome);
-        await operations.Received(1).ReadPageAsync(
+        await context.Operations.Received(1).ReadAccountOutboxAsync(
             Arg.Is<OutboxQuery>(query => query!.AccountId == Work),
             Arg.Any<CancellationToken>());
     }
@@ -63,11 +75,10 @@ public sealed class UserOutboxTests
     public async Task ReadPageAsync_AMailboxThisUserIsNotAssigned_IsRefusedBeforeAnythingIsRead()
     {
         // Arrange
-        var operations = Substitute.For<IOutboxOperationStore>();
-        var outbox = OutboxOver(new InMemoryOutgoingEmailStore(), operations);
+        await using var context = new OutboxContext();
 
         // Act
-        var refusal = () => outbox.ReadPageAsync(
+        var refusal = () => context.Outbox.ReadPageAsync(
             MailAccountSelector.For(Unassigned),
             stage: null,
             pageSize: null,
@@ -76,7 +87,7 @@ public sealed class UserOutboxTests
 
         // Assert
         await Assert.ThrowsAsync<MailAccountNotAccessibleException>(refusal);
-        Assert.Empty(operations.ReceivedCalls());
+        Assert.Empty(context.Operations.ReceivedCalls());
     }
 
     /// <summary>A page size outside what a page holds is reported as the refusal rather than read.</summary>
@@ -84,11 +95,10 @@ public sealed class UserOutboxTests
     public async Task ReadPageAsync_APageSizeOutsideWhatAPageHolds_ReportsTheRefusalWithoutReading()
     {
         // Arrange
-        var operations = Substitute.For<IOutboxOperationStore>();
-        var outbox = OutboxOver(new InMemoryOutgoingEmailStore(), operations);
+        await using var context = new OutboxContext();
 
         // Act
-        var result = await outbox.ReadPageAsync(
+        var result = await context.Outbox.ReadPageAsync(
             MailAccountSelector.For(Work),
             stage: null,
             OutboxQuery.MaximumPageSize + 1,
@@ -98,90 +108,68 @@ public sealed class UserOutboxTests
         // Assert
         Assert.Equal(OutboxQueryOutcome.PageSizeOutOfRange, result.Outcome);
         Assert.Null(result.Page);
-        Assert.Empty(operations.ReceivedCalls());
+        Assert.Empty(context.Operations.ReceivedCalls());
     }
 
-    /// <summary>A send from a mailbox the caller is not assigned answers exactly as one nobody made.</summary>
-    [Fact]
-    public async Task FindAsync_ASendFromAMailboxThisUserIsNotAssigned_AnswersAsOneNobodyMade()
+    /// <summary>The outbox holds what has not left and what was refused, so each of those three is a stage it is read at.</summary>
+    [Theory]
+    [InlineData(OutgoingEmailStage.Recorded)]
+    [InlineData(OutgoingEmailStage.TransmissionBegun)]
+    [InlineData(OutgoingEmailStage.Refused)]
+    public async Task ReadPageAsync_AStageTheOutboxHolds_ReadsTheOutboxNarrowedToIt(OutgoingEmailStage stage)
     {
         // Arrange
-        var outgoingEmails = new InMemoryOutgoingEmailStore();
-        var theirs = await QueueAsync(outgoingEmails, Unassigned);
-        var outbox = OutboxOver(outgoingEmails, Substitute.For<IOutboxOperationStore>());
+        await using var context = new OutboxContext();
 
         // Act
-        var found = await outbox.FindAsync(theirs, TestContext.Current.CancellationToken);
+        var result = await context.Outbox.ReadPageAsync(
+            MailAccountSelector.For(Work),
+            stage,
+            pageSize: null,
+            cursor: null,
+            TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Null(found);
+        Assert.Equal(OutboxQueryOutcome.Accepted, result.Outcome);
+        await context.Operations.Received(1).ReadAccountOutboxAsync(
+            Arg.Is<OutboxQuery>(query => query!.Stage == stage),
+            Arg.Any<CancellationToken>());
     }
 
-    /// <summary>A send from a mailbox the caller is assigned is read back with what the record carries.</summary>
-    [Fact]
-    public async Task FindAsync_ASendFromAMailboxThisUserIsAssigned_AnswersWithTheRecord()
+    /// <summary>A delivered or withdrawn send has left the outbox, so asking for one is a mistake rather than an empty page.</summary>
+    [Theory]
+    [InlineData(OutgoingEmailStage.Sent)]
+    [InlineData(OutgoingEmailStage.Cancelled)]
+    public async Task ReadPageAsync_AStageTheOutboxDoesNotHold_IsRefusedAsUnknownWithoutReading(OutgoingEmailStage stage)
     {
         // Arrange
-        var outgoingEmails = new InMemoryOutgoingEmailStore();
-        var mine = await QueueAsync(outgoingEmails, Work);
-        var outbox = OutboxOver(outgoingEmails, Substitute.For<IOutboxOperationStore>());
+        await using var context = new OutboxContext();
 
         // Act
-        var found = await outbox.FindAsync(mine, TestContext.Current.CancellationToken);
+        var result = await context.Outbox.ReadPageAsync(
+            MailAccountSelector.For(Work),
+            stage,
+            pageSize: null,
+            cursor: null,
+            TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.NotNull(found);
-        Assert.Equal(Work, found!.AccountId);
+        Assert.Equal(OutboxQueryOutcome.StageUnknown, result.Outcome);
+        Assert.Null(result.Page);
+        await context.Operations.DidNotReceive().ReadAccountOutboxAsync(Arg.Any<OutboxQuery>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Withdrawing a send from an unassigned mailbox reports it unknown rather than reaching the decision.</summary>
-    [Fact]
-    public async Task CancelAsync_ASendFromAMailboxThisUserIsNotAssigned_ReportsItUnknownWithoutDeciding()
+    /// <summary>A page names who a send is addressed to and its subject, so it takes both the reading and the sending grant.</summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task ReadPageAsync_CallerHoldingOnlyOneOfTheTwoGrants_IsRefused(bool grantsReading, bool grantsSending)
     {
         // Arrange
-        var outgoingEmails = new InMemoryOutgoingEmailStore();
-        var operations = Substitute.For<IOutboxOperationStore>();
-        var theirs = await QueueAsync(outgoingEmails, Unassigned);
-        var outbox = OutboxOver(outgoingEmails, operations);
+        await using var context = new OutboxContext(Granting(grantsReading, grantsSending));
 
         // Act
-        var outcome = await outbox.CancelAsync(theirs, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(OutboxDecisionOutcome.RecordUnknown, outcome);
-        Assert.Empty(operations.ReceivedCalls());
-    }
-
-    /// <summary>Offering an unassigned mailbox's send again reports it unknown rather than reaching the decision.</summary>
-    [Fact]
-    public async Task RequeueAsync_ASendFromAMailboxThisUserIsNotAssigned_ReportsItUnknownWithoutDeciding()
-    {
-        // Arrange
-        var outgoingEmails = new InMemoryOutgoingEmailStore();
-        var operations = Substitute.For<IOutboxOperationStore>();
-        var theirs = await QueueAsync(outgoingEmails, Unassigned);
-        var outbox = OutboxOver(outgoingEmails, operations);
-
-        // Act
-        var outcome = await outbox.RequeueAsync(theirs, refusalRestated: false, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(OutboxDecisionOutcome.RecordUnknown, outcome);
-        Assert.Empty(operations.ReceivedCalls());
-    }
-
-    /// <summary>Watching an outbox asks for the sending grant rather than for the grant that reads mail.</summary>
-    [Fact]
-    public async Task ReadPageAsync_CallerHoldingOnlyTheReadingGrant_IsRefused()
-    {
-        // Arrange
-        var outbox = OutboxOver(
-            new InMemoryOutgoingEmailStore(),
-            Substitute.For<IOutboxOperationStore>(),
-            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
-
-        // Act
-        var refusal = () => outbox.ReadPageAsync(
+        var refusal = () => context.Outbox.ReadPageAsync(
             MailAccountSelector.For(Work),
             stage: null,
             pageSize: null,
@@ -192,44 +180,601 @@ public sealed class UserOutboxTests
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(refusal);
     }
 
-    /// <summary>Builds the user-facing outbox over the stores a test arranged.</summary>
-    private static UserOutbox OutboxOver(
-        InMemoryOutgoingEmailStore outgoingEmails,
-        IOutboxOperationStore operations,
-        AccessAuthorization? authorization = null)
+    /// <summary>A send written down before the subject was kept beside it is named by the subject its own message carries.</summary>
+    [Fact]
+    public async Task ReadPageAsync_ARowWithoutAStoredSubject_ReadsTheSubjectFromItsMessage()
     {
-        var callerAuthorization =
-            authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend);
+        // Arrange
+        await using var context = new OutboxContext();
+        var send = OutgoingEmailId.Create(Guid.CreateVersion7());
+        context.Answering(Entry(send, subject: null));
+        context.Storing(send);
+        context.TextReader
+            .ReadWordsAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(new OutgoingMailText("Quarterly figures", "Hello.", HtmlBody: null));
 
-        return new UserOutbox(
-            AssignedMailAccountCatalogs.For(
-                callerAuthorization,
-                new StubMailAccountAssignments().Assigning(callerAuthorization.RequireUser(), Work),
-                SyntheticServedAccount.Of(Work),
-                SyntheticServedAccount.Of(Unassigned)),
-            outgoingEmails,
-            operations,
-            callerAuthorization);
-    }
-
-    /// <summary>Writes one queued send down for one account, which is the arrangement every test here starts from.</summary>
-    private static async Task<OutgoingEmailId> QueueAsync(
-        InMemoryOutgoingEmailStore outgoingEmails,
-        MailAccountId account)
-    {
-        Assert.True(EmailAddress.TryCreate(displayName: null, "someone@example.test", out var address));
-
-        var opened = await outgoingEmails.OpenAsync(
-            Substitute.For<IPersistenceSession>(),
-            OutgoingEmailRequest.Create(
-                account,
-                SyntheticUser.Deployment,
-                OutgoingEmailRequester.Command($"mfctl-{account.Value:N}"),
-                [OutgoingRecipient.Create(address, OutgoingRecipientRole.To)]),
-            OutgoingEmailPrincipal.Of("test-caller"),
-            Encoding.ASCII.GetBytes("Subject: a send\r\n\r\nHello.").Length,
+        // Act
+        var result = await context.Outbox.ReadPageAsync(
+            MailAccountSelector.For(Work),
+            stage: null,
+            pageSize: null,
+            cursor: null,
             TestContext.Current.CancellationToken);
 
-        return opened.Record.Id;
+        // Assert
+        Assert.Equal("Quarterly figures", Assert.Single(result.Page!.Sends).Subject);
+    }
+
+    /// <summary>A row's subject is the person's correspondence leaving the deployment, so it passes the guard a listing does.</summary>
+    [Fact]
+    public async Task ReadPageAsync_ADeploymentScanningWhatLeaves_ServesARowsSubjectRedacted()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        await using var context = new OutboxContext(egressGuard: egress.Guard);
+        context.Answering(Entry(OutgoingEmailId.Create(Guid.CreateVersion7()), subject: $"the key is {Marker}"));
+
+        // Act
+        var result = await context.Outbox.ReadPageAsync(
+            MailAccountSelector.For(Work),
+            stage: null,
+            pageSize: null,
+            cursor: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("the key is [redacted:CloudKey]", Assert.Single(result.Page!.Sends).Subject);
+    }
+
+    /// <summary>A failure is stated in the reader's own words beside the code a client keys on.</summary>
+    [Fact]
+    public async Task ReadPageAsync_ARefusedSend_StatesItsFailureInTheReadersLanguage()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var send = OutgoingEmailId.Create(Guid.CreateVersion7());
+        context.Answering(Entry(send, subject: "Quarterly figures") with
+        {
+            Stage = OutgoingEmailStage.Refused,
+            LastFailure = MailFathomErrorCode.OutgoingEmailRefused,
+        });
+
+        // Act
+        var result = await context.Outbox.ReadPageAsync(
+            MailAccountSelector.For(Work),
+            stage: null,
+            pageSize: null,
+            cursor: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            ApplicationTexts.GetText(ApplicationText.OutboxFailureRefused, UserLanguage.English),
+            Assert.Single(result.Page!.Sends).FailureStatement);
+    }
+
+    /// <summary>Only the accounts this user is assigned are counted; one they are not is left out rather than refused.</summary>
+    [Fact]
+    public async Task CountAsync_AccountsOnlySomeOfWhichThisUserIsAssigned_CountsTheAssignedOnes()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+
+        // Act
+        await context.Outbox.CountAsync([Work, Unassigned], TestContext.Current.CancellationToken);
+
+        // Assert
+        await context.Operations.Received(1).CountAccountOutboxesAsync(
+            Arg.Is<IReadOnlyCollection<MailAccountId>>(accounts => accounts.SequenceEqual(new[] { Work })),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A credential that may not read the outbox is not told its size either, and a surface asks before counting.</summary>
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, true)]
+    public async Task MayReadOutbox_TheGrantsACallerHolds_IsTrueOnlyForBoth(
+        bool grantsReading,
+        bool grantsSending,
+        bool expected)
+    {
+        // Arrange
+        await using var context = new OutboxContext(Granting(grantsReading, grantsSending));
+
+        // Act
+        var mayRead = context.Outbox.MayReadOutbox;
+
+        // Assert
+        Assert.Equal(expected, mayRead);
+    }
+
+    /// <summary>Counting is reading the outbox, so a caller holding one grant is refused rather than given a number.</summary>
+    [Fact]
+    public async Task CountAsync_CallerHoldingOnlyTheSendingGrant_IsRefused()
+    {
+        // Arrange
+        await using var context = new OutboxContext(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend));
+
+        // Act
+        var refusal = () => context.Outbox.CountAsync([Work], TestContext.Current.CancellationToken);
+
+        // Assert
+        await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(refusal);
+    }
+
+    /// <summary>A send from a mailbox the caller is not assigned answers exactly as one nobody made.</summary>
+    [Fact]
+    public async Task FindAsync_ASendFromAMailboxThisUserIsNotAssigned_AnswersAsOneNobodyMade()
+    {
+        // Arrange
+        await using var context = new OutboxContext(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend));
+        var theirs = await context.QueueAsync(Unassigned);
+
+        // Act
+        var found = await context.Outbox.FindAsync(theirs, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(found);
+    }
+
+    /// <summary>A send-only credential still watches its own send go, without being told what it says.</summary>
+    [Fact]
+    public async Task FindAsync_ASendFromAMailboxThisUserIsAssigned_AnswersWithTheRecordUnderTheSendingGrantAlone()
+    {
+        // Arrange
+        await using var context = new OutboxContext(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend));
+        var mine = await context.QueueAsync(Work);
+
+        // Act
+        var found = await context.Outbox.FindAsync(mine, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(found);
+        Assert.Equal(Work, found!.AccountId);
+    }
+
+    /// <summary>A preview is the message the send will transmit: its subject, its body, and its attachments by name.</summary>
+    [Fact]
+    public async Task ReadPreviewAsync_ASendFromAMailboxThisUserIsAssigned_RendersTheMessageItWillTransmit()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work, subject: "Quarterly figures");
+        context.Storing(mine);
+
+        // Act
+        var preview = await context.Outbox.ReadPreviewAsync(mine, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(preview);
+        Assert.Equal("Quarterly figures", preview!.Subject);
+        Assert.Equal("Hello.", preview.Body?.PlainText.Text);
+        Assert.Equal(2, preview.Attachments.Count);
+    }
+
+    /// <summary>A preview is the message itself, so its subject, the name it is sent under, and its body all pass the guard.</summary>
+    [Fact]
+    public async Task ReadPreviewAsync_ADeploymentScanningWhatLeaves_ServesTheSubjectTheSenderNameAndTheBodyRedacted()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        Assert.True(EmailAddress.TryCreate($"Key {Marker}", "sender@example.test", out var senderAddress));
+        await using var context = new OutboxContext(
+            egressGuard: egress.Guard,
+            renderer: new BoundedBodyEmailContentRenderer(
+                $"the key is {Marker}",
+                sender: new EmailParticipant(EmailAddressRole.From, senderAddress)));
+        var mine = await context.QueueAsync(Work, subject: $"the key is {Marker}");
+        context.Storing(mine);
+
+        // Act
+        var preview = await context.Outbox.ReadPreviewAsync(mine, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(preview);
+        Assert.Equal("the key is [redacted:CloudKey]", preview!.Subject);
+        Assert.Equal("Key [redacted:CloudKey]", preview.Sender?.Address.DisplayName);
+        Assert.Equal("the key is [redacted:CloudKey]", preview.Body?.PlainText.Text);
+    }
+
+    /// <summary>A send whose stored message cannot be read is still previewed, with no body rather than a failure.</summary>
+    [Fact]
+    public async Task ReadPreviewAsync_ASendWhoseMessageIsMissing_AnswersWithTheRecordAndNoBody()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work, subject: "Quarterly figures");
+
+        // Act
+        var preview = await context.Outbox.ReadPreviewAsync(mine, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(preview);
+        Assert.Null(preview!.Body);
+        Assert.Empty(preview.Attachments);
+    }
+
+    /// <summary>A send from a mailbox the caller is not assigned is not previewed, and nothing of it is rendered.</summary>
+    [Fact]
+    public async Task ReadPreviewAsync_ASendFromAMailboxThisUserIsNotAssigned_AnswersAsOneNobodyMade()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var theirs = await context.QueueAsync(Unassigned);
+        context.Storing(theirs);
+
+        // Act
+        var preview = await context.Outbox.ReadPreviewAsync(theirs, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(preview);
+        Assert.Empty(context.Renderer.ObservedRemainingCharacters);
+    }
+
+    /// <summary>The message is mail, so a credential that may only send is refused its preview.</summary>
+    [Fact]
+    public async Task ReadPreviewAsync_CallerHoldingOnlyTheSendingGrant_IsRefused()
+    {
+        // Arrange
+        await using var context = new OutboxContext(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend));
+        var mine = await context.QueueAsync(Work);
+
+        // Act
+        var refusal = () => context.Outbox.ReadPreviewAsync(mine, TestContext.Current.CancellationToken);
+
+        // Assert
+        await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(refusal);
+    }
+
+    /// <summary>Withdrawing a send from an unassigned mailbox reports it unknown rather than reaching the decision.</summary>
+    [Fact]
+    public async Task CancelAsync_ASendFromAMailboxThisUserIsNotAssigned_ReportsItUnknownWithoutDeciding()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var theirs = await context.QueueAsync(Unassigned);
+
+        // Act
+        var outcome = await context.Outbox.CancelAsync(theirs, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutboxDecisionOutcome.RecordUnknown, outcome);
+        Assert.Empty(context.Operations.ReceivedCalls());
+    }
+
+    /// <summary>Offering an unassigned mailbox's send again reports it unknown rather than reaching the decision.</summary>
+    [Fact]
+    public async Task RequeueAsync_ASendFromAMailboxThisUserIsNotAssigned_ReportsItUnknownWithoutDeciding()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var theirs = await context.QueueAsync(Unassigned);
+
+        // Act
+        var outcome = await context.Outbox.RequeueAsync(
+            theirs,
+            refusalRestated: false,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutboxDecisionOutcome.RecordUnknown, outcome);
+        Assert.Empty(context.Operations.ReceivedCalls());
+    }
+
+    /// <summary>A dismissed send left every outbox a person reads, so offering it again is the operator's rather than theirs.</summary>
+    [Fact]
+    public async Task RequeueAsync_ADismissedSend_IsRefusedAsAStageThatDoesNotAllowItWithoutDeciding()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work);
+        context.OutgoingEmails.Arrange(mine, OutgoingEmailStage.Refused);
+        context.OutgoingEmails.ArrangeDismissal(mine, SyntheticUser.Deployment);
+
+        // Act
+        var outcome = await context.Outbox.RequeueAsync(
+            mine,
+            refusalRestated: true,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutboxDecisionOutcome.StageDoesNotAllowIt, outcome);
+        Assert.Empty(context.Operations.ReceivedCalls());
+    }
+
+    /// <summary>
+    /// The read above answers the ordinary case, and the store's statement is what holds against a dismissal committed
+    /// after it: the user's requeue never asks the store to reach a dismissed send.
+    /// </summary>
+    [Fact]
+    public async Task RequeueAsync_ASendNobodyHasDismissed_AsksTheStoreToLeaveADismissedSendAlone()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work);
+        context.Operations
+            .RequeueAsync(mine, refusalRestated: false, reachesDismissedSend: false, Arg.Any<CancellationToken>())
+            .Returns(OutboxDecisionOutcome.Accepted);
+
+        // Act
+        var outcome = await context.Outbox.RequeueAsync(
+            mine,
+            refusalRestated: false,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutboxDecisionOutcome.Accepted, outcome);
+        await context.Operations.Received(1).RequeueAsync(
+            mine,
+            refusalRestated: false,
+            reachesDismissedSend: false,
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Dismissing an unassigned mailbox's send reports it unknown rather than reaching the decision.</summary>
+    [Fact]
+    public async Task DismissAsync_ASendFromAMailboxThisUserIsNotAssigned_ReportsItUnknownWithoutDeciding()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var theirs = await context.QueueAsync(Unassigned);
+
+        // Act
+        var outcome = await context.Outbox.DismissAsync(theirs, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutboxDecisionOutcome.RecordUnknown, outcome);
+        Assert.Empty(context.Operations.ReceivedCalls());
+    }
+
+    /// <summary>The dismissal is recorded against the user who made it, which is what the record says of who accepted the failure.</summary>
+    [Fact]
+    public async Task DismissAsync_ASendFromAMailboxThisUserIsAssigned_RecordsTheDismissalAgainstThisUser()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work);
+        context.Operations
+            .DismissAsync(mine, Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(OutboxDecisionOutcome.Accepted);
+
+        // Act
+        var outcome = await context.Outbox.DismissAsync(mine, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutboxDecisionOutcome.Accepted, outcome);
+        await context.Operations.Received(1).DismissAsync(
+            mine,
+            context.Authorization.RequireUser(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A decision that moved a send tells an open client its account's outbox changed, and names nothing else.</summary>
+    [Fact]
+    public async Task DismissAsync_AnAcceptedDismissal_TellsAnOpenClientTheAccountsOutboxChanged()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work);
+        context.Operations
+            .DismissAsync(mine, Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(OutboxDecisionOutcome.Accepted);
+
+        // Act
+        await context.Outbox.DismissAsync(mine, TestContext.Current.CancellationToken);
+        var published = await context.PublishedSignalsAsync();
+
+        // Assert
+        var signal = Assert.Single(published);
+        Assert.Equal(ClientSignalKind.OutboxChanged, signal.Kind);
+        Assert.Equal(Work, signal.Account);
+    }
+
+    /// <summary>Taking a send back to edit is writing a draft as well as deciding about a send, so it needs both grants.</summary>
+    [Fact]
+    public async Task ReopenAsDraftAsync_CallerWithoutTheDraftingGrant_IsRefusedBeforeAnythingIsRead()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
+            () => context.Outbox.ReopenAsDraftAsync(mine, TestContext.Current.CancellationToken));
+        Assert.Empty(context.Operations.ReceivedCalls());
+    }
+
+    /// <summary>An unassigned mailbox's send is unknown here, so it is never taken back into anybody's drafts.</summary>
+    [Fact]
+    public async Task ReopenAsDraftAsync_ASendFromAMailboxThisUserIsNotAssigned_ReportsItUnknownWithoutDeciding()
+    {
+        // Arrange
+        await using var context = new OutboxContext(Drafting());
+        var theirs = await context.QueueAsync(Unassigned);
+
+        // Act
+        var reopening = await context.Outbox.ReopenAsDraftAsync(theirs, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new OutboxReopening(OutboxDecisionOutcome.RecordUnknown, Draft: null), reopening);
+        Assert.Empty(context.Operations.ReceivedCalls());
+    }
+
+    /// <summary>The send is taken back for this user, and the draft it lands in is what the answer names.</summary>
+    [Fact]
+    public async Task ReopenAsDraftAsync_ASendFromAMailboxThisUserIsAssigned_TakesItBackForThisUserAndNamesTheDraft()
+    {
+        // Arrange
+        await using var context = new OutboxContext(Drafting());
+        var mine = await context.QueueAsync(Work);
+        var draft = MailDraftId.Create(Guid.CreateVersion7());
+        context.Operations
+            .ReopenAsDraftAsync(mine, Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(new OutboxReopening(OutboxDecisionOutcome.Accepted, draft));
+
+        // Act
+        var reopening = await context.Outbox.ReopenAsDraftAsync(mine, TestContext.Current.CancellationToken);
+        var published = await context.PublishedSignalsAsync();
+
+        // Assert
+        Assert.Equal(new OutboxReopening(OutboxDecisionOutcome.Accepted, draft), reopening);
+        await context.Operations.Received(1).ReopenAsDraftAsync(
+            mine,
+            context.Authorization.RequireUser(),
+            Arg.Any<CancellationToken>());
+        Assert.Equal(ClientSignalKind.OutboxChanged, Assert.Single(published).Kind);
+    }
+
+    /// <summary>A decision the store refused moved nothing, so no client is told anything changed.</summary>
+    [Fact]
+    public async Task CancelAsync_ADecisionTheStoreRefused_TellsNoClientAnything()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work);
+        context.Operations
+            .CancelAsync(mine, Arg.Any<CancellationToken>())
+            .Returns(OutboxDecisionOutcome.StageDoesNotAllowIt);
+
+        // Act
+        await context.Outbox.CancelAsync(mine, TestContext.Current.CancellationToken);
+        var published = await context.PublishedSignalsAsync();
+
+        // Assert
+        Assert.Empty(published);
+    }
+
+    private static AccessAuthorization Drafting() => AccessAuthorizations.ForCallerGranted(
+        MailFathomPermission.MailRead,
+        MailFathomPermission.MailSend,
+        MailFathomPermission.MailDraftsWrite);
+
+    private static AccessAuthorization Granting(bool reading, bool sending) =>
+        AccessAuthorizations.ForCallerGranted(
+        [
+            .. reading ? [MailFathomPermission.MailRead] : Array.Empty<MailFathomPermission>(),
+            .. sending ? [MailFathomPermission.MailSend] : Array.Empty<MailFathomPermission>(),
+        ]);
+
+    private static AccountOutboxEntry Entry(OutgoingEmailId send, string? subject) => new()
+    {
+        OutgoingEmailId = send,
+        AccountId = Work,
+        Stage = OutgoingEmailStage.Recorded,
+        IsHeldByAttempt = false,
+        NamedRecipients = [],
+        OtherRecipientCount = 0,
+        Subject = subject,
+        RecordedAt = DateTimeOffset.UnixEpoch,
+        DueAt = null,
+        AvailableAt = DateTimeOffset.UnixEpoch,
+        AttemptCount = 0,
+        LastFailure = null,
+        LastReplyCode = null,
+    };
+
+    /// <summary>Assembles the user-facing outbox over stores a test arranges, for a caller holding both grants unless it says otherwise.</summary>
+    private sealed class OutboxContext : IAsyncDisposable
+    {
+        private readonly FakeTimeProvider clock = new(DateTimeOffset.UnixEpoch);
+        private readonly RecordingClientSignalChannel signalChannel = new();
+        private readonly ClientSignals signals;
+
+        internal OutboxContext(
+            AccessAuthorization? authorization = null,
+            SensitiveContentEgressGuard? egressGuard = null,
+            BoundedBodyEmailContentRenderer? renderer = null)
+        {
+            this.Authorization = authorization ?? AccessAuthorizations.ForCallerGranted(
+                MailFathomPermission.MailRead,
+                MailFathomPermission.MailSend);
+            this.Renderer = renderer ?? new BoundedBodyEmailContentRenderer("Hello.", attachmentOctetCounts: [120, 4096]);
+            this.OutgoingEmails = new InMemoryOutgoingEmailStore(timeProvider: this.clock);
+            this.Operations
+                .ReadAccountOutboxAsync(Arg.Any<OutboxQuery>(), Arg.Any<CancellationToken>())
+                .Returns(new AccountOutboxPage([], NextCursor: null));
+            this.signals = new ClientSignals([this.signalChannel], this.clock);
+
+            var languages = Substitute.For<IUserLanguages>();
+            languages.LanguageOf(Arg.Any<UserId>()).Returns(UserLanguage.English);
+
+            this.Outbox = new UserOutbox(
+                AssignedMailAccountCatalogs.For(
+                    this.Authorization,
+                    new StubMailAccountAssignments().Assigning(this.Authorization.RequireUser(), Work),
+                    SyntheticServedAccount.Of(Work),
+                    SyntheticServedAccount.Of(Unassigned)),
+                this.OutgoingEmails,
+                this.Operations,
+                this.ContentStore,
+                this.Renderer,
+                this.TextReader,
+                egressGuard ?? SensitiveContentEgressGuards.Inactive(),
+                new EmailContentReadOptions(),
+                languages,
+                this.Authorization,
+                this.signals,
+                this.clock);
+        }
+
+        internal AccessAuthorization Authorization { get; }
+
+        internal InMemoryOutgoingEmailStore OutgoingEmails { get; }
+
+        internal IOutboxOperationStore Operations { get; } = Substitute.For<IOutboxOperationStore>();
+
+        internal IEmailContentStore ContentStore { get; } = Substitute.For<IEmailContentStore>();
+
+        internal BoundedBodyEmailContentRenderer Renderer { get; }
+
+        internal IOutgoingMailTextReader TextReader { get; } = Substitute.For<IOutgoingMailTextReader>();
+
+        internal UserOutbox Outbox { get; }
+
+        /// <summary>Makes the store answer every page with the one row given.</summary>
+        internal void Answering(AccountOutboxEntry entry) =>
+            this.Operations
+                .ReadAccountOutboxAsync(Arg.Any<OutboxQuery>(), Arg.Any<CancellationToken>())
+                .Returns(new AccountOutboxPage([entry], NextCursor: null));
+
+        /// <summary>Holds the message one send will transmit, the way recording it stored it.</summary>
+        internal void Storing(OutgoingEmailId send) =>
+            this.ContentStore
+                .FindOutgoingContentAsync(send, Arg.Any<CancellationToken>())
+                .Returns(new StoredEmailContent(RawMime, RawMime.Length, SHA256.HashData(RawMime.Span)));
+
+        /// <summary>Writes one queued send down for one account.</summary>
+        internal async Task<OutgoingEmailId> QueueAsync(MailAccountId account, string? subject = null)
+        {
+            Assert.True(EmailAddress.TryCreate(displayName: null, "someone@example.test", out var address));
+
+            var opened = await this.OutgoingEmails.OpenAsync(
+                Substitute.For<IPersistenceSession>(),
+                OutgoingEmailRequest.Create(
+                    account,
+                    SyntheticUser.Deployment,
+                    OutgoingEmailRequester.Command($"mfctl-{Guid.CreateVersion7():N}"),
+                    [OutgoingRecipient.Create(address, OutgoingRecipientRole.To)]) with
+                {
+                    Subject = subject,
+                },
+                OutgoingEmailPrincipal.Of("test-caller"),
+                RawMime,
+                TestContext.Current.CancellationToken);
+
+            return opened.Record.Id;
+        }
+
+        /// <summary>Lets the publisher's folding window pass and returns what an open client was told.</summary>
+        internal async Task<IReadOnlyList<ClientSignal>> PublishedSignalsAsync()
+        {
+            this.clock.Advance(ClientSignals.FoldingWindow);
+            await this.signals.DrainAsync();
+
+            return this.signalChannel.Published;
+        }
+
+        public ValueTask DisposeAsync() => this.signals.DisposeAsync();
     }
 }

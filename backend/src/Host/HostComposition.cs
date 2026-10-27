@@ -5,6 +5,7 @@
 using System.Globalization;
 using MailFathom.AI;
 using MailFathom.AI.Chat;
+using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Providers;
 using MailFathom.Application.Access;
 using MailFathom.Application.Access.Grants;
@@ -46,19 +47,23 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.Synchronization.Reconciliation;
+using MailFathom.Common.Observability;
 using MailFathom.Host.Api;
 using MailFathom.Host.Api.Documentation;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Access;
 using MailFathom.Host.Configuration.Administration;
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
 using MailFathom.Host.Configuration.DataEncryption;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Configuration.Jobs;
@@ -153,18 +158,19 @@ internal static class HostComposition
         RefuseTheWithdrawnUserAndMailboxSections(builder);
 
         AddSensitiveContentScanning(builder);
-        var spamScannerIsConfigured = AddSpamClassification(builder);
+        AddSpamClassification(builder);
 
         AddMailRules(builder);
         AddSettingsSnapshots(builder);
         AddApplicationBounds(builder);
-        AddStartupReporting(builder, spamScannerIsConfigured);
+        AddStartupReporting(builder);
 
         var embedsMail = AddPersistenceAndProviders(builder);
 
         AddContentStorage(builder);
         AddMailboxExport(builder);
-        AddBackgroundWork(builder, spamScannerIsConfigured, embedsMail);
+        AddOrganizationSigning(builder);
+        AddBackgroundWork(builder, embedsMail);
 
         // Ahead of the surfaces rather than inside one, because the document it generates describes two of them and
         // belongs to neither. It registers nothing outside Development, which is the whole of the rule and is enforced
@@ -416,46 +422,27 @@ internal static class HostComposition
             provider.GetRequiredService<IServedMailAccountReader>()));
     }
 
-    /// <summary>Registers spam classification, and reports whether a scanner was declared behind it.</summary>
-    /// <returns><see langword="true" /> when classification is on and asks a scanner, which is the only state in which the daemon is reached.</returns>
-    private static bool AddSpamClassification(WebApplicationBuilder builder)
+    /// <summary>Registers the on-demand spam classification run.</summary>
+    private static void AddSpamClassification(WebApplicationBuilder builder)
     {
-        // Read while the services are being registered, for the reason the scanner declarations above are: whether a
-        // scanner exists at all decides which services this process has, and that is decided before a container that could
-        // resolve an options snapshot. With the switch off no daemon conversation is constructed, no socket is opened, and
-        // the classifier resolves no scanner — which is the shape that keeps the deterministic stage the whole working
-        // feature for a deployment that deployed no sidecar.
-        var declaredSpamClassification = builder.Configuration
-            .GetSection(SpamClassificationOptions.SectionName)
-            .Get<SpamClassificationOptions>() ?? new SpamClassificationOptions();
-        var spamScannerIsConfigured = declaredSpamClassification is { Enabled: true, UseScanner: true };
-
-        if (spamScannerIsConfigured)
-        {
-            // Composed here rather than inside the registration, because where the daemon is comes from this section and
-            // Infrastructure binds no configuration. Options validation proves the address present and every bound in range
-            // before anything resolves this.
-            builder.Services.AddSingleton(provider => provider
-                .GetRequiredService<IOptions<SpamClassificationOptions>>()
-                .Value
-                .Scanner
-                .ToProfile());
-            builder.Services.AddSpamAssassinScanning();
-        }
-
         // The on-demand run over a whole mailbox is a step of the account's synchronization run, exactly as rule evaluation
         // is, so its collaborators are scoped the way that run's other steps are: one scope per work unit, with the pass's
         // bounds read from the bound section when the scope is built rather than captured once at startup. Both are
         // registered whatever the switches say, because a run is asked for through the administrative endpoint and an
         // instance that has classification switched off must be able to answer that rather than fail to resolve it.
+        // The spam floor's pass is a step of the same run, takes the same bounds, and runs whatever the switches say.
         builder.Services.AddScoped(provider => provider
             .GetRequiredService<IOptionsMonitor<SpamClassificationOptions>>()
             .CurrentValue
             .ToRunOptions());
+        builder.Services.AddSingleton(provider => provider
+            .GetRequiredService<IOptions<SpamClassificationOptions>>()
+            .Value
+            .ModelStage
+            .ToBounds());
         builder.Services.AddScoped<SpamClassificationPass>();
+        builder.Services.AddScoped<SpamVerdictFloorPass>();
         builder.Services.AddScoped<SpamClassificationRunRequests>();
-
-        return spamScannerIsConfigured;
     }
 
     /// <summary>Reads the declared rule set, refuses one that cannot be compiled, and registers what evaluates it.</summary>
@@ -591,6 +578,9 @@ internal static class HostComposition
         builder.Services.AddScoped(provider =>
             provider.GetRequiredService<MailSynchronizationOptions>().MachineAuthorshipProfile);
         builder.Services.AddScoped<IOutgoingSenderIdentityReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.OutgoingSenderIdentities);
+        // Not from the snapshot above: that holds the accounts of the users a work unit acts for, and a colleague's
+        // account is somebody else's.
+        builder.Services.AddScoped<ISenderIdentityDirectory, ComposedSenderIdentityDirectory>();
         builder.Services.AddScoped<IOutgoingMailFilingPolicyReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.OutgoingMailFilingPolicies);
         builder.Services.AddScoped<IOutgoingSendPermissionReader, ConfiguredOutgoingSendPermissionReader>();
         builder.Services.AddScoped<IMailFolderParticipationReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.FolderParticipation);
@@ -670,6 +660,10 @@ internal static class HostComposition
                 .Current.MaxConcurrentConnectionsPerHost));
         builder.Services.AddScoped(provider =>
             provider.GetRequiredService<MailSynchronizationOptions>().ToMimeExtractionOptions());
+        // From the same scoped snapshot as the extraction limits, so a reload that replaces a trusted authority or key
+        // reaches the next work unit and never changes the trust a run already in progress is verifying against.
+        builder.Services.AddScoped(provider =>
+            provider.GetRequiredService<MailSynchronizationOptions>().SignatureVerification.ToTrustOptions());
     }
 
     /// <summary>Maps the delivery section onto the outbox's settings, the ceilings a send is judged against, and what one message may carry.</summary>
@@ -811,14 +805,12 @@ internal static class HostComposition
     }
 
     /// <summary>Declares the gates the startup probe waits on, and the validators that report before the workers run.</summary>
-    private static void AddStartupReporting(WebApplicationBuilder builder, bool spamScannerIsConfigured)
+    private static void AddStartupReporting(WebApplicationBuilder builder)
     {
         // What the startup probe reports. Every gate reaches a remote dependency, so each takes as long as that dependency
         // does, and an orchestrator's startup probe is what turns that interval into an extended grace period rather than
         // into a failing instance. The probe answers from this tracker rather than from the order the framework happens to
-        // start its hosted services in. The spam gate is expected only where that scanner is switched on, because nothing
-        // else in this process asks a daemon for a score, and a gate expected but never reported would leave the probe
-        // unhealthy for the life of the instance. The personal-data analyzer is deliberately not among them: it is a
+        // start its hosted services in. The personal-data analyzer is deliberately not among them: it is a
         // sidecar that may become ready after this process and may stop answering long afterwards, which is a readiness
         // question rather than a startup one, and PersonalDataAnalyzerHealthCheck is where it is asked.
         builder.Services.AddSingleton(new HostStartupGates(
@@ -827,9 +819,6 @@ internal static class HostComposition
             HostStartupGate.DatabaseSchema,
             HostStartupGate.ServedUsers,
             HostStartupGate.DefaultAdministrator,
-            .. spamScannerIsConfigured
-                ? (HostStartupGate[])[HostStartupGate.SpamScanner]
-                : [],
         ]));
         builder.Services.AddHealthChecks()
             .AddCheck<HostStartupGatesHealthCheck>(HostStartupGatesHealthCheck.Name, tags: [HealthProbe.Startup.Tag]);
@@ -945,6 +934,10 @@ internal static class HostComposition
         // again from the published snapshot on every question.
         var declaredChat = builder.Configuration.GetSection(ChatModelOptions.SectionName).Get<ChatModelOptions>();
 
+        // Read the same way: which functions ask a decision model is decided while the services are registered. The
+        // whole section is frozen here, not only its presence, because a decision model is not reloadable.
+        var declaredDecisions = builder.Configuration.GetSection(DecisionModelOptions.SectionName).Get<DecisionModelOptions>();
+
         // Read the same way, and needed before the container for the same reason: the retrieval ceiling it carries is what
         // caps the relevance filter's candidate count and what supplies that count's default, and both are decided while
         // the services are being registered. An absent section binds to the defaults rather than to nothing, so this never
@@ -968,6 +961,7 @@ internal static class HostComposition
             provider.GetRequiredService<SecretConfigurationValidator>(),
             declaredChat ?? new ChatModelOptions(),
             declaredEmbeddings,
+            declaredDecisions,
             declaredAnswering));
         builder.Services.AddSingleton(provider => new ValidatedSettingsSnapshot<ChatModelOptions>(
             provider.GetRequiredService<IOptionsMonitor<ChatModelOptions>>(),
@@ -978,9 +972,12 @@ internal static class HostComposition
         builder.Services.AddSingleton<ISettingsSnapshot<ChatModelOptions>>(provider => provider.GetRequiredService<ValidatedSettingsSnapshot<ChatModelOptions>>());
         builder.Services.AddHostedService(provider => provider.GetRequiredService<ValidatedSettingsSnapshot<ChatModelOptions>>());
 
-        // Registered once for both declarations, because it resolves by alias and the aliases are unique across them. It is
-        // needed by whichever adapter exists, so it is registered when either does rather than by each of them.
-        if (declaredEmbeddings?.IsConfigured is true || declaredChat?.IsConfigured is true)
+        // Registered once for the embedding, chat, and decision declarations, because it resolves by alias and the startup
+        // and reload rules keep an alias unique across all three. It is needed by whichever adapter exists, so it is
+        // registered when any of them does rather than by each of them.
+        if (declaredEmbeddings?.IsConfigured is true
+            || declaredChat?.IsConfigured is true
+            || declaredDecisions?.Models.Count > 0)
         {
             builder.Services.AddSingleton<IProviderEndpointCredentialSource, ConfiguredProviderEndpointCredentialSource>();
             // Registered under the same condition and for the same reason: an instance that declared no endpoint at all
@@ -1072,12 +1069,21 @@ internal static class HostComposition
                         "The relevance filter was enabled at registration and is absent from the configuration in force."));
             }
 
-            // Readiness alone, and never worse than degraded. Neither provider serves a request path, so a failing one must
+            // Readiness alone, and never worse than degraded. No AI provider serves a request path, so a failing one must
             // not take the instance out of traffic and must never reach the liveness probe: restarting the process cannot
             // fix a provider and would turn one outage into an outage plus a restart loop. The registration says all of
-            // that once, for both roles.
+            // that once, for every role.
             builder.Services.AddHealthChecks()
                 .Add(AiProviderHealthCheck.RegistrationFor(AiProviderRole.Chat));
+        }
+
+        // One client per function, keyed by it, so a function asks the model the operator routed it to. Validated before
+        // the container exists by the startup gate, so a plan resolving to nothing is a section nobody declared.
+        if (declaredDecisions?.Models.Count > 0)
+        {
+            builder.Services.AddDecisionProviderAdapter(declaredDecisions.ToPlans(), Telemetry.ActivitySource, Telemetry.Meter);
+            builder.Services.AddHealthChecks()
+                .Add(AiProviderHealthCheck.RegistrationFor(AiProviderRole.Decision));
         }
 
         // Outside both blocks and always registered, because the port answers with a reason rather than by being
@@ -1093,6 +1099,11 @@ internal static class HostComposition
         // who said mail may be read into marks — so an instance missing either derives nothing and says which.
         builder.Services.AddEmailEnrichmentAgent(
             declaredChat?.IsConfigured is true && declaredChat.Enrichment.Enabled);
+
+        // And again for the spam model stage, which answers through the decision model routed to spam classification
+        // rather than through the chat endpoint. Which account consults it is that account's own switch; what this
+        // decides is only whether there is a model to consult.
+        builder.Services.AddSpamModelJudge(declaredDecisions?.ToPlans().GetValueOrDefault(DecisionFunction.SpamClassification));
 
         // And again for a conversation's state, which needs the same two decisions and reports the absence of either
         // the same way.
@@ -1294,11 +1305,21 @@ internal static class HostComposition
             provider.GetRequiredService<TimeProvider>()));
     }
 
+    /// <summary>Registers the interval organization signing keys rotate on, and the pass that mints and rotates them.</summary>
+    /// <remarks>
+    /// Registered on every deployment, whether or not it configures a key ring: without one the pass mints nothing and
+    /// counts every organization it could not give a key, which is what tells an operator the ring is missing.
+    /// </remarks>
+    private static void AddOrganizationSigning(WebApplicationBuilder builder)
+    {
+        builder.Services.AddSingleton(provider =>
+            provider.GetRequiredService<IOptions<OrganizationSigningOptions>>().Value.ToSigningSettings());
+
+        builder.Services.AddHostedService<OrganizationSigningKeyRenewalWorker>();
+    }
+
     /// <summary>Registers the startup gates and the workers behind them, in the order a run may first touch mail.</summary>
-    private static void AddBackgroundWork(
-        WebApplicationBuilder builder,
-        bool spamScannerIsConfigured,
-        bool embedsMail)
+    private static void AddBackgroundWork(WebApplicationBuilder builder, bool embedsMail)
     {
         // Ahead of the workers so no unit of work reads or writes mail before the schema this build expects is proven, and
         // after the infrastructure that registers the inspector it resolves.
@@ -1333,21 +1354,16 @@ internal static class HostComposition
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<ConfigurationConvergenceWorker>>()));
 
-        // Ahead of the workers for a different reason from the gate above, because the spam scanner does not fail
-        // closed: a deployment whose daemon is absent would classify every message from its headers alone and look
-        // perfectly healthy doing it. Proving it here is what keeps a switched-on scanner from being a line in a
-        // configuration file that describes nothing. Registered only where that switch is on.
-        if (spamScannerIsConfigured)
-        {
-            builder.Services.AddHostedService<SpamScannerStartupGate>();
-        }
-
         // Behind the schema gate, because it reads a table, and ahead of the walk that would reduce the figure it
         // reports, so what an operator sees at start is the state the instance came up in. Registered whatever this
         // deployment's own section says, because whether anything can be stale follows the postures the account records
         // compose rather than anything known here; the report asks that question itself and says nothing where no user's
         // mail is scanned.
         builder.Services.AddHostedService<StaleDerivedDataStartupReport>();
+
+        // Behind the schema gate for the same reason, since it reads the account records, and registered whatever is
+        // declared: it asks the judge whether a model serves the stage and reads nothing where one does.
+        builder.Services.AddHostedService<SpamModelStageWithoutModelWarning>();
 
         // The bound settings, because the coordinator replaces every supervisor when its settings are replaced and the
         // accounts it supervises, and each account's own settings, are read from the records instead.

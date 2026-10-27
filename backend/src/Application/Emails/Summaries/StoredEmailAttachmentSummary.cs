@@ -9,7 +9,7 @@ namespace MailFathom.Application.Emails.Summaries;
 /// <param name="TotalSizeOctets">The decoded octets of those attachments together.</param>
 /// <param name="InlineResourceCount">How many parts are resources an HTML body embeds rather than files a person would open.</param>
 /// <param name="IsEncrypted">Whether the body arrived inside a cryptographic envelope and is therefore unreadable here.</param>
-/// <param name="CarriesUnverifiedSignature">Whether a signature part is present, verified by nothing.</param>
+/// <param name="CarriesUnverifiedSignature">Whether a signature part is present anywhere in the message, which states nothing about whether it verified.</param>
 /// <param name="ContainsUnexpandedTnefPart">Whether a TNEF <c>winmail.dat</c> part was recorded without being expanded.</param>
 /// <remarks>
 /// <para>

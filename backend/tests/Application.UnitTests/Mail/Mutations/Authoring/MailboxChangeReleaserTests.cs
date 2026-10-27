@@ -52,7 +52,7 @@ public sealed class MailboxChangeReleaserTests
         var releaser = this.Releaser(runSignal: runSignal);
 
         // Act
-        var released = await releaser.ReleaseDeletesAsync([opened.Id], TestContext.Current.CancellationToken);
+        var released = await releaser.ReleaseDeletesAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         using var waiting = runSignal.Register(Account, TestContext.Current.CancellationToken);
@@ -72,6 +72,7 @@ public sealed class MailboxChangeReleaserTests
         // Act
         var released = await this.Releaser().ReleaseDeletesAsync(
             [opened.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -86,11 +87,11 @@ public sealed class MailboxChangeReleaserTests
         var opened = await this.OpenHeldAsync(DeleteRequestIn(Trash, uid: 7));
         var releaser = this.Releaser();
         var first = Assert.Single(
-            await releaser.ReleaseDeletesAsync([opened.Id], TestContext.Current.CancellationToken));
+            await releaser.ReleaseDeletesAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Act
         var second = Assert.Single(
-            await releaser.ReleaseDeletesAsync([opened.Id], TestContext.Current.CancellationToken));
+            await releaser.ReleaseDeletesAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(first.RecordId, second.RecordId);
@@ -110,6 +111,7 @@ public sealed class MailboxChangeReleaserTests
         // Act
         var released = await this.Releaser(runSignal: runSignal).ReleaseDeletesAsync(
             [opened.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -129,6 +131,7 @@ public sealed class MailboxChangeReleaserTests
         // Act
         var released = await this.Releaser().ReleaseDeletesAsync(
             [move.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -137,7 +140,7 @@ public sealed class MailboxChangeReleaserTests
 
     /// <summary>A record recorded in a folder the caller may no longer read is absent, the same answer a read of that folder's mail gives.</summary>
     [Fact]
-    public async Task ReleaseDeletesAsync_ARecordInAFolderWithheldFromTools_LeavesItAlone()
+    public async Task ReleaseDeletesAsync_ARecordInAFolderWithheldFromAIAskedByAnAgent_LeavesItAlone()
     {
         // Arrange
         var request = DeleteRequestIn(Withheld, uid: 11);
@@ -146,11 +149,31 @@ public sealed class MailboxChangeReleaserTests
         // Act
         var released = await this.Releaser().ReleaseDeletesAsync(
             [withheld.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(released);
         Assert.NotNull(this.records.HeldUntilOf(request));
+    }
+
+    /// <summary>The person releases a delete they held on their own mail in a folder withheld from AI, exactly as anywhere else.</summary>
+    [Fact]
+    public async Task ReleaseDeletesAsync_ARecordInAFolderWithheldFromAIAskedByThePerson_ReleasesIt()
+    {
+        // Arrange
+        var request = DeleteRequestIn(Withheld, uid: 11);
+        var withheld = await this.OpenHeldAsync(request);
+
+        // Act
+        var released = await this.Releaser().ReleaseDeletesAsync(
+            [withheld.Id],
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(withheld.Id, Assert.Single(released).RecordId);
+        Assert.Null(this.records.HeldUntilOf(request));
     }
 
     /// <summary>Releasing needs authority over the change it stops deferring, exactly as withdrawing one does.</summary>
@@ -164,7 +187,7 @@ public sealed class MailboxChangeReleaserTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            releaser.ReleaseDeletesAsync([opened.Id], TestContext.Current.CancellationToken));
+            releaser.ReleaseDeletesAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailDelete, refusal.RequiredPermission);
@@ -183,7 +206,7 @@ public sealed class MailboxChangeReleaserTests
 
         // Act
         var thrown = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            this.Releaser().ReleaseDeletesAsync(asked, TestContext.Current.CancellationToken));
+            this.Releaser().ReleaseDeletesAsync(asked, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal("recordIds.Count", thrown.ParamName);

@@ -1,6 +1,6 @@
 # Storage, keys, jobs, and logging
 
-<!-- describes: backend/src/Host/Configuration/Provisioning/**, backend/src/Host/Configuration/Persistence/**, backend/src/Host/Configuration/DataEncryption/**, backend/src/Host/Configuration/Jobs/**, backend/src/Host/Configuration/DeploymentOptions.cs, backend/src/Infrastructure/Secrets/Resolution/SecretResolutionOptions.cs, backend/src/Infrastructure/Resilience/OutboundDependencyResilienceOptions.cs -->
+<!-- describes: backend/src/Host/Configuration/Provisioning/**, backend/src/Host/Configuration/Persistence/**, backend/src/Host/Configuration/DataEncryption/**, backend/src/Host/Configuration/Jobs/**, backend/src/Host/Configuration/DeploymentOptions.cs, backend/src/Host/Configuration/Access/OrganizationSigningOptions.cs, backend/src/Infrastructure/Secrets/Resolution/SecretResolutionOptions.cs, backend/src/Infrastructure/Resilience/OutboundDependencyResilienceOptions.cs -->
 
 Every key about the deployment itself rather than about the mail passing through it: where its configuration is read
 from and how a secret-bearing value is interpreted, the database it writes to, the key ring that seals what it stores,
@@ -221,6 +221,22 @@ secret block requires; there is no second name on the entry.
 The ring holds several keys so that rotation needs no downtime: move `ActiveKeyId` to the new key, leave the previous
 key configured, and every value still carrying it keeps opening under it. Removing a key the database still references
 makes those values unopenable, and the failure appears at the next read rather than at the edit.
+
+## `OrganizationSigning`
+
+How long an organization signs with one key before the deployment replaces it.
+[Organization signing keys](organization-signing-keys.md) is the page for what a key is and how one is rotated or
+revoked; this section is only the interval.
+
+| Key | Type | Default | Constraint | Change |
+| --- | --- | --- | --- | --- |
+| `OrganizationSigning:KeyRotationInterval` | TimeSpan | `365.00:00:00` | `1.00:00:00` – `36500.00:00:00`; the ceiling is how a deployment that wants no scheduled rotation says so | restart |
+
+A key older than the interval is replaced on a later hourly pass, so a key lives up to an hour longer than this — and
+longer still where more than a hundred organizations fall due at once, since a pass replaces a hundred, or a replica has
+just started, since its first pass waits an hour. A shorter interval costs nothing a reader of the mail notices — retired
+keys keep their public half — and buys a smaller window for a private half that leaked without anybody knowing. The section needs no key ring to be valid; without one
+no key is minted at all, whatever the interval.
 
 ## `Deployment`
 

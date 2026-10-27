@@ -21,4 +21,13 @@ public enum NotificationTargetKind
 
     /// <summary>The notification leads to one task of the person's own list.</summary>
     PersonalTask = 4,
+
+    /// <summary>The notification leads to one send in its account's outbox.</summary>
+    OutgoingEmail = 5,
+
+    /// <summary>The notification leads to one stored message, and names the change asked of it that never reached the mail server.</summary>
+    MailboxChange = 6,
+
+    /// <summary>The notification leads to one of the person's drafts.</summary>
+    MailDraft = 7,
 }

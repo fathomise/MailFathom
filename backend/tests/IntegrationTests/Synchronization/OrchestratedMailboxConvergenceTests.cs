@@ -2,12 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Resilience;
 using MailFathom.Domain.Emails;
@@ -255,14 +256,16 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 scope.GetRequiredService<IMailboxWriteSessionFactory>(),
                 commitPolicy,
                 scope.GetRequiredService<IMailboxMutationAuditTrail>(),
+                scope.GetRequiredService<MailFailureNotifications>(),
                 ClientSignalPublishers.ReachingNobody,
                 new MailboxMutationOptions()),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),
             commitPolicy,
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
+            scope.GetRequiredService<MailFailureNotifications>(),
             new MailboxConvergenceOptions { UnknownOutcomeGrace = TimeSpan.Zero },
             TimeProvider.System,
-            scope.GetRequiredService<ILocalMailFolderStore>(),
+            scope.GetRequiredService<IMailAccountCustodyStore>(),
             scope.GetRequiredService<MailboxChangeSubmission>());
 
         return await converger.ConvergeAsync(SyntheticMailAccount.Account, cancellationToken);
@@ -333,14 +336,16 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 new MailKitImapWriteSessionFactory(pool, CreateTelemetry()),
                 commitPolicy,
                 scope.GetRequiredService<IMailboxMutationAuditTrail>(),
+                scope.GetRequiredService<MailFailureNotifications>(),
                 ClientSignalPublishers.ReachingNobody,
                 new MailboxMutationOptions()),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),
             commitPolicy,
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
+            scope.GetRequiredService<MailFailureNotifications>(),
             new MailboxConvergenceOptions(),
             TimeProvider.System,
-            scope.GetRequiredService<ILocalMailFolderStore>(),
+            scope.GetRequiredService<IMailAccountCustodyStore>(),
             scope.GetRequiredService<MailboxChangeSubmission>());
 
         return await converger.ConvergeAsync(SyntheticMailAccount.Account, cancellationToken);

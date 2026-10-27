@@ -81,7 +81,7 @@ export function SelectionBar() {
 
             <span aria-hidden="true" className="mx-0.5 w-px self-stretch bg-accent-line" />
 
-            <MailboxActControls messages={messages} shape={actShape} onActed={clear} />
+            <MailboxActControls messages={messages} shape={actShape} spam="strip" onActed={clear} />
 
             {/* Against the far edge, which is a margin the measurement above knows to leave out of what the bar
                 needs. Words at every width, as the design draws it: no symbol names it, so narrowed to one it would be

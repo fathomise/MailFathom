@@ -40,7 +40,7 @@ own. Noticing one while doing something else is worth a sentence in the report, 
 2. **Decide what moves,** by the section below. This is the step with no command in it.
 
 3. **`$start-task`**, with the decision as the description. The issue names the pins being moved and, for each one that
-   is a major or a licence change, why the newer version is acceptable. `type:workflow`, `Area: Platform`.
+   is a major or a licence change, why the newer version is acceptable. Type `Workflow`, `Area: Platform`.
 
 4. **Apply**, on the branch `$start-task` left you on:
 
@@ -114,12 +114,12 @@ which is why it is a decision about the project rather than a version bump. `doc
 records what the floor is for.
 
 **A container image pin** is written in up to four assets in four syntaxes — a Compose default, a Helm value split across
-`repository` and `tag`, a Quadlet unit source, an AppHost call — and two of them are digests rather than tags. The survey
+`repository` and `tag`, a Quadlet unit source, an AppHost call — and one of them is a digest rather than a tag. The survey
 prints every file carrying each reference so the extent is visible before the first edit. Moving one also obliges the
 manifests under `deploy/helm/mailfathom/ci/golden/`, which are written by `scripts/render-helm-manifests.sh --update` and
-by nothing else. Two of the pins additionally decide what the software *concludes* rather than only what it runs — the
-Presidio analyzer image and the SpamAssassin digest — so a finding produced under one is not a finding produced under
-another, and the deployment pages say so.
+by nothing else. One of the pins additionally decides what the software *concludes* rather than only what it runs — the
+Presidio analyzer image — so a finding produced under one version is not a finding produced under another, and the
+deployment pages say so.
 
 ## What this never does
 

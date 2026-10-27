@@ -23,7 +23,7 @@ public sealed class ChatDeclarationRulesTests
     public void FindDeclarationErrors_AUsableDeclaration_ReportsNothing()
     {
         // Act
-        var errors = ChatDeclarationRules.FindDeclarationErrors(Declared(), null, new MailAnsweringOptions());
+        var errors = ChatDeclarationRules.FindDeclarationErrors(Declared(), null, new MailAnsweringOptions(), decisions: null);
 
         // Assert
         Assert.Empty(errors);
@@ -34,7 +34,7 @@ public sealed class ChatDeclarationRulesTests
     public void FindDeclarationErrors_AnAbsentSection_ReportsNothing()
     {
         // Act
-        var errors = ChatDeclarationRules.FindDeclarationErrors(null, null, new MailAnsweringOptions());
+        var errors = ChatDeclarationRules.FindDeclarationErrors(null, null, new MailAnsweringOptions(), decisions: null);
 
         // Assert
         Assert.Empty(errors);
@@ -55,7 +55,7 @@ public sealed class ChatDeclarationRulesTests
         var embeddings = new EmbeddingOptions { ImageDescription = { Enabled = true } };
 
         // Act
-        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, embeddings, new MailAnsweringOptions());
+        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, embeddings, new MailAnsweringOptions(), decisions: null);
 
         // Assert
         Assert.Contains(
@@ -73,7 +73,7 @@ public sealed class ChatDeclarationRulesTests
         var embeddings = new EmbeddingOptions { ImageDescription = { Enabled = true } };
 
         // Act
-        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, embeddings, new MailAnsweringOptions());
+        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, embeddings, new MailAnsweringOptions(), decisions: null);
 
         // Assert
         Assert.Contains(
@@ -91,7 +91,7 @@ public sealed class ChatDeclarationRulesTests
         var embeddings = new EmbeddingOptions { ImageDescription = { Enabled = true } };
 
         // Act
-        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, embeddings, new MailAnsweringOptions());
+        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, embeddings, new MailAnsweringOptions(), decisions: null);
 
         // Assert
         Assert.Contains(
@@ -111,7 +111,7 @@ public sealed class ChatDeclarationRulesTests
         var embeddings = new EmbeddingOptions { ImageDescription = { Enabled = false } };
 
         // Act
-        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, embeddings, new MailAnsweringOptions());
+        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, embeddings, new MailAnsweringOptions(), decisions: null);
 
         // Assert
         Assert.Empty(errors);
@@ -126,7 +126,7 @@ public sealed class ChatDeclarationRulesTests
         candidate.Models[0].MaxOutputTokens = 0;
 
         // Act
-        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, null, new MailAnsweringOptions());
+        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, null, new MailAnsweringOptions(), decisions: null);
 
         // Assert
         Assert.Contains(
@@ -142,7 +142,7 @@ public sealed class ChatDeclarationRulesTests
         candidate.Models[0].Model = string.Empty;
 
         // Act
-        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, null, new MailAnsweringOptions());
+        var errors = ChatDeclarationRules.FindDeclarationErrors(candidate, null, new MailAnsweringOptions(), decisions: null);
 
         // Assert
         Assert.Contains(errors, error => error.Contains("declares no Model", StringComparison.Ordinal));
@@ -162,7 +162,7 @@ public sealed class ChatDeclarationRulesTests
         });
 
         // Act
-        var errors = ChatDeclarationRules.FindDeclarationErrors(Declared(), embeddings, new MailAnsweringOptions());
+        var errors = ChatDeclarationRules.FindDeclarationErrors(Declared(), embeddings, new MailAnsweringOptions(), decisions: null);
 
         // Assert
         Assert.Contains(errors, error => error.Contains("both declare the alias 'answering'", StringComparison.Ordinal));
@@ -181,7 +181,8 @@ public sealed class ChatDeclarationRulesTests
         var errors = ChatDeclarationRules.FindDeclarationErrors(
             candidate,
             null,
-            new MailAnsweringOptions { MaxPassagesPerRetrieval = 8 });
+            new MailAnsweringOptions { MaxPassagesPerRetrieval = 8 },
+            decisions: null);
 
         // Assert
         Assert.Contains(errors, error => error.Contains("Chat:RelevanceFilter:MaxCandidates", StringComparison.Ordinal));
@@ -192,7 +193,7 @@ public sealed class ChatDeclarationRulesTests
     {
         // Act, Assert
         Assert.Throws<ArgumentNullException>(
-            () => ChatDeclarationRules.FindDeclarationErrors(Declared(), null, null!));
+            () => ChatDeclarationRules.FindDeclarationErrors(Declared(), null, null!, decisions: null));
     }
 
     [Fact]

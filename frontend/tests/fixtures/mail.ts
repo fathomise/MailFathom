@@ -10,6 +10,7 @@
 // Nothing here parses a request. Where an answer depends on what was asked for — how far into the folder somebody has
 // read — the corpus states it as a function of that question, and the consumer routing it decides what was asked.
 
+import { workAccount } from './deployment';
 import {
     markupOnlyBody,
     markupOnlyId,
@@ -18,6 +19,7 @@ import {
     newsletterMessage,
     newsletterSubject,
 } from './messages';
+import { listedSender, messageSenderEvidence, senderKindOf } from './senders';
 
 /**
  * How many messages the folder behind the corpus holds.
@@ -80,7 +82,7 @@ function derivedReading(at: number) {
 function timelineRow(at: number) {
     return {
         id: `message-${String(at)}`,
-        account: 'work',
+        account: workAccount.id,
         folder: 'INBOX',
         threadId: null,
         subject: `Message ${String(at)}`,
@@ -97,6 +99,7 @@ function timelineRow(at: number) {
         sizeOctets: 4_096,
         preview: `The opening of message ${String(at)}.`,
         threadMessageCount: null,
+        sender: listedSender(senderKindOf(`message-${String(at)}`)),
     };
 }
 
@@ -145,6 +148,7 @@ function conversationTimelineRow() {
         id: rackingQuote.id,
         threadId: conversationId,
         threadMessageCount: conversationRows.length,
+        sender: listedSender(senderKindOf(rackingQuote.id)),
         subject: rackingQuote.subject,
         senderAddress: 'sales@nordwind.example',
         senderDisplayName: 'Nordwind',
@@ -270,6 +274,7 @@ export const searchResults = {
         {
             ...timelineRow(0),
             id: newsletterId,
+            sender: listedSender(senderKindOf(newsletterId)),
             subject: newsletterSubject,
             senderAddress: 'news@example.invalid',
             senderDisplayName: 'Example',
@@ -292,6 +297,7 @@ export const searchResults = {
         {
             ...timelineRow(1),
             id: markupOnlyId,
+            sender: listedSender(senderKindOf(markupOnlyId)),
             subject: markupOnlySubject,
             senderAddress: 'dispatch@kettles.invalid',
             senderDisplayName: 'Kettles',
@@ -304,6 +310,7 @@ export const searchResults = {
         {
             ...timelineRow(2),
             id: rackingQuote.id,
+            sender: listedSender(senderKindOf(rackingQuote.id)),
             threadId: conversationId,
             subject: rackingQuote.subject,
             senderAddress: 'sales@nordwind.example',
@@ -488,7 +495,7 @@ export function conversation({ content = false } = {}) {
 function conversationEmail(row: (typeof conversationRows)[number], position: number) {
     return {
         id: row.id,
-        account: 'work',
+        account: workAccount.id,
         folder: row.folder,
         threadId: conversationId,
         subject: row.subject,
@@ -506,6 +513,7 @@ function conversationEmail(row: (typeof conversationRows)[number], position: num
         preview: row.preview,
         enrichment: derivedReading(position),
         threadMessageCount: conversationRows.length,
+        sender: listedSender(senderKindOf(row.id)),
     };
 }
 
@@ -520,6 +528,7 @@ function conversationContent(row: (typeof conversationRows)[number]) {
     return {
         message: {
             ...newsletterMessage,
+            ...messageSenderEvidence(senderKindOf(row.id)),
             storedEmailId: row.id,
             folder: row.folder,
             threadId: conversationId,
@@ -588,4 +597,107 @@ export const phraseReading = {
     },
     criteria: ['racking quotation'],
     unaccounted: 'urgent',
+};
+
+/**
+ * One message the corpus mailbox's Spam folder holds, as the folder lists it.
+ *
+ * Each carries the verdict the deployment publishes on every row: who reached it, the kind of spam where one was
+ * named, and — for the two dangerous kinds that carry them — what it asks for and whom it is written to look like, as
+ * the closed values the record names rather than anything the message wrote. They are the design's own sample spam, so
+ * the Spam folder can be held against the artboard that draws it.
+ */
+function spamRow(
+    id: string,
+    subject: string,
+    senderAddress: string,
+    senderDisplayName: string,
+    receivedAt: string,
+    unread: boolean,
+    spam: Readonly<Record<string, string | null>>,
+) {
+    return {
+        ...folderRow(0),
+        id,
+        sender: listedSender(senderKindOf(id)),
+        folder: 'JUNK',
+        subject,
+        receivedAt,
+        senderAddress,
+        senderDisplayName,
+        unread,
+        hasAttachments: false,
+        attachmentCount: 0,
+        preview: `${subject}.`,
+        enrichment: null,
+        spam: {
+            verdict: 'Spam',
+            decidedBy: 'Model',
+            spamSubcategory: null,
+            spamSubcategoryNamedBy: null,
+            phishingRequest: null,
+            impersonatedParty: null,
+            ...spam,
+        },
+    };
+}
+
+/** The phishing message the Spam folder leads with, which is the one its parity pairing opens. */
+export const phishingSubject = 'Your mailbox password expires today';
+
+/** What the corpus mailbox's Spam folder holds before anything is marked or moved into it. */
+export const spamRows = [
+    spamRow(
+        'message-spam-desk',
+        phishingSubject,
+        'it-desk@nordwind-support.example',
+        'Nordwind IT Service Desk',
+        '2026-08-31T08:31:00+00:00',
+        true,
+        {
+            spamSubcategory: 'Phishing',
+            spamSubcategoryNamedBy: 'Model',
+            phishingRequest: 'Credentials',
+            impersonatedParty: 'OnlineService',
+        },
+    ),
+    spamRow(
+        'message-spam-supplier',
+        'Updated bank details for our invoices',
+        'accounts@halvard-logistlcs.example',
+        'Halvard Logistics',
+        '2026-08-31T07:58:00+00:00',
+        true,
+        {
+            spamSubcategory: 'BusinessEmailCompromise',
+            spamSubcategoryNamedBy: 'Model',
+            impersonatedParty: 'Supplier',
+        },
+    ),
+    spamRow(
+        'message-spam-parcel',
+        'Your parcel could not be delivered - open the attached form',
+        'notice@parcel-track.example',
+        'Parcel Notice',
+        '2026-08-30T19:20:00+00:00',
+        false,
+        { decidedBy: 'Person', spamSubcategory: 'MalwareLure', spamSubcategoryNamedBy: 'Person' },
+    ),
+    spamRow(
+        'message-spam-threat',
+        'Pay within 48 hours',
+        'noreply@mail-relay.example',
+        'No Reply',
+        '2026-08-24T22:40:00+00:00',
+        false,
+        { spamSubcategory: 'Extortion', spamSubcategoryNamedBy: 'Model' },
+    ),
+];
+
+/** The Spam folder as one page, which is all of it. */
+export const spamFolderPage = {
+    emails: spamRows,
+    nextCursor: null,
+    previousCursor: null,
+    pageSize: rowsPerPage,
 };

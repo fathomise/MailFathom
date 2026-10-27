@@ -189,6 +189,9 @@ function looking(at: boolean): void {
     vi.spyOn(document, 'hasFocus').mockReturnValue(at);
 }
 
+/** The changes the tab is already following, which is what silences the toast a given-up one's row would raise. */
+const followedHere = new Set<string>();
+
 /** Who the tree is signed in as, read while the wrapper renders so one mounted tree can be handed a second credential. */
 let signedInAs: ClientSession | null = session;
 
@@ -229,9 +232,16 @@ function centreOf(
 
     const view = renderHook(
         () =>
-            useNotificationCentre(signedInAs, transport, true, (target) => {
-                led = target;
-            }),
+            useNotificationCentre(
+                signedInAs,
+                transport,
+                true,
+                (target) => {
+                    led = target;
+                },
+                [],
+                (recordId) => followedHere.has(recordId),
+            ),
         {
             wrapper: ({ children }: { readonly children: ReactNode }) => (
                 <LocalizationProvider>
@@ -507,7 +517,7 @@ describe('useNotificationCentre', () => {
 
         expect(screen.getByText('Ada Lovelace wrote')).toBeDefined();
         expect(screen.getByText('About the engine')).toBeDefined();
-        expect(screen.getByRole('button', { name: 'Show' })).toBeDefined();
+        expect(screen.getByRole('button', { name: /About the engine Show$/u })).toBeDefined();
     });
 
     it('says the first arrival of a session out loud, the panel never having been opened', async () => {
@@ -985,6 +995,72 @@ describe('useNotificationCentre', () => {
         expect(result.current.unreadCount).toBe(4);
     });
 
+    it('reads the page for a raised notification that left the count lower, which is what merging arrivals does', async () => {
+        const signalling = deploymentSaying();
+        const standing = [
+            { ...mail, id: 'n-first' },
+            { ...mail, id: 'n-second' },
+            { ...mail, id: 'n-third' },
+        ];
+        const { transport, hold } = deployment({ unreadCount: 3, notifications: standing });
+        const { result } = centreOf(transport, session, signalling.changes);
+
+        act(() => {
+            result.current.show();
+        });
+        await settled();
+
+        hold(1, [{ ...mail, id: 'n-merged' }]);
+        await act(async () => {
+            signalling.say({
+                kind: 'notification.raised',
+                notificationKind: 'Mail',
+                headline: 'New mail',
+                secondLine: '6 new messages arrived.',
+                unreadCount: 1,
+            });
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(result.current.unreadCount).toBe(1);
+        expect([...result.current.arrived]).toEqual(['n-merged']);
+    });
+
+    it('counts an arrival once when its signals land after the count already rose by it', async () => {
+        const signalling = deploymentSaying();
+        const older = [
+            { ...mail, id: 'n-older-first' },
+            { ...mail, id: 'n-older-second' },
+        ];
+        const { transport, hold } = deployment({ unreadCount: 2, notifications: older });
+        const { result } = centreOf(transport, session, signalling.changes);
+
+        await settled();
+
+        const arriving = [
+            { ...mail, id: 'n-third' },
+            { ...mail, id: 'n-second' },
+            { ...mail, id: 'n-first' },
+        ];
+        const raised = {
+            kind: 'notification.raised',
+            notificationKind: 'Mail',
+            headline: 'Ada',
+            secondLine: 'Figures',
+            unreadCount: 5,
+        } as const;
+
+        hold(5, [...arriving, ...older]);
+        await act(async () => {
+            signalling.say(raised);
+            signalling.say(raised);
+            signalling.say(raised);
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect([...result.current.arrived]).toEqual(['n-third', 'n-second', 'n-first']);
+    });
+
     it('reads nothing about a signal that is not about a notification', async () => {
         const signalling = deploymentSaying();
         const held = { unreadCount: 1, notifications: [mail] };
@@ -1001,5 +1077,90 @@ describe('useNotificationCentre', () => {
         });
 
         expect(requests.length).toBe(before);
+    });
+
+    describe('a change the mailbox did not take', () => {
+        const abandoned = {
+            ...mail,
+            id: 'n-change',
+            kind: 'Mail',
+            title: 'A change did not reach your mailbox',
+            body: 'Move to another folder',
+            statement: { cause: 'MailboxChangeAbandoned', counted: 4, outOf: null },
+            target: { kind: 'MailboxChange', messageId: 'm-9', changeRecordId: 'r-1' },
+        };
+
+        beforeEach(() => {
+            followedHere.clear();
+        });
+
+        it('leads to its message and stays unread, the decision there being what reads it', async () => {
+            const { transport, requests } = deployment({ unreadCount: 1, notifications: [abandoned] });
+            const { result } = centreOf(transport);
+
+            act(() => {
+                result.current.show();
+            });
+            await settled();
+
+            act(() => {
+                result.current.follow(only(result.current));
+            });
+            await settled();
+
+            expect(led).toStrictEqual({ kind: 'MailboxChange', storedEmailId: 'm-9', changeRecordId: 'r-1' });
+            expect(result.current.unreadCount).toBe(1);
+            expect(pathsAsked(requests).some((path) => path.endsWith('/read-state'))).toBe(false);
+        });
+
+        it('marks its row read once the change is decided', async () => {
+            const { transport, requests } = deployment({ unreadCount: 1, notifications: [abandoned] });
+            const { result } = centreOf(transport);
+
+            act(() => {
+                result.current.show();
+            });
+            await settled();
+
+            act(() => {
+                result.current.changeDecided('r-1');
+            });
+            await settled();
+
+            expect(only(result.current).read).toBe(true);
+            expect(pathsAsked(requests).some((path) => path.endsWith('/n-change/read-state'))).toBe(true);
+        });
+
+        it('raises no toast for a change this tab is already following, whose own line said it', async () => {
+            const { transport, hold } = deployment({ unreadCount: 0, notifications: [] });
+            const { result } = centreOf(transport);
+
+            followedHere.add('r-1');
+            act(() => {
+                result.current.show();
+            });
+            await settled();
+            hold(1, [abandoned]);
+            await polled();
+
+            expect(result.current.notifications).toHaveLength(1);
+            expect(screen.queryByRole('button', { name: /Show message$/u })).toBeNull();
+            expect(head.said).toEqual([]);
+        });
+
+        it('raises its toast where nothing in this tab is following it', async () => {
+            const { transport, hold } = deployment({ unreadCount: 0, notifications: [] });
+            const { result } = centreOf(transport);
+
+            act(() => {
+                result.current.show();
+            });
+            await settled();
+            hold(1, [abandoned]);
+            await polled();
+
+            expect(screen.getByRole('button', { name: /Show message$/u })).toBeDefined();
+            expect(head.said).toEqual(['1 failure in your mail']);
+        });
     });
 });

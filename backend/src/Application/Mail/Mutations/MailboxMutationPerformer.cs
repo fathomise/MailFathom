@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Mail.Mutations.Audit;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Domain.Failures;
@@ -32,6 +33,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
     private readonly IMailboxWriteSessionFactory writeSessionFactory;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly IMailboxMutationAuditTrail auditTrail;
+    private readonly MailFailureNotifications failures;
     private readonly ClientSignals signals;
     private readonly int maximumAttempts;
 
@@ -40,6 +42,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
     /// <param name="writeSessionFactory">Opens the one session able to change a mailbox.</param>
     /// <param name="commitPolicy">Commits the record's first write, retrying an optimistic conflict.</param>
     /// <param name="auditTrail">Keeps the history a finished mutation leaves behind, where the account asked for one.</param>
+    /// <param name="failures">Tells the account's users about a change that was given up.</param>
     /// <param name="signals">Tells an open client that a change it may be drawing as pending has settled.</param>
     /// <param name="options">Supplies how many attempts one mutation may spend.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
@@ -49,6 +52,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         IMailboxWriteSessionFactory writeSessionFactory,
         OptimisticConcurrencyRetryPolicy commitPolicy,
         IMailboxMutationAuditTrail auditTrail,
+        MailFailureNotifications failures,
         ClientSignals signals,
         MailboxMutationOptions options)
     {
@@ -56,6 +60,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         ArgumentNullException.ThrowIfNull(writeSessionFactory);
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(auditTrail);
+        ArgumentNullException.ThrowIfNull(failures);
         ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaximumAttempts, 1, nameof(options));
@@ -64,6 +69,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         this.writeSessionFactory = writeSessionFactory;
         this.commitPolicy = commitPolicy;
         this.auditTrail = auditTrail;
+        this.failures = failures;
         this.signals = signals;
         this.maximumAttempts = options.MaximumAttempts;
     }
@@ -122,7 +128,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
 
         // Named by no folder: the request knows the source and the destination by their bindings, and a client knows a
         // folder by its identity, so the statement reaches every folder of the account rather than one named wrong.
-        // ponytail: an account-wide refresh where one folder moved; resolve the binding's folder when it shows in load.
+        // An account-wide refresh where one folder moved; resolve the binding's folder when it shows in load.
         if (WrittenFlagsOf(request, outcome) is { } writtenFlags)
         {
             this.signals.Publish(ClientSignal.MailFlagsChanged(request.Account, folder: null, [writtenFlags]));
@@ -267,7 +273,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
 
     /// <summary>Opens the single writer of one record, which is also what appends its audit entry when it ends.</summary>
     private MailboxMutationJournal OpenJournal(MailboxMutationRecord record, MailFolderResolution folder) =>
-        new(this.store, this.commitPolicy, this.auditTrail, record, folder);
+        new(this.store, this.commitPolicy, this.auditTrail, this.failures, record, folder);
 
     private async Task<MailboxMutationOutcome> AttemptAsync(
         MailboxMutationRequest request,

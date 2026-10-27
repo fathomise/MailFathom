@@ -77,6 +77,13 @@ function message(id: string, position: number): MailThreadMessage {
             preview: null,
             enrichment: null,
             threadMessageCount: null,
+            spam: null,
+            sender: {
+                authorAuthentication: 'Authenticated',
+                deploymentTrust: 'Unknown',
+                signatureOutcome: 'NotSigned',
+                signerMatchesAuthor: false,
+            },
         },
         message: null,
         body: null,
@@ -296,6 +303,23 @@ describe('ThreadState', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
         expect(screen.getByRole<HTMLDialogElement>('dialog', { hidden: true }).open).toBe(false);
+    });
+
+    // A finger pulling the sheet down, and a press beside it, close it through the platform rather than through the
+    // sheet's own control — which is the way out a sheet that kept its own copy of being open never heard of. The event
+    // is dispatched as well, because `close()` leaves it for a task jsdom never drains.
+    it('opens the sheet again after the platform closed it', () => {
+        render(drawing(stateOf([entry()])));
+
+        const sheet = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+        const control = screen.getByRole('button', { name: 'Where this conversation stands' });
+
+        fireEvent.click(control);
+        sheet.close();
+        fireEvent(sheet, new Event('close'));
+        fireEvent.click(control);
+
+        expect(sheet.open).toBe(true);
     });
 
     // The same rule the desktop card keeps, on the composition that draws the citation in a sheet instead: the sheet is

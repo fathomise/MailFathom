@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 
 namespace MailFathom.Application.Mail.Mutations.Authoring;
@@ -66,6 +67,7 @@ public sealed class MailboxChangeProgressReader
 
     /// <summary>Reads where each of the named changes stands.</summary>
     /// <param name="recordIds">The records to ask about, as the authoring calls handed them back.</param>
+    /// <param name="reader">Who the records are read for: the person through the client, or an agent or an MCP caller.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>One entry per record this caller holds, oldest first, and empty where it holds none of them.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="recordIds" /> is <see langword="null" />.</exception>
@@ -74,6 +76,7 @@ public sealed class MailboxChangeProgressReader
     /// <remarks>An identity this caller holds no record for is absent from the answer rather than reported as missing, so nothing here says whether somebody else's record exists.</remarks>
     public async Task<IReadOnlyList<MailboxChangeProgress>> ReadAsync(
         IReadOnlyList<MailboxMutationRecordId> recordIds,
+        MailboxReaderKind reader,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(recordIds);
@@ -90,7 +93,7 @@ public sealed class MailboxChangeProgressReader
         return
         [
             .. held
-                .Where(record => this.IsReadable(assignedAccounts, record))
+                .Where(record => this.IsReadable(reader, assignedAccounts, record))
                 .Select(MailboxChangeProgress.Of),
         ];
     }
@@ -101,8 +104,12 @@ public sealed class MailboxChangeProgressReader
     /// is which mail the caller may be told about and the answer is the folder the message was in when it was asked
     /// about.
     /// </remarks>
-    private bool IsReadable(IReadOnlyList<MailAccountId> assignedAccounts, MailboxMutationRecord record) =>
-        this.scopeResolver.IsReadableByTools(
+    private bool IsReadable(
+        MailboxReaderKind reader,
+        IReadOnlyList<MailAccountId> assignedAccounts,
+        MailboxMutationRecord record) =>
+        this.scopeResolver.IsReadable(
+            reader,
             assignedAccounts,
             record.Request.Occurrence.AccountId,
             record.Request.Occurrence.FolderResolutionId.Alias);

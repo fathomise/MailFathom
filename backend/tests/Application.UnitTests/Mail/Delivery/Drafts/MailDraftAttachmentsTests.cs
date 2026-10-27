@@ -4,6 +4,8 @@
 
 using System.Text;
 using MailFathom.Application.Access;
+using MailFathom.Application.EmailContent;
+using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Screening;
@@ -217,6 +219,8 @@ public sealed class MailDraftAttachmentsTests
                 drafts,
                 new InMemoryMailDraftContentStore(),
                 Substitute.For<IOutgoingMailTextReader>(),
+                Substitute.For<IEmailContentRenderer>(),
+                new EmailContentReadOptions(),
                 callerAuthorization),
             drafts,
             CommittingPolicy(),

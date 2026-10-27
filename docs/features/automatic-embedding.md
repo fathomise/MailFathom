@@ -19,7 +19,7 @@ That state is read per message rather than once at startup, so activating a prof
 without a restart.
 
 One thing narrows what an active profile reaches: what is cut into passages. Mail of a folder mapped with
-`GenerateEmbeddings: false`, and mail of a folder no mapping names at all, is cut into none, so there is nothing to embed
+`GenerateEmbeddings: false` or `VisibleToAI: false`, and mail of a folder no mapping names at all, is cut into none, so there is nothing to embed
 and nothing of it is ever sent to a provider.
 [What a mapping decides beyond where the folder is](imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
 states that switch beside the other two, and [message chunks](message-chunks.md#when-chunking-runs) what happens to
@@ -66,6 +66,17 @@ The worker takes one message at a time and, for that message:
 Each call's vectors are committed together, so a crash leaves a whole page of passages embedded or none of it — never a
 message that looks finished and is not. Nothing about the message is remembered between turns, which is what makes
 offering one twice free: a message already current reads no passages, calls no provider, and writes nothing.
+
+**This path and the [backfill](embedding-backfill.md) can reach one passage at once**, and neither can see the other
+coming: each reads that the passage has no vector inside its own transaction. The vectors are therefore written by one
+statement that replaces a passage's existing vector under the same generation rather than inserting beside it, so the
+writer that commits second updates the winner's row with an equivalent vector instead of violating its key. Nothing
+collides, nothing is retried, and nothing reaches the log at `Error`; a write that genuinely fails — a vector the
+declared width does not describe, a generation that does not exist — still fails and is still logged. What the losing
+writer cannot get back is the provider call it already made, which is why the backfill leaves mail whose passages were
+cut a moment ago to this path —
+[mail the live path was just offered](embedding-backfill.md#mail-the-live-path-was-just-offered) holds how long, and
+what overlap is left.
 
 **While a model change is under way, this path keeps writing into the generation that is serving** rather than into the
 one being built, so mail arriving during a reindex is searchable the moment it is stored. The reindex reaches the same

@@ -5,6 +5,7 @@
 using MailFathom.AI.ThreadStates;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Domain.Emails;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.ThreadStates;
@@ -12,8 +13,8 @@ namespace MailFathom.AI.UnitTests.ThreadStates;
 /// <summary>Covers what survives the reading of a model's answer about where a conversation stands.</summary>
 /// <remarks>
 /// Everything here is about an answer this system did not write. What is asserted is that a usable answer is read, that
-/// an unusable one produces nothing rather than an exception, and above all that no statement leaves the reading citing
-/// a message the turn did not publish.
+/// an answer with no object to read is withheld rather than settled or raised, that an object whose statements all fell
+/// away still settles, and above all that no statement leaves the reading citing a message the turn did not publish.
 /// </remarks>
 public sealed class ThreadStateReadingTests
 {
@@ -37,7 +38,7 @@ public sealed class ThreadStateReadingTests
             """;
 
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages());
+        var entries = ThreadStateReading.Read(answer, Messages()).Entries;
 
         // Assert
         Assert.Equal(
@@ -65,10 +66,11 @@ public sealed class ThreadStateReadingTests
         var answer = $$"""{ "agreements": [{ "text": "They settled the price.", "messages": {{messages}} }] }""";
 
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages());
+        var derivation = ThreadStateReading.Read(answer, Messages());
 
         // Assert
-        Assert.Empty(entries);
+        Assert.True(derivation.IsSettled);
+        Assert.Empty(derivation.Entries);
     }
 
     /// <summary>A citation partly outside the turn keeps the part inside it rather than losing the statement.</summary>
@@ -80,7 +82,7 @@ public sealed class ThreadStateReadingTests
             """{ "agreements": [{ "text": "They settled the price.", "messages": [9, 1] }] }""";
 
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages());
+        var entries = ThreadStateReading.Read(answer, Messages()).Entries;
 
         // Assert
         Assert.Equal([Second], Assert.Single(entries).Sources);
@@ -94,7 +96,7 @@ public sealed class ThreadStateReadingTests
             """{ "agreements": [{ "text": "They settled the price.", "messages": [0, 0, 0] }] }""";
 
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages());
+        var entries = ThreadStateReading.Read(answer, Messages()).Entries;
 
         // Assert
         Assert.Equal([First], Assert.Single(entries).Sources);
@@ -113,7 +115,7 @@ public sealed class ThreadStateReadingTests
         var answer = $$"""{ "agreements": [{{written}}] }""";
 
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages());
+        var entries = ThreadStateReading.Read(answer, Messages()).Entries;
 
         // Assert
         Assert.Equal("Agreement 0.", Assert.Single(entries).Text);
@@ -131,7 +133,7 @@ public sealed class ThreadStateReadingTests
             """;
 
         // Act
-        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages()));
+        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages()).Entries);
 
         // Assert
         Assert.Null(entry.OwedBy);
@@ -151,7 +153,7 @@ public sealed class ThreadStateReadingTests
             """;
 
         // Act
-        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages()));
+        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages()).Entries);
 
         // Assert
         Assert.Equal(ThreadStateAspect.Commitment, entry.Aspect);
@@ -165,44 +167,65 @@ public sealed class ThreadStateReadingTests
     public void Read_AnObjectWrittenInsideProseOrAFence_IsStillRead(string answer)
     {
         // Act
-        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages()));
+        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages()).Entries);
 
         // Assert
         Assert.Equal("They settled.", entry.Text);
     }
 
+    /// <summary>
+    /// An answer with no object to read is a fault in how one reply came back rather than a fact about the conversation,
+    /// so it is withheld and the conversation stays outstanding instead of being recorded as having nothing to say.
+    /// </summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("I could not read the conversation.")]
     [InlineData("{ not json at all }")]
-    [InlineData("{}")]
-    public void Read_AnAnswerNothingCanBeReadOutOf_ProducesNoStatements(string? answer)
+    [InlineData("""{ "agreements": "none" }""")]
+    [InlineData("""{ "agreements": [{ "text": "They settled the price.", "messages": [0] }""")]
+    public void Read_AnAnswerNothingCanBeReadOutOf_WithholdsItAsUnreadable(string? answer)
     {
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages());
+        var derivation = ThreadStateReading.Read(answer, Messages());
 
         // Assert
-        Assert.Empty(entries);
+        Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
+        Assert.Empty(derivation.Entries);
+    }
+
+    /// <summary>An object carrying nothing is the answer the instructions ask for when there is nothing to say.</summary>
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("""{ "agreements": [], "openQuestions": [], "commitments": [], "differences": [] }""")]
+    public void Read_AnObjectCarryingNoStatements_SettlesAsNothingToSay(string answer)
+    {
+        // Act
+        var derivation = ThreadStateReading.Read(answer, Messages());
+
+        // Assert
+        Assert.True(derivation.IsSettled);
+        Assert.Empty(derivation.Entries);
     }
 
     [Theory]
     [InlineData("""{ "agreements": [{ "messages": [0] }] }""")]
     [InlineData("""{ "agreements": [{ "text": "   ", "messages": [0] }] }""")]
     [InlineData("""{ "agreements": [null] }""")]
-    public void Read_AStatementSayingNothing_IsDropped(string answer)
+    public void Read_AStatementSayingNothing_IsDroppedAndTheAnswerSettles(string answer)
     {
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages());
+        var derivation = ThreadStateReading.Read(answer, Messages());
 
         // Assert
-        Assert.Empty(entries);
+        Assert.True(derivation.IsSettled);
+        Assert.Empty(derivation.Entries);
     }
 
     private static IReadOnlyList<DerivableThreadMessage> Messages() =>
     [
-        new(First, 0, "Karolina", new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero), "the price holds"),
-        new(Second, 1, "Piotr", new DateTimeOffset(2026, 9, 7, 15, 0, 0, TimeSpan.Zero), "what about the limit"),
+        new(First, 0, "Karolina", new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero), "the price holds", StubEmailProvenanceReader.KnownCorrespondent),
+        new(Second, 1, "Piotr", new DateTimeOffset(2026, 9, 7, 15, 0, 0, TimeSpan.Zero), "what about the limit", StubEmailProvenanceReader.KnownCorrespondent),
     ];
 }

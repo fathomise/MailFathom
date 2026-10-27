@@ -73,6 +73,12 @@ public sealed class MailFlagChangeInvalidException : MailFathomException
     public static MailFlagChangeInvalidException RequestIdAlreadyAskedForAnother() =>
         new("A request identity already names this change on this email with different terms. Retry with the value the earlier call sent, or send a new request identity.");
 
+    /// <summary>Refuses a change by an agent or an MCP caller that names a junk keyword or replaces a message's keywords.</summary>
+    /// <returns>The failure to raise.</returns>
+    /// <remarks>The keywords are named because they are RFC 9051's own, not text the caller wrote.</remarks>
+    public static MailFlagChangeInvalidException JunkKeywordsArePersons() =>
+        new("The junk keywords $Junk, $NotJunk, and $Phishing carry the spam verdict and the person's correction of it, so only the person may add or remove them, and only the person may replace a message's keywords, which takes off whatever the replacement does not name. Add or remove any other keyword instead.");
+
     /// <summary>Refuses a keyword a mail server could not be asked to store.</summary>
     /// <returns>The failure to raise.</returns>
     public static MailFlagChangeInvalidException KeywordNotWritable() => new(

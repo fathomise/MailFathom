@@ -341,9 +341,9 @@ public readonly record struct MailFathomErrorCode
     /// <summary>Gets subcategory 8, message composition: there is no such stored email to answer, as far as the caller may be told.</summary>
     /// <remarks>
     /// It is the same answer a read of that email gives, and deliberately one code for three situations: no such
-    /// identity, an account this deployment stopped serving, and a folder an operator withheld from tools. Separating
-    /// them would let whoever holds an identifier learn which mail exists by trying to reply to it, and an email
-    /// nothing may read is an email nothing may forward.
+    /// identity, an account this deployment stopped serving, and, where an agent asked for the answer, a folder an
+    /// operator withheld from AI. Separating them would let whoever holds an identifier learn which mail exists by
+    /// trying to reply to it, and an email a reader may not read is one that reader may not forward.
     /// </remarks>
     public static MailFathomErrorCode AnsweredEmailNotFound { get; } = new(28006);
 
@@ -750,10 +750,10 @@ public readonly record struct MailFathomErrorCode
     /// <summary>Gets subcategory 3, access: a request asked to answer an email this deployment will not answer.</summary>
     /// <remarks>
     /// One code covers four situations on purpose: an identifier naming nothing, an account this deployment stopped
-    /// serving, a folder an operator withheld from tools, and a local copy whose content cannot be read. A caller that
-    /// could tell them apart would learn which mail exists by asking to reply to it, and an email nothing may read is
-    /// an email nothing may forward — so the answer is the same one a read of that email gives, whichever of the four
-    /// it was. It is separate from <see cref="StoredEmailNotFound" /> and <see cref="EmailContentUnavailable" /> for
+    /// serving, a folder an operator withheld from AI where an agent asked for the answer, and a local copy whose
+    /// content cannot be read. A caller that could tell them apart would learn which mail exists by asking to reply to
+    /// it, and an email a reader may not read is one that reader may not forward — so the answer is the same one a read
+    /// of that email gives, whichever of the four it was. It is separate from <see cref="StoredEmailNotFound" /> and <see cref="EmailContentUnavailable" /> for
     /// that reason rather than despite it: those two say which case it is, which is exactly what a send may not.
     /// </remarks>
     public static MailFathomErrorCode AnsweredEmailUnavailable { get; } = new(53005);
@@ -1044,6 +1044,15 @@ public readonly record struct MailFathomErrorCode
     /// </remarks>
     public static MailFathomErrorCode AttachmentDownloadScreened { get; } = new(59004);
 
+    /// <summary>Gets subcategory 9, content policy: a message's raw source was not served, because a scanner covers the mail its reader reads.</summary>
+    /// <remarks>
+    /// A read of the message is redacted value by value; its raw source cannot be, because the body sits in transfer
+    /// encodings no scanner reads, so serving it beside the redacted read would hand out what the redaction withholds.
+    /// The refusal is about the deployment's posture rather than about anything found, so it says nothing about the
+    /// message, and asking again answers the same until the posture changes.
+    /// </remarks>
+    public static MailFathomErrorCode EmailSourceScreened { get; } = new(59005);
+
     #endregion
 
     #region Category 6 — Embedding providers
@@ -1092,6 +1101,26 @@ public readonly record struct MailFathomErrorCode
     /// </remarks>
     public static MailFathomErrorCode ChatAnswerEmpty { get; } = new(73001);
 
+    /// <summary>Gets subcategory 1, credentials: a decision model's provider refused the credential this deployment presented.</summary>
+    /// <remarks>
+    /// The second code in the subcategory rather than a reuse of the chat one, because a decision model is declared under
+    /// <c>Decisions</c> with a credential of its own, and an instance may hold a working chat key and a refused decision
+    /// one. Here rather than in a category of its own because a decision model is the same kind of remote party as a
+    /// chat model, reached for a closed question instead of for text.
+    /// </remarks>
+    public static MailFathomErrorCode DecisionProviderCredentialRejected { get; } = new(71002);
+
+    /// <summary>Gets subcategory 2, availability: a decision model did not answer within the budget configured for it.</summary>
+    /// <remarks>A rate limit, a timeout, an unreachable endpoint, an exhausted balance, and a request the provider rejected outright collapse into this one code, because each says the same thing to the work that asked: it keeps what it had without the model.</remarks>
+    public static MailFathomErrorCode DecisionProviderUnavailable { get; } = new(72002);
+
+    /// <summary>Gets subcategory 3, answer shape: a decision model answered with something other than one probability for every option offered.</summary>
+    /// <remarks>
+    /// Raised at the adapter rather than read with a default, because an option the answer left out read as a
+    /// probability of zero is a verdict nobody gave: a missing "not spam" would make every such answer a spam verdict.
+    /// </remarks>
+    public static MailFathomErrorCode DecisionAnswerUnreadable { get; } = new(73002);
+
     #endregion
 
     #region Category 8 — Sensitive-content scanning
@@ -1115,15 +1144,8 @@ public readonly record struct MailFathomErrorCode
     /// </remarks>
     public static MailFathomErrorCode PersonalDataAnalyzerUnavailable { get; } = new(81002);
 
-    /// <summary>Gets subcategory 1, availability: the spam scanner this deployment configured could not be reached while the host was starting.</summary>
-    /// <remarks>
-    /// A third code inside the same subcategory, and the one whose absence is quietest. A spam scanner does not fail
-    /// closed — a classification reached without it is weaker rather than refused — so a deployment whose sidecar is
-    /// absent would keep classifying from headers alone and report nothing an operator would notice, while their own
-    /// configuration said a scanner was consulted. Startup refuses instead, and the message names the configuration key
-    /// rather than the address, for the reason the code above gives.
-    /// </remarks>
-    public static MailFathomErrorCode SpamScannerUnavailable { get; } = new(81003);
+    // 81003 named a startup failure of a service this system no longer deploys. It stays unallocated, so a runbook or an
+    // alert written against it can never come to match a different failure.
 
     #endregion
 
@@ -1250,15 +1272,18 @@ public readonly record struct MailFathomErrorCode
         OutgoingMailNotFullyScanned,
         OutgoingMailAttachmentNotRead,
         AttachmentDownloadScreened,
+        EmailSourceScreened,
         EmbeddingProviderCredentialRejected,
         EmbeddingProviderUnavailable,
         EmbeddingVectorShapeUnexpected,
         ChatProviderCredentialRejected,
         ChatProviderUnavailable,
         ChatAnswerEmpty,
+        DecisionProviderCredentialRejected,
+        DecisionProviderUnavailable,
+        DecisionAnswerUnreadable,
         SensitiveContentScannerUnavailable,
         PersonalDataAnalyzerUnavailable,
-        SpamScannerUnavailable,
     ];
 
     /// <summary>Gets the five-digit code.</summary>

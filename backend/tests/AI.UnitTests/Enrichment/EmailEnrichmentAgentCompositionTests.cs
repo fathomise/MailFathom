@@ -63,7 +63,7 @@ public sealed class EmailEnrichmentAgentCompositionTests
         // Assert
         Assert.All(
             chatClient.Calls,
-            call => Assert.Equal(EmailEnrichmentInstructions.TextFor(language), call.Options?.Instructions));
+            call => Assert.Equal(AgentComposition.InstructionFor(EmailEnrichmentInstructions.TextFor(language)), call.Options?.Instructions));
     }
 
     /// <summary>The name is what every mark records as its origin, so it is this agent's alone.</summary>

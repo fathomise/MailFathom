@@ -4,15 +4,15 @@
 
 using System.ComponentModel;
 using System.Globalization;
-using System.Security;
-using System.Text;
 using MailFathom.AI.Retrieval;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Answers;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.GetEmailContent;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
@@ -22,6 +22,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Tasks;
 using Microsoft.Extensions.AI;
 
@@ -74,6 +75,7 @@ internal sealed class AgentConversationTools
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly IReadOnlyList<MailAccountId> accounts;
     private readonly Dictionary<StoredEmailId, PresentationCitation> cited = [];
+    private readonly List<string> readBodies = [];
 
     /// <summary>Initializes the tools of one run.</summary>
     /// <param name="journal">Where every status, block, and proposal is written the moment it exists.</param>
@@ -97,6 +99,10 @@ internal sealed class AgentConversationTools
 
     /// <summary>Gets every source the run has shown the model, in the order it was first shown.</summary>
     internal IReadOnlyList<PresentationCitation> Cited => [.. this.cited.Values];
+
+    /// <summary>Gets the text of every message the run has shown the model, cut where it was cut for the model, which is what an answer's links are traced to.</summary>
+    /// <remarks>Every source the run shows is one its answer cites, so this is the cited mail's text: what a search returned and what a thread reading showed.</remarks>
+    internal IEnumerable<string> ShownMail => [.. AnswerMarkup.TextOf(this.retrieval.Report.Passages), .. this.readBodies];
 
     /// <summary>Gets whether a proposal is on record from this run, which no later model may be asked to answer beside.</summary>
     internal bool HasProposed { get; private set; }
@@ -242,22 +248,64 @@ internal sealed class AgentConversationTools
             return "No message with that id is readable here.";
         }
 
-        var text = new StringBuilder();
+        var readings = await this.GuardedReadingsOfAsync(messages.Take(MaximumThreadMessages).ToArray(), cancellationToken);
 
-        foreach (var message in messages.Take(MaximumThreadMessages))
+        return AgentConversationReadings.Thread(readings);
+    }
+
+    /// <summary>Reads where each shown message came from and guards the ones it answers for.</summary>
+    /// <remarks>
+    /// A message whose provenance is gone was removed after the conversation was read, and is not shown at all rather
+    /// than shown without saying where it came from.
+    /// </remarks>
+    internal async Task<IReadOnlyList<GuardedThreadReading>> GuardedReadingsOfAsync(
+        IReadOnlyList<ReadEmailContent> shown,
+        CancellationToken cancellationToken)
+    {
+        var provenance = await this.readers.ProvenanceReader.ReadAsync(
+            [.. shown.Select(static message => message.StoredEmailId)],
+            cancellationToken);
+
+        List<GuardedThreadReading> readings = [];
+
+        foreach (var message in shown.Where(message => provenance.ContainsKey(message.StoredEmailId)))
         {
-            var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
-            var body = message.Body.PlainText.Text;
-
-            // Every part a message's author wrote is escaped, so no subject or body can close the element it sits in
-            // and write a turn of its own after it.
-            text.Append(CultureInfo.InvariantCulture, $"<message id=\"{message.StoredEmailId}\" source=\"{citation.Id.Value}\" from=\"{SecurityElement.Escape(SenderOf(message)?.Address)}\" sent=\"{message.Headers.SentAt:O}\">\n")
-                .Append(CultureInfo.InvariantCulture, $"<subject>{SecurityElement.Escape(message.Headers.Subject)}</subject>\n")
-                .Append(SecurityElement.Escape(body.Length <= MaximumBodyCharacters ? body : MailTextBounds.TruncateAtTextElementBoundary(body, MaximumBodyCharacters)))
-                .Append("\n</message>\n");
+            readings.Add(await this.GuardedReadingOfAsync(message, provenance[message.StoredEmailId], cancellationToken));
         }
 
-        return await this.egressGuard.GuardAsync(SensitiveContentEgressPoint.ChatPrompt, text.ToString(), cancellationToken);
+        return readings;
+    }
+
+    /// <summary>Guards each value one message's author wrote, before the reading is written around it.</summary>
+    /// <remarks>
+    /// The body is marked as cut where either this tool's bound or the guard's analyzed ceiling shortened it, because
+    /// the ceiling drops what lies beyond it without failing and a reading that hid the drop would show the model a
+    /// shortened message as whole.
+    /// </remarks>
+    internal async Task<GuardedThreadReading> GuardedReadingOfAsync(
+        ReadEmailContent message,
+        EmailProvenance provenance,
+        CancellationToken cancellationToken)
+    {
+        var body = message.Body.PlainText.Text;
+        var bounded = MailTextBounds.TruncateAtTextElementBoundary(body, MaximumBodyCharacters);
+
+        this.readBodies.Add(bounded);
+
+        var sender = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, SenderOf(message)?.Address, cancellationToken);
+        var subject = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, message.Headers.Subject, cancellationToken);
+        var guardedBody = await this.egressGuard.GuardWithOmissionAsync(SensitiveContentEgressPoint.ChatPrompt, bounded, cancellationToken);
+        var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
+
+        return new GuardedThreadReading(
+            message.StoredEmailId,
+            citation.Id,
+            sender,
+            message.Headers.SentAt,
+            provenance,
+            subject,
+            guardedBody.Text,
+            bounded.Length < body.Length || guardedBody.WasCutAtAnalyzedCeiling);
     }
 
     [Description("Shows the person the state of one conversation.")]
@@ -269,7 +317,7 @@ internal sealed class AgentConversationTools
 
         if (await this.ReadConversationAsync(messageId, cancellationToken) is not { Count: > 0 } messages
             || messages[0].Thread is not { } thread
-            || await this.readers.StateBrowser.ReadStateAsync(thread.ThreadId, cancellationToken) is not { } state
+            || await this.readers.StateBrowser.ReadStateAsync(thread.ThreadId, MailboxReaderKind.Agent, cancellationToken) is not { } state
             || await this.ThreadStateBlockOfAsync(state, messages, cancellationToken) is not { } block)
         {
             return "This conversation has no reading yet. Answer from its messages instead.";
@@ -297,13 +345,21 @@ internal sealed class AgentConversationTools
         }
 
         var events = await this.readers.Calendar.ReadWindowAsync(opens, closes, origin: null, MaximumAgendaItems, cancellationToken) ?? [];
-        var lines = events.Select(static entry => string.Create(
-            CultureInfo.InvariantCulture,
-            $"- {entry.Start:O}{(entry.End is { } end ? $" – {end:O}" : string.Empty)}{(entry.IsAllDay ? " (all day)" : string.Empty)}: {entry.Title.Value}"));
 
-        return events.Count is 0
-            ? "Nothing is on the calendar in that window."
-            : await this.egressGuard.GuardAsync(SensitiveContentEgressPoint.ChatPrompt, string.Join('\n', lines), cancellationToken);
+        if (events.Count is 0)
+        {
+            return "Nothing is on the calendar in that window.";
+        }
+
+        var titles = await this.egressGuard.GuardAllAsync(
+            SensitiveContentEgressPoint.ChatPrompt,
+            [.. events.Select(static entry => entry.Title.Value)],
+            cancellationToken);
+
+        return AgentConversationReadings.Calendar(
+            opens,
+            closes,
+            [.. events.Select((entry, index) => new GuardedCalendarReading(entry.Start, entry.End, entry.IsAllDay, titles[index]))]);
     }
 
     /// <summary>Reads an instant only where it states its offset, so none is silently read against this server's own time zone.</summary>
@@ -328,13 +384,18 @@ internal sealed class AgentConversationTools
             read.AddRange((await this.readers.Tasks.ReadPageAsync(origin, MaximumAgendaItems, cursor: null, cancellationToken))?.Tasks ?? []);
         }
 
-        var lines = read.Select(static task => string.Create(
-            CultureInfo.InvariantCulture,
-            $"- {(task.IsCompleted ? "[done] " : string.Empty)}{(task.Origin is PersonalTaskOrigin.Proposed ? "[proposed by mail] " : string.Empty)}{task.Title}{(task.DueOn is { } due ? $" (due {due:yyyy-MM-dd})" : string.Empty)}"));
+        if (read.Count is 0)
+        {
+            return "The task list is empty.";
+        }
 
-        return read.Count is 0
-            ? "The task list is empty."
-            : await this.egressGuard.GuardAsync(SensitiveContentEgressPoint.ChatPrompt, string.Join('\n', lines), cancellationToken);
+        var titles = await this.egressGuard.GuardAllAsync(
+            SensitiveContentEgressPoint.ChatPrompt,
+            [.. read.Select(static task => task.Title)],
+            cancellationToken);
+
+        return AgentConversationReadings.Tasks(
+            [.. read.Select((task, index) => new GuardedTaskReading(task.IsCompleted, task.Origin, task.DueOn, titles[index]))]);
     }
 
     [Description("Proposes a new email.")]
@@ -405,6 +466,7 @@ internal sealed class AgentConversationTools
             new AuthoredResponseRequest
             {
                 AnsweredEmailId = answeredId,
+                Reader = MailboxReaderKind.Agent,
                 Act = responseAct,
                 PlainTextBody = written.Value,
                 Recipients = [.. named.Select(static address => NamedRecipient.AtAddress(OutgoingRecipientRole.To, address.Address, address.DisplayName))],

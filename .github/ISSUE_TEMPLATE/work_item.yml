@@ -2,8 +2,8 @@
 # Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 # Project repository: https://github.com/fathomise/MailFathom
 
-# No `labels:` key, for the reason `bug_report.yml` records: the `type:*` label is applied during
-# triage, and a form that applied one would make every arrival look already read.
+# No `type:` key, for the reason `bug_report.yml` records: the issue type is set during triage, and
+# a form that set one would make every arrival look already read.
 name: Work item
 description: A feature, a change, a refactor, or any other unit of work that is not a defect.
 

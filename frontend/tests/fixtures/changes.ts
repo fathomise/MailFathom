@@ -10,6 +10,7 @@
 // other — a row that has just been marked read locally and a `mail.changed` naming the same message are the same event
 // arriving twice, and a fixture stating one without the other could not be looked at in that state.
 
+import { failingAccount, workAccount } from './deployment';
 import { markupOnlyId, newsletterId } from './messages';
 
 /** What a submitted batch of flag changes answers with: one result per message, and a record per value inside it. */
@@ -109,15 +110,20 @@ export const signalTicket = {
  * change is the one that states a value instead, and two booleans beside an identifier are still not mail.
  */
 export const signals = {
-    mailArrived: { kind: 'mail.arrived', account: 'work', folder: 'INBOX', count: 3 },
-    mailChanged: { kind: 'mail.changed', account: 'work', folder: 'INBOX', emails: [newsletterId, markupOnlyId] },
+    mailArrived: { kind: 'mail.arrived', account: workAccount.id, folder: 'INBOX', count: 3 },
+    mailChanged: {
+        kind: 'mail.changed',
+        account: workAccount.id,
+        folder: 'INBOX',
+        emails: [newsletterId, markupOnlyId],
+    },
     mailFlagsChanged: {
         kind: 'mail.flags.changed',
-        account: 'work',
+        account: workAccount.id,
         folder: 'INBOX',
         flags: [{ email: newsletterId, isSeen: true, isFlagged: null }],
     },
-    foldersChanged: { kind: 'folders.changed', account: 'work' },
+    foldersChanged: { kind: 'folders.changed', account: workAccount.id },
     notificationRaised: {
         kind: 'notification.raised',
         notificationKind: 'Mail',
@@ -125,5 +131,5 @@ export const signals = {
         secondLine: 'Booked for the ninth. The crew will need the yard for a morning.',
         count: 2,
     },
-    accountState: { kind: 'account.state', account: 'club' },
+    accountState: { kind: 'account.state', account: failingAccount.id },
 };

@@ -89,7 +89,7 @@ test('sends a new message carrying exactly the recipient, the subject, and the w
             to: [recipient],
             cc: [],
             bcc: [],
-            account: 'work',
+            account: deploymentCorpus.workAccount.id,
             subject,
         },
     ]);
@@ -248,7 +248,14 @@ test('keeps a draft with its file when the composer is left, lists it in Drafts,
     await send(page);
 
     // The words come back from the deployment as its own paragraphs, so the markup is the one part allowed to differ.
-    const written = { plainTextBody: words, to: [recipient], cc: [], bcc: [], account: 'work', subject };
+    const written = {
+        plainTextBody: words,
+        to: [recipient],
+        cc: [],
+        bcc: [],
+        account: deploymentCorpus.workAccount.id,
+        subject,
+    };
 
     expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
         { ...written, htmlBody: words },

@@ -306,6 +306,42 @@
         },
       ],
     },
+    /* Links in an answer are judged as links in mail are: each says where it goes, and the service says which ones
+       appear in none of the messages the answer cites - a link the model wrote, or one a message asked it to write. */
+    {
+      /* Finished while the reader was elsewhere: its title is bold in the history and it is listed under Unread on the
+         rail's Agent peek until it is opened. */
+      id: "c-links", title: "Where are the Northwind reports?", when: "10:12", unread: true,
+      msgs: [
+        { role: "user", text: "Where can I read the reports Northwind sent with the quote?", ts: atToday(10, 12) },
+        {
+          role: "bot", ts: atToday(10, 12), scope: "thread · 3 messages",
+          text: "Northwind links the reports from the quote itself: [northwind.example/reports](https://northwind.example/reports). The latest message also asks you to confirm the order at [northwind.example](https://northwind-billing.example/confirm).",
+          links: {
+            "https://northwind.example/reports": { host: "northwind.example", cited: true },
+            "https://northwind-billing.example/confirm": { host: "northwind-billing.example", cited: false, deceptive: true },
+          },
+          blocks: [],
+        },
+      ],
+    },
+    /* Still running in the background when the prototype opens: `running` is what the agent is doing right now, and
+       `finish` is the reply that replaces the working one when the run ends (`finishBackgroundRuns`, 40 s in). Until
+       then the rail's Agent tile pulses; afterwards the conversation is unread unless it is the one in front. */
+    {
+      id: "c-overdue", title: "Which invoices are overdue?", when: "now",
+      running: "Reading 14 invoices across 3 accounts",
+      msgs: [
+        { role: "user", text: "Which invoices are overdue, and who do I chase first?", ts: atToday(13, 30) },
+        { role: "bot", ts: atToday(13, 30), scope: "3 accounts · accounting", working: true, text: "", blocks: [] },
+      ],
+      finish: {
+        scope: "3 accounts · 14 invoices",
+        text: "Three invoices are past due. **Fabrikam 07/2026** is the oldest at 19 days and the largest, so chase Piotr Zieliński first; the other two are under a week late and both promised payment on Friday.",
+        blocks: [],
+        next: ["Draft a reminder to Fabrikam", "Turn this into a task", "Show me the invoices"],
+      },
+    },
     {
       id: "c-invoice", title: "Invoice 08/2026 - what is missing", when: "Monday", archived: true,
       msgs: [
@@ -326,6 +362,18 @@
   ];
 
   const AGENT_REPLIES = [
+    {
+      match: /summari[sz]e these \d+ new messages/i,
+      scope: "8 new messages · Fabrikam",
+      text: "Eight messages, and two of them want something from you today; the rest is status you can read later.",
+      bullets: [
+        "Tomasz Zieliński needs the receiving person for the 12.11 delivery today, or the slot goes to the next order.",
+        "Fabrikam's finance asks you to confirm the corrected invoice 08/2026 before Friday.",
+        "Three updates on the Q4 rollout plan - no decision asked of you.",
+        "Two delivery notes and one newsletter, nothing to act on.",
+      ],
+      blocks: [],
+    },
     {
       match: /(plan|schedule).*(day)|plan my day/i,
       scope: "calendar · 14 new messages",

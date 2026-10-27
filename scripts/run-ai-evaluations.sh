@@ -24,7 +24,10 @@ set -euo pipefail
 # Where it names no MainModel, MAILFATHOM_CHAT_MODEL is measured, and the run fails naming both when
 # neither is set; where it names no EmbeddingModels, MAILFATHOM_EMBEDDING_MODEL is. The retrieval scenario
 # reaches its models with MAILFATHOM_EMBEDDING_API_KEY, which a requested run cannot proceed without, and
-# MAILFATHOM_EMBEDDING_ADDRESS, which it may leave unset for the provider's own address.
+# MAILFATHOM_EMBEDDING_ADDRESS, which it may leave unset for the provider's own address. The spam
+# classification scenario measures the decision models the block names under SpamClassification, or
+# MAILFATHOM_DECISION_MODEL where it names none, and reaches them with MAILFATHOM_DECISION_API_KEY and,
+# optionally, MAILFATHOM_DECISION_ADDRESS.
 # MAILFATHOM_EVALUATION_DATABASE names a PostgreSQL server the retrieval scenario over PostgreSQL seeds a
 # database of its own on and drops afterwards; unset, that one scenario skips.
 #

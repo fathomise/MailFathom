@@ -9,6 +9,7 @@
     <Compile Include="..\shared\AdversarialMailCorpus.cs" Link="AdversarialMailCorpus.cs" />
     <Compile Include="..\shared\ClientSignalPublishers.cs" Link="ClientSignalPublishers.cs" />
     <Compile Include="..\shared\LocalMailCopiers.cs" Link="LocalMailCopiers.cs" />
+    <Compile Include="..\shared\MailboxCustodianComposition.cs" Link="MailboxCustodianComposition.cs" />
     <Compile Include="..\shared\AdversarialMessage.cs" Link="AdversarialMessage.cs" />
     <Compile Include="..\shared\ExceptionHierarchyAssertion.cs" Link="ExceptionHierarchyAssertion.cs" />
     <!-- Every use case behind a protected surface takes the authorization, so the principal a test states is composed
@@ -26,6 +27,7 @@
     <Compile Include="..\shared\StubMailFolderParticipation.cs" Link="StubMailFolderParticipation.cs" />
     <Compile Include="..\shared\StubDeploymentMailFolders.cs" Link="StubDeploymentMailFolders.cs" />
     <Compile Include="..\shared\StubJunkMailFolderCatalog.cs" Link="StubJunkMailFolderCatalog.cs" />
+    <Compile Include="..\shared\StubEmailProvenanceReader.cs" Link="StubEmailProvenanceReader.cs" />
     <Compile Include="..\shared\StubMailFolderMappings.cs" Link="StubMailFolderMappings.cs" />
     <Compile Include="..\shared\SyntheticServedAccount.cs" Link="SyntheticServedAccount.cs" />
     <Compile Include="..\shared\SyntheticMailAccount.cs" Link="SyntheticMailAccount.cs" />
@@ -49,6 +51,7 @@
     <Compile Include="..\shared\SensitiveContentEgressGuards.cs" Link="SensitiveContentEgressGuards.cs" />
     <Compile Include="..\shared\ScanningSensitiveContentEgress.cs" Link="ScanningSensitiveContentEgress.cs" />
     <Compile Include="..\shared\OutgoingMailScreenings.cs" Link="OutgoingMailScreenings.cs" />
+    <Compile Include="..\shared\OrganizationMailSigners.cs" Link="OrganizationMailSigners.cs" />
 
     <!-- Every boundary that publishes instruments asserts them the same way, through a listener over the one
          process-wide meter, so the recorder is built once rather than per suite. -->

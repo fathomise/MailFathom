@@ -10,6 +10,7 @@ using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Coordination;
 using MailFathom.Application.EmailContent.Attachments;
+using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Repair;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.AttachmentText;
@@ -19,6 +20,7 @@ using MailFathom.Application.Emails.Embeddings.Vectorization;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Extraction.Images;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
@@ -30,6 +32,7 @@ using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Local;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules;
@@ -41,7 +44,9 @@ using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Derivation;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.Synchronization;
@@ -128,6 +133,7 @@ internal static class SynchronizationTestHost
     /// <param name="folderMirrorStore">Replaces the store an unmirrored folder's local copy would be erased through, which no run reaches.</param>
     /// <param name="ruleEvaluationStore">Replaces the store a rule pass reads its candidates from; one with nothing to evaluate is the default.</param>
     /// <param name="classificationRunStore">Replaces the store the classification pass reads its outstanding run from; one with nothing outstanding is the default.</param>
+    /// <param name="floorCandidateReader">Replaces the reader the spam floor finds mail below it through; one finding nothing is the default.</param>
     /// <param name="chunkingStore">Replaces the store the cut reads its candidates from; one with nothing awaiting passages is the default.</param>
     /// <param name="attachmentTextStore">
     /// Replaces the store the attachment reading reads its candidates from. Supplying one also turns attachment reading
@@ -151,6 +157,7 @@ internal static class SynchronizationTestHost
         IStoredEmailChunkingStore? chunkingStore = null,
         IStoredEmailAttachmentTextStore? attachmentTextStore = null,
         IWorkLeaseStore? workLeaseStore = null,
+        ISpamVerdictFloorCandidateReader? floorCandidateReader = null,
         params string[] unadvertisedAliases)
     {
         var services = new ServiceCollection();
@@ -233,6 +240,12 @@ internal static class SynchronizationTestHost
         services.AddScoped<IMailboxMutationPerformer, MailboxMutationPerformer>();
         services.AddScoped<MailboxMutationConverger>();
 
+        // A change given up is told to the account's users, and nothing here keeps what they are told: a supervisor's
+        // tests are about when changes converge, and the notice has tests of its own.
+        services.AddSingleton(Substitute.For<INotificationStore>());
+        services.AddScoped<NotificationRaiser>();
+        services.AddScoped<MailFailureNotifications>();
+
         // Every account run ends by emptying the source of a held account, so a supervisor resolves the pass from its
         // scope exactly as it resolves the converger. No account these tests configure is held: the custody store
         // answers that every one of them mirrors its source, which is what makes the pass a read that issues nothing.
@@ -256,6 +269,30 @@ internal static class SynchronizationTestHost
         // copy is a rule's act and no account these tests configure is held, so nothing here ever asks it for one.
         services.AddScoped<LocalMailCopier>();
         services.AddScoped<MailboxChangeSubmission>();
+
+        // The submission, the destination resolver, and the arrivals each ask the resolver which custodian carries an
+        // account's acts. It is composed over this host's own ports, so a mirrored account's custodian resolves its
+        // on-demand destinations through the same bindings and listing every other resolver here reads.
+        services.AddScoped(provider => new MailboxCustodianComposition(timeProvider)
+        {
+            Custody = provider.GetRequiredService<IMailAccountCustodyStore>(),
+            LocalFolders = provider.GetRequiredService<ILocalMailFolderStore>(),
+            Records = provider.GetRequiredService<IMailboxMutationRecordStore>(),
+            States = provider.GetRequiredService<ILocalEmailStateStore>(),
+            Copier = provider.GetRequiredService<LocalMailCopier>(),
+            AuditSettings = provider.GetRequiredService<IMailboxMutationAuditSettingsReader>(),
+            AuditEntries = provider.GetRequiredService<IMailboxMutationAuditEntryStore>(),
+            Mappings = provider.GetRequiredService<IMailFolderMappingReader>(),
+            FolderResolutions = provider.GetRequiredService<IMailFolderResolutionStore>(),
+            RemoteFolderCatalog = provider.GetRequiredService<IRemoteFolderCatalog>(),
+            RemoteFolderCreator = provider.GetRequiredService<IRemoteFolderCreator>(),
+            MappingChangeAuditor = provider.GetRequiredService<IMailFolderMappingChangeAuditor>(),
+            PersistenceSessions = provider.GetRequiredService<IPersistenceSessionFactory>(),
+            WriteSessions = provider.GetRequiredService<IMailboxWriteSessionFactory>(),
+            Jobs = provider.GetRequiredService<IJobStore>(),
+            Authorization = provider.GetRequiredService<AccessAuthorization>(),
+            CommitPolicy = provider.GetRequiredService<OptimisticConcurrencyRetryPolicy>(),
+        }.Custodians);
 
         // The trail and its retention pass are composed here for the same reason convergence is: a supervisor resolves
         // both from its scope. Neither is what these tests are about — the trail is off for every account they
@@ -307,6 +344,7 @@ internal static class SynchronizationTestHost
         services.AddSingleton(classificationRunStore ?? CreateClassificationRunStoreWithNothingOutstanding());
         services.AddSingleton(Substitute.For<IClassifiableEmailReader>());
         services.AddSingleton(Substitute.For<IEmailSpamClassificationStore>());
+        services.AddSingleton(Substitute.For<ISpamVerdictActStore>());
         services.AddSingleton(Substitute.For<IEmailSpamHeaderReader>());
         // A stub rather than a substitute, because the gate resolved above enumerates the folder list: a substituted
         // IReadOnlyList happens to enumerate as empty today, which is the right answer reached by accident.
@@ -321,9 +359,23 @@ internal static class SynchronizationTestHost
         // it has not got.
         services.AddScoped<IMailAccountLanguages>(_ => new EnglishForEveryAccount());
         services.AddScoped<DeterministicSpamClassifier>();
+        // Every account these tests configure leaves the model stage off, so it is composed over a judge that would
+        // answer nothing and readers nothing reaches.
+        services.AddScoped(_ => new SpamModelStage(
+            Substitute.For<ISpamModelJudge>(),
+            new SpamModelEvidenceReader(
+                Substitute.For<IEmailContentRenderer>(),
+                Substitute.For<IEmailProvenanceReader>(),
+                SpamModelStageBounds.Default),
+            SensitiveContentEgressGuards.Inactive(),
+            Substitute.For<ISpamModelStageTelemetry>()));
         services.AddScoped<EmailSpamClassifier>();
         services.AddScoped<SpamActionRecorder>();
         services.AddScoped<SpamClassificationPass>();
+        // The spam floor rides the same run, one step before the classification walk, whatever classification says. No
+        // mail these tests store sits below it, so the default reader answers with nothing and the pass writes nothing.
+        services.AddSingleton(floorCandidateReader ?? CreateFloorCandidateReaderWithNothingBelowTheFloor());
+        services.AddScoped<SpamVerdictFloorPass>();
         // The arrival trigger the run reaches after each message it commits, and the queue it writes through. Every
         // account these tests configure runs with classification off, so the trigger reads one property per stored
         // message and the substituted queue is never asked for anything.
@@ -511,6 +563,22 @@ internal static class SynchronizationTestHost
     private sealed class EnglishForEveryAccount : IMailAccountLanguages
     {
         public MailAccountLanguage LanguageOf(MailAccountId account) => MailAccountLanguage.English;
+    }
+
+    /// <summary>Answers that no message sits below the floor.</summary>
+    private static ISpamVerdictFloorCandidateReader CreateFloorCandidateReaderWithNothingBelowTheFloor()
+    {
+        var reader = Substitute.For<ISpamVerdictFloorCandidateReader>();
+        reader
+            .GetCandidatesAsync(
+                Arg.Any<MailAccountId>(),
+                Arg.Any<SpamVerdictFloorTerms>(),
+                Arg.Any<StoredEmailId?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<SpamVerdictFloorCandidate>>([]));
+
+        return reader;
     }
 
     /// <summary>Answers with classification switched off, which is what a deployment configuring none of it runs with.</summary>

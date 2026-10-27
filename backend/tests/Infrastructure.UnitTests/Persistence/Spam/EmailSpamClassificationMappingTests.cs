@@ -29,10 +29,10 @@ public sealed class EmailSpamClassificationMappingTests
                 "YES",
                 SpamSignalProvenance.FromMessageHeader("X-Spam-Flag")),
             SpamSignal.Create(
-                SpamSignalKind.ScannerRule,
-                "BAYES_99",
+                SpamSignalKind.JunkFolderPlacement,
+                "JUNK",
                 observation: null,
-                SpamSignalProvenance.FromScannerCorpus("4.0.2")));
+                SpamSignalProvenance.FromFolderPlacement("JUNK")));
 
         var entity = EmptyRow();
 
@@ -51,7 +51,6 @@ public sealed class EmailSpamClassificationMappingTests
         Assert.Equal(classification.Verdict, read.Verdict);
         Assert.Equal(classification.DecidedBy, read.DecidedBy);
         Assert.Equal(classification.Assessment, read.Assessment);
-        Assert.Equal(classification.CorpusRevision, read.CorpusRevision);
         Assert.Equal(classification.EvaluatedAt, read.EvaluatedAt);
         Assert.Equal(classification.Profile, read.Profile);
         Assert.Equal(classification.Signals, read.Signals);
@@ -63,7 +62,7 @@ public sealed class EmailSpamClassificationMappingTests
     {
         // Arrange
         var entity = EmptyRow();
-        var profile = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5);
+        var profile = SpamClassificationProfile.Create();
 
         // Act
         EmailSpamClassificationMapping.Write(entity, ClassificationWith(profile));
@@ -84,6 +83,66 @@ public sealed class EmailSpamClassificationMappingTests
 
         // Assert
         Assert.False(classification.Profile.IsSpecified);
+    }
+
+    /// <summary>A spam row written before the subcategory columns existed reads back as spam nobody named a subcategory for.</summary>
+    [Fact]
+    public void Read_ASpamRowWrittenBeforeTheSubcategoryExisted_ReadsNoSubcategory()
+    {
+        // Arrange
+        var entity = EmptyRow();
+        entity.Verdict = SpamVerdict.Spam;
+
+        // Act
+        var classification = EmailSpamClassificationMapping.Read(entity);
+
+        // Assert
+        Assert.Equal(SpamVerdict.Spam, classification.Verdict);
+        Assert.Null(classification.Subcategory);
+        Assert.Null(classification.SubcategoryNamedBy);
+        Assert.Null(classification.PhishingRequest);
+        Assert.Null(classification.ImpersonatedParty);
+    }
+
+    /// <summary>The model's subcategory and phishing detail, and the judgement that vouches for them, survive the round trip.</summary>
+    [Fact]
+    public void Read_ASubcategoryTheModelNamed_ComesBackWithItsDetailAndProvenance()
+    {
+        // Arrange
+        var classification = SpamClassification.Create(
+            Occurrence,
+            SpamVerdict.Spam,
+            SpamClassificationStage.Model,
+            SpamAssessment.Create(0.93, 0.8),
+            SpamClassificationProfile.Create(namesSubcategoriesOfDeterministicSpam: true, threshold: 0.8),
+            [
+                SpamSignal.Create(
+                    SpamSignalKind.ModelJudgement,
+                    "spam_kind",
+                    "phishing",
+                    SpamSignalProvenance.FromModel("example/decider-2026-09-01", "3f9a1c")),
+            ],
+            EvaluatedAt,
+            SpamSubcategory.Phishing,
+            SpamPhishingRequest.PaymentDetails,
+            SpamImpersonatedParty.Bank);
+        var entity = EmptyRow();
+
+        // Act
+        EmailSpamClassificationMapping.Write(entity, classification);
+
+        foreach (var row in EmailSpamClassificationMapping.SignalRows(classification))
+        {
+            entity.Signals.Add(row);
+        }
+
+        var read = EmailSpamClassificationMapping.Read(entity);
+
+        // Assert
+        Assert.Equal(
+            (SpamClassificationStage.Model, SpamSubcategory.Phishing, SpamPhishingRequest.PaymentDetails, SpamImpersonatedParty.Bank),
+            (read.DecidedBy, read.Subcategory, read.PhishingRequest, read.ImpersonatedParty));
+        Assert.Equal(classification.Signals, read.Signals);
     }
 
     /// <summary>The order the stages produced the facts in is what a truncated record's meaning rests on.</summary>
@@ -120,7 +179,7 @@ public sealed class EmailSpamClassificationMappingTests
         var entity = EmptyRow();
 
         entity.Signals.Add(
-            SignalRow(1, SpamSignalKind.ScannerRule, "BAYES_99", SpamSignalSource.ScannerCorpus, "4.0.2"));
+            SignalRow(1, SpamSignalKind.JunkFolderPlacement, "JUNK", SpamSignalSource.FolderPlacement, "JUNK"));
         entity.Signals.Add(
             SignalRow(0, SpamSignalKind.ProviderSpamVerdict, "X-Spam-Flag", SpamSignalSource.MessageHeader, "X-Spam-Flag"));
 
@@ -128,7 +187,7 @@ public sealed class EmailSpamClassificationMappingTests
         var classification = EmailSpamClassificationMapping.Read(entity);
 
         // Assert
-        Assert.Equal(["X-Spam-Flag", "BAYES_99"], classification.Signals.Select(signal => signal.Name));
+        Assert.Equal(["X-Spam-Flag", "JUNK"], classification.Signals.Select(signal => signal.Name));
     }
 
     /// <summary>An assessment is a pair, so a row holding only half of one carries none rather than a number in no scale.</summary>
@@ -158,10 +217,9 @@ public sealed class EmailSpamClassificationMappingTests
         var classification = SpamClassification.Create(
             Occurrence,
             SpamVerdict.Spam,
-            SpamClassificationStage.Scanner,
+            SpamClassificationStage.Deterministic,
             SpamAssessment.Create(9.5, 5.0),
-            "4.0.2",
-            SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5.0),
+            SpamClassificationProfile.Create(),
             [],
             EvaluatedAt);
 
@@ -171,14 +229,28 @@ public sealed class EmailSpamClassificationMappingTests
         // Assert
         Assert.Equal(9.5, entity.Score);
         Assert.Equal(5.0, entity.Threshold);
-        Assert.Equal("4.0.2", entity.CorpusRevision);
-        Assert.Equal(SpamClassificationStage.Scanner, entity.DecidedBy);
+        Assert.Equal(SpamClassificationStage.Deterministic, entity.DecidedBy);
         Assert.Equal(SpamVerdict.Spam, entity.Verdict);
         Assert.Equal(EvaluatedAt, entity.EvaluatedAt);
     }
 
+    /// <summary>The column an older build reads is cleared on every write, so a replaced row keeps nothing it no longer means.</summary>
+    [Fact]
+    public void Write_OverARowCarryingACorpusRevision_ClearsIt()
+    {
+        // Arrange
+        var entity = EmptyRow();
+        entity.CorpusRevision = "4.0.2";
+
+        // Act
+        EmailSpamClassificationMapping.Write(entity, ClassificationWith());
+
+        // Assert
+        Assert.Null(entity.CorpusRevision);
+    }
+
     private static SpamClassification ClassificationWith(params SpamSignal[] signals) =>
-        ClassificationWith(SpamClassificationProfile.Create(usesScanner: false, scannerThreshold: null), signals);
+        ClassificationWith(SpamClassificationProfile.Create(), signals);
 
     private static SpamClassification ClassificationWith(
         SpamClassificationProfile profile,
@@ -187,7 +259,6 @@ public sealed class EmailSpamClassificationMappingTests
         SpamVerdict.Spam,
         SpamClassificationStage.Deterministic,
         assessment: null,
-        corpusRevision: null,
         profile,
         signals,
         EvaluatedAt);

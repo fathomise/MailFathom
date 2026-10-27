@@ -56,6 +56,13 @@ internal sealed class MimeKitAuthoredEmailComposer(
     /// </remarks>
     private const int AddressableHeaderCount = 3;
 
+    /// <summary>The <c>User-Agent</c> every composed message carries.</summary>
+    /// <remarks>
+    /// It names the product and nothing more. A version, a runtime, or a platform would tell every recipient which
+    /// build this deployment runs, which is a fingerprint nobody reading the header needs to identify where it came from.
+    /// </remarks>
+    private const string UserAgent = "Fathomise MailFathom";
+
     /// <summary>The two characters that end a header, and which therefore may not appear inside one.</summary>
     /// <remarks>
     /// A folded continuation needs no member of its own: folding is a line break followed by whitespace, so refusing
@@ -550,9 +557,13 @@ internal sealed class MimeKitAuthoredEmailComposer(
         format.HiddenHeaders.Add(HeaderId.Bcc);
         format.HiddenHeaders.Add(HeaderId.ResentBcc);
 
-        message.Prepare(
-            capabilities.AcceptsEightBitContent ? EncodingConstraint.EightBit : EncodingConstraint.SevenBit,
-            format.MaxLineLength);
+        // Replaced rather than added, because an occasion is serialized from a stored draft that may already carry it.
+        message.Headers.Replace(HeaderId.UserAgent, UserAgent);
+
+        // Seven bits whatever this server advertises: 8BITMIME is one hop's promise, a later relay may re-encode an
+        // eight-bit body, and a re-encoded body breaks every signature over it — the organization's, S/MIME's, and
+        // PGP/MIME's alike. Headers are untouched, so an internationalized address still needs SMTPUTF8.
+        message.Prepare(EncodingConstraint.SevenBit, format.MaxLineLength);
 
         using var composed = new MemoryStream();
         message.WriteTo(format, composed);
@@ -664,7 +675,10 @@ internal sealed class MimeKitAuthoredEmailComposer(
             account,
             author,
             requester,
-            [.. message.Recipients.Select(static recipient => recipient.Recipient)]);
+            [.. message.Recipients.Select(static recipient => recipient.Recipient)]) with
+        {
+            Subject = message.Subject,
+        };
 
         return AuthoredEmailComposition.Composed(
             new ComposedOutgoingEmail(request, message.MessageId, message.RawMime));

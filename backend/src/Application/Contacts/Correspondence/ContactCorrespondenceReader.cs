@@ -9,6 +9,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Contacts.Correspondence;
 
@@ -80,6 +81,7 @@ public sealed class ContactCorrespondenceReader
 
     /// <summary>Reads what the caller's own mail holds about one contact.</summary>
     /// <param name="contact">The contact, as the caller's own book answered it.</param>
+    /// <param name="reader">Who the correspondence is read for: the person opening the contact, or the derivation that hands it to a model.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The conversations and the documents, each bounded and newest first.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="contact" /> is <see langword="null" />.</exception>
@@ -90,7 +92,10 @@ public sealed class ContactCorrespondenceReader
     /// contact one, because what this publishes is mail: reading the contact itself is the caller's own book's decision
     /// and was taken before this was reached.
     /// </remarks>
-    public async Task<ContactCorrespondence> ReadAsync(Contact contact, CancellationToken cancellationToken)
+    public async Task<ContactCorrespondence> ReadAsync(
+        Contact contact,
+        MailboxReaderKind reader,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(contact);
 
@@ -101,7 +106,7 @@ public sealed class ContactCorrespondenceReader
         using var actingFor = this.egressGuard.ActingFor(
             await this.egressGuard.ReadPostureAcrossAccountsOfAsync(this.scopeResolver.User, cancellationToken));
 
-        var scope = await this.scopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, cancellationToken);
+        var scope = await this.scopeResolver.ReadableScopeAsync(reader, [], [], JunkMailInclusion.Excluded, cancellationToken);
 
         // A caller assigned no account is answered before either index is reached, for the reason every mail read
         // leaves early on one: the scope admits no row, so both queries would return nothing more expensively.

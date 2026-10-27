@@ -150,7 +150,7 @@ internal sealed class StoredContentClaimStore(MailFathomDbContext dbContext) : I
     /// no such sum and is bounded by the deployment alone.
     /// </para>
     /// <para>
-    /// ponytail: the assignment table keys an account by the generated identifier as a `uuid` while the mail graph
+    /// The assignment table keys an account by the generated identifier as a `uuid` while the mail graph
     /// keys it as that identifier's text, so the join casts rather than reading an index. The table holds one row per
     /// assignment in the deployment and the claim already serializes on an advisory lock, so the scan is not what
     /// bounds a claim; the upgrade path is one column type, taken where the settings record and the mail graph are

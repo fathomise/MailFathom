@@ -23,10 +23,10 @@ namespace MailFathom.Infrastructure.UnitTests.Persistence.Emails;
 /// folder an operator asked not to have embedded, or a mailbox re-cut on every run.
 /// </para>
 /// <para>
-/// What the predicate reads about a folder is the admitted list, so the tool switch is deliberately absent from these
-/// tests: it decides nothing here. That a mapping withheld from tools still reaches the list — the one row of the
-/// switch table worth stating explicitly — is asserted where the list is built, by
-/// <c>MailFolderParticipationOptionsTests.FoldersVisibleToTools_AFolderWithdrawnFromTools_LeavesItOutAndKeepsItMirrored</c>,
+/// What the predicate reads about a folder is the admitted list, so the switch withholding a folder from AI is
+/// deliberately absent from these tests: what it decides here is that the folder leaves the list, which is asserted
+/// where the list is built, by
+/// <c>MailFolderParticipationOptionsTests.GetParticipation_AFolderWithheldFromAI_LeavesItInvisibleUnembeddedAndMirrored</c>,
 /// and the two facts compose into the row.
 /// </para>
 /// </remarks>

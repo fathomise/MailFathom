@@ -17,7 +17,7 @@ them:
 | `MailboxDataRetrieval` | Listing, fetching, and streaming mailbox data over an established session |
 | `EmailDelivery` | Opening a submission session against the SMTP server |
 | `DatabaseCommandExecution` | Commands and queries against the local PostgreSQL database — the one class that is a classification rather than a pipeline; see the EF Core entry under the single-layer rule |
-| `AiProviderInvocation` | Chat and embedding provider calls |
+| `AiProviderInvocation` | Chat, embedding, and decision provider calls |
 | `MailAuthorizationServerInvocation` | Exchanging a configured OAuth grant for a mailbox access token |
 | `ObjectStorageInvocation` | Requests to the S3-compatible endpoint a deployment stores message payloads in, and the archives an export writes there |
 
@@ -119,10 +119,13 @@ without depending on Polly. `Infrastructure` implements it per protocol family:
   question from a status this side never sees would produce a second opinion for the pipeline to disagree with. The
   adapter's own rule is the same one: `408`, `429`, and the `5xx` class are worth repeating, an absent status means the
   response never arrived, and everything else — a refused credential, a rejected request, an answer of the wrong shape
-  — is terminal. One classifier reads a status for both provider roles, because what a status says about the remote
+  — is terminal. The decision adapter is the one that speaks HTTP itself rather than through a client library, so it
+  raises a refusal as an `HttpRequestException` carrying the status and nothing from the body, and the same classifier
+  reads that status. One classifier reads a status for every provider role, because what a status says about the remote
   party does not depend on what was asked of it; each role then publishes a table of its own, in [embedding
-  generation](../features/embedding-generation.md#what-a-failing-call-is-classified-as) and [chat
-  generation](../features/chat-generation.md#what-a-failing-call-is-classified-as).
+  generation](../features/embedding-generation.md#what-a-failing-call-is-classified-as), [chat
+  generation](../features/chat-generation.md#what-a-failing-call-is-classified-as), and [the decision
+  configuration](../operations/configuration-ai.md#decisions).
 
 - **Object storage** — the adapter has already classified the endpoint's own answer and this defers to its verdict, for
   the reason the provider families do. Its own rule reads the endpoint's error code before the status, because S3
@@ -156,7 +159,7 @@ is the layer rather than something MailFathom re-implements:
   pipeline. An adapter that wants the pipeline instead removes the handler from its own registration with
   `RemoveAllResilienceHandlers`; it may not have both.
 
-  Four clients do that today. The first is the transport a mailbox token request is sent over.
+  Five clients do that today. The first is the transport a mailbox token request is sent over.
   `MailOAuthAccessTokenSource` already runs the exchange under `MailAuthorizationServerInvocation`, keyed per account,
   so leaving the handler on would put three attempts inside three and send nine token requests to an authorization
   server that is refusing. The removal takes out what was registered before it, so it holds only while the host adds
@@ -211,7 +214,16 @@ is the layer rather than something MailFathom re-implements:
   `ObjectStorageTransportTests` composes the service defaults around that registration and is what fails if the order is
   ever swapped.
 
-  A fifth outbound client **replaces** the handler with one of its own, and it is worth naming because it is the one on a
+  The fifth is the transport a decision request is sent over. `ResilientDecisionClient` runs the call under
+  `AiProviderInvocation` keyed by the decision model's alias, which startup refuses to share with a chat model or an
+  embedding endpoint, so a failing decision model opens a circuit of its own. The adapter sends over `HttpClient`
+  directly rather than through a provider library, so there is no library retry to switch off — and it lets a refused
+  status out raw rather than as its own result type, so the pipeline's classification reads the status itself, and the
+  middleware classifies the attempt the pipeline ended on afterwards. Its timeout is the longest declared request timeout
+  with room above it, so a model's own `RequestTimeout` is the bound that is reported. [AI
+  configuration](../operations/configuration-ai.md#decisions) carries the table of what each failure is classified as.
+
+  A sixth outbound client **replaces** the handler with one of its own, and it is worth naming because it is the one on a
   path that fails closed. The personal-data analyzer is reached under no `OutboundDependency` pipeline at all — there is no
   dependency class for it and no `IOutboundOperationRunner` in the adapter — so a standard handler is the only layer and
   the single-layer rule is satisfied by there being one. What that buys is exactly what a scanner on a fail-closed path
@@ -233,15 +245,6 @@ is the layer rather than something MailFathom re-implements:
   registration and asserts the outcome both calls exist for: the analyzer client is reached one handler's worth of
   attempts rather than their square, which is what deleting the removal costs. [Sensitive-content
   scanning](../features/sensitive-content-scanning.md#failing-closed) states what each failure refuses.
-- **The spam scanner.** A sixth outbound dependency is reached over no HTTP client at all, so none of the layering above
-  applies to it: it speaks a line protocol over a socket the adapter opens per exchange, under no `OutboundDependency`
-  pipeline and with no handler in front of it. What bounds it is its own, stated in one place and enforced around the
-  whole exchange — a concurrency permit taken before a socket is opened, a timeout covering connect, write, and read
-  together, and a size limit applied before the message is sent at all. Nothing retries a scan, and that is the
-  difference from the analyzer above rather than an omission: this path **fails open**, so a scan that did not happen
-  leaves the message with the verdict its headers reached and a second attempt would buy a better record at the cost of
-  holding a classification run. [Spam classification](../features/spam-classification.md#the-apache-spamassassin-scanner)
-  states what each failure leaves behind.
 - **The DKIM key resolver.** A seventh outbound dependency is a DNS query rather than a request: where a message's server
   wrote no `Authentication-Results` header, extraction asks for the TXT record at `<selector>._domainkey.<domain>` so a
   signature can be verified locally. It is under no `OutboundDependency` pipeline and no HTTP client, and what bounds it
@@ -254,6 +257,23 @@ is the layer rather than something MailFathom re-implements:
   by selector and signing domain, honouring the record's own time-to-live, so a domain's key is resolved once for every
   message it signs. [Sender authentication](../features/sender-authentication.md#where-no-server-said-anything-the-signature-still-does)
   states what a failed lookup leaves behind.
+- **The certificate revocation client.** An eighth outbound dependency is the OCSP responder and the CRL distribution
+  point a signed message's signer certificate names, asked when extraction verifies an S/MIME signature whose chain is
+  already trusted. It runs under no `OutboundDependency` pipeline, so it keeps the standard resilience handler the service
+  defaults give the `certificate-revocation` client, and that handler is the single layer; the registration adds the
+  bounds a stranger's address calls for — no redirect is followed, since a plain-HTTP answer could send the process
+  anywhere, and an answer may reach 10 MiB. Above it sits one hard deadline,
+  `MailSynchronization:SignatureVerification:RevocationTimeout`, over every responder the certificate names together,
+  and nothing retries above that: an answer that does not arrive leaves the signature *not verifiable*, which is a value
+  the verification already has. An answer is cached per issuer key and serial number until the next update it names,
+  held for at least one minute and at most one day whatever that says, and an unavailable answer is remembered for one
+  minute — so a responder that failed once leaves that minute's messages from the signer *not verifiable* until they are
+  re-derived. An answer that names no next update is believed only for one day from when it was issued. Each
+  certificate below the root of the signer's chain is checked under its own deadline, the signer first, and the walk
+  stops at the first answer that is not good. The cache is per replica.
+  [Verifying a message's own
+  signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) states what a
+  responder learns.
 - **EF Core.** `EnableRetryOnFailure` is deliberately not configured, and no database call runs under an
   `OutboundDependency` pipeline either. What retries a local write is `OptimisticConcurrencyRetryPolicy`, one layer up,
   and it is the only one — which is what makes the single-layer rule below checkable here rather than aspirational.

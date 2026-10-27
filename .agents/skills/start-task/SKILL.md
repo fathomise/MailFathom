@@ -26,8 +26,8 @@ the branch is renamed rather than assuming, and state it in the brief.
    gh api repos/fathomise/MailFathom --jq '.permissions'
    ```
 
-   `push: true` is the **owner's checkout**. `push: false` is neither role: every label, the
-   milestone, the claim, and the push would each be refused, so return `blocked` before the workflow
+   `push: true` is the **owner's checkout**. `push: false` is neither role: the issue type, every
+   label, the milestone, the claim, and the push would each be refused, so return `blocked` before the workflow
    below renames anything, and name the repair — fork the repository, repoint `origin` at the fork,
    and add MailFathom back as a second remote, which makes this the fork role. An answer with no
    `permissions` key is an unauthenticated `gh` rather than a refusal, since a public repository
@@ -53,7 +53,7 @@ the branch is renamed rather than assuming, and state it in the brief.
    list its scopes. Without that scope the call fails identically whoever is running it, so report it
    as a credential to repair, never as the board being out of reach.
 
-The fork role assigns no label and no milestone and never pushes to `fathomise/MailFathom`,
+The fork role sets no issue type, assigns no label and no milestone, and never pushes to `fathomise/MailFathom`,
 because those are write access to the repository rather than to the board, and no board grant confers
 them. Those are not degraded versions of the owner's steps — they are steps that belong to a
 maintainer, and attempting one produces a permission error rather than a partial result. The board
@@ -111,7 +111,36 @@ them if that access were ever removed.
    `CHANGELOG.md` is written only by the release pull request.
 8. Identify the GitHub issue that governs the task, reading
    `docs/operations/issue-tracking.md` first. Create it when none exists; its body draws on what
-   step 6 read. Then read what it waits on, before it is placed and before it is claimed:
+   step 6 read and ends with the `## Baseline` section that page § *Issue content* asks for, naming
+   the commit `git rev-parse` reads from the base step 3 fetched — `origin/main`, or `upstream/main`
+   in the fork role. Below, `<base>` is that same ref.
+
+   An issue that already existed was written against an older `main`, and its body says which. Read
+   that commit and what landed on top of it before trusting anything the body found:
+
+   ```bash
+   baseline=$(gh issue view <number> --repo fathomise/MailFathom --json body --jq .body \
+     | sed -n '/^##* Baseline/,$p' | grep -oE '[0-9a-f]{40}' | head -n 1)
+   if [ -n "$baseline" ] && git cat-file -e "$baseline^{commit}" 2>/dev/null; then
+     git log --oneline "$baseline"..<base>
+   else
+     echo 'no usable baseline: a reading of unknown age'
+   fi
+   ```
+
+   The guard is not decoration: an empty `$baseline` turns the range into `..<base>`, which git reads
+   as `HEAD..<base>`, and step 4 has already made that empty — so without it an issue with no
+   section would read as current. Hold each commit the log lists against what the body names — a
+   file, a type, a route, a rule, the cause of a defect — and re-check in the current tree every
+   finding one of them touched; one that changed is corrected in the body and the section moved to
+   `<base>`, so the next reader inherits the current reading rather than this one. In the fork role
+   the body is usually the maintainer's rather than the contributor's to edit, so the changed
+   findings and the new SHA go in the brief's `Baseline:` line instead and triage carries them into
+   the body. An empty list means the body is as current as the tree. `no usable baseline` means the
+   issue predates the rule, came from outside the project, or names a commit this clone does not
+   have: say so in the brief, and read the body as a reading of unknown age.
+
+   Then read what it waits on, before it is placed and before it is claimed:
 
    ```bash
    gh api repos/fathomise/MailFathom/issues/<number>/dependencies/blocked_by \
@@ -129,10 +158,13 @@ them if that access were ever removed.
    `docs/operations/issue-tracking.md` § *The order between issues* — before concluding the issue is
    free. A blocker that has since closed stops nothing and is why the query filters on `open` rather
    than on the list being empty.
-9. Place the issue. The label and the milestone need write access to the repository, so they belong
-   to the owner's checkout; the board fields need write access to the board, which the board probe
-   established. It carries exactly one `type:*` label, a `backend` or `frontend` label where the work
-   lands in one of the two stacks and neither where it lands in neither, an `Area` and a `Queue`
+9. Place the issue. The issue type, the labels, and the milestone need write access to the
+   repository, so they belong to the owner's checkout; the board fields need write access to the
+   board, which the board probe established. It carries one issue type — `gh issue create --type`, or
+   `gh issue edit --type` on an issue that already exists — a `backend` or `frontend` label where the work
+   lands in one of the two stacks and neither where it lands in neither, the `design` label where it
+   changes `design/` — alone, or beside `frontend` where a client change has to draw its design half in
+   the same pull request — an `Area` and a `Queue`
    value on the board, a milestone when the milestone rule assigns one, and the `Size` placeholder
    that page's one rule produces — a placeholder rather than an estimate, because the value the board
    keeps is the one `$finish-change` measures off the diff. Decide each from the rules on that page rather than asking. `Queue: Next` is never
@@ -140,8 +172,9 @@ them if that access were ever removed.
    a new issue takes `Later`, `Needs decision`, or `Parked`, and a parent takes one of those three by
    the same rules as any other issue. What marks a parent instead is the `parent` label and the `[P] `
    prefix every parent's title begins with, whatever `Queue` value it holds.
-   Verify the values landed, because the built-in workflows set `Status` and nothing else, and an
-   unplaced issue disappears from the views the owner reads.
+   Verify the values landed, because the built-in workflows set `Status` and nothing else, an
+   unplaced issue disappears from the views the owner reads, and GitHub drops a type it will not let
+   this credential set without reporting an error.
 
    An issue this step opened also carries its order. Write one `blocked by` relation for each issue
    its `## Dependencies` section names that is still open, and none for one already closed, with the
@@ -150,9 +183,9 @@ them if that access were ever removed.
    requires the table on every parent — so a parent is not placed until it has one.
 
    In the fork role, open the issue and stop at what the probe allows. Without board write that is
-   the issue alone: an arrival carries no label, no milestone, no board fields, and no relation by
+   the issue alone: an arrival carries no type, no label, no milestone, no board fields, and no relation by
    design, and the maintainer's triage pass supplies them. With board write it is the issue plus its
-   `Area`, `Queue`, and `Size`, and the labels, the milestone, and the relations still wait for
+   `Area`, `Queue`, and `Size`, and the type, the labels, the milestone, and the relations still wait for
    triage — a relation is write access to this repository exactly as a label is. Step 8 is
    unaffected either way, the dependencies of a public issue being public, so the refusal it carries
    holds in both roles. Say which of the two happened in the brief, so nobody reads the absence as a
@@ -198,8 +231,9 @@ Workspace: <safe or blocked, branch, base branch>
 Scope: <what governs the task, or that nothing does>
 Protected paths: <none reached, or which — and whether the pull request waits for a maintainer's approval of its head, which it does unless its author is a maintainer>
 Issue: <number and title, or created with reason>
+Baseline: <the main commit the body was written against, what landed since that touches it and what that changed, or none recorded>
 Blocked by: <the open blockers refusing the work, or none — and any relation written>
-Placement: <type label, stack label or neither, Area, Queue, Size placeholder, milestone or none — or what the board probe left to triage>
+Placement: <issue type, stack label or neither, design label or not, Area, Queue, Size placeholder, milestone or none — or what the board probe left to triage>
 Scale: <no split warning, or what makes this look XL, which surfaces it reaches, and where a seam between two issues would fall>
 Claim: <agent:claude or agent:codex applied, already present, or not applicable in the fork role>
 Required context: <files read>

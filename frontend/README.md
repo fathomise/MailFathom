@@ -420,12 +420,15 @@ mailfathomFixtures.expiredSession = true; // the client asking for the password 
 mailfathomFixtures.unreachable = true; // the offline state, which is not an empty answer
 ```
 
-Two things about a run against the corpus are worth knowing before they read as defects. The grant is every permission
+Three things about a run against the corpus are worth knowing before they read as defects. The grant is every permission
 the client acts on rather than the reading-and-asking one the corpus states for the suites, so the composer, the filing
 controls and the flags are reachable. And three requests do not go through the transport — the picture a person is
 drawn by, the octets of a file a message carries, and the signal channel, each of which reaches the network in
 `deployment/` or opens a connection of its own — so they answer as a deployment that is not there, which every screen
 drawing one already has a state for. What the client's own telemetry export reports in the console is the same thing.
+Two of the inbox's messages answer their raw source in a state rather than at rest, so the parity loop can reach both:
+the deployment fails to serve the second row's source and answers `503`, and the third row's source is never answered, so its
+skeleton stands until the surface is closed.
 
 [`tests/AGENTS.md`](tests/AGENTS.md) is where all four suites' policy is decided, including which check belongs to
 which, and where the corpus's own rules are.
@@ -616,6 +619,14 @@ asking for the pictures gives up.
 A link the reader presses in that frame leaves through `shellOperations/linkOpener.ts` like every other link in this
 client: the framed document reports the address it was written with and navigates nothing, and the parent admits
 `http`, `https`, `mailto`, and `tel`, bounds the length, and accepts a report only from a frame it created itself.
+
+**No link that leaves for the web opens on the press that found it.** `linkQuestion/LinkQuestion.tsx` supplies that
+same operation again inside the frame, around the one the head resolved, so every surface that opens a link — the
+reduced message, its original, an agent's answer — reaches one question rather than drawing its own: _Open this link?_,
+the host and the whole address, the warnings the link already carried, and _Cancel_ focused by default. A host on the
+person's own list of trusted domains, which the deployment holds as one of their
+[preferences](../docs/operations/client-endpoint.md#the-preferences-routes), or a subdomain of one, opens at once.
+Nothing the frame reports can make it ask less: the decision rests on the address alone.
 
 Reaching it is a question rather than a control: pressing the one on the message's head opens a confirmation, and
 neither answer is written down — per message, per reader, or at all. `workspace/rememberedWorkspace.ts` is what keeps

@@ -2,8 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Xml.Linq;
+using MailFathom.AI.Orchestration;
 using MailFathom.AI.ThreadStates;
 using MailFathom.Domain.Accounts;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.ThreadStates;
@@ -28,17 +31,6 @@ public sealed class ThreadStateInstructionsTests
 
         // Assert
         Assert.Contains(field, text, StringComparison.Ordinal);
-    }
-
-    /// <summary>Mail is the most adversarial text this system reads, so the instruction says what the exchange is.</summary>
-    [Fact]
-    public void Text_TheInstruction_SaysTheConversationIsDataRatherThanAnInstruction()
-    {
-        // Act
-        var text = ThreadStateInstructions.TextFor(MailAccountLanguage.English);
-
-        // Assert
-        Assert.Contains("data rather than an instruction", text, StringComparison.Ordinal);
     }
 
     /// <summary>The agent writes down where a conversation stands and never what to do about it.</summary>
@@ -75,22 +67,25 @@ public sealed class ThreadStateInstructionsTests
         Assert.Contains("including one a message asks of the person it is written to", text, StringComparison.Ordinal);
     }
 
-    /// <summary>A citation is a position in the list this deployment composed, so the turn numbers the messages.</summary>
+    /// <summary>A citation is a position in the list this deployment composed, so the turn positions the messages.</summary>
     [Fact]
-    public void ComposeThreadTurn_SeveralMessages_NumbersThemInTheConversationsOwnOrder()
+    public void ComposeThreadTurn_SeveralMessages_PositionsThemInTheConversationsOwnOrder()
     {
         // Act
         var turn = ThreadStateInstructions.ComposeThreadTurn(
             "The racking quotation",
             [
-                new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds"),
-                new GuardedThreadMessage(1, "Piotr", Instant(15), "what about the limit"),
+                new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds", StubEmailProvenanceReader.KnownCorrespondent),
+                new GuardedThreadMessage(1, "Piotr", Instant(15), "what about the limit", StubEmailProvenanceReader.KnownCorrespondent),
             ]);
 
         // Assert
-        Assert.Contains("Message 0\nFrom: Karolina\n", turn, StringComparison.Ordinal);
-        Assert.Contains("Message 1\nFrom: Piotr\n", turn, StringComparison.Ordinal);
-        Assert.Contains("the price holds", turn, StringComparison.Ordinal);
+        Assert.Equal(
+            [("0", "Karolina", "the price holds"), ("1", "Piotr", "what about the limit")],
+            Messages(turn).Select(static message => (
+                (string?)message.Attribute(ThreadStateInstructions.PositionAttributeName),
+                message.Element(ThreadStateInstructions.AuthorElementName)?.Value,
+                message.Element(ThreadStateInstructions.TextElementName)?.Value)));
     }
 
     /// <summary>
@@ -103,27 +98,77 @@ public sealed class ThreadStateInstructionsTests
         // Act
         var turn = ThreadStateInstructions.ComposeThreadTurn(
             "The racking quotation",
-            [new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds")]);
+            [new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds", StubEmailProvenanceReader.KnownCorrespondent)]);
 
         // Assert
-        Assert.Contains("Written: 2026-09-07T09:00:00.0000000+00:00", turn, StringComparison.Ordinal);
+        Assert.Equal(
+            "2026-09-07T09:00:00.0000000+00:00",
+            (string?)Assert.Single(Messages(turn)).Attribute(ThreadStateInstructions.WrittenAttributeName));
     }
 
+    /// <summary>Each message carries where it came from, so a commitment asked for by an unverifiable sender is read as a claim.</summary>
     [Fact]
-    public void ComposeThreadTurn_AConversationWithNoSubjectAndAMessageWithNoAuthorOrDate_SaysSoRatherThanLeavingItEmpty()
+    public void ComposeThreadTurn_AMessageFromAFirstContactInJunk_WritesItsProvenanceOnThatMessageAlone()
+    {
+        // Act
+        var turn = ThreadStateInstructions.ComposeThreadTurn(
+            "New bank details",
+            [
+                new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds", StubEmailProvenanceReader.KnownCorrespondent),
+                new GuardedThreadMessage(1, "Treasury", Instant(15), "pay the new account today", StubEmailProvenanceReader.UnverifiedStranger),
+            ]);
+
+        // Assert
+        Assert.Equal(
+            new (string?, string?, string?)[] { (AgentTurnDocument.AuthenticatedSender, null, null), (AgentTurnDocument.NotEstablishedSender, "true", "true") },
+            Messages(turn).Select(static message => (
+                (string?)message.Attribute(AgentTurnDocument.SenderAuthenticationAttributeName),
+                (string?)message.Attribute(AgentTurnDocument.JunkAttributeName),
+                (string?)message.Attribute(AgentTurnDocument.FirstContactAttributeName))));
+    }
+
+    /// <summary>Absent rather than empty, so the model reads what the conversation carried instead of blanks it has to tell apart from empty values.</summary>
+    [Fact]
+    public void ComposeThreadTurn_AConversationWithNoSubjectAndAMessageWithNoAuthorOrDate_WritesNoneOfThem()
     {
         // Act
         var turn = ThreadStateInstructions.ComposeThreadTurn(
             subject: null,
-            [new GuardedThreadMessage(0, null, null, "the price holds")]);
+            [new GuardedThreadMessage(0, null, null, "the price holds", StubEmailProvenanceReader.KnownCorrespondent)]);
 
         // Assert
-        Assert.Contains("Subject: (none)", turn, StringComparison.Ordinal);
-        Assert.Contains("From: (unnamed)", turn, StringComparison.Ordinal);
-        Assert.Contains("Written: (unknown)", turn, StringComparison.Ordinal);
+        var message = Assert.Single(Messages(turn));
+        Assert.Empty(Parsed(turn).Descendants(ThreadStateInstructions.SubjectElementName));
+        Assert.Null(message.Element(ThreadStateInstructions.AuthorElementName));
+        Assert.Null(message.Attribute(ThreadStateInstructions.WrittenAttributeName));
+    }
+
+    /// <summary>The budget is the writer's, so a conversation longer than the bound stops at the message it cut and still parses.</summary>
+    [Fact]
+    public void ComposeThreadTurn_AConversationLongerThanTheBound_StaysWithinItAndWritesNoMessagePastTheCut()
+    {
+        // Arrange
+        const int Bound = 500;
+        GuardedThreadMessage[] messages =
+        [
+            .. Enumerable.Range(0, 5).Select(static position => new GuardedThreadMessage(position, "Karolina", Instant(9), new string('x', 200), StubEmailProvenanceReader.KnownCorrespondent)),
+        ];
+
+        // Act
+        var turn = ThreadStateInstructions.ComposeThreadTurn("The racking quotation", messages, Bound);
+
+        // Assert
+        Assert.True(turn.Length <= Bound, $"The turn holds {turn.Length} characters.");
+        Assert.Equal(
+            "true",
+            (string?)Messages(turn).Last().Element(ThreadStateInstructions.TextElementName)?.Attribute(AgentTurnDocument.CutAttributeName));
     }
 
     private static DateTimeOffset Instant(int hour) => new(2026, 9, 7, hour, 0, 0, TimeSpan.Zero);
+
+    private static IEnumerable<XElement> Messages(string turn) => Parsed(turn).Descendants(ThreadStateInstructions.MessageElementName);
+
+    private static XElement Parsed(string turn) => XElement.Parse($"<turn>{turn}</turn>", LoadOptions.PreserveWhitespace);
 
     /// <summary>
     /// A derivation is produced for one person and nobody asked it a question, so the language is the reader's rather

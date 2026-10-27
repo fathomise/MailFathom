@@ -123,6 +123,10 @@ internal static class AnsweredMailSubmissions
             granted);
     }
 
+    /// <summary>Gets a mapping that mirrors the answered email's folder for the person and withholds it from AI.</summary>
+    public static StubMailFolderParticipation AnsweredFolderWithheldFromAI => StubMailFolderParticipation.Nothing.Hiding(
+        new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create(ReadableFolderAlias)));
+
     /// <summary>Reads the message an answer was composed from, which is where a tool's mapping becomes observable.</summary>
     /// <param name="composer">The composer the answer was composed through.</param>
     /// <returns>The authored message.</returns>
@@ -277,7 +281,9 @@ internal static class AnsweredMailSubmissions
             granted,
             OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
-            new FakeTimeProvider(RecordedAt));
+            OrganizationMailSigners.SigningNothing(),
+            new FakeTimeProvider(RecordedAt),
+            ClientSignalPublishers.ReachingNobody);
     }
 
     private static EmailAddress Address(string address) =>

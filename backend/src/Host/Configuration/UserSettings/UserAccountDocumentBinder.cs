@@ -6,6 +6,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
+using MailFathom.AI.DecisionModels;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Infrastructure.Persistence.Settings;
 using MailFathom.Infrastructure.Persistence.Users;
@@ -36,17 +38,18 @@ namespace MailFathom.Host.Configuration.UserSettings;
 /// handed alone, so no value in it shadows a setting the deployment made, and a user-level setting is only ever a
 /// property the record declares. That document is the record as the settings policies governing the user resolve
 /// it, which whoever reads or writes a record composes before it arrives; this binds what it is given and reads no
-/// policy. The deployment's own section reaches this for one purpose and no other: to say what a record being
+/// policy. The deployment's own sections reach this for one purpose and no other: to say what a record being
 /// written may ask for. A scanning posture is refused there when it would switch off what the deployment requires or
-/// reach for an analyzer the deployment never stood up, which is a rule about the record rather than a value composed
-/// over it.
+/// reach for an analyzer the deployment never stood up, and a spam model stage when no decision model would answer it,
+/// which are rules about the record rather than values composed over it.
 /// </para>
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this binder.")]
 internal sealed class UserAccountDocumentBinder(
     PersistedSecretMaterial secretMaterial,
     TimeProvider timeProvider,
-    IOptions<SensitiveContentOptions> sensitiveContent)
+    IOptions<SensitiveContentOptions> sensitiveContent,
+    IOptions<DecisionModelOptions> decisions)
 {
     /// <summary>Binds a user's document and judges the record it produces.</summary>
     /// <param name="json">The user's document, as the JSON object their row holds.</param>
@@ -196,6 +199,7 @@ internal sealed class UserAccountDocumentBinder(
         {
             refusals.AddRange(user.FindMissingAccountLanguageErrors());
             refusals.AddRange(user.FindSensitiveContentErrors(sensitiveContent.Value));
+            refusals.AddRange(user.FindSpamModelStageErrors(decisions.Value.Serves(DecisionFunction.SpamClassification)));
         }
 
         return refusals.Count > 0

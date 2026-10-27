@@ -41,7 +41,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness(), OwningAccounts(Work, Private));
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([Work, Private], directory.Accounts.Select(account => account.Account));
@@ -58,7 +58,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness(), OwningAccounts());
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(directory.Accounts);
@@ -74,7 +74,7 @@ public sealed class MailAccountFreshnessReaderTests
             OwningAccounts(Work));
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([Work.Id], directory.Accounts.Select(account => account.Account.Id));
@@ -93,7 +93,7 @@ public sealed class MailAccountFreshnessReaderTests
             OwningAccounts(Work));
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(Now, Assert.Single(directory.Accounts).LastSynchronizedAt);
@@ -109,7 +109,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness((Work.Id, "inbox", Now)), OwningAccounts(Work), ledger);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var account = Assert.Single(directory.Accounts);
@@ -137,7 +137,7 @@ public sealed class MailAccountFreshnessReaderTests
             ledger);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var failing = directory.Accounts.Single(account => account.Account == Work);
@@ -156,7 +156,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness((Work.Id, "inbox", null)), OwningAccounts(Work));
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var account = Assert.Single(directory.Accounts);
@@ -174,7 +174,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness(), OwningAccounts(Work), ledger);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var account = Assert.Single(directory.Accounts);
@@ -190,7 +190,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness((Work.Id, "inbox", Now)), OwningAccounts(Work));
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailSynchronizationState.Synchronized, Assert.Single(directory.Accounts).State);
@@ -212,7 +212,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness((Work.Id, "inbox", Now)), OwningAccounts(Work), ledger);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var account = Assert.Single(directory.Accounts);
@@ -240,7 +240,7 @@ public sealed class MailAccountFreshnessReaderTests
             ledger);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var account = Assert.Single(directory.Accounts);
@@ -264,7 +264,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness((Work.Id, "inbox", Now)), OwningAccounts(Work), ledger);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var folder = Assert.Single(Assert.Single(directory.Accounts).Folders);
@@ -285,7 +285,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness((Work.Id, "inbox", Now)), OwningAccounts(Work), ledger);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var account = Assert.Single(directory.Accounts);
@@ -320,7 +320,7 @@ public sealed class MailAccountFreshnessReaderTests
             ledger);
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var account = Assert.Single(directory.Accounts);
@@ -339,7 +339,7 @@ public sealed class MailAccountFreshnessReaderTests
             OwningAccounts(Work));
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var account = Assert.Single(directory.Accounts);
@@ -361,7 +361,7 @@ public sealed class MailAccountFreshnessReaderTests
         var reader = ReaderOver(Freshness(), OwningAccounts(synchronizationEnabled, Work));
 
         // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(synchronizationEnabled, directory.SynchronizationEnabled);
@@ -384,7 +384,7 @@ public sealed class MailAccountFreshnessReaderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            reader.ReadAsync(TestContext.Current.CancellationToken));
+            reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);
@@ -403,7 +403,7 @@ public sealed class MailAccountFreshnessReaderTests
 
         // Act, Assert
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            reader.ReadAsync(TestContext.Current.CancellationToken));
+            reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
     }
 
     /// <summary>Names one folder of one account, which is the pair the run ledger records a turn against.</summary>

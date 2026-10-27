@@ -8,20 +8,24 @@ using System.Text;
 
 namespace MailFathom.Domain.Spam;
 
-/// <summary>Identifies the terms a verdict was reached under, as a digest of the operator's own classification settings.</summary>
+/// <summary>Identifies the terms a verdict was reached under, as a digest of the deciding stage's terms.</summary>
 /// <remarks>
 /// <para>
 /// Derived rather than declared, for the reason a rule set's revision is: an authored version key can be forgotten, and
-/// an edit that moves a threshold while leaving the key alone is exactly the case a record has to be able to tell apart.
-/// It is what makes "this message was already decided under the terms in force now" a question somebody can ask of an
+/// a change to the terms that leaves the key alone is exactly the case a record has to be able to tell apart. It is what
+/// makes "this message was already decided under the terms in force now" a question somebody can ask of an
 /// existing record, which is what a run over a whole mailbox skips mail on.
 /// </para>
 /// <para>
-/// The digest covers only what changes a verdict: whether a scanner is consulted, and the threshold its score is judged
-/// by. The scanned folder scope is deliberately outside it — adding a folder changes which mail is classified and not
-/// what any classification would have concluded, so including it would force a rescan of mail nothing about the decision
-/// has moved for. The scanner's own rule corpus is outside it too, because a classification records that separately and
-/// under the name the scanner gives it.
+/// The digest covers only what changes a verdict or a subcategory. The deterministic stage reads what a message carried
+/// and nothing an operator configures moves its answer, so its terms are its name and the facts it reads — the junk
+/// keywords among them, so a change to what it reads is a change of terms and a run decides existing mail once more. The
+/// model stage's are whether it
+/// is consulted, whether it names subcategories of deterministic spam, and its threshold; a setting that moves an answer
+/// joins the canonical form, and every record decided before it then reads as decided under other terms. Leaving the
+/// model unconsulted keeps the deterministic identity, so mail already decided without it is not decided again. The scanned folder
+/// scope is deliberately outside it — adding a folder changes which mail is classified and not what any classification
+/// would have concluded, so including it would force a rescan of mail nothing about the decision has moved for.
 /// </para>
 /// <para>
 /// It carries nothing derived from a message, so a record naming a profile and a log line reporting one hold nothing
@@ -37,8 +41,8 @@ public readonly record struct SpamClassificationProfile
     /// </remarks>
     public const int LengthInCharacters = 12;
 
-    /// <summary>Separates the digested fields, chosen because neither of them can contain it.</summary>
-    private const char FieldSeparator = '\u001F';
+    /// <summary>The canonical form of what the deterministic stage reads: the headers, the folder, and the junk keywords.</summary>
+    private const string DeterministicTerms = "deterministic;junk-keywords";
 
     private readonly string? value;
 
@@ -57,39 +61,38 @@ public readonly record struct SpamClassificationProfile
     public string Value => this.value
         ?? throw new InvalidOperationException("The value is the default of the struct and does not name a profile.");
 
-    /// <summary>Derives the identity of the settings a classification is reached under.</summary>
-    /// <param name="usesScanner">Whether a configured scanner is consulted after the deterministic stage.</param>
-    /// <param name="scannerThreshold">The score a scanner's verdict is judged by, or <see langword="null" /> to keep the scanner's own.</param>
-    /// <returns>The profile those settings are known by.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="scannerThreshold" /> is not a finite number.</exception>
+    /// <summary>Derives the identity of the terms a classification is reached under when no model is consulted.</summary>
+    /// <returns>The profile of the deterministic stage alone.</returns>
+    public static SpamClassificationProfile Create() => FromCanonicalForm(DeterministicTerms);
+
+    /// <summary>Derives the identity of the terms a classification is reached under when the model stage is consulted.</summary>
+    /// <param name="namesSubcategoriesOfDeterministicSpam">Whether the model also names the subcategory of a verdict the deterministic stage reached.</param>
+    /// <param name="threshold">The probability at or above which the model's judgement counts as spam.</param>
+    /// <returns>The profile, which differs from the deterministic one and from every other combination of these terms.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="threshold" /> is not a probability above zero.</exception>
     /// <remarks>
-    /// A threshold left to the scanner and a threshold configured to whatever the scanner already uses are deliberately
-    /// different profiles. What the scanner's own threshold is, is not something MailFathom knows before it has asked,
-    /// so treating the two as one would mean claiming an equality that cannot be established.
+    /// Each term moves an answer: consulting the model decides mail the deterministic stage could not, naming
+    /// subcategories reaches mail it already called spam, and the threshold moves where the model's probability turns into
+    /// a verdict. The threshold is written in its round-trip form, so two thresholds that differ at all are two profiles.
     /// </remarks>
-    public static SpamClassificationProfile Create(bool usesScanner, double? scannerThreshold)
+    public static SpamClassificationProfile Create(bool namesSubcategoriesOfDeterministicSpam, double threshold)
     {
-        if (scannerThreshold is { } threshold && !double.IsFinite(threshold))
+        if (!double.IsFinite(threshold) || threshold is <= 0 or > 1)
         {
             throw new ArgumentOutOfRangeException(
-                nameof(scannerThreshold),
+                nameof(threshold),
                 threshold,
-                "A configured scanner threshold is a finite number.");
+                "A model threshold is a probability above zero and at most one.");
         }
 
-        var canonicalForm = string.Join(
-            FieldSeparator,
-            usesScanner ? "scanner" : "deterministic",
-            scannerThreshold?.ToString("R", CultureInfo.InvariantCulture) ?? string.Empty);
-
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonicalForm));
-
-        return new SpamClassificationProfile(Convert.ToHexStringLower(digest)[..LengthInCharacters]);
+        return FromCanonicalForm(string.Create(
+            CultureInfo.InvariantCulture,
+            $"{DeterministicTerms};model;subcategories-of-deterministic-spam={(namesSubcategoriesOfDeterministicSpam ? "yes" : "no")};threshold={threshold:R}"));
     }
 
     /// <summary>Reads back a profile this system derived earlier and recorded.</summary>
     /// <param name="value">The recorded identity.</param>
-    /// <returns>The profile, which compares equal to a freshly derived one of the same settings.</returns>
+    /// <returns>The profile, which compares equal to a freshly derived one of the same terms.</returns>
     /// <exception cref="ArgumentException">Thrown when the value is not an identity this type could have produced.</exception>
     /// <remarks>
     /// The shape is checked rather than trusted, because a value that is not one this type produces would compare unequal
@@ -113,4 +116,7 @@ public readonly record struct SpamClassificationProfile
 
     /// <inheritdoc />
     public override string ToString() => this.value ?? "(unspecified)";
+
+    private static SpamClassificationProfile FromCanonicalForm(string canonicalForm) => new(
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalForm)))[..LengthInCharacters]);
 }

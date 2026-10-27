@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Host.Api;
 using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Security.Sessions;
 using MailFathom.Host.Security.Transport;
@@ -28,7 +29,7 @@ namespace MailFathom.Host.Security.Endpoints;
 /// </para>
 /// <para>
 /// A protected resource metadata document is published as well, by
-/// <see cref="Api.ProtectedResourceMetadataEndpoint" /> rather than from here and for the reason the administrative
+/// <see cref="ProtectedResourceMetadataEndpoint" /> rather than from here and for the reason the administrative
 /// surface's is: it belongs to no authentication scheme, since its whole purpose is to answer a caller that has not
 /// authenticated.
 /// </para>
@@ -173,10 +174,11 @@ internal static class ClientTransportSecurityExtensions
     /// direction that fails visibly — a policy written wide in advance is a policy nobody narrows afterwards.
     /// </para>
     /// <para>
-    /// Two response headers are exposed rather than one. A browser cannot read a header the policy does not name, so
+    /// Three response headers are exposed rather than one. A browser cannot read a header the policy does not name, so
     /// without <c>WWW-Authenticate</c> the one answer telling a page how to proceed is the one it cannot see, and
     /// without <c>Retry-After</c> a client told to hold cannot read for how long — which on the telemetry routes is the
-    /// difference between a client that backs off and one that keeps exporting into a refusal.
+    /// difference between a client that backs off and one that keeps exporting into a refusal. The third is what a cut
+    /// message source states the size of the whole in, without which a reader would be shown a part as if it were all.
     /// </para>
     /// </remarks>
     private static void ConfigureCorsPolicy(CorsPolicyBuilder policy, BrowserOriginPolicy originPolicy)
@@ -197,6 +199,9 @@ internal static class ClientTransportSecurityExtensions
                 HeaderNames.ContentType,
                 HeaderNames.Accept,
                 TraceContextHeaderName)
-            .WithExposedHeaders(HeaderNames.WWWAuthenticate, HeaderNames.RetryAfter);
+            .WithExposedHeaders(
+                HeaderNames.WWWAuthenticate,
+                HeaderNames.RetryAfter,
+                ClientMailSourceEndpoint.TruncatedFromHeaderName);
     }
 }

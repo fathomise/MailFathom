@@ -7,17 +7,17 @@ namespace MailFathom.Domain.Spam;
 /// <summary>Says where one signal came from, so the fact it states can be checked rather than only believed.</summary>
 /// <remarks>
 /// Provenance travels with every signal rather than with the classification as a whole, because one classification
-/// mixes facts of different standing: a header the receiving server wrote, the folder the mailbox filed the message in,
-/// and a rule corpus that re-read the message afterwards. A record that named only the deciding stage would leave a
-/// reader unable to tell which of them the verdict actually rested on.
+/// mixes facts of different standing: a header the receiving server wrote, and the folder the mailbox filed the message
+/// in. A record that named only the deciding stage would leave a reader unable to tell which of them the verdict
+/// actually rested on.
 /// </remarks>
 public sealed record SpamSignalProvenance
 {
     /// <summary>The greatest length an origin may carry, which every one MailFathom writes is far inside.</summary>
     /// <remarks>
-    /// Origins are header field names, folder aliases, and corpus revisions — all short, and all MailFathom's own or
-    /// the mail standard's rather than free text from a message body. The bound exists so a scanner that answered with
-    /// something unexpected cannot widen a stored column, and it refuses rather than truncates for that reason.
+    /// Origins are header field names, folder aliases, and a model build beside an instruction revision — all short,
+    /// and all MailFathom's own, the mail standard's, or the provider's rather than free text from a message body. The bound exists so a source that yielded something
+    /// unexpected cannot widen a stored column, and it refuses rather than truncates for that reason.
     /// </remarks>
     public const int MaximumOriginLength = 128;
 
@@ -30,7 +30,7 @@ public sealed record SpamSignalProvenance
     /// <summary>Gets where the signal was read from.</summary>
     public SpamSignalSource Source { get; }
 
-    /// <summary>Gets what within that source named the signal: a header field name, a folder alias, or a corpus revision.</summary>
+    /// <summary>Gets what within that source named the signal: a header field name, a folder alias, a mailbox keyword, or a model build and instruction revision.</summary>
     public string Origin { get; }
 
     /// <summary>Records that a signal was read out of one of the message's own headers.</summary>
@@ -47,12 +47,30 @@ public sealed record SpamSignalProvenance
     public static SpamSignalProvenance FromFolderPlacement(string folderAlias) =>
         new(SpamSignalSource.FolderPlacement, Checked(folderAlias, nameof(folderAlias)));
 
-    /// <summary>Records that a signal came from a scanner's rule corpus.</summary>
-    /// <param name="corpusRevision">The revision the scanner ran the message under.</param>
+    /// <summary>Records that a signal is a keyword the message carries in its mailbox.</summary>
+    /// <param name="keyword">The keyword, as it is stored.</param>
     /// <returns>The provenance.</returns>
-    /// <exception cref="ArgumentException">Thrown when the revision is blank, over-long, or carries a control character.</exception>
-    public static SpamSignalProvenance FromScannerCorpus(string corpusRevision) =>
-        new(SpamSignalSource.ScannerCorpus, Checked(corpusRevision, nameof(corpusRevision)));
+    /// <exception cref="ArgumentException">Thrown when the keyword is blank, over-long, or carries a control character.</exception>
+    public static SpamSignalProvenance FromMailboxKeyword(string keyword) =>
+        new(SpamSignalSource.MailboxKeyword, Checked(keyword, nameof(keyword)));
+
+    /// <summary>Records that a signal is a decision model's judgement, and which call produced it.</summary>
+    /// <param name="model">The model build that answered, as the response named it rather than as configuration named it.</param>
+    /// <param name="instructionRevision">The revision of the instructions the model was asked under.</param>
+    /// <returns>The provenance, whose origin is <c>model@instructionRevision</c>.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when either part is blank, carries a control character or an <c>@</c>, or the two together exceed
+    /// <see cref="MaximumOriginLength" />.
+    /// </exception>
+    /// <remarks>
+    /// One origin of the shape a rule's requester already uses, because the two halves are one identity: the same
+    /// instructions given to another build, or another revision given to the same build, is another call whose answer
+    /// a threshold was not calibrated against.
+    /// </remarks>
+    public static SpamSignalProvenance FromModel(string model, string instructionRevision) =>
+        new(
+            SpamSignalSource.Model,
+            Checked($"{ModelOriginPart(model, nameof(model))}@{ModelOriginPart(instructionRevision, nameof(instructionRevision))}", nameof(model)));
 
     /// <summary>Reads back a provenance this system recorded earlier.</summary>
     /// <param name="source">Where the signal was read from.</param>
@@ -71,6 +89,15 @@ public sealed record SpamSignalProvenance
         }
 
         return new SpamSignalProvenance(source, Checked(origin, nameof(origin)));
+    }
+
+    private static string ModelOriginPart(string part, string parameterName)
+    {
+        var checkedPart = Checked(part, parameterName);
+
+        return checkedPart.Contains('@', StringComparison.Ordinal)
+            ? throw new ArgumentException("A model origin part cannot contain '@', which separates the two.", parameterName)
+            : checkedPart;
     }
 
     private static string Checked(string origin, string parameterName)

@@ -160,6 +160,15 @@ public sealed class AdminEndpointRoutesTests
             "/api/admin/organizations/11111111-2222-3333-4444-555555555555/short-name",
             AdminEndpointRoutes.OrganizationShortNamePath(organization));
         Assert.Equal(
+            "/api/admin/organizations/11111111-2222-3333-4444-555555555555/signing-keys",
+            AdminEndpointRoutes.OrganizationSigningKeysPath(organization));
+        Assert.Equal(
+            "/api/admin/organizations/11111111-2222-3333-4444-555555555555/signing-keys/rotation",
+            AdminEndpointRoutes.OrganizationSigningKeyRotationPath(organization));
+        Assert.Equal(
+            "/api/admin/organizations/11111111-2222-3333-4444-555555555555/signing-keys/0199a0c0-0000-7000-8000-0000000000a1/revocation",
+            AdminEndpointRoutes.OrganizationSigningKeyRevocationPath(organization, new Guid("0199a0c0-0000-7000-8000-0000000000a1")));
+        Assert.Equal(
             "/api/admin/users/11111111-2222-3333-4444-555555555555/organization",
             AdminEndpointRoutes.UserOrganizationPath(organization));
     }

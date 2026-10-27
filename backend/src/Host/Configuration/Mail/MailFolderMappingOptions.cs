@@ -50,8 +50,13 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
     /// <summary>Gets or sets whether the mirrored content is cut into passages and embedded.</summary>
     public bool? GenerateEmbeddings { get; set; }
 
-    /// <summary>Gets or sets whether MCP tools may list, search, read, or answer from the folder.</summary>
-    public bool? VisibleToTools { get; set; }
+    /// <summary>Gets or sets whether any AI function may reach the folder: an agent, an MCP tool, or a model or embedding provider.</summary>
+    /// <remarks>
+    /// Off, the folder is withheld from AI and from nothing else: the person still reads it in the client, and
+    /// synchronization, rules, and retention still reach it. Embeddings are a model's reading of the folder, so they go
+    /// with it, and asking for them beside it is refused rather than quietly ignored.
+    /// </remarks>
+    public bool? VisibleToAI { get; set; }
 
     /// <summary>Gets or sets whether MailFathom may create the folder when the server advertises none at <see cref="RemotePath" />.</summary>
     /// <remarks>
@@ -75,7 +80,7 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
     internal MailFolderParticipation Participation => MailFolderParticipation.Create(
         this.Synchronize ?? true,
         this.GenerateEmbeddings ?? true,
-        this.VisibleToTools ?? true);
+        this.VisibleToAI ?? true);
 
     /// <summary>Builds the domain mapping this configured folder expresses.</summary>
     /// <returns>The mapping folder resolution reads.</returns>
@@ -103,6 +108,9 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
         throw new InvalidOperationException(
             $"Folder alias '{this.Alias}' names neither a remote path nor a supported special-use role.");
     }
+
+    /// <summary>The role name an operator wrote for the outbox a folder used to play, which is refused where it binds.</summary>
+    internal const string RetiredOutboxRole = "Outbox";
 
     /// <summary>Gets the role this folder plays, or <see langword="null" /> when it names none this system supports.</summary>
     /// <remarks>
@@ -146,7 +154,17 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
             yield break;
         }
 
-        if (namesSpecialUse && !TryParseSpecialUse(this.SpecialUse, out _))
+        // The outbox an operator once mapped onto a folder is retired rather than unknown, so it is answered with what to
+        // do about it instead of with the list of roles that are left. ADR 0040 replaced it with each account's own
+        // outbox beside its folders, which nothing maps.
+        if (namesSpecialUse
+            && string.Equals(this.SpecialUse!.Trim(), RetiredOutboxRole, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return new ValidationResult(
+                $"Folder alias '{this.Alias}' names the '{RetiredOutboxRole}' role, which no folder plays any more: each account's outbox is now MailFathom's own and is not a folder. Remove this folder mapping, or its 'SpecialUse'. The folder it named stays on the mail server as an ordinary folder, and any copies already filed into it stay there until they are deleted by hand.",
+                [nameof(this.SpecialUse)]);
+        }
+        else if (namesSpecialUse && !TryParseSpecialUse(this.SpecialUse, out _))
         {
             yield return new ValidationResult(
                 $"Folder alias '{this.Alias}' names special-use role '{this.SpecialUse}', which is not supported. Supported roles are {string.Join(", ", Enum.GetNames<MailFolderSpecialUse>())}.",
@@ -163,17 +181,6 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
                 [nameof(this.CreateIfMissing)]);
         }
 
-        // The one role no server ever advertises. RFC 6154 declares no outbox attribute and MailFathom does not invent
-        // one from a folder's name, so a mapping that expects discovery to find it would resolve to nothing and the
-        // deployment would learn that from mail it never saw mirrored. Written beside a path the role is a label like
-        // any other, which is exactly how an operator says which of their folders holds what is waiting to go out.
-        if (!namesRemotePath && this.DeclaredRole == MailFolderSpecialUse.Outbox)
-        {
-            yield return new ValidationResult(
-                $"Folder alias '{this.Alias}' names the '{nameof(MailFolderSpecialUse.Outbox)}' role without a remote path, and no mail server advertises an outbox folder for discovery to find. Name the folder the role applies to in 'RemotePath'.",
-                [nameof(this.SpecialUse)]);
-        }
-
         foreach (var result in this.ValidateConfiguredValues(namesRemotePath))
         {
             yield return result;
@@ -185,32 +192,40 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
         }
     }
 
-    /// <summary>Refuses a folder asked to do something an unmirrored folder cannot do.</summary>
+    /// <summary>Refuses a folder asked to do something an unmirrored folder, or a folder withheld from AI, cannot do.</summary>
     /// <remarks>
-    /// Nothing here is a safety rule — the participation value already withdraws both from an unsynchronized folder, so
-    /// the configuration would work. What it would not do is what it says, and a folder configured to embed mail nobody
-    /// stores is an operator expecting a bill and a search result they will never get. The unset case is deliberately
-    /// not refused: leaving a switch out is not asking for it.
+    /// Nothing here is a safety rule — the participation value already withdraws embeddings from an unsynchronized folder
+    /// and from one withheld from AI, so the configuration would work. What it would not do is what it says: a folder
+    /// configured to embed mail nobody stores is an operator expecting a bill and a search result they will never get, and
+    /// a folder withheld from AI and asked to be embedded is an operator who has not decided whether a model may read it.
+    /// The unset case is deliberately not refused: leaving a switch out is not asking for it.
     /// </remarks>
     private IEnumerable<ValidationResult> ValidateParticipation()
     {
-        if (this.Synchronize is not false)
+        if (this.Synchronize is false)
         {
+            if (this.GenerateEmbeddings is true)
+            {
+                yield return new ValidationResult(
+                    $"Folder alias '{this.Alias}' asks for embeddings while 'Synchronize' is false, and an unsynchronized folder stores no content to embed.",
+                    [nameof(this.GenerateEmbeddings)]);
+            }
+
+            if (this.VisibleToAI is true)
+            {
+                yield return new ValidationResult(
+                    $"Folder alias '{this.Alias}' asks to be visible to AI while 'Synchronize' is false, and an unsynchronized folder stores nothing AI could read.",
+                    [nameof(this.VisibleToAI)]);
+            }
+
             yield break;
         }
 
-        if (this.GenerateEmbeddings is true)
+        if (this.VisibleToAI is false && this.GenerateEmbeddings is true)
         {
             yield return new ValidationResult(
-                $"Folder alias '{this.Alias}' asks for embeddings while 'Synchronize' is false, and an unsynchronized folder stores no content to embed.",
-                [nameof(this.GenerateEmbeddings)]);
-        }
-
-        if (this.VisibleToTools is true)
-        {
-            yield return new ValidationResult(
-                $"Folder alias '{this.Alias}' asks to be visible to tools while 'Synchronize' is false, and an unsynchronized folder stores nothing a tool could read.",
-                [nameof(this.VisibleToTools)]);
+                $"Folder alias '{this.Alias}' asks for embeddings while 'VisibleToAI' is false, and an embedding is computed by a provider a folder withheld from AI never reaches. Set 'GenerateEmbeddings' to false or remove it.",
+                [nameof(this.GenerateEmbeddings), nameof(this.VisibleToAI)]);
         }
     }
 

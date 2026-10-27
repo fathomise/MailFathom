@@ -7,11 +7,11 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Rules.Actions;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Signals;
@@ -53,8 +53,14 @@ internal sealed class SpamClassificationHarness
     /// <summary>Gets the verdicts written down, which is what a test reads a classification's outcome from.</summary>
     internal InMemoryEmailSpamClassificationStore Classifications { get; } = new();
 
+    /// <summary>Gets what the verdicts did to each message, which the classifier and the recorder both read.</summary>
+    internal InMemorySpamVerdictActStore VerdictActs { get; } = new();
+
     /// <summary>Gets the mutation records the actions opened, which is what proves a verdict was acted on.</summary>
     internal InMemoryMailboxMutationRecordStore Mutations { get; } = new();
+
+    /// <summary>Gets the folder mappings a destination is resolved against, which map nothing until a test maps a folder.</summary>
+    internal StubMailFolderMappings Mappings { get; } = StubMailFolderMappings.Nothing;
 
     /// <summary>Gets the folder bindings a destination is resolved against.</summary>
     internal InMemoryMailFolderResolutionStore Bindings { get; } = new();
@@ -84,8 +90,12 @@ internal sealed class SpamClassificationHarness
     /// <summary>Answers with an occurrence in the account's inbox for whichever message the recorder asks about.</summary>
     /// <param name="accountId">The account the occurrence belongs to.</param>
     /// <param name="folderAlias">The folder the occurrence sits in.</param>
+    /// <param name="keywords">The keywords the occurrence carries.</param>
     /// <returns>The reader.</returns>
-    internal static ISpamActionOccurrenceReader OccurrenceReader(MailAccountId accountId, MailFolderAlias folderAlias)
+    internal static ISpamActionOccurrenceReader OccurrenceReader(
+        MailAccountId accountId,
+        MailFolderAlias folderAlias,
+        params string[] keywords)
     {
         var reader = Substitute.For<ISpamActionOccurrenceReader>();
         reader
@@ -98,23 +108,26 @@ internal sealed class SpamClassificationHarness
                     ImapUidValidity.Create(9),
                     ImapUid.Create(4401)),
                 folderAlias,
-                IsRemotelySeen: false));
+                IsRemotelySeen: false,
+                RemoteEmailKeywords.Create(keywords)));
 
         return reader;
     }
 
-    /// <summary>Builds the real use case a verdict is scored through, over a header that says the mail is junk.</summary>
+    /// <summary>Builds the real use case a verdict is scored through, over a header that says the mail is junk unless a test says otherwise.</summary>
     /// <param name="settingsReader">What configuration says about which mail is classified.</param>
     /// <param name="commitPolicy">The policy every write is committed under.</param>
+    /// <param name="headers">What every message's headers carry, defaulting to a provider's spam verdict.</param>
     /// <returns>The classifier.</returns>
     internal EmailSpamClassifier CreateClassifier(
         ISpamClassificationSettingsReader settingsReader,
-        OptimisticConcurrencyRetryPolicy commitPolicy)
+        OptimisticConcurrencyRetryPolicy commitPolicy,
+        SpamHeaderFacts? headers = null)
     {
         var headerReader = Substitute.For<IEmailSpamHeaderReader>();
         headerReader
             .ReadAsync(Arg.Any<StoredEmailContent>(), Arg.Any<CancellationToken>())
-            .Returns(SpamHeaderFacts.Create(
+            .Returns(headers ?? SpamHeaderFacts.Create(
                 [],
                 [new ProviderSpamHeaderValue("X-Spam-Status", "Yes, score=15.2 required=5.0")]));
 
@@ -124,8 +137,11 @@ internal sealed class SpamClassificationHarness
             headerReader,
             StubJunkMailFolderCatalog.None,
             new DeterministicSpamClassifier(),
+            SpamModelStages.Over(),
             settingsReader,
             this.Classifications,
+            this.VerdictActs,
+            this.Mutations,
             Substitute.For<IEmailChunkStore>(),
             Substitute.For<IStoredEmailAttachmentTextStore>(),
             new RecordingDerivedWorkGateTelemetry(),
@@ -138,12 +154,14 @@ internal sealed class SpamClassificationHarness
     /// <param name="occurrences">Answers where the classified message sits on the server.</param>
     /// <param name="sessionFactory">Opens the sessions a movement is written under.</param>
     /// <param name="commitPolicy">The policy every write is committed under.</param>
+    /// <param name="submission">What the changes are submitted through, defaulting to one over an account that is mirrored.</param>
     /// <returns>The recorder.</returns>
     internal SpamActionRecorder CreateActionRecorder(
         SpamActionSettings actions,
         ISpamActionOccurrenceReader occurrences,
         IPersistenceSessionFactory sessionFactory,
-        OptimisticConcurrencyRetryPolicy commitPolicy)
+        OptimisticConcurrencyRetryPolicy commitPolicy,
+        MailboxChangeSubmission? submission = null)
     {
         var settingsReader = Substitute.For<ISpamActionSettingsReader>();
         settingsReader.ActionsFor(Arg.Any<MailAccountId>()).Returns(actions);
@@ -157,13 +175,25 @@ internal sealed class SpamClassificationHarness
             settingsReader,
             occurrences,
             this.Mutations,
-            MailboxChangeSubmissions.Over(this.Mutations),
+            this.VerdictActs,
+            submission ?? MailboxChangeSubmissions.Over(this.Mutations),
             this.CreateDestinationResolver(sessionFactory),
             dispositions,
+            KeywordsPermitted(),
             commitPolicy);
     }
 
-    /// <summary>Resolves destinations over a server advertising nothing, because no suite here files anything.</summary>
+    /// <summary>Answers that every account permits keywords to be written, which is the default an account starts with.</summary>
+    /// <returns>The reader.</returns>
+    internal static IMailRuleActionPermissionReader KeywordsPermitted()
+    {
+        var permissions = Substitute.For<IMailRuleActionPermissionReader>();
+        permissions.GetRuleActionPermissions(Arg.Any<MailAccountId>()).Returns(MailRuleActionPermissions.Default);
+
+        return permissions;
+    }
+
+    /// <summary>Resolves destinations over a server advertising nothing, so only a folder a test mapped and bound is reached.</summary>
     /// <param name="sessionFactory">Opens the sessions a folder binding is written under.</param>
     /// <returns>The resolver.</returns>
     internal MailboxDestinationResolver CreateDestinationResolver(IPersistenceSessionFactory sessionFactory)
@@ -179,19 +209,17 @@ internal sealed class SpamClassificationHarness
         var transportSecurityPolicies = Substitute.For<IMailTransportSecurityPolicyReader>();
         transportSecurityPolicies.GetPolicy(Arg.Any<MailAccountId>()).Returns(TlsOnConnect);
 
-        return new MailboxDestinationResolver(
-            StubMailFolderMappings.Nothing.Resolver,
-            this.Bindings,
-            new MailFolderResolver(
-                remoteFolderCatalog,
-                Substitute.For<IRemoteFolderCreator>(),
-                this.Bindings,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                sessionFactory,
-                ClientSignalPublishers.ReachingNobody,
-                this.Clock),
-            transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
+        return new MailboxCustodianComposition(this.Clock)
+        {
+            Mappings = this.Mappings,
+            FolderResolutions = this.Bindings,
+            RemoteFolderCatalog = remoteFolderCatalog,
+            RemoteFolderCreator = Substitute.For<IRemoteFolderCreator>(),
+            MappingChangeAuditor = Substitute.For<IMailFolderMappingChangeAuditor>(),
+            PersistenceSessions = sessionFactory,
+            Signals = ClientSignalPublishers.ReachingNobody,
+            TransportPolicies = transportSecurityPolicies,
+        }.Destinations;
     }
 
     /// <summary>Opens the sessions a classification writes under, every one of which commits.</summary>

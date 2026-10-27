@@ -153,5 +153,6 @@ public sealed class ComposedSettingsProviderSecretTests
         SecretValidation.OverRegisteredSchemes(),
         composed,
         declaredEmbeddings: null,
+        declaredDecisions: null,
         new MailAnsweringOptions());
 }

@@ -8,6 +8,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 
 namespace MailFathom.Application.Mail.Mutations.Authoring;
@@ -101,6 +102,7 @@ public sealed class MailDeletionRecorder
     /// <param name="storedEmailId">The email to delete, as a listing, a search, or a read returned it.</param>
     /// <param name="requester">The invocation asking, which is what decides whether asking again is the same request.</param>
     /// <param name="withdrawalWindow">How long the record waits before a convergence pass may take it in hand, or <see langword="null" /> where nothing waits — as nothing does for a zero window.</param>
+    /// <param name="reader">Who the act is asked for: the person through the client, or an agent or an MCP caller.</param>
     /// <param name="cancellationToken">Cancels the resolution and the write.</param>
     /// <returns>The record that was opened, or the reason none was.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="requester" /> is <see langword="null" />.</exception>
@@ -110,6 +112,7 @@ public sealed class MailDeletionRecorder
         StoredEmailId storedEmailId,
         MailboxMutationRequester requester,
         TimeSpan? withdrawalWindow,
+        MailboxReaderKind reader,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(requester);
@@ -126,7 +129,8 @@ public sealed class MailDeletionRecorder
 
         var target = await this.targets.FindAsync(storedEmailId, cancellationToken);
 
-        if (target is null || !await this.scopeResolver.IsReadableByToolsAsync(
+        if (target is null || !await this.scopeResolver.IsReadableAsync(
+                reader,
                 target.Occurrence.AccountId,
                 target.Folder.Alias,
                 cancellationToken))

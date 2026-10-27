@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Answers;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Domain.Accounts;
@@ -155,7 +155,7 @@ public sealed class AskMailInjectionResistanceTests
             cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains(message.Text, result.Answer, StringComparison.Ordinal);
+        Assert.Contains(AnswerMarkup.WithoutPictures(message.Text), result.Answer, StringComparison.Ordinal);
         Assert.Equal(
             [EmailIdentityAt(2).ToString()],
             result.Citations
@@ -188,7 +188,7 @@ public sealed class AskMailInjectionResistanceTests
         Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         Subject = "Quarterly invoice",
         ReceivedAt = Now,
-        SenderVerification = SenderVerification.NotEstablished,
+        Provenance = StubEmailProvenanceReader.KnownCorrespondent,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         Text = "an extract",
     };

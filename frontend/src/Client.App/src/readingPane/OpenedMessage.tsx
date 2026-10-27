@@ -2,8 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useRef } from 'react';
-import type { ClientSession, MailCarried, MailMessage } from '@mailfathom/client-backend';
+import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { isSpam, type ClientSession, type MailCarried, type MailMessage } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
@@ -13,14 +14,21 @@ import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
 import { Message } from '../messageBody/Message';
 import type { MessageBodyRead } from '../messageBody/useMessageBody';
+import { drawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { useMessageView } from '../preferences/messageView';
+import { usePendingChanges } from '../pendingChanges/usePendingChanges';
 import { useReadMarking } from '../readMarking/useReadMarking';
+import { SenderBadge } from '../senderMark/SenderBadge';
+import { MessageSenderDetails, type AskedSender } from '../senderMark/SenderDetails';
+import { listedSenderOf, marksSender, senderMarkOf } from '../senderMark/senderMarks';
+import { SpamWarning } from '../spamMarking/SpamWarning';
+import { useSpamRefusal } from '../spamMarking/useSpamRefusal';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { Attachments } from './Attachments';
-import { SenderVerdict } from './SenderVerdict';
+import { ChangeNotice } from './ChangeNotice';
 
-// One message drawn out in full, which is the same drawing wherever a message is drawn: the verdict on who sent it, who
-// wrote it and what the copy holds on one line, the words themselves, and the files the message carries.
+// One message drawn out in full, which is the same drawing wherever a message is drawn: who wrote it, the mark on who
+// sent it, and what the copy holds on one line, the words themselves, and the files the message carries.
 //
 // It is one component rather than two because a message read on its own and a message read inside the correspondence it
 // belongs to are the same message. The design draws them identically, and a second implementation of this is
@@ -63,10 +71,35 @@ export function OpenedMessage({
     const { revise } = useWorkspace();
     const { markRead } = useReadMarking();
     const words = useRef<HTMLDivElement>(null);
+    const refuse = useSpamRefusal();
+    const acts = useMailboxActs();
+
+    // A message marked spam is read-only: a warning stands over its words, and its original, its remote content, its
+    // links, and its files open nothing. The person's own mark from this session counts before the next read says so.
+    const spam = drawnSpam(acts, { id: message.storedEmailId, spam: message.spam });
+    const readOnly = isSpam(spam);
+    const details = useRef<HTMLDialogElement>(null);
+    const [anchor, setAnchor] = useState<AskedSender['anchor']>(null);
+
+    // A message in Sent or Drafts was written by the reader, so there is no sender to mark — the rule a row follows.
+    const marked = marksSender(
+        acts.folderRoleOf({
+            storedEmailId: message.storedEmailId,
+            account: message.account,
+            folder: message.folder,
+            unread: message.unread,
+            flagged: message.flagged,
+            spam: message.spam,
+        }),
+    );
 
     const storedEmailId = message.storedEmailId;
     const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
     const numbers = new Intl.NumberFormat(locale);
+
+    // Whether a change the mailbox did not take stands over this message, which is the only case the notice is mounted in.
+    const pending = usePendingChanges();
+    const asked = [...pending.undecided, ...pending.abandoned].some((change) => change.storedEmailId === storedEmailId);
 
     // What a person selected becomes the scope the intent field asks its next question under. It is read from the
     // gesture that produced it rather than from an effect watching the document, and it is bounded, trimmed, and
@@ -90,8 +123,6 @@ export function OpenedMessage({
 
     return (
         <>
-            <SenderVerdict verdict={message.sender} />
-
             {/* The message as the design draws one: flat on the column, at the measure a conversation's
                 messages take, with who wrote it and what the copy holds on its first line — how many attachments, the
                 sender's own markup where there is one, and when this deployment recorded it — and what it says under
@@ -108,6 +139,21 @@ export function OpenedMessage({
                         {author === null ? translate('message.noAuthor') : (author.displayName ?? author.address)}
                     </span>
 
+                    {/* Who sent it, as far as anything established it, beside the name it claims — the same mark its
+                        row carries, and the way to every step that reached it. */}
+                    {marked ? (
+                        <SenderBadge
+                            mark={senderMarkOf(listedSenderOf(message))}
+                            onOpen={(at) => {
+                                // Placed before it opens, so the details never draw for a frame where the last ones stood.
+                                flushSync(() => {
+                                    setAnchor({ left: at.left, top: at.top, bottom: at.bottom });
+                                });
+                                details.current?.showModal();
+                            }}
+                        />
+                    ) : null}
+
                     <span className="flex-1" />
 
                     {message.attachments.length === 0 ? null : (
@@ -120,15 +166,30 @@ export function OpenedMessage({
                     {/* Drawn in the reduced view and in no other. With the embedded HTML view chosen the markup is
                         already on the screen under this line, so a control offering to open it would open a second
                         copy of what is being read — which is why it goes rather than being disabled. */}
-                    {embeddedHtml ? null : <ShowFullHtml onShow={onShowFullHtml} />}
+                    {/* Spam keeps the control whatever view is chosen, and the press says why its original stays shut. */}
+                    {embeddedHtml && !readOnly ? null : (
+                        <ShowFullHtml
+                            onShow={onShowFullHtml}
+                            {...(readOnly && {
+                                onRefused: () => {
+                                    refuse('spam.refusedOriginal');
+                                },
+                            })}
+                        />
+                    )}
 
                     <ReceivedAt at={message.headers.receivedAt} />
                 </div>
 
+                {spam !== null && readOnly ? <SpamWarning spam={spam} /> : null}
+
+                {/* A change the mailbox did not take stands over the words it is about, until it is answered. */}
+                {asked ? <ChangeNotice message={message} /> : null}
+
                 {/* The gestures a selection ends on rather than a document-wide subscription: a selection made with the
                     pointer settles on the release and one made with the keyboard on the key coming back up, and both of
                     them are events this region already receives. */}
-                {/* The ceiling a message's words are read under, which binds the content alone: the verdict about who
+                {/* The ceiling a message's words are read under, which binds the content alone: the mark on who
                     sent it, the files it carries, and the line above have no measure to keep. It is ranged left, so a
                     window wider than the ceiling leaves its margin on the empty side rather than pushing the words away
                     from the list they were opened from. */}
@@ -138,6 +199,7 @@ export function OpenedMessage({
                     <Message
                         body={body}
                         storedEmailId={storedEmailId}
+                        readOnly={readOnly}
                         onBodyDrawn={() => {
                             markRead({
                                 storedEmailId,
@@ -150,11 +212,18 @@ export function OpenedMessage({
                 </div>
 
                 {message.attachments.length === 0 ? null : (
-                    <Attachments session={session} storedEmailId={storedEmailId} attachments={message.attachments} />
+                    <Attachments
+                        session={session}
+                        storedEmailId={storedEmailId}
+                        attachments={message.attachments}
+                        readOnly={readOnly}
+                    />
                 )}
             </div>
 
             {message.carried === null ? null : <Carried carried={message.carried} />}
+
+            {marked ? <MessageSenderDetails message={message} anchor={anchor} dialog={details} /> : null}
         </>
     );
 }

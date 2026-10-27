@@ -15,7 +15,7 @@ namespace MailFathom.Infrastructure.Observability;
 /// The admission is on the instrument because withholding is otherwise invisible: work that is never started leaves no
 /// trace, so a gate holding a mailbox and a mailbox producing nothing read identically. What an operator acts on is
 /// which of the five answers is rising — junk is the feature working, a rising wait is a classification backlog, and a
-/// rising release is the deployment saying its scanner is not answering and it is indexing without one.
+/// rising release is the deployment saying its classification is not keeping up and it is indexing without it.
 /// </para>
 /// <para>
 /// Nothing recorded here is mail or derived from it. The one tag is an admission, which is MailFathom's own closed set,

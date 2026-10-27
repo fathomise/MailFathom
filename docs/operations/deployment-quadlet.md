@@ -112,11 +112,11 @@ cp deploy/compose/postgres/10-create-mailfathom-database.sh ~/.config/mailfathom
 two names differing only by extension stop the host. [JSON and YAML](configuration-sources.md#json-and-yaml) states what
 a YAML file may not use.
 
-The `.container` files and the one `.volume` are named rather than globbed because there are four more container units
+The `.container` files and the one `.volume` are named rather than globbed because there are three more container units
 and a second volume, and those are the parts of this directory that are optional: `mailfathom-presidio.container`,
-`mailfathom-spamassassin.container`, `mailfathom-valkey.container`, and `mailfathom-silo.container` with
-`mailfathom-silo.volume` beside it. Copying one is half of switching its feature on, and a deployment that wants none
-never copies any. See [Personal-data scanning](#personal-data-scanning), [Spam scanning](#spam-scanning),
+`mailfathom-valkey.container`, and `mailfathom-silo.container` with `mailfathom-silo.volume` beside it. Copying one
+is half of switching its feature on, and a deployment that wants none never copies any. See
+[Personal-data scanning](#personal-data-scanning),
 [Running an object store beside MailFathom](#running-an-object-store-beside-mailfathom), and
 [The signal backplane](#the-signal-backplane) below.
 
@@ -457,7 +457,7 @@ holds here unchanged.
 # The optional units only where they were installed; stopping MailFathom does not stop any of them, because the
 # ordering runs the other way.
 systemctl --user stop mailfathom.service \
-  mailfathom-presidio.service mailfathom-spamassassin.service mailfathom-silo.service \
+  mailfathom-presidio.service mailfathom-silo.service \
   mailfathom-valkey.service mailfathom-postgres.service
 rm ~/.config/containers/systemd/mailfathom*.{container,network,volume}
 systemctl --user daemon-reload
@@ -536,36 +536,6 @@ names the language. Running the analyzer in a second language means an image of 
 the copied analyzer unit — [the analyzer's languages](personal-data-analyzer-languages.md) records what that takes and
 which identifiers each language reaches. Each configured language is also one more analyzer request inside a scan's
 single budget, which is why at most eight are accepted.
-
-## Spam scanning
-
-The same shape, and the same default: `mailfathom-spamassassin.container` is a file you either copy or do not, and not
-copying it is how the feature is off. [Spam classification](../features/spam-classification.md) records what a
-classification holds and what the scanner adds.
-
-```bash
-cp deploy/quadlet/mailfathom-spamassassin.container ~/.config/containers/systemd/
-```
-
-Then in `~/.config/containers/systemd/mailfathom.container`, uncomment the two ordering lines in `[Unit]` and the four
-`Environment=` lines for `SpamClassification`, and `systemctl --user daemon-reload`. The unit declares `Notify=healthy`
-like the others, so the ordering waits for a daemon that answers: it compiles its rule corpus before it listens, and
-MailFathom refuses to start while nothing answers, which is what `TimeoutStartSec=300` allows for.
-
-To use a daemon you already operate, copy no unit and point `SpamClassification__Scanner__Host` at its address. Keep it
-**inside your own network**: the daemon is sent whole messages unredacted, and the feature page states what pointing it
-outside gives up.
-
-The unit has no credentials, no volumes, no configuration, and no `PublishPort=`, and it needs no `UserNS=keep-id`
-because nothing in it reads a file you own. It is attached to `mailfathom-backend.network` alone, which is the one place
-this deployment differs from the Compose one: with no route out, the daemon cannot fetch the rule updates it tries for on
-start and daily afterwards, so its corpus stays whatever the image was built with — which scores today's mail worse than
-a fresh one. Add `mailfathom-frontend.network` to the unit to give it those updates. Either way `DNS_CHECKS=0` keeps the
-blocklist rules that would send sending addresses and URI host names to third parties switched off.
-
-It is also the one unit here granted a capability back. It binds its port as root and runs every scan as an unprivileged
-account, which is what parses the mail, so `SETUID` and `SETGID` are added after all capabilities are dropped; without
-them the daemon refuses to start.
 
 ## Storing message content in a bucket
 
@@ -646,7 +616,7 @@ adapter was verified against.
 failover. What it protects against is a container being replaced; a disk that fails takes the payloads with it, which is
 what makes [the backup order](#backup-and-what-survives-removal) the thing standing between this and losing them.
 
-It is optional the way the analyzer and the scanner units are: Quadlet has no equivalent of Compose's profiles, so
+It is optional the way the analyzer unit is: Quadlet has no equivalent of Compose's profiles, so
 switching it on is copying the two files and uncommenting the `ContentStorage` lines above.
 
 ```bash
@@ -861,7 +831,7 @@ trades away. The values the units apply:
 
 | Where | What |
 | --- | --- |
-| `[Service] MemoryMax=`, `CPUQuota=` | 1 GiB and two cores per unit, applied by systemd to the whole cgroup rather than to one container inside it. The analyzer's is 2 GiB, because it holds a language model for the life of the container and below roughly one gigabyte is killed while loading; the spam daemon's is 512 MiB, which holds its compiled rule corpus and a child per scan; the object store keeps the 1 GiB default, because it holds no index in memory and streams what it serves — what it wants is disk, and that is the volume; the backplane server keeps it with one core, because what it covers is that server's hash index and the .NET runtime around it and nothing this deployment stores |
+| `[Service] MemoryMax=`, `CPUQuota=` | 1 GiB and two cores per unit, applied by systemd to the whole cgroup rather than to one container inside it. The analyzer's is 2 GiB, because it holds a language model for the life of the container and below roughly one gigabyte is killed while loading; the object store keeps the 1 GiB default, because it holds no index in memory and streams what it serves — what it wants is disk, and that is the volume; the backplane server keeps it with one core, because what it covers is that server's hash index and the .NET runtime around it and nothing this deployment stores |
 | `[Service] LimitCORE=0`, `[Container] Ulimit=core=0` | No core dump from the process holding decrypted material, or from what it starts |
 | `[Container] StopTimeout=`, `[Service] TimeoutStopSec=` | 60 and 90 seconds, so the host finishes its shutdown drain rather than being killed mid-run |
 | `[Container] Tmpfs=/tmp` | 64 MiB, the one writable path the runtime needs on an otherwise read-only root filesystem |

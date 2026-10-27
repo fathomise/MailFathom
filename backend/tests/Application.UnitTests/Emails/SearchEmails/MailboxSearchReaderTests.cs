@@ -290,6 +290,25 @@ public sealed class MailboxSearchReaderTests
             Assert.Single(index.RankedCandidatesCalls).Selection.Scope.AccountIds);
     }
 
+    /// <summary>A folder whose mapping withholds it from AI is left out of the scope the agent's search reads.</summary>
+    [Fact]
+    public async Task SearchEmailsAsync_AFolderWithheldFromAI_IsLeftOutOfTheAgentsScope()
+    {
+        // Arrange
+        var visible = new MailFolderIdentity(EveryAccountTheSyntheticIndexUses[0], MailFolderAlias.Create("Inbox"));
+        var withheld = new MailFolderIdentity(EveryAccountTheSyntheticIndexUses[0], MailFolderAlias.Create("Private"));
+        var index = new InMemoryEmailSearchIndex();
+        var reader = ReaderOver(
+            index,
+            folderParticipation: StubMailFolderParticipation.Mapping(visible).Hiding(withheld));
+
+        // Act
+        await reader.SearchEmailsAsync(RequestFor("invoice"), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([visible], Assert.Single(index.RankedCandidatesCalls).Selection.Scope.ReadableFolders);
+    }
+
     /// <summary>Every filter is validated first, so a refusal never depends on how many accounts happen to be configured.</summary>
     [Fact]
     public async Task SearchEmailsAsync_NoAccountServedAtAll_ReturnsAnEmptyWindowWithoutReadingAnything()
@@ -900,15 +919,16 @@ public sealed class MailboxSearchReaderTests
         SensitiveContentEgressGuard? egressGuard = null,
         IMailboxReadTelemetry? readTelemetry = null,
         AccessAuthorization? authorization = null,
-        InMemoryEmailAttachmentMatchIndex? attachmentMatches = null) => new(
+        InMemoryEmailAttachmentMatchIndex? attachmentMatches = null,
+        StubMailFolderParticipation? folderParticipation = null) => new(
         index,
         attachmentMatches ?? new InMemoryEmailAttachmentMatchIndex(),
         semanticSearch ?? LexicalOnlySemanticSearch(),
         FreshnessReaderReturning(InboxFreshness),
         new MailboxScopeResolver(
             accountCatalog ?? CatalogServing(EveryAccountTheSyntheticIndexUses),
-            StubMailFolderParticipation.Nothing,
-            StubDeploymentMailFolders.None,
+            folderParticipation ?? StubMailFolderParticipation.Nothing,
+            StubDeploymentMailFolders.Of(folderParticipation ?? StubMailFolderParticipation.Nothing),
             StubMailFolderMappings.ResolvingNothing),
         snippetBounds ?? EmailSearchSnippetBounds.Default,
         egressGuard ?? SensitiveContentEgressGuards.Inactive(),

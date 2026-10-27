@@ -78,7 +78,6 @@ internal sealed class SearchEmailsTool(
     /// <param name="keyword">The keyword an email must carry.</param>
     /// <param name="hasAttachments">Whether attachments are required.</param>
     /// <param name="resultLimit">How many ranked results to return, or none to take the default.</param>
-    /// <param name="includeJunkMail">Whether the account's junk folder takes part in the search.</param>
     /// <param name="cancellationToken">Cancels the search when the caller disconnects or the host shuts down.</param>
     /// <returns>The ranked window, how it was retrieved, and how current each covered folder is.</returns>
     /// <exception cref="MailboxQueryFilterInvalidException">Thrown when text naming an account or a folder is not a value this system could have issued.</exception>
@@ -111,7 +110,8 @@ internal sealed class SearchEmailsTool(
         + "and attachment presence. Reads the local copy only: it never contacts "
         + "a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a "
         + "whole attachment's text — every extract it returns is bounded. "
-        + "Mail in the account's junk folder is left out unless includeJunkMail is set. "
+        + "Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner "
+        + "marked it not spam. "
         + "Returns one window of at most 50 results that nothing continues, so narrow the filters or write a different "
         + "query to reach other mail. Matching nothing is a normal empty result rather than an error.")]
     public async Task<SearchEmailsToolResult> SearchEmailsAsync(
@@ -119,7 +119,7 @@ internal sealed class SearchEmailsTool(
         string queryText,
         [Description("MailFathom accounts to search, each named by the identifier the deployment generated for it or by the display name it is published under; the identifier is unique across the deployment and the display name within your own accounts. Omit to search every account you may read; call list_accounts to see what they are. At most 64 may be named, and a name that resolves to none of them is refused rather than answered with an empty window — the same refusal whether nothing carries that name or it names a mailbox that is not yours.")]
         string[]? accounts = null,
-        [Description("MailFathom folders to search, each named by its identity — the folderId a listed email carries, or the id list_accounts reports for each folder — or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one searches whichever folder each account in scope maps with that role, whatever it is called there. Omit to search every folder of the accounts in scope. At most 64 may be named. A folder named any other way is refused.")]
+        [Description("MailFathom folders to search, each named by its identity — the folderId a listed email carries, or the id list_accounts reports for each folder — or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, and Important; naming one searches whichever folder each account in scope maps with that role, whatever it is called there. Omit to search every folder of the accounts in scope. At most 64 may be named. A folder named any other way is refused. The outbox is no folder, so role:Outbox is refused too: read what an account has not sent yet with list_outgoing_emails.")]
         string[]? folders = null,
         [Description(MailboxFilterDescriptions.SenderAddress)]
         string? senderAddress = null,
@@ -141,8 +141,6 @@ internal sealed class SearchEmailsTool(
         bool? hasAttachments = null,
         [Description("How many ranked results to return, from 1 to 50. Omit to take the default of 20. A value outside the range is refused rather than clamped, so a window is never smaller than it claims to be.")]
         int? resultLimit = null,
-        [Description("Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folders does not include it; only this does. The result reports which answer produced it.")]
-        bool includeJunkMail = false,
         CancellationToken cancellationToken = default)
     {
         var request = new SearchEmailsRequest
@@ -160,7 +158,6 @@ internal sealed class SearchEmailsTool(
             Keyword = keyword,
             HasAttachments = hasAttachments,
             ResultLimit = resultLimit,
-            IncludeJunkMail = includeJunkMail,
         };
 
         var result = await mailboxSearchReader.SearchEmailsAsync(request, cancellationToken);

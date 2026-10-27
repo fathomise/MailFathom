@@ -173,6 +173,7 @@ public sealed class MailEmbeddingBackfillWorkerTests
         await world.BackfillStore.DidNotReceiveWithAnyArgs().GetEmailsAwaitingEmbeddingAsync(
             Arg.Any<StoredEmailId?>(),
             Arg.Any<EmbeddingProfileId>(),
+            Arg.Any<TimeSpan>(),
             Arg.Any<int>(),
             TestContext.Current.CancellationToken);
     }
@@ -196,6 +197,7 @@ public sealed class MailEmbeddingBackfillWorkerTests
             .GetEmailsAwaitingEmbeddingAsync(
                 Arg.Any<StoredEmailId?>(),
                 Arg.Any<EmbeddingProfileId>(),
+                Arg.Any<TimeSpan>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<StoredEmailAwaitingEmbedding>>(
@@ -294,6 +296,7 @@ public sealed class MailEmbeddingBackfillWorkerTests
             .GetEmailsAwaitingEmbeddingAsync(
                 Arg.Any<StoredEmailId?>(),
                 Arg.Any<EmbeddingProfileId>(),
+                Arg.Any<TimeSpan>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<StoredEmailAwaitingEmbedding>>(
@@ -349,6 +352,7 @@ public sealed class MailEmbeddingBackfillWorkerTests
             .GetEmailsAwaitingEmbeddingAsync(
                 Arg.Any<StoredEmailId?>(),
                 Arg.Any<EmbeddingProfileId>(),
+                Arg.Any<TimeSpan>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<StoredEmailAwaitingEmbedding>>(
@@ -410,6 +414,7 @@ public sealed class MailEmbeddingBackfillWorkerTests
             .GetEmailsAwaitingEmbeddingAsync(
                 Arg.Any<StoredEmailId?>(),
                 Arg.Any<EmbeddingProfileId>(),
+                Arg.Any<TimeSpan>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<StoredEmailAwaitingEmbedding>>(
@@ -515,6 +520,7 @@ public sealed class MailEmbeddingBackfillWorkerTests
             .GetEmailsAwaitingEmbeddingAsync(
                 Arg.Any<StoredEmailId?>(),
                 Arg.Any<EmbeddingProfileId>(),
+                Arg.Any<TimeSpan>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
             .Returns(
@@ -650,6 +656,7 @@ public sealed class MailEmbeddingBackfillWorkerTests
             .GetEmailsAwaitingEmbeddingAsync(
                 Arg.Any<StoredEmailId?>(),
                 Arg.Any<EmbeddingProfileId>(),
+                Arg.Any<TimeSpan>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<StoredEmailAwaitingEmbedding>>([]));

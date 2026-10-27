@@ -497,23 +497,6 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
     [Range(1_000, 200_000)]
     public int MaxExtractedTextCharacters { get; set; } = 100_000;
 
-    /// <summary>Gets or sets whether an author writing from a domain one of this deployment's accounts uses is recognized.</summary>
-    /// <remarks>
-    /// <para>
-    /// The set of domains is derived from the configured accounts rather than restated here, so adding an account
-    /// extends it and removing one narrows it without a second edit. It is deployment-wide rather than per account
-    /// because an instance synchronizing a work mailbox and a personal one is synchronizing one person's
-    /// correspondence, and mail sent from the first to the second is the least suspicious mail in the mailbox.
-    /// </para>
-    /// <para>
-    /// It defaults to on because that mail is either the user's own or somebody who has taken their mailbox, and the
-    /// first is far more common. The case for turning it off is an account on a large shared provider, where every
-    /// user of that provider writes from the same domain and the set would recognize all of them; a deployment that
-    /// turns it off names the domains it does mean on the accounts' own trusted-sender lists instead.
-    /// </para>
-    /// </remarks>
-    public bool TrustOwnAccountDomains { get; set; } = true;
-
     /// <summary>Gets or sets whether extraction verifies a message's own DKIM signatures where no trusted server did.</summary>
     /// <remarks>
     /// <para>
@@ -529,13 +512,21 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
     /// <para>
     /// What it costs is a bounded, cached DNS lookup of <c>&lt;selector&gt;._domainkey.&lt;domain&gt;</c> when a message
     /// is stored. That is a low-cardinality name the signing domain published in order to be asked for, and it discloses
-    /// to that domain only that somebody here received mail they sent — which is why this may default on while the spam
-    /// scanner's DNS checks stay off, where what would be sent is the sending address and the URI hosts out of the body.
+    /// to that domain only that somebody here received mail they sent, which is why this may default on: a lookup of the
+    /// sending address or of the URI hosts out of the body would disclose far more, and nothing here makes one.
     /// An operator who wants no egress from this path at all sets it to <see langword="false" /> and gets exactly the
     /// behaviour of a deployment that never had it.
     /// </para>
     /// </remarks>
     public bool VerifyDkimLocally { get; set; } = true;
+
+    /// <summary>Gets what a received message's S/MIME or OpenPGP signer is trusted against.</summary>
+    /// <remarks>
+    /// Deployment-wide rather than per account, because which certificate authorities and which OpenPGP keys a
+    /// deployment trusts is the operator's statement about the world, not about one mailbox. Its own remarks say what
+    /// every key in it decides.
+    /// </remarks>
+    public MailSignatureVerificationOptions SignatureVerification { get; } = new();
 
     /// <summary>Gets or sets whether extraction assesses how much each message's own text reads as machine written.</summary>
     /// <remarks>
@@ -742,6 +733,11 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
                 $"The in-flight content budget of {this.MaxInFlightRawMimeBytes} bytes is below the {this.MaxRawMimeBytes} bytes one message may occupy, so a work unit fetching a message of that size would wait for room that can never exist.",
                 [nameof(this.MaxInFlightRawMimeBytes)]);
         }
+
+        foreach (var result in this.SignatureVerification.FindConfigurationErrors())
+        {
+            yield return result;
+        }
     }
 
     /// <inheritdoc />
@@ -928,7 +924,23 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// </remarks>
     public string? TrustedAuthenticationServiceIdentifier { get; set; }
 
-    /// <summary>Gets or sets the senders this account recognizes on top of the domains this deployment's own accounts use.</summary>
+    /// <summary>Gets or sets whether this account recognizes an author writing from a domain one of its owner's accounts uses.</summary>
+    /// <remarks>
+    /// <para>
+    /// The set of domains is derived from the user names of every account the same person owns rather than restated
+    /// here, so adding an account extends it and removing one narrows it without a second edit. The owner's own
+    /// addresses are recognized on every account whatever this says; this widens that to everybody at those domains.
+    /// </para>
+    /// <para>
+    /// It defaults to off, and is per account, because on a large shared provider every user of that provider writes
+    /// from the same domain and the set would recognize all of them. An account whose domain is the owner's own — a
+    /// company domain rather than a provider's — is the case for turning it on, and turning it on for one account
+    /// leaves the owner's other accounts as they were.
+    /// </para>
+    /// </remarks>
+    public bool TrustOwnAccountDomains { get; set; }
+
+    /// <summary>Gets or sets the senders this account recognizes on top of its owner's own addresses and, where it opted in, domains.</summary>
     /// <remarks>
     /// <para>
     /// Per account rather than deployment-wide, because the accounts an instance synchronizes are different
@@ -1681,6 +1693,15 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
                     [nameof(this.Delivery)]);
             }
 
+            // A signing identity signs what this endpoint submits, so one provisioned without an endpoint is material
+            // an operator believes is in use and nothing could ever use.
+            if (this.Delivery.ConfiguresSigningIdentity)
+            {
+                yield return new ValidationResult(
+                    $"Account '{this.AccountId}': the delivery block names a signing identity and no submission host, so nothing it signs could ever be sent.",
+                    [nameof(this.Delivery)]);
+            }
+
             yield break;
         }
 
@@ -1707,6 +1728,15 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
             yield return new ValidationResult(
                 $"Account '{this.AccountId}': the submission endpoint names no address to send from, so set Delivery.FromAddress or give the account a user name that is a mailbox address.",
                 [$"{nameof(this.Delivery)}.{nameof(MailAccountDeliveryOptions.FromAddress)}"]);
+        }
+
+        var signingCertificatePath = $"{nameof(this.Delivery)}:{nameof(MailAccountDeliveryOptions.SmimeSigningCertificate)}";
+
+        foreach (var error in this.Delivery.SmimeSigningCertificate?.FindConfigurationErrors(signingCertificatePath) ?? [])
+        {
+            yield return new ValidationResult(
+                $"Account '{this.AccountId}': {error}",
+                [$"{nameof(this.Delivery)}.{nameof(MailAccountDeliveryOptions.SmimeSigningCertificate)}"]);
         }
 
         if (!synchronizationEnabled)

@@ -89,6 +89,7 @@ internal sealed partial class ServedUserResolution(
             TimeZone = bound.ReadingTimeZone,
             ClientTelemetryLevel = bound.ReadingClientTelemetryLevel,
             ForcedClientTelemetry = ForcedClientTelemetry.Read(document.Policies),
+            Organization = document.Policies.Organization?.OrganizationId,
         };
 
         return (served, document.Version, document.Policies);

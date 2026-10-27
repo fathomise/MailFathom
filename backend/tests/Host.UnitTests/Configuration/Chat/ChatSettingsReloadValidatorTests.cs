@@ -5,11 +5,13 @@
 using MailFathom.Host.Configuration;
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Persistence;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure;
 using MailFathom.Infrastructure.Certificates;
+using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Secrets.Discovery;
 using Microsoft.Extensions.Configuration;
@@ -107,6 +109,33 @@ public sealed class ChatSettingsReloadValidatorTests
         Assert.Contains(errors, error => error.Contains("both declare the alias 'indexing'", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The credential source finds a chat model before a decision model, so a reload publishing a chat alias a decision
+    /// model declares would hand the chat key to every decision call, at the decision model's address.
+    /// </summary>
+    [Fact]
+    public async Task FindConfigurationErrorsAsync_AnAliasRenamedOntoADecisionModel_IsRefused()
+    {
+        // Arrange
+        var decisions = new DecisionModelOptions();
+        decisions.Models.Add(new DecisionModelDeclarationOptions
+        {
+            Alias = "decider",
+            Model = "vendor/decider-2026-10-01",
+            Unauthenticated = true,
+        });
+
+        var candidate = Declared();
+        candidate.Models[0].Alias = "decider";
+
+        // Act
+        var errors = await ValidatorOver(Declared(), decisions: decisions)
+            .FindConfigurationErrorsAsync(candidate, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(errors, error => error.Contains("a decision model both declare the alias 'decider'", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task FindConfigurationErrorsAsync_WithoutACandidate_IsRefused()
     {
@@ -120,11 +149,13 @@ public sealed class ChatSettingsReloadValidatorTests
 
     private static ChatSettingsReloadValidator ValidatorOver(
         ChatModelOptions composed,
-        EmbeddingOptions? embeddings = null) =>
+        EmbeddingOptions? embeddings = null,
+        DecisionModelOptions? decisions = null) =>
         new(
             SecretValidator(),
             composed,
             embeddings,
+            decisions,
             new MailAnsweringOptions());
 
     private static SecretConfigurationValidator SecretValidator()
@@ -134,6 +165,8 @@ public sealed class ChatSettingsReloadValidatorTests
         return new SecretConfigurationValidator(
             resolver,
             new TrustAnchorLoader(resolver),
+            new SmimeSigningCertificateValidator(resolver, new FakeTimeProvider()),
+            new OpenPgpSigningKeyValidator(resolver, new FakeTimeProvider()),
             new DatabaseConnectionSettingsMapper(new ConfigurationBuilder().Build()),
             new StubDatabaseConnectionSettingsValidator(),
             PostgresTextSearchConfiguration.Default,

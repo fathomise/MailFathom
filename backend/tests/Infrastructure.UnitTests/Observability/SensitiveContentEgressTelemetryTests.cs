@@ -158,6 +158,7 @@ public sealed class SensitiveContentEgressTelemetryTests
     [InlineData(nameof(SensitiveContentEgressPoint.ClientThreadState), "client_thread_state")]
     [InlineData(nameof(SensitiveContentEgressPoint.ClientReplyDraft), "client_reply_draft")]
     [InlineData(nameof(SensitiveContentEgressPoint.ClientContactRelationship), "client_contact_relationship")]
+    [InlineData(nameof(SensitiveContentEgressPoint.SpamClassificationInput), "spam_classification_input")]
     public void RecordGuarded_EachEgressPoint_PublishesItsOwnTagValue(string egressPointName, string expectedTag)
     {
         // Arrange

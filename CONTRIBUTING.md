@@ -78,7 +78,7 @@ checkout. My branch keeps the name I gave it, and nothing is ever pushed to
 
 The roadmap board, project `1`, is private to the maintainer and I have no access to it.
 Do not read it, do not write it, and do not treat that as a step that failed: an issue I
-open carries no `type:*` label, no stack label, no milestone, and no `Area`, `Queue`, or `Size`
+open carries no issue type, no stack or design label, no milestone, and no `Area`, `Queue`, or `Size`
 value by design, and the maintainer's triage supplies them. `$start-task` opens the issue and stops
 there; `$finish-change` reports the board write as `not applicable (no board write)`.
 
@@ -94,7 +94,7 @@ pushes never start one.
 gh api repos/fathomise/MailFathom --jq '.permissions'
 ```
 
-`push` and `triage` both `false` with `pull` alone `true` is the ordinary contributor's answer, and it is what decides the three things the block above is about: the `type:*` and stack labels, the milestone, and pushing a branch here. Your pull request still crosses from your fork, so nothing about contributing is closed by it. A `null` means the call went out unauthenticated — a public repository answers a read for anybody — so that is `gh` to fix rather than an answer to write down.
+`push` and `triage` both `false` with `pull` alone `true` is the ordinary contributor's answer, and it is what decides the three things the block above is about: the issue type and the stack and design labels, the milestone, and pushing a branch here. Your pull request still crosses from your fork, so nothing about contributing is closed by it. A `null` means the call went out unauthenticated — a public repository answers a read for anybody — so that is `gh` to fix rather than an answer to write down.
 
 The board paragraph is the other one worth checking rather than copying, because the maintainer grants read or write on project `1` whenever they decide to, and a fork is no evidence either way. Ask, once, with the `project` scope on your `gh` credentials:
 
@@ -158,7 +158,7 @@ Both scripts refuse to run on `main` or `master`. Check out your branch rather t
 
 The integration suite is not part of either script. It starts containers and is run deliberately, through `scripts/run-integration-tests.sh`, when a maintainer asks for it.
 
-Neither script answers the third question a change raises, so there is one more command, and it is thirteen seconds whatever your diff holds:
+Neither script answers the third question a change raises, so there is one more command, and it takes a few seconds whatever your diff holds:
 
 ```bash
 bash scripts/review-obligations.sh

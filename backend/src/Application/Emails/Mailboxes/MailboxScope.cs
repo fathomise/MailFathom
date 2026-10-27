@@ -130,13 +130,20 @@ public sealed record MailboxScope
     /// </remarks>
     public IReadOnlyList<MailFolderIdentity> ReadableFolders { get; private init; } = [];
 
-    /// <summary>Gets the junk folders this read returns nothing from, ordered, or empty when the caller asked for junk or no account maps one.</summary>
+    /// <summary>Gets the junk folders the person's read returns nothing from, ordered, or empty when the caller asked for junk or no account maps one.</summary>
     /// <remarks>
+    /// <para>
+    /// A list of folders reads it whoever the reader is, because it decides whether the junk folder is listed. Which of
+    /// the junk folder's messages an agent's read returns is <see cref="JunkFolders" />'s to decide instead, by the
+    /// verdict, so that a message the person marked not spam stays readable wherever it sits.
+    /// </para>
+    /// <para>
     /// Kept apart from <see cref="ReadableFolders" /> although both narrow the same query, because the two answer
     /// different questions and only one of them can be overridden. A folder outside the readable set is withheld by an
     /// operator's decision, or absent from configuration altogether, and no caller may reach it; the junk folder is
     /// mapped, readable, and withheld by default, and a caller that asks reaches it. Merging them would make the
     /// override able to reveal a folder the operator withheld.
+    /// </para>
     /// </remarks>
     public IReadOnlyList<MailFolderIdentity> WithheldJunkFolders { get; private init; } = [];
 
@@ -149,6 +156,31 @@ public sealed record MailboxScope
     /// cursor.
     /// </remarks>
     public bool IncludesJunkMail { get; private init; }
+
+    /// <summary>Gets who the read is answering for, which decides whether mail judged spam is in it.</summary>
+    /// <remarks>
+    /// <para>
+    /// An agent's read never reaches a message whose current verdict is spam, from whichever stage, in whichever folder,
+    /// and never reaches the junk folder's mail unless the person marked the message not spam. A spam message is written
+    /// by somebody hostile, and an agent is a model acting on what it reads, so a phishing message's instructions would
+    /// otherwise reach a model acting for the mailbox's owner. The person's own read reaches all of it, as the client
+    /// draws spam rather than hiding it.
+    /// </para>
+    /// <para>
+    /// <see cref="MailboxReaderKind.Agent" /> is the default for the reason it is the enum's zero value: a scope that
+    /// forgot to say whose read it is withholds spam rather than handing it to a model. It stays out of a continuation
+    /// cursor's fingerprint, because no surface serves both readers through one cursor.
+    /// </para>
+    /// </remarks>
+    public MailboxReaderKind Reader { get; private init; }
+
+    /// <summary>Gets every junk folder of the accounts in scope, which an agent's read withholds except for mail the person marked not spam.</summary>
+    /// <remarks>
+    /// Kept apart from <see cref="WithheldJunkFolders" /> because the two are read by different readers and only one of
+    /// them is a caller's choice: the person asks for junk or not, while an agent is answered by the verdict whatever it
+    /// asked. Empty when no account in scope maps a junk folder.
+    /// </remarks>
+    public IReadOnlyList<MailFolderIdentity> JunkFolders { get; private init; } = [];
 
     /// <summary>Gets the conversation a query is restricted to, or <see langword="null" /> when it is restricted to no single one.</summary>
     /// <remarks>
@@ -205,8 +237,8 @@ public sealed record MailboxScope
             : new MailboxScope(accounts, folders, roles);
     }
 
-    /// <summary>Admits the folders configuration says a tool may read from, and nothing else.</summary>
-    /// <param name="readableFolders">The folders a tool may read, empty when none may.</param>
+    /// <summary>Admits the folders configuration says the reader may reach, and nothing else.</summary>
+    /// <param name="readableFolders">The folders the reader may reach, empty when none may.</param>
     /// <returns>The same scope restricted to those folders, or this scope unchanged when none is readable.</returns>
     /// <remarks>
     /// Ordered and deduplicated so one configuration produces one predicate, whichever order the folders were read in.
@@ -284,5 +316,23 @@ public sealed record MailboxScope
                         .OrderBy(static folder => folder.AccountId.Value, StringComparer.Ordinal)
                         .ThenBy(static folder => folder.Alias.Value, StringComparer.Ordinal),
                 ],
+        };
+
+    /// <summary>Records who the read is answering for, beside the junk folders an agent's read withholds.</summary>
+    /// <param name="reader">Who the read is answering for.</param>
+    /// <param name="junkFolders">Every account's junk folder, empty when none is mapped.</param>
+    /// <returns>The same scope answering for <paramref name="reader" />.</returns>
+    internal MailboxScope AnsweringFor(
+        MailboxReaderKind reader,
+        IReadOnlyList<MailFolderIdentity> junkFolders) => this with
+        {
+            Reader = reader,
+            JunkFolders =
+            [
+                .. junkFolders
+                    .DistinctBy(static folder => (folder.AccountId.Value, folder.Alias.Value))
+                    .OrderBy(static folder => folder.AccountId.Value, StringComparer.Ordinal)
+                    .ThenBy(static folder => folder.Alias.Value, StringComparer.Ordinal),
+            ],
         };
 }

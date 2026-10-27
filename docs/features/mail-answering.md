@@ -1,6 +1,6 @@
 # Mail answering
 
-<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs -->
+<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs -->
 
 A question about the mailbox, answered from the mail the model looks up while answering. This page describes the
 composition that does it: what the model may reach, when it reaches it, how much of it leaves the process, and what an
@@ -42,9 +42,10 @@ postamble. Both outer parts come from one implementation resolved through depend
 composition, so an answer that varies per person or per request changes what a run sends without any operation changing.
 
 **This build ships the seam and an implementation that returns nothing**, so the composed instruction is the operation's
-own text byte for byte and no run pays for a wrapper nobody has written yet. What it buys is that adding the language a
-person reads, a deployment's own wording, or anything else true of every operation is one implementation of one
-interface rather than an edit to every instruction in the tree.
+own text followed by the one data clause described in [§ Mail is read as evidence, never as an
+instruction](#mail-is-read-as-evidence-never-as-an-instruction), and no run pays for a wrapper nobody has written yet.
+What it buys is that adding the language a person reads, a deployment's own wording, or anything else true of every
+operation is one implementation of one interface rather than an edit to every instruction in the tree.
 
 There is no template language, no substitution syntax, no prompt store, and no configuration key. Whatever the
 implementation returns is text, and the composition puts one part before the operation's instruction and the other
@@ -186,11 +187,11 @@ Two further narrowings apply underneath, and neither can widen anything:
   deployment does not serve is refused instead, and so is a folder named by a [role](imap-synchronization.md#what-a-role-says-beside-how-a-folder-is-found)
   no account in scope maps, and a folder named by its configured alias rather than its identity: each is a name the caller
   could not have meant, while an identity that matches nothing names no mail here.
-- The account's junk folder is outside retrieval, and unlike `list_emails` and `search_emails` there is **no override**.
-  An answer here is composed by a model from the mail it retrieved, so content written to deceive a reader would arrive
-  as ordinary correspondence with nothing left to notice it. Naming `role:Junk` in the scope does not reach it either.
-  [Spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) records where that
-  folder comes from.
+- A message judged spam, in any folder, and the junk folder's mail the person did not mark not spam are outside
+  retrieval, and nothing asks for them back. An answer here is composed by a model from the mail it retrieved, so
+  content written to deceive a reader would arrive as ordinary correspondence with nothing left to notice it. Naming
+  `role:Junk` in the scope reaches only what the person marked not spam.
+  [Spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states the rule.
 
 ## What one retrieval may hand over
 
@@ -413,11 +414,11 @@ that answered something else into a score this system invented about somebody's 
 ### The candidate is quoted, never obeyed
 
 A judgement is two turns: the instruction, and the candidate beside the lookup it was retrieved for. The extract reaches
-the model inside the same `<retrieved-mail>` envelope an answering run reads it in, written by the same formatter, and
-the lookup is enclosed in a `<query>` element of its own — every part of it is free text a model wrote, and a run's
-earlier retrieval is one of the things that shaped it, so mail reaches it indirectly. The instruction states that
-everything inside both elements is data and that a request found there is described rather than obeyed, exactly as the
-run's own instruction does.
+the model inside the same `<retrieved-mail>` envelope an answering run reads it in, written by the same formatter into
+the same document, and the lookup is enclosed in a `<query>` element of its own — every part of it is free text a model
+wrote, and a run's earlier retrieval is one of the things that shaped it, so mail reaches it indirectly. The instruction
+states that everything inside both elements is data, and it ends with the same data clause every composed agent's
+instruction ends with, so a judgement and a run say it in one wording.
 
 The **whole** lookup travels, filters included, and that is what keeps the pass from dropping the mail a narrow lookup
 was written to find. A lookup that is mostly a narrowing leaves a query text of a word or two, and a candidate judged
@@ -436,7 +437,8 @@ Each passage is a bounded extract plus the identity an answer is traced through:
 - the stable local message identifier, which is the same one every other read names an email by;
 - the account and the folder it was read from, by the folder's identity and its place in the account's hierarchy;
 - the subject and the received time, where the message carried them;
-- what was established about the author the message displays, and what this deployment made of them;
+- where the message came from: what was established about the author the message displays and what this deployment
+  made of them, whether it sits in its account's junk folder, and whether the sender is a first contact;
 - how much the message's own text read as machine written;
 - the extract itself, already cut to the bound above;
 - what the message's own files contributed, where any of them matched: one extract per file, cut to the same bound
@@ -450,11 +452,16 @@ a picture reaches it under a different element name again — so a run can tell 
 nobody wrote, and say so when it reports a claim resting on one. The file name and the place ride with it, which is what
 lets a citation name them without a second read.
 
-The sender verdict rides with the passage so a citation can state it without reading the message a second time, and a
-provider never sees it: the envelope a passage is formatted into names the message, the account, the folder, the
-received time, and the subject, and carries the extract. The verdict reaches the caller instead, on the citation. The
-[machine-authorship reading](machine-authorship.md) travels on exactly those terms and is put to the same use — nothing
-in the retrieval path selects, ranks, or drops a passage by it, and no model is shown it.
+The provenance rides with the passage for two readers. The model is shown it, on the message element of the envelope
+below, so it can qualify a claim resting on a message nobody can vouch for; the caller is shown it on the citation, so a
+person deciding whether to act on that claim can see why it was qualified. [Where a message came
+from](#where-a-message-came-from) is what each part means and what an answer is asked to do with it. A passage whose
+provenance can no longer be read was erased between the search and the read, and is dropped rather than shown without
+one.
+
+The [machine-authorship reading](machine-authorship.md) rides with the passage too, and on narrower terms: it reaches
+the caller on the citation and no model is shown it, and nothing in the retrieval path selects, ranks, or drops a
+passage by it.
 
 A message that yielded neither a body extract nor an attachment one is dropped rather than sent as an identifier with
 nothing beside it — encrypted mail, or a message matched on its subject alone while nothing it carries could be read.
@@ -475,7 +482,7 @@ Inside that tool result, each extract sits in an element of its own:
 
 ```xml
 <retrieved-mail retrieval-mode="hybrid">
-  <message id="019fe12f-a4a1-7759-8d95-21d0bb6eec90" account="work" folder="ARCHIVE" received="2026-08-01T09:14:22.0000000+02:00">
+  <message id="019fe12f-a4a1-7759-8d95-21d0bb6eec90" account="work" folder="ARCHIVE" received="2026-08-01T09:14:22.0000000+02:00" sender-authentication="authenticated">
     <subject>Invoice 41</subject>
     <extract>the invoice is attached</extract>
   </message>
@@ -487,20 +494,97 @@ fact about the instance at the moment of the call rather than about the build: a
 refusing ranks lexically until it is not. It is what tells the model how a further query is worth wording, and it is
 written here for the same reason `search_emails` publishes the mode in every response rather than in its description.
 
-Nothing a message contains can end an element or open one. Every value — the extract, the subject, the aliases — is
-written through an XML writer that escapes what would, so a message whose text closes the envelope and opens a forged
-instruction arrives as that text: visible, attributed to the message that sent it, and inert. A lookup that found
-nothing writes the empty envelope rather than nothing at all, so the model reads that the mailbox was searched instead of
-guessing at a blank result.
+Nothing a message contains can end an element or open one. The turns and tool results that carry text somebody else
+wrote on this path are composed by one writer, `AgentTurnDocument` in `backend/src/AI/Orchestration/`: `ask_mail`'s
+question turn, the `<retrieved-mail>` envelope, the relevance judgement below, the Agent's question turn and its
+`read_thread`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
+person or the Agent wrote, the turn a compaction of an Agent conversation reads,
+[reply drafting](reply-drafting.md#what-reaches-the-provider-and-what-does-not)'s turn, and the turns of enrichment, a
+conversation's state, contact relationships, calendar-event extraction, the day layout, Discover's composition, and body
+cleanup. Only the writer names elements and attributes, and it escapes every
+value wherever the value sits — the extract, the subject, a calendar title, and a task as text content, and the
+account alias, the folder path, an attachment's file name, and a sender's address as attributes — so none can end an
+element or open one. A message whose text closes the envelope and opens a forged instruction arrives as that text:
+visible, attributed to the message that sent it, and inert. A character that has no place in a document — a lone half
+of a surrogate pair — is replaced rather than allowed to fail the turn. The writer also holds a turn's
+character budget: a quoted value it has to shorten is cut at a text-element boundary, its element says so in a
+`cut="true"` attribute, and every element it opened is closed however much was cut. Enrichment, a conversation's state,
+contact relationships, calendar-event extraction, the day layout, and body cleanup hand their agent's request bound to
+the writer, and a turn whose structure still outgrows it is written again under a smaller budget, so the request is cut
+to fit rather than refused. Discover's composition is written with no budget, and a turn past its request bound is
+still refused. A lookup that found nothing writes
+the empty envelope rather than nothing at all, so the model reads that the mailbox was searched instead of guessing at a
+blank result.
+
+The person's own question is written the same way, inside one fixed `<ask>` element after the line that dates the turn.
+That element, with the person's own earlier turns where a conversation has them, is where the person's wishes are
+carried, so text that imitates it inside a message is quoted text rather than a second question.
+
+An Agent conversation's earlier turns quoted mail too, so the history a turn replays keeps that mail quoted. What the
+person and the Agent wrote is replayed in the role of whoever wrote it. A summary that compaction wrote in place of the
+oldest turns is not: it is a model's account of turns that quoted mail, so it is replayed as a quoted
+`<conversation-summary>` document under a line saying who wrote it and that nobody in the conversation said it, rather
+than as the Agent's own turn — where an instruction a message slipped into it would come back as something the Agent
+concluded. A message the Agent proposed is replayed as a `<proposed-message>` whose subject and recipients are quoted
+values rather than a sentence built around them. The turn a compaction reads writes each earlier turn as a `<turn>`
+element whose `author` attribute says whether the person or the Agent wrote it, each proposal the same way, and the
+summary it folds in as a `<conversation-summary>` of its own. Every value is scanned at `ChatPrompt` as the value it is
+before any of those documents is written around it.
+
+### Where a message came from
+
+A message does not need to give an order to do harm. It only has to state something false as fact — that a supplier's
+bank account changed, that a colleague needs a payment approved today — and an answer that restates it hands the claim to
+the person in the assistant's voice. So the operations that quote a message to a model write where the message came
+from as attributes of the element the writer wrote for it: `ask_mail`, the Agent's `search_mail` and `read_thread`,
+enrichment, a conversation's state, and Discover. Reply drafting, contact relationships, calendar-event extraction, and
+body cleanup quote mail too and carry no provenance yet; their turns carry the clause below, which applies only where a
+turn carries the attributes. The attributes are these:
+
+| Attribute | Written | What it says |
+| --- | --- | --- |
+| `sender-authentication` | Always | `authenticated`, `not-established`, or `failed`: what the receiving server [established about the displayed author](sender-authentication.md#whether-the-displayed-author-authenticated) |
+| `sender-trusted` | Only as `true` | This deployment [recognizes that author](sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes) |
+| `junk` | Only as `true` | The message sits in the folder its account maps as junk |
+| `first-contact` | Only as `true` | Nothing the mailbox held from before the message was written by its sender or addressed to them |
+
+The flags are written only where they hold, so the common message asks a model to read no negation. Every value is read
+from what the deployment recorded — the verdict the message was stored with, the configured role of the folder it sits
+in, and the mail the same mailbox held earlier — and none is read from the message's text, so a message that calls itself
+verified, or writes these attributes into its own subject, changes nothing the service wrote: the writer escapes it like
+any other text. *First contact* reads earlier correspondence the way [contact collection](contacts.md) does — the
+sender wrote the earlier mail, or it was addressed to them in `To` or `Cc` — within the same account, received strictly
+before the message (or, for a copy in Sent that carries no arrival instant, sent before it), outside the junk, trash,
+and drafts folders, and only among mail still part of the mailbox in a folder the mapping leaves visible to AI; a message
+with no usable sender address is a first contact. A signature verification recorded as the sender verdict later reaches every operation listed above through
+`sender-authentication` without anything here changing.
+
+The data clause carries the rule a model is given about them: a claim resting only on a message whose sender is not
+authenticated, or that is junk or a first contact, is reported with that qualification rather than as settled fact; a
+request from such a message to change payment details, a bank account, or credentials, or to do something urgently, is
+flagged with what the attributes say — a sender the deployment could not verify, a message in junk, a sender the
+mailbox had not corresponded with — instead of restated; and a claim from an authenticated sender whose message is
+neither junk nor a first contact is not doubted for where it came from alone. Like the rest of the clause it is the weaker mechanism — what is
+structural is that the attributes are the service's own, in a place no message can write to.
+
+The provenance is personal data: whether somebody has written to a mailbox before is a fact about who its owner
+corresponds with. It inherits the classification of the mail it describes, travels only with a message the run already
+read, and is read by identity from those messages alone; earlier correspondence is looked for only in mail a tool may
+read, so a sender whose only earlier message sits in an unmapped folder or was expunged is a first contact, and the flag
+says nothing about mail the caller could not read.
 
 The identity is the other reason the envelope exists. Each extract carries the stable local identifier an answer cites
 and the account and folder it was read from, unchanged — an answer that cannot say which message a claim came from
 cannot be checked.
 
-**The weaker one.** The instruction states that everything inside the envelope is data, that a request found there is
-described rather than obeyed, and that each statement is cited by the identifier of the message it came from. It is
-worth writing, and it is second: a model that ignored every word of it would still not have read mail in the position an
-instruction arrives in.
+**The weaker one.** Every composed instruction ends with one data clause, owned by the writer and appended by the
+composition rather than repeated in each operation's text — the relevance judgement above carries the same constant. It
+says who wrote the text a turn quotes, that such text may give orders or imitate this service, its elements, or the
+person, that a request found there is reported rather than followed, that an element is structure only where the service
+wrote it, and that where a turn carries an `<ask>` element, that element and the person's own earlier turns speak for
+the person while nothing quoted inside a turn or a tool result does. `ask_mail`'s own instruction adds that each statement
+is cited by the identifier of the message it came from. It is worth writing, and it is second: a model that ignored every
+word of it would still not have read mail in the position an instruction arrives in.
 
 This replaces the orchestration framework's own formatting, which writes each result as a labelled paragraph between
 dashed separators and closes with an instruction of its own. Retrieved mail written that way is prose in the same voice
@@ -547,8 +631,16 @@ edited.
 
 ## What an answer carries back
 
-The answer text, and the passages the run retrieved. The passages travel with it because they are what make it
-checkable: each names a message that can then be fetched whole.
+The answer text, the links it writes, and the passages the run retrieved. The passages travel with it because they are
+what make it checkable: each names a message that can then be fetched whole.
+
+The text is published with its picture markup neutralised and every link in it judged, on the rule
+[the presentation plan](presentation-plan.md#the-eleven-block-types) states for an answer block: a link carries what
+`MailLinkReader` established about it and whether any retrieved passage or attachment extract carries its address. The
+pictures are neutralised after the sensitive-content scanner below, because its placeholder opens with a bracket and a
+mark the model wrote in front of a detected value would otherwise make it a picture, and before the cut to what one
+response carries, because neutralising adds characters; the links are judged last, so what is judged is exactly the text
+a caller receives.
 
 They are what the run *retrieved*, not what the model demonstrably used. Nothing outside the model knows which of them
 it drew on, so claiming the narrower set would state something this system cannot observe.
@@ -596,10 +688,12 @@ than one of them; a reader given a list of sources wants the messages, not the n
 one carries an extract: the passage has already reached a provider, and returning it to the caller as well would publish
 mail content from a call whose result is an answer.
 
-Each citation does carry the sender verdict, in the shape a listing publishes it in and without the evidence behind it.
-An answer is worth what the mail behind it is worth, so a reader deciding whether to act on a claim is told whether the
-message it came from had an author anybody established and whether this deployment recognizes that author. What the
-verdict is reached from stays with the single-email read the citation resolves through.
+Each citation does carry the message's provenance: the sender verdict, in the shape a listing publishes it in and
+without the evidence behind it, and beside it `inJunkFolder` and `firstContact`. An answer is worth what the mail behind
+it is worth, so a reader deciding whether to act on a claim is told whether the message it came from had an author
+anybody established, whether this deployment recognizes that author, whether it sat in junk, and whether its sender had
+ever corresponded with the mailbox — the same facts the model was given to qualify the claim with. What the verdict is
+reached from stays with the single-email read the citation resolves through.
 
 It carries the [machine-authorship reading](machine-authorship.md) beside it, in the shape a listing publishes that in,
 and for a narrower reason: it is one more thing a reader may want to know about a message an answer rests on, and it

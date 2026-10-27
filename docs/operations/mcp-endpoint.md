@@ -824,7 +824,9 @@ The operational consequences are the ones that always applied to an unauthentica
   two need — it lets them answer the user's correspondents and pass the user's mail and its attachments on to
   strangers. It carries `get_outgoing_email` and `cancel_outgoing_email` with it, so the same reach reads back what the
   sends it made were answered with and stops one before it leaves; those two are confined to what the calling principal
-  queued, which on an endpoint that admits everybody as one identity confines nothing. It carries `send_draft` too, so
+  queued, which on an endpoint that admits everybody as one identity confines nothing. Beside the reading half it
+  carries `list_outgoing_emails` and the outbox preview too, so the same reach lists every message an account has not
+  sent yet, whoever queued it, with its recipients, subject, and text. It carries `send_draft` too, so
   a message the user wrote and did not send is one call from having been sent. Nothing takes any of it back.
   `mailfathom.mail.drafts.write` is the mildest of the four writing halves and still not nothing: through `save_draft`,
   `update_draft`, and `delete_draft` it lets anyone who can reach the port put a message into the user's own Drafts
@@ -2055,9 +2057,8 @@ do](#what-a-credential-may-do) is what decides it, and `mfctl credential list` s
 `readOnlyHint` false with `openWorldHint` true: it changes the user's mailbox rather than MailFathom's copy of it, so
 its effect leaves this process. It is `idempotentHint` true because each value it writes is stated rather than
 adjusted, so a second identical call asks for what the first one asked for, and `destructiveHint` true because that
-annotation asks whether a tool performs only additive updates: a keyword replacement states the whole set and so takes
-off a label the caller did not list, a removal takes named labels off, and clearing either flag removes a value the
-message carried. Every one of those is reversible, which is a separate fact the annotation does not answer. A credential
+annotation asks whether a tool performs only additive updates: a keyword removal takes named labels off, and clearing
+either flag removes a value the message carried. Every one of those is reversible, which is a separate fact the annotation does not answer. A credential
 granting
 `mailfathom.mail.flags.write` is what puts it in the listing, and a credential provisioned with no permission named
 narrows nothing, so it is listed wherever its user's roles grant it.
