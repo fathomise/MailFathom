@@ -567,9 +567,9 @@ readable, and the reconciliation window skips it; the marker is cleared when the
 
 `client_preferences` holds one row per user, carrying what that person set about
 [their own client](../operations/client-endpoint.md#the-preferences-routes) so that it follows them between machines
-rather than staying in the browser profile or the desktop install they set it in. There are three of them today: whether
-this deployment may be told what their client is doing, what the client is painted in, and whether opening a message
-opens a tab.
+rather than staying in the browser profile or the desktop install they set it in. There are nine of them today, which
+that page lists, from whether this deployment may be told what their client is doing to the domains whose links they
+trust to open without being asked first.
 
 | Column of `client_preferences` | What it records |
 |---|---|
