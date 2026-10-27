@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261027201459_RecordStoredEmailAuthorAuthenticationRoute")]
+    [Migration("20261027214512_RecordStoredEmailAuthorAuthenticationRoute")]
     partial class RecordStoredEmailAuthorAuthenticationRoute
     {
         /// <inheritdoc />
@@ -1442,6 +1442,74 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasKey("ScheduleId");
 
                     b.ToTable("job_schedules", (string)null);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.KnownAuthenticationProviderChangeEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Act")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("AuthorityIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("ImapHost")
+                        .IsRequired()
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("known_authentication_provider_changes", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_known_authentication_provider_changes_act", "\"Act\" IN ('added', 'removed')");
+                        });
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.KnownAuthenticationProviderEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AddedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("AuthorityIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<string>("ImapHost")
+                        .IsRequired()
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImapHost")
+                        .IsUnique()
+                        .HasDatabaseName("ix_known_authentication_providers_host");
+
+                    b.ToTable("known_authentication_providers", (string)null);
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailAccountAssignmentEntity", b =>
