@@ -244,6 +244,34 @@ describe('useClientPreferences', () => {
         expect(JSON.parse(requests[1]?.body ?? '')).not.toHaveProperty('trustedLinkDomains');
     });
 
+    it('trusts the domains a write made after a failed read answers with', async () => {
+        const storedWithTheList = JSON.stringify({
+            ...(JSON.parse(stored({ telemetryEnabled: false, theme: 'dark', openMailInTabs: false })) as object),
+            trustedLinkDomains: ['example.com'],
+        });
+        const requests: ClientRequest[] = [];
+        const { result } = reading((request) => {
+            requests.push(request);
+
+            return Promise.resolve(
+                request.method === 'POST'
+                    ? { status: 200, body: storedWithTheList, headers: {} }
+                    : { status: 503, body: '', headers: {} },
+            );
+        });
+
+        await waitFor(() => {
+            expect(requests).toHaveLength(1);
+        });
+        act(() => {
+            result.current.preferences.chooseTheme('dark');
+        });
+
+        await waitFor(() => {
+            expect(result.current.preferences.trustedLinkDomains).toStrictEqual(['example.com']);
+        });
+    });
+
     it('states the whole document on a change, carrying back what no control here offers', async () => {
         const { transport, requests } = recording(
             stored({ telemetryEnabled: false, theme: 'light', openMailInTabs: false }),

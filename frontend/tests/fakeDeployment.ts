@@ -625,12 +625,14 @@ export class FakeDeployment {
             case 'POST /preferences': {
                 const stated = recordIn(request.body);
 
-                // As the route does: a body stating nothing about the telemetry switch leaves the answer the
-                // deployment holds, which is what a client sends in every write the person did not move it in.
+                // As the route does: a body stating nothing about the telemetry switch or the trusted list leaves
+                // the answer the deployment holds, which is what a client sends in every write the person did not
+                // move the switch in, and in every write at all for the list.
                 if (stated !== null) {
                     this.preferences = {
                         ...stated,
                         telemetryEnabled: stated['telemetryEnabled'] ?? this.preferences['telemetryEnabled'],
+                        trustedLinkDomains: stated['trustedLinkDomains'] ?? this.preferences['trustedLinkDomains'],
                     };
                 }
 

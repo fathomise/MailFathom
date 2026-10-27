@@ -347,12 +347,14 @@ function answerFor(
     if (route === '/preferences') {
         const stated = request.method === 'POST' ? recordIn(request.body) : null;
 
-        // As the route does: a body stating nothing about the telemetry switch leaves the answer the deployment
-        // holds, which is what the client sends in every write the person did not move it in.
+        // As the route does: a body stating nothing about the telemetry switch or the trusted list leaves the answer
+        // the deployment holds, which is what the client sends in every write the person did not move the switch in,
+        // and in every write at all for the list.
         if (stated !== null) {
             state.preferences = {
                 ...stated,
                 telemetryEnabled: stated['telemetryEnabled'] ?? state.preferences['telemetryEnabled'],
+                trustedLinkDomains: stated['trustedLinkDomains'] ?? state.preferences['trustedLinkDomains'],
             };
         }
 

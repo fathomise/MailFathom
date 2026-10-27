@@ -37,7 +37,7 @@ namespace MailFathom.Host.Api;
 /// <para>
 /// A write states the whole document, which is what makes it a closed set rather than a patch: a preference the body
 /// omits is stored as its own unset answer rather than left at whatever the row held — every one but the telemetry
-/// switch, whose omission leaves the stored answer as it was. It carries no version and is
+/// switch and the trusted link domains, whose omission leaves the stored answer as it was. It carries no version and is
 /// last-write-wins, because the only writers are one person's own devices and a conflict screen over a checkbox would
 /// be a worse answer than the second device winning.
 /// </para>
@@ -154,7 +154,7 @@ internal static class ClientPreferencesEndpoint
     /// </para>
     /// <para>
     /// A body stating no answer to the switch never writes it, whoever sends it and whether or not a policy holds it.
-    /// It is the one preference whose omission is not its unset answer, and both halves of that are about the person:
+    /// It is one of the two preferences whose omission is not its unset answer, and both halves of that are about the person:
     /// the unset answer is on, so a writer with nothing to say about telemetry would otherwise opt them in, and a
     /// client that read a forced value has no answer of theirs to state — restating what it read would store the
     /// policy's answer as the person's once the policy is gone. A client therefore states the switch only when the
@@ -273,8 +273,9 @@ internal static class ClientPreferencesEndpoint
 /// Bound strictly: a key nothing here binds fails the bind rather than being stored, which is what keeps the document
 /// closed — it holds nine preferences because nine is what a client can state, not because a writer happened to send
 /// nine. Every one of them is optional, and an omitted one is committed as its unset answer rather than left at
-/// whatever the row held. The telemetry switch is the exception, for the reason
-/// <see cref="ClientPreferencesEndpoint.SaveAsync" /> gives: stating nothing about it leaves the stored answer alone.
+/// whatever the row held. The telemetry switch and the trusted link domains are the exceptions, for the reasons
+/// <see cref="ClientPreferencesEndpoint.SaveAsync" /> gives: stating nothing about either leaves the stored answer
+/// alone.
 /// </para>
 /// <para>
 /// The theme travels as its name rather than as <see cref="ClientThemeChoice" /> itself, for the reason the

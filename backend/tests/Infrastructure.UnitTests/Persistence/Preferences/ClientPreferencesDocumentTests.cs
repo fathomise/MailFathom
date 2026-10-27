@@ -80,6 +80,34 @@ public sealed class ClientPreferencesDocumentTests
         Assert.Equal(["nordwind.example"], read.TrustedLinkDomains.Select(static domain => domain.Name));
     }
 
+    /// <summary>A row this build did not check may name one domain twice, and a list trusts a domain once however often it is written.</summary>
+    [Fact]
+    public void Parse_ARowNamingOneDomainTwice_ReadsItBackOnce()
+    {
+        // Act
+        var read = ClientPreferencesDocument.Parse("""{"trustedLinkDomains":["nordwind.example","fabrikam.example","nordwind.example"]}""");
+
+        // Assert
+        Assert.Equal(["nordwind.example", "fabrikam.example"], read.TrustedLinkDomains.Select(static domain => domain.Name));
+    }
+
+    /// <summary>
+    /// A row holding more than the bound is cut to it rather than answered whole: a client refuses an answer holding
+    /// more, and would then read every preference as unset rather than only the list.
+    /// </summary>
+    [Fact]
+    public void Parse_ARowListingMoreDomainsThanTheBound_ReadsBackTheFirstOnesWithinIt()
+    {
+        // Arrange
+        var written = Enumerable.Range(0, ClientPreferences.MostTrustedLinkDomains + 1).Select(static index => $"domain{index}.example").ToArray();
+
+        // Act
+        var read = ClientPreferencesDocument.Parse(JsonSerializer.Serialize(new { trustedLinkDomains = written }));
+
+        // Assert
+        Assert.Equal(written.Take(ClientPreferences.MostTrustedLinkDomains), read.TrustedLinkDomains.Select(static domain => domain.Name));
+    }
+
     /// <summary>The document is sparse, so a build publishing one more preference reads a row written before it existed.</summary>
     [Fact]
     public void Parse_ADocumentCarryingNoKeys_AnswersEveryPreferenceAsUnset()

@@ -127,7 +127,8 @@ export function readClientPreferences(
 }
 
 /**
- * What a write states: the whole document, with the telemetry switch stated only as the person's own answer.
+ * What a write states: every preference but the trusted link domains, with the telemetry switch stated only as the
+ * person's own answer.
  *
  * `telemetryEnabled` is `null` wherever the value a caller holds is not one the person gave it. A read answers the
  * switch as it is applied, which under a settings policy is the policy's answer rather than theirs — so a caller that
@@ -145,9 +146,10 @@ export type StatedClientPreferences = Omit<ClientPreferences, 'telemetryEnabled'
 const unstated = new Set(['trustedLinkDomains']);
 
 /**
- * States the whole document, and answers with what is now stored.
+ * States every preference but the trusted link domains, and answers with what is now stored — the list included,
+ * which the route keeps for a write that says nothing about it.
  *
- * The whole of it rather than the part that changed, because that is what the route accepts: a preference the body
+ * Every other one rather than the part that changed, because that is what the route accepts: a preference the body
  * omits is committed as its own unset answer rather than left at whatever the row held. A caller therefore sends back
  * what it last read with one value replaced, which is also why nothing here merges anything — and states the
  * telemetry switch only where {@link StatedClientPreferences} says it may.
