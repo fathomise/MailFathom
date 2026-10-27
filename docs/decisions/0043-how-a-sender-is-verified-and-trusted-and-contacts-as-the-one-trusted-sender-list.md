@@ -314,9 +314,12 @@ signature is recorded only where authentication did not hold, so the record name
 `SenderTrustSource` loses `ConfiguredTrustedSender` (`2`) and `StoredTrustedSender` (`3`), whose numbers are never
 reused. It gains `OrganizationContact` (`6`) and `PersonalContact` (`7`). A verdict reached by a contact stores a
 reference to that contact, as an organization member's verdict stores its organization. Unlike an organization's
-reference, it is never cleared on its own. Erasing a contact resets every verdict that references it to the
-not-evaluated verdict, in the erasure's own transaction, so no `Trusted` or `Known` mark is left with nothing to name.
-The re-judgment below then restores whatever another source still grants.
+reference, it is never cleared on its own. Every act that removes a contact resets every verdict referencing it to
+the not-evaluated verdict, in that act's own transaction, so no `Trusted` or `Known` mark is left with nothing to name.
+There are three such acts: erasing the contact, erasing the user whose book holds it (the book goes by cascade), and
+deleting the organization whose book holds it. The reset runs before the cascade, so the data-subject erasure is never
+blocked by a verdict and never leaves one dangling. The re-judgment below then restores whatever another source still
+grants.
 
 ### Organization contacts
 
@@ -380,7 +383,12 @@ own book with the person as writer: as a new contact named by the displayed name
 holds the address with the `Agent` or `Unrecorded` kind, by recording it again under the person. It goes through the client's existing contact routes and their `mailfathom.contacts.write`. Before it writes, the popup says what follows: mail from that address is drawn as trusted
 when it authenticates, and as known whenever it shows that address, unless the account is strict. It is offered on a
 warning too, because the person may be writing down the real correspondent a forgery impersonated. Their authenticated
-mail is then trusted, and the forgery stays a warning. It is never offered on Sent or Drafts, where no mark is drawn.
+mail is then trusted. What becomes of the forgery the act was pressed on follows the ordinary rules, and the popup's
+sentence says so. On a strict account, or where the domain's policy is `quarantine` or `reject`, it stays a warning.
+On a relaxed account under `p=none` it becomes `Known`, like any other message showing that address, because a
+monitoring-only domain is exactly the case relaxed mode accepts. No exception is made for the message the act was
+pressed on: a verdict that depended on which button was pressed where could not be re-judged.
+It is never offered on Sent or Drafts, where no mark is drawn.
 
 **Audit** is that record together with the verdict's contact reference. From a trusted message an operator reaches the
 contact, the address, and who wrote it, by which surface and credential. No model ever appears there as the writer of
@@ -390,9 +398,9 @@ contact's and the verdict's identifiers do, and no address or domain does.
 ### A contact that changes, and mail already stored
 
 **A contact write re-judges the stored mail it affects.** Adding an address, removing one, moving one between
-contacts, promoting a collected contact, deleting or erasing a contact, and writing an organization contact each
-enqueue one job in the durable job store (ADR 0009), which issue 2783 builds. The job is keyed by the book and the address, so repeated writes
-coalesce. It re-judges two sets of stored messages:
+contacts, promoting a collected contact, deleting or erasing a contact, writing an organization contact, erasing a
+user, and deleting an organization each enqueue one job per address the act removed or changed, in the durable job
+store (ADR 0009), which issue 2783 builds. The job is keyed by the book and the address, so repeated writes coalesce. It re-judges two sets of stored messages:
 
 - every message whose first `From` mailbox is that address, on every account the book reaches now: the accounts
   assigned to the book's user, or every account of the organization;
@@ -400,8 +408,9 @@ coalesce. It re-judges two sets of stored messages:
   longer reaches after an unassignment or a move between organizations.
 
 The second set is what makes revocation complete. Amending a contact revokes every verdict it granted, not only those
-on the accounts its book reaches today. An erasure has already reset those verdicts in its own transaction, and the
-job then re-judges the first set. No stored mark outlives the contact that explained it.
+on the accounts its book reaches today. An act that removed the contact has already reset those verdicts in its own
+transaction. The job then re-judges the first set, on the accounts the book reached when the act ran, where the book
+itself is gone. No stored mark outlives the contact that explained it.
 
 - A re-judgment recomputes the trust verdict from what the message already stores: the authentication verdict and the
   route that established the author, the signature verification, the organization verdict, and for `Known` the policy
