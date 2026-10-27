@@ -69,7 +69,7 @@ MailFathomDesign.data.fathom = {
       { id: "export", icon: "ios_share", label: "Export", do: "catchupExport" },
     ] },
     "start.briefing": { name: "Morning briefing", what: "written from today's new mail", actions: [
-      { id: "expand", icon: "unfold_more", label: "Expand it", do: "answer", line: "The Contoso addendum decision is due tomorrow. Anna asked twice and copied legal on 24 August; the draft on Start proposes a 5% cap. Fabrikam needs a Q4 date before phase three can start, and Tomasz offered 14 or 21 October. Audit wants the IT contract register by 3 September; only the Contoso addendum is missing from it." },
+      { id: "expand", icon: "unfold_more", label: "Expand it", do: "answer", line: "The Contoso addendum decision is due tomorrow. Anna asked twice and copied legal on 25 August; the draft on Start proposes a 5% cap. Fabrikam needs a Q4 date before phase three can start, and Tomasz offered 14 or 21 October. Audit wants the IT contract register by 3 September; only the Contoso addendum is missing from it." },
       { id: "shorter", icon: "compress", label: "Make it shorter", do: "answer", line: "Answer Contoso today. Confirm Fabrikam's date. The rest can wait." },
       { id: "followup", icon: "forum", label: "Ask a follow-up", do: "agent", ctx: "this morning's briefing" },
       { id: "why-order", icon: "help", label: "Why in this order?", do: "answer", line: "By deadline first, then by how many people are waiting. Contoso is due tomorrow and two people wait on it." },
@@ -115,7 +115,7 @@ MailFathomDesign.data.fathom = {
       { id: "refresh-all", icon: "refresh", label: "Refresh them all now", do: "toast", toast: "Four questions refreshed, each counted against your allowance. The Q4 renewals question stays paused." },
     ] },
     "start.watch": { name: "Watching", what: "a watched question", actions: [
-      { id: "changed", icon: "difference", label: "What changed?", do: "answer", line: "One new message from Contoso on 24 August moves the answer: the cap is now the only open term." },
+      { id: "changed", icon: "difference", label: "What changed?", do: "answer", line: "One new message from Contoso on 25 August moves the answer: the cap is now the only open term." },
       { id: "refresh", icon: "refresh", label: "Refresh now", do: "toast", toast: "Refreshed. It counted against your allowance." },
     ] },
     "start.day": { name: "Your day", what: "calendar and tasks in time order", actions: [

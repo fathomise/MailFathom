@@ -5688,7 +5688,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const old = w.days >= 2;
           return {
             ask: w.ask, who: w.name + " · " + w.org + (w.asked > 1 ? " · asked " + (w.asked === 2 ? "twice" : w.asked + " times") : ""),
-            since: w.since, due: w.due, hasDue: !!w.due, name: w.name,
+            since: (w.asked > 1 ? "last asked " : "asked ") + w.since, due: w.due, hasDue: !!w.due, name: w.name,
             open: () => this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: w.tid, cameFrom: false }),
             reply: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.goAgentWith("a reply to " + w.name + " · " + w.ask.toLowerCase()); },
             replyAria: "Draft a reply to " + w.name,

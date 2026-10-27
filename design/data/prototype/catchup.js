@@ -15,7 +15,7 @@ MailFathomDesign.data.catchup = {
   days: 16,
   reasons: {
     away: { label: "16 days away", line: "You were last here on Monday 10 August, 17 days ago." },
-    holiday: { label: "Holiday, 11-26 August", line: "Your calendar said Holiday from 11 to 26 August." },
+    holiday: { label: "Holiday", line: "Your calendar said Holiday from 11 to 26 August." },
   },
   slides: [
     {
@@ -44,14 +44,14 @@ MailFathomDesign.data.catchup = {
       title: "Three things wait on you",
       lede: "Everything else either settled or can wait.",
       items: [
-        { id: "n-contoso", kind: "thread", icon: "forum", label: "The CPI cap counter-proposal", sub: "Anna Kowalska, Contoso · asked twice, last on 24 August", badge: "due tomorrow", tid: "contoso",
+        { id: "n-contoso", kind: "thread", icon: "forum", label: "The CPI cap counter-proposal", sub: "Anna Kowalska, Contoso · asked twice, last on 25 August", badge: "due tomorrow", tid: "contoso",
           short: "Contoso wants indexation without a cap; you have not answered since 7 August.",
-          more: "Anna asked again on 24 August and copied her legal team. The draft on Start already proposes a 5% cap.",
-          pl: "Kontrpropozycja z limitem CPI. Anna Kowalska pytała dwa razy, ostatnio 24 sierpnia." },
-        { id: "n-fabrikam", kind: "thread", icon: "forum", label: "A Q4 delivery date for Fabrikam", sub: "Tomasz Bąk, Fabrikam · since 19 August", badge: "02.09", tid: "fabrikam1",
+          more: "Anna asked again on 25 August and copied her legal team. The draft on Start already proposes a 5% cap.",
+          pl: "Kontrpropozycja z limitem CPI. Anna Kowalska pytała dwa razy, ostatnio 25 sierpnia." },
+        { id: "n-fabrikam", kind: "thread", icon: "forum", label: "A Q4 delivery date for Fabrikam", sub: "Tomasz Bąk, Fabrikam · asked on 19 August and again yesterday", badge: "02.09", tid: "fabrikam1",
           short: "Fabrikam needs a confirmed Q4 date; phase three of the rollout depends on it.",
           more: "Tomasz offered 14 or 21 October. Piotr's plan from 17 August only works with the 14th.",
-          pl: "Termin dostawy Q4 dla Fabrikam. Tomasz Bąk czeka od 19 sierpnia." },
+          pl: "Termin dostawy Q4 dla Fabrikam. Tomasz Bąk pytał 19 sierpnia i ponownie wczoraj." },
         { id: "n-audit", kind: "thread", icon: "forum", label: "The IT contract register for the audit", sub: "Audit · requested 20 August", badge: "03.09", tid: "audyt1",
           short: "The audit wants every IT contract with its addenda by 3 September.",
           more: "Twelve contracts are already in the shared folder; the Contoso addendum is the one missing.",
