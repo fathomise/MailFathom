@@ -785,6 +785,15 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
     const markupOnly = storedEmailId === messages.markupOnlyId;
     const spamRow = mail.spamRows.find((row) => row.id === storedEmailId);
 
+    // The one read answered as text rather than JSON: the message as it arrived, whichever message was asked for.
+    if (route.endsWith('/source')) {
+        return {
+            status: 200,
+            body: messages.newsletterSource,
+            headers: { 'content-type': 'text/plain; charset=utf-8' },
+        };
+    }
+
     if (spamRow !== undefined) {
         return answering(
             route.endsWith('/body') ? { ...messages.spamBody, storedEmailId } : messages.spamMessage(spamRow),

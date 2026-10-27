@@ -746,6 +746,135 @@
       ]
     },
     {
+      "id": "message-source-menu",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 0
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "More actions",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "menuitem",
+            "name": "Show source"
+          }
+        }
+      ]
+    },
+    {
+      "id": "message-source",
+      "route": "/#/mail",
+      "signIn": true,
+      "compositions": [
+        "phone_360x780",
+        "telefon",
+        "phone_430x932",
+        "tablet_744x1133",
+        "desktop_1280x720",
+        "desktop",
+        "desktop_1920x1080",
+        "desktop_2560x1440",
+        "desktop_1280x1400",
+        "desktop_1440x2460"
+      ],
+      "narrowedBecause": "Where two panes stand below the desktop composition the head leaves More actions to the toolbar, whose menu names no subject, and message-source-toolbar holds those widths. The two tablets at desktop width are left out of both: under a finger the prototype leaves its head acts to the toolbar there too, while the client decides that by width; the two half-screen desktop windows are left out of both for the same split the other way round; and the dialog the source opens as there is the one desktop_1280x720 and desktop already hold.",
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 0
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "More actions",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "role": "menuitem",
+            "name": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "text": "A newsletter from Example · as received, 1 kB"
+          }
+        }
+      ]
+    },
+    {
+      "id": "message-source-toolbar",
+      "route": "/#/mail",
+      "signIn": true,
+      "compositions": [
+        "phone_844x390",
+        "fold_832x884",
+        "fold",
+        "tablet_1133x744",
+        "tablet_820x1180",
+        "tablet",
+        "tablet_1024x1366"
+      ],
+      "narrowedBecause": "Only where two panes stand below the desktop composition does the toolbar carry More actions; message-source holds every other width. The two half-screen desktop windows are left out of both: the client moves the head's acts to the toolbar there by width, while the prototype keeps them in the head under a mouse.",
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 0
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "More actions",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "role": "menuitem",
+            "name": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "text": "As received, 1 kB"
+          }
+        }
+      ]
+    },
+    {
       "id": "mail-link-ask",
       "route": "/#/mail",
       "signIn": true,

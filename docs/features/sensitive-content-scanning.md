@@ -1,6 +1,6 @@
 # Sensitive-content scanning
 
-<!-- describes: backend/src/Application/SensitiveContent/**, backend/src/Application/Mail/Delivery/Screening/**, backend/src/Application/Emails/DownloadAttachment/**, backend/src/Host/Configuration/SensitiveContent/**, backend/src/Infrastructure/SensitiveContent/**, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/AttachmentText/EmailAttachmentTextDeriver.cs, backend/src/Host/Hosting/Warnings/StaleDerivedDataStartupReport.cs -->
+<!-- describes: backend/src/Application/SensitiveContent/**, backend/src/Application/Mail/Delivery/Screening/**, backend/src/Application/Emails/DownloadAttachment/**, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Configuration/SensitiveContent/**, backend/src/Infrastructure/SensitiveContent/**, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/AttachmentText/EmailAttachmentTextDeriver.cs, backend/src/Host/Hosting/Warnings/StaleDerivedDataStartupReport.cs -->
 
 Mail carries credentials. A deployment key pasted into a thread, a connection string in a stack trace, an API token a
 colleague sent because it was quicker than a vault — all of it arrives in a mailbox and, from there, would otherwise
@@ -351,6 +351,16 @@ same screen sits on the two paths that hand an attachment's octets to somebody o
   that wrote `[]` to that key, which keeps redacting every read and serves every attachment whole beside it. That
   combination is the asymmetry this section exists to close, so an operator writing that list is deciding about
   downloads as well as about sends.
+
+### A message's raw source is not served where reading it is redacted
+
+The client surface serves one message exactly as it was received through its
+[source route](../operations/client-endpoint.md#the-source-route). Where a switched-on scanner covers the account — the
+same posture that redacts a read of the message — that route refuses, answering `409` with `59005` before any of the
+stored copy is read. A read is redacted value by value, and a raw source cannot be: its body sits in transfer encodings
+no scanner reads, and cutting a region out of it would hand a reader a message its sender never composed. So the answer
+is the whole source or none of it, and on a screened account it is none. An account no scanner covers is served its
+source as it always was.
 
 ### What it screens for, and why the default is secrets alone
 

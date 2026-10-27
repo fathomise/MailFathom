@@ -13,6 +13,7 @@ import type { ListFold } from '../messageRows/listFold';
 import { useLocalization } from '../localization/useLocalization';
 import { MailboxActControls } from '../mailboxActs/MailboxActControls';
 import { allDrawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
+import { MoreActions } from '../messageSource/MoreActions';
 import { SpamControl } from '../spamMarking/SpamControl';
 import { actedMessages, useListedMail } from '../messageList/useListedMail';
 import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
@@ -160,6 +161,11 @@ export function MailToolbar({
             {/* The five that change the mailbox, over the one message that is open. With nothing open each of them
                 says so rather than being left out, for the reason the three answers above are drawn either way. */}
             {outboxOpen ? null : <MailboxActControls messages={openMessages} shape={actShape} spam="toolbar" />}
+
+            {/* Where two panes stand below the desktop composition the head leaves its acts to this strip, so *More
+                actions* follows the spam control here instead, and every composition reaches it once. The strip holds
+                no subject, so its menu is headed by its own name. */}
+            {outboxOpen || !twoPanes || docked ? null : <MoreActions storedEmailId={open} subject={null} />}
 
             {/* The one control in the strip that changes the view rather than the message, which is why the design
                 keeps it apart at the far edge and draws it as its symbol alone at every width. What it takes away is

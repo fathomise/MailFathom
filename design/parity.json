@@ -419,6 +419,100 @@
         }
       ]
     },
+    "message-source-menu": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "expect": {
+            "text": "Show source"
+          }
+        }
+      ]
+    },
+    "message-source": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "click": {
+            "text": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "text": "Contract addendum - signatures · as received, 2.9 kB"
+          }
+        }
+      ]
+    },
+    "message-source-toolbar": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "click": {
+            "text": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "text": "As received, 2.9 kB"
+          }
+        }
+      ]
+    },
     "mail-link-ask": {
       "file": "prototype.dc.html",
       "properties": {

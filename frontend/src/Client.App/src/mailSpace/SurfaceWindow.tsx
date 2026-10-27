@@ -6,9 +6,10 @@ import { useCallback, useContext, useState, type ReactNode } from 'react';
 import { DepartureContext } from '../shell/departure';
 import { useScreenLayer } from '../shell/screenLayers';
 
-// The other shape the two surfaces opened from a message take, and the one `useOpenTabs.ts` describes as standing *in
+// The other shape the surfaces opened from a message take, and the one `useOpenTabs.ts` describes as standing *in
 // front of* the message rather than beside it: where somebody does not work in tabs, the sender's own markup and an
-// opened file are drawn in a window over the message instead of taking the reading column. The message they were opened
+// opened file are drawn in a window over the message instead of taking the reading column — and so, whoever works in
+// tabs, is a message's raw source, which is never a tab of its own. The message they were opened
 // from is therefore still where it was when the window goes, which is the whole reason the design draws one.
 //
 // It is a `dialog` opened as a modal rather than a panel drawn to look like one, for the reason `settings/Settings.tsx`
@@ -21,18 +22,25 @@ import { useScreenLayer } from '../shell/screenLayers';
 // all arrive at one event and the platform restores focus on each of them. Taking the surface off the screen from
 // underneath instead would remove an open modal from the document, which closes it and hands focus to nothing.
 //
-// Three compositions, and none of them is asked for in code: the design draws the window over a scrim where
-// there is room for two panes, the whole screen between that width and the phone shape, and the whole screen stopping
-// above the bottom navigation on a phone. All three are the width variants on the element itself.
+// Three compositions, and none of them is asked for in code: the design draws the window over a scrim from the width
+// its kind starts at, the whole screen between that width and the phone shape, and the whole screen stopping above the
+// bottom navigation on a phone. All three are the width variants on the element itself.
 
-/** Which of the two windows the design draws. It is a size and nothing else. */
-export type SurfaceWindowKind = 'markup' | 'file';
+/** Which of the three windows the design draws. It is a size, and the width a window starts at, and nothing else. */
+export type SurfaceWindowKind = 'markup' | 'file' | 'source';
 
-// The design draws the two at two sizes rather than at one, and each stops short of the viewport by the room the
-// design leaves around it — which is what the tokens carry, so this names them rather than composing a size here.
-const windowSizes: Readonly<Record<SurfaceWindowKind, string>> = {
-    markup: 'panes:h-markup-window-tall panes:w-markup-window',
-    file: 'panes:h-file-window-tall panes:w-file-window',
+// The whole screen below the width a window starts at — stopping above the bottom navigation on a phone — whichever
+// window this is.
+const wholeScreen =
+    'fixed inset-x-0 top-0 bottom-navigation m-0 mb-safe-bottom h-auto max-h-none w-auto max-w-none overflow-hidden rounded-none border-0 bg-panel p-0 text-text open:flex open:flex-col workspace:bottom-0 workspace:mb-0';
+
+// The design draws the markup and the file as windows wherever two panes stand, and the source only on the desktop,
+// the tablet and the fold giving it the whole screen. Each stops short of the viewport by the room the design leaves
+// around it — which is what the tokens carry, so this names them rather than composing a size here.
+const windowShapes: Readonly<Record<SurfaceWindowKind, string>> = {
+    markup: 'max-panes:surface-sheet panes:surface-pop panes:inset-0 panes:m-auto panes:rounded-lg panes:border panes:border-line panes:shadow-dialog panes:backdrop:bg-scrim panes:h-markup-window-tall panes:w-markup-window',
+    file: 'max-panes:surface-sheet panes:surface-pop panes:inset-0 panes:m-auto panes:rounded-lg panes:border panes:border-line panes:shadow-dialog panes:backdrop:bg-scrim panes:h-file-window-tall panes:w-file-window',
+    source: 'max-desktop:surface-sheet desktop:surface-pop desktop:inset-0 desktop:m-auto desktop:rounded-lg desktop:border desktop:border-line desktop:shadow-dialog desktop:backdrop:bg-scrim desktop:h-dialog-height desktop:w-source-window',
 };
 
 export function SurfaceWindow({
@@ -44,7 +52,7 @@ export function SurfaceWindow({
     /** What this window is, for a reader who meets it as a dialog before they meet what is inside it. */
     readonly label: string;
 
-    /** Which of the two the design draws, which decides the size and nothing else. */
+    /** Which of the three the design draws, which decides the size and the width it becomes a window at. */
     readonly drawn: SurfaceWindowKind;
 
     /** What the window having closed comes to, which is the workspace letting go of the surface that stood in it. */
@@ -93,7 +101,7 @@ export function SurfaceWindow({
             data-pull="down"
             // The insets are the screen's here rather than the frame's, exactly as they are for the settings surface: a
             // modal dialog stands in the platform's own top layer, so the padding the frame carries is not around it.
-            className={`max-panes:surface-sheet panes:surface-pop fixed inset-x-0 top-0 bottom-navigation m-0 mb-safe-bottom h-auto max-h-none w-auto max-w-none overflow-hidden rounded-none border-0 bg-panel p-0 text-text open:flex open:flex-col workspace:bottom-0 workspace:mb-0 panes:inset-0 panes:m-auto panes:rounded-lg panes:border panes:border-line panes:shadow-dialog panes:backdrop:bg-scrim ${windowSizes[drawn]}`}
+            className={`${wholeScreen} ${windowShapes[drawn]}`}
         >
             {children(close)}
         </dialog>
