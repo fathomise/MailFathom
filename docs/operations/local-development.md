@@ -2226,7 +2226,9 @@ readable by that ref's later runs and nothing else — so every job restores wit
 which in practice is the nightly. Each key changes exactly when its content does: a lock file's hash
 where one fixes the content, the Playwright version for the browser and its system libraries, the
 proxy's version beside `Cargo.lock` for the desktop suite's crates, and the runner image beside the
-package list for apt. Where several jobs restore one key, one of them is named as its writer, so jobs
+package list for apt — plus the day, because Ubuntu republishes packages between images and an entry
+is never written twice, so the nightly writes a fresh apt entry each day and every run restores the
+newest one. Where several jobs restore one key, one of them is named as its writer, so jobs
 running at once never race to save it — for apt, through the `save` input of
 `.github/actions/cached-apt-install`, which only the desktop build and the browser suite pass. Nothing caches `~/.nuget/packages`: restoring 1.2 GB took as
 long as fetching the same packages from nuget.org, and the key moved with nearly every merge.

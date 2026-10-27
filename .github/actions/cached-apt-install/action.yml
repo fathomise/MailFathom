@@ -13,8 +13,12 @@ description: >-
 # held these installs for minutes at a time, while unpacking what it sends is a matter of seconds.
 #
 # The key carries the runner image, because the image decides which packages are already present and therefore which
-# ones apt downloads, and the caller's own discriminator for what is installed. The prefix restores the previous entry
-# when either moves, which leaves apt fetching only the difference.
+# ones apt downloads, the caller's own discriminator for what is installed, and the day. The day is there because an
+# entry is never written twice: without it a package Ubuntu republishes mid-image — a WebKitGTK security fix, which is
+# most of the desktop's bytes — would be fetched again by every run until the image moved, so the nightly saves a fresh
+# entry each day instead. The prefixes restore the newest entry for the same image and package set first and any entry
+# of the name after that, and apt fetches only what the restored entry lacks. An entry nothing restores any more ages
+# out after seven days, so a name holds at most a week of them.
 #
 # Only a run on `main` saves, which in practice is the nightly: an entry saved by a pull request or a merge-queue entry
 # is readable by that ref's later runs alone, and every such copy spends the repository's cache budget on nothing. Even
@@ -50,14 +54,17 @@ runs:
         # GitHub-hosted runners name their image in these two; a runner that does not still gets an entry, which apt
         # verifies file by file like any other.
         printf 'image=%s-%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+        printf 'day=%s\n' "$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
     - name: Restore apt's downloads
       id: restore
       uses: actions/cache/restore@v6
       with:
         path: /var/cache/apt-downloads
-        key: apt-${{ inputs.name }}-${{ steps.prepare.outputs.image }}-${{ inputs.content }}
-        restore-keys: apt-${{ inputs.name }}-
+        key: apt-${{ inputs.name }}-${{ steps.prepare.outputs.image }}-${{ inputs.content }}-${{ steps.prepare.outputs.day }}
+        restore-keys: |
+          apt-${{ inputs.name }}-${{ steps.prepare.outputs.image }}-${{ inputs.content }}-
+          apt-${{ inputs.name }}-
 
     # The configuration reaches every apt call the command makes, including one a tool issues itself under `sudo`, which
     # is why the directory is set here rather than passed on a command line. `autoclean` drops every file the current
