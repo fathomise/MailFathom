@@ -14,12 +14,15 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// </para>
 /// <para>
 /// The value is a property of who receives an account's mail rather than of MailFathom, which is why it is configured
-/// per account and why <see cref="None" /> is a usable state rather than a misconfiguration to work around. An account
-/// that names no authority believes no header at all, and every message it holds carries the not-established verdict.
+/// per account, with the deployment's list of known authentication providers as the fallback for an account that names
+/// none, and why <see cref="None" /> is a usable state rather than a misconfiguration to work around. An account whose
+/// authority is <see cref="None" /> believes no header at all, and every message it holds carries the not-established
+/// verdict.
 /// </para>
 /// <para>
-/// Only the comparison form is kept. Nothing displays an authserv-id, and the failure rules refuse a host name in any
-/// message a boundary publishes, so a second copy in the original casing would exist for nothing.
+/// Only the comparison form is kept. The failure rules refuse a host name in any message a boundary publishes, and the
+/// known-provider list stores and displays the same lower-case form, so a second copy in the original casing would exist
+/// for nothing.
 /// </para>
 /// </remarks>
 public readonly record struct TrustedAuthenticationAuthority

@@ -1,6 +1,6 @@
 # Sender authentication
 
-<!-- describes: backend/src/Domain/Emails/Authentication/**, backend/src/Application/Mail/ITrustedAuthenticationAuthorityReader.cs, backend/src/Application/Mail/ISenderTrustPolicyReader.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredSenderTrustPolicyReader.cs, backend/src/Application/Mail/IDkimPublicKeyRecordResolver.cs, backend/src/Application/Emails/Extraction/SenderTrustEvaluatingEmailMimeReader.cs, backend/src/Infrastructure/Mail/Dkim/**, backend/src/Infrastructure/Mail/Mime/AuthenticationResultsHeaderReader.cs, backend/src/Infrastructure/Mail/Mime/MimeKitEmailMimeReader.cs -->
+<!-- describes: backend/src/Domain/Emails/Authentication/**, backend/src/Application/Mail/ITrustedAuthenticationAuthorityReader.cs, backend/src/Application/Mail/KnownAuthenticationProviders/**, backend/src/Host/Configuration/Mail/Readers/ConfiguredTrustedAuthenticationAuthorityReader.cs, backend/src/Application/Mail/ISenderTrustPolicyReader.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredSenderTrustPolicyReader.cs, backend/src/Application/Mail/IDkimPublicKeyRecordResolver.cs, backend/src/Application/Emails/Extraction/SenderTrustEvaluatingEmailMimeReader.cs, backend/src/Infrastructure/Mail/Dkim/**, backend/src/Infrastructure/Mail/Mime/AuthenticationResultsHeaderReader.cs, backend/src/Infrastructure/Mail/Mime/MimeKitEmailMimeReader.cs -->
 
 Everything about deciding whether a message is from who it says rests on one question: which domain actually sent it?
 The obvious answer is wrong. `From` is a header the sender writes, it is what a mail client displays, and it is what
@@ -40,7 +40,8 @@ and the reading follows two rules and no others:
 
 The identifier is compared without regard to case, since RFC 8601 writes it as a domain-shaped token and a server may
 change its casing between messages. Which identifier is right is a property of who receives that account's mail rather
-than of MailFathom, so there is nothing to default it to; [the mail
+than of MailFathom, so it is either the account's own setting or [a known provider's](#a-known-providers-server-is-believed-by-default)
+entry for the host the account reads from; [the mail
 configuration](../operations/configuration-mail.md#one-account--a-mailbox-in-a-users-record) states where the setting
 lives. What to write in it is read off
 the mail the account already holds: open a message that arrived recently, read its topmost `Authentication-Results`
@@ -48,9 +49,9 @@ header, and take the first token after the colon, which is the identifier that s
 delivers to this mailbox. RFC 8601 lets a server write a version number after that token, and the digit is not part of
 the identifier — a configured value carrying whitespace fails startup rather than matching a header.
 
-**An account naming no identifier believes no header at all**, and nothing it holds is judged by one. That is an
-ordinary state rather than a misconfiguration: it is also what a deployment whose provider publishes no results sees on
-every message. A value that is *present* and unusable — blank, longer than a domain name, or carrying whitespace —
+**An account naming no identifier, on a host no known provider is listed for, believes no header at all**, and nothing
+it holds is judged by one. That is an ordinary state rather than a misconfiguration: it is also what a deployment whose
+provider publishes no results sees on every message. A value that is *present* and unusable — blank, longer than a domain name, or carrying whitespace —
 fails startup instead, because the two are indistinguishable afterwards.
 
 **A server that writes no header at all is the second of those two, and it is what the local verification below exists
@@ -61,6 +62,45 @@ better answer where it is available, and it reaches mail delivered afterwards ra
 because the header is part of the message. [Whether your server says who sent a
 message](../users/mailbox-providers.md#whether-your-server-says-who-sent-a-message) is how a reader tells the two cases
 apart against their own delivered mail.
+
+### A known provider's server is believed by default
+
+Reading the identifier out of a delivered message is more than most account holders will do, so the deployment keeps
+one list of providers known to write a stable identifier and to protect it: each entry maps the IMAP host an account
+synchronizes from to the authserv-id that provider's receiving server writes. **An account whose
+`TrustedAuthenticationServiceIdentifier` is unset believes the server its IMAP host's entry names. An account that sets
+one keeps its own, always**, which is what leaves a mailbox behind a gateway or a self-hosted server untouched. The
+server's header then wins over local verification exactly as a configured one does, because the server also saw SPF.
+
+The list ships holding one entry, `imap.gmail.com` to `mx.google.com`, which covers Gmail and Google Workspace. An
+operator adds, lists, and removes entries with [`mfctl known-provider`](../operations/admin-endpoint.md#known-authentication-providers),
+and adding one is a security decision rather than a convenience. **An entry is safe only where all three of these
+hold**:
+
+1. The receiving server removes or renames every incoming `Authentication-Results` header carrying its own
+   authserv-id, as RFC 8601 requires of it. Otherwise anybody can forge `dmarc=pass` under it.
+2. The authserv-id never changes across messages, senders, or time. A provider that varies it, as Yahoo does, cannot
+   have an entry; nor can one that writes none, as Microsoft 365 does.
+3. Every message reaching the mailbox from outside passes through that server. A message the holder adds with IMAP
+   `APPEND` does not, and is accepted as the holder writing into their own mailbox.
+
+The test before adding one is one anybody can repeat: send a message from a server outside the provider to a mailbox it
+hosts, carrying an `Authentication-Results` header with the provider's authserv-id that claims `dkim=pass` and
+`dmarc=pass` for a `From` domain that fails both. In the copy read through the entry's IMAP host the forged header must
+be gone or renamed and the topmost must be the provider's own. Then read the authserv-id on at least three messages
+from different senders delivered on different days: it must be identical. `mfctl known-provider add` states these
+requirements and asks for confirmation before it writes anything.
+
+**Matching is on the exact host** the account connects to, without regard to case and without a trailing dot. There is
+no wildcard, no suffix match, and the port is not part of it, so a mailbox reached through another host has no entry
+and is configured by hand. **A change reaches the next extraction on every replica**: the list is read from the database
+once per unit of synchronization work, with no cache beyond it and no restart. Like a newly configured identifier, it
+judges new mail only; [a re-derivation](#re-deriving-what-is-already-stored) re-reads mail already stored. Every
+addition and removal is written to the list's own change record with who made it, and [ADR
+0043](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0043-how-a-sender-is-verified-and-trusted-and-contacts-as-the-one-trusted-sender-list.md)
+is the decision.
+
+### Forwarded verdicts are not read
 
 The `ARC-Authentication-Results` header of RFC 8617 is deliberately not read here. It preserves an upstream hop's
 findings across forwarding, which is a claim a relay signed rather than something this mailbox's own server observed.
@@ -168,7 +208,7 @@ against a connecting address, and after delivery there is neither. Nor is a DMAR
 the displayed domain's own published policy and its alignment mode.
 
 **It is a fallback and never a supplement.** It runs only where the trusted reading produced no result at all — the
-account names no identifier, or no header carrying that identifier was found. An account whose server *does* write the
+account believes no identifier, its own or a known provider's, or no header carrying the one it believes was found. An account whose server *does* write the
 header goes on believing that server and verifies nothing itself, including where that header established nothing: a
 server that spoke about the message saw the connection this process did not, and two verdicts of different provenance
 sitting beside each other would make *which one is this* a question every reader has to ask.

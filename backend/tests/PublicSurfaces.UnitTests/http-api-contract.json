@@ -7137,6 +7137,87 @@
       },
       "JsonElement": {},
       "JsonNode": {},
+      "KnownAuthenticationProviderAddedResponse": {
+        "properties": {
+          "authorityIdentifier": {
+            "type": "string"
+          },
+          "imapHost": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "imapHost",
+          "authorityIdentifier"
+        ],
+        "type": "object"
+      },
+      "KnownAuthenticationProviderListResponse": {
+        "properties": {
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/KnownAuthenticationProviderResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "providers",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "KnownAuthenticationProviderRequest": {
+        "properties": {
+          "authorityIdentifier": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "imapHost": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "imapHost",
+          "authorityIdentifier"
+        ],
+        "type": "object"
+      },
+      "KnownAuthenticationProviderResponse": {
+        "properties": {
+          "addedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "addedBy": {
+            "type": "string"
+          },
+          "authorityIdentifier": {
+            "type": "string"
+          },
+          "imapHost": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "imapHost",
+          "authorityIdentifier",
+          "addedBy",
+          "addedAt"
+        ],
+        "type": "object"
+      },
       "MailAccountAssignmentRequest": {
         "properties": {
           "userId": {
@@ -14329,6 +14410,126 @@
               }
             },
             "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/known-authentication-providers": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnownAuthenticationProviderListResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/KnownAuthenticationProviderRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnownAuthenticationProviderAddedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/known-authentication-providers/{imapHost}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "imapHost",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
           }
         },
         "security": [

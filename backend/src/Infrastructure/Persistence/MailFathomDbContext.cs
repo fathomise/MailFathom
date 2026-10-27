@@ -7,6 +7,7 @@ using MailFathom.Infrastructure.Persistence.Accounts.Configurations;
 using MailFathom.Infrastructure.Persistence.Agent.Configurations;
 using MailFathom.Infrastructure.Persistence.AiProviders.Configurations;
 using MailFathom.Infrastructure.Persistence.Answering.Configurations;
+using MailFathom.Infrastructure.Persistence.Authentication.Configurations;
 using MailFathom.Infrastructure.Persistence.Calendar.Configurations;
 using MailFathom.Infrastructure.Persistence.ClientAssertions.Configurations;
 using MailFathom.Infrastructure.Persistence.ClientSessions.Configurations;
@@ -79,6 +80,11 @@ internal sealed class MailFathomDbContext : DbContext
     internal DbSet<OrganizationEntity> Organizations => this.Set<OrganizationEntity>();
 
     internal DbSet<OrganizationSigningKeyEntity> OrganizationSigningKeys => this.Set<OrganizationSigningKeyEntity>();
+
+    internal DbSet<KnownAuthenticationProviderEntity> KnownAuthenticationProviders => this.Set<KnownAuthenticationProviderEntity>();
+
+    internal DbSet<KnownAuthenticationProviderChangeEntity> KnownAuthenticationProviderChanges =>
+        this.Set<KnownAuthenticationProviderChangeEntity>();
 
     internal DbSet<SettingsPolicyEntity> SettingsPolicies => this.Set<SettingsPolicyEntity>();
 
@@ -290,6 +296,8 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new RootSettingsConfiguration());
         modelBuilder.ApplyConfiguration(new OrganizationConfiguration());
         modelBuilder.ApplyConfiguration(new OrganizationSigningKeyConfiguration());
+        modelBuilder.ApplyConfiguration(new KnownAuthenticationProviderConfiguration());
+        modelBuilder.ApplyConfiguration(new KnownAuthenticationProviderChangeConfiguration());
         modelBuilder.ApplyConfiguration(new SettingsPolicyConfiguration());
         modelBuilder.ApplyConfiguration(new UserAccountConfiguration());
         modelBuilder.ApplyConfiguration(new MailAccountRecordConfiguration());

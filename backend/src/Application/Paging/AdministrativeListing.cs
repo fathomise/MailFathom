@@ -34,4 +34,7 @@ public enum AdministrativeListing
 
     /// <summary>The signing keys of one organization.</summary>
     OrganizationSigningKeys = 7,
+
+    /// <summary>The providers whose receiving server an account believes by default.</summary>
+    KnownAuthenticationProviders = 8,
 }

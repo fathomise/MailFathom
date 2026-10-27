@@ -278,6 +278,27 @@ a replica that inserts a second loses on it and reads the winner's key back inst
 `ix_organization_signing_keys_organization` on `(OrganizationId, Id)` serves the listing, which pages through one
 organization's keys in identifier order — the order they were minted in.
 
+`known_authentication_providers` holds [the providers whose receiving server an account believes by
+default](../features/sender-authentication.md#a-known-providers-server-is-believed-by-default): one row per IMAP host,
+deployment-wide.
+
+| Column of `known_authentication_providers` | What it records |
+| --- | --- |
+| `Id` | A version 7 identifier minted when the entry is added, which orders the listing |
+| `ImapHost` | The IMAP host an account synchronizes from, lower-cased and without a trailing dot — the form an account's own host is reduced to before it is looked up. Unique under `ix_known_authentication_providers_host`, so of two replicas adding one host at once the second inserts nothing and reports the host as already listed |
+| `AuthorityIdentifier` | The authserv-id that provider's receiving server writes, lower-cased |
+| `AddedBy`, `AddedAt` | The caller's identity, which names the user and the credential, or the migration that seeded the entry; and when |
+
+`known_authentication_provider_changes` is that list's append-only change record: one row per addition and per
+removal, written in the same transaction as the change itself. It carries the entry's host and authserv-id as values
+rather than a reference, so a removed entry leaves its record behind; `Act` is `added` or `removed`
+(`ck_known_authentication_provider_changes_act`), and `ChangedBy` and `ChangedAt` say who and when. Nothing amends or
+deletes a row.
+
+`AddKnownAuthenticationProviders` seeds one entry, `imap.gmail.com` → `mx.google.com`, together with its `added` row in
+the change record, both recorded as added by `migration AddKnownAuthenticationProviders` at the moment the migration
+ran. The seed's identifiers are version 7 values dated before any entry a deployment adds, so it lists first.
+
 `settings_policies` holds [the settings policy](../operations/admin-endpoint.md#settings-policies) each scope states:
 at most one row for the deployment and one per organization. A scope that has stored none has no row, and reads as a
 policy stating nothing at version `0`.

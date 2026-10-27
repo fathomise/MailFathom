@@ -332,12 +332,12 @@ to a caller holding its permission at deployment scope:
 
 | Permission | Only at deployment scope |
 | --- | --- |
-| `mailfathom.admin.read` | Every read of the deployment's own configuration, the deployment's own settings policy, the embedding status and the activation preview, the loaded rules, the stopped jobs naming no account, the outbox's counts and listing, and where a content move or a release of what one left behind has got to |
+| `mailfathom.admin.read` | Every read of the deployment's own configuration, the deployment's own settings policy, the [known authentication providers](admin-endpoint.md#known-authentication-providers), the embedding status and the activation preview, the loaded rules, the stopped jobs naming no account, the outbox's counts and listing, and where a content move or a release of what one left behind has got to |
 | `mailfathom.admin.operate` | Cancelling a reindex, starting, pausing, and resuming a content move, and retrying or dropping a stopped job naming no account |
 | `mailfathom.admin.credentials.write` | Changing an organization's short name, a namespace unique across the deployment that every member's login is spelled in, moving a user out of every organization, and rotating or revoking an organization's [signing key](organization-signing-keys.md), which every member's mail is signed with at once |
 | `mailfathom.admin.spend` | Activating the embedding model, which is the whole of what the name covers |
 | `mailfathom.admin.erase` | Releasing the database copies a finished content move left behind |
-| `mailfathom.admin.configuration.write` | Writing the persisted configuration, saving the deployment's own settings policy, saving an organization's settings policy — or moving a mail account between organizations — where that changes what is served to an account naming a secret that was not provisioned for one of its own users, creating and deleting an organization, and recording a user or a mail account in no organization |
+| `mailfathom.admin.configuration.write` | Writing the persisted configuration, saving the deployment's own settings policy, saving an organization's settings policy — or moving a mail account between organizations — where that changes what is served to an account naming a secret that was not provisioned for one of its own users, creating and deleting an organization, recording a user or a mail account in no organization, and adding or removing a [known authentication provider](admin-endpoint.md#known-authentication-providers), which decides what every account on a host believes |
 | `mailfathom.admin.roles.write` | Creating, renaming, changing the permissions of, and deleting a role, which is defined once and assigned in every organization, and keeping a group in no organization or an assignment at the deployment scope |
 
 `mailfathom.admin.audit.read`, `mailfathom.admin.export`, and `mailfathom.admin.custody.write` have none: each operation

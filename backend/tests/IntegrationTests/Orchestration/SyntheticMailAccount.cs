@@ -374,8 +374,10 @@ internal sealed class SyntheticMailAccount(
     /// proved something. What the trusted reading does with a header is settled in the unit suite, where a header can
     /// be written by hand.
     /// </remarks>
-    public TrustedAuthenticationAuthority GetTrustedAuthority(MailAccountId accountId) =>
-        TrustedAuthenticationAuthority.None;
+    public Task<TrustedAuthenticationAuthority> GetTrustedAuthorityAsync(
+        MailAccountId accountId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(TrustedAuthenticationAuthority.None);
 
     /// <inheritdoc />
     /// <remarks>

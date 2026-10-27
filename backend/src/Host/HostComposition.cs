@@ -32,6 +32,7 @@ using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Scheduling;
 using MailFathom.Application.Mail.Export;
+using MailFathom.Application.Mail.KnownAuthenticationProviders;
 using MailFathom.Application.Mail.Maintenance;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
@@ -570,7 +571,9 @@ internal static class HostComposition
             provider.GetRequiredService<ConfigurationChangeAnnouncements>(),
             provider.GetRequiredService<WithheldMailAccounts>(),
             provider.GetRequiredService<ServedUsers>()));
-        builder.Services.AddScoped<ITrustedAuthenticationAuthorityReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.TrustedAuthenticationAuthorities);
+        builder.Services.AddScoped<ITrustedAuthenticationAuthorityReader>(provider => new ConfiguredTrustedAuthenticationAuthorityReader(
+            provider.GetRequiredService<MailSynchronizationOptions>(),
+            provider.GetRequiredService<IKnownAuthenticationProviderDirectory>()));
         builder.Services.AddScoped<ISenderTrustPolicyReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.SenderTrustPolicies);
         // Resolved from the same snapshot as the verdicts above, so one work unit reads mail under one reload. Which of
         // the two profiles it is follows the setting, and the disabled one records the same not-assessed state a

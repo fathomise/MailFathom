@@ -412,6 +412,13 @@ the sending address the envelope carried, and could evaluate SPF at all. So how 
 mostly your provider's decision rather than yours, and where that server writes a verdict it is the verdict MailFathom
 records — nothing on this side is consulted, and nothing on this side overrides it.
 
+**On Gmail and Google Workspace there is nothing to configure.** A mailbox read from `imap.gmail.com` believes Google's
+own server, `mx.google.com`, out of the box, because the deployment keeps a list of providers verified to write a
+stable identifier and to strip a forged one; your operator can add others with `mfctl known-provider add`, and [sender
+authentication](../features/sender-authentication.md#a-known-providers-server-is-believed-by-default) states what an
+entry has to be verified against first. For any other provider, the table below is how you read the identifier off
+your own mail.
+
 **Where no such header is found, MailFathom verifies the message's own DKIM signatures for itself**, against the keys
 the signing domains publish in DNS. That is a fallback rather than a second opinion: it happens only for an account
 whose server wrote nothing MailFathom trusts, and it establishes a signing domain where there would otherwise be no

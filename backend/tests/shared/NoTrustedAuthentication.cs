@@ -16,7 +16,12 @@ namespace MailFathom.TestSupport;
 /// </remarks>
 internal sealed class NoTrustedAuthentication : ITrustedAuthenticationAuthorityReader
 {
+    private static readonly Task<TrustedAuthenticationAuthority> NoAuthority =
+        Task.FromResult(TrustedAuthenticationAuthority.None);
+
     /// <inheritdoc />
-    public TrustedAuthenticationAuthority GetTrustedAuthority(MailAccountId accountId) =>
-        TrustedAuthenticationAuthority.None;
+    public Task<TrustedAuthenticationAuthority> GetTrustedAuthorityAsync(
+        MailAccountId accountId,
+        CancellationToken cancellationToken) =>
+        NoAuthority;
 }
