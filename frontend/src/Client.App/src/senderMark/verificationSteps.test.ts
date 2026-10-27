@@ -204,6 +204,23 @@ describe('senderVerificationOf', () => {
         });
     });
 
+    // The organization's signature proves the address rather than a domain, so it holds where no author was established.
+    it('passes the trust step for a member of the reader’s organization, whatever sender authentication found', () => {
+        const member = message({
+            ...authenticated,
+            authorAuthentication: 'NotEstablished',
+            authenticatedDomain: null,
+            deploymentTrust: 'Trusted',
+            trustSource: 'OrganizationMember',
+        });
+
+        expect(senderVerificationOf(member, asSent).why).toEqual({ key: 'senderMark.why.trustedOrganizationMember' });
+        expect(stepNamed(member, 'senderMark.step.trustedSender')).toMatchObject({
+            result: 'Passed',
+            detail: { key: 'senderMark.trust.organizationMember', values: { address: 'a.kowalska@contoso.example' } },
+        });
+    });
+
     it('lists a single skipped step for a message that carries no signature', () => {
         expect(senderVerificationOf(message(authenticated), asSent).groups[2]?.steps).toEqual([
             {

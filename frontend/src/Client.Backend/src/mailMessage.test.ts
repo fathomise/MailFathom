@@ -233,6 +233,15 @@ describe('readMailMessage', () => {
         expect(message?.sender.trustSource).toBeNull();
     });
 
+    it.each(['OwnAccountDomain', 'ConfiguredTrustedSender', 'StoredTrustedSender', 'OrganizationMember'])(
+        'reads a sender %s recognized',
+        async (trustSource) => {
+            const message = await readingOf(described({ sender: { ...verdict, trustSource } }));
+
+            expect(message?.sender.trustSource).toBe(trustSource);
+        },
+    );
+
     it('reads a signed message’s signature whole, with every step and the signer it names', async () => {
         const message = await readingOf(described({ signature: verified }));
 

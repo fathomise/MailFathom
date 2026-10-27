@@ -1529,6 +1529,8 @@ export const pl: Catalogue = {
         '{authenticated} uwierzytelniła tę wiadomość, a {domain} to domena Twoich własnych kont.',
     'senderMark.why.trustedSender':
         '{authenticated} uwierzytelniła tę wiadomość, a nadawca jest na liście zaufanych nadawców tego konta.',
+    'senderMark.why.trustedOrganizationMember':
+        'Nadawca jest członkiem Twojej organizacji, a podpis organizacji potwierdza, że ta wiadomość pochodzi z tego adresu.',
     'senderMark.why.verified':
         'Ma podpis, który się zweryfikował, złożony przez {address} – adres, z którego pochodzi.',
     'senderMark.why.verifiedDespiteAuthentication':
@@ -1591,6 +1593,8 @@ export const pl: Catalogue = {
     'senderMark.trust.skipped': 'Pominięte, bo autor nie został uwierzytelniony.',
     'senderMark.trust.ownDomain': '{domain} to domena Twoich własnych kont.',
     'senderMark.trust.trustedSenders': 'Nadawca jest na liście zaufanych nadawców tego konta.',
+    'senderMark.trust.organizationMember':
+        'Członek Twojej organizacji. Podpis organizacji potwierdza, że wiadomość pochodzi z adresu {address}.',
     'senderMark.trust.unrecognized':
         'To konto nie rozpoznaje adresu {address}: nie ma go na liście zaufanych nadawców konta, a {domain} nie jest domeną Twoich własnych kont.',
     'senderMark.signed.not':

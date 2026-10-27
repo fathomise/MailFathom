@@ -246,7 +246,7 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// <param name="DkimDomain">The domain whose DKIM signature passed, or <see langword="null" /> where none did.</param>
 /// <param name="SpfDomain">The domain whose SPF check passed, or <see langword="null" /> where none did or none was evaluated.</param>
 /// <param name="Dmarc">The DMARC result the verdict was reached with, as the outcome's own name.</param>
-/// <param name="TrustSource">What recognized the author — <c>OwnAccountDomain</c>, <c>ConfiguredTrustedSender</c>, or <c>StoredTrustedSender</c> — or <see langword="null" /> where nothing did.</param>
+/// <param name="TrustSource">What recognized the author — <c>OwnAccountDomain</c>, <c>ConfiguredTrustedSender</c>, <c>StoredTrustedSender</c>, or <c>OrganizationMember</c> — or <see langword="null" /> where nothing did.</param>
 /// <remarks>
 /// <para>
 /// The two outcomes are published side by side and are never collapsed into one value, because a screen drawing a single

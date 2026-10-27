@@ -1507,6 +1507,8 @@ export const en = {
         '{authenticated} authenticated this message, and {domain} is a domain of your own accounts.',
     'senderMark.why.trustedSender':
         "{authenticated} authenticated this message, and the sender is on this account's trusted senders.",
+    'senderMark.why.trustedOrganizationMember':
+        "The sender is a member of your organization, and the organization's signature proves this message comes from this address.",
     'senderMark.why.verified': 'It carries a signature that verified, made by {address}, the address it is from.',
     'senderMark.why.verifiedDespiteAuthentication':
         'It carries a signature that verified, made by {address}, the address it is from. Sender authentication failed, which a forward or a mailing list often causes.',
@@ -1567,6 +1569,8 @@ export const en = {
     'senderMark.trust.skipped': 'Skipped, because the author was not authenticated.',
     'senderMark.trust.ownDomain': '{domain} is a domain of your own accounts.',
     'senderMark.trust.trustedSenders': "The sender is on this account's trusted senders.",
+    'senderMark.trust.organizationMember':
+        "A member of your organization. The organization's signature proves the message comes from {address}.",
     'senderMark.trust.unrecognized':
         "This account does not recognize {address}: it is not on the account's trusted senders, and {domain} is not a domain of your own accounts.",
     'senderMark.signed.not':

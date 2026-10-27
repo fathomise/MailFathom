@@ -131,9 +131,11 @@ function whyOf(mark: SenderMark, sender: MailSenderVerdict, signature: MailSigna
         case 'authenticationFailed':
             return { key: 'senderMark.why.authenticationFailed', values: { domain: named.domain } };
         case 'trusted':
-            return sender.trustSource === 'OwnAccountDomain'
-                ? { key: 'senderMark.why.trustedOwnDomain', values: { authenticated, domain: named.domain } }
-                : { key: 'senderMark.why.trustedSender', values: { authenticated } };
+            return sender.trustSource === 'OrganizationMember'
+                ? { key: 'senderMark.why.trustedOrganizationMember' }
+                : sender.trustSource === 'OwnAccountDomain'
+                  ? { key: 'senderMark.why.trustedOwnDomain', values: { authenticated, domain: named.domain } }
+                  : { key: 'senderMark.why.trustedSender', values: { authenticated } };
         case 'verified':
             return {
                 key:
@@ -241,6 +243,14 @@ function authorStep(sender: MailSenderVerdict, domain: string): VerificationStep
 }
 
 function trustStep(sender: MailSenderVerdict, named: Named): VerificationStep {
+    // The organization's signature proves the address itself rather than a domain, so it is the one source that holds
+    // whatever sender authentication found.
+    if (sender.deploymentTrust === 'Trusted' && sender.trustSource === 'OrganizationMember') {
+        return step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.organizationMember', {
+            address: named.address,
+        });
+    }
+
     if (sender.authorAuthentication !== 'Authenticated') {
         return step('senderMark.step.trustedSender', 'Skipped', 'senderMark.trust.skipped');
     }

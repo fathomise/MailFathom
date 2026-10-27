@@ -304,6 +304,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     const fromDom = domainOf(r.from);
     if (k === "warnSig") return "Its signature does not match its content: it was changed after it was signed, or the signature is forged.";
     if (k === "warnAuth") return fromDom + " did not authenticate this message, so it may not come from who it names.";
+    if (k === "trusted" && r.trust.source === "org") return "The sender is a member of your organization, and the organization's signature proves this message comes from this address.";
     if (k === "trusted") return r.authDomain + " authenticated this message, and " + (r.trust.source === "own"
       ? r.trust.match + " is a domain of your own accounts."
       : "the sender is on this account's trusted senders.");
@@ -346,7 +347,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         : ["unchecked", "Not established: nothing tied " + fromDom + " to the message."]),
     ];
     const trust = [
-      step("Trusted sender", r.author !== "authenticated"
+      step("Trusted sender", r.trust && r.trust.source === "org"
+        ? ["pass", "A member of your organization. The organization's signature proves the message comes from " + r.from + "."]
+        : r.author !== "authenticated"
         ? ["skip", "Skipped, because the author was not authenticated."]
         : r.trust && r.trust.source === "own" ? ["pass", r.trust.match + " is a domain of your own accounts."]
         : r.trust ? ["pass", "The sender is on this account's trusted senders."]

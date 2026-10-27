@@ -290,15 +290,21 @@ public sealed class ClientMailMessageEndpointTests
     }
 
     /// <summary>A trusted author's verdict says what recognized them, which is what the popup's trust step explains.</summary>
-    [Fact]
-    public void For_AnAuthorOnTheTrustedSenders_PublishesWhatRecognizedThem()
+    /// <param name="grantedBy">What recognized the author.</param>
+    /// <param name="published">The name the client reads it by.</param>
+    [Theory]
+    [InlineData(SenderTrustSource.OwnAccountDomain, "OwnAccountDomain")]
+    [InlineData(SenderTrustSource.ConfiguredTrustedSender, "ConfiguredTrustedSender")]
+    [InlineData(SenderTrustSource.StoredTrustedSender, "StoredTrustedSender")]
+    [InlineData(SenderTrustSource.OrganizationMember, "OrganizationMember")]
+    public void For_ATrustedAuthor_PublishesWhatRecognizedThem(SenderTrustSource grantedBy, string published)
     {
         // Arrange
         var message = MessageWith() with
         {
             SenderVerification = MessageWith().SenderVerification with
             {
-                DeploymentTrustGrantedBy = SenderTrustSource.ConfiguredTrustedSender,
+                DeploymentTrustGrantedBy = grantedBy,
             },
         };
 
@@ -306,7 +312,7 @@ public sealed class ClientMailMessageEndpointTests
         var sender = ClientMailMessageResponse.For(message).Sender;
 
         // Assert
-        Assert.Equal("ConfiguredTrustedSender", sender.TrustSource);
+        Assert.Equal(published, sender.TrustSource);
     }
 
     /// <summary>An author nothing recognized publishes no trust source, which is the ordinary state rather than missing data.</summary>

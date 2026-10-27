@@ -43,8 +43,12 @@ export type MailAuthenticationSource = 'ReceivingServer' | 'LocalVerification';
 export type MailDmarcOutcome =
     'NotReported' | 'Pass' | 'Fail' | 'NoPolicyPublished' | 'TemporaryError' | 'PermanentError';
 
-/** What recognized a trusted author: a domain of the owner's own accounts, or the trusted senders. */
-export type MailTrustSource = 'OwnAccountDomain' | 'ConfiguredTrustedSender' | 'StoredTrustedSender';
+/**
+ * What recognized a trusted author: a domain of the owner's own accounts, the trusted senders, or the signature of the
+ * receiving account's organization, which proves the author a member of it.
+ */
+export type MailTrustSource =
+    'OwnAccountDomain' | 'ConfiguredTrustedSender' | 'StoredTrustedSender' | 'OrganizationMember';
 
 /** How a signed message arrived. */
 export type MailSignatureFormat = 'SecureMimeDetached' | 'SecureMimeOpaque' | 'OpenPgpMime';
@@ -251,7 +255,12 @@ const dmarcOutcomes: readonly MailDmarcOutcome[] = [
     'PermanentError',
 ];
 
-const trustSources: readonly MailTrustSource[] = ['OwnAccountDomain', 'ConfiguredTrustedSender', 'StoredTrustedSender'];
+const trustSources: readonly MailTrustSource[] = [
+    'OwnAccountDomain',
+    'ConfiguredTrustedSender',
+    'StoredTrustedSender',
+    'OrganizationMember',
+];
 
 const signatureFormats: readonly MailSignatureFormat[] = ['SecureMimeDetached', 'SecureMimeOpaque', 'OpenPgpMime'];
 

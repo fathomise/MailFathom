@@ -1588,7 +1588,7 @@ combined into them here.
 | `dkimDomain` | The domain whose DKIM signature passed, or `null` where none did |
 | `spfDomain` | The domain whose SPF check passed, or `null` where none did or none was evaluated |
 | `dmarc` | `NotReported`, `Pass`, `Fail`, `NoPolicyPublished`, `TemporaryError`, `PermanentError` |
-| `trustSource` | `OwnAccountDomain`, `ConfiguredTrustedSender`, `StoredTrustedSender`, or `null` where nothing recognized the author |
+| `trustSource` | `OwnAccountDomain`, `ConfiguredTrustedSender`, `StoredTrustedSender`, `OrganizationMember`, or `null` where nothing recognized the author |
 
 `authenticationSource` names which reading produced the verdict rather than asserting that a server established
 something, so `ReceivingServer` is also what a message carries when nothing was read at all. A reader concludes that
@@ -1599,8 +1599,11 @@ ASCII with an internationalized name in its ASCII encoding, so a screen that wan
 
 **`trustSource` names what recognized the author, never which entry matched.** `OwnAccountDomain` is a domain of an
 account this deployment synchronizes, `ConfiguredTrustedSender` an entry on the receiving account's configured
-trusted-sender list, and `StoredTrustedSender` one somebody added to its stored list; where both lists name the author
-the configured one is reported. Which address or domain on a list matched is not recorded, so it is not published. It
+trusted-sender list, `StoredTrustedSender` one somebody added to its stored list, and `OrganizationMember` a signature
+of the receiving account's organization proving the author a member of it, which holds whatever `authorAuthentication`
+says ([Sender authentication](../features/sender-authentication.md)); where both lists name the author the configured
+one is reported. Which address or domain on a list matched is not recorded, so it is not published, and neither is the
+organization's name. It
 is the source in force when the message was extracted, so a change to the trusted senders since reaches mail extracted
 after it.
 
