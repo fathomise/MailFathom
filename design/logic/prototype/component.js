@@ -643,6 +643,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (typeof matchMedia === "function") matchMedia("(pointer: coarse)").addEventListener("change", this.measure);
       this.measure();
       this.timers.push(setTimeout(() => this.simulateNotif(), 14000));
+      /* Its own timer: Discover's run() clears `timers`, and the background run must still end. */
+      this.bgRunT = setTimeout(this.finishBackgroundRuns, 40000);
       if (this.props.raise && this.props.raise !== "none") this.timers.push(setTimeout(() => this.raiseFailure(this.props.raise), 1200));
     }
 
@@ -2565,7 +2567,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     demoNext = () => {
       const step = DEMO_SCRIPT[this.demoAt];
-      if (!step) { this.stopAgentPin(); this.setState({ agentThinking: false, agentStatus: "", demoRun: false }); return; }
+      if (!step) {
+        this.stopAgentPin();
+        this.setState(s2 => ({ agentThinking: false, agentStatus: "", demoRun: false, convs: this.markUnreadAway(s2, DEMO_CONV_ID) }));
+        return;
+      }
       this.demoT = setTimeout(() => {
         this.demoAt += 1;
         this.demoApply(step, false);
@@ -2604,6 +2610,34 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return out;
       });
       if (!instant) this.scrollAgentDown();
+    };
+
+    /* A run that ends while its conversation is not in front of the reader leaves it unread, as new mail is. */
+    markUnreadAway = (s2, id) => (s2.convs || []).map(c => c.id === id && !(s2.screen === "agent" && s2.convId === id) ? Object.assign({}, c, { unread: true }) : c);
+
+    finishBackgroundRuns = () => this.setState(s2 => ({
+      convs: (s2.convs || []).map(c => !c.running ? c : Object.assign({}, c, {
+        running: null, when: "now",
+        msgs: c.msgs.filter(m => !m.working).concat([Object.assign({ role: "bot", ts: Date.now(), anim: true, bullets: [] }, c.finish)]),
+        unread: !(s2.screen === "agent" && s2.convId === c.id),
+      })),
+    }));
+
+    /* The rail's peek: a pointer resting on a tile slides out what that place holds right now. A finger has no
+       hover, so under touch it never opens and the tile's dot is the whole signal. Leaving waits a beat so the
+       pointer can cross the gap into the peek. */
+    peekOpen = (key) => (e) => {
+      if (this._touch || this._isMobile) return;
+      clearTimeout(this.peekT);
+      const r = e.currentTarget.getBoundingClientRect();
+      this.setState({ railPeek: { key: key, left: r.right + 10, mid: r.top + r.height / 2 } });
+    };
+
+    peekKeep = () => clearTimeout(this.peekT);
+
+    peekLeave = () => {
+      clearTimeout(this.peekT);
+      this.peekT = setTimeout(() => this.setState({ railPeek: null }), 160);
     };
 
     /* Cancel stops the playback or a pending reply where it stands — nothing is rolled back,
@@ -2692,10 +2726,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.startAgentPin();
       this._askT = setTimeout(() => {
         const hit = AGENT_REPLIES.find(r => r.match.test(q)) || AGENT_FALLBACK;
-        this.setState(s2 => Object.assign(
-          { agentThinking: false },
-          this.pushMsg(s2, [{ role: "bot", anim: true, scope: hit.scope, text: hit.text, bullets: hit.bullets || [], blocks: hit.blocks || [], next: hit.next || NEXT_DEFAULT }])
-        ));
+        this.setState(s2 => {
+          const out = Object.assign(
+            { agentThinking: false },
+            this.pushMsg(s2, [{ role: "bot", anim: true, scope: hit.scope, text: hit.text, bullets: hit.bullets || [], blocks: hit.blocks || [], next: hit.next || NEXT_DEFAULT }])
+          );
+          out.convs = this.markUnreadAway(Object.assign({}, s2, { convs: out.convs }), out.convId);
+          return out;
+        });
         this.stopAgentPin();
       }, Math.max(500, (this.props.streamDelay ?? 550) * 1.1));
       this.timers.push(this._askT);
@@ -3112,6 +3150,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
       this.backSync();
       this.tbMeasure();
+      /* A conversation is read once it is in front of the reader. */
+      const seenId = this.state.screen === "agent" ? this.state.convId : null;
+      if (seenId && (this.state.convs || []).some(c => c.id === seenId && c.unread)) {
+        this.setState(s2 => ({ convs: (s2.convs || []).map(c => c.id === seenId ? Object.assign({}, c, { unread: false }) : c) }));
+      }
       if (!this.state.listLoading) this.restoreScrolls();
       if (this.pendingDraft && this.bodyRef.current) {
         this.bodyRef.current.innerHTML = this.pendingDraft;
@@ -3221,6 +3264,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.htmlFrames.forEach(r => { if (r.timer) clearTimeout(r.timer); });
       this.htmlFrames.clear();
       this.timers.forEach(clearTimeout);
+      clearTimeout(this.bgRunT);
+      clearTimeout(this.peekT);
       if (this.measure) window.removeEventListener("resize", this.measure);
       if (this.ro) this.ro.disconnect();
     }
@@ -3285,6 +3330,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const railW = compact ? 66 : 96;
       this._low = low;
       this._isMobile = isMobile;
+      this._touch = touch;
       /* The list's pull: the disc's top edge follows half the finger's travel from above the list, waits at LP.rest
          while the refresh is under way, and springs back above the list when released short. */
       const listPull = (() => {
@@ -3721,6 +3767,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const convRow = (c, isArchivedList) => {
         const lastMsg = c.msgs[c.msgs.length - 1];
         const isOpen = c.id === (activeConv || {}).id;
+        /* Unread as mail is: a reply landed while the conversation was not in front, and the title carries the weight. */
+        const isUnread = !!c.unread && !isOpen;
         /* On the phone the history covers the conversation, so picking one closes it. */
         const openConv = () => this.setState(isMobile ? { convId: c.id, history: false } : { convId: c.id });
         const rowPress = this.pressFor("convs", c.id, c.title || "New conversation", [
@@ -3736,7 +3784,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* The group already says yesterday; the row repeats only what the group does not. */
           when: day === "Yesterday" && !isArchivedList ? "" : when,
           day: day,
-          preview: lastMsg ? lastMsg.text : "no messages",
+          preview: c.running ? c.running + "…" : lastMsg ? lastMsg.text : "no messages",
           activate: this.rowTap("convs", c.id, openConv),
           press: rowPress,
           /* One quiet control instead of an archive and a delete glyph on every row: it opens the
@@ -3749,11 +3797,42 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (isOpen || isSel("convs", c.id) ? "background:var(--accent-soft);" : "") +
             (isSel("convs", c.id) ? "box-shadow:inset 0 0 0 1px var(--accent-line);" : ""),
           titleStyle: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:" + (isMobile ? 15 : 13) + "px;line-height:1.35;" +
-            (isOpen ? "font-weight:600;color:var(--accent-d);" : "font-weight:500;color:var(--text);"),
-          whenStyle: "flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;color:" + (isOpen ? "var(--accent-d)" : "var(--faint)"),
-          previewStyle: "font-size:" + (isMobile ? 13 : 12) + "px;line-height:1.4;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+            (isOpen ? "font-weight:600;color:var(--accent-d);" : isUnread ? "font-weight:700;color:var(--text);" : "font-weight:500;color:var(--text);"),
+          whenStyle: "flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;" +
+            (isOpen ? "color:var(--accent-d)" : isUnread ? "color:var(--text);font-weight:600" : "color:var(--faint)"),
+          previewStyle: "font-size:" + (isMobile ? 13 : 12) + "px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:" +
+            (c.running ? "var(--accent-d)" : isUnread ? "var(--text2)" : "var(--muted)"),
         };
       };
+      /* What the rail's Agent tile reports: runs under way (a background run, the scripted example, a pending reply)
+         and finished conversations nobody has read. Running pulses; unread alone is a still dot; neither draws nothing. */
+      const agentRuns = convList.filter(c => c.running && !c.archived).map(c => ({ id: c.id, title: c.title, sub: c.running }));
+      const fgRunId = st.demoRun ? DEMO_CONV_ID : st.agentThinking ? st.convId : null;
+      const fgRun = fgRunId ? convList.find(c => c.id === fgRunId) : null;
+      if (fgRun && !agentRuns.some(r => r.id === fgRun.id)) agentRuns.unshift({ id: fgRun.id, title: fgRun.title || "New conversation", sub: st.agentStatus || "Going through your mail" });
+      const agentUnread = convList.filter(c => c.unread && !c.archived && !(st.screen === "agent" && c.id === st.convId) && !agentRuns.some(r => r.id === c.id));
+      const agentDot = agentRuns.length ? "pulse" : agentUnread.length ? "dot" : "";
+      /* One shape for every rail peek, so another place can fill it with its own sections later. */
+      const peekRow = (lead, c, sub) => ({
+        title: c.title || "New conversation", sub: sub, lead: lead, spin: lead === "spin", dot: lead === "dot",
+        open: () => { clearTimeout(this.peekT); this.goScreen("agent", { convId: c.id, railPeek: null }); },
+        titleStyle: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;line-height:1.35;color:var(--text);font-weight:" + (lead === "dot" ? 700 : 500),
+        subStyle: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.4;color:" + (lead === "spin" ? "var(--accent-d)" : "var(--muted)"),
+      });
+      const railPeeks = {
+        agent: {
+          title: "Agent",
+          meta: [agentRuns.length ? agentRuns.length + " working" : "", agentUnread.length ? agentUnread.length + " unread" : ""].filter(Boolean).join(" · "),
+          sections: [
+            { label: "Working on", rows: agentRuns.map(r => peekRow("spin", r, r.sub + "…")) },
+            { label: "Unread", rows: agentUnread.map(c => { const lm = c.msgs[c.msgs.length - 1]; return peekRow("dot", c, lm ? mdPlain(lm.text || "") : ""); }) },
+          ].filter(s => s.rows.length),
+          empty: "Nothing running and nothing unread.",
+        },
+      };
+      const peek = st.railPeek && railPeeks[st.railPeek.key] && !isMobile && !touch ? st.railPeek : null;
+      const peekView = peek ? railPeeks[peek.key] : null;
+      const peekTop = peek ? Math.max(8, peek.mid - 30) : 0;
       const convGroups = (rows) => ["Today", "Yesterday", "Earlier"]
         .map(d => ({ label: d, rows: rows.filter(r => r.day === d) }))
         .filter(g => g.rows.length);
@@ -4390,8 +4469,35 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.remFire(t2, rem, "task", "Tasks", { screen: "tasks" });
         },
         isAgent: st.screen === "agent" && !emptyApp,
-        goAgent: () => this.goScreen("agent"),
-        railAgentStyle: railBase + (st.screen === "agent" ? activeStyle : idleColor),
+        goAgent: () => { clearTimeout(this.peekT); this.goScreen("agent", { railPeek: null }); },
+        /* The tile is a button so the counts in its name reach a screen reader, and a button answers a key. */
+        goAgentKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); clearTimeout(this.peekT); this.goScreen("agent", { railPeek: null }); } },
+        railAgentStyle: "position:relative;" + railBase + (st.screen === "agent" ? activeStyle : idleColor),
+        agentPeekEnter: this.peekOpen("agent"),
+        railPeekLeave: this.peekLeave,
+        railPeekKeep: this.peekKeep,
+        /* The status dot any rail tile can carry: `pulse` while something there is under way, `dot` while something
+           waits to be read. It sits in the top end corner of the tile — of the glyph's pill on the phone's bar — inset
+           far enough that the pulse's 5 px ring never crosses the tile's edge. */
+        agentDotShown: !!agentDot,
+        agentDotKind: agentDot,
+        railIconWrapStyle: (isMobile ? "position:relative;" : "") + "display:flex;align-items:center;justify-content:center",
+        railDotStyle: "position:absolute;width:8px;height:8px;border-radius:50%;background:var(--err);pointer-events:none;" +
+          (isMobile ? "top:6px;right:6px" : "top:8px;right:8px"),
+        agentTileLabel: "Agent" + (agentDot ? " - " + [agentRuns.length ? agentRuns.length + " working" : "", agentUnread.length ? agentUnread.length + " unread" : ""].filter(Boolean).join(", ") : ""),
+        railPeekShown: !!peekView,
+        railPeekTitle: peekView ? peekView.title : "",
+        railPeekMeta: peekView ? peekView.meta : "",
+        railPeekSections: peekView ? peekView.sections : [],
+        railPeekEmpty: peekView && !peekView.sections.length ? peekView.empty : "",
+        railPeekStyle: peek
+          ? "position:fixed;left:" + peek.left + "px;top:" + peekTop + "px;width:300px;max-height:calc(100vh - " + (peekTop + 12) + "px);z-index:62;box-sizing:border-box;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 12px 28px var(--sh-2),0 2px 6px var(--sh-2);transform-origin:0 " + (peek.mid - peekTop) + "px"
+          : "",
+        /* The beak: a square turned 45° on the peek's start edge, level with the tile's middle, so the peek reads as
+           coming out of the tile it belongs to. */
+        railPeekBeakStyle: peek
+          ? "position:absolute;left:-6px;top:" + (peek.mid - peekTop - 6) + "px;width:11px;height:11px;background:var(--panel);border-left:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg);border-bottom-left-radius:2px"
+          : "",
         /* The hairline after Discover and Agent: the spaces that ask stand above it, the spaces that hold below. */
         railSepStyle: "flex:0 0 auto;align-self:stretch;height:1px;margin:4px 16px;background:var(--line)",
         agentScrollStyle: isMobile
