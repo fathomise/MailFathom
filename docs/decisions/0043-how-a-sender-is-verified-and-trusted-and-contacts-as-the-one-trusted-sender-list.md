@@ -409,23 +409,23 @@ from the queue. The lock is a transaction-scoped PostgreSQL advisory lock (`pg_a
 address alone, in its comparison form, hashed to the lock's 64-bit key. It is not keyed by the book, because one
 verdict reads several books: the organization's and every assignee's. A lock per book would let a write to one book
 pass a batch that is reading another. A collision between two addresses' hashes only serializes work that needed no
-serializing. Four kinds of transaction take the lock before they read any book:
+serializing. Two rules decide who takes it, and they hold for every path that exists now and any added later.
 
-- every contact write, in any book, for each address it changes;
-- every act that removes a contact, for each address the removed book held;
-- every batch of a re-judgment job, for the job's address, reading every book and writing that batch's verdicts in
-  the same transaction;
-- the trust step at extraction, for the first `From` mailbox. It reads the books and writes the verdict in the
-  transaction that stores the message. Authentication, DNS, and signature verification all finish before that
-  transaction opens.
+- **A transaction that changes a book takes the lock for each address it changes.** That covers every contact write,
+  in any book, and every act that removes a contact, for each address the removed book held.
+- **A transaction that writes a trust verdict takes the lock for each verdict's first `From` mailbox before it reads
+  any book.** It reads the books and writes the verdicts in that same transaction. Three paths do this today. A batch
+  of a re-judgment job does it for the job's address. The trust step at extraction does it inside the transaction
+  that stores the message. A batch of `mfctl mailbox rederive` does it for every message in the batch, because
+  rederive's trust step is extraction's. On the last two paths, authentication, DNS, and signature verification
+  all finish before the locking transaction opens.
 
 A transaction that needs several locks takes them in sorted order of key, so two of them never deadlock. Any reader
 of the books therefore sees them either wholly before a write or wholly after it. A reader that saw them before a
 write committed its verdict before the write ran. The write's own job then selects that verdict and re-judges it
 afterwards, because a stored message and its verdict are committed before the job's query can run. Whichever reader
-runs last reads the last state, so a verdict written from a superseded state is always overwritten. Both critical
-sections read and write stored columns only and reach no server: a batch, and the trust step inside a message's
-storing transaction. ADR 0031 leaves this lock available for exactly that kind of section, and the lock cannot leak
+runs last reads the last state, so a verdict written from a superseded state is always overwritten. Every critical
+section the second rule creates reads and writes stored columns only, and reaches no server. ADR 0031 leaves this lock available for exactly that kind of section, and the lock cannot leak
 past the transaction that took it. A job re-judges two sets of stored messages:
 
 - every message whose first `From` mailbox is that address, on every account the book reaches now: the accounts
@@ -605,7 +605,7 @@ Each is named in its implementing pull request with the operator's action, for t
   builds `Known`. Issue 2783 re-judges the stored mail a contact change affects.
 - [ADR 0009](0009-durable-job-store-and-execution-identity.md) holds the re-judgment job, and its best-effort ordering
   is why the jobs are serialized by a lock rather than by the queue. [ADR 0031](0031-dividing-singleton-work-between-replicas-with-a-leased-scope.md)
-  keeps the transaction-scoped advisory lock for a short database-only section, which is what a batch and the trust step at extraction both are. [ADR 0012](0012-authorization-model-named-permissions-and-where-they-are-enforced.md)
+  keeps the transaction-scoped advisory lock for a short database-only section, which is what every verdict-writing transaction here is. [ADR 0012](0012-authorization-model-named-permissions-and-where-they-are-enforced.md)
   is the permission model the writers sit in. [ADR 0014](0014-single-tenant-multi-user-ownership-on-the-mail-account.md)
   is why a mailbox may be assigned to several users. [ADR 0042](0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
   is the organization signature, unchanged here.
