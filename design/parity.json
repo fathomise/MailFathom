@@ -757,6 +757,73 @@
           }
         }
       ]
+    },
+    "message-source-failed": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Nightly report - build #2418"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "click": {
+            "text": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "text": "Try again"
+          }
+        }
+      ]
+    },
+    "message-source-loading": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Invoice 08/2026"
+          }
+        },
+        {
+          "click": {
+            "text": "more_vert"
+          }
+        },
+        {
+          "click": {
+            "text": "Show source"
+          }
+        },
+        {
+          "expect": {
+            "role": "status",
+            "name": "Reading the message source"
+          }
+        }
+      ]
     }
   }
 }

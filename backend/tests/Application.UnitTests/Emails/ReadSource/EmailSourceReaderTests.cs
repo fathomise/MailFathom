@@ -11,6 +11,7 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.ReadSource;
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -44,9 +45,10 @@ public sealed class EmailSourceReaderTests
         var source = await reader.ReadForReaderAsync(summary.StoredEmailId, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(StoredRawMime, source.Octets?.ToArray());
-        Assert.False(source.IsCut);
-        Assert.Equal(StoredRawMime.Length, source.WholeOctetCount);
+        var served = Assert.IsType<EmailSourceServed>(source);
+        Assert.Equal(StoredRawMime, served.Octets.ToArray());
+        Assert.False(served.IsCut);
+        Assert.Equal(StoredRawMime.Length, served.WholeOctetCount);
     }
 
     /// <summary>
@@ -68,9 +70,10 @@ public sealed class EmailSourceReaderTests
         var source = await reader.ReadForReaderAsync(summary.StoredEmailId, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(EmailSourceReader.MaximumServedOctets, source.Octets?.Length);
-        Assert.True(source.IsCut);
-        Assert.Equal(largeMime.Length, source.WholeOctetCount);
+        var served = Assert.IsType<EmailSourceServed>(source);
+        Assert.Equal(EmailSourceReader.MaximumServedOctets, served.Octets.Length);
+        Assert.True(served.IsCut);
+        Assert.Equal(largeMime.Length, served.WholeOctetCount);
     }
 
     [Fact]
@@ -86,8 +89,7 @@ public sealed class EmailSourceReaderTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Null(source.Octets);
-        Assert.False(source.Screened);
+        Assert.IsType<EmailSourceUnavailable>(source);
         await contentStore.DidNotReceive().FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
     }
 
@@ -110,7 +112,32 @@ public sealed class EmailSourceReaderTests
         var source = await reader.ReadForReaderAsync(summary.StoredEmailId, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Null(source.Octets);
+        Assert.IsType<EmailSourceUnavailable>(source);
+        await contentStore.DidNotReceive().FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Reachability is decided before the screen, so a probe for another user's message on a screened deployment is
+    /// answered as one that does not exist rather than as a withheld source that confirms it does.
+    /// </summary>
+    [Fact]
+    public async Task ReadForReaderAsync_EmailOfAnAccountThisCallerDoesNotReachOnAScreenedDeployment_ServesNothingRatherThanWithholding()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create();
+        var contentStore = ContentStores.Substituted();
+        using var egress = ScanningSensitiveContentEgress.Finding("sk-live-000111222333", TimeProvider.System);
+        var reader = ReaderOver(
+            summary,
+            contentStore: contentStore,
+            egressGuard: egress.Guard,
+            accountCatalog: CatalogServing(MailAccountId.Create("somebody-else")));
+
+        // Act
+        var source = await reader.ReadForReaderAsync(summary.StoredEmailId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<EmailSourceUnavailable>(source);
         await contentStore.DidNotReceive().FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
     }
 
@@ -130,7 +157,7 @@ public sealed class EmailSourceReaderTests
         var source = await reader.ReadForReaderAsync(summary.StoredEmailId, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Null(source.Octets);
+        Assert.IsType<EmailSourceUnavailable>(source);
         Assert.Empty(repairRequests.Recorded);
     }
 
@@ -152,7 +179,7 @@ public sealed class EmailSourceReaderTests
         var source = await reader.ReadForReaderAsync(summary.StoredEmailId, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Null(source.Octets);
+        Assert.IsType<EmailSourceUnavailable>(source);
         var recorded = Assert.Single(repairRequests.Recorded);
         Assert.Equal(summary.StoredEmailId, recorded.StoredEmailId);
         Assert.Equal(defect, recorded.Defect.ToString());
@@ -173,7 +200,7 @@ public sealed class EmailSourceReaderTests
         var source = await reader.ReadForReaderAsync(summary.StoredEmailId, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.NotNull(source.Octets);
+        Assert.IsType<EmailSourceServed>(source);
         Assert.Equal(EmailContentDefect.ObjectUnreadable, Assert.Single(repairRequests.Recorded).Defect);
     }
 
@@ -194,8 +221,44 @@ public sealed class EmailSourceReaderTests
         var source = await reader.ReadForReaderAsync(summary.StoredEmailId, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.True(source.Screened);
-        Assert.Null(source.Octets);
+        Assert.IsType<EmailSourceWithheld>(source);
+        await contentStore.DidNotReceive().FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// A read of the message is redacted under the strictest posture across every account its reader holds, so the
+    /// source is withheld when another of those accounts is screened, even though the message's own account is not.
+    /// </summary>
+    [Fact]
+    public async Task ReadForReaderAsync_AnotherAccountOfThisReaderIsScreened_WithholdsTheSource()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create();
+        var contentStore = ContentStoreReturning(IntactContent());
+        using var egress = ScanningSensitiveContentEgress.Finding("sk-live-000111222333", TimeProvider.System);
+        var screenedElsewhere = await egress.Postures.AcrossAccountsOfAsync(
+            SyntheticUser.Deployment,
+            TestContext.Current.CancellationToken);
+        var postures = Substitute.For<ISensitiveContentPostures>();
+        postures
+            .ForAccountAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
+            .Returns(SensitiveContentPosture.ScanningNothing);
+        postures
+            .AcrossAccountsOfAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(screenedElsewhere);
+        var reader = ReaderOver(
+            summary,
+            contentStore: contentStore,
+            egressGuard: new SensitiveContentEgressGuard(
+                postures,
+                new RecordingSensitiveContentEgressTelemetry(),
+                TimeProvider.System));
+
+        // Act
+        var source = await reader.ReadForReaderAsync(summary.StoredEmailId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<EmailSourceWithheld>(source);
         await contentStore.DidNotReceive().FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
     }
 

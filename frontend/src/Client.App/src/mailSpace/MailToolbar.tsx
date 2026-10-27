@@ -162,10 +162,13 @@ export function MailToolbar({
                 says so rather than being left out, for the reason the three answers above are drawn either way. */}
             {outboxOpen ? null : <MailboxActControls messages={openMessages} shape={actShape} spam="toolbar" />}
 
-            {/* Where two panes stand below the desktop composition the head leaves its acts to this strip, so *More
-                actions* follows the spam control here instead, and every composition reaches it once. The strip holds
-                no subject, so its menu is headed by its own name. */}
-            {outboxOpen || !twoPanes || docked ? null : <MoreActions storedEmailId={open} subject={null} />}
+            {/* Where two panes stand below the desktop composition the head leaves its acts to this strip, and where
+                the panels are hidden there is no head at all, so *More actions* follows the spam control here instead,
+                and every composition reaches it once. The strip holds no subject, so its menu is headed by its own
+                name. */}
+            {outboxOpen || !twoPanes || (docked && !panelsHidden) ? null : (
+                <MoreActions storedEmailId={open} subject={null} />
+            )}
 
             {/* The one control in the strip that changes the view rather than the message, which is why the design
                 keeps it apart at the far edge and draws it as its symbol alone at every width. What it takes away is

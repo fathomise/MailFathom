@@ -34,6 +34,12 @@ export const markupOnlySubject = 'Your order is on its way';
 /** What the one attached file holds — small enough to state here, and large enough to arrive as more than nothing. */
 export const attachedOctets = 'order,quantity\nkettle,1\n';
 
+/** The second row of the inbox, whose local copy is gone, so asking for its source answers `404`. */
+export const unreadableSourceId = 'message-1';
+
+/** The third row of the inbox, whose source is asked for and never answered, so a capture finds it still on the wire. */
+export const waitingSourceId = 'message-2';
+
 /**
  * What the newsletter's source route answers: the message as it arrived, every header and every part in its transfer
  * encoding. It is served as text rather than JSON, so it is a string here rather than a record.

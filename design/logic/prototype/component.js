@@ -1756,8 +1756,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     /* The raw source is asked for when *Show source* is pressed and never with the message, so the surface opens on a
        skeleton and the text fades in once it arrives. One sample message fails until it is tried again, one arrives
-       cut, and one is refused by its deployment's screen (`data/prototype/message-sources.js`). */
+       cut, one is refused by its deployment's screen, one is asked for offline, which sends nothing and opens on no
+       skeleton, and one is never answered, so its skeleton stands (`data/prototype/message-sources.js`). */
     openSource = (id, named) => {
+      if (MESSAGE_SOURCES.waitsFor.includes(id)) {
+        clearTimeout(this._sourceT);
+        this.setState({ source: { id: id, phase: "loading", named: named !== false } });
+        return;
+      }
+      if (MESSAGE_SOURCES.offlineFor.includes(id)) {
+        clearTimeout(this._sourceT);
+        this.setState({ source: { id: id, phase: "offline", named: named !== false } });
+        return;
+      }
       const outcome = MESSAGE_SOURCES.screenedFor.includes(id) ? "screened" : MESSAGE_SOURCES.failsFor.includes(id) ? "failed" : "loaded";
       this.loadSource(id, outcome, named !== false);
     };
@@ -5570,9 +5581,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "mark_email_unread", label: "Unread" },
           { icon: "drive_file_move", label: "Move" },
           ...(threadSpam.spam ? [] : [{ icon: "report", label: "Mark spam" }]),
-          /* Where two panes under a finger leave the head its subject alone, *More actions* follows the spam control
-             here instead, so every composition reaches it once. */
-          ...(touch && !singlePane ? [{ icon: "more_vert", label: "More actions", glyphOnly: true }] : []),
+          /* Where two panes under a finger leave the head its subject alone, or hidden panels leave no head at all,
+             *More actions* follows the spam control here instead, so every composition reaches it once. */
+          ...((touch || st.stateBarOff) && !singlePane ? [{ icon: "more_vert", label: "More actions", glyphOnly: true }] : []),
           /* Condensed view: hides the agreed/questions bar under the thread header.
              The setting is global for mail, so it survives switching messages. */
           /* Glyph only — fullscreen/exit reads instantly, the label lives in the tooltip. */
@@ -6328,6 +6339,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             sourceLoaded: src.phase === "loaded",
             sourceFailed: src.phase === "failed",
             sourceScreened: src.phase === "screened",
+            sourceOffline: src.phase === "offline",
             sourceCut: src.phase === "loaded" && !!cut,
             sourceCutNote: cut ? "This message is " + cut + ", more than can be shown at once, so its source stops after the first 1 MB." : "",
             sourceSize: src.phase === "loaded" ? (cut || (Math.max(1, Math.round(text.length / 100) / 10)) + " kB") : "",

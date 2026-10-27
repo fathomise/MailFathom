@@ -355,12 +355,12 @@ same screen sits on the two paths that hand an attachment's octets to somebody o
 ### A message's raw source is not served where reading it is redacted
 
 The client surface serves one message exactly as it was received through its
-[source route](../operations/client-endpoint.md#the-source-route). Where a switched-on scanner covers the account — the
-same posture that redacts a read of the message — that route refuses, answering `409` with `59005` before any of the
-stored copy is read. A read is redacted value by value, and a raw source cannot be: its body sits in transfer encodings
+[source route](../operations/client-endpoint.md#the-source-route). Where a switched-on scanner covers any account its
+reader is assigned — the posture across a user's accounts that redacts every read of their mail — that route refuses,
+answering `409` with `59005` before any of the stored copy is read. A read is redacted value by value, and a raw source cannot be: its body sits in transfer encodings
 no scanner reads, and cutting a region out of it would hand a reader a message its sender never composed. So the answer
-is the whole source or none of it, and on a screened account it is none. An account no scanner covers is served its
-source as it always was.
+is the whole source or none of it, and for a reader any of whose accounts is screened it is none. A reader no scanner
+covers is served the source as it always was.
 
 ### What it screens for, and why the default is secrets alone
 

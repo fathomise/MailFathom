@@ -143,7 +143,7 @@ public sealed class ClientMailSourceEndpointTests
         var refused = Assert.IsType<ProblemHttpResult>(result.Result);
         Assert.Equal(StatusCodes.Status409Conflict, refused.StatusCode);
         Assert.Equal(
-            MailFathomErrorCode.MessageSourceScreened.Value,
+            MailFathomErrorCode.EmailSourceScreened.Value,
             refused.ProblemDetails.Extensions[RouteAuthorization.ErrorCodeExtension]);
     }
 

@@ -2005,8 +2005,10 @@ stored, and one whose stored copy is missing or damaged — the last two record 
 records, because the finding is about the copy rather than about which read met it. A credential whose grant does not
 carry `mailfathom.mail.read` is answered `403`, as everywhere else on this surface.
 
-**Where [sensitive-content scanning](../features/sensitive-content-scanning.md) is switched on for the account, the
-source is not served.** It answers `409` with `errorCode` `59005`, before any of the copy is read. A read of the message
+**Where [sensitive-content scanning](../features/sensitive-content-scanning.md) is switched on for any account the
+reader is assigned, the source is not served.** That is the posture every read of their mail is redacted under, whichever
+account the message came from. The route answers `409` with `errorCode` `59005` before any of the copy is read, and only
+for a message the reader can reach: one they cannot reach is `404` on a screened deployment too. A read of the message
 is redacted value by value, and a raw source cannot be: its body sits in transfer encodings no scanner reads, so serving
 it beside a redacted body would hand out exactly what the redaction withholds. The reader has already been shown the
 message exists, so saying the source is withheld discloses nothing more.

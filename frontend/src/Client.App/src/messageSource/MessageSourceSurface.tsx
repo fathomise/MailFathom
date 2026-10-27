@@ -10,9 +10,9 @@ import {
     type MailSource,
 } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
-import { SecondaryButton } from '../controls/SecondaryButton';
 import { SkeletonLines, type SkeletonLine } from '../controls/Skeleton';
 import { SurfaceControl } from '../controls/SurfaceControl';
+import { mannerDrawn } from '../confirmation/wayOutShapes';
 import type { MessageKey } from '../localization/en';
 import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
@@ -163,8 +163,9 @@ function SourceBody({
                 <SkeletonLines lines={waitingSourceLines} className="gap-2.25 px-5 py-4.5" />
             </div>
         ) : (
-            <p className="px-5 py-4.5 text-base text-muted" role="status">
-                {translate('message.offline')}
+            <p role="status" className="flex items-start gap-2.25 px-5 py-4.5 text-base text-pretty text-muted">
+                <Icon name="cloud_off" className="size-icon-md shrink-0" />
+                {translate('source.offline')}
             </p>
         );
     }
@@ -172,12 +173,14 @@ function SourceBody({
     if (result.outcome === 'failed') {
         return (
             <div className="flex flex-col items-start gap-2.5 px-5 py-4.5">
-                <p role="alert" className="flex items-start gap-2.25 text-base text-pretty text-warning">
+                <p role="alert" className="flex items-start gap-2.25 text-base text-pretty text-warning-text">
                     <Icon name="warning" className="size-icon-md shrink-0" />
                     {translate('source.failed', { reason: translate(failureLabels[result.failure.reason]) })}
                 </p>
 
-                <SecondaryButton label={translate('connection.retry')} onActivate={onRetry} />
+                <button type="button" className={mannerDrawn.back} onClick={onRetry}>
+                    {translate('connection.retry')}
+                </button>
             </div>
         );
     }

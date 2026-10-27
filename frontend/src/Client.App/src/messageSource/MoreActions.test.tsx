@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
     readMailSource,
@@ -49,15 +49,21 @@ function deploymentAnswering(...answers: readonly (ClientResponse | 'pending')[]
 }
 
 function drawMoreActions(transport: MailFathomTransport, online = true) {
-    render(
+    const reading = { read: (storedEmailId: string) => readMailSource(session, transport, storedEmailId), online };
+    const drawn = (storedEmailId: string | null) => (
         <LocalizationProvider>
-            <MessageSourceReadingContext
-                value={{ read: (storedEmailId) => readMailSource(session, transport, storedEmailId), online }}
-            >
-                <MoreActions storedEmailId={messageId} subject="Quarterly invoice" />
+            <MessageSourceReadingContext value={reading}>
+                <MoreActions storedEmailId={storedEmailId} subject="Quarterly invoice" />
             </MessageSourceReadingContext>
-        </LocalizationProvider>,
+        </LocalizationProvider>
     );
+    const { rerender } = render(drawn(messageId));
+
+    return {
+        standOver: (storedEmailId: string | null) => {
+            rerender(drawn(storedEmailId));
+        },
+    };
 }
 
 function showSource(): void {
@@ -100,6 +106,23 @@ describe('MoreActions', () => {
         expect(asked.map((request) => request.path)).toEqual([
             `https://mail.example.invalid/api/client/messages/${messageId}/source`,
         ]);
+    });
+
+    it('closes the source once its message stops being the one standing here, and does not draw it over the next', async () => {
+        const { transport } = deploymentAnswering({ status: 200, body: source, headers: {} });
+
+        const { standOver } = drawMoreActions(transport);
+        showSource();
+        await screen.findByRole('dialog', { name: 'Message source' });
+
+        standOver(null);
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog', { name: 'Message source' })).toBeNull();
+        });
+
+        standOver('00000000-0000-4000-8000-000000000001');
+        expect(screen.queryByRole('dialog', { name: 'Message source' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'More actions' })).toBeDefined();
     });
 
     it('stands a skeleton in the source while it is on the wire', async () => {
@@ -160,7 +183,9 @@ describe('MoreActions', () => {
         drawMoreActions(transport, false);
         showSource();
 
-        expect(await screen.findByText(/offline|network/iu)).toBeDefined();
+        expect((await screen.findByRole('status')).textContent).toBe(
+            'This machine is offline, so the message source cannot be read. It is read once the network comes back.',
+        );
         expect(asked).toEqual([]);
     });
 });

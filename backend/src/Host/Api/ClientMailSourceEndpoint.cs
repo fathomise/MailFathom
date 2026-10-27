@@ -79,32 +79,29 @@ internal static class ClientMailSourceEndpoint
             return TypedResults.NotFound();
         }
 
-        var outcome = await sources.ReadForReaderAsync(StoredEmailId.Create(storedEmailId), cancellationToken);
-
-        if (outcome.Screened)
+        switch (await sources.ReadForReaderAsync(StoredEmailId.Create(storedEmailId), cancellationToken))
         {
-            return ScreenedOut();
+            case EmailSourceServed served:
+                Describe(context.Response, served);
+                await context.Response.Body.WriteAsync(served.Octets, cancellationToken);
+
+                return TypedResults.Empty;
+
+            case EmailSourceWithheld:
+                return Withheld();
+
+            default:
+                return TypedResults.NotFound();
         }
-
-        if (outcome.Octets is not { } octets)
-        {
-            return TypedResults.NotFound();
-        }
-
-        Describe(context.Response, outcome);
-
-        await context.Response.Body.WriteAsync(octets, cancellationToken);
-
-        return TypedResults.Empty;
     }
 
     /// <summary>Writes the headers that describe a source, before any octet of it is written.</summary>
     /// <param name="response">The response the source is written to.</param>
     /// <param name="outcome">The source that was read.</param>
-    internal static void Describe(HttpResponse response, EmailSourceReadOutcome outcome)
+    internal static void Describe(HttpResponse response, EmailSourceServed outcome)
     {
         response.ContentType = SourceMediaType;
-        response.ContentLength = outcome.Octets?.Length;
+        response.ContentLength = outcome.Octets.Length;
         response.Headers.XContentTypeOptions = "nosniff";
         response.Headers.CacheControl = "no-store";
 
@@ -114,11 +111,11 @@ internal static class ClientMailSourceEndpoint
         }
     }
 
-    private static ProblemHttpResult ScreenedOut() => TypedResults.Problem(
+    private static ProblemHttpResult Withheld() => TypedResults.Problem(
         ScreenedDetail,
         statusCode: StatusCodes.Status409Conflict,
         extensions: new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            [RouteAuthorization.ErrorCodeExtension] = MailFathomErrorCode.MessageSourceScreened.Value,
+            [RouteAuthorization.ErrorCodeExtension] = MailFathomErrorCode.EmailSourceScreened.Value,
         });
 }

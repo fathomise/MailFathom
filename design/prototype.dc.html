@@ -1513,6 +1513,9 @@ Project repository: https://github.com/fathomise/MailFathom
               <sc-if value="{{ sourceScreened }}" hint-placeholder-val="{{ false }}">
                 <div role="status" style="display:flex;align-items:flex-start;gap:9px;padding:18px 20px;font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">lock</span>Your administrator screens what leaves this server for sensitive content, and a message's raw source cannot be screened, so it is not shown.</div>
               </sc-if>
+              <sc-if value="{{ sourceOffline }}" hint-placeholder-val="{{ false }}">
+                <div role="status" style="display:flex;align-items:flex-start;gap:9px;padding:18px 20px;font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">cloud_off</span>This machine is offline, so the message source cannot be read. It is read once the network comes back.</div>
+              </sc-if>
               <sc-if value="{{ sourceLoaded }}" hint-placeholder-val="{{ true }}">
                 <div data-motion="fade">
                   <sc-if value="{{ sourceCut }}" hint-placeholder-val="{{ false }}">

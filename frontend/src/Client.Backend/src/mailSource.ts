@@ -59,8 +59,11 @@ export function readMailSource(
         }
 
         switch (response.status) {
+            // The transport answers an over-bound or bodiless answer with nothing, and no stored message is empty.
             case 200:
-                return read({ withheld: false, text: response.body, wholeOctets: wholeOctetsOf(response.headers) });
+                return response.body === ''
+                    ? failed('unreadable', response.status)
+                    : read({ withheld: false, text: response.body, wholeOctets: wholeOctetsOf(response.headers) });
             case 404:
                 return failed('missing', response.status);
             case 409:

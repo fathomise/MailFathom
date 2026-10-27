@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 // What *Show source* draws: every message's raw source is composed from its thread (`sourceOf` in the component), and
-// this holds the parts of it no thread carries — the relay it came through, its signature, and the three messages
+// this holds the parts of it no thread carries — the relay it came through, its signature, and the five messages
 // whose source does not arrive whole. Every host, address and digest here is made up; the addresses are in the
 // documentation ranges.
 MailFathomDesign.data.messageSources = {
@@ -29,4 +29,12 @@ MailFathomDesign.data.messageSources = {
   // The one on an account whose deployment screens what leaves it: a raw source cannot be screened the way a read is,
   // so it is not served at all, and the surface says so without a way to try again.
   screenedFor: ["bank1"],
+
+  // The one asked for while the machine is offline: nothing goes out, and the surface says the source is read once the
+  // network comes back, with no way to try again before then.
+  offlineFor: ["travel1"],
+
+  // The one whose source is asked for and never answered, so the skeleton stands on it for as long as the surface is
+  // open.
+  waitsFor: ["finanse"],
 };

@@ -41,34 +41,43 @@ export function MoreActions({
     const [menu, setMenu] = useState<MenuPoint | null>(null);
     const [source, setSource] = useState<Opened | null>(null);
     const label = translate('message.moreActions');
+    const acting = storedEmailId !== null && reading !== null;
 
-    if (storedEmailId === null || reading === null) {
-        return (
-            <PlannedControl
-                label={label}
-                icon="more_vert"
-                shape="symbol"
-                why={translate('act.nothingToActOn', { control: label })}
-            />
-        );
-    }
+    // A source opened about a message that is no longer the one standing here leaves through the window's own close,
+    // rather than being pulled out of the document with focus inside it, or drawn again over the next message.
+    const shown =
+        reading !== null && source !== null && source.storedEmailId === storedEmailId
+            ? { storedEmailId: source.storedEmailId, reading }
+            : null;
 
     return (
         <>
-            <span ref={opener} className="contents">
-                <Control
-                    label={label}
-                    icon="more_vert"
-                    shape="symbol"
-                    onPress={() => {
-                        const control = opener.current?.querySelector('button')?.getBoundingClientRect();
+            {/* A box of its own rather than `contents`, so a strip adding up its controls' widths counts this one. */}
+            <span ref={opener} className="flex shrink-0">
+                {acting ? (
+                    <Control
+                        label={label}
+                        icon="more_vert"
+                        shape="symbol"
+                        onPress={() => {
+                            const control = opener.current?.querySelector('button')?.getBoundingClientRect();
 
-                        setMenu(control === undefined ? { x: 0, y: 0 } : { x: control.right, y: control.bottom + 4 });
-                    }}
-                />
+                            setMenu(
+                                control === undefined ? { x: 0, y: 0 } : { x: control.right, y: control.bottom + 4 },
+                            );
+                        }}
+                    />
+                ) : (
+                    <PlannedControl
+                        label={label}
+                        icon="more_vert"
+                        shape="symbol"
+                        why={translate('act.nothingToActOn', { control: label })}
+                    />
+                )}
             </span>
 
-            <Departing value={menu}>
+            <Departing value={storedEmailId === null ? null : menu}>
                 {(at) => (
                     <ContextMenu
                         header={subject ?? label}
@@ -79,7 +88,9 @@ export function MoreActions({
                                 icon: 'data_object',
                                 label: translate('source.show'),
                                 choose: () => {
-                                    setSource({ storedEmailId });
+                                    if (storedEmailId !== null) {
+                                        setSource({ storedEmailId });
+                                    }
                                 },
                             },
                         ]}
@@ -91,7 +102,7 @@ export function MoreActions({
                 )}
             </Departing>
 
-            <Departing value={source}>
+            <Departing value={shown}>
                 {(opened) => (
                     <SurfaceWindow
                         label={translate('source.title')}
@@ -102,7 +113,7 @@ export function MoreActions({
                     >
                         {(close) => (
                             <MessageSourceSurface
-                                reading={reading}
+                                reading={opened.reading}
                                 storedEmailId={opened.storedEmailId}
                                 subject={subject}
                                 onClose={close}

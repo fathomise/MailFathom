@@ -1488,6 +1488,8 @@ export const en = {
     'source.asReceived': 'As received, {size}',
     'source.subjectAsReceived': '{subject} · as received, {size}',
     'source.failed': 'The message source could not be read: {reason}.',
+    'source.offline':
+        'This machine is offline, so the message source cannot be read. It is read once the network comes back.',
     'source.withheld':
         "Your administrator screens what leaves this server for sensitive content, and a message's raw source cannot be screened, so it is not shown.",
     'source.cut':

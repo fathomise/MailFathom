@@ -120,6 +120,14 @@ describe('fixtureAnswer', () => {
         expect(page['previousCursor']).toBe('200');
     });
 
+    it('answers a message as it arrived, and the one whose copy is gone as missing', () => {
+        expect(answered(`/messages/${messages.newsletterId}/source`)).toMatchObject({
+            status: 200,
+            body: messages.newsletterSource,
+        });
+        expect(answered(`/messages/${messages.unreadableSourceId}/source`).status).toBe(404);
+    });
+
     it('answers a message with the identity that was asked for rather than the corpus own', () => {
         const message = stated(answered('/messages/00000000-0000-4000-8000-0000000000c3'));
 
@@ -530,6 +538,31 @@ describe('fixtureDeployment', () => {
 
         await vi.advanceTimersByTimeAsync(1);
         await expect(answering).resolves.toMatchObject({ status: 200 });
+    });
+
+    it('never answers the source held on the wire, until the screen that asked for it walks away', async () => {
+        const abandoning = new AbortController();
+        const transport = fixtureDeployment(() => 1)(abandoning.signal);
+        const answering = transport(asking(`/messages/${messages.waitingSourceId}/source`));
+        let settled = false;
+
+        void answering.then(
+            () => {
+                settled = true;
+            },
+            () => {
+                settled = true;
+            },
+        );
+
+        await expect(transport(asking(`/messages/${messages.newsletterId}/source`))).resolves.toMatchObject({
+            status: 200,
+        });
+        expect(settled).toBe(false);
+
+        abandoning.abort();
+
+        await expect(answering).rejects.toThrow('abandoned');
     });
 
     it('gives up on a request the screen that started it abandoned', async () => {

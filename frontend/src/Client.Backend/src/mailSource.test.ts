@@ -84,6 +84,12 @@ describe('readMailSource', () => {
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
     });
 
+    it('refuses a source answered with nothing, which is how the transport hands over an answer past the bound', async () => {
+        const result = await readMailSource(session, answering({ status: 200, body: '', headers: {} }), messageId);
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
     it('answers a deployment that did not answer as unavailable', async () => {
         const result = await readMailSource(session, () => Promise.reject(new Error('refused')), messageId);
 

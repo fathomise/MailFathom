@@ -24,8 +24,13 @@ namespace MailFathom.Application.Emails.ReadSource;
 /// <para>
 /// Every refusal about what is there is one refusal. A message this user does not hold, one no deployment ever held, a
 /// copy deliberately not stored, and a copy that is missing or damaged all answer
-/// <see cref="EmailSourceReadOutcome.NothingToServe" />; the last two also record the repair request a read of the
+/// <see cref="EmailSourceUnavailable" />; the last two also record the repair request a read of the
 /// message records, because the finding is about the copy rather than about which read met it.
+/// </para>
+/// <para>
+/// A source is withheld wherever any account this person reads is screened, because that is the posture every read of
+/// their mail is redacted under, and a source served beside a redacted body would hand out what the redaction withholds.
+/// The check follows the reachability check, so a message this person cannot read is unavailable rather than withheld.
 /// </para>
 /// <para>
 /// A source larger than <see cref="MaximumServedOctets" /> is served cut, with the size of the whole beside it, so a
@@ -53,7 +58,7 @@ public sealed class EmailSourceReader
     /// <param name="contentStore">Reads the raw MIME stored for an email, with what was recorded about it.</param>
     /// <param name="repairRequestStore">Records durably that a local copy has to be fetched or read again.</param>
     /// <param name="scopeResolver">Answers whether the reader may reach the mailbox an email was stored from.</param>
-    /// <param name="egressGuard">Answers whether anything is scanned for in the mail of the email's account.</param>
+    /// <param name="egressGuard">Answers whether anything is scanned for in the mail this person reads.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public EmailSourceReader(
@@ -101,14 +106,14 @@ public sealed class EmailSourceReader
             || !await this.scopeResolver.IsReadableAsync(MailboxReaderKind.Person, summary, cancellationToken)
             || summary.ContentAvailability is not StoredEmailContentAvailability.Available)
         {
-            return EmailSourceReadOutcome.NothingToServe();
+            return new EmailSourceUnavailable();
         }
 
-        var posture = await this.egressGuard.ReadPostureOfAsync(summary.Account, cancellationToken);
+        var posture = await this.egressGuard.ReadPostureAcrossAccountsOfAsync(this.scopeResolver.User, cancellationToken);
 
         if (posture.Posture.IsActive)
         {
-            return EmailSourceReadOutcome.ScreenedOut();
+            return new EmailSourceWithheld();
         }
 
         var content = await this.contentStore.FindStoredContentAsync(storedEmailId, cancellationToken);
@@ -127,7 +132,7 @@ public sealed class EmailSourceReader
 
         var whole = content.RawMime;
 
-        return EmailSourceReadOutcome.Served(whole[..Math.Min(whole.Length, MaximumServedOctets)], whole.Length);
+        return new EmailSourceServed(whole[..Math.Min(whole.Length, MaximumServedOctets)], whole.Length);
     }
 
     private async Task<EmailSourceReadOutcome> RefuseAndRequestRepairAsync(
@@ -137,6 +142,6 @@ public sealed class EmailSourceReader
     {
         await this.repairRequestStore.RecordAsync(new EmailContentRepairRequest(storedEmailId, defect), cancellationToken);
 
-        return EmailSourceReadOutcome.NothingToServe();
+        return new EmailSourceUnavailable();
     }
 }
