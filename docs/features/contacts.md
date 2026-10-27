@@ -452,11 +452,15 @@ first inside the same transaction so it can answer with what it removed — the 
 it — and a user asking for one gets an answer rather than a call that returned without complaint. Erasing somebody the books do not hold is a completed erasure, not
 a failure: the state the user asked for is the state the books are in.
 
-**It reaches every book the caller reads, not only their own.** That is the one act over the books that does, and it is
-what a person asking to be taken out of a contact book is owed: no origin gates it, and somebody making that request is
-not answered with which half of which book they happen to be in. So **erasing a collected contact takes it out for every
-user assigned that mailbox**, because it was one record rather than a copy each — which is the honest reading of the
-request and the cost of the mailbox holding one record for everybody.
+**It reaches every book the caller reads except an organization's, not only their own.** That is the one act over the
+books that does, and it is what a person asking to be taken out of a contact book is owed: neither asserted nor collected
+gates it, and somebody making that request is not answered with which half of which book they happen to be in. So
+**erasing a collected contact takes it out for every user assigned that mailbox**, because it was one record rather than
+a copy each — which is the honest reading of the request and the cost of the mailbox holding one record for everybody.
+The organization's book is the one a member reads and does not reach: its contacts are erased only by an administrator,
+through the administrative surface or `mfctl contact delete --organization`, under `mailfathom.admin.erase`, and a
+member's erasure answers one of them as a contact the books do not hold — see [§ The organization's
+book](#the-organizations-book).
 
 **Erasing a user erases their own book.** It is the cascade rather than an erasure of its own, and it runs in two
 hops: the asserted half of `contacts` keys onto the user record and `contact_addresses` keys onto `contacts` through

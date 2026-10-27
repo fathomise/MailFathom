@@ -2198,7 +2198,7 @@ The same shape `create_contact` answers with, and two more states it can carry:
 | State | What it means |
 |---|---|
 | `written` | The book holds the record, published in `contact` |
-| `notFound` | No contact of that identifier is in the book |
+| `notFound` | No contact of that identifier is in the books the caller reads, or the one that is carries `organization`, which this tool does not amend |
 | `addressHeldByAnotherContact` | One of the addresses belongs to somebody else, named by `addressHolderContactId` |
 | `contactWasCollected` | The record is one of the caller's mail accounts' rather than one somebody wrote down |
 
@@ -2216,10 +2216,12 @@ What is different here is that nothing of the person survives: the record is del
 here brings it back. It removes the contact record alone: no mail is deleted, and no mail server is
 contacted.
 
-It reaches every book the caller reads rather than their own alone, because no origin gates an erasure — somebody asking
-to be taken out of a contact book is not answered with which book they happen to be in. So **erasing a collected record
-takes it out of the mail account's book for every user assigned that account**, the record having been one record rather
-than a copy each. Emptying a whole account's collected book is `mfctl contact delete-collected`, which no tool here
+It reaches every book the caller reads except the organization's, rather than their own alone, because neither asserted
+nor collected gates an erasure — somebody asking to be taken out of a contact book is not answered with which book they
+happen to be in. So **erasing a collected record takes it out of the mail account's book for every user assigned that
+account**, the record having been one record rather than a copy each. A contact carrying `organization` is the
+exception: its book is written by administrators alone, so this tool answers it with `wasHeld` false and leaves it where
+it is. Emptying a whole account's collected book is `mfctl contact delete-collected`, which no tool here
 publishes.
 
 ### Arguments
