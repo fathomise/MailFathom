@@ -204,7 +204,7 @@ MailFathomDesign.fathomUi = (() => {
       fathomFabSmart: smartOn ? "1" : "0",
       /* A disc whose glyph alone names it; its surface lives in prototype.css. */
       fathomFabStyle: "position:fixed;z-index:88;right:" + fabEdge + "px;bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
-        "display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--accent-d)",
+        "display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--onaccent)",
       fathomFabGlyph: GLYPH + "position:relative;z-index:1;font-size:" + (touch ? 26 : 24) + "px;font-variation-settings:'FILL' 0,'wght' 400",
       fathomMenuOpen: !!st.fathomMenu,
       closeFathomMenu: () => self.setState({ fathomMenu: false }),
@@ -308,7 +308,7 @@ MailFathomDesign.fathomUi = (() => {
       cuCardSub: reason.label + " · " + needN + " still need you · on one page",
       cuCardIcon: cu && cu.reason === "holiday" ? "beach_access" : "flight_land",
       cuCardIconStyle: toneTile("accent"),
-      cuCardStyle: "display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-sizing:border-box;border-radius:14px;background:var(--panel);border:1px solid var(--accent-line);box-shadow:inset 3px 0 0 var(--accent);" + (isMobile ? "padding:12px 12px 12px 15px;" : "padding:12px 14px 12px 17px;"),
+      cuCardStyle: (isMobile || narrow ? "order:2;" : "") + "display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-sizing:border-box;border-radius:14px;background:var(--panel);border:1px solid var(--accent-line);box-shadow:inset 3px 0 0 var(--accent);" + (isMobile ? "padding:12px 12px 12px 15px;" : "padding:12px 14px 12px 17px;"),
       cuOpenBtnStyle: primaryBtn,
       cuQuietBtnStyle: quietBtn,
       openCatchup: self.openCatchup,
@@ -430,7 +430,7 @@ MailFathomDesign.fathomUi = (() => {
           glyph: GLYPH + "font-size:17px;color:" + (g.key === "needs" ? "var(--accent-d)" : "var(--muted)"),
         };
       }),
-      sinceGridStyle: isMobile ? "display:flex;flex-direction:column;gap:8px" : "display:grid;grid-template-columns:repeat(3,1fr);gap:9px",
+      sinceGridStyle: isMobile || c.startWide ? "display:flex;flex-direction:column;gap:8px" : "display:grid;grid-template-columns:repeat(3,1fr);gap:9px",
       sinceArchive: () => {
         self.setState({ sinceArchived: true });
         self.notify("Six newsletters and notifications are in Archive.", { title: "Archived", actionLabel: "Undo", onAction: () => { self.hideToast(); self.setState({ sinceArchived: false }); } });

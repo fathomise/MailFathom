@@ -228,18 +228,23 @@ Project repository: https://github.com/fathomise/MailFathom
       </sc-if>
 
       <div style="{{ searchWrapStyle }}"><div style="{{ searchInnerStyle }}">
-        <sc-if value="{{ showAskChips }}" hint-placeholder-val="{{ true }}">
-          <div style="{{ dayCountsStyle }}">
+        <div data-smart="start.ask" style="{{ searchBoxStyle }}">
+          <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:4px 8px;font-weight:600">AI</div>
+          <input aria-label="Ask or find" aria-expanded="{{ askSuggestOpen }}" aria-controls="ask-suggest" value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" onFocus="{{ onAskFocus }}" onBlur="{{ onAskBlur }}" placeholder="{{ askPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:16px;color:var(--text);background:transparent;text-overflow:ellipsis" />
+          <div onClick="{{ submit }}" style="{{ askBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askLabel }}</div>
+        </div>
+        <sc-if value="{{ askSuggestOpen }}" hint-placeholder-val="{{ false }}">
+          <div id="ask-suggest" data-ask-suggest="1" data-motion="fade" role="listbox" aria-label="Suggested questions" style="{{ askSuggestStyle }}">
+            <div style="{{ askSuggestHeadStyle }}"><div style="{{ sectionLabelStyle }}">Suggested from your mail</div><div style="font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ askSuggestNote }}</div></div>
             <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="3">
-              <div role="button" tabIndex="0" onClick="{{ s.pick }}" style="{{ askChipStyle }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1;color:var(--muted)">search</span>{{ s.text }}</div>
+              <div role="option" aria-selected="false" tabIndex="0" onMouseDown="{{ s.pick }}" onKeyDown="{{ s.pickKey }}" onBlur="{{ onAskBlur }}" style="{{ askSuggestRowStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
+                <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:19px;line-height:1;color:var(--accent-d)">manage_search</span>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><div style="font-size:14px;line-height:1.35;color:var(--text);text-wrap:pretty">{{ s.text }}</div><div style="font-size:12px;color:var(--muted)">{{ s.why }}</div></div>
+                <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;color:var(--faint)">north_west</span>
+              </div>
             </sc-for>
           </div>
         </sc-if>
-        <div data-smart="start.ask" style="{{ searchBoxStyle }}">
-          <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:4px 8px;font-weight:600">AI</div>
-          <input aria-label="Ask or find" value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="{{ askPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:16px;color:var(--text);background:transparent;text-overflow:ellipsis" />
-          <div onClick="{{ submit }}" style="{{ askBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askLabel }}</div>
-        </div>
         <sc-if value="{{ runFinished }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)">{{ runMeta }}</div>
@@ -290,6 +295,13 @@ Project repository: https://github.com/fathomise/MailFathom
                   </div>
                 </sc-for>
               </div>
+              <sc-if value="{{ watchPagingFoot }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+                  <span style="{{ watchPageStyle }}">{{ watchPageText }}</span>
+                  <div role="button" tabIndex="0" aria-label="Previous watched questions" title="Previous" aria-disabled="{{ watchPrevOff }}" onClick="{{ watchPrev }}" style="{{ watchPrevStyle }}">chevron_left</div>
+                  <div role="button" tabIndex="0" aria-label="Next watched questions" title="Next" aria-disabled="{{ watchNextOff }}" onClick="{{ watchNext }}" style="{{ watchNextStyle }}">chevron_right</div>
+                </div>
+              </sc-if>
             </sc-if>
           </div>
         </sc-if>
@@ -299,8 +311,8 @@ Project repository: https://github.com/fathomise/MailFathom
         <div onScroll="{{ onStartScroll }}" style="{{ idleStyle }}">
           <div style="{{ startBodyStyle }}">
           <div style="{{ dayMainStyle }}">
-            <div style="display:flex;flex-direction:column;gap:14px">
-              <div style="display:flex;flex-direction:column;gap:4px">
+            <div style="{{ greetWrapStyle }}">
+              <div style="display:flex;flex-direction:column;gap:4px;{{ ordGreet }}">
                 <div style="{{ idleTitleStyle }}">Good afternoon, Karolina</div>
                 <div style="font-size:13px;color:var(--muted);text-wrap:pretty">{{ sample.today }} · read off your mail, calendar and tasks by rules</div>
               </div>
@@ -354,7 +366,7 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
 
             <sc-if value="{{ hasHeadsUp }}" hint-placeholder-val="{{ true }}">
-              <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;flex-direction:column;gap:10px;{{ ordHeads }}">
                 <div style="{{ sectionHeadStyle }}"><div style="{{ sectionLabelStyle }}">Heads up</div><div style="font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ headsNote }}</div></div>
                 <div style="{{ headsListStyle }}">
                   <sc-for list="{{ headsUp }}" as="hu" hint-placeholder-count="2">
@@ -388,7 +400,7 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
 
             <div style="{{ pairStyle }}">
-            <div style="{{ pairColStyle }}">
+            <div style="{{ nextColStyle }}">
               <div style="{{ pairHeadStyle }}"><div style="{{ sectionLabelStyle }}">Up next</div><div style="font-size:11px;color:var(--faint)">{{ nextUp.inText }}</div></div>
               <div data-motion="fade" data-smart="start.nextUp" data-smart-label="{{ nextUp.title }}" style="{{ nextCardStyle }}">
                 <div style="display:flex;align-items:flex-start;gap:12px">
@@ -430,7 +442,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 </div>
               </div>
             </div>
-            <div onMouseUp="{{ onAgentSelect }}" onKeyUp="{{ onAgentSelect }}" onTouchEnd="{{ onAgentSelect }}" role="region" aria-roledescription="carousel" aria-label="One step each" style="{{ pairColStyle }}">
+            <div onMouseUp="{{ onAgentSelect }}" onKeyUp="{{ onAgentSelect }}" onTouchEnd="{{ onAgentSelect }}" role="region" aria-roledescription="carousel" aria-label="One step each" style="{{ stepColStyle }}">
               <div style="{{ pairHeadStyle }}">
                 <div style="{{ sectionLabelStyle }};white-space:nowrap">One step each</div><div style="font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ stepDeckNote }}</div>
                 <sc-if value="{{ stepDeckMany }}" hint-placeholder-val="{{ true }}">
@@ -531,7 +543,8 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
             </div>
 
-            <div data-smart="start.since" data-smart-label="since {{ sinceAt }}" style="display:flex;flex-direction:column;gap:10px">
+            <sc-if value="{{ sinceInMain }}" hint-placeholder-val="{{ true }}">
+            <div data-smart="start.since" data-smart-label="since {{ sinceAt }}" style="display:flex;flex-direction:column;gap:10px;{{ ordSince }}">
               <div style="{{ sectionHeadStyle }}"><div style="{{ sectionLabelStyle }}">Since you last looked</div><div style="font-size:11px;color:var(--faint)">at {{ sinceAt }} · {{ sinceArrived }} · sorted by rules</div></div>
               <div style="{{ sinceGridStyle }}">
                 <sc-for list="{{ sinceGroups }}" as="sg" hint-placeholder-count="3">
@@ -546,10 +559,12 @@ Project repository: https://github.com/fathomise/MailFathom
                 </sc-for>
               </div>
             </div>
+            </sc-if>
           </div>
 
           <div style="{{ dayAsideStyle }}">
-            <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="{{ asideColAStyle }}">
+            <div style="display:flex;flex-direction:column;gap:10px;{{ ordDay }}">
               <div style="{{ sectionHeadStyle }}"><div style="{{ sectionLabelStyle }}">Your day</div><div style="font-size:11px;color:var(--faint)">calendar and tasks</div></div>
               <div data-smart="start.day" style="{{ dayCardStyle }}">
                 <sc-for list="{{ dayPlan }}" as="dp" hint-placeholder-count="6">
@@ -569,8 +584,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 </sc-for>
               </div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
-              <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;flex-direction:column;gap:10px;{{ ordWaiting }}">
                 <div style="{{ sectionHeadStyle }}"><div style="{{ sectionLabelStyle }}">Waiting on you</div><div style="font-size:11px;color:var(--faint)">asked of you, not answered · longest first</div></div>
                 <div style="{{ waitingCardStyle }}">
                   <sc-for list="{{ waiting }}" as="wt" hint-placeholder-count="3">
@@ -586,7 +600,9 @@ Project repository: https://github.com/fathomise/MailFathom
                   </sc-for>
                 </div>
               </div>
-              <div style="display:flex;flex-direction:column;gap:10px">
+            </div>
+            <div style="{{ asideColBStyle }}">
+              <div style="display:flex;flex-direction:column;gap:10px;{{ ordNeeds }}">
                 <div style="display:flex;align-items:baseline;gap:9px"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Needs you today</div><div style="font-size:11px;color:var(--faint)">raised by rules, not written by a model</div></div>
                 <sc-if value="{{ todayEmpty }}" hint-placeholder-val="{{ false }}">
                   <div style="font-size:13px;color:var(--muted);padding:4px 2px">Nothing waiting on you today.</div>
@@ -608,6 +624,23 @@ Project repository: https://github.com/fathomise/MailFathom
                   </sc-for>
                 </div>
               </div>
+              <sc-if value="{{ sinceInAside }}" hint-placeholder-val="{{ false }}">
+              <div data-smart="start.since" data-smart-label="since {{ sinceAt }}" style="display:flex;flex-direction:column;gap:10px;{{ ordSince }}">
+              <div style="{{ sectionHeadStyle }}"><div style="{{ sectionLabelStyle }}">Since you last looked</div><div style="font-size:11px;color:var(--faint)">at {{ sinceAt }} · {{ sinceArrived }} · sorted by rules</div></div>
+              <div style="{{ sinceGridStyle }}">
+                <sc-for list="{{ sinceGroups }}" as="sg" hint-placeholder-count="3">
+                  <div style="{{ sg.cellStyle }}">
+                    <div style="{{ sg.nStyle }}"><span aria-hidden="true" style="{{ sg.glyph }}">{{ sg.icon }}</span>{{ sg.n }}</div>
+                    <div style="font-size:13px;font-weight:600;color:var(--text)">{{ sg.label }}</div>
+                    <div style="font-size:12px;color:var(--muted);text-wrap:pretty">{{ sg.note }}</div>
+                    <sc-if value="{{ sg.isLeave }}" hint-placeholder-val="{{ false }}">
+                      <div role="button" tabIndex="0" onClick="{{ sinceArchive }}" style="{{ sinceLinkStyle }}" style-hover="cursor:pointer;text-decoration:underline"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1">archive</span>Archive the {{ sg.n }}</div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+              </sc-if>
             </div>
           </div>
           </div>

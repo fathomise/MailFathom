@@ -133,7 +133,7 @@ MailFathomDesign.data.watchedQuestions = [
 
 // The questions Start offers as chips under its field.
 MailFathomDesign.data.suggestedQuestions = [
-  { text: "How have the Contoso contract terms changed since 2021?" },
-  { text: "Where is the latest version of the insurance policy?" },
-  { text: "Who approved the indexation budget in 2023?" },
+  { text: "How have the Contoso contract terms changed since 2021?", why: "Contoso sent new terms yesterday" },
+  { text: "Where is the latest version of the insurance policy?", why: "3 versions arrived as attachments this year" },
+  { text: "Who approved the indexation budget in 2023?", why: "the August calculation cites that approval" },
 ];

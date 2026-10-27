@@ -4136,7 +4136,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         idleTitleStyle: isMobile
           ? "font-size:24px;font-weight:600;letter-spacing:-0.015em;text-wrap:pretty"
           : "font-size:28px;font-weight:600;letter-spacing:-0.015em",
-        askChipStyle: "display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--line);border-radius:999px;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:36px;padding:0 13px 0 10px" : "padding:5px 12px 5px 9px"),
         accountsStyle: isMobile
           ? "display:flex;flex-direction:column;gap:10px"
           : "width:" + (compact ? 250 : 290) + "px;flex:0 0 " + (compact ? 250 : 290) + "px;display:flex;flex-direction:column;gap:10px",
@@ -4193,7 +4192,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
         query: st.query,
         onQuery: (e) => this.setState({ query: e.target.value }),
-        onKey: (e) => { if (e.key === "Enter" && (st.query || "").trim()) this.run(st.query); },
+        onKey: (e) => { if (e.key === "Escape") this.setState({ askFocus: false }); else if (e.key === "Enter" && (st.query || "").trim()) this.run(st.query); },
+        /* The suggestions stand under the field only while it has focus and is empty: a labelled list, each question
+           with the reason it is suggested, instead of unlabelled chips that read as filters. */
+        onAskFocus: () => this.setState({ askFocus: true }),
+        onAskBlur: (e) => { const to = e && e.relatedTarget; if (to && to.closest && to.closest("[data-ask-suggest]")) return; this.setState({ askFocus: false }); },
+        askSuggestOpen: st.phase === "idle" && !!st.askFocus && !(st.query || "").trim(),
+        askSuggestNote: isMobile ? "tap one to ask it" : "read off what changed · nothing is asked until you pick one",
+        askSuggestStyle: "display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden",
+        askSuggestHeadStyle: "display:flex;align-items:baseline;gap:9px;padding:" + (isMobile ? "10px 12px 6px" : "10px 14px 6px"),
+        askSuggestRowStyle: "display:flex;align-items:center;gap:12px;box-sizing:border-box;border-top:1px solid var(--line2);" + (touch ? "min-height:56px;padding:9px 12px;" : "padding:9px 14px;"),
         submit: () => { if ((st.query || "").trim()) this.run(st.query); },
         continueInAgent: () => {
           const q = st.query || "";
@@ -4266,14 +4274,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           return { n: c.n, label: c.label, icon: c.icon, open, aria: c.n + " " + c.label + " - open",
             style: "display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--line);border-radius:999px;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:36px;padding:0 13px 0 10px;" : "padding:5px 12px 5px 9px;") };
         }),
-        dayCountsStyle: "display:flex;gap:8px;" + (isMobile ? "flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px" : "flex-wrap:wrap"),
+        dayCountsStyle: isMobile ? "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px" : "display:flex;gap:8px;flex-wrap:wrap",
         /* From 1680 px Start takes a third column, so a large screen holds the people waiting and what needs the reader
            beside the day instead of below it; under that the two stand in one aside. */
+        /* In one column the sections leave their columns and take one order, most actionable first: what could hurt,
+           the next meeting, what is due and owed, the proposed steps, then the day as a whole and the counts. */
         dayMainStyle: isMobile || narrow
-          ? "display:flex;flex-direction:column;gap:22px;min-width:0"
+          ? "display:contents"
           : "flex:1;display:flex;flex-direction:column;gap:24px;min-width:0",
+        greetWrapStyle: isMobile || narrow ? "display:contents" : "display:flex;flex-direction:column;gap:14px",
+        asideColAStyle: isMobile || narrow ? "display:contents" : "display:flex;flex-direction:column;gap:22px;min-width:0",
+        asideColBStyle: isMobile || narrow ? "display:contents" : "display:flex;flex-direction:column;gap:22px;min-width:0",
+        ...Object.fromEntries(["Greet", "Cu", "Heads", "Next", "Needs", "Waiting", "Steps", "Day", "Today", "Since"].map((k, i) => ["ord" + k, isMobile || narrow ? "order:" + (i + 1) : ""])),
         dayAsideStyle: isMobile || narrow
-          ? "display:flex;flex-direction:column;gap:22px;min-width:0"
+          ? "display:contents"
           : startWide
           ? "display:contents"
           : "width:" + asideX + ";flex:0 0 " + asideX + ";display:flex;flex-direction:column;gap:22px",
@@ -4299,8 +4313,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         prepareWithAgent: () => this.goAgentWith("meeting “" + HOME.nextUp.title + "”"),
         /* Up next and one step each: one segment, two columns of one height whose heads, card tops and card bottoms
            meet on the same lines; under two panes' width they stack. */
-        pairStyle: (isMobile || narrow || compact) ? "display:flex;flex-direction:column;gap:22px;min-width:0" : "display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:stretch;min-width:0",
-        pairColStyle: "display:flex;flex-direction:column;gap:10px;min-width:0",
+        pairStyle: (isMobile || narrow) ? "display:contents" : compact ? "display:flex;flex-direction:column;gap:22px;min-width:0" : "display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:stretch;min-width:0",
+        nextColStyle: "display:flex;flex-direction:column;gap:10px;min-width:0;" + (isMobile || narrow ? "order:4" : ""),
+        stepColStyle: "display:flex;flex-direction:column;gap:10px;min-width:0;" + (isMobile || narrow ? "order:7" : ""),
+        /* From 1680 px what arrived since the last look stands under *Needs you today*, so the three columns end
+           near one another instead of leaving the third one short. */
+        sinceInMain: !startWide,
+        sinceInAside: startWide,
         pairHeadStyle: "display:flex;align-items:center;gap:9px;min-width:0;box-sizing:border-box;min-height:" + (touch ? 44 : 30) + "px",
         nextCardStyle: "flex:1;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--accent-line);border-radius:14px;padding:" + (isMobile ? "14px" : "16px 18px") + ";box-shadow:0 1px 2px var(--sh-1),inset 0 1px 0 var(--inset)",
         nextActsStyle: "margin-top:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line2);padding-top:12px",
@@ -4380,7 +4399,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           open: () => this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: t2.id, cameFrom: true, fromCite: null }),
           rowStyle: "display:flex;align-items:center;gap:12px;border-top:1px solid var(--line2);padding:" + (touch ? "12px 2px" : "9px 2px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : ""),
         })) : [],
-        showAskChips: st.phase === "idle",
 
         /* The counters are counts; the written briefing is the model's and stays off until it is turned on. */
         todayCounts: HOME.todayCounts,
@@ -4391,7 +4409,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         todayToggle: () => this.setState(s2 => ({ todayOpen: !s2.todayOpen })),
         todayToggleLabel: st.todayOpen ? (isMobile ? "Less" : "Counts only") : st.briefOn ? (isMobile ? "Briefing" : "Read the briefing") : (isMobile ? "Briefing · off" : "Written briefing · off"),
         todayToggleIcon: st.todayOpen ? "unfold_less" : "unfold_more",
-        todayCardStyle: "display:flex;flex-direction:column;gap:12px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;" +
+        todayCardStyle: (isMobile || narrow ? "order:9;" : "") + "display:flex;flex-direction:column;gap:12px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;" +
           (st.todayOpen ? "box-shadow:inset 3px 0 0 var(--accent);" : "") + (isMobile ? "padding:12px 13px 13px 14px" : "padding:13px 16px 14px 17px"),
         todayToggleStyle: "margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--accent-d);white-space:nowrap;border-radius:8px;" + (touch ? "min-height:44px;padding:0 8px;" : "padding:4px 8px;"),
         briefOn: !!st.briefOn && !!st.todayOpen,
@@ -4416,7 +4434,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Folded by default: the head alone, and what moved named in it, so news is seen without the strip being open. */
         watchOpen: !!st.watchOpen && watchList.length > 0,
         watchShut: !st.watchOpen && watchList.length > 0,
-        watchPaging: !!st.watchOpen && watchList.length > 0,
+        watchPaging: !!st.watchOpen && watchList.length > 0 && !isMobile,
+        watchPagingFoot: !!st.watchOpen && watchList.length > 0 && isMobile,
         watchToggle: () => this.setState(s2 => ({ watchOpen: !s2.watchOpen })),
         watchToggleLabel: st.watchOpen ? (isMobile ? "" : "Hide") : (isMobile ? "" : "Show all"),
         watchToggleIcon: st.watchOpen ? "unfold_less" : "unfold_more",
@@ -4467,7 +4486,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             : w.state === "paused" || w.state === "failed" ? "color:var(--warn-text);" : "color:var(--muted);"),
           dotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + (w.state === "changed" ? "var(--accent)" : w.state === "paused" || w.state === "failed" ? "var(--warn)" : "var(--border2)"),
         })),
-        suggestions: SUGGESTED_QUESTIONS.map(x => ({ text: x.text, pick: () => this.run(x.text) })),
+        suggestions: SUGGESTED_QUESTIONS.map(x => ({ text: x.text, why: x.why, pick: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ askFocus: false }); this.run(x.text); },
+          pickKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.setState({ askFocus: false }); this.run(x.text); } else if (e.key === "Escape") this.setState({ askFocus: false }); } })),
 
         isWatching: !!(st.watched || []).find(w => w.q === st.query),
         watchLabel: (st.watched || []).find(w => w.q === st.query) ? "Watching" : "Watch",
@@ -6323,7 +6343,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       /* What back calls for a surface whose own close does more than empty its key: asking before a draft is thrown
          away, and closing the tab the surface stands in. */
-      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, thread, person }));
+      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, thread, person }));
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml };
       return vals;
     }
