@@ -405,16 +405,28 @@ that act. ADR 0009 keeps a key unique across terminal rows too, so a key of the 
 the first write's finished job swallow every later one, and an amendment would revoke nothing. Each write therefore
 enqueues a job of its own. That is safe because re-judging a message twice from the same state writes the same
 verdict. The queue does not order them (ADR 0009 makes ordering best-effort), so the order comes from a lock and not
-from the queue. Each batch of a job takes a transaction-scoped PostgreSQL advisory lock (`pg_advisory_xact_lock`) on
-the book and the address before it reads the book. It reads the contact state and writes the verdicts of that batch
-in the same transaction. Every contact write and every act that removes a contact takes the same lock, for each
-address it changes, in its own transaction, in a fixed order of addresses so two acts never deadlock. A batch
-therefore sees the book either wholly before a write or wholly after it. A batch that saw the book before a write
-committed its verdicts before the write ran, and the write's own job re-judges them afterwards. Whichever job runs
-last reads the last state, so a verdict written from a superseded state is always overwritten. A batch reads and
-writes only stored columns and reaches no server, so it is the short, database-only critical section ADR 0031 leaves
-this lock available for, and the lock cannot leak past the transaction that took it. It re-judges two sets of stored
-messages:
+from the queue. The lock is a transaction-scoped PostgreSQL advisory lock (`pg_advisory_xact_lock`) keyed by the
+address alone, in its comparison form, hashed to the lock's 64-bit key. It is not keyed by the book, because one
+verdict reads several books: the organization's and every assignee's. A lock per book would let a write to one book
+pass a batch that is reading another. A collision between two addresses' hashes only serializes work that needed no
+serializing. Four kinds of transaction take the lock before they read any book:
+
+- every contact write, in any book, for each address it changes;
+- every act that removes a contact, for each address the removed book held;
+- every batch of a re-judgment job, for the job's address, reading every book and writing that batch's verdicts in
+  the same transaction;
+- the trust step at extraction, for the first `From` mailbox. It reads the books and writes the verdict in the
+  transaction that stores the message. Authentication, DNS, and signature verification all finish before that
+  transaction opens.
+
+A transaction that needs several locks takes them in sorted order of key, so two of them never deadlock. Any reader
+of the books therefore sees them either wholly before a write or wholly after it. A reader that saw them before a
+write committed its verdict before the write ran. The write's own job then selects that verdict and re-judges it
+afterwards, because a stored message and its verdict are committed before the job's query can run. Whichever reader
+runs last reads the last state, so a verdict written from a superseded state is always overwritten. Both critical
+sections read and write stored columns only and reach no server: a batch, and the trust step inside a message's
+storing transaction. ADR 0031 leaves this lock available for exactly that kind of section, and the lock cannot leak
+past the transaction that took it. A job re-judges two sets of stored messages:
 
 - every message whose first `From` mailbox is that address, on every account the book reaches now: the accounts
   assigned to the book's user, or every account of the organization;
@@ -593,7 +605,7 @@ Each is named in its implementing pull request with the operator's action, for t
   builds `Known`. Issue 2783 re-judges the stored mail a contact change affects.
 - [ADR 0009](0009-durable-job-store-and-execution-identity.md) holds the re-judgment job, and its best-effort ordering
   is why the jobs are serialized by a lock rather than by the queue. [ADR 0031](0031-dividing-singleton-work-between-replicas-with-a-leased-scope.md)
-  keeps the transaction-scoped advisory lock for a short database-only section, which is what a batch is. [ADR 0012](0012-authorization-model-named-permissions-and-where-they-are-enforced.md)
+  keeps the transaction-scoped advisory lock for a short database-only section, which is what a batch and the trust step at extraction both are. [ADR 0012](0012-authorization-model-named-permissions-and-where-they-are-enforced.md)
   is the permission model the writers sit in. [ADR 0014](0014-single-tenant-multi-user-ownership-on-the-mail-account.md)
   is why a mailbox may be assigned to several users. [ADR 0042](0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
   is the organization signature, unchanged here.
