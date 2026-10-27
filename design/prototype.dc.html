@@ -65,7 +65,7 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="{{ railIconStyle }}">explore</div>
       <div style="{{ railLabelStyle }}">{{ railLabelDiscover }}</div>
     </div>
-    <div onClick="{{ goAgent }}" onMouseEnter="{{ agentPeekEnter }}" onMouseLeave="{{ railPeekLeave }}" aria-label="{{ agentTileLabel }}" style="{{ railAgentStyle }}" style-hover="background:var(--hover);cursor:pointer">
+    <div role="button" tabIndex="0" onClick="{{ goAgent }}" onKeyDown="{{ goAgentKey }}" onMouseEnter="{{ agentPeekEnter }}" onMouseLeave="{{ railPeekLeave }}" aria-label="{{ agentTileLabel }}" style="{{ railAgentStyle }}" style-hover="background:var(--hover);cursor:pointer">
       <div style="{{ railIconWrapStyle }}">
         <div style="{{ railIconStyle }}">auto_awesome</div>
         <sc-if value="{{ agentDotShown }}" hint-placeholder-val="{{ true }}">

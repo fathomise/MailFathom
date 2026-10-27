@@ -4470,6 +4470,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
         isAgent: st.screen === "agent" && !emptyApp,
         goAgent: () => { clearTimeout(this.peekT); this.goScreen("agent", { railPeek: null }); },
+        /* The tile is a button so the counts in its name reach a screen reader, and a button answers a key. */
+        goAgentKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); clearTimeout(this.peekT); this.goScreen("agent", { railPeek: null }); } },
         railAgentStyle: "position:relative;" + railBase + (st.screen === "agent" ? activeStyle : idleColor),
         agentPeekEnter: this.peekOpen("agent"),
         railPeekLeave: this.peekLeave,
