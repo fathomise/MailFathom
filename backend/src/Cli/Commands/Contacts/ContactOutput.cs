@@ -41,6 +41,12 @@ internal static class ContactOutput
         details.Add("Contact", $"{contact.Id:D}");
         details.Add("Name", contact.DisplayName ?? "none recorded");
         details.Add("Origin", contact.Origin ?? "unreported");
+
+        if (contact.Organization is { } organization)
+        {
+            details.Add("Organization", $"{organization:D}");
+        }
+
         details.Add("Addresses", addresses.Count == 0 ? ["none reported"] : [.. addresses.Select(address => Mark(address, contact))]);
 
         if (contact.Note is { Length: > 0 } note)
@@ -75,7 +81,9 @@ internal static class ContactOutput
                 $"{contact.Id:D}",
                 contact.DisplayName ?? "none recorded",
                 contact.PreferredAddress ?? "none reported",
-                contact.Origin ?? "unreported");
+                contact.Organization is null
+                    ? contact.Origin ?? "unreported"
+                    : $"{contact.Origin ?? "unreported"} (organization)");
         }
 
         console.Write(listing);

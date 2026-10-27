@@ -83,9 +83,9 @@ internal sealed class ContactConfiguration : IEntityTypeConfiguration<ContactEnt
         entity.ToTable(table => table.HasCheckConstraint(
             PersistenceConstraintNames.ContactBookHolderCheckConstraintName,
             $"""
-             (("{nameof(ContactEntity.UserId)}" IS NOT NULL)::int + ("{nameof(ContactEntity.MailboxAccountId)}" IS NOT NULL)::int) = 1
-             AND "{nameof(ContactEntity.BookHolderId)}" = CASE WHEN "{nameof(ContactEntity.UserId)}" IS NULL THEN '{ContactBookHolder.AccountKeyPrefix}' || "{nameof(ContactEntity.MailboxAccountId)}" ELSE '{ContactBookHolder.UserKeyPrefix}' || "{nameof(ContactEntity.UserId)}"::text END
-             AND "{nameof(ContactEntity.Origin)}" = CASE WHEN "{nameof(ContactEntity.UserId)}" IS NULL THEN '{nameof(ContactOrigin.Collected)}' ELSE '{nameof(ContactOrigin.Asserted)}' END
+             (("{nameof(ContactEntity.UserId)}" IS NOT NULL)::int + ("{nameof(ContactEntity.OrganizationId)}" IS NOT NULL)::int + ("{nameof(ContactEntity.MailboxAccountId)}" IS NOT NULL)::int) = 1
+             AND "{nameof(ContactEntity.BookHolderId)}" = CASE WHEN "{nameof(ContactEntity.UserId)}" IS NOT NULL THEN '{ContactBookHolder.UserKeyPrefix}' || "{nameof(ContactEntity.UserId)}"::text WHEN "{nameof(ContactEntity.OrganizationId)}" IS NOT NULL THEN '{ContactBookHolder.OrganizationKeyPrefix}' || "{nameof(ContactEntity.OrganizationId)}"::text ELSE '{ContactBookHolder.AccountKeyPrefix}' || "{nameof(ContactEntity.MailboxAccountId)}" END
+             AND "{nameof(ContactEntity.Origin)}" = CASE WHEN "{nameof(ContactEntity.MailboxAccountId)}" IS NULL THEN '{nameof(ContactOrigin.Asserted)}' ELSE '{nameof(ContactOrigin.Collected)}' END
              """));
 
         entity.HasOne<UserAccountEntity>()
@@ -93,9 +93,16 @@ internal sealed class ContactConfiguration : IEntityTypeConfiguration<ContactEnt
             .HasForeignKey(contact => contact.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // An organization's book hangs on the organization, so deleting it takes the people its administrators wrote
+        // down.
+        entity.HasOne<OrganizationEntity>()
+            .WithMany()
+            .HasForeignKey(contact => contact.OrganizationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // The collected half hangs on the account the same way its folders, its threads, and its jobs do, so erasing a
-        // mailbox takes what it picked up with the mail it picked it up from. Both keys are optional and the check
-        // constraint above is what makes exactly one of them present on any row.
+        // mailbox takes what it picked up with the mail it picked it up from. Every holder key is optional and the
+        // check constraint above is what makes exactly one of them present on any row.
         entity.HasOne<MailboxAccountEntity>()
             .WithMany()
             .HasForeignKey(contact => contact.MailboxAccountId)

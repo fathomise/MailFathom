@@ -38,6 +38,7 @@ internal static class ListContactsCommand
 
         var endpointOption = CliOptions.Endpoint();
         var userOption = UserOptions.User();
+        var organizationOption = ContactOptions.Organization();
 
         Option<string?> originOption = new("--origin")
         {
@@ -51,6 +52,7 @@ internal static class ListContactsCommand
         Command command = new("list", "Read one page of the books one user reads.")
         {
             userOption,
+            organizationOption,
             originOption,
             pageSizeOption,
             cursorOption,
@@ -60,6 +62,7 @@ internal static class ListContactsCommand
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
+            result.GetValue(organizationOption),
             result.GetValue(originOption),
             result.GetValue(pageSizeOption),
             result.GetValue(cursorOption),
@@ -72,21 +75,32 @@ internal static class ListContactsCommand
     private static async Task<int> RunAsync(
         CliContext context,
         Guid? requestedUser,
+        Guid? requestedOrganization,
         string? origin,
         int? pageSize,
         string? cursor,
         string? requestedDeployment,
         CancellationToken cancellationToken)
     {
+        if (requestedOrganization is not null && origin is not null)
+        {
+            throw new CliFailure("An organization's book holds asserted contacts alone, so --origin does not narrow it.");
+        }
+
         var profile = await context.Deployment().ReachAsync(requestedDeployment, cancellationToken);
 
         using var transport = context.OpenTransport(profile.Endpoint, profile.Trust);
         var deployment = new AdminApiClient(transport, context.Console);
 
-        var user = await UserOptions.ResolveUserAsync(deployment, profile.Token, requestedUser, cancellationToken);
+        var book = await ContactOptions.ResolveBookAsync(
+            deployment,
+            profile.Token,
+            requestedUser,
+            requestedOrganization,
+            cancellationToken);
         var page = await deployment.ReadContactPageAsync(
             profile.Token,
-            user,
+            book,
             origin,
             pageSize,
             cursor,

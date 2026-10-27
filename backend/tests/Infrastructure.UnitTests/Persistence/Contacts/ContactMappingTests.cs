@@ -109,6 +109,41 @@ public sealed class ContactMappingTests
         Assert.All(entity.Addresses, address => Assert.Equal(AccountBook.Key, address.BookHolderId));
     }
 
+    /// <summary>A contact of an organization's book is filed under that organization alone, and read back as the organization's.</summary>
+    /// <remarks>
+    /// The organization column is what the deletion of the organization cascades along, and what a member's read is told
+    /// the record is the organization's by; a row written without it would outlive the organization and read as a member's own.
+    /// </remarks>
+    [Fact]
+    public void ToEntity_AContactOfAnOrganizationsBook_WritesThatOrganizationAndReadsItBack()
+    {
+        // Arrange
+        var organization = new Guid("0198f0aa-0000-7000-8000-00000000f001");
+        var book = ContactBookHolder.OfOrganization(organization);
+        var contact = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(RecordedAt)),
+            ContactDisplayName.Create("Anna Kowalska"),
+            [Address("anna@example.test")],
+            Address("anna@example.test"),
+            note: null,
+            ContactOrigin.Asserted,
+            RecordedAt,
+            RecordedAt,
+            organization);
+
+        // Act
+        var entity = ContactMapping.ToEntity(book, contact);
+        var rebuilt = ContactMapping.ToContact(entity);
+
+        // Assert
+        Assert.Null(entity.UserId);
+        Assert.Null(entity.MailboxAccountId);
+        Assert.Equal(organization, entity.OrganizationId);
+        Assert.Equal($"organization:{organization:D}", entity.BookHolderId);
+        Assert.All(entity.Addresses, address => Assert.Equal(book.Key, address.BookHolderId));
+        Assert.Equal(organization, rebuilt.Organization);
+    }
+
     /// <summary>The kind of book decides the origin of what it holds, so a record of the other origin is refused rather than filed.</summary>
     /// <remarks>
     /// The check constraint underneath refuses the row, and answering here names the record rather than the column —

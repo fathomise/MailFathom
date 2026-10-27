@@ -46,7 +46,7 @@ public sealed class ContactModelTests
     /// it carries.
     /// </summary>
     /// <remarks>
-    /// Three columns saying one thing is a state every reader would otherwise have to reason about, and two of the ways
+    /// The holder columns saying one thing is a state every reader would otherwise have to reason about, and two of the ways
     /// they could disagree are the ones this whole split exists to rule out: a collected record filed under a user, so
     /// that erasing them takes a mailbox's record with it, and an asserted one filed under a mailbox, so that a person
     /// somebody wrote down is served to every other user of that account.
@@ -64,15 +64,15 @@ public sealed class ContactModelTests
 
         // Assert
         Assert.Contains(
-            "((\"UserId\" IS NOT NULL)::int + (\"MailboxAccountId\" IS NOT NULL)::int) = 1",
+            "((\"UserId\" IS NOT NULL)::int + (\"OrganizationId\" IS NOT NULL)::int + (\"MailboxAccountId\" IS NOT NULL)::int) = 1",
             constraint.Sql,
             StringComparison.Ordinal);
         Assert.Contains(
-            "\"BookHolderId\" = CASE WHEN \"UserId\" IS NULL THEN 'account:' || \"MailboxAccountId\" ELSE 'user:' || \"UserId\"::text END",
+            "\"BookHolderId\" = CASE WHEN \"UserId\" IS NOT NULL THEN 'user:' || \"UserId\"::text WHEN \"OrganizationId\" IS NOT NULL THEN 'organization:' || \"OrganizationId\"::text ELSE 'account:' || \"MailboxAccountId\" END",
             constraint.Sql,
             StringComparison.Ordinal);
         Assert.Contains(
-            "\"Origin\" = CASE WHEN \"UserId\" IS NULL THEN 'Collected' ELSE 'Asserted' END",
+            "\"Origin\" = CASE WHEN \"MailboxAccountId\" IS NULL THEN 'Asserted' ELSE 'Collected' END",
             constraint.Sql,
             StringComparison.Ordinal);
     }
@@ -139,12 +139,13 @@ public sealed class ContactModelTests
         Assert.True(foreignKey.IsRequired);
     }
 
-    /// <summary>Each book keys onto its own holder and cascades from it, so neither half is erased by a statement somebody has to remember.</summary>
+    /// <summary>Each book keys onto its own holder and cascades from it, so no book is erased by a statement somebody has to remember.</summary>
     /// <remarks>
     /// The two keys are what divide an erasure. A user leaving the deployment takes the people they wrote down, by the
     /// key onto the user record; what their mailboxes collected stays for whoever else is assigned them, and goes only
     /// when the mailbox itself does, by the key onto the account record beside that account's folders, threads, and
-    /// jobs. Both are optional because a row carries exactly one of them, which the check constraint is what enforces.
+    /// jobs. An organization's book goes with the organization by a third key. All three are optional because a row carries
+    /// exactly one of them, which the check constraint is what enforces.
     /// </remarks>
     [Fact]
     public void ContactModel_TheKeysOntoTheHolders_CascadeFromEachBooksOwnAndAreEachOptional()
@@ -173,6 +174,16 @@ public sealed class ContactModelTests
             ontoTheAccount.Properties.Select(property => property.Name));
         Assert.Equal(DeleteBehavior.Cascade, ontoTheAccount.DeleteBehavior);
         Assert.False(ontoTheAccount.IsRequired);
+
+        var ontoTheOrganization = Assert.Single(
+            foreignKeys,
+            key => key.PrincipalEntityType.ClrType == typeof(OrganizationEntity));
+
+        Assert.Equal(
+            [nameof(ContactEntity.OrganizationId)],
+            ontoTheOrganization.Properties.Select(property => property.Name));
+        Assert.Equal(DeleteBehavior.Cascade, ontoTheOrganization.DeleteBehavior);
+        Assert.False(ontoTheOrganization.IsRequired);
     }
 
     private static IIndex FindIndex(IEntityType entityType, string indexName)

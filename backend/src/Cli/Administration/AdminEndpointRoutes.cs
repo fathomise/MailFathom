@@ -188,14 +188,12 @@ internal static class AdminEndpointRoutes
     internal const string MailAccountRestoreSettlementPath = $"{Prefix}/accounts/custody/restore/settle";
 
     /// <summary>Where a deployment's contact book is listed and where a person is recorded in it.</summary>
-    internal const string ContactsPath = $"{Prefix}/contacts";
-
-    /// <summary>Where the person behind one address is read.</summary>
     /// <remarks>
-    /// A path of its own rather than a filter on the listing, because it answers with one person rather than a page. The
-    /// segment is not a UUID, so nothing can confuse it with the path one contact is read at.
+    /// One contact is reached beneath it by its identity, the person behind one address at <c>/by-address</c>, and the
+    /// promotion and the export at <c>/promotion</c> and <c>/export</c> beneath that contact; <see cref="Contacts.ContactBookTarget" />
+    /// composes them, because an organization's book is reached the same way beneath its own path.
     /// </remarks>
-    internal const string ContactByAddressPath = $"{ContactsPath}/by-address";
+    internal const string ContactsPath = $"{Prefix}/contacts";
 
     /// <summary>Where the whole collected half of a deployment's book is erased.</summary>
     /// <remarks>
@@ -209,26 +207,6 @@ internal static class AdminEndpointRoutes
     /// <param name="outgoingEmailId">The send the path names.</param>
     /// <returns>The path, with the identity written the way a deployment's route constraint reads one.</returns>
     internal static string OutboxSendPath(Guid outgoingEmailId) => $"{OutboxPath}/{outgoingEmailId:D}";
-
-    /// <summary>Where one contact is read, amended, and erased.</summary>
-    /// <param name="contactId">The contact the path names.</param>
-    /// <returns>The path, with the identity written the way a deployment's route constraint reads one.</returns>
-    internal static string ContactPath(Guid contactId) => $"{ContactsPath}/{contactId:D}";
-
-    /// <summary>Where a collected contact is promoted to one the user has taken responsibility for.</summary>
-    /// <param name="contactId">The contact the path names.</param>
-    /// <returns>The path.</returns>
-    /// <remarks>
-    /// A path of its own rather than a field on the amendment, because promotion is the one act that changes an origin
-    /// and a body carrying which act was meant would make a mistyped value the difference between correcting a record
-    /// and taking it on.
-    /// </remarks>
-    internal static string ContactPromotionPath(Guid contactId) => $"{ContactPath(contactId)}/promotion";
-
-    /// <summary>Where everything the deployment holds about one person is exported from.</summary>
-    /// <param name="contactId">The contact the path names.</param>
-    /// <returns>The path.</returns>
-    internal static string ContactExportPath(Guid contactId) => $"{ContactPath(contactId)}/export";
 
     /// <summary>Where a deployment's settings are read with the layer each value came from, and where a keyed change is written.</summary>
     /// <remarks>
@@ -361,6 +339,12 @@ internal static class AdminEndpointRoutes
     /// <remarks>A path of its own rather than a field beside the display name, because only this one changes the login every member types.</remarks>
     internal static string OrganizationShortNamePath(Guid organizationId) =>
         $"{OrganizationPath(organizationId)}/short-name";
+
+    /// <summary>Where one organization's contact book is listed and a person is recorded in it, and beneath which each of its contacts is reached.</summary>
+    /// <param name="organizationId">The organization the path names.</param>
+    /// <returns>The path.</returns>
+    internal static string OrganizationContactsPath(Guid organizationId) =>
+        $"{OrganizationPath(organizationId)}/contacts";
 
     /// <summary>Where one organization's signing keys are listed.</summary>
     /// <param name="organizationId">The organization the path names.</param>

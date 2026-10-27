@@ -28,6 +28,7 @@ internal static class CreateContactCommand
 
         var endpointOption = CliOptions.Endpoint();
         var userOption = UserOptions.User();
+        var organizationOption = ContactOptions.Organization();
 
         Option<string> nameOption = new("--name")
         {
@@ -56,6 +57,7 @@ internal static class CreateContactCommand
         Command command = new("create", "Record a person in one user's own contact book.")
         {
             userOption,
+            organizationOption,
             nameOption,
             addressOption,
             preferredOption,
@@ -66,6 +68,7 @@ internal static class CreateContactCommand
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
+            result.GetValue(organizationOption),
             result.GetValue(nameOption) ?? string.Empty,
             result.GetValue(addressOption) ?? [],
             result.GetValue(preferredOption),
@@ -79,6 +82,7 @@ internal static class CreateContactCommand
     private static async Task<int> RunAsync(
         CliContext context,
         Guid? requestedUser,
+        Guid? requestedOrganization,
         string name,
         IReadOnlyList<string> addresses,
         string? preferred,
@@ -93,8 +97,13 @@ internal static class CreateContactCommand
         using var transport = context.OpenTransport(profile.Endpoint, profile.Trust);
         var deployment = new AdminApiClient(transport, context.Console);
 
-        var user = await UserOptions.ResolveUserAsync(deployment, profile.Token, requestedUser, cancellationToken);
-        var written = await deployment.RecordContactAsync(profile.Token, user, record, cancellationToken);
+        var book = await ContactOptions.ResolveBookAsync(
+            deployment,
+            profile.Token,
+            requestedUser,
+            requestedOrganization,
+            cancellationToken);
+        var written = await deployment.RecordContactAsync(profile.Token, book, record, cancellationToken);
 
         return ContactOutput.ReportWrite(context, written, "Recorded");
     }

@@ -28,6 +28,7 @@ internal static class AddContactAddressCommand
 
         var endpointOption = CliOptions.Endpoint();
         var userOption = UserOptions.User();
+        var organizationOption = ContactOptions.Organization();
         var identityOption = ContactOptions.Identity();
         var addressOption = ContactOptions.Address("The address to add to the contact.");
 
@@ -40,6 +41,7 @@ internal static class AddContactAddressCommand
         Command command = new("add-address", "Add one address to a contact the user's own book already holds.")
         {
             userOption,
+            organizationOption,
             identityOption,
             addressOption,
             preferredOption,
@@ -49,6 +51,7 @@ internal static class AddContactAddressCommand
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
+            result.GetValue(organizationOption),
             result.GetValue(identityOption),
             result.GetValue(addressOption) ?? string.Empty,
             result.GetValue(preferredOption),
@@ -61,6 +64,7 @@ internal static class AddContactAddressCommand
     private static Task<int> RunAsync(
         CliContext context,
         Guid? requestedUser,
+        Guid? requestedOrganization,
         Guid contactId,
         string address,
         string? preferred,
@@ -70,6 +74,7 @@ internal static class AddContactAddressCommand
             context,
             contactId,
             requestedUser,
+            requestedOrganization,
             requestedDeployment,
             held => Extend(held, address, preferred),
             "Added an address to",

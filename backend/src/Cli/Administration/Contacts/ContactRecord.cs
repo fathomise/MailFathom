@@ -15,8 +15,9 @@ namespace MailFathom.Cli.Administration.Contacts;
 /// <param name="Origin">How the contact came to be in the book, which decides who may amend it.</param>
 /// <param name="RecordedAt">When the contact entered the book.</param>
 /// <param name="AmendedAt">When it was last amended.</param>
+/// <param name="Organization">The organization whose book holds the contact, or <see langword="null" /> where a user or a mailbox holds it.</param>
 /// <remarks>
-/// Everything here but the identity and the origin is personal data about a third party. It is printed to the terminal
+/// Everything here but the identity, the origin, and the organization is personal data about a third party. It is printed to the terminal
 /// the operator asked from and reaches nothing else: no failure message this command writes carries any of it, and the
 /// identifier is what a refusal names.
 /// </remarks>
@@ -28,7 +29,8 @@ internal sealed record ContactRecord(
     [property: JsonPropertyName("note")] string? Note,
     [property: JsonPropertyName("origin")] string? Origin,
     [property: JsonPropertyName("recordedAt")] DateTimeOffset RecordedAt,
-    [property: JsonPropertyName("amendedAt")] DateTimeOffset AmendedAt);
+    [property: JsonPropertyName("amendedAt")] DateTimeOffset AmendedAt,
+    [property: JsonPropertyName("organization")] Guid? Organization = null);
 
 /// <summary>The person a lookup found, or that the book holds none.</summary>
 /// <param name="Contact">The contact, or <see langword="null" /> when the book holds nobody matching what was asked.</param>

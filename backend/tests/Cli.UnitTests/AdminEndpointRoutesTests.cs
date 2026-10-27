@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Cli.Administration;
+using MailFathom.Cli.Administration.Contacts;
 using Xunit;
 
 namespace MailFathom.Cli.UnitTests;
@@ -95,27 +96,37 @@ public sealed class AdminEndpointRoutesTests
     }
 
     /// <summary>
-    /// The contact-book paths, pinned for the reason every other path here is. The three composed ones are written out
-    /// rather than built from the constant, because what would break is the shape rather than the prefix: a deployment
-    /// serves one contact beneath a UUID segment, and a command composing the identity anywhere else would reach a 404
-    /// that reads exactly like an administrative endpoint nobody enabled.
+    /// The contact-book paths, pinned for the reason every other path here is. The composed ones are written out rather
+    /// than built from the constant, because what would break is the shape rather than the prefix: a deployment serves one
+    /// contact beneath a UUID segment, and a command composing the identity anywhere else would reach a 404 that reads
+    /// exactly like an administrative endpoint nobody enabled.
     /// </summary>
     [Fact]
     public void ContactPaths_AreTheRoutesTheDeploymentServesItsBookAt()
     {
         var contact = new Guid("11111111-2222-3333-4444-555555555555");
+        var user = ContactBookTarget.ForUser(new Guid("66666666-7777-8888-9999-aaaaaaaaaaaa"));
 
         Assert.Equal("/api/admin/contacts", AdminEndpointRoutes.ContactsPath);
-        Assert.Equal("/api/admin/contacts/by-address", AdminEndpointRoutes.ContactByAddressPath);
+        Assert.Equal("/api/admin/contacts", user.ContactsPath);
         Assert.Equal(
             "/api/admin/contacts/11111111-2222-3333-4444-555555555555",
-            AdminEndpointRoutes.ContactPath(contact));
+            user.ContactPath(contact));
+    }
+
+    /// <summary>An organization's book is reached beneath the organization, and one of its contacts beneath that.</summary>
+    [Fact]
+    public void OrganizationContactPaths_AreTheRoutesTheDeploymentServesAnOrganizationsBookAt()
+    {
+        var organization = new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        var book = ContactBookTarget.ForOrganization(organization);
+
         Assert.Equal(
-            "/api/admin/contacts/11111111-2222-3333-4444-555555555555/promotion",
-            AdminEndpointRoutes.ContactPromotionPath(contact));
+            "/api/admin/organizations/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/contacts",
+            AdminEndpointRoutes.OrganizationContactsPath(organization));
         Assert.Equal(
-            "/api/admin/contacts/11111111-2222-3333-4444-555555555555/export",
-            AdminEndpointRoutes.ContactExportPath(contact));
+            "/api/admin/organizations/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/contacts/11111111-2222-3333-4444-555555555555",
+            book.ContactPath(new Guid("11111111-2222-3333-4444-555555555555")));
     }
 
     /// <summary>The mail-account paths, written out for the reason the contact paths are: an account is served beneath a UUID segment.</summary>

@@ -41,7 +41,7 @@ internal sealed class ContactEntity
     /// <summary>The longest note stored, which is the bound the domain value already refuses to exceed.</summary>
     internal const int MaximumNoteLength = ContactNote.MaximumLength;
 
-    /// <summary>The longest book key stored, which admits either kind of holder's own identifier.</summary>
+    /// <summary>The longest book key stored, which admits every kind of holder's own identifier.</summary>
     internal const int MaximumBookHolderLength = 256;
 
     /// <summary>The longest mail account identifier stored, which is what the account record itself admits.</summary>
@@ -57,14 +57,21 @@ internal sealed class ContactEntity
     /// </remarks>
     public required string BookHolderId { get; set; }
 
-    /// <summary>Gets or sets the user whose own book holds this person, or <see langword="null" /> when a mail account's book does.</summary>
+    /// <summary>Gets or sets the user whose own book holds this person, or <see langword="null" /> when another kind of holder's book does.</summary>
     /// <remarks>
     /// Keyed onto the user record, so erasing a user takes their whole book with it rather than leaving the people
     /// they wrote down behind.
     /// </remarks>
     public Guid? UserId { get; set; }
 
-    /// <summary>Gets or sets the mail account whose book holds this person, or <see langword="null" /> when a user's own book does.</summary>
+    /// <summary>Gets or sets the organization whose book holds this person, or <see langword="null" /> when another kind of holder's book does.</summary>
+    /// <remarks>
+    /// Keyed onto the organization record and cascading from it, so deleting an organization takes its book with it
+    /// rather than leaving the people its administrators wrote down behind with nobody able to read or erase them.
+    /// </remarks>
+    public Guid? OrganizationId { get; set; }
+
+    /// <summary>Gets or sets the mail account whose book holds this person, or <see langword="null" /> when another kind of holder's book does.</summary>
     /// <remarks>
     /// Keyed onto the account record and cascading from it, so an account's collected book goes with the account's
     /// mail rather than being remembered about separately.

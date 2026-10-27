@@ -104,8 +104,8 @@ the caller's user with `RequireUser` and composes the scope from the assignment 
 reaches no book rather than falling back to whoever the deployment serves. The two principals that legitimately maintain
 a book without being a caller are outside that reading rather than exceptions to it: an administrative route names the
 user, or the mail account, it acts for, and MailFathom's own synchronization writes the collected book of the account it
-is synchronizing and reads no user at all. [Contacts § Two books, and a read of
-both](../features/contacts.md#two-books-and-a-read-of-both) is where what that decides is described.
+is synchronizing and reads no user at all. [Contacts § Three books, and a read of
+them](../features/contacts.md#three-books-and-a-read-of-them) is where what that decides is described.
 
 The signed capability is what `GET /mcp/attachments/{capability}` runs under. That route authenticates nobody by design: the
 URL carries a ticket verified against the deployment's key ring, and what it names is one attachment of one email rather

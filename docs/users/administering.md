@@ -743,6 +743,13 @@ holds one person — the command asks and acts on the single one. On a deploymen
 guessing, and prints the identifiers to choose between. `delete-collected` is the exception because the book it empties
 belongs to a mail account rather than to a person: it takes `--account` and no `--user` at all.
 
+**An organization has a book of its own, which every member reads.** Pass `--organization <id>` in place of `--user` to
+write the people everybody in that organization should know about — a supplier, the firm that does the accounts. Each
+member reads them beside their own, and where a member wrote down somebody the organization also recorded, the member's
+own record is what they see. Only this command group writes that book; nobody's client and no agent can change it.
+[Contacts § The organization's book](../features/contacts.md#the-organizations-book) holds who may write it and how it
+is read.
+
 Two of the commands are not conveniences. **`mfctl contact delete` erases somebody** — the record and their addresses go
 from the database and nothing can put them back, so the command shows you the record and asks first. **`mfctl contact
 export` writes everything held about a person** as JSON on standard output, which is what you redirect into a file and

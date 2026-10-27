@@ -26,6 +26,7 @@ internal static class RemoveContactAddressCommand
 
         var endpointOption = CliOptions.Endpoint();
         var userOption = UserOptions.User();
+        var organizationOption = ContactOptions.Organization();
         var identityOption = ContactOptions.Identity();
         var addressOption = ContactOptions.Address("The address to take off the contact.");
 
@@ -38,6 +39,7 @@ internal static class RemoveContactAddressCommand
         Command command = new("remove-address", "Take one address off a contact the user's own book holds.")
         {
             userOption,
+            organizationOption,
             identityOption,
             addressOption,
             preferredOption,
@@ -47,6 +49,7 @@ internal static class RemoveContactAddressCommand
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
+            result.GetValue(organizationOption),
             result.GetValue(identityOption),
             result.GetValue(addressOption) ?? string.Empty,
             result.GetValue(preferredOption),
@@ -59,6 +62,7 @@ internal static class RemoveContactAddressCommand
     private static Task<int> RunAsync(
         CliContext context,
         Guid? requestedUser,
+        Guid? requestedOrganization,
         Guid contactId,
         string address,
         string? preferred,
@@ -68,6 +72,7 @@ internal static class RemoveContactAddressCommand
             context,
             contactId,
             requestedUser,
+            requestedOrganization,
             requestedDeployment,
             held => Without(held, address, preferred),
             "Took an address off",

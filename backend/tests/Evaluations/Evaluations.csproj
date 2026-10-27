@@ -63,6 +63,7 @@
     <Compile Include="..\shared\StubEmailThreadReader.cs" Link="StubEmailThreadReader.cs" />
     <Compile Include="..\shared\StubEmailProvenanceReader.cs" Link="StubEmailProvenanceReader.cs" />
     <Compile Include="..\shared\ContactBookOwnerships.cs" Link="ContactBookOwnerships.cs" />
+    <Compile Include="..\shared\StatedAdministrativeTargets.cs" Link="StatedAdministrativeTargets.cs" />
     <!-- The authority the retrieval database's mail is read under: none, as a deployment that names no trusted server
          reads it, which decides nothing the rankings read. -->
     <Compile Include="..\shared\NoTrustedAuthentication.cs" Link="NoTrustedAuthentication.cs" />

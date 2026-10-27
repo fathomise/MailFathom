@@ -43,6 +43,7 @@ internal static class DeleteContactCommand
 
         var endpointOption = CliOptions.Endpoint();
         var userOption = UserOptions.User();
+        var organizationOption = ContactOptions.Organization();
         var identityOption = ContactOptions.Identity();
 
         var confirmedOption = CliOptions.Confirmed("erasure");
@@ -50,6 +51,7 @@ internal static class DeleteContactCommand
         Command command = new("delete", "Erase one person from the books a user reads. This cannot be undone.")
         {
             userOption,
+            organizationOption,
             identityOption,
             confirmedOption,
             endpointOption,
@@ -58,6 +60,7 @@ internal static class DeleteContactCommand
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
+            result.GetValue(organizationOption),
             result.GetValue(identityOption),
             CliOptions.RequestedDeployment(result.GetValue(endpointOption), context.Variable(CliOptions.EndpointVariable)),
             result.GetValue(confirmedOption),
@@ -69,6 +72,7 @@ internal static class DeleteContactCommand
     private static async Task<int> RunAsync(
         CliContext context,
         Guid? requestedUser,
+        Guid? requestedOrganization,
         Guid contactId,
         string? requestedDeployment,
         bool confirmedUpFront,
@@ -79,9 +83,14 @@ internal static class DeleteContactCommand
         using var transport = context.OpenTransport(profile.Endpoint, profile.Trust);
         var deployment = new AdminApiClient(transport, context.Console);
 
-        var user = await UserOptions.ResolveUserAsync(deployment, profile.Token, requestedUser, cancellationToken);
+        var book = await ContactOptions.ResolveBookAsync(
+            deployment,
+            profile.Token,
+            requestedUser,
+            requestedOrganization,
+            cancellationToken);
 
-        var lookup = await deployment.ReadContactAsync(profile.Token, contactId, user, cancellationToken);
+        var lookup = await deployment.ReadContactAsync(profile.Token, contactId, book, cancellationToken);
 
         if (lookup.Contact is not { } held)
         {
@@ -104,7 +113,7 @@ internal static class DeleteContactCommand
             return CliExitCode.Failure;
         }
 
-        var erasure = await deployment.EraseContactAsync(profile.Token, contactId, user, cancellationToken);
+        var erasure = await deployment.EraseContactAsync(profile.Token, contactId, book, cancellationToken);
 
         context.Console.WriteLine(erasure.WasHeld
             ? $"Erased contact {erasure.Contact:D} and {DescribeAddresses(erasure.AddressesErased)}. Nothing in MailFathom can put the record back."

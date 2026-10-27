@@ -1008,7 +1008,7 @@ public sealed class ContactEndpointsTests
     /// What a scope adds beyond the user's own book is covered where the composition is; the routes are asked whether
     /// they resolve one at all and hand it on rather than reaching the store with a user.
     /// </remarks>
-    private ContactBookScopes Scopes() => new(new StubMailAccountAssignments());
+    private ContactBookScopes Scopes() => new(new StubMailAccountAssignments(), new StatedAdministrativeTargets());
 
     /// <summary>Builds the book the handlers write through, over substituted ports and a session that commits.</summary>
     /// <param name="authorization">What the book asks about the caller, defaulting to a grant over the whole surface.</param>

@@ -8,13 +8,14 @@ using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
-/// <summary>Writes one user's own copy of a contact one of their mail accounts collected.</summary>
+/// <summary>Writes a user's own copy, or an organization's, of a contact a mail account collected.</summary>
 /// <remarks>
-/// The one crossing between the two books, and it copies rather than moves. A collected record is an address that
+/// The one crossing between the books, and it copies rather than moves. A collected record is an address that
 /// appeared in mail rather than a person somebody wrote down, and it belongs to the account it arrived on — so
-/// promoting leaves it there for whoever else is assigned that account, and what this user gains is a record of their
-/// own, under a new identity, which every other command here then works on and which hides the collected one from their
-/// reads. Nothing turns an asserted contact back.
+/// promoting leaves it there for whoever else is assigned that account, and what the user or the organization gains is
+/// a record of its own, under a new identity, which every other command here then works on and which hides the
+/// collected one from reads. Nothing turns an asserted contact back. An organization reads no collected book of its
+/// own, so promoting into one names the account the record is copied out of.
 /// </remarks>
 internal static class PromoteContactCommand
 {
@@ -28,11 +29,23 @@ internal static class PromoteContactCommand
 
         var endpointOption = CliOptions.Endpoint();
         var userOption = UserOptions.User();
+        var organizationOption = ContactOptions.Organization();
         var identityOption = ContactOptions.Identity();
 
-        Command command = new("promote", "Write a user's own copy of a contact one of their mail accounts collected.")
+        Option<string?> accountOption = new("--account")
+        {
+            Description =
+                "The mail account whose collected book holds the contact. Required with --organization, which reads no "
+                + "collected book of its own; ignored for a user, whose assigned accounts are already in reach.",
+        };
+
+        Command command = new(
+            "promote",
+            "Write a user's own copy, or an organization's, of a contact a mail account collected.")
         {
             userOption,
+            organizationOption,
+            accountOption,
             identityOption,
             endpointOption,
         };
@@ -40,6 +53,8 @@ internal static class PromoteContactCommand
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
+            result.GetValue(organizationOption),
+            result.GetValue(accountOption),
             result.GetValue(identityOption),
             CliOptions.RequestedDeployment(result.GetValue(endpointOption), context.Variable(CliOptions.EndpointVariable)),
             cancellationToken));
@@ -50,17 +65,35 @@ internal static class PromoteContactCommand
     private static async Task<int> RunAsync(
         CliContext context,
         Guid? requestedUser,
+        Guid? requestedOrganization,
+        string? account,
         Guid contactId,
         string? requestedDeployment,
         CancellationToken cancellationToken)
     {
+        if (requestedOrganization is not null && string.IsNullOrWhiteSpace(account))
+        {
+            throw new CliFailure(
+                "An organization reads no collected book of its own, so pass --account naming the mail account that collected the contact.");
+        }
+
         var profile = await context.Deployment().ReachAsync(requestedDeployment, cancellationToken);
 
         using var transport = context.OpenTransport(profile.Endpoint, profile.Trust);
         var deployment = new AdminApiClient(transport, context.Console);
 
-        var user = await UserOptions.ResolveUserAsync(deployment, profile.Token, requestedUser, cancellationToken);
-        var promoted = await deployment.PromoteContactAsync(profile.Token, contactId, user, cancellationToken);
+        var book = await ContactOptions.ResolveBookAsync(
+            deployment,
+            profile.Token,
+            requestedUser,
+            requestedOrganization,
+            cancellationToken);
+        var promoted = await deployment.PromoteContactAsync(
+            profile.Token,
+            contactId,
+            book,
+            book.Organization is null ? null : account,
+            cancellationToken);
 
         return ContactOutput.ReportOutcome(context, promoted, contactId, "Took on");
     }

@@ -1654,11 +1654,13 @@ refusal. An archive is a second full copy of the mailbox, and there is nowhere t
 what you recorded about them. The book's own rules — what identifies a person, when two addresses are the same address,
 who may change what — are that page's; this is the command group over them.
 
-**Every command here names the book it reaches.** There are two kinds of book — a user's own, holding the people they
-wrote down, and a mail account's, holding the addresses its mail picked up — and this surface acts for nobody in
-particular: it is the deployment's administrator rather than somebody whose mail is being served, so nothing about the
-credential says whose book is meant. Every command but one therefore takes `--user` and acts on what that user reads,
-their own book beside the collected book of each mail account assigned to them; `contact delete-collected` takes
+**Every command here names the book it reaches.** There are three kinds of book — a user's own, holding the people they
+wrote down, an organization's, holding the people an administrator wrote down for every member, and a mail account's,
+holding the addresses its mail picked up — and this surface acts for nobody in particular: it is the deployment's
+administrator rather than somebody whose mail is being served, so nothing about the credential says whose book is
+meant. Every command but one therefore takes `--user` and acts on what that user reads, their own book beside their
+organization's and the collected book of each mail account assigned to them — writing their own alone — or
+`--organization` and acts on that organization's book; naming both is refused. `contact delete-collected` takes
 `--account` instead, because emptying what one mailbox picked up is not emptying what another did. `--user` is optional
 where the deployment holds one person — the command asks which users exist and acts on the single one — and an
 invocation on a deployment holding several without it is refused with the identifiers to choose between rather than
@@ -1691,6 +1693,20 @@ Amended:    2026-08-16 09:00:00Z
 | `contact delete` | Erases the person from whichever of the books `--user` reads holds them. **This cannot be undone**; see below |
 | `contact delete-collected` | Erases the whole collected book of the mail account `--account` names, keeping every user's own. **This cannot be undone**; see below |
 | `contact export` | Writes everything the books `--user` reads hold about the person to standard output, as JSON |
+
+**`--organization` writes the book every member of that organization reads.** `contact create`, `update`,
+`add-address`, `remove-address`, `promote`, `delete`, `show`, `list`, and `export` take it in place of `--user`, and
+each reaches the organization's book beneath `/api/admin/organizations/{organizationId}/contacts` rather than the
+deployment's `/api/admin/contacts` routes. It is the only place that book is written: no member's client and no agent
+writes it, and `--user` never reaches it for a write, so correcting what every member reads is an administrative act on
+the organization rather than on any one member. Recording, amending, and promoting need `mailfathom.admin.operate`,
+erasing needs `mailfathom.admin.erase`, and reading or exporting needs `mailfathom.admin.audit.read`, each at the
+organization's scope or the deployment's; a write naming an organization your scope does not cover, or one the
+deployment does not hold, is refused alike, and a read of one answers as an empty book. An organization reads no
+collected book of its own, so `contact promote --organization` also takes `--account`, naming the mail account whose
+collected record is copied, and is refused without it; `contact list --organization` takes no `--origin`, because the
+book holds asserted contacts alone. [Contacts § The organization's
+book](../features/contacts.md#the-organizations-book) holds what the book is and how it is read.
 
 **Amendments state the whole record.** The book replaces what it is given rather than merging a difference, so
 `update`, `add-address`, and `remove-address` each read the contact first and send back what it is to become. Two
@@ -2072,7 +2088,7 @@ method's](mcp-endpoint.md#passwords) to state.
 | `mfctl organization add --short-name <name> --display-name <name>` | Records an organization, and reports the identifier it was minted under |
 | `mfctl organization rename --organization <id> --display-name <name>` | Replaces the name an operator reads it by |
 | `mfctl organization set-short-name --organization <id> --short-name <name>` | Replaces the short name its members sign in under |
-| `mfctl organization remove --organization <id>` | Removes an organization with neither members nor mail accounts |
+| `mfctl organization remove --organization <id>` | Removes an organization with neither members nor mail accounts, and its [contact book](#administering-the-contact-book) with it |
 | `mfctl organization signing-key list --organization <id>` | Reads every one of the organization's [signing keys](organization-signing-keys.md), oldest first, with each one's state and dates and never its material |
 | `mfctl organization signing-key rotate --organization <id>` | Mints a fresh active signing key now and retires the one the organization signed with |
 | `mfctl organization signing-key revoke --organization <id> --key <id>` | Revokes one signing key after asking, minting a replacement in the same act when it was the active one |

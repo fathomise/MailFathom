@@ -3,6 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.CommandLine;
+using MailFathom.Cli.Administration;
+using MailFathom.Cli.Administration.Contacts;
+using MailFathom.Cli.Commands.Users;
 
 namespace MailFathom.Cli.Commands.Contacts;
 
@@ -30,4 +33,43 @@ internal static class ContactOptions
         Description = description,
         Required = true,
     };
+
+    /// <summary>Builds the option naming an organization whose book a command acts on instead of a user's.</summary>
+    /// <returns>The option.</returns>
+    internal static Option<Guid?> Organization() => new("--organization")
+    {
+        Description =
+            "Act on this organization's contact book, which every member reads and only an administrator writes, "
+            + "instead of a user's. Cannot be combined with --user.",
+    };
+
+    /// <summary>Resolves the book a command acts on: the organization's where one was named, and otherwise what one user reads.</summary>
+    /// <param name="deployment">The deployment, asked for its roster where no user was named.</param>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="requestedUser">The user the invocation named, if any.</param>
+    /// <param name="requestedOrganization">The organization the invocation named, if any.</param>
+    /// <param name="cancellationToken">Cancels the roster read.</param>
+    /// <returns>The book.</returns>
+    /// <exception cref="CliFailure">Thrown when both a user and an organization were named, or no user can be settled.</exception>
+    internal static async Task<ContactBookTarget> ResolveBookAsync(
+        AdminApiClient deployment,
+        string token,
+        Guid? requestedUser,
+        Guid? requestedOrganization,
+        CancellationToken cancellationToken)
+    {
+        if (requestedOrganization is not { } organization)
+        {
+            return ContactBookTarget.ForUser(
+                await UserOptions.ResolveUserAsync(deployment, token, requestedUser, cancellationToken));
+        }
+
+        if (requestedUser is not null)
+        {
+            throw new CliFailure(
+                "A contact command acts on one user's books or on one organization's book, so pass --user or --organization, not both.");
+        }
+
+        return ContactBookTarget.ForOrganization(organization);
+    }
 }

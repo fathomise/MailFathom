@@ -33,6 +33,13 @@ namespace MailFathom.Infrastructure.Persistence.Contacts;
 /// erasure is stated over a whole scope rather than one book, because a person asking to be taken out is asking about
 /// everything the user in front of them can see.
 /// </para>
+/// <para>
+/// Recording, replacing, and erasing one contact each take <see cref="ContactAddressLocks" /> for every address the act
+/// changes, inside the caller's transaction, so a reader serializing on an address sees the book wholly before the write
+/// or wholly after it. Erasing a mailbox's whole collected book does not: a collected contact grants no trust, so no
+/// trust verdict reads that book, and locking every address a mailbox ever corresponded with would hold an unbounded
+/// number of locks in one transaction.
+/// </para>
 /// </remarks>
 [RequiresIntegrationCoverage]
 internal sealed class ContactStore : IContactStore
@@ -49,6 +56,11 @@ internal sealed class ContactStore : IContactStore
         ArgumentNullException.ThrowIfNull(contact);
 
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+
+        await ContactAddressLocks.TakeAsync(
+            writeContext,
+            contact.Addresses.Select(address => address.NormalizedAddress),
+            cancellationToken);
 
         writeContext.Contacts.Add(ContactMapping.ToEntity(holder, contact));
     }
@@ -81,6 +93,16 @@ internal sealed class ContactStore : IContactStore
             return false;
         }
 
+        // Every address the record held or will hold, which covers each one the amendment adds or removes: locking
+        // the ones it keeps as well only serializes the amendment against readers of an address whose standing it
+        // does not change.
+        await ContactAddressLocks.TakeAsync(
+            writeContext,
+            held.Addresses
+                .Select(address => address.NormalizedAddress)
+                .Concat(contact.Addresses.Select(address => address.NormalizedAddress)),
+            cancellationToken);
+
         held.DisplayName = contact.DisplayName.Value;
         held.DisplayNameSortKey = contact.DisplayName.SortKey;
         held.PreferredNormalizedAddress = contact.PreferredAddress.NormalizedAddress;
@@ -105,6 +127,13 @@ internal sealed class ContactStore : IContactStore
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var contactValue = contactId.Value;
         var books = scope.Keys.ToArray();
+
+        var heldAddresses = await writeContext.ContactAddresses
+            .Where(address => address.ContactId == contactValue && books.Contains(address.BookHolderId))
+            .Select(address => address.NormalizedAddress)
+            .ToArrayAsync(cancellationToken);
+
+        await ContactAddressLocks.TakeAsync(writeContext, heldAddresses, cancellationToken);
 
         // Deleted rather than counted and then cascaded, so the number reported is the number of rows this statement
         // removed. Counting first would report what a separate statement saw, which a write committed between the two

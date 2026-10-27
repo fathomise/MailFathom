@@ -4,9 +4,11 @@
 
 using MailFathom.Application.Access.Grants;
 using MailFathom.Application.Access.Organizations;
+using MailFathom.Application.Contacts;
 using MailFathom.Application.Paging;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
+using MailFathom.Infrastructure.Persistence.Contacts;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Policies.MailAccounts;
 using MailFathom.Infrastructure.Security.SigningKeys;
@@ -241,12 +243,21 @@ internal sealed class PersistedOrganizations(
     }
 
     /// <inheritdoc />
+    public Task<bool> ExistsAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        dbContext.Organizations.AsNoTracking().AnyAsync(organization => organization.Id == organizationId, cancellationToken);
+
+    /// <inheritdoc />
     /// <remarks>
     /// The organization row is locked before its members and its mail accounts are counted, and the counts and the delete
     /// commit together. A move of a user or an account into it checks the restricting foreign key, which waits on that
     /// lock, and a move out that committed first is already seen by the count — so the numbers a refusal names are the
     /// numbers that refused it, and a delete that goes ahead leaves a concurrent move to meet a missing organization
     /// rather than a dangling member or account.
+    /// <para>
+    /// The organization's contact book goes with it by cascade. Before it does, the deletion takes the address lock
+    /// <see cref="ContactAddressLocks" /> describes for every address that book held, like any other act removing a
+    /// contact, so a reader serializing on an address sees the book wholly before the deletion or wholly after it.
+    /// </para>
     /// </remarks>
     public async Task<OrganizationWriteResult> DeleteAsync(Guid organizationId, CancellationToken cancellationToken)
     {
@@ -275,6 +286,14 @@ internal sealed class PersistedOrganizations(
                 RemainingMembers: members,
                 RemainingMailAccounts: mailAccounts);
         }
+
+        var organizationBook = ContactBookHolder.OfOrganization(organizationId).Key;
+        var bookAddresses = await dbContext.ContactAddresses
+            .Where(address => address.BookHolderId == organizationBook)
+            .Select(address => address.NormalizedAddress)
+            .ToArrayAsync(cancellationToken);
+
+        await ContactAddressLocks.TakeAsync(dbContext, bookAddresses, cancellationToken);
 
         await dbContext.Organizations
             .Where(organization => organization.Id == organizationId)

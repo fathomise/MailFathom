@@ -22,12 +22,20 @@ namespace MailFathom.Application.Contacts;
 /// collection can perform on its own behalf.
 /// </para>
 /// <para>
-/// <b>There are two kinds of book and each act says which it acts on.</b> A user holds the people they wrote down; a
-/// mail account holds the people its mail says it corresponds with, once, however many users are assigned that
-/// mailbox. So a read is stated over a <see cref="ContactBookScope" /> — one user's own book and the collected book of
-/// each account they are assigned — and a write is stated over the single book it lands in. Nothing here derives
-/// either from the deployment: an act that could not say whose book it meant is an act that would have to guess, and
-/// guessing is how one person is handed another person's correspondents.
+/// <b>There are three kinds of book and each act says which it acts on.</b> A user holds the people they wrote down;
+/// an organization holds the people its administrators wrote down for every member; a mail account holds the people
+/// its mail says it corresponds with, once, however many users are assigned that mailbox. So a read is stated over a
+/// <see cref="ContactBookScope" /> — one user's own book, their organization's, and the collected book of each account
+/// they are assigned, or one organization's book alone — and a write is stated over the single book it lands in.
+/// Nothing here derives either from the deployment: an act that could not say whose book it meant is an act that would
+/// have to guess, and guessing is how one person is handed another person's correspondents.
+/// </para>
+/// <para>
+/// <b>An organization's book is written by its administrators alone.</b> An act on it names the organization, and is
+/// admitted under the administrative grant held at a scope covering that organization — never under
+/// <see cref="MailFathomPermission.ContactsWrite" />, because what every member's mailbox recognizes is an
+/// administrative act, and an agent or a member's own client never performs it. A write through a user's scope leaves
+/// that book out, so a member reads it and cannot amend, promote, or erase anything found only there.
 /// </para>
 /// <para>
 /// Each write is idempotent from a fresh read and is committed through the optimistic concurrency policy, so two callers
@@ -195,6 +203,34 @@ public sealed class ContactBook
         return held.Count > 0;
     }
 
+    /// <summary>Names the contact of one organization's book holding an address, if any does.</summary>
+    /// <param name="organization">The organization whose book is asked about.</param>
+    /// <param name="address">The address to look for, matched on its comparison form, which ignores case in the local part and the domain.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The contact holding the address, or <see langword="null" /> where no contact of that book holds it.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="organization" /> is the empty UUID.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the read was reached by anything but MailFathom's own identity.</exception>
+    /// <remarks>
+    /// The read the sender trust step asks for every arriving message on an account of the organization. It is one
+    /// indexed seek on the book and the address, because an address belongs to at most one contact of a book and the
+    /// unique index over that pair answers it, and it hands back the identity alone: the verdict names the contact that
+    /// recognized the sender rather than copying anything the contact says. It admits the process identity alone, for
+    /// the reason <see cref="HoldsAddressAsync" /> does.
+    /// </remarks>
+    public async Task<ContactId?> FindOrganizationHolderAsync(
+        Guid organization,
+        EmailAddress address,
+        CancellationToken cancellationToken)
+    {
+        var book = ContactBookHolder.OfOrganization(organization);
+
+        this.authorization.RequireProcessIdentity();
+
+        var held = await this.directory.FindHoldersOfAsync(book, [address], cancellationToken);
+
+        return held.Count == 0 ? null : held.Values.First();
+    }
+
     /// <summary>Records a person collection inferred from arriving mail, in the book of the account it arrived on.</summary>
     /// <param name="account">The account being synchronized, whose book the record goes into.</param>
     /// <param name="newContact">The person to record, which collection states under its own origin.</param>
@@ -255,12 +291,53 @@ public sealed class ContactBook
     {
         ArgumentNullException.ThrowIfNull(newContact);
 
-        if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminOperate, user, cancellationToken))
+        var book = ContactBookHolder.Of(user);
+
+        if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminOperate, book, cancellationToken))
         {
             return ContactWriteResult.NotFound();
         }
 
-        return await this.WriteNewContactAsync(ContactBookHolder.Of(user), newContact, cancellationToken);
+        return await this.WriteNewContactAsync(book, newContact, cancellationToken);
+    }
+
+    /// <summary>Records a person one organization's book does not yet hold, for every member to read.</summary>
+    /// <param name="organization">The organization whose book the person is written into.</param>
+    /// <param name="newContact">The person to record, which an administrator states under the asserted origin.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The record as written, the contact of that book that already holds one of its addresses, or not found where the caller's scope does not cover the organization.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="newContact" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when the record does not name the asserted origin, or does not form a contact the domain admits.</exception>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when every allowed attempt lost the race.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the write was reached by anything but a caller granted <see cref="MailFathomPermission.AdminOperate" />.</exception>
+    /// <remarks>
+    /// An organization's book holds what somebody wrote down, so it takes the asserted origin and no other. It is
+    /// admitted under the administrative grant alone, at a scope covering the organization:
+    /// <see cref="MailFathomPermission.ContactsWrite" /> is what a member's client and an agent hold, and neither writes
+    /// what every member's mailbox recognizes.
+    /// </remarks>
+    public async Task<ContactWriteResult> RecordInOrganizationAsync(
+        Guid organization,
+        NewContact newContact,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(newContact);
+
+        var book = ContactBookHolder.OfOrganization(organization);
+
+        if (newContact.Origin != book.Origin)
+        {
+            throw new ArgumentException(
+                "An organization's book holds contacts under the asserted origin and no other.",
+                nameof(newContact));
+        }
+
+        if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminOperate, book, cancellationToken))
+        {
+            return ContactWriteResult.NotFound();
+        }
+
+        return await this.WriteNewContactAsync(book, newContact, cancellationToken);
     }
 
     /// <summary>Amends a contact of the caller's own book to the record they state, if its origin admits that writer.</summary>
@@ -292,7 +369,7 @@ public sealed class ContactBook
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentNullException.ThrowIfNull(amendment);
 
-        if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminOperate, scope.User, cancellationToken))
+        if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminOperate, scope.OwnBook, cancellationToken))
         {
             return ContactWriteResult.NotFound();
         }
@@ -382,7 +459,7 @@ public sealed class ContactBook
     {
         ArgumentNullException.ThrowIfNull(scope);
 
-        if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminOperate, scope.User, cancellationToken))
+        if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminOperate, scope.OwnBook, cancellationToken))
         {
             return ContactWriteResult.NotFound();
         }
@@ -450,7 +527,7 @@ public sealed class ContactBook
     {
         ArgumentNullException.ThrowIfNull(scope);
 
-        if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminErase, scope.User, cancellationToken))
+        if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminErase, scope.OwnBook, cancellationToken))
         {
             return new ContactErasure(contactId, WasHeld: false, AddressesErased: 0);
         }
@@ -517,45 +594,67 @@ public sealed class ContactBook
         return held is null ? null : new ContactExport(held, this.timeProvider.GetUtcNow());
     }
 
-    /// <summary>Requires the audit read over the scope's user, and keeps of the scope only the collected books the caller's scope covers.</summary>
+    /// <summary>Requires the audit read over the scope's user or organization, and keeps of the scope only the collected books the caller's scope covers.</summary>
     /// <remarks>
-    /// The user's own book is theirs, so the scope covering them covers it. A collected book is a mail account's, and an
-    /// account another person is assigned is read by them as well: a scope naming one user reaches it only while that
-    /// user is the account's alone, so a read across the books returns the ones the caller may reach rather than
-    /// refusing the user for one shared mailbox.
+    /// The user's own book is theirs, and so is the book of the organization they are a member of, so the scope covering
+    /// them covers both. A collected book is a mail account's, and an account another person is assigned is read by them
+    /// as well: a scope naming one user reaches it only while that user is the account's alone, so a read across the
+    /// books returns the ones the caller may reach rather than refusing the user for one shared mailbox. An
+    /// organization's own scope is read by whoever holds the audit read over that organization.
     /// </remarks>
     private async Task<ContactBookScope> AuditedAsync(ContactBookScope scope, CancellationToken cancellationToken)
     {
-        await this.authorization.RequirePermissionOverAsync(
-            MailFathomPermission.AdminAuditRead,
-            scope.User,
-            cancellationToken);
+        if (scope.OwnBook.Organization is { } organization)
+        {
+            await this.authorization.RequirePermissionOverScopeAsync(
+                MailFathomPermission.AdminAuditRead,
+                AssignmentScope.Organization(organization),
+                cancellationToken);
+        }
+        else
+        {
+            await this.authorization.RequirePermissionOverAsync(
+                MailFathomPermission.AdminAuditRead,
+                scope.User,
+                cancellationToken);
+        }
 
-        MailAccountId[] accounts = [.. scope.Books.Select(book => book.Account).OfType<MailAccountId>()];
+        var accounts = scope.Accounts;
         var covered = await this.authorization.CoveredMailAccountsAsync(
             MailFathomPermission.AdminAuditRead,
             accounts,
             cancellationToken);
 
-        return covered.Count == accounts.Length ? scope : ContactBookScope.Of(scope.User, covered);
+        return covered.Count == accounts.Count ? scope : scope.Covering(covered);
     }
 
-    /// <summary>Decides whether the caller may write to one user's books: as that user through the user-facing half, or as an administrator whose scope covers them.</summary>
+    /// <summary>Decides whether the caller may write to one book: a user's as that user through the user-facing half, or any written-down book as an administrator whose scope covers its holder.</summary>
     /// <param name="administrativePermission">The name the operator's half publishes the act under.</param>
-    /// <param name="user">The user whose books the act reaches.</param>
-    /// <param name="cancellationToken">Cancels the read of where the user sits.</param>
-    /// <returns><see langword="true" /> when the act may proceed, and <see langword="false" /> where the user is outside the administrator's scope, which the act answers as a person it does not hold.</returns>
-    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller holds neither alternative at any scope, naming the one on the surface its grant is written on.</exception>
+    /// <param name="book">The book the act writes into.</param>
+    /// <param name="cancellationToken">Cancels the read of where the holder sits.</param>
+    /// <returns><see langword="true" /> when the act may proceed, and <see langword="false" /> where the holder is outside the administrator's scope, which the act answers as a person it does not hold.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller holds no alternative the book admits at any scope, naming the one on the surface its grant is written on.</exception>
     /// <remarks>
     /// An agent writing through the user-facing half writes its own user's books, which no scope bounds. An operator writes
-    /// through the administrative half, whose permission is held at a scope, so the user the act names has to be inside
-    /// it — exactly as every other administrative act naming a user.
+    /// through the administrative half, whose permission is held at a scope, so the user or the organization the act names
+    /// has to be inside it — exactly as every other administrative act naming one. An organization's book admits the
+    /// administrative half alone.
     /// </remarks>
     private async Task<bool> AdmitsWriterOfAsync(
         MailFathomPermission administrativePermission,
-        UserId user,
+        ContactBookHolder book,
         CancellationToken cancellationToken)
     {
+        if (book.Organization is { } organization)
+        {
+            this.authorization.RequirePermissionAtAnyScope(administrativePermission);
+
+            return await this.authorization.PermitsOverScopeAsync(
+                administrativePermission,
+                AssignmentScope.Organization(organization),
+                cancellationToken);
+        }
+
         if (this.authorization.Permits(MailFathomPermission.ContactsWrite))
         {
             return true;
@@ -566,37 +665,41 @@ public sealed class ContactBook
             this.authorization.RequireAnyPermission(administrativePermission, MailFathomPermission.ContactsWrite);
         }
 
-        return await this.authorization.PermitsOverAsync(administrativePermission, user, cancellationToken);
+        return await this.authorization.PermitsOverAsync(administrativePermission, book.User!.Value, cancellationToken);
     }
 
-    /// <summary>Narrows the books a write or an erasure reaches to the collected books the caller's own scope covers.</summary>
+    /// <summary>Narrows the books a write or an erasure reaches to the one it writes and the collected books the caller's own scope covers.</summary>
     /// <param name="administrativePermission">The name the operator's half publishes the act under.</param>
-    /// <param name="scope">The books the user reads.</param>
+    /// <param name="scope">The books the act names.</param>
     /// <param name="cancellationToken">Cancels placing the accounts.</param>
-    /// <returns>The whole scope for the user themselves and a deployment's administrator, and otherwise the user's own book beside the collected books of the accounts the caller's scope covers.</returns>
+    /// <returns>The scope without the organization's book a user reads beside their own, and with only the collected books the caller covers unless the caller is the user themselves.</returns>
     /// <remarks>
-    /// A collected record is a mailbox's, so an administrator admitted over the user alone would otherwise reach a
-    /// mailbox the user shares — erasing a record everybody assigned it reads, or copying one out of it — which the
-    /// same scope may neither empty through <see cref="EraseCollectedAsync" /> nor read. Narrowing here keeps every
-    /// path to that book answering alike, by the rule <see cref="AuditedAsync" /> reads those books under.
+    /// A collected record is a mailbox's, so an administrator admitted over the user or the organization alone would
+    /// otherwise reach a mailbox somebody else shares — erasing a record everybody assigned it reads, or copying one out
+    /// of it — which the same scope may neither empty through <see cref="EraseCollectedAsync" /> nor read. Narrowing
+    /// here keeps every path to that book answering alike, by the rule <see cref="AuditedAsync" /> reads those books
+    /// under. The organization's book a member reads is left out entirely, because nothing written through a user's
+    /// scope may reach it.
     /// </remarks>
     private async Task<ContactBookScope> ReachOfAsync(
         MailFathomPermission administrativePermission,
         ContactBookScope scope,
         CancellationToken cancellationToken)
     {
-        if (this.authorization.Permits(MailFathomPermission.ContactsWrite))
+        var writable = scope.WithoutOrganizationBook();
+
+        if (writable.OwnBook.User is not null && this.authorization.Permits(MailFathomPermission.ContactsWrite))
         {
-            return scope;
+            return writable;
         }
 
-        MailAccountId[] accounts = [.. scope.Books.Select(book => book.Account).OfType<MailAccountId>()];
+        var accounts = writable.Accounts;
         var covered = await this.authorization.CoveredMailAccountsAsync(
             administrativePermission,
             accounts,
             cancellationToken);
 
-        return covered.Count == accounts.Length ? scope : ContactBookScope.Of(scope.User, covered);
+        return covered.Count == accounts.Count ? writable : writable.Covering(covered);
     }
 
     /// <summary>Mints the identity for a person nobody has written down yet and commits the record, whoever asked.</summary>
@@ -634,7 +737,8 @@ public sealed class ContactBook
             newContact.Note,
             newContact.Origin,
             recordedAt,
-            recordedAt);
+            recordedAt,
+            holder.Organization);
 
         if (await this.AddressHolderOtherThanAsync(holder, contact, cancellationToken) is { } addressHolder)
         {
