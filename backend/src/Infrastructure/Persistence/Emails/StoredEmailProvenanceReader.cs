@@ -83,7 +83,7 @@ internal sealed class StoredEmailProvenanceReader(
         var identities = emails.Select(static email => email.Value).ToArray();
         var stored = context.StoredEmails.AsNoTracking();
         var correspondence = AccountScopedMailFolders.Admitting(
-            stored.Where(StoredEmailTombstone.IsNotTombstoned),
+            stored.Where(StoredEmailTombstone.IsNotTombstoned).Where(StoredEmailSettlement.IsSettled),
             visibleToAI);
 
         return stored

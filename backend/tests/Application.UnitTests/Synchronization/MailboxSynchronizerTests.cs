@@ -2626,6 +2626,33 @@ public sealed class MailboxSynchronizerTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A restored message is one the person already had, so it is stored settled rather than announced as an arrival.</summary>
+    [Fact]
+    public async Task SynchronizeAsync_AnErasedMessageUndeletedOnTheServer_IsStoredSettled()
+    {
+        // Arrange
+        var context = CreateReconciliationContext(storedCheckpoint: SynchronizationCheckpoint.None(ImapUidValidity.Create(5)));
+        ArrangeUndeletedErasedOccurrence(context, uid: 20);
+        var occurrence = EmailOccurrenceId.Create(
+            MailAccountId.Create("primary"),
+            InboxFolder.Id,
+            ImapUidValidity.Create(5),
+            ImapUid.Create(20));
+        var oversized = MetadataOf(occurrence, sizeOctets: new MailboxSynchronizationOptions().MaxRawMimeBytes + 1);
+        context.Session
+            .GetEmailBatchAfterAsync(ImapUid.Create(19), 100, MailSynchronizationWindow.Unbounded, CancellationToken.None)
+            .Returns(new RemoteEmailMetadataBatch([oversized], InspectedThroughUid: ImapUid.Create(20), HasMore: false));
+
+        // Act
+        await context.Synchronizer.SynchronizeAsync(MailAccountId.Create("primary"), InboxMapping, CancellationToken.None);
+
+        // Assert
+        await context.MetadataRepository.Received(1).RecordSettledOnArrivalAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<StoredEmailId>(),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>
     /// Every message to restore is read from one page, and one the page did not reach waits for a later run rather than
     /// being let go as though the server no longer served it.
@@ -4138,6 +4165,10 @@ public sealed class MailboxSynchronizerTests
                 Arg.Any<IPersistenceSession>(),
                 Arg.Any<StoredEmailId>(),
                 Arg.Any<OutgoingEmailId>(),
+                Arg.Any<CancellationToken>());
+            await this.metadataRepository.DidNotReceive().RecordSettledOnArrivalAsync(
+                Arg.Any<IPersistenceSession>(),
+                Arg.Any<StoredEmailId>(),
                 Arg.Any<CancellationToken>());
 
             await this.filings.DidNotReceive().RecordFilingObservedAsync(

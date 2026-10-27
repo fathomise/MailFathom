@@ -204,9 +204,11 @@ somebody is still waiting for.
 **Settling is idempotent across replicas.** Two runs reaching the same message is the ordinary case, so the write is
 one conditional statement that settles only rows still settling and returns the ones it settled — and only those are
 signalled and announced. A message a competing replica settled first is neither signalled nor announced a second time.
-Two of MailFathom's own acts are stored already settled, because neither has anything to wait for or is news: the copy it
-filed of the person's own outgoing message, and a copy a rule made of a message already shown. So is everything a held
-account files locally, which no synchronization stores.
+Each batch the settlement walks is announced as soon as it is settled, so a walk that fails or is cancelled part-way
+leaves nothing it already settled unannounced. Three messages are stored already settled, because none has anything to
+wait for or is news: the copy MailFathom filed of the person's own outgoing message, a copy a rule made of a message
+already shown, and a message stored again because a delete the person asked for was undone on the server. So is
+everything a held account files locally, which no synchronization stores.
 
 What it hands a client and the person is said on settlement rather than on the commit: `mail.arrived` carries how many
 messages one run settled, and the arrival notification is raised for those of them

@@ -131,6 +131,59 @@ public sealed class MailSettlementPassTests
         Assert.Equal(arrival.Select(static email => email.Id.Value).Order(), this.store.Settled.Select(static email => email.Value).Order());
     }
 
+    /// <summary>A full batch of mail still waiting does not stop the walk, so what settles behind it is reached in the same run.</summary>
+    [Fact]
+    public async Task RunAsync_MoreThanABatchStillSettlingAheadOfReadyMail_SettlesTheMailBehindIt()
+    {
+        // Arrange
+        var waitingCount = MailSettlementPass.BatchSize + 50;
+        SettlingEmail[] waiting = [.. Enumerable.Range(1, waitingCount).Select(number => Email(number) with { AwaitsPlacement = true })];
+        SettlingEmail[] ready = [.. Enumerable.Range(waitingCount + 1, 10).Select(number => Email(number))];
+        this.store.Holding([.. waiting, .. ready]);
+
+        // Act
+        var report = await this.CreatePass(ClientSignalPublishers.ReachingNobody).RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ready.Select(static email => email.Id.Value), this.store.Settled.Select(static email => email.Value));
+        Assert.Equal(waitingCount, report.StillSettlingCount);
+    }
+
+    /// <summary>One run reads a bounded number of batches, and whatever lies past them waits for the next run.</summary>
+    [Fact]
+    public async Task RunAsync_MoreSettlingMailThanOneRunReads_StopsAtTheBatchBound()
+    {
+        // Arrange
+        var bound = MailSettlementPass.BatchSize * MailSettlementPass.MaxBatchesPerPass;
+        this.store.Holding([.. Enumerable.Range(1, bound + 5).Select(number => Email(number) with { AwaitsPlacement = true })]);
+
+        // Act
+        var report = await this.CreatePass(ClientSignalPublishers.ReachingNobody).RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(bound, report.StillSettlingCount);
+    }
+
+    /// <summary>A settled message is never read again, so a batch is announced as it settles rather than after a walk that may not finish.</summary>
+    [Fact]
+    public async Task RunAsync_AWalkThatFailsAfterABatchSettled_HasAlreadyAnnouncedThatBatch()
+    {
+        // Arrange
+        SettlingEmail[] arrival = [.. Enumerable.Range(1, MailSettlementPass.BatchSize + 1).Select(number => Email(number))];
+        this.store.Holding(arrival).FailingAfter(reads: 1);
+        await using var signals = new ClientSignals([this.channel], this.clock);
+
+        // Act
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => this.CreatePass(signals).RunAsync(Account, TestContext.Current.CancellationToken));
+        await this.DrainAsync(signals);
+
+        // Assert
+        Assert.Equal(MailSettlementPass.BatchSize, this.store.Settled.Count);
+        Assert.Equal(MailSettlementPass.BatchSize, Assert.Single(this.channel.Published).Count);
+        Assert.NotEmpty(this.notificationStore.Recorded);
+    }
+
     private static SettlingEmail Email(int number, SpamVerdict? verdict = SpamVerdict.NotSpam) =>
         new(
             StoredEmailId.Create(Guid.Parse($"0199a0c0-0000-7000-8000-{number:D12}")),

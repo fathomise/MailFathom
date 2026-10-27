@@ -39,9 +39,9 @@ public sealed class MailSettlementPass
     /// </remarks>
     public static readonly TimeSpan MaximumPlacementWait = TimeSpan.FromMinutes(15);
 
-    private const int BatchSize = 200;
+    internal const int BatchSize = 200;
 
-    private const int MaxBatchesPerPass = 50;
+    internal const int MaxBatchesPerPass = 50;
 
     private readonly IMailSettlementStore store;
     private readonly DerivedWorkGate gate;
@@ -87,13 +87,16 @@ public sealed class MailSettlementPass
     /// <returns>How many messages this pass settled, how many of them were announced, and how many it left settling.</returns>
     /// <remarks>
     /// A message another run settled first is neither counted nor announced here, so a competing replica settling the
-    /// same arrival raises one signal and one notification between them.
+    /// same arrival raises one signal and one notification between them. Each batch is announced as soon as it is
+    /// settled rather than once the walk ends, because a settled message is never read again: a walk that failed or was
+    /// cancelled after an earlier batch would otherwise leave that batch shown and never announced.
     /// </remarks>
     public async Task<MailSettlementReport> RunAsync(MailAccountId account, CancellationToken cancellationToken)
     {
         var terms = await this.gate.ReadTermsAsync(cancellationToken);
         var releasedWhenStoredBefore = terms.ReleasedWhenStoredBefore - MaximumPlacementWait;
-        var settled = new List<SettlingEmail>();
+        var settledCount = 0;
+        var announcedCount = 0;
         var stillSettlingCount = 0;
         StoredEmailId? position = null;
 
@@ -104,9 +107,11 @@ public sealed class MailSettlementPass
                 .Select(email => (Email: email, Settlement: email.DecideUnder(terms, releasedWhenStoredBefore)))
                 .ToArray();
             var settling = decided.Where(static pair => pair.Settlement is not MailSettlement.Settling).ToArray();
+            var settled = await this.SettleAsync(settling, cancellationToken);
 
             stillSettlingCount += decided.Length - settling.Length;
-            settled.AddRange(await this.SettleAsync(settling, cancellationToken));
+            settledCount += settled.Length;
+            announcedCount += await this.AnnounceAsync(account, settled, cancellationToken);
 
             if (batch.Count < BatchSize)
             {
@@ -116,19 +121,25 @@ public sealed class MailSettlementPass
             position = batch[^1].Id;
         }
 
-        var announced = settled.Where(static email => email.IsAnnounced()).Select(static email => email.Id).ToArray();
-
-        if (settled.Count > 0)
-        {
-            this.signals.Publish(ClientSignal.MailArrived(account, folder: null, settled.Count));
-        }
-
-        await this.notifications.ReportArrivedMailAsync(account, announced, cancellationToken);
-
-        return new MailSettlementReport(settled.Count, announced.Length, stillSettlingCount);
+        return new MailSettlementReport(settledCount, announcedCount, stillSettlingCount);
     }
 
-    private async Task<IEnumerable<SettlingEmail>> SettleAsync(
+    private async Task<int> AnnounceAsync(MailAccountId account, SettlingEmail[] settled, CancellationToken cancellationToken)
+    {
+        if (settled.Length == 0)
+        {
+            return 0;
+        }
+
+        StoredEmailId[] announced = [.. settled.Where(static email => email.IsAnnounced()).Select(static email => email.Id)];
+
+        this.signals.Publish(ClientSignal.MailArrived(account, folder: null, settled.Length));
+        await this.notifications.ReportArrivedMailAsync(account, announced, cancellationToken);
+
+        return announced.Length;
+    }
+
+    private async Task<SettlingEmail[]> SettleAsync(
         (SettlingEmail Email, MailSettlement Settlement)[] settling,
         CancellationToken cancellationToken)
     {
@@ -149,6 +160,6 @@ public sealed class MailSettlementPass
             this.telemetry.RecordSettled(settlement);
         }
 
-        return settledHere.Select(static pair => pair.Email);
+        return [.. settledHere.Select(static pair => pair.Email)];
     }
 }

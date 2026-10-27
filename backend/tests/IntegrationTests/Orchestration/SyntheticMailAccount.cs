@@ -122,6 +122,7 @@ internal sealed class SyntheticMailAccount(
         "lexical-search",
         "local-email-state",
         "mail-ownership",
+        "mail-settlement",
         "manual-move-source",
         "manual-move-target",
         "mcp-tool-contract",

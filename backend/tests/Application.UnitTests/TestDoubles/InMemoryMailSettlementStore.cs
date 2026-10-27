@@ -13,6 +13,7 @@ internal sealed class InMemoryMailSettlementStore : IMailSettlementStore
 {
     private readonly List<SettlingEmail> settling = [];
     private readonly HashSet<StoredEmailId> settledElsewhere = [];
+    private int? readsBeforeFailing;
 
     /// <summary>Gets the messages settled through this store, in the order they settled.</summary>
     public List<StoredEmailId> Settled { get; } = [];
@@ -27,6 +28,16 @@ internal sealed class InMemoryMailSettlementStore : IMailSettlementStore
         return this;
     }
 
+    /// <summary>Makes every read after the first <paramref name="reads" /> fail, as a store that went away mid-walk does.</summary>
+    /// <param name="reads">How many reads answer before the failures start.</param>
+    /// <returns>This store.</returns>
+    public InMemoryMailSettlementStore FailingAfter(int reads)
+    {
+        this.readsBeforeFailing = reads;
+
+        return this;
+    }
+
     /// <summary>Settles a message as a competing run would, between this run's read and its write.</summary>
     /// <param name="email">The message the other run settled.</param>
     public void SettledElsewhere(StoredEmailId email) => this.settledElsewhere.Add(email);
@@ -36,8 +47,14 @@ internal sealed class InMemoryMailSettlementStore : IMailSettlementStore
         MailAccountId account,
         StoredEmailId? resumeAfter,
         int batchSize,
-        CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<SettlingEmail>>(
+        CancellationToken cancellationToken)
+    {
+        if (this.readsBeforeFailing-- <= 0)
+        {
+            throw new InvalidOperationException("The settling queue could not be read.");
+        }
+
+        return Task.FromResult<IReadOnlyList<SettlingEmail>>(
         [
             .. this.settling
                 .Where(email => email.AccountId == account
@@ -46,6 +63,7 @@ internal sealed class InMemoryMailSettlementStore : IMailSettlementStore
                 .OrderBy(static email => email.Id.Value)
                 .Take(batchSize),
         ]);
+    }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<StoredEmailId>> SettleAsync(

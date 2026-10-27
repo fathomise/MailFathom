@@ -58,8 +58,8 @@ public sealed class StoredEmailProvenanceReaderCommandTests
 
     /// <summary>Earlier correspondence is looked for only in mail still part of the mailbox and in folders an agent may read.</summary>
     /// <remarks>
-    /// Read from the existence test alone: the flag is published, so an expunged message or one in an unmapped folder
-    /// deciding it would tell a caller that mail it cannot read exists.
+    /// Read from the existence test alone: the flag is published, so an expunged message, one still settling, or one in
+    /// an unmapped folder deciding it would tell a caller that mail it cannot read exists.
     /// </remarks>
     [Fact]
     public void ProvenanceOf_EarlierCorrespondence_IsNarrowedToLiveMailInFoldersVisibleToAI()
@@ -77,6 +77,7 @@ public sealed class StoredEmailProvenanceReaderCommandTests
         // Assert
         Assert.Contains($"\"{nameof(StoredEmailEntity.RemoteExpungeObservedAt)}\"", existenceTest, StringComparison.Ordinal);
         Assert.Contains($"\"{aliasColumn}\"", existenceTest, StringComparison.Ordinal);
+        Assert.Contains($"\"{nameof(StoredEmailEntity.SettledAt)}\" IS NOT NULL", existenceTest, StringComparison.Ordinal);
     }
 
     /// <summary>Whether an email is junk is read off the role its folder was configured with, as a column the command selects.</summary>

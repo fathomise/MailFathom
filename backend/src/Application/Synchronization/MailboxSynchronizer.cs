@@ -337,7 +337,7 @@ public sealed class MailboxSynchronizer
 
                     // A copy is stored like any other discovery, because the email it duplicates stays where it was and a
                     // second live occurrence is a second local email under ADR 0008. What the record settles is only whose
-                    // act the arrival was.
+                    // act the arrival was — and that it is no arrival at all, so the copy is stored settled.
                     var copy = placement is { } candidate && candidate.Request.Mutation == MailboxMutation.Copy
                         ? candidate
                         : null;
@@ -354,6 +354,7 @@ public sealed class MailboxSynchronizer
                         copy,
                         filing,
                         isFiledCopy: filing is not null,
+                        settlesOnArrival: copy is not null,
                         account,
                         budget,
                         collection,
@@ -696,6 +697,7 @@ public sealed class MailboxSynchronizer
                 placement: null,
                 filing: null,
                 isFiledCopy,
+                settlesOnArrival: false,
                 account,
                 budget,
                 collection,
@@ -743,7 +745,8 @@ public sealed class MailboxSynchronizer
     /// </para>
     /// <para>
     /// A restored message is announced to open clients as changed rather than as arrived, because it is one the person
-    /// already had and deleted, not one that has just reached them.
+    /// already had and deleted, not one that has just reached them — which is also why it is stored settled, with
+    /// nothing to wait for and no arrival to announce.
     /// </para>
     /// </remarks>
     private async Task RestoreUndeletedEmailsAsync(
@@ -793,6 +796,7 @@ public sealed class MailboxSynchronizer
                     placement: null,
                     filing: null,
                     isFiledCopy: false,
+                    settlesOnArrival: true,
                     account,
                     budget,
                     collection,
@@ -1078,6 +1082,7 @@ public sealed class MailboxSynchronizer
         MailboxMutationRecord? placement,
         OutgoingMailFilingRecord? filing,
         bool isFiledCopy,
+        bool settlesOnArrival,
         MailAccountId account,
         SynchronizationContentBudget budget,
         ContactCollectionRun collection,
@@ -1091,6 +1096,7 @@ public sealed class MailboxSynchronizer
                 metadata,
                 placement,
                 filing,
+                settlesOnArrival,
                 StoredEmailContentAvailability.ExceededSizeLimit,
                 StoredContentBound.None,
                 arrivalSource,
@@ -1105,6 +1111,7 @@ public sealed class MailboxSynchronizer
                 metadata,
                 placement,
                 filing,
+                settlesOnArrival,
                 StoredEmailContentAvailability.AwaitingStorageHeadroom,
                 refusedBound,
                 arrivalSource,
@@ -1129,6 +1136,7 @@ public sealed class MailboxSynchronizer
                 metadata,
                 placement,
                 filing,
+                settlesOnArrival,
                 StoredEmailContentAvailability.AwaitingStorageHeadroom,
                 storageAttempt.ReachedBound,
                 arrivalSource,
@@ -1161,6 +1169,7 @@ public sealed class MailboxSynchronizer
                 metadata,
                 placement,
                 filing,
+                settlesOnArrival,
                 StoredEmailContentAvailability.ExceededSizeLimit,
                 StoredContentBound.None,
                 arrivalSource,
@@ -1216,8 +1225,13 @@ public sealed class MailboxSynchronizer
                     placedContent,
                     attemptCancellationToken);
 
-                await this.ObservePlacementAsync(persistenceSession, placement, storedEmailId, attemptCancellationToken);
+                await this.ObservePlacementAsync(persistenceSession, placement, attemptCancellationToken);
                 await this.ObserveFilingAsync(persistenceSession, filing, storedEmailId, attemptCancellationToken);
+
+                if (settlesOnArrival)
+                {
+                    await this.metadataRepository.RecordSettledOnArrivalAsync(persistenceSession, storedEmailId, attemptCancellationToken);
+                }
                 folderSetMoved = await this.localFolderArrivals.PlaceAsync(
                     persistenceSession,
                     metadata.OccurrenceId.AccountId,
@@ -1276,6 +1290,7 @@ public sealed class MailboxSynchronizer
         RemoteEmailMetadata metadata,
         MailboxMutationRecord? placement,
         OutgoingMailFilingRecord? filing,
+        bool settlesOnArrival,
         StoredEmailContentAvailability availability,
         StoredContentBound reachedStorageBound,
         LocalMailFolderArrivalSource arrivalSource,
@@ -1294,8 +1309,13 @@ public sealed class MailboxSynchronizer
                     availability,
                     attemptCancellationToken);
 
-                await this.ObservePlacementAsync(persistenceSession, placement, storedEmailId, attemptCancellationToken);
+                await this.ObservePlacementAsync(persistenceSession, placement, attemptCancellationToken);
                 await this.ObserveFilingAsync(persistenceSession, filing, storedEmailId, attemptCancellationToken);
+
+                if (settlesOnArrival)
+                {
+                    await this.metadataRepository.RecordSettledOnArrivalAsync(persistenceSession, storedEmailId, attemptCancellationToken);
+                }
                 folderSetMoved = await this.localFolderArrivals.PlaceAsync(
                     persistenceSession,
                     metadata.OccurrenceId.AccountId,
@@ -1320,14 +1340,9 @@ public sealed class MailboxSynchronizer
     }
 
     /// <summary>Writes down that the occurrence a copy created has been met, where this discovery was one.</summary>
-    /// <remarks>
-    /// The copy settles with the store: the message it duplicates was settled and shown already, so the copy has nothing
-    /// to wait for and is no arrival to announce.
-    /// </remarks>
     private async Task ObservePlacementAsync(
         IPersistenceSession persistenceSession,
         MailboxMutationRecord? placement,
-        StoredEmailId storedEmailId,
         CancellationToken cancellationToken)
     {
         if (placement is null)
@@ -1340,11 +1355,6 @@ public sealed class MailboxSynchronizer
             placement.Id,
             this.timeProvider.GetUtcNow(),
             cancellationToken);
-
-        if (placement.Request.Mutation == MailboxMutation.Copy)
-        {
-            await this.metadataRepository.RecordSettledOnArrivalAsync(persistenceSession, storedEmailId, cancellationToken);
-        }
     }
 
     /// <summary>Writes down that a copy MailFathom filed has been met, and joins the stored email to the send it is of.</summary>
