@@ -3,7 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { linkOpenerForThisApplication } from './linkOpener';
+import { linkOpenerForThisApplication, type FollowedLink } from './linkOpener';
+
+const offer: FollowedLink = { target: 'https://example.invalid/offer', picture: false, words: null, warnings: [] };
 
 // The one branch on a head in this whole tree, so it is the one thing worth proving about it: which operation the
 // composition root resolves, and that a link never reaches the document either way.
@@ -35,7 +37,7 @@ describe('linkOpenerForThisApplication', () => {
         // makes — so the answer is what a real one gives, and succeeding on it is the behaviour being pinned down.
         const opened = vi.spyOn(window, 'open').mockReturnValue(null);
 
-        await linkOpenerForThisApplication()('https://example.invalid/offer');
+        await linkOpenerForThisApplication()(offer);
 
         expect(opened).toHaveBeenCalledWith('https://example.invalid/offer', '_blank', 'noopener,noreferrer');
     });
@@ -44,7 +46,7 @@ describe('linkOpenerForThisApplication', () => {
         const { invoked } = shellAnnouncing();
         const opened = vi.spyOn(window, 'open');
 
-        await linkOpenerForThisApplication()('https://example.invalid/offer');
+        await linkOpenerForThisApplication()(offer);
 
         expect(invoked.map((call) => call.command)).toEqual(['plugin:opener|open_url']);
         expect(invoked[0]?.argument).toMatchObject({ url: 'https://example.invalid/offer' });

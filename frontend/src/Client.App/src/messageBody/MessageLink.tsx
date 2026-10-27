@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useContext, useState, type ReactNode } from 'react';
+import { useContext, useState, type MouseEvent, type ReactNode } from 'react';
 import type { MailDocumentLink } from '@mailfathom/client-backend';
 import { useLocalization, type Translate } from '../localization/useLocalization';
 import { useLinkOpener } from '../shellOperations/linkOpener';
@@ -29,7 +29,17 @@ function warningsFor(link: MailDocumentLink, place: string, translate: Translate
     return said.length === 0 ? [translate('link.warningWorthChecking', { host: place })] : said;
 }
 
-export function MessageLink({ link, children }: { readonly link: MailDocumentLink; readonly children: ReactNode }) {
+export function MessageLink({
+    link,
+    cautions = [],
+    children,
+}: {
+    readonly link: MailDocumentLink;
+
+    /** Warnings the surface draws beside the link itself, which the question before opening it repeats. */
+    readonly cautions?: readonly string[];
+    readonly children: ReactNode;
+}) {
     const { translate } = useLocalization();
     const openLink = useLinkOpener();
     const [refused, setRefused] = useState(false);
@@ -38,6 +48,24 @@ export function MessageLink({ link, children }: { readonly link: MailDocumentLin
     // The place the link goes, as a person recognizes it. A host is absent for the one scheme that has none, and the
     // whole target is what says where a `mailto:` link goes.
     const place = link.host ?? link.target;
+    const warnings = link.worthWarningAbout ? warningsFor(link, place, translate) : [];
+
+    // The application asks for the link to be opened rather than letting the document navigate, which is what makes
+    // the answer the same on both heads. What was pressed is read off the element at the press, because the words and
+    // whether a picture stood in for them are what the anchor drew rather than anything the link itself carries.
+    function follow(pressed: MouseEvent<HTMLAnchorElement>): void {
+        pressed.preventDefault();
+        setRefused(false);
+
+        void openLink({
+            target: link.target,
+            picture: pressed.currentTarget.querySelector('img, svg, picture') !== null,
+            words: pressed.currentTarget.textContent,
+            warnings: [...warnings, ...cautions],
+        }).catch(() => {
+            setRefused(true);
+        });
+    }
 
     if (notOpened) {
         return (
@@ -55,27 +83,24 @@ export function MessageLink({ link, children }: { readonly link: MailDocumentLin
                 href={link.target}
                 rel="noopener noreferrer"
                 target="_blank"
-                onClick={(event) => {
-                    // The application asks for the link to be opened rather than letting the document navigate, which
-                    // is what makes the answer the same on both heads.
-                    event.preventDefault();
-                    setRefused(false);
-                    void openLink(link.target).catch(() => {
-                        setRefused(true);
-                    });
+                onClick={follow}
+                // A middle press opens a tab through `auxclick` rather than `click`, so it is answered the same way;
+                // the right button opens the browser's own menu and is left to it.
+                onAuxClick={(pressed) => {
+                    if (pressed.button === 1) {
+                        follow(pressed);
+                    }
                 }}
             >
                 {children}
             </a>{' '}
             <span className="text-sm text-muted">{translate('link.goesTo', { host: place })}</span>
-            {link.worthWarningAbout
-                ? warningsFor(link, place, translate).map((warning) => (
-                      <span className="text-sm text-warning" key={warning}>
-                          {' '}
-                          {warning}
-                      </span>
-                  ))
-                : null}
+            {warnings.map((warning) => (
+                <span className="text-sm text-warning" key={warning}>
+                    {' '}
+                    {warning}
+                </span>
+            ))}
             {refused ? <span className="text-sm text-warning"> {translate('link.couldNotOpen')}</span> : null}
         </>
     );

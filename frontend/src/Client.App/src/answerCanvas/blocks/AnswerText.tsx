@@ -93,12 +93,14 @@ function Link({ href, children }: Written & { readonly href?: string }) {
         return <>{children}</>;
     }
 
+    const notInSources = judged.appearsInCitedSources ? null : translate('answer.linkNotInSources');
+
     return (
         <>
-            <MessageLink link={judged.link}>{children}</MessageLink>
-            {judged.appearsInCitedSources ? null : (
-                <span className="text-sm text-warning"> {translate('answer.linkNotInSources')}</span>
-            )}
+            <MessageLink link={judged.link} cautions={notInSources === null ? [] : [notInSources]}>
+                {children}
+            </MessageLink>
+            {notInSources === null ? null : <span className="text-sm text-warning"> {notInSources}</span>}
         </>
     );
 }

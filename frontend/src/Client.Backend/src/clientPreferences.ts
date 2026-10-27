@@ -59,7 +59,22 @@ export interface ClientPreferences {
      * setting the deployment quietly disagrees with.
      */
     readonly notificationSeconds: number;
+
+    /**
+     * The domains whose links, and the links of every subdomain of them, open without the client asking first.
+     *
+     * Each is a lowercase ASCII name, an internationalized one in its punycode form, which is how the deployment
+     * normalized it and how a browser spells a link's host — so a link is held against the list without either side
+     * being converted. No screen edits it yet; the deployment's own route is where it is set.
+     */
+    readonly trustedLinkDomains: readonly string[];
 }
+
+/** The most domains a list of trusted link domains holds, which is the deployment's own bound. */
+export const mostTrustedLinkDomains = 50;
+
+/** The longest a trusted link domain can be, which is the longest name the domain name system resolves. */
+const longestTrustedLinkDomain = 253;
 
 /** The shortest a notification may be asked to stand for, which is the deployment's own bound. */
 export const shortestNotificationSeconds = 1;
@@ -82,16 +97,17 @@ export const unsetClientPreferences: ClientPreferences = {
     messageView: 'reduced',
     aiFiltersShown: true,
     notificationSeconds: 5,
+    trustedLinkDomains: [],
 };
 
 /**
  * The most of one preferences answer this package reads before refusing it.
  *
- * The document is eight scalars, so this is far above anything the deployment will legitimately send and far below
- * anything worth buffering. It is the same order the write route bounds its request body at, for the same reason:
- * what the bound guards against is an answer that was never a preferences document.
+ * The document is eight scalars and a list of at most fifty domain names, so this is above anything the deployment
+ * will legitimately send and far below anything worth buffering. It is the bound the write route reads its request
+ * body to, for the same reason: what the bound guards against is an answer that was never a preferences document.
  */
-export const longestPreferencesAnswer = 4_096;
+export const longestPreferencesAnswer = 16_384;
 
 /** Reads what the signed-in person set about their own client, answering an expected failure as a value. */
 export function readClientPreferences(
@@ -189,8 +205,9 @@ function parsePreferences(body: string): ClientPreferences | null {
     const messageView = record['messageView'];
     const aiFiltersShown = record['aiFiltersShown'];
     const notificationSeconds = record['notificationSeconds'];
+    const trustedLinkDomains = record['trustedLinkDomains'];
 
-    if (!isNotificationTime(notificationSeconds)) {
+    if (!isNotificationTime(notificationSeconds) || !isTrustedLinkDomainList(trustedLinkDomains)) {
         return null;
     }
 
@@ -217,7 +234,25 @@ function parsePreferences(body: string): ClientPreferences | null {
         messageView,
         aiFiltersShown,
         notificationSeconds,
+        trustedLinkDomains,
     };
+}
+
+// Bounded the way the deployment bounds it, and checked as lowercase ASCII because that is the form both the list and a
+// link's host are compared in: an entry in any other form would match no link, and a screen trusting it would be
+// trusting nothing while saying it trusts something.
+function isTrustedLinkDomainList(value: unknown): value is readonly string[] {
+    return (
+        Array.isArray(value) &&
+        value.length <= mostTrustedLinkDomains &&
+        value.every(
+            (domain) =>
+                typeof domain === 'string' &&
+                domain.length > 0 &&
+                domain.length <= longestTrustedLinkDomain &&
+                /^[a-z0-9.-]+$/.test(domain),
+        )
+    );
 }
 
 function isThemePreference(value: unknown): value is ClientThemePreference {

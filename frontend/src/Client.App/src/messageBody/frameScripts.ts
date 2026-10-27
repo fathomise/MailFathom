@@ -17,11 +17,16 @@
 // The listener is on the document in the capture phase, so a link wrapped in whatever a template put around it is still
 // answered by the first handler to see the event. It reads the tree upwards rather than trusting the event target,
 // since a click lands on the text node's element — a `span` inside the anchor, the image inside a banner link.
+//
+// Beside the `href` it reports what the anchor showed — its words, and whether a picture stood in for them — because
+// the question asked before the link opens says both. A middle press arrives as `auxclick` rather than `click` and is
+// reported the same way; any other button is left alone.
 export const linkScript = `(function(){
 function anchor(n){while(n&&n.nodeType===1){if(n.nodeName==="A")return n;n=n.parentNode}return null}
-document.addEventListener("click",function(e){var a=anchor(e.target);if(!a)return;
+function report(e){if(e.type==="auxclick"&&e.button!==1)return;var a=anchor(e.target);if(!a)return;
 var href=a.getAttribute("href");if(!href)return;e.preventDefault();
-try{parent.postMessage({link:href},"*")}catch(err){}},true)})()`;
+try{parent.postMessage({link:href,words:a.textContent,picture:!!a.querySelector("img,svg,picture")},"*")}catch(err){}}
+document.addEventListener("click",report,true);document.addEventListener("auxclick",report,true)})()`;
 
 // Measures the document at a viewport height of zero — otherwise each fitting would enlarge the content it is measuring
 // and the number would grow without end — and observes the body rather than the document element, which would close

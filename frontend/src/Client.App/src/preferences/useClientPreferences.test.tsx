@@ -41,6 +41,7 @@ function stored(preferences: {
         aiFiltersShown: true,
         messageView: 'reduced',
         notificationSeconds: 5,
+        trustedLinkDomains: [],
         ...preferences,
     });
 }
@@ -255,6 +256,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 5,
+            trustedLinkDomains: [],
         });
     });
 
@@ -303,6 +305,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: false,
             messageView: 'reduced',
             notificationSeconds: 5,
+            trustedLinkDomains: [],
         });
     });
 
@@ -333,6 +336,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 12,
+            trustedLinkDomains: [],
         });
     });
 
@@ -390,6 +394,7 @@ describe('useClientPreferences', () => {
                 aiFiltersShown: true,
                 messageView: 'reduced',
                 notificationSeconds: 5,
+                trustedLinkDomains: [],
             });
         });
     });
@@ -645,6 +650,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 5,
+            trustedLinkDomains: [],
         });
     });
 
@@ -714,6 +720,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 5,
+            trustedLinkDomains: [],
         });
     });
 
@@ -750,6 +757,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 5,
+            trustedLinkDomains: [],
         });
         expect(window.localStorage.getItem(telemetryKey(anna))).toBe('false');
     });

@@ -1701,6 +1701,11 @@ export const en = {
     'link.warningAsciiHost': 'This link goes to {host}, which is written {asciiHost}.',
     'link.warningWorthChecking': 'This link is worth checking before you follow it. It goes to {host}.',
     'link.couldNotOpen': 'This link could not be opened.',
+    'link.askTitle': 'Open this link?',
+    'link.askPictureTitle': 'Open the link behind this picture?',
+    'link.askExplanation': 'It leaves MailFathom and opens in your browser. Open it only if you expected to go there.',
+    'link.askWordsNameAnotherHost': 'Its words name {named}, but it goes to {host}.',
+    'link.askOpen': 'Open link',
 
     'pendingChange.waiting.one': 'One change has not reached your mailbox yet.',
     'pendingChange.waiting.few': '{count} changes have not reached your mailbox yet.',

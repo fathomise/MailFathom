@@ -22,11 +22,11 @@ public sealed class ClientPreferencesDocumentTests
     {
         // Act
         var document = ClientPreferencesDocument.Render(
-            new ClientPreferences(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12));
+            new ClientPreferences(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12, []));
 
         // Assert
         Assert.Equal(
-            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"cleaned","aiFiltersShown":false,"notificationSeconds":12}""",
+            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"cleaned","aiFiltersShown":false,"notificationSeconds":12,"trustedLinkDomains":[]}""",
             document);
     }
 
@@ -39,7 +39,7 @@ public sealed class ClientPreferencesDocumentTests
 
         // Assert
         Assert.Equal(
-            """{"telemetryEnabled":true,"theme":"system","openMailInTabs":false,"markReadOnOpen":true,"expandWholeThread":false,"messageView":"reduced","aiFiltersShown":true,"notificationSeconds":5}""",
+            """{"telemetryEnabled":true,"theme":"system","openMailInTabs":false,"markReadOnOpen":true,"expandWholeThread":false,"messageView":"reduced","aiFiltersShown":true,"notificationSeconds":5,"trustedLinkDomains":[]}""",
             document);
     }
 
@@ -47,13 +47,37 @@ public sealed class ClientPreferencesDocumentTests
     public void Parse_ADocumentThisBuildWrote_ReadsBackWhatWasWritten()
     {
         // Arrange
-        var chosen = new ClientPreferences(false, ClientThemeChoice.Light, true, false, true, ClientMessageView.EmbeddedHtml, false, 30);
+        var chosen = new ClientPreferences(false, ClientThemeChoice.Light, true, false, true, ClientMessageView.EmbeddedHtml, false, 30, []);
 
         // Act
         var read = ClientPreferencesDocument.Parse(ClientPreferencesDocument.Render(chosen));
 
         // Assert
         Assert.Equal(chosen, read);
+    }
+
+    [Fact]
+    public void Parse_ADocumentListingTrustedLinkDomains_ReadsThemBackInTheirOrder()
+    {
+        // Arrange
+        var chosen = ClientPreferences.Unset with { TrustedLinkDomains = [Trusted("nordwind.example"), Trusted("fabrikam.example")] };
+
+        // Act
+        var read = ClientPreferencesDocument.Parse(ClientPreferencesDocument.Render(chosen));
+
+        // Assert
+        Assert.Equal(["nordwind.example", "fabrikam.example"], read.TrustedLinkDomains.Select(static domain => domain.Name));
+    }
+
+    /// <summary>A row this build did not check may hold an entry it would refuse, and leaving it out only means a link to it asks first.</summary>
+    [Fact]
+    public void Parse_ARowListingAnEntryThisBuildWouldRefuse_LeavesItOut()
+    {
+        // Act
+        var read = ClientPreferencesDocument.Parse("""{"trustedLinkDomains":["nordwind.example","*.example","co.uk"]}""");
+
+        // Assert
+        Assert.Equal(["nordwind.example"], read.TrustedLinkDomains.Select(static domain => domain.Name));
     }
 
     /// <summary>The document is sparse, so a build publishing one more preference reads a row written before it existed.</summary>
@@ -74,7 +98,7 @@ public sealed class ClientPreferencesDocumentTests
         var read = ClientPreferencesDocument.Parse("""{"theme":"dark"}""");
 
         // Assert
-        Assert.Equal(new ClientPreferences(true, ClientThemeChoice.Dark, false, true, false, ClientMessageView.Reduced, true, 5), read);
+        Assert.Equal(new ClientPreferences(true, ClientThemeChoice.Dark, false, true, false, ClientMessageView.Reduced, true, 5, []), read);
     }
 
     /// <summary>A stored value outside the bound is a row an earlier build or a hand edit wrote, and is read as unset.</summary>
@@ -208,4 +232,7 @@ public sealed class ClientPreferencesDocumentTests
         // Assert
         Assert.Throws<ArgumentNullException>(() => ClientPreferencesDocument.Render(null!));
     }
+
+    private static TrustedLinkDomain Trusted(string written) =>
+        TrustedLinkDomain.TryRead(written, out var domain, out _) ? domain : throw new ArgumentException(written, nameof(written));
 }

@@ -684,6 +684,38 @@
       ]
     },
     {
+      "id": "mail-link-ask",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 0
+          }
+        },
+        {
+          "click": {
+            "role": "link",
+            "name": "example.invalid",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "alertdialog",
+            "name": "Open this link?"
+          }
+        }
+      ]
+    },
+    {
       "id": "calendar",
       "route": "/#/calendar",
       "signIn": true,

@@ -35,6 +35,7 @@ const settings: ClientPreferencesInForce = {
     aiFiltersShown: true,
     messageView: 'reduced',
     notificationSeconds: 5,
+    trustedLinkDomains: [],
     notStated: false,
     chooseTheme: () => undefined,
     chooseTabMode: () => undefined,

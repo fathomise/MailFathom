@@ -617,6 +617,14 @@ A link the reader presses in that frame leaves through `shellOperations/linkOpen
 client: the framed document reports the address it was written with and navigates nothing, and the parent admits
 `http`, `https`, `mailto`, and `tel`, bounds the length, and accepts a report only from a frame it created itself.
 
+**No link that leaves for the web opens on the press that found it.** `linkQuestion/LinkQuestion.tsx` supplies that
+same operation again inside the frame, around the one the head resolved, so every surface that opens a link — the
+reduced message, its original, an agent's answer — reaches one question rather than drawing its own: _Open this link?_,
+the host and the whole address, the warnings the link already carried, and _Cancel_ focused by default. A host on the
+person's own list of trusted domains, which the deployment holds as one of their
+[preferences](../docs/operations/client-endpoint.md#the-preferences-routes), or a subdomain of one, opens at once.
+Nothing the frame reports can make it ask less: the decision rests on the address alone.
+
 Reaching it is a question rather than a control: pressing the one on the message's head opens a confirmation, and
 neither answer is written down — per message, per reader, or at all. `workspace/rememberedWorkspace.ts` is what keeps
 that true across a reload, by refusing to keep the value and refusing to read one back. `messageBody/MessageMarkupFrame.tsx`

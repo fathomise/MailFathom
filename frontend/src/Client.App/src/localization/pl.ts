@@ -1730,6 +1730,12 @@ export const pl: Catalogue = {
     'link.warningAsciiHost': 'Ten odnośnik prowadzi do {host}, zapisanego jako {asciiHost}.',
     'link.warningWorthChecking': 'Ten odnośnik warto sprawdzić przed otwarciem. Prowadzi do {host}.',
     'link.couldNotOpen': 'Nie udało się otworzyć tego odnośnika.',
+    'link.askTitle': 'Otworzyć ten odnośnik?',
+    'link.askPictureTitle': 'Otworzyć odnośnik ukryty za tym obrazkiem?',
+    'link.askExplanation':
+        'Prowadzi poza MailFathom i otworzy się w przeglądarce. Otwórz go tylko wtedy, gdy spodziewasz się tam trafić.',
+    'link.askWordsNameAnotherHost': 'Jego słowa wskazują {named}, ale prowadzi do {host}.',
+    'link.askOpen': 'Otwórz odnośnik',
 
     'pendingChange.waiting.one': 'Jedna zmiana nie dotarła jeszcze do Twojej skrzynki.',
     'pendingChange.waiting.few': '{count} zmiany nie dotarły jeszcze do Twojej skrzynki.',

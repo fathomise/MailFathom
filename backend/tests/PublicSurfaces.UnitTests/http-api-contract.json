@@ -4830,6 +4830,15 @@
               "null",
               "string"
             ]
+          },
+          "trustedLinkDomains": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
           }
         },
         "type": "object"
@@ -4870,6 +4879,12 @@
           },
           "theme": {
             "type": "string"
+          },
+          "trustedLinkDomains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -4880,7 +4895,8 @@
           "expandWholeThread",
           "messageView",
           "aiFiltersShown",
-          "notificationSeconds"
+          "notificationSeconds",
+          "trustedLinkDomains"
         ],
         "type": "object"
       },

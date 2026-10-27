@@ -93,6 +93,7 @@ export const clientPreferences = {
     messageView: 'reduced',
     aiFiltersShown: true,
     notificationSeconds: 5,
+    trustedLinkDomains: [],
 };
 
 /** The mailbox everything else in the corpus belongs to, up to date and with nothing to say about itself. */

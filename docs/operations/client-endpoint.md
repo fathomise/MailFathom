@@ -2705,26 +2705,27 @@ and somebody who set the client up the way they work should not have to set it u
   "messageView": "reduced",
   "aiFiltersShown": true,
   "notificationSeconds": 5,
+  "trustedLinkDomains": [],
   "telemetryHeldBy": null
 }
 ```
 
-**It holds eight preferences and nothing else.** The ninth field of an answer, `telemetryHeldBy`, is not one: it says
+**It holds nine preferences and nothing else.** The tenth field of an answer, `telemetryHeldBy`, is not one: it says
 who holds the first, [as described below](#a-settings-policy-may-hold-the-telemetry-switch), and a write does not
 state it. Whether this deployment may be told what the person's client is doing;
 what the client is painted in, which is `system`, `light`, or `dark`; whether opening a message opens a tab rather
 than replacing what is on the screen; whether opening a message marks it read on the person's own mail server; whether
 opening a conversation draws every message in it rather than the one it was opened at; which of the three renderings an
 open message is drawn as, which is `reduced`, `cleaned`, or `embeddedHtml`; whether the client offers the standing views
-of the mailbox beneath its folder tree; and how long one of the client's own notifications stands before it takes itself
-away. Each of them says how
+of the mailbox beneath its folder tree; how long one of the client's own notifications stands before it takes itself
+away; and which domains the person trusts the links to. Each of them says how
 somebody wants to work, which is why it belongs to the person. The language does not, and stays on the device: it is
 resolved for somebody who has not signed in and may never get a session. Neither does the width a person drags the
 message list to, which describes the screen in front of them.
 
 **Unset reads as telemetry on, the theme following the machine, tabs off, marking read on, a conversation opening at
-the message it was opened at, a message read as the reduced document, the standing views drawn, and a notification
-standing for five seconds.** A person who has set nothing is answered a
+the message it was opened at, a message read as the reduced document, the standing views drawn, a notification
+standing for five seconds, and no link domain trusted.** A person who has set nothing is answered a
 document rather than a refusal, so a first run draws a screen. The theme is still resolved on the device
 before sign-in — the client cannot wait on the network to paint itself, and there is no session to read this over above
 the sign-in screen — and what this answers replaces that device value once a session exists.
@@ -2789,6 +2790,30 @@ server, plus the grace [the mutation routes](#the-mutation-routes) describe. A v
 naming the range rather than clamped to it: a person who asked for a minute would otherwise be handed half of one
 without being told, and the one screen that writes this offers nothing outside it.
 
+**`trustedLinkDomains` is the person's own list of domains whose links the client opens without asking first.** The
+client asks before following any `http` or `https` link — in a message, its original, an agent's answer, or anywhere
+else it draws one — naming the host and the whole address, and a link whose host is on this list, or is a subdomain of
+an entry on it, opens at once instead. So `nordwind.example` covers `files.nordwind.example`, and a name that only
+borrows its letters, such as `nordwind-billing.example`, still asks. **No screen edits the list yet**: it is set through
+this route alone, and the client reads it and sends it back unchanged with every other preference it writes.
+
+Each entry is a bare domain name, validated when it is written:
+
+- It is stored, and answered, as lowercase ASCII, with an internationalized name in its punycode form — `bücher.example`
+  is held as `xn--bcher-kva.example` — because that is how a browser spells the host of a link it is compared with.
+- It carries no scheme, path, query, port, or user name, and no wildcard, since a domain already covers every subdomain
+  of it.
+- It is a name rather than an address, has at least two labels, and is not a bare public suffix such as `co.uk` or
+  `com.pl`, each of which would trust every site registered under it. The suffixes refused are the second-level labels
+  registries sell names beneath under a two-letter country code, not the whole Public Suffix List, so a rarer suffix is
+  accepted; what that costs is one person over-trusting their own links.
+- It is at most 253 characters in either form, and the list holds at most 50 entries.
+
+An entry that fails is not dropped: the whole write is refused with `400`, naming the entry's position and what is wrong
+with it, and nothing is stored. The same domain written twice — in two cases, or once in its own script and once in
+punycode — is kept once. A stored entry this build would refuse, written by an earlier one or by hand, is left out of
+the answer, which only means a link to it asks.
+
 **A write states the whole document.** It is a closed set rather than a patch: a key nothing binds is refused rather
 than stored, a theme this deployment does not publish is refused naming the three that are, and a preference the body
 omits is committed as its own default rather than left at whatever was there. The body is bounded like every other on
@@ -2828,7 +2853,7 @@ a sentence saying so in place of the switch — a control over a client that is 
 
 **`telemetryEnabled` is the one preference somebody else may decide.** The deployment's
 [settings policy](admin-endpoint.md#settings-policies), or the policy of the organization a person belongs to, may
-force it on or off for everybody it governs. Nothing else here is ever governed: the other seven take no default, no
+force it on or off for everybody it governs. Nothing else here is ever governed: the other eight take no default, no
 forced value, and no editing restriction, and the switch itself takes a forced value and nothing else.
 [ADR 0037](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0037-a-settings-policy-at-the-deployment-and-at-each-organization.md)
 holds why this one, and what forcing it on takes from the person it is about.
@@ -2837,7 +2862,7 @@ holds why this one, and what forcing it on takes from the person it is about.
 | --- | --- |
 | `GET /api/client/preferences` | Answers `telemetryEnabled` as the forced value, whatever the person stored, and `telemetryHeldBy` as `Deployment` or `Organization` |
 | `POST /api/client/preferences` stating the other value | Answers `400` and writes nothing, in a sentence naming `TelemetryEnabled`, what it is forced to, and whether the deployment or the organization holds it |
-| `POST /api/client/preferences` stating the forced value, or omitting the switch | Commits the other seven and answers the forced value with who holds it. The person's own answer is left exactly as it was |
+| `POST /api/client/preferences` stating the forced value, or omitting the switch | Commits the other eight and answers the forced value with who holds it. The person's own answer is left exactly as it was |
 
 **`telemetryHeldBy` is `null` wherever the answer is the person's own**, so a client reads one field to know whether
 the control is theirs: where it names a holder, their own answer is not what is being applied, and moving the switch
@@ -2857,7 +2882,7 @@ refusal, which is how the telemetry routes read that row.
 
 **A write for somebody whose record this replica does not serve leaves the switch alone too.** Whether a policy holds
 it cannot be known there, and the body may be stating a forced answer another replica read to that person's client, so
-the other seven are committed, the stored answer stays as it was, and the write answers what is stored.
+the other eight are committed, the stored answer stays as it was, and the write answers what is stored.
 
 **The deployment's force wins over an organization's**, as it does for every setting a policy forces: an organization
 holding the switch off for its members is overruled by a deployment holding it on, and `telemetryHeldBy` then names

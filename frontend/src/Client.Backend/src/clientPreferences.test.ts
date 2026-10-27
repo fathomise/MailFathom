@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     longestNotificationSeconds,
+    mostTrustedLinkDomains,
     readClientPreferences,
     shortestNotificationSeconds,
     unsetClientPreferences,
@@ -27,6 +28,7 @@ const stored = {
     messageView: 'cleaned',
     aiFiltersShown: false,
     notificationSeconds: 12,
+    trustedLinkDomains: [],
 } as const;
 const storedBody = JSON.stringify(stored);
 
@@ -63,7 +65,7 @@ describe('readClientPreferences', () => {
         expect(requests[0]?.headers['Authorization']).toBe('Basic dGVzdA==');
     });
 
-    it('reads the eight preferences the deployment answered', async () => {
+    it('reads the nine preferences the deployment answered', async () => {
         const answer = await readClientPreferences(session, answering({ status: 200, body: storedBody }));
 
         expect(answer).toStrictEqual({ outcome: 'read', value: stored });
@@ -188,6 +190,38 @@ describe('readClientPreferences', () => {
             });
         },
     );
+
+    it('reads the trusted link domains as the deployment normalized them', async () => {
+        const trustedLinkDomains = ['nordwind.example', 'xn--bcher-kva.example'];
+        const answer = await readClientPreferences(
+            session,
+            answering({ status: 200, body: JSON.stringify({ ...unsetClientPreferences, trustedLinkDomains }) }),
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'read', value: { ...unsetClientPreferences, trustedLinkDomains } });
+    });
+
+    // An entry in any form but the one a link's host is compared in would match nothing while the list said it trusted
+    // something, and a list past the deployment's bound is an answer that was never a preferences document.
+    it.each([
+        ['missing altogether', undefined],
+        ['not a list', 'nordwind.example'],
+        ['holding something that is not a name', [42]],
+        ['holding a name written in capitals', ['Nordwind.Example']],
+        ['holding a name in its own script', ['bücher.example']],
+        ['holding an empty name', ['']],
+        [
+            'longer than the list holds',
+            Array.from({ length: mostTrustedLinkDomains + 1 }, (_, at) => `s${String(at)}.example`),
+        ],
+    ])('refuses trusted link domains %s', async (_, trustedLinkDomains) => {
+        const answer = await readClientPreferences(
+            session,
+            answering({ status: 200, body: JSON.stringify({ ...unsetClientPreferences, trustedLinkDomains }) }),
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
 });
 
 describe('writeClientPreferences', () => {

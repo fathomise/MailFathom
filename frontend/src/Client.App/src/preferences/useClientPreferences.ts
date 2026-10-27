@@ -85,6 +85,14 @@ export interface ClientPreferencesInForce {
      */
     readonly notificationSeconds: number;
 
+    /**
+     * The domains whose links open without the client asking first, as the deployment holds them.
+     *
+     * Read here and offered by no control: the list is set through the deployment's own route, and a write composed by
+     * any of the choices below sends it back exactly as it was read. Unset reads as none, so every link asks.
+     */
+    readonly trustedLinkDomains: readonly string[];
+
     /** Whether the deployment refused the last change, which is the one thing about this a screen has to say out loud. */
     readonly notStated: boolean;
 
@@ -305,6 +313,7 @@ export function useClientPreferences(
         messageView: inForce.preferences.messageView,
         aiFiltersShown: inForce.preferences.aiFiltersShown,
         notificationSeconds: inForce.preferences.notificationSeconds,
+        trustedLinkDomains: inForce.preferences.trustedLinkDomains,
         notStated: inForce.notStated,
         chooseTheme: (choice) => {
             setThemeChoice(choice);
