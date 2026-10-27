@@ -1505,6 +1505,7 @@ export const pl: Catalogue = {
 
     'source.show': 'Pokaż źródło',
     'source.title': 'Źródło wiadomości',
+    'source.text': 'Wiadomość tak, jak dotarła',
     'source.close': 'Zamknij źródło wiadomości',
     'source.reading': 'Wczytywanie źródła wiadomości',
     'source.asReceived': 'Tak jak dotarła, {size}',

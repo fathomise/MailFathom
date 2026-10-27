@@ -43,12 +43,17 @@ export function MoreActions({
     const label = translate('message.moreActions');
     const acting = storedEmailId !== null && reading !== null;
 
-    // A source opened about a message that is no longer the one standing here leaves through the window's own close,
-    // rather than being pulled out of the document with focus inside it, or drawn again over the next message.
-    const shown =
-        reading !== null && source !== null && source.storedEmailId === storedEmailId
-            ? { storedEmailId: source.storedEmailId, reading }
-            : null;
+    // The menu and the source are about one message, so both go once another stands here — adjusted during the render
+    // that sees the change, so neither is drawn over the next message nor comes back when the first is opened again.
+    const [standingOver, setStandingOver] = useState(storedEmailId);
+
+    if (standingOver !== storedEmailId) {
+        setStandingOver(storedEmailId);
+        setMenu(null);
+        setSource(null);
+    }
+
+    const shown = reading !== null && source !== null ? { storedEmailId: source.storedEmailId, reading } : null;
 
     return (
         <>
@@ -77,7 +82,7 @@ export function MoreActions({
                 )}
             </span>
 
-            <Departing value={storedEmailId === null ? null : menu}>
+            <Departing value={menu}>
                 {(at) => (
                     <ContextMenu
                         header={subject ?? label}

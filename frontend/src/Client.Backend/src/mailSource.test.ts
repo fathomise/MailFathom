@@ -90,6 +90,16 @@ describe('readMailSource', () => {
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
+    it.each([
+        [401, 'unauthenticated'],
+        [403, 'unauthorized'],
+        [503, 'unavailable'],
+    ] as const)('answers a %i as %s', async (status, reason) => {
+        const result = await readMailSource(session, answering({ status, body: '', headers: {} }), messageId);
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason, status } });
+    });
+
     it('answers a deployment that did not answer as unavailable', async () => {
         const result = await readMailSource(session, () => Promise.reject(new Error('refused')), messageId);
 

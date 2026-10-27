@@ -2001,8 +2001,8 @@ Past a mebibyte what is left is encoded attachments nobody reads as text, and th
 message from being buffered into one answer.
 
 **A message this user does not hold is answered `404`**, and so is one no deployment ever held, one whose copy was never
-stored, and one whose stored copy is missing or damaged — the last two record the repair request a read of the message
-records, because the finding is about the copy rather than about which read met it. A credential whose grant does not
+stored, and one whose stored copy is missing or damaged — a missing or damaged copy records the repair request a read of
+the message records, because the finding is about the copy rather than about which read met it. A credential whose grant does not
 carry `mailfathom.mail.read` is answered `403`, as everywhere else on this surface.
 
 **Where [sensitive-content scanning](../features/sensitive-content-scanning.md) is switched on for any account the

@@ -132,7 +132,14 @@ export function MessageSourceSurface({
                 <SurfaceControl label={translate('source.close')} icon="close" onActivate={onClose} />
             </header>
 
-            <div className="min-h-0 flex-1 overflow-auto">
+            {/* Focusable and named, because WebKit gives a scroll container holding nothing focusable no keyboard path,
+                and a source runs far past the first screen of headers on the head the desktop shell renders in. */}
+            <div
+                aria-label={translate('source.text')}
+                className="min-h-0 flex-1 overflow-auto"
+                role="region"
+                tabIndex={0}
+            >
                 <SourceBody
                     online={online}
                     result={result}

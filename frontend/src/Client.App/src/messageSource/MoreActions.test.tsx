@@ -103,6 +103,7 @@ describe('MoreActions', () => {
         const surface = await screen.findByRole('dialog', { name: 'Message source' });
 
         expect(await within(surface).findByText(/The invoice is attached\./u)).toBeDefined();
+        expect(within(surface).getByRole('region', { name: 'The message as received' }).tabIndex).toBe(0);
         expect(asked.map((request) => request.path)).toEqual([
             `https://mail.example.invalid/api/client/messages/${messageId}/source`,
         ]);
@@ -123,6 +124,25 @@ describe('MoreActions', () => {
         standOver('00000000-0000-4000-8000-000000000001');
         expect(screen.queryByRole('dialog', { name: 'Message source' })).toBeNull();
         expect(screen.getByRole('button', { name: 'More actions' })).toBeDefined();
+    });
+
+    it('brings back neither the menu nor the source when the message they were about stands here again', async () => {
+        const { transport, asked } = deploymentAnswering({ status: 200, body: source, headers: {} });
+
+        const { standOver } = drawMoreActions(transport);
+        showSource();
+        await screen.findByRole('dialog', { name: 'Message source' });
+        fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+
+        standOver(null);
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog', { name: 'Message source' })).toBeNull();
+        });
+        standOver(messageId);
+
+        expect(screen.queryByRole('dialog', { name: 'Message source' })).toBeNull();
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(asked).toHaveLength(1);
     });
 
     it('stands a skeleton in the source while it is on the wire', async () => {

@@ -1483,6 +1483,7 @@ export const en = {
 
     'source.show': 'Show source',
     'source.title': 'Message source',
+    'source.text': 'The message as received',
     'source.close': 'Close the message source',
     'source.reading': 'Reading the message source',
     'source.asReceived': 'As received, {size}',

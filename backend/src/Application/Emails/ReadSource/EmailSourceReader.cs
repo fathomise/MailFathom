@@ -24,8 +24,8 @@ namespace MailFathom.Application.Emails.ReadSource;
 /// <para>
 /// Every refusal about what is there is one refusal. A message this user does not hold, one no deployment ever held, a
 /// copy deliberately not stored, and a copy that is missing or damaged all answer
-/// <see cref="EmailSourceUnavailable" />; the last two also record the repair request a read of the
-/// message records, because the finding is about the copy rather than about which read met it.
+/// <see cref="EmailSourceUnavailable" />; a missing or damaged copy also records the repair request a read of
+/// the message records, because the finding is about the copy rather than about which read met it.
 /// </para>
 /// <para>
 /// A source is withheld wherever any account this person reads is screened, because that is the posture every read of
