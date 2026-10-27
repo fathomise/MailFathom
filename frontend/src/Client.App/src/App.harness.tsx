@@ -35,6 +35,7 @@ import { LinkOpenerContext } from './shellOperations/linkOpener';
 import { receivesNoRedirect, type SignInRedirect, type SignInRedirectAnswer } from './shellOperations/signInRedirect';
 import { SystemNotifierContext, type SystemNotifier } from './shellOperations/systemNotifier';
 import { WorkspaceProvider } from './workspace/Workspace';
+import { listedSender } from '../../../tests/fixtures/senders';
 
 // The frame every `App.*.test.tsx` file mounts, and the doubles it is mounted over. It is a module rather than a
 // second test file because each of those files proves one group of behaviours against the same arrangement, and a
@@ -293,7 +294,38 @@ const describedMessage: Answer = {
             references: [],
         },
         body: { availability: 'Readable', plainText: true, html: true },
-        sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            authenticatedDomain: null,
+            authenticationSource: 'ReceivingServer',
+            dkimDomain: null,
+            spfDomain: null,
+            dmarc: 'NotReported',
+            trustSource: null,
+        },
+        signature: {
+            outcome: 'NotSigned',
+            format: null,
+            secureMimeType: null,
+            unverifiableReason: null,
+            signedAt: null,
+            steps: {
+                content: 'NotChecked',
+                authority: 'NotChecked',
+                validity: 'NotChecked',
+                revocation: 'NotChecked',
+                signer: 'NotChecked',
+            },
+            trustAnchor: null,
+            chainEnd: null,
+            validityFailure: null,
+            revocationMethod: null,
+            revocationCheckedAt: null,
+            revokedAt: null,
+            signerMatchesAuthor: false,
+            signer: null,
+        },
         attachments: [],
         carried: null,
         unread: true,
@@ -326,6 +358,7 @@ const folderWithOneMessage: Answer = {
                 attachmentCount: 0,
                 sizeOctets: 4_096,
                 preview: 'The invoice for August.',
+                sender: listedSender('unrecognized'),
             },
         ],
         nextCursor: null,
@@ -456,6 +489,7 @@ const drawnConversation: Answer = {
                     attachmentCount: 0,
                     sizeOctets: 4_096,
                     preview: 'The invoice for August.',
+                    sender: listedSender('unrecognized'),
                 },
 
                 // The conversation route carries every message's own description and words, which is what makes

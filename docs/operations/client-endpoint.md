@@ -829,7 +829,13 @@ continues the list at each end:
         ]
       },
       "threadMessageCount": 4,
-      "spam": null
+      "spam": null,
+      "sender": {
+        "authorAuthentication": "Authenticated",
+        "deploymentTrust": "Unknown",
+        "signatureOutcome": "NotSigned",
+        "signerMatchesAuthor": false
+      }
     }
   ],
   "nextCursor": "AbCd...",
@@ -911,6 +917,25 @@ because it says what kind of spam a message is and nothing about mail that is no
 `impersonatedParty` is the kind of party a message pretends to come from and never a name — where a reader needs one,
 the message's own sender is in front of them. [Spam classification](../features/spam-classification.md) is where each
 stage and each value is decided.
+
+**`sender` is what was established about who sent the message, as four facts side by side**, so a list marks a
+row's sender without a request per row. `authorAuthentication` and `deploymentTrust` are the two states
+[the message route](#the-message-route) publishes under the same names, and `signatureOutcome` and
+`signerMatchesAuthor` are its `signature.outcome` and `signature.signerMatchesAuthor`:
+
+| Field | Values |
+| --- | --- |
+| `authorAuthentication` | `NotEstablished`, `Failed`, `Authenticated` |
+| `deploymentTrust` | `Unknown`, `Trusted` |
+| `signatureOutcome` | `NotSigned`, `Verified`, `Failed`, `NotVerifiable` |
+| `signerMatchesAuthor` | `true` where the message's own signer is the author it displays |
+
+The four are never combined into one value here. Which mark a screen draws from them is the client's rule, and a value
+combining them on the wire would be a second copy of that rule for the two to disagree over. The evidence each fact was
+reached from — the domains that passed, the DMARC result, the signer and every verification step — stays on the
+message route, which is what a surface explaining a mark reads; a list page carrying it would publish what no row draws.
+Every row carries the object, sent mail included, because the facts are the message's and which rows draw a mark is the
+screen's to decide.
 
 **`evidence` names passages rather than carrying them.** Each entry is a passage identifier, resolvable through the
 same citation route an answer's citations use, so a client that wants the words behind a mark asks for them. A row
@@ -1025,7 +1050,13 @@ It answers with one page of the user's mail ranked against what they are looking
         }
       ],
       "isDepictedMatch": false,
-      "spam": null
+      "spam": null,
+      "sender": {
+        "authorAuthentication": "Authenticated",
+        "deploymentTrust": "Trusted",
+        "signatureOutcome": "NotSigned",
+        "signerMatchesAuthor": false
+      }
     }
   ],
   "nextCursor": "AbCd...",
@@ -1046,7 +1077,8 @@ acted on without a second request. `snippets` are the extracts around what match
 `**` — text cut from untrusted mail rather than markup to render — and `preview` is the same bounded opening the list
 route publishes. The one list field a result does not carry is `threadMessageCount`: a search ranks messages rather
 than correspondences, and counting the conversation behind every result would be a query this route does not owe.
-`spam` is the list row's own object, read the same way, so a result is folded or badged exactly as its row would be.
+`spam` and `sender` are the list row's own objects, read the same way, so a result is folded, badged, and marked
+exactly as its row would be.
 
 **`matchedBy` is why the row is there**: `LexicalRanking` for a message carrying the query's words, `SemanticRanking`
 for one matching by meaning, and `BothRankings` for one both rankings found. It is the field a screen needs most for
@@ -1257,7 +1289,13 @@ It answers with one conversation as a single document — the messages in it, wh
           ]
         },
         "threadMessageCount": 2,
-        "spam": null
+        "spam": null,
+        "sender": {
+          "authorAuthentication": "Authenticated",
+          "deploymentTrust": "Unknown",
+          "signatureOutcome": "NotSigned",
+          "signerMatchesAuthor": false
+        }
       }
     },
     {
@@ -1283,7 +1321,13 @@ It answers with one conversation as a single document — the messages in it, wh
         "preview": "Thanks — I will read the notes this afternoon.",
         "enrichment": null,
         "threadMessageCount": 2,
-        "spam": null
+        "spam": null,
+        "sender": {
+          "authorAuthentication": "Authenticated",
+          "deploymentTrust": "Unknown",
+          "signatureOutcome": "NotSigned",
+          "signerMatchesAuthor": false
+        }
       }
     }
   ],
@@ -1315,7 +1359,8 @@ across this surface, and its `preview` is what that message added with the quote
 trimmed off — which is what keeps the eighth reply from redrawing the seven above it. Field for field includes
 `enrichment`, which carries here exactly what it carries on a list row and means exactly the same thing: a message a
 derivation reached shows its marks whichever screen draws it, and a conversation that answered `null` for a message the
-list shows marks for would be stating that no derivation has reached it. `threadMessageCount` on each of these rows is
+list shows marks for would be stating that no derivation has reached it. `sender` is the row's own object too, so a
+message marks its sender alike in a list, in search results, and in a conversation. `threadMessageCount` on each of these rows is
 this conversation's own `messageCount`, because that is what the field means and every message here is in this
 conversation — so a row drawn from a thread reads the same number as the header above it. That is the *assembled* count
 rather than the counted one, so a conversation past the 500 this route assembles reads `500` here beside
@@ -1439,7 +1484,12 @@ of its body exist to be asked for:
   "sender": {
     "authorAuthentication": "Authenticated",
     "deploymentTrust": "Trusted",
-    "authenticatedDomain": "example.test"
+    "authenticatedDomain": "EXAMPLE.TEST",
+    "authenticationSource": "ReceivingServer",
+    "dkimDomain": "EXAMPLE.TEST",
+    "spfDomain": "BOUNCES.EXAMPLE.TEST",
+    "dmarc": "Pass",
+    "trustSource": "ConfiguredTrustedSender"
   },
   "signature": {
     "outcome": "Verified",
@@ -1514,8 +1564,8 @@ nothing about what arrived — and whether there is a richer rendering to draw i
 is `true` where the message carried an HTML part, which is what the body route's document is reduced from; both are
 `false` for a body nothing could read, and `availability` is the same set that route reports.
 
-**`sender` is two states and is never one.** `authorAuthentication` is what the receiving mail server established about
-the author the message displays, and `deploymentTrust` is whether this deployment recognizes that author — a fact about
+**`sender` is two states and is never one.** `authorAuthentication` is what was established about the author the
+message displays — by the receiving mail server, or by MailFathom's own DKIM check where that server said nothing — and `deploymentTrust` is whether this deployment recognizes that author — a fact about
 the message beside a classification of a list. They are published side by side because collapsing them into one badge
 would mean inventing the rule that combines them: an authenticated author nobody has named is the ordinary state of
 legitimate mail and carries the same trust value as one whose authentication failed outright. Both are read back as they
@@ -1523,13 +1573,42 @@ were stored; nothing on this path re-reads a header, resolves DNS, or evaluates 
 what was concluded about the authenticated author rather than a reading of the `From` header.
 
 **`authenticatedDomain` is who the authentication was established for**, which is the fact a reader needs when the
-name a message displays is not it. It is the domain the receiving mail server authenticated and nothing wider: it is
+name a message displays is not it. It is the domain that check authenticated and nothing wider: it is
 `null` for a message nothing authenticated a sender for, and it is published beside the two states rather than
 compared against the `From` address, because judging whether the two agree is the policy this path deliberately does
 not evaluate.
 
+**The rest of `sender` is the evidence the two states were reached from**, which is what a surface explaining a sender
+mark lists step by step. None of it changes what a reader acts on, which stays the two states, and none of it is
+combined into them here.
+
+| Field | Values |
+| --- | --- |
+| `authenticationSource` | `ReceivingServer` — the account's trusted receiving mail server, read back out of the `Authentication-Results` header it wrote — or `LocalVerification`, where MailFathom verified the message's own DKIM signatures itself because no such statement was available |
+| `dkimDomain` | The domain whose DKIM signature passed, or `null` where none did |
+| `spfDomain` | The domain whose SPF check passed, or `null` where none did or none was evaluated |
+| `dmarc` | `NotReported`, `Pass`, `Fail`, `NoPolicyPublished`, `TemporaryError`, `PermanentError` |
+| `trustSource` | `OwnAccountDomain`, `ConfiguredTrustedSender`, `StoredTrustedSender`, `OrganizationMember`, or `null` where nothing recognized the author |
+
+`authenticationSource` names which reading produced the verdict rather than asserting that a server established
+something, so `ReceivingServer` is also what a message carries when nothing was read at all. A reader concludes that
+nobody checked from `ReceivingServer` beside an `authorAuthentication` of `NotEstablished`, no domain passing, and a
+`dmarc` of `NotReported`. A verdict reached by `LocalVerification` reads DKIM alone, so it never names an SPF domain and
+reports `NotReported` for DMARC. All three domains are published in the form they are stored in, which is upper-case
+ASCII with an internationalized name in its ASCII encoding, so a screen that wants another spelling makes it.
+
+**`trustSource` names what recognized the author, never which entry matched.** `OwnAccountDomain` is a domain of an
+account this deployment synchronizes, `ConfiguredTrustedSender` an entry on the receiving account's configured
+trusted-sender list, `StoredTrustedSender` one somebody added to its stored list, and `OrganizationMember` a signature
+of the receiving account's organization proving the author a member of it, which holds whatever `authorAuthentication`
+says ([Sender authentication](../features/sender-authentication.md)); where both lists name the author the configured
+one is reported. Which address or domain on a list matched is not recorded, so it is not published, and neither is the
+organization's name. It
+is the source in force when the message was extracted, so a change to the trusted senders since reaches mail extracted
+after it.
+
 **`signature` is what the message's own S/MIME or OpenPGP signature proves, and it is never folded into `sender`.**
-`sender` is what the receiving mail server established about the domain a message came from; `signature` is what the
+`sender` is what was established about the domain a message came from; `signature` is what the
 message's cryptography proves about who signed it and whether the signed content changed since. Neither says a message
 is safe. `outcome` is one of four values for both formats — `NotSigned`, `Verified`, `Failed` where the content does not
 match its signature, and `NotVerifiable` where it could not be verified here, with `unverifiableReason` saying why:

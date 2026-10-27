@@ -39,6 +39,12 @@ const email: MailTimelineEntry = {
     enrichment: null,
     threadMessageCount: null,
     spam: null,
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        signatureOutcome: 'NotSigned',
+        signerMatchesAuthor: false,
+    },
 };
 
 function asking(

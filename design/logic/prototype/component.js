@@ -304,9 +304,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     const fromDom = domainOf(r.from);
     if (k === "warnSig") return "Its signature does not match its content: it was changed after it was signed, or the signature is forged.";
     if (k === "warnAuth") return fromDom + " did not authenticate this message, so it may not come from who it names.";
+    if (k === "trusted" && r.trust.source === "org") return "The sender is a member of your organization, and the organization's signature proves this message comes from this address.";
     if (k === "trusted") return r.authDomain + " authenticated this message, and " + (r.trust.source === "own"
       ? r.trust.match + " is a domain of your own accounts."
-      : (r.trust.match.indexOf("@") >= 0 ? "the address" : "the domain") + " is on this account's trusted senders.");
+      : "the sender is on this account's trusted senders.");
     if (k === "verified") return "It carries a signature that verified, made by " + r.from + ", the address it is from" +
       (r.author === "failed" ? ". Sender authentication failed, which a forward or a mailing list often causes." : ".");
     if (r.sig && r.sig.signer && r.sig.signer !== r.from) return "It is signed, but by " + r.sig.signer + ", not by the address it is from.";
@@ -322,14 +323,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     const step = (name, res, more) => ({ name, result: res[0], detail: res[1], more: more || null });
     const auth = [
       step("Who checked", r.checker === "server"
-        ? ["pass", "This account's trusted receiving mail server, " + SENDER_MARKS.servers[acc] + ", checked it when the message arrived."]
+        ? ["pass", "This account's trusted receiving mail server checked it when the message arrived."]
         : own ? ["pass", "MailFathom checked the DKIM signature itself, because no trusted receiving mail server is configured for this account."]
         : ["unchecked", "Nobody: no trusted receiving mail server is configured for this account, and the message carries no DKIM signature MailFathom could check itself."]),
       step("DKIM", nobody ? notRun : r.dkim ? ["pass", "A DKIM signature by " + r.dkim + " passed."] : ["fail", "No DKIM signature passed."]),
       step("SPF", nobody ? notRun
         : own ? ["unchecked", "Not checked: MailFathom's own check reads DKIM only, and SPF needs the server that received the message."]
         : r.spf ? ["pass", r.spf + " allows the server that handed the message over."]
-        : ["fail", "No SPF check passed: " + fromDom + " does not list the server that handed the message over."]),
+        : ["fail", "No SPF check passed."]),
       step("DMARC", nobody ? notRun
         : own ? ["unchecked", "Not reported: MailFathom's own check does not evaluate DMARC."]
         : r.dmarc === "pass" ? ["pass", fromDom + " publishes a DMARC policy, and the message meets it."]
@@ -343,13 +344,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         : r.author === "failed"
         ? ["fail", fromDom + " is not established as the author. " + (r.authDomain ? r.authDomain + " authenticated the message instead." : "No domain authenticated the message.")]
         : nobody ? notRun
-        : ["unchecked", "Not established: the DMARC check could not run, so nothing tied " + fromDom + " to the message."]),
+        : ["unchecked", "Not established: nothing tied " + fromDom + " to the message."]),
     ];
     const trust = [
-      step("Trusted sender", r.author !== "authenticated"
+      step("Trusted sender", r.trust && r.trust.source === "org"
+        ? ["pass", "A member of your organization. The organization's signature proves the message comes from " + r.from + "."]
+        : r.author !== "authenticated"
         ? ["skip", "Skipped, because the author was not authenticated."]
         : r.trust && r.trust.source === "own" ? ["pass", r.trust.match + " is a domain of your own accounts."]
-        : r.trust ? ["pass", (r.trust.match.indexOf("@") >= 0 ? "The address " : "The domain ") + r.trust.match + " is on this account's trusted senders."]
+        : r.trust ? ["pass", "The sender is on this account's trusted senders."]
         : ["fail", "This account does not recognize " + r.from + ": it is not on the account's trusted senders, and " + fromDom + " is not a domain of your own accounts."]),
     ];
     const s = r.sig;
@@ -370,8 +373,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         : [["Fingerprint", k.fingerprint], ["Key ID", k.keyId], ["User ID", k.userId], ["Created", k.created], ["Expires", k.expires], ["Algorithms", k.algorithms]];
       const skipped = ["skip", "Skipped, because the key is not known here."];
       sig.push(
-        step("Known key", unknown ? ["fail", "The key " + k.keyId + " is not one your operator configured, so who holds it is not known here."]
-          : ["pass", "The key " + k.keyId + " is one your operator configured."], keyMore),
+        step("Known key", unknown ? ["fail", "The key " + k.keyId + " is not one your administrator configured, so who holds it is not known here."]
+          : ["pass", "The key " + k.keyId + " is one your administrator configured."], keyMore),
         step("Validity", unknown ? skipped : s.keyValidity === "pass" ? ["pass", "Not expired: the key is valid until " + k.expires + "."]
           : ["fail", "The key expired on " + s.keyExpired + ", before the message was signed."]),
         step("Not revoked", unknown ? skipped : s.revocation.result === "pass" ? ["pass", "The key carries no revocation."] : ["fail", "The key carries a revocation."]),
@@ -384,9 +387,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     const rv = s.revocation || {};
     sig.push(
       step("Certificate authority", s.ca.result === "public" ? ["pass", "Chains to " + s.ca.name + ", a recognized public certificate authority."]
-        : s.ca.result === "operator" ? ["pass", "Chains to " + s.ca.name + ", a certificate authority your operator configured."]
+        : s.ca.result === "operator" ? ["pass", "Chains to " + s.ca.name + ", a certificate authority your administrator configured."]
         : ["fail", "Chains to no certificate authority this server trusts: it ends at " + s.ca.name + "."],
-        [["Subject", c.subject], ["Email", c.email], ["Issuer", c.issuer], ["Valid", c.valid], ["Serial", c.serial], ["Fingerprint", c.fingerprint], ["Algorithms", c.algorithms]]),
+        [["Name", c.subject], ["Email", c.email], ["Issuer", c.issuer], ["Valid from", (c.valid || "").split(" - ")[0]], ["Valid until", (c.valid || "").split(" - ")[1]], ["Serial", c.serial], ["Fingerprint", c.fingerprint], ["Algorithms", c.algorithms]]),
       step("Validity and purpose", s.validity === "pass" ? ["pass", "Valid at the signing time, and meant for signing email."]
         : s.validity === "expired" ? ["fail", "Expired on " + s.expired + ", before the message was signed."]
         : ["fail", "Not meant for signing email: the certificate does not name email protection among its purposes."]),
@@ -1754,6 +1757,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             { icon: sp.spam ? "report_off" : "report", label: sp.spam ? (this.sitsInSpam(id) && this.movesSpam(id) ? "Not spam\u2026" : "Not spam") : "Spam\u2026", run: () => this.toggleSpam([id]) },
             { icon: "drive_file_move", label: "Move\u2026", run: () => this.setState({ moveFor: [id] }) },
             { icon: "delete", label: "Delete", danger: true, run: () => this.deleteThreads([id]) },
+            /* The row's mark answers a pointer alone, since a row is one option with nothing focusable inside it, so the
+               details are reached from the keyboard here. Asked from a menu there is no mark to stand under, and the
+               anchored panel opens centred instead. */
+            !/·(Sent|Drafts)$/.test(this.state.folderKey || "") && senderRecord(id, null) &&
+              { icon: MARKS[markKeyOf(senderRecord(id, null))].glyph, label: "Sender details", run: () => this.openSenderMark(id, null, null) },
           ].filter(Boolean),
         },
       });
@@ -1842,7 +1850,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : { left: 0, top: 0, bottom: 0 };
       const a = this.localPt(r.left, r.bottom);
       this._markTrigger = el || null;
-      this.setState({ senderMark: { key, id: threadId, from: from || null, x: a.x, y: a.y, top: this.localPt(r.left, r.top).y }, senderMore: {} });
+      this.setState({ senderMark: { key, id: threadId, from: from || null, x: a.x, y: a.y, top: this.localPt(r.left, r.top).y, centred: !el }, senderMore: {} });
       setTimeout(() => { const p = this.senderPopRef.current; if (p && p.focus) p.focus(); }, 0);
     };
     closeSenderMark = (refocus) => {
@@ -4038,6 +4046,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             senderPopStyle: touch
               ? "position:fixed;z-index:93;left:0;right:0;bottom:0;margin:0 auto;width:100%;max-width:600px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";" +
                 frame + "border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -12px 40px var(--sh-3)"
+              : smk.centred ? "position:fixed;z-index:93;left:50%;top:50%;transform:translate(-50%,-50%);width:" + W + "px;max-width:calc(100% - 20px);max-height:560px;" +
+                frame + "border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 46px var(--sh-3)"
               : "position:fixed;z-index:93;left:" + x + "px;width:" + W + "px;max-width:calc(100% - 20px);" +
                 (up ? "bottom:" + (bh - smk.top + 6) + "px;max-height:" + Math.min(560, smk.top - 16) + "px;" : "top:" + (smk.y + 6) + "px;max-height:" + Math.min(560, below) + "px;") +
                 frame + "border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 46px var(--sh-3)",

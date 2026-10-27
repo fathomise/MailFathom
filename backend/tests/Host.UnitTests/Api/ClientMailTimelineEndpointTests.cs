@@ -13,7 +13,9 @@ using MailFathom.Application.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
@@ -486,6 +488,57 @@ public sealed class ClientMailTimelineEndpointTests
         // Assert
         Assert.Null(outstanding.Spam);
         Assert.Equal(new ClientMailSpamVerdictResponse("NotSpam", "Person", null, null, null, null), settled.Spam);
+    }
+
+    /// <summary>
+    /// A row carries the four facts a sender mark is chosen from, side by side and never combined, so a list draws the
+    /// mark from the page it holds: a trusted author whose verified signature names somebody else stays both.
+    /// </summary>
+    [Fact]
+    public void For_ARowOfASignedMessage_CarriesTheSenderFactsSideBySide()
+    {
+        // Arrange
+        var row = new BrowsedEmail(
+            SyntheticListedEmail() with
+            {
+                SenderVerification = new SenderVerification
+                {
+                    AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
+                    DeploymentTrust = SenderTrustLevel.Trusted,
+                    Signature = new EmailSignature
+                    {
+                        Format = EmailSignatureFormat.SecureMimeDetached,
+                        ContentCheck = SignatureCheckResult.Passed,
+                        AuthorityCheck = SignatureCheckResult.Passed,
+                        ValidityCheck = SignatureCheckResult.Passed,
+                        RevocationCheck = SignatureCheckResult.Passed,
+                        SignerCheck = SignatureCheckResult.Failed,
+                    },
+                },
+            },
+            Preview: null,
+            Enrichment: null,
+            ThreadMessageCount: null);
+
+        // Act
+        var response = ClientMailTimelineEntryResponse.For(row);
+
+        // Assert
+        Assert.Equal(new ClientMailListedSenderResponse("Authenticated", "Trusted", "Verified", false), response.Sender);
+    }
+
+    /// <summary>An unsigned message whose author nothing established still carries the facts, each stating its absence.</summary>
+    [Fact]
+    public void For_ARowNothingEstablished_CarriesTheSenderFactsAsNotEstablishedAndNotSigned()
+    {
+        // Arrange
+        var row = new BrowsedEmail(SyntheticListedEmail(), Preview: null, Enrichment: null, ThreadMessageCount: null);
+
+        // Act
+        var response = ClientMailTimelineEntryResponse.For(row);
+
+        // Assert
+        Assert.Equal(new ClientMailListedSenderResponse("NotEstablished", "Unknown", "NotSigned", false), response.Sender);
     }
 
     /// <summary>Both cursors reach the wire, because a list a screen can only scroll one way is half a list.</summary>

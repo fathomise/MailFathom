@@ -201,6 +201,68 @@
       ]
     },
     {
+      "id": "mail-sender-details",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 0
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Trusted sender"
+          }
+        },
+        {
+          "expect": {
+            "role": "heading",
+            "name": "Trusted sender"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mail-sender-badge",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 2
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Suspicious - the signature does not match"
+          }
+        },
+        {
+          "expect": {
+            "role": "heading",
+            "name": "Suspicious - the signature does not match"
+          }
+        }
+      ]
+    },
+    {
       "id": "mail-outbox",
       "route": "/#/mail",
       "signIn": true,

@@ -21,6 +21,7 @@ import { useAgentHandOver } from '../routing/agentHandOver';
 import { spamMenuDetail } from '../spamMarking/spamWords';
 import { useSpamRefusal, type SpamRefused } from '../spamMarking/useSpamRefusal';
 import { correspondent } from './rowContents';
+import { senderMarksDrawn, type SenderMark } from '../senderMark/senderMarks';
 
 // What a message row offers, which is the design's own menu for it: picking messages out, answering the
 // message, and the five acts that change the mailbox it is in. It is this row's items and nothing else — where the
@@ -57,6 +58,8 @@ export function MessageRowMenu({
     onSelect,
     onAsk,
     onCheckReadings,
+    senderMark,
+    onSenderDetails,
     onClose,
 }: {
     readonly email: MailTimelineEntry;
@@ -80,6 +83,15 @@ export function MessageRowMenu({
      * of its own. Absent where the message carries no reading, and absent on a list that offers no menu at all.
      */
     readonly onCheckReadings?: (() => void) | undefined;
+
+    /** The mark the row draws on its sender, or `null` for a row that draws none — mail the reader wrote. */
+    readonly senderMark?: SenderMark | null;
+
+    /**
+     * Opens what was established about who sent the message, which the row's mark opens under a pointer. The row holds
+     * no focusable descendant, so this is the path a keyboard and a screen reader take to the same details.
+     */
+    readonly onSenderDetails?: (() => void) | undefined;
 
     readonly onClose: () => void;
 }) {
@@ -106,10 +118,13 @@ export function MessageRowMenu({
     return (
         <ContextMenu
             header={email.subject ?? translate('list.noSubject')}
-            // Who wrote it, which the row folded to a strip of avatars no longer says in words.
-            detail={
-                spam !== null && marked ? spamMenuDetail(correspondent(email), spam, translate) : correspondent(email)
-            }
+            // Who wrote it, which the row folded to a strip of avatars no longer says in words, the spam verdict a folded
+            // row draws no badge for, and the mark on the sender, which a finger has no hover to read off the row.
+            detail={senderDetail(
+                spam !== null && marked ? spamMenuDetail(correspondent(email), spam, translate) : correspondent(email),
+                senderMark ?? null,
+                translate,
+            )}
             at={at}
             items={rowItems({
                 email,
@@ -123,6 +138,8 @@ export function MessageRowMenu({
                 onAsk,
                 onCheckReadings: marked ? undefined : onCheckReadings,
                 refusing: marked ? refuse : null,
+                senderMark: senderMark ?? null,
+                onSenderDetails,
             })}
             onClose={onClose}
         />
@@ -142,6 +159,8 @@ function rowItems({
     onAsk,
     onCheckReadings,
     refusing,
+    senderMark,
+    onSenderDetails,
 }: {
     readonly email: MailTimelineEntry;
     readonly messages: readonly ActedMessage[];
@@ -156,6 +175,8 @@ function rowItems({
 
     /** Answers a press on what a message marked spam refuses, or `null` where the message is not spam. */
     readonly refusing: ((refused: SpamRefused) => void) | null;
+    readonly senderMark: SenderMark | null;
+    readonly onSenderDetails: (() => void) | undefined;
 }): readonly ContextMenuItem[] {
     const answering: readonly ContextMenuItem[] = composing.offered
         ? [
@@ -241,6 +262,18 @@ function rowItems({
             ? []
             : [{ icon: 'auto_awesome', label: translate('reading.check'), choose: onCheckReadings }];
 
+    // Beside the readings and for the same reason: it explains a mark the row draws and changes nothing.
+    const sender: readonly ContextMenuItem[] =
+        senderMark === null || onSenderDetails === undefined
+            ? []
+            : [
+                  {
+                      icon: senderMarksDrawn[senderMark].icon,
+                      label: translate('senderMark.details'),
+                      choose: onSenderDetails,
+                  },
+              ];
+
     const asking: readonly ContextMenuItem[] =
         askAgent === null ? [] : [{ icon: 'auto_awesome', label: translate('agent.askAgent'), choose: askAgent }];
 
@@ -250,5 +283,17 @@ function rowItems({
         ...answering,
         ...mailbox,
         ...readings,
+        ...sender,
     ];
+}
+
+function senderDetail(who: string | undefined, mark: SenderMark | null, translate: Translate): string | undefined {
+    if (mark === null) {
+        return who;
+    }
+
+    return translate('senderMark.rowDetail', {
+        sender: who ?? translate('list.senderUnknown'),
+        mark: translate(senderMarksDrawn[mark].name),
+    });
 }

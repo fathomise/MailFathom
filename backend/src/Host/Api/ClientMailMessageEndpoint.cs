@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
@@ -241,6 +242,11 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// <param name="AuthorAuthentication">What the receiving mail server established about the displayed author, as the outcome's own name.</param>
 /// <param name="DeploymentTrust">Whether this deployment recognizes that author, as the level's own name.</param>
 /// <param name="AuthenticatedDomain">The domain that actually authenticated, or <see langword="null" /> where none did.</param>
+/// <param name="AuthenticationSource">Who reached the authentication verdict — <c>ReceivingServer</c> or <c>LocalVerification</c> — as the source's own name.</param>
+/// <param name="DkimDomain">The domain whose DKIM signature passed, or <see langword="null" /> where none did.</param>
+/// <param name="SpfDomain">The domain whose SPF check passed, or <see langword="null" /> where none did or none was evaluated.</param>
+/// <param name="Dmarc">The DMARC result the verdict was reached with, as the outcome's own name.</param>
+/// <param name="TrustSource">What recognized the author — <c>OwnAccountDomain</c>, <c>ConfiguredTrustedSender</c>, <c>StoredTrustedSender</c>, or <c>OrganizationMember</c> — or <see langword="null" /> where nothing did.</param>
 /// <remarks>
 /// <para>
 /// The two outcomes are published side by side and are never collapsed into one value, because a screen drawing a single
@@ -262,15 +268,27 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// evaluates a policy, so what a reader is shown is what extraction concluded about the authenticated author — never a
 /// reading of the <c>From</c> header the message displays. The domain is personal data like the rest of this response.
 /// </para>
+/// <para>
+/// The evidence beside them is what a details popup lists step by step, and it is stated rather than combined: who
+/// checked the message, the DKIM and SPF domains that passed, the DMARC result, and what recognized a trusted author.
+/// None of it changes what a reader acts on, which stays the two outcomes, and a verdict MailFathom reached itself names
+/// no SPF domain and reports no DMARC result because its own check reads DKIM alone. Trust is the source in force when
+/// the message was extracted, so a change to the trusted senders since reaches mail extracted after it.
+/// </para>
 /// </remarks>
 internal sealed record ClientMailSenderVerdictResponse(
     string AuthorAuthentication,
     string DeploymentTrust,
-    string? AuthenticatedDomain)
+    string? AuthenticatedDomain,
+    string AuthenticationSource,
+    string? DkimDomain,
+    string? SpfDomain,
+    string Dmarc,
+    string? TrustSource)
 {
     /// <summary>Describes one message's sender verdict for the wire.</summary>
     /// <param name="verification">The verdict the read carried.</param>
-    /// <param name="evidence">What that verdict was reached from, of which only the authenticated domain is published.</param>
+    /// <param name="evidence">What that verdict was reached from, of which the displayed author's domain is not published.</param>
     /// <returns>The response body.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     internal static ClientMailSenderVerdictResponse For(
@@ -283,7 +301,14 @@ internal sealed record ClientMailSenderVerdictResponse(
         return new ClientMailSenderVerdictResponse(
             verification.AuthorAuthentication.ToString(),
             verification.DeploymentTrust.ToString(),
-            evidence.AuthenticatedDomain?.Value);
+            evidence.AuthenticatedDomain?.Value,
+            evidence.Source.ToString(),
+            evidence.DkimDomain?.Value,
+            evidence.SpfDomain?.Value,
+            evidence.Dmarc.ToString(),
+            verification.DeploymentTrustGrantedBy is SenderTrustSource.None
+                ? null
+                : verification.DeploymentTrustGrantedBy.ToString());
     }
 }
 

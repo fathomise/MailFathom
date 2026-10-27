@@ -20,6 +20,7 @@ import { WorkspaceProvider } from '../workspace/Workspace';
 import type { OpenConversation } from '../workspace/openConversation';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { Thread } from './Thread';
+import { listedSender } from '../../../../tests/fixtures/senders';
 
 // The network boundary is the transport and it is the whole of what these tests fake, so the routes the conversation
 // asks for, the parsing that reads the answers, and the failure mapping are all under test rather than replaced.
@@ -100,6 +101,7 @@ function row(id: string, overrides: Readonly<Record<string, unknown>> = {}): Rea
         attachmentCount: 0,
         sizeOctets: 1_024,
         preview: `What ${id} added.`,
+        sender: listedSender('unrecognized'),
         ...overrides,
     };
 }
@@ -122,7 +124,38 @@ function describing(id: string, unread: boolean): Readonly<Record<string, unknow
             references: [],
         },
         body: { availability: 'Readable', plainText: true, html: false },
-        sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            authenticatedDomain: null,
+            authenticationSource: 'ReceivingServer',
+            dkimDomain: null,
+            spfDomain: null,
+            dmarc: 'NotReported',
+            trustSource: null,
+        },
+        signature: {
+            outcome: 'NotSigned',
+            format: null,
+            secureMimeType: null,
+            unverifiableReason: null,
+            signedAt: null,
+            steps: {
+                content: 'NotChecked',
+                authority: 'NotChecked',
+                validity: 'NotChecked',
+                revocation: 'NotChecked',
+                signer: 'NotChecked',
+            },
+            trustAnchor: null,
+            chainEnd: null,
+            validityFailure: null,
+            revocationMethod: null,
+            revocationCheckedAt: null,
+            revokedAt: null,
+            signerMatchesAuthor: false,
+            signer: null,
+        },
         attachments: [],
         carried: null,
         unread,

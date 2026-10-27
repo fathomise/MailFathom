@@ -11810,6 +11810,14 @@ messages.ts newsletterMessage GET /api/client/messages/{storedEmailId}
 messages.ts markupOnlyMessage GET /api/client/messages/{storedEmailId}
 messages.ts spamMessage GET /api/client/messages/{storedEmailId}
 messages.ts spamBody GET /api/client/messages/{storedEmailId}/body
+senders.ts notSigned GET /api/client/messages/{storedEmailId}
+senders.ts signer GET /api/client/messages/{storedEmailId}
+senders.ts verifiedSignature GET /api/client/messages/{storedEmailId}
+senders.ts failedSignature GET /api/client/messages/{storedEmailId}
+senders.ts authenticated GET /api/client/messages/{storedEmailId}
+senders.ts trusted GET /api/client/messages/{storedEmailId}
+senders.ts evidence - -
+senders.ts listedSender GET /api/client/emails
 outbox.ts waitingSend GET /api/client/outbox
 outbox.ts sendingSend GET /api/client/outbox
 outbox.ts retryingSend GET /api/client/outbox

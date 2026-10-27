@@ -47,6 +47,13 @@ public sealed record SenderVerification
     /// <summary>Gets whether this deployment recognizes the author, which is its own classification and not a check.</summary>
     public required SenderTrustLevel DeploymentTrust { get; init; }
 
+    /// <summary>Gets what recognized the author, which is <see cref="SenderTrustSource.None" /> wherever nothing did.</summary>
+    /// <remarks>
+    /// It is the source in force when the message was extracted: a change to the trusted senders since reaches mail
+    /// extracted after it, so this names what held then.
+    /// </remarks>
+    public SenderTrustSource DeploymentTrustGrantedBy { get; init; } = SenderTrustSource.None;
+
     /// <summary>Gets what verifying the message's own signature found, which is not signed for every message that carries none.</summary>
     /// <remarks>Mail stored before signatures were verified reads as not signed until a re-derivation reaches it.</remarks>
     public EmailSignature Signature { get; init; } = EmailSignature.NotSigned;

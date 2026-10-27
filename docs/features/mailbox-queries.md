@@ -355,14 +355,16 @@ says.
 
 The sender's address is what the message wrote about itself, so the summary carries beside it what somebody else
 established: `SenderVerification`, the pair of *what was concluded about the displayed author* and *whether this
-deployment recognizes that author*, beside a third fact folded into neither, *what the message's own S/MIME or OpenPGP
+deployment recognizes that author* — with what recognized it, the trusted senders, a domain of the owner's own
+accounts, or the organization's signature proving a member — beside a third fact folded into neither, *what the message's own S/MIME or OpenPGP
 signature proves*. All of it is read from the columns synchronization wrote. A listing evaluates no policy,
 resolves no DNS, and re-reads no header — a query that reached a verdict of its own would answer a different question
 from the one the message was stored with. That holds unchanged now that a verdict may have been reached here rather than
 by the receiving server: verifying a signature is a step of storing a message, never of answering a query.
 
 The summary carries a second value the listing does not publish: `SenderAuthenticationEvidence`, the domain that
-authenticated, the domain the `From` header displayed, which check established the first, the DMARC result, and which of
+authenticated, the domain the `From` header displayed, the domains whose DKIM signature and SPF check passed, which
+check established the first, the DMARC result, and which of
 the two readings produced all of it — the receiving server's `Authentication-Results` header, or MailFathom's own
 verification of the message's DKIM signatures where no such header was found. One projection reads both because the
 single-email read is built from this same summary and is where the evidence is published; a second query for it would let the two reads disagree about one message. [Sender

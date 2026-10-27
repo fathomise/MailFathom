@@ -14,6 +14,7 @@ import * as drafts from './fixtures/drafts';
 import * as mail from './fixtures/mail';
 import * as messages from './fixtures/messages';
 import * as notifications from './fixtures/notifications';
+import * as senders from './fixtures/senders';
 import * as outbox from './fixtures/outbox';
 import * as tasks from './fixtures/tasks';
 
@@ -1120,6 +1121,7 @@ export class FakeDeployment {
 
             return answering({
                 ...read,
+                ...senders.messageSenderEvidence(senders.senderKindOf(id)),
                 storedEmailId: id,
                 unread: flags?.unread ?? read.unread,
                 flagged: flags?.flagged ?? read.flagged,
@@ -2469,6 +2471,7 @@ function corpusRow(storedEmailId: string): FolderRow | null {
         sizeOctets: found.sizeOctets,
         preview: found.preview,
         threadMessageCount: found.threadMessageCount,
+        sender: found.sender,
         enrichment: null,
     };
 
