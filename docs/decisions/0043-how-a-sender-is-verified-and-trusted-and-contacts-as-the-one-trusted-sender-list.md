@@ -154,8 +154,9 @@ names the domain it evaluated in its `header.from` property.
 
 MailFathom reads a DMARC record to learn two things: the alignment mode, and, for `Known` alone, the policy. It
 evaluates no DMARC policy and computes no DMARC result. The record is read on both paths. On the server path, it is
-read where the server reported no DMARC result that counts or only a temporary error, and, on a relaxed account, where
-it reported a `fail` whose sender a source knows. On the local path, it is read wherever a verified signature could
+read where the server reported no DMARC result that counts or only a temporary error, and, on a relaxed account, on
+every `fail` that counts, whether or not a source knows the sender yet. The policy is stored with the verdict, so a
+later contact write can re-judge the message exactly as extraction would have. On the local path, it is read wherever a verified signature could
 align.
 
 **The record is found by RFC 9989's DNS tree walk.** That is DMARC's current definition (it replaces RFC 7489) and it
@@ -250,6 +251,11 @@ own deployment.
 dot. There is no wildcard and no suffix match. The port is not part of it. A mailbox reached through another host, such
 as a gateway or a self-hosted proxy, has no entry and is configured by hand.
 
+**Who may change it.** Adding and removing an entry is `mailfathom.admin.configuration.write` held at deployment
+scope only, because an entry decides which header every account on that host believes, across every organization.
+Reading the list is `mailfathom.admin.read`, at deployment scope as well. An organization-scoped administrator can do
+neither.
+
 **Changes are audited.** Each entry records who added it (the user and the credential) and when. A removal is written
 to the list's own append-only change record, with the entry, the act, who, and when, because a removed entry leaves
 nothing else to read. A change reaches the next extraction on every replica within the bound a grant change already
@@ -278,8 +284,17 @@ keeps the consequence it states today: on a shared provider's domain it recogniz
 
 **Whose personal contacts count.** The asserted books of every user the receiving account is assigned to, as they read
 when the message is judged. A mailbox two people share is judged by both books. The verdict names the contact that
-recognized the author. The client says *your contact* when the reader's own book holds that contact. It says *a contact
-of somebody else this mailbox is assigned to* otherwise, and shows nothing from the other person's record.
+recognized the author. The client says *your contact* when the reader's own book holds that contact. Otherwise it says
+*a contact of another user of this mailbox*, and shows nothing from that record: not its name, its note, or which user
+holds it.
+
+**What that discloses is accepted.** A reader of a shared mailbox learns that some other user of it wrote a given
+address down. With two users, that says whose book it is. On a relaxed account the mark answers it for any message
+showing the address. This is accepted because the verdict is stored once per message, not once per reader, so a
+shared mailbox's marks are necessarily shared. The alternative, judging each message by its reader's book alone,
+would need a verdict per reader on every message. The users of a shared mailbox already read every message in it and
+every mark on them. They still cannot read, list, or name another user's book, which is what `docs/features/contacts.md`
+promises.
 
 ### The order
 
@@ -298,8 +313,10 @@ signature is recorded only where authentication did not hold, so the record name
 
 `SenderTrustSource` loses `ConfiguredTrustedSender` (`2`) and `StoredTrustedSender` (`3`), whose numbers are never
 reused. It gains `OrganizationContact` (`6`) and `PersonalContact` (`7`). A verdict reached by a contact stores a
-reference to that contact, as an organization member's verdict stores its organization. Erasing the contact clears the
-reference.
+reference to that contact, as an organization member's verdict stores its organization. Unlike an organization's
+reference, it is never cleared on its own. Erasing a contact resets every verdict that references it to the
+not-evaluated verdict, in the erasure's own transaction, so no `Trusted` or `Known` mark is left with nothing to name.
+The re-judgment below then restores whatever another source still grants.
 
 ### Organization contacts
 
@@ -336,6 +353,7 @@ follows from the surface:
 | The client endpoint | Person | Yes |
 | The administrative endpoint and `mfctl` | Administrator | Yes |
 | MCP (`create_contact`, `update_contact`, `promote_contact`) | Agent | **Never, under any grant** |
+| Any address recorded before the writer was recorded | Unrecorded | **Never**, until a person or an administrator states it again |
 
 **An address an agent wrote never grants trust.** This is the answer to the question issue 760 was closed over. A model
 reads mail an attacker wrote, and a message telling it to add an address to the contacts must not make that address's
@@ -345,15 +363,21 @@ tools' descriptions say that what they record does not make anybody trusted. A p
 promoted addresses as the agent's. Erasing a contact removes trust, the safe direction, so `delete_contact` stays
 unrestricted.
 
+**Addresses already in a book when the writer is first recorded get the `Unrecorded` kind.** No stored contact records
+which surface wrote it, and some were written over MCP. Backfilling them as a person's would let every agent-written
+address grant trust on the first day, so the migration fails closed: an `Unrecorded` address grants neither `Trusted`
+nor `Known`.
+
 An amendment that keeps an address keeps the writer that address has. An address added or moved takes the writer of the
-write that added it. **The person makes an agent's address count by stating it themselves**, either with the sender
-details' act below or by adding the address again from the client.
+write that added it. **The person makes an agent's or an unrecorded address count by stating it themselves**, either
+with the sender details' act below or by adding the address again from the client. An administrator does the same
+through `mfctl`.
 
 **The sender details popup gains *Add to contacts*.** It is offered on a received message whose first `From` mailbox is
-not already in the reader's own book or their organization's book, and is not one of the owner's own addresses. It
-records that address in the reader's own book with the person as writer: as a new contact named by the displayed name,
-or, where a contact of theirs already holds the address with an agent as writer, by recording it again under the
-person. It goes through the client's existing contact routes and their `mailfathom.contacts.write`. Before it writes, the popup says what follows: mail from that address is drawn as trusted
+not one of the owner's own addresses, and is not already held as a trust-granting address (one a person or an
+administrator wrote) in the reader's own book or their organization's book. It records that address in the reader's
+own book with the person as writer: as a new contact named by the displayed name, or, where a contact of theirs already
+holds the address with the `Agent` or `Unrecorded` kind, by recording it again under the person. It goes through the client's existing contact routes and their `mailfathom.contacts.write`. Before it writes, the popup says what follows: mail from that address is drawn as trusted
 when it authenticates, and as known whenever it shows that address, unless the account is strict. It is offered on a
 warning too, because the person may be writing down the real correspondent a forgery impersonated. Their authenticated
 mail is then trusted, and the forgery stays a warning. It is never offered on Sent or Drafts, where no mark is drawn.
@@ -368,8 +392,16 @@ contact's and the verdict's identifiers do, and no address or domain does.
 **A contact write re-judges the stored mail it affects.** Adding an address, removing one, moving one between
 contacts, promoting a collected contact, deleting or erasing a contact, and writing an organization contact each
 enqueue one job in the durable job store (ADR 0009), which issue 2783 builds. The job is keyed by the book and the address, so repeated writes
-coalesce. It re-judges the trust verdict of every stored message whose first `From` mailbox is that address, on every
-account the book reaches: the accounts assigned to the book's user, or every account of the organization.
+coalesce. It re-judges two sets of stored messages:
+
+- every message whose first `From` mailbox is that address, on every account the book reaches now: the accounts
+  assigned to the book's user, or every account of the organization;
+- every message whose verdict references the contact written, wherever it sits, including on an account the book no
+  longer reaches after an unassignment or a move between organizations.
+
+The second set is what makes revocation complete. Amending a contact revokes every verdict it granted, not only those
+on the accounts its book reaches today. An erasure has already reset those verdicts in its own transaction, and the
+job then re-judges the first set. No stored mark outlives the contact that explained it.
 
 - A re-judgment recomputes the trust verdict from what the message already stores: the authentication verdict and the
   route that established the author, the signature verification, the organization verdict, and for `Known` the policy
@@ -465,7 +497,7 @@ Each is named in its implementing pull request with the operator's action, for t
 |---|---|---|
 | Configuration | `TrustedSenders` and its `Domain`, `Address`, and `IncludeSubdomains` are removed from every mail account (issue 2776) | Re-create each address entry as a contact in the owner's book (`mfctl contact create`) or as an organization contact. Replace a domain entry with `TrustOwnAccountDomains`, an organization, or addresses. Then run `mfctl mailbox rederive` for mail stored before issue 2778 |
 | Behaviour | The owner's own addresses and domains no longer trust an author aligned only through SPF. A server's DMARC `pass` counts only for the domain it names. DKIM alignment honours `adkim=s`. With `VerifyDkimLocally` off, server-reported DKIM no longer aligns without a DMARC result. Every account is relaxed and draws `Known` by default | Set `Strict` to `true` on an account that must show only verified marks |
-| Database | Verdicts carrying the two retired sources become not evaluated. New columns record the author route, the contact reference, and the policy read for `Known` | None beyond the configuration row above |
+| Database | Verdicts carrying the two retired sources become not evaluated. New columns record the author route, the contact reference, and the policy read for `Known`. A new column records each asserted address's writer, and every address already stored is backfilled as `Unrecorded`, which grants nothing | Have each person, or an administrator, state again every contact address that should grant trust: the person through *Add to contacts* or the client, the administrator through `mfctl` |
 | Client endpoint | `trustSource` loses `ConfiguredTrustedSender` and `StoredTrustedSender`, gains `OrganizationContact` and `PersonalContact`, and `deploymentTrust` gains `Known` (issue 2776, issue 2781) | A client built against the old values updates with the release |
 | MCP tools | `deploymentTrust` gains `Known` on every read tool (issue 2781). The contact tools' descriptions state that agent-written addresses grant no trust | An agent prompt branching on `deploymentTrust` handles `Known` |
 | Mail rules | `senderTrust` gains `Known` | A rule meant to file `Known` mail with `Trusted` names both |
