@@ -54,7 +54,7 @@ MailFathomDesign.data.aiBlocksAgreed = [{ text: "SLA cut from 4 h to 2 h" }, { t
 
 MailFathomDesign.data.aiBlocksOpenQuestions = [{ text: "Do we accept a 5% upper indexation cap?" }];
 
-MailFathomDesign.data.aiBlocksParticipants = [{ initials: "KK", name: "Karolina Kowalska" }, { initials: "AK", name: "Anna Kowalska - Contoso" }];
+MailFathomDesign.data.aiBlocksParticipants = [{ initials: "KK", name: "Karolina Kowalska", person: "Karolina Kowalska" }, { initials: "AK", name: "Anna Kowalska - Contoso", person: "Anna Kowalska" }];
 
 MailFathomDesign.data.aiBlocksDraft = {
   recipient: "Anna Kowalska",

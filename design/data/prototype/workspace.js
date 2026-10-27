@@ -24,6 +24,13 @@ MailFathomDesign.data.accounts = [
       { icon: "inbox", label: "Inbox" }, { icon: "archive", label: "Archive" }, { icon: "report", label: "Spam" },
       { icon: "folder", label: "Clients" }, { icon: "folder", label: "To decide" },
     ] },
+  // A shared mailbox: several people read and send from it, so wherever an account is drawn or chosen it carries the
+  // shared mark beside its name.
+  { key: "acc3", label: "Board", address: "board@nordwind.example", dot: "#b0873a", shared: true, counts: { Inbox: "3" }, movesSpam: false,
+    moveFolders: [
+      { icon: "inbox", label: "Inbox" }, { icon: "archive", label: "Archive" }, { icon: "report", label: "Spam" },
+      { icon: "folder", label: "Board minutes" },
+    ] },
 ];
 
 // What has not left each account yet: its Outbox, drawn as a mark on that account's Sent row while it holds anything,
@@ -92,17 +99,17 @@ MailFathomDesign.data.changeNotices = {
   devops1: { act: "flag", fate: "unknown" },
 };
 
-// The unified view across both accounts at the top of the folder column.
+// The unified view across every account at the top of the folder column.
 MailFathomDesign.data.unifiedAccounts = {
-  label: "All accounts", title: "Unified folders - two accounts", dot: "linear-gradient(135deg,var(--accent) 50%,#4d9aa8 50%)",
-  counts: { Inbox: "12", Drafts: "2" },
+  label: "All accounts", title: "Unified folders - three accounts", dot: "linear-gradient(135deg,var(--accent) 34%,#4d9aa8 34% 67%,#b0873a 67%)",
+  counts: { Inbox: "15", Drafts: "2" },
 };
 
 // The mailboxes a message can be sent from, and the Reply-To a message carries unless another is added.
 MailFathomDesign.data.mailboxes = [
   { mail: "k.kowalska@nordwind.pl", dot: "var(--accent)" },
   { mail: "kowalska.k@mail.example", dot: "#4d9aa8" },
-  { mail: "board@nordwind.example", dot: "#b0873a" },
+  { mail: "board@nordwind.example", dot: "#b0873a", shared: true },
 ];
 MailFathomDesign.data.defaultReplyTo = "k.kowalska@nordwind.example";
 
@@ -110,5 +117,5 @@ MailFathomDesign.data.defaultReplyTo = "k.kowalska@nordwind.example";
 MailFathomDesign.data.mailAccounts = [
   { id: "a1", name: "Karolina Kowalska", mail: "k.kowalska@nordwind.pl", login: "k.kowalska@nordwind.pl", pass: "hunter-nordwind-24", dot: "var(--accent)", imapHost: "imap.nordwind.pl", imapPort: "993", imapEnc: "ssl", smtpHost: "smtp.nordwind.pl", smtpPort: "587", smtpEnc: "starttls", earliest: "", folders: { inbox: "INBOX", sent: "INBOX.Sent", drafts: "INBOX.Drafts", archive: "INBOX.Archive", junk: "INBOX.Spam", trash: "INBOX.Trash" } },
   { id: "a2", name: "Karolina - private", mail: "kowalska.k@mail.example", login: "kowalska.k", pass: "mailexample2026", dot: "#4d9aa8", imapHost: "imap.mail.example", imapPort: "993", imapEnc: "ssl", smtpHost: "smtp.mail.example", smtpPort: "465", smtpEnc: "ssl" },
-  { id: "a3", name: "Nordwind board", mail: "board@nordwind.example", login: "board", pass: "board-shared-key", dot: "#b0873a", imapHost: "imap.nordwind.example", imapPort: "143", imapEnc: "starttls", smtpHost: "smtp.nordwind.example", smtpPort: "587", smtpEnc: "starttls" },
+  { id: "a3", name: "Nordwind board", shared: true, mail: "board@nordwind.example", login: "board", pass: "board-shared-key", dot: "#b0873a", imapHost: "imap.nordwind.example", imapPort: "143", imapEnc: "starttls", smtpHost: "smtp.nordwind.example", smtpPort: "587", smtpEnc: "starttls" },
 ];

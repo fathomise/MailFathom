@@ -6,7 +6,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const {
     me: { name: ME, address: MY_MAIL },
     app: { version: APP_VERSION, build: APP_BUILD },
-    avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI,
+    avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI, organization: ORGANIZATION,
     threads: THREADS, earlierMessages, threadMailBodies, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO,
     accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
@@ -225,6 +225,35 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const FONT = "display:flex;height:100dvh;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,sans-serif;font-size:15px";
 
   const avatarOf = (name) => AVATARS[name] || "";
+  /* PRESENCE — a member's state, a dot on their avatar wherever a member is drawn and a word beside it wherever there is
+     room for one. A hidden member is drawn offline to everybody else and hidden only to themselves. */
+  const PRESENCE = {
+    active: { label: "Active", fill: "var(--ok)" },
+    away: { label: "Away", fill: "var(--warn)" },
+    busy: { label: "Busy", fill: "var(--err)" },
+    dnd: { label: "Do not disturb", fill: "linear-gradient(var(--panel),var(--panel)) center/56% 2px no-repeat,var(--err)" },
+    offline: { label: "Offline", fill: "var(--panel)", ring: "var(--faint)" },
+    hidden: { label: "Hidden", fill: "linear-gradient(135deg,transparent 42%,var(--faint) 42% 58%,transparent 58%),var(--panel)", ring: "var(--faint)" },
+  };
+  const PRESENCE_ORDER = ["active", "away", "busy", "dnd", "offline", "hidden"];
+  const seenPresence = (p, self) => (p === "hidden" && !self ? "offline" : (p || "offline"));
+  const presenceFill = (p, size) => {
+    const v = PRESENCE[p] || PRESENCE.offline;
+    return "width:" + size + "px;height:" + size + "px;flex:0 0 " + size + "px;border-radius:50%;box-sizing:border-box;background:" + v.fill +
+      (v.ring ? ";box-shadow:inset 0 0 0 " + Math.max(2, Math.round(size / 5)) + "px " + v.ring : "");
+  };
+  // The dot laid over an avatar's lower right, ringed in the surface colour so it reads on a photo.
+  const presenceDot = (p, size) => {
+    const v = PRESENCE[p] || PRESENCE.offline;
+    return "position:absolute;right:-1px;bottom:-1px;width:" + size + "px;height:" + size + "px;border-radius:50%;box-sizing:border-box;background:" + v.fill +
+      ";box-shadow:0 0 0 2px var(--panel)" + (v.ring ? ",inset 0 0 0 " + Math.max(2, Math.round(size / 5)) + "px " + v.ring : "");
+  };
+  // The phone-app marker, laid over the avatar's upper right: an icon of its own, apart from the presence.
+  const phoneBadge = (size) => "position:absolute;right:-3px;top:-3px;width:" + size + "px;height:" + size + "px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--panel);color:var(--muted);box-shadow:0 0 0 1px var(--line);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:" + Math.round(size * 0.74) + "px;line-height:1";
+  const PHONE_LABELS = ["Mobile", "Work", "Home", "Other"];
+  // A shared mailbox says so in words beside its name, wherever an account is drawn or chosen.
+  const SHARED_MARK = "flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;font-family:'Geist',system-ui,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.02em;color:var(--muted);border:1px solid var(--border2);border-radius:5px;padding:0 5px;line-height:15px";
+  const telHref = (n) => "tel:" + String(n || "").replace(/[^+\d]/g, "");
 
   const initialsOf = (n) => (n || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();
   const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
@@ -1144,7 +1173,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        it last moved instead, read by `paneMotion`, so one pane at a time pushes forward and comes back.
        The held value is read by the whole render, so anything else gated on the same key (the FAB waits on
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
-    static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
+    static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "statusMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "linkAsk", "source"];
@@ -1195,7 +1224,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "source", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
+      "statusMenu", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1927,8 +1956,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     evNotesRef = React.createRef();
     ctNameRef = React.createRef();
     ctMailRef = React.createRef();
-    ctOrgRef = React.createRef();
-    ctRoleRef = React.createRef();
+    ctPhotoRef = React.createRef();
     tkPromptRef = React.createRef();
     remNumTaskRef = React.createRef();
     remNumEventRef = React.createRef();
@@ -3745,7 +3773,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const replyThread = (rmode && THREADS.find(t => t.id === st.replyThreadId)) || thread;
       const threadParticipants = (msgsFor(replyThread) || []).map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
       const composeDraft = !rmode && st.composeDraft ? st.composeDraft : null;
-      const composeTo = rmode === "fwd" ? [] : rmode === "all" ? threadParticipants : rmode === "reply" ? threadParticipants.slice(-1) : composeDraft ? composeDraft.to.slice() : NEW_MESSAGE_TO.slice();
+      const composeToBase = rmode === "fwd" ? [] : rmode === "all" ? threadParticipants : rmode === "reply" ? threadParticipants.slice(-1) : composeDraft ? composeDraft.to.slice() : (st.composeTo || NEW_MESSAGE_TO).slice();
+      const composeTo = composeToBase.concat((st.composeAddTo || []).filter(n => composeToBase.indexOf(n) < 0));
       const composeSubj = rmode === "fwd" ? "Fwd: " + replyThread.subject : rmode ? "Re: " + replyThread.subject : "";
       const composeCtx = (st.composeCtx || []).filter(id => THREADS.some(t => t.id === id));
       const composeCtxBase = st.composeCtxBase || null;
@@ -3757,7 +3786,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "" };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -3919,12 +3948,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       });
       const selectionOn = sel.length > 0;
       const aiHints = this.props.aiHints ?? true;
-      const ownContacts = CONTACTS.concat(st.extraContacts || []);
+      /* Whether the signed-in person belongs to an organization. Outside one there are no members, no organization's
+         book, and nothing that connects a contact to a user: no presence, no status, no structure, no hours. */
+      const inOrg = (this.props.inOrganization ?? true) && !!ORGANIZATION;
+      const orgName = (ORGANIZATION || {}).name || "";
+      const ownContacts = CONTACTS.filter(c => c.kind === "own" || (inOrg && c.kind === "organization")).concat(st.extraContacts || []);
+      const memberContacts = inOrg ? CONTACTS.filter(c => c.kind === "member") : [];
       const hiddenCollected = st.hiddenCollected || [];
-      const collectedContacts = collectFromMail(ownContacts.map(c => c.name)).filter(c => hiddenCollected.indexOf(c.name) < 0);
-      const allContacts = ownContacts.concat(collectedContacts);
-      const peopleTab = st.peopleTab || "own";
-      const shownContacts = peopleTab === "collected" ? collectedContacts : ownContacts;
+      const collectedContacts = collectFromMail(CONTACTS.concat(st.extraContacts || []).map(c => c.name)).filter(c => hiddenCollected.indexOf(c.name) < 0);
+      const allContacts = ownContacts.concat(memberContacts, collectedContacts);
+      const peopleTab = st.peopleTab === "members" && !inOrg ? "own" : (st.peopleTab || "own");
+      const shownContacts = peopleTab === "collected" ? collectedContacts : peopleTab === "members" ? memberContacts : ownContacts;
+      const memberById = (id) => memberContacts.find(m => m.id === id) || null;
+      const isMemberName = (name) => memberContacts.find(m => m.name === name) || null;
+      const myPresence = st.myPresence || "active";
       const allTasks = TASKS.concat(st.extraTasks || []).filter(t2 => !hid("tasks", t2.id));
       const openTodayTasks = allTasks.filter(t2 => t2.group === "Today" && (st.taskDone || []).indexOf(t2.id) < 0);
       const openToday = openTodayTasks.length;
@@ -4016,6 +4053,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         .filter(g => g.rows.length);
       const person = allContacts.find(c => c.id === st.personId) || allContacts[0];
       const personAi = CONTACT_AI[person.id] || {};
+      const personIsMember = person.kind === "member";
+      const personIsOrg = person.kind === "organization";
+      const personSeen = seenPresence(person.presence);
+      const peopleTabStyle = (on) => "display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;text-align:center;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:36px;padding:0 10px;" : "padding:6px 10px;") + (on
+        ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);"
+        : "background:transparent;color:var(--muted);");
+      // One row of the structure: the member it names leads to their own contact, and the open member is marked instead.
+      const orgPersonRow = (m, depth, self) => {
+        const seen = seenPresence(m.presence);
+        return {
+          name: m.name, role: m.role, initials: initialsOf(m.name), self, notSelf: !self,
+          presence: PRESENCE[seen].label,
+          hasAvatar: !!avatarOf(m.name), noAvatar: !avatarOf(m.name),
+          avatarImgStyle: "width:30px;height:30px;flex:0 0 30px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(m.name) + ")",
+          avatarStyle: "width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:var(--border2);color:var(--text2)",
+          dotStyle: presenceDot(seen, 10),
+          open: self ? null : () => this.setState({ personId: m.id, peopleTab: "members", peoplePane: "detail" }),
+          style: "display:flex;align-items:center;gap:11px;min-height:" + (touch ? 44 : 40) + "px;padding:5px 8px;border-radius:8px;" +
+            (self ? "background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent-2);" : ""),
+        };
+      };
       const evStyle = (kind) => "display:flex;flex-direction:column;gap:3px;border-radius:8px;padding:8px 11px;border:1px solid " + (kind === "deadline"
         ? "var(--hl-line);background:var(--hl);"
         : kind === "mail"
@@ -4267,6 +4325,83 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         userMenuOpen: !!st.userMenu,
         toggleUserMenu: () => this.setState({ userMenu: !st.userMenu }),
         closeUserMenu: () => { if (st.userMenu) this.setState({ userMenu: false }); },
+        /* The reader's own status, set from the menu under the account icon (from More on a phone): a presence for a
+           chosen while, a status message that clears on its own, and where they work. A member only; it is a menu,
+           never the Settings screen. */
+        ...(() => {
+          const mine = PRESENCE[myPresence];
+          const text = st.myStatusText || "";
+          const forOpt = st.myPresenceFor || "Until changed";
+          const clears = st.myStatusClears || "Today";
+          const place = st.myWorkPlace || "Office";
+          const scope = st.myWorkScope || "Today only";
+          const seg = (on) => "flex:1;display:flex;align-items:center;justify-content:center;box-sizing:border-box;text-align:center;border-radius:6px;font-size:13px;white-space:nowrap;" +
+            (touch ? "min-height:40px;padding:0 8px;" : "padding:6px 8px;") +
+            (on ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);" : "color:var(--muted);");
+          const chip = (on) => "display:flex;align-items:center;gap:6px;box-sizing:border-box;border-radius:8px;font-size:13px;white-space:nowrap;" +
+            (touch ? "min-height:44px;padding:0 13px;" : "padding:6px 11px;") +
+            (on ? "background:var(--accent-soft);color:var(--accent-d);border:1px solid var(--accent);font-weight:600;" : "background:var(--panel);color:var(--text2);border:1px solid var(--line);");
+          return {
+            meStatusShown: inOrg,
+            mePresenceLabel: mine.label + (myPresence === "hidden" ? " - others see you as Offline" : ""),
+            mePresenceFill: presenceFill(myPresence, 10),
+            meStatusLine: text || "Set a status message",
+            meStatusLineStyle: "font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:" + (text ? "var(--text2)" : "var(--faint)"),
+            meRailDotStyle: presenceDot(myPresence, touch ? 14 : 13),
+            openStatusMenu: () => this.setState({ statusMenu: true, userMenu: false, more: false }),
+            statusMenuOpen: inOrg && !!st.statusMenu,
+            closeStatusMenu: () => this.setState({ statusMenu: false }),
+            statusScrimStyle: isMobile
+              ? "position:fixed;inset:0;z-index:95;display:flex;flex-direction:column;justify-content:flex-end;background:var(--scrim)"
+              : "position:fixed;inset:0;z-index:95",
+            statusCardStyle: isMobile
+              ? "display:flex;flex-direction:column;max-height:88dvh;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 30px var(--sh-3);padding-bottom:env(safe-area-inset-bottom)"
+              : "position:fixed;bottom:18px;left:106px;width:340px;max-height:calc(100dvh - 36px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 10px 24px var(--sh-2),0 2px 6px var(--sh-2);overflow:hidden",
+            moStatusCard: isMobile ? "sheet" : "pop",
+            moStatusScrim: isMobile ? "scrim" : "none",
+            statusGrabber: isMobile,
+            statusAvatarStyle: "position:relative;width:40px;height:40px;flex:0 0 40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--border2);color:var(--text2);" +
+              (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : ""),
+            statusDotStyle: presenceDot(myPresence, 13),
+            statusPresenceRows: PRESENCE_ORDER.map(k => ({
+              label: PRESENCE[k].label,
+              note: k === "hidden" ? "Others see you as Offline" : "",
+              hasNote: k === "hidden",
+              fill: presenceFill(k, 10),
+              current: k === myPresence,
+              pick: () => this.setState({ myPresence: k }),
+              style: "display:flex;align-items:center;gap:11px;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 44 : 30) + "px;padding:" + (touch ? 4 : 3) + "px 9px;" + (k === myPresence ? "background:var(--accent-soft);" : ""),
+            })),
+            statusForShown: myPresence !== "active",
+            statusForOptions: ["30 minutes", "1 hour", "2 hours", "Today", "This week", "Until changed"].map(o => ({
+              label: o, pick: () => this.setState({ myPresenceFor: o }), style: chip(o === forOpt),
+            })),
+            statusForNote: myPresence === "active" ? "" : forOpt === "Until changed"
+              ? "Stays " + mine.label + " until you change it."
+              : "Back to Active " + (forOpt === "Today" ? "at the end of today" : forOpt === "This week" ? "at the end of the week" : "in " + forOpt) + ".",
+            statusTextValue: text,
+            onStatusText: (e) => this.setState({ myStatusText: String(e.target.value || "").slice(0, 280) }),
+            statusCount: text.length + " / 280",
+            statusCountStyle: "margin-left:auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-variant-numeric:tabular-nums;color:" + (text.length >= 260 ? "var(--warn-text)" : "var(--faint)"),
+            statusClearsOptions: ["Never", "1 hour", "Today", "This week"].map(o => ({
+              label: o, pick: () => this.setState({ myStatusClears: o }), style: chip(o === clears),
+            })),
+            statusHasText: !!text,
+            clearStatusText: () => this.setState({ myStatusText: "" }),
+            statusPlaceSegs: ["Office", "Remote"].map(o => ({
+              label: o, icon: o === "Office" ? "apartment" : "home_work",
+              pick: () => this.setState({ myWorkPlace: o }), style: seg(o === place),
+            })),
+            statusScopeSegs: ["Today only", "Until changed"].map(o => ({
+              label: o, pick: () => this.setState({ myWorkScope: o }), style: seg(o === scope),
+            })),
+            statusSegWrapStyle: "display:flex;gap:3px;background:var(--rail);border:1px solid var(--line);border-radius:8px;padding:2px",
+            statusSectionLabel: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600",
+            statusTextareaStyle: "width:100%;box-sizing:border-box;resize:none;font-family:inherit;font-size:" + (touch ? 15 : 14) + "px;line-height:1.45;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:9px 11px;outline:none",
+            statusDoneStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;" + (touch ? "min-height:44px;padding:0 18px;" : "padding:8px 16px;"),
+            moreStatusStyle: "display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 10px;border-radius:12px;margin-bottom:4px;border-bottom:1px solid var(--line2)",
+          };
+        })(),
         meName: myName,
         meInitials: myPhoto ? "" : initialsOf(myName),
         mePhoto: myPhoto,
@@ -4302,7 +4437,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         mePreviewStyle: "width:46px;height:46px;flex:0 0 46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;letter-spacing:0.02em;background:var(--border2);color:var(--text2);" +
           (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : ""),
         avatarStyle:
-          "width:" + (touch ? 44 : 40) + "px;height:" + (touch ? 44 : 40) + "px;border-radius:50%;background:var(--border2);" + (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : "") + "display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text2);transition:transform 120ms ease,box-shadow 120ms ease;box-shadow:0 1px 0 var(--inset) inset,0 1px 3px var(--sh-2);" +
+          "position:relative;width:" + (touch ? 44 : 40) + "px;height:" + (touch ? 44 : 40) + "px;border-radius:50%;background:var(--border2);" + (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : "") + "display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text2);transition:transform 120ms ease,box-shadow 120ms ease;box-shadow:0 1px 0 var(--inset) inset,0 1px 3px var(--sh-2);" +
           (st.userMenu ? "outline:2px solid var(--accent-line);outline-offset:2px;" : ""),
         railThemeStyle: railBase + "color:var(--muted);",
         notMobile: !isMobile,
@@ -5085,7 +5220,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         galleryReady: !!ready.gallery,
         gallery: plan && plan.gallery ? plan.gallery.map(g => ({ type: g.type, name: g.name, meta: g.meta, open: openEv(g.cite) })) : [],
         peopleReady: !!ready.people,
-        people: plan && plan.people ? plan.people.map(p => ({ initials: p.initials, name: p.name, role: p.role, last: p.last, open: openEv(p.cite) })) : [],
+        people: plan && plan.people ? plan.people.map(p => ({ initials: avatarOf(p.name) ? "" : p.initials, name: p.name, role: p.role, last: p.last, open: openEv(p.cite),
+          avatarStyle: "width:32px;height:32px;flex:0 0 32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-d);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600" +
+            (avatarOf(p.name) ? ";background-image:url(" + avatarOf(p.name) + ");background-size:cover;background-position:center" : "") })) : [],
         actionReady: !!ready.action,
         actionText: plan ? plan.action : "",
 
@@ -5217,12 +5354,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         aiFiltersTitle: st.aiFiltersOpen !== false ? "Collapse AI filters" : "Show AI filters",
         toggleAiFilters: () => this.setState(s2 => ({ aiFiltersOpen: s2.aiFiltersOpen === false })),
         sideGroups: [{ key: "all", label: UNIFIED_ACCOUNTS.label, title: UNIFIED_ACCOUNTS.title, dot: UNIFIED_ACCOUNTS.dot, folders: STD_FOLDERS(UNIFIED_ACCOUNTS.counts, true) }]
-          .concat(ACCOUNTS.map(a => ({ key: a.key, label: a.label, title: a.address, dot: a.dot, folders: STD_FOLDERS(a.counts) })))
+          .concat(ACCOUNTS.map(a => ({ key: a.key, label: a.label, title: a.address + (a.shared ? " - shared mailbox" : ""), dot: a.dot, shared: !!a.shared, folders: STD_FOLDERS(a.counts) })))
           .map(g => {
           const open = (st.accOpen || {})[g.key] !== false;
           const press = g.key === "all" ? null : this.pressFor("account", g.key, g.label, this.accountMenu(g.key, g.label), undefined, g.title);
           return {
             label: g.label, title: press ? g.title : null, open, chevron: open ? "expand_more" : "chevron_right",
+            shared: !!g.shared, sharedStyle: SHARED_MARK,
             showHeader: !sideCollapsed, showDot: sideCollapsed,
             ctxOpen: press ? press.ctx : noop, pressDown: press ? press.down : noop, pressUp: press ? press.up : noop,
             toggle: () => this.setState(s2 => ({ accOpen: Object.assign({}, s2.accOpen, { [g.key]: !((s2.accOpen || {})[g.key] !== false) }) })),
@@ -5382,28 +5520,62 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.remFire(t, rem, "cal", "Calendar", { screen: "cal" });
         },
         newContactOpen: !!st.newContact,
-        openNewContact: () => this.setState({ newContact: true, ctEditing: false }),
+        openNewContact: () => this.setState({ newContact: true, ctEditing: false, ctPhones: [], ctPhoto: "", ctPhotoError: "" }),
         ctDialogTitle: st.ctEditing ? "Edit contact" : "New contact",
         ctSaveLabel: st.ctEditing ? "Save changes" : "Save contact",
         closeNewContact: () => this.setState({ newContact: false }),
-        ctNameRef: this.ctNameRef, ctMailRef: this.ctMailRef, ctOrgRef: this.ctOrgRef, ctRoleRef: this.ctRoleRef,
+        ctNameRef: this.ctNameRef, ctMailRef: this.ctMailRef,
+        // A photo of the reader's choosing, removable; without one the initials stand in wherever the person is drawn.
+        ctPhotoRef: this.ctPhotoRef,
+        ctHasPhoto: !!st.ctPhoto, ctNoPhoto: !st.ctPhoto,
+        ctPhotoStyle: "width:56px;height:56px;flex:0 0 56px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + (st.ctPhoto || "") + ")",
+        ctPhotoEmptyStyle: "width:56px;height:56px;flex:0 0 56px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--rail);border:1px dashed var(--border2);color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:26px;line-height:1",
+        ctPhotoLabel: st.ctPhoto ? "Change photo" : "Choose photo",
+        ctPhotoError: st.ctPhotoError || "",
+        ctPickPhoto: () => (this.ctPhotoRef.current ? this.ctPhotoRef.current.click() : null),
+        ctRemovePhoto: () => this.setState({ ctPhoto: "", ctPhotoError: "" }),
+        onCtPhotoFile: (e) => {
+          const f = e.target.files && e.target.files[0];
+          if (!f) return;
+          if (f.size > 1048576) { this.setState({ ctPhotoError: "The file is " + (f.size / 1048576).toFixed(1) + " MB - the limit is 1 MB." }); return; }
+          const r = new FileReader();
+          r.onload = () => this.setState({ ctPhoto: String(r.result), ctPhotoError: "" });
+          r.readAsDataURL(f);
+        },
+        // Phone numbers: one row each, a label of four and the number, added and removed one at a time.
+        ctPhoneRows: (st.ctPhones || []).map((ph, i) => ({
+          number: ph.number || "",
+          labels: PHONE_LABELS.map(l => ({ v: l, label: l })),
+          label: ph.label || "Mobile",
+          onLabel: (e) => this.setState(s2 => ({ ctPhones: (s2.ctPhones || []).map((x, j) => j === i ? Object.assign({}, x, { label: e.target.value }) : x) })),
+          onNumber: (e) => this.setState(s2 => ({ ctPhones: (s2.ctPhones || []).map((x, j) => j === i ? Object.assign({}, x, { number: e.target.value }) : x) })),
+          remove: () => this.setState(s2 => ({ ctPhones: (s2.ctPhones || []).filter((x, j) => j !== i) })),
+        })),
+        ctNoPhones: !(st.ctPhones || []).length,
+        ctAddPhone: () => this.setState(s2 => ({ ctPhones: (s2.ctPhones || []).concat([{ label: (s2.ctPhones || []).length ? "Work" : "Mobile", number: "" }]) })),
+        ctFieldLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600",
+        ctPhoneSelectStyle: "flex:0 0 " + (touch ? 112 : 104) + "px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:0 8px;outline:none;height:" + (touch ? 44 : 38) + "px",
+        ctPhoneRemoveStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:" + (touch ? 44 : 36) + "px;height:" + (touch ? 44 : 36) + "px;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1",
+        ctSmallBtnStyle: "display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;white-space:nowrap;" + (touch ? "min-height:44px;padding:0 14px;" : "padding:7px 12px;"),
         saveContact: () => {
+          const name = (this.ctNameRef.current || {}).value || "New contact";
+          const mail = (this.ctMailRef.current || {}).value || "";
+          const phones = (st.ctPhones || []).filter(x => (x.number || "").trim());
+          if (st.ctPhoto) AVATARS[name] = st.ctPhoto; else delete AVATARS[name];
           if (st.ctEditing) {
+            person.phones = phones;
             this.setState({ newContact: false, ctEditing: false });
             this.notify("Contact saved", { kind: "success" });
             return;
           }
-          const name = (this.ctNameRef.current || {}).value || "New contact";
-          const mail = (this.ctMailRef.current || {}).value || "";
-          const org = (this.ctOrgRef.current || {}).value || "";
-          const role = (this.ctRoleRef.current || {}).value || "";
           const id = "new" + Date.now();
           this.setState(s2 => ({
             newContact: false,
             personId: id,
+            peopleTab: "own",
             peoplePane: "detail",
             extraContacts: (s2.extraContacts || []).concat([{
-              id, name, role: role || "-", org: org || "-", mail, last: "no correspondence yet",
+              id, kind: "own", name, mail, phones, last: "no correspondence yet",
               owed: "-", note: "Contact added manually. After the first exchange of messages the relationship state appears here.",
               threads: [], docs: [],
             }]),
@@ -5655,31 +5827,42 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         showPersonDetail: !isMobile || st.peoplePane === "detail",
         showPeopleBack: isMobile && st.peoplePane === "detail",
         backToPeople: () => this.setState({ peoplePane: "list" }),
-        peopleCount: shownContacts.length + (shownContacts.length === 1 ? " person" : " people"),
-        peopleTabHint: peopleTab === "collected" ? "from received mail headers" : "address book",
+        peopleCount: peopleTab === "members"
+          ? shownContacts.length + (shownContacts.length === 1 ? " colleague" : " colleagues")
+          : shownContacts.length + (shownContacts.length === 1 ? " person" : " people"),
+        peopleTabHint: peopleTab === "collected" ? "from received mail headers" : peopleTab === "members" ? orgName + "'s directory" : "address book",
         showOwnContacts: () => this.setState({ peopleTab: "own" }),
-        peopleSwipe: touch ? this.tabSwipe(["own", "collected"], peopleTab, v => this.setState({ peopleTab: v })) : {},
+        peopleSwipe: touch ? this.tabSwipe(inOrg ? ["own", "members", "collected"] : ["own", "collected"], peopleTab, v => this.setState({ peopleTab: v })) : {},
         showCollectedContacts: () => this.setState({ peopleTab: "collected" }),
-        tabOwnStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;text-align:center;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:36px;padding:0 10px;" : "padding:6px 10px;") + (peopleTab !== "collected"
-          ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);"
-          : "background:transparent;color:var(--muted);"),
-        tabCollectedStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;text-align:center;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:36px;padding:0 10px;" : "padding:6px 10px;") + (peopleTab === "collected"
-          ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);"
-          : "background:transparent;color:var(--muted);"),
+        showMemberContacts: () => this.setState({ peopleTab: "members" }),
+        peopleMembersTab: inOrg,
+        tabOwnStyle: peopleTabStyle(peopleTab === "own"),
+        tabMembersStyle: peopleTabStyle(peopleTab === "members"),
+        tabCollectedStyle: peopleTabStyle(peopleTab === "collected"),
         personCollected: !!person.collected,
-        personOwn: !person.collected,
+        personMember: personIsMember,
+        personOrgContact: personIsOrg,
+        personOwn: !person.collected && !personIsMember && !personIsOrg,
+        personReadOnly: !!person.collected || personIsMember || personIsOrg,
+        // A member's contact and the organization's are told apart from the reader's own by a chip naming whose they are.
+        personKindShown: personIsMember || personIsOrg,
+        personKindIcon: personIsMember ? "badge" : "corporate_fare",
+        personKindLabel: personIsMember ? "Colleague" : orgName,
+        personKindTitle: personIsMember ? "A member of " + orgName : "From " + orgName + "'s address book",
         // The same dialog as writing somebody down, opened on what the record holds.
         editContact: () => {
-          this.setState({ newContact: true, ctEditing: true });
+          this.setState({ newContact: true, ctEditing: true, ctPhones: (person.phones || []).map(x => Object.assign({}, x)), ctPhoto: avatarOf(person.name), ctPhotoError: "" });
           setTimeout(() => {
             if (this.ctNameRef.current) this.ctNameRef.current.value = person.name;
             if (this.ctMailRef.current) this.ctMailRef.current.value = person.mail;
-            if (this.ctOrgRef.current) this.ctOrgRef.current.value = person.org === "-" ? "" : person.org;
-            if (this.ctRoleRef.current) this.ctRoleRef.current.value = person.role === "-" ? "" : person.role;
           }, 0);
         },
         addToOwnLabel: narrow || isMobile ? "Add" : "Add to my contacts",
-        personReadOnlyNote: "Read-only - editable once added to your contacts",
+        personReadOnlyNote: personIsMember
+          ? "From " + orgName + "'s directory - read-only"
+          : personIsOrg
+          ? "Kept by " + orgName + " - read-only"
+          : "Read-only - editable once added to your contacts",
         removeCollected: () => this.askDel({
           title: "Remove contact from collected?",
           text: person.name + " disappears from the collected list. They come back automatically if they write again.",
@@ -5699,35 +5882,50 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         addToOwn: () => this.setState(s2 => ({
           peopleTab: "own",
           personId: "own-" + person.id,
-          extraContacts: (s2.extraContacts || []).concat([Object.assign({}, person, {
-            id: "own-" + person.id, collected: false, role: person.role === "Collected from mail" ? "-" : person.role,
-            note: "Contact moved from collected. Fill in role and notes - the data comes only from mail headers.",
-          })]),
+          extraContacts: (s2.extraContacts || []).concat([{
+            id: "own-" + person.id, kind: "own", name: person.name, mail: person.mail, phones: [],
+            last: person.last, owed: person.owed, threads: person.threads, docs: person.docs,
+            note: "Contact moved from collected. The data comes only from mail headers - add a photo and phone numbers.",
+          }]),
         })),
         peopleListStyle: isMobile
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
           : "width:" + (narrow ? 268 : 300) + "px;flex:0 0 " + (narrow ? 268 : 300) + "px;display:flex;flex-direction:column;border-right:1px solid var(--line);min-height:0",
-        peopleRows: shownContacts.map(c => ({
-          press: this.pressFor("people", c.id, c.name, [
-            { icon: "check_box", label: "Select contacts", run: () => this.selStart("people", c.id) },
-            { icon: "edit", label: "Write a message", run: () => this.setState({ compose: true, composeMin: false, replyMode: null }) },
-            { icon: "person", label: "Open contact", run: () => this.setState({ personId: c.id, peoplePane: "detail" }) },
-            { icon: "event", label: "Propose a meeting", run: () => this.setState({ screen: "cal", newEvent: true, evParsed: null }) },
-            { icon: "delete", label: "Delete contact", danger: true, run: () => this.askHide("people", [c.id], "Delete contact?", c.name + " will disappear from the contact list.") },
-          ]),
-          name: c.name, org: c.org, last: c.last, initials: initialsOf(c.name),
-          selected: isSel("people", c.id),
-          hasAvatar: !!avatarOf(c.name), noAvatar: !avatarOf(c.name),
-          avatarImgStyle: "width:32px;height:32px;flex:0 0 32px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(c.name) + ")",
-          wait: (CONTACT_AI[c.id] || {}).wait || "", waiting: !!(CONTACT_AI[c.id] || {}).wait,
-          open: this.rowTap("people", c.id, () => this.setState({ personId: c.id, peoplePane: "detail" })),
-          style: "display:flex;align-items:center;gap:11px;padding:11px 15px;background:" + (c.id === person.id ? "var(--accent-soft)" : "var(--panel)") +
-            ";box-shadow:inset 0 1px 0 var(--inset)," + (c.id === person.id ? "inset 3px 0 0 var(--accent-2)," : "") + "0 1px 2px var(--sh-1);" + selMark("people", c.id),
-          avatarStyle: "width:32px;height:32px;flex:0 0 32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:var(--border2);color:var(--text2)",
-        })),
+        peopleRows: shownContacts.map(c => {
+          const member = c.kind === "member";
+          const orgOwned = c.kind === "organization";
+          const seen = seenPresence(c.presence);
+          return {
+            press: this.pressFor("people", c.id, c.name, [
+              { icon: "check_box", label: "Select contacts", run: () => this.selStart("people", c.id) },
+              { icon: "edit", label: "Write an email", run: () => this.setState({ compose: true, composeMin: false, replyMode: null }) },
+              { icon: "person", label: "Open contact", run: () => this.setState({ personId: c.id, peoplePane: "detail" }) },
+            ].concat(member || orgOwned ? [
+              { icon: "content_copy", label: "Copy address", run: () => this.notify("Address copied", { kind: "success" }) },
+            ] : [
+              { icon: "event", label: "Propose a meeting", run: () => this.setState({ screen: "cal", newEvent: true, evParsed: null }) },
+              { icon: "delete", label: "Delete contact", danger: true, run: () => this.askHide("people", [c.id], "Delete contact?", c.name + " will disappear from the contact list.") },
+            ])),
+            name: c.name, last: c.last, initials: initialsOf(c.name),
+            // A member's row names their presence in words beside the role, so the dot is never the only telling of it.
+            sub: member ? PRESENCE[seen].label + " · " + c.role : c.collected ? c.org : c.mail,
+            selected: isSel("people", c.id),
+            hasAvatar: !!avatarOf(c.name), noAvatar: !avatarOf(c.name),
+            avatarImgStyle: "width:32px;height:32px;flex:0 0 32px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(c.name) + ")",
+            isMember: member, dotStyle: presenceDot(seen, 11),
+            phoneApp: member && !!c.phoneApp, phoneBadgeStyle: phoneBadge(14),
+            orgOwned, orgName,
+            ooo: member && !!c.ooo, oooLabel: "Out until " + (c.ooo || ""),
+            wait: (CONTACT_AI[c.id] || {}).wait || "", waiting: !(member && c.ooo) && !!(CONTACT_AI[c.id] || {}).wait,
+            open: this.rowTap("people", c.id, () => this.setState({ personId: c.id, peoplePane: "detail" })),
+            style: "display:flex;align-items:center;gap:11px;padding:11px 15px;background:" + (c.id === person.id ? "var(--accent-soft)" : "var(--panel)") +
+              ";box-shadow:inset 0 1px 0 var(--inset)," + (c.id === person.id ? "inset 3px 0 0 var(--accent-2)," : "") + "0 1px 2px var(--sh-1);" + selMark("people", c.id),
+            avatarStyle: "width:32px;height:32px;flex:0 0 32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:var(--border2);color:var(--text2)",
+          };
+        }),
         personName: person.name,
-        personRole: person.role,
-        personOrg: person.org,
+        personRoleShown: personIsMember || !!person.collected,
+        personRoleLine: personIsMember ? [person.role, person.department, person.org].filter(Boolean).join(" · ") : person.role + " · " + person.org,
         personMail: person.mail,
         personNote: person.note,
         personInitials: initialsOf(person.name),
@@ -5735,9 +5933,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         personHasAvatar: !!avatarOf(person.name),
         personNoAvatar: !avatarOf(person.name),
         personAvatarStyle: "width:52px;height:52px;flex:0 0 52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--accent);color:var(--onaccent)",
+        personDotStyle: presenceDot(personSeen, 15),
+        personPhoneApp: personIsMember && !!person.phoneApp,
+        personPhoneBadgeStyle: phoneBadge(19),
+        // What connects a member's contact to a user: presence, status, work mode, out of office.
+        personPresenceLabel: PRESENCE[personSeen].label,
+        personPresenceFill: presenceFill(personSeen, 9),
+        personLastSeenShown: personIsMember && personSeen === "offline" && person.presence !== "hidden" && !!person.lastSeen,
+        personLastSeen: "Last seen " + (person.lastSeen || ""),
+        personOoo: personIsMember && !!person.ooo,
+        personOooLabel: "Out of office until " + (person.ooo || ""),
+        personWorkModeShown: personIsMember && !!person.workMode,
+        personWorkMode: person.workMode ? person.workMode.mode + " " + (person.workMode.scope === "today" ? "today" : "until changed") : "",
+        personWorkModeIcon: person.workMode && person.workMode.mode === "Remote" ? "home_work" : "apartment",
+        personStatusShown: personIsMember && !!person.status,
+        personStatusText: person.status ? person.status.text : "",
+        personStatusClears: person.status ? person.status.until : "",
+        personWriteLabel: personIsMember ? "Write an email" : "Write",
+        personCopyAddress: () => this.notify(person.mail + " copied", { kind: "success", title: "Address copied" }),
         personWrite: () => (this.tabsMode()
-          ? this.openTab("compose", { screen: "mail", compose: true, composeMin: false })
-          : this.setState({ screen: "mail", compose: true, composeMin: false })),
+          ? this.openTab("compose", { screen: "mail", compose: true, composeMin: false, composeTo: [person.name], composeAddTo: [] })
+          : this.setState({ screen: "mail", compose: true, composeMin: false, composeTo: [person.name], composeAddTo: [] })),
         personHeadStyle: isMobile
           ? "display:flex;flex-direction:column;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:14px"
           : "display:flex;flex-direction:column;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:18px max(24px, calc((100% - 1160px) / 2))",
@@ -5745,6 +5961,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14px"
           : "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:14px;padding:18px max(24px, calc((100% - 1160px) / 2))",
         personStatsStyle: isMobile || narrow ? "display:flex;flex-direction:column;gap:9px" : "display:flex;gap:10px",
+        // A member's contact draws the relationship reading only where one exists; everybody else's always does.
+        personAiShown: !personIsMember || !!CONTACT_AI[person.id],
         personNext: personAi.next || "",
         personHasNext: !!personAi.next,
         personPatterns: [
@@ -5757,10 +5975,42 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { label: "Open", value: person.owed },
         ],
         personColsStyle: isMobile || narrow ? "display:flex;flex-direction:column;gap:12px" : "display:flex;gap:12px",
+        // Contact details: every address with the preferred one marked, and every phone number as a link that calls it.
+        personAddresses: (person.mails || [{ mail: person.mail, preferred: true }]).map((m, i, all) => ({
+          mail: m.mail, preferredShown: !!m.preferred && all.length > 1,
+        })),
+        personPhones: (person.phones || []).map(ph => ({ label: ph.label, number: ph.number, href: telHref(ph.number) })),
+        personNoPhones: !person.collected && !(person.phones || []).length,
+        personPhonesShown: !person.collected,
+        personFacts: personIsMember ? [
+          { k: "Organization", v: person.org }, { k: "Title", v: person.role }, { k: "Department", v: person.department },
+        ].filter(f => !!f.v) : [],
+        // Local time and working hours: the member's own, converted to the reader's where their zone is known.
+        personClockShown: personIsMember && !!person.clock,
+        personClock: person.clock ? person.clock.time + ", " + person.clock.offset : "",
+        personHoursShown: personIsMember && !!person.hours,
+        personHours: person.hours ? person.hours.own : "",
+        personHoursYours: person.hours && person.hours.yours ? "(" + person.hours.yours + ")" : "",
+        personHoursYoursShown: !!(person.hours && person.hours.yours),
+        personOutsideHours: personIsMember && !!(person.hours && person.hours.outside),
+        personNoZone: personIsMember && !person.clock,
+        personNoZoneNote: "No time zone is stated, so these hours are " + (person.name || "").split(" ")[0] + "'s own and are not converted to yours.",
+        personTimeCardShown: personIsMember && (!!person.clock || !!person.hours),
+        // The organization's structure: the chain of managers upward to the member, then the member's direct reports.
+        personOrgCardShown: personIsMember,
+        personChain: personIsMember ? (() => {
+          const up = [];
+          let m = memberById(person.manager);
+          while (m && up.length < 8) { up.unshift(m); m = memberById(m.manager); }
+          return up.concat([person]).map((m2, i, all) => orgPersonRow(m2, i, m2.id === person.id));
+        })() : [],
+        personReports: personIsMember ? memberContacts.filter(m => m.manager === person.id).map(m => orgPersonRow(m, 0, false)) : [],
+        personNoReports: personIsMember && !memberContacts.some(m => m.manager === person.id),
         personThreads: person.threads.map(t3 => ({
           label: t3.label, meta: t3.meta,
           open: () => this.setState({ screen: "mail", threadId: t3.id, mailPane: "thread", threadOpen: true, cameFrom: false }),
         })),
+        personThreadsShown: !personIsMember || person.threads.length > 0,
         personDocs: person.docs.map(d => ({
           type: d.type, name: d.name, size: d.size,
           open: () => (this.tabsMode()
@@ -6057,8 +6307,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         moveOpen: !!(st.moveFor && st.moveFor.length),
         moveTitle: st.moveFor ? "Move " + this.countWord(st.moveFor.length) : "",
         closeMove: this.closeMove,
-        moveGroups: ACCOUNTS.map(a => ({ key: a.key, label: a.label, dot: a.dot, folders: a.moveFolders })).map(g => ({
-          label: g.label,
+        moveGroups: ACCOUNTS.map(a => ({ key: a.key, label: a.label, dot: a.dot, shared: !!a.shared, folders: a.moveFolders })).map(g => ({
+          label: g.label, shared: g.shared, sharedStyle: SHARED_MARK,
           wrapStyle: "display:flex;flex-direction:column;gap:1px;padding-bottom:6px",
           headStyle: "display:flex;align-items:center;gap:8px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:8px 9px 5px;font-weight:600",
           dotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:" + g.dot,
@@ -6456,6 +6706,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           aiStyle: isMobile ? "display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);line-height:1.35" : "display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)",
           from: t.from, org: t.org, time: t.time, subject: t.subject, ai: t.ai,
           hasAvatar: !!avatarOf(t.from), noAvatar: !avatarOf(t.from), initials: initialsOf(t.from),
+          // A colleague's row carries their presence on the avatar, as every list that draws a member does.
+          fromMember: !!isMemberName(t.from), fromDotStyle: presenceDot(seenPresence((isMemberName(t.from) || {}).presence), isMobile ? 11 : 8),
           avatarStyle: "width:" + avSz + "px;height:" + avSz + "px;flex:0 0 " + avSz + "px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:" + (isMobile ? 12 : 11) + "px;letter-spacing:0.02em;background:var(--border2);color:var(--text2)",
           avatarImgStyle: "width:" + avSz + "px;height:" + avSz + "px;flex:0 0 " + avSz + "px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(t.from) + ");display:block",
           /* Unread is the weight and the ink of the words, as every mail client draws it: the sender and the subject
@@ -6572,6 +6824,50 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(86dvh, 760px)" : "86dvh") + ";z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
         composeTitle: (st.composeMin ? composeKind + " - collapsed" : composeKind),
         composeToChips: composeTo.map(n => ({ name: n })),
+        /* Recipient suggestions under To: the reader's colleagues and the organization's contacts beside their own, each
+           group under its own name, a colleague with their presence and an absence they announced. */
+        rcptValue: st.rcptQuery || "",
+        onRcptInput: (e) => this.setState({ rcptQuery: e.target.value, rcptFocus: true }),
+        onRcptFocus: () => this.setState({ rcptFocus: true }),
+        onRcptBlur: () => setTimeout(() => this.setState({ rcptFocus: false }), 120),
+        ...(() => {
+          const q = (st.rcptQuery || "").trim().toLowerCase();
+          const fits = (c) => composeTo.indexOf(c.name) < 0 && (!q || (c.name + " " + c.mail).toLowerCase().indexOf(q) >= 0);
+          const cap = q ? 6 : 3;
+          const row = (c) => {
+            const member = c.kind === "member";
+            const seen = seenPresence(c.presence);
+            return {
+              name: c.name, mail: c.mail, initials: initialsOf(c.name),
+              sub: member ? PRESENCE[seen].label + " · " + c.role + (c.ooo ? " · out until " + c.ooo : "") : c.mail,
+              isMember: member, dotStyle: presenceDot(seen, 10),
+              hasAvatar: !!avatarOf(c.name), noAvatar: !avatarOf(c.name),
+              avatarImgStyle: "width:28px;height:28px;flex:0 0 28px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(c.name) + ")",
+              avatarStyle: "width:28px;height:28px;flex:0 0 28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:var(--border2);color:var(--text2)",
+              pick: (e) => {
+                if (e && e.preventDefault) e.preventDefault();
+                this.setState(s2 => ({ composeAddTo: (s2.composeAddTo || []).concat([c.name]), rcptQuery: "" }));
+              },
+              style: "display:flex;align-items:center;gap:10px;min-height:" + (touch ? 48 : 40) + "px;padding:4px 15px",
+            };
+          };
+          const groups = [
+            { label: "Colleagues", list: memberContacts },
+            { label: orgName + " contacts", list: ownContacts.filter(c => c.kind === "organization") },
+            { label: "Your contacts", list: ownContacts.filter(c => c.kind !== "organization") },
+          ].map(g => ({ label: g.label, rows: g.list.filter(fits).slice(0, cap).map(row) })).filter(g => g.rows.length);
+          return {
+            rcptSuggestShown: !!st.compose && !!st.rcptFocus && groups.length > 0,
+            rcptGroups: groups,
+            rcptNoMatch: !!st.compose && !!st.rcptFocus && !!q && !groups.length,
+            rcptNoMatchText: "Nobody in your contacts or your organization matches “" + (st.rcptQuery || "").trim() + "”",
+          };
+        })(),
+        // A recipient who is a colleague out of office is named before sending: the end date, never the reply's text.
+        composeOooRows: composeTo.map(isMemberName).filter(m => m && m.ooo).map(m => ({
+          text: m.name + " is out of office until " + m.ooo + ".",
+        })),
+        composeOooShown: composeTo.some(n => { const m = isMemberName(n); return !!(m && m.ooo); }),
         /* A draft opened from the Outbox or the Drafts list carries its files; one whose copy on the mail server may be
            missing or out of date says so first, above the recipients, at every composition. */
         composeDraftAtts: composeDraft ? (composeDraft.attachments || []) : [],
@@ -6744,7 +7040,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             : "font-size:" + Math.round(14 * (st.docZoom || 1)) + "px;line-height:1.65;color:#39414d;text-wrap:pretty",
         })),
         userMailboxes: MAILBOXES.map(mb => ({
-          mail: mb.mail, dot: mb.dot, current: false, pick: null,
+          mail: mb.mail, dot: mb.dot, current: false, pick: null, shared: !!mb.shared, sharedStyle: SHARED_MARK,
           style: "display:flex;align-items:center;gap:8px;padding:3px 0;color:var(--muted)",
         })),
         tabsRowAvailable: w >= 1180,
@@ -6896,7 +7192,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const aiLang = st.aiLang || "en";
           return {
             userMailboxes: accounts.map(a => ({
-              mail: a.mail, dot: a.dot, current: false, pick: null,
+              mail: a.mail, dot: a.dot, current: false, pick: null, shared: !!a.shared, sharedStyle: SHARED_MARK,
               style: "display:flex;align-items:center;gap:8px;padding:3px 0;color:var(--muted)",
             })),
             tabAi: st.settingsTab === "ai",
