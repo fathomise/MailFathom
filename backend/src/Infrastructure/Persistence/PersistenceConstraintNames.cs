@@ -457,6 +457,20 @@ internal static class PersistenceConstraintNames
     /// <summary>Names the index each account's outbox is listed and counted through.</summary>
     internal const string OutgoingEmailOutboxIndexName = "ix_outgoing_emails_outbox";
 
+    /// <summary>The foreign key from a stored message's trust verdict to the organization that recognized its author.</summary>
+    internal const string StoredEmailSenderTrustOrganizationForeignKeyName = "fk_stored_emails_sender_trust_organization";
+
+    /// <summary>The partial index deleting an organization clears its verdicts' references through.</summary>
+    internal const string StoredEmailSenderTrustOrganizationIndexName = "ix_stored_emails_sender_trust_organization";
+
+    /// <summary>Names the index a receiving account finds the send behind a blind copy through.</summary>
+    /// <remarks>
+    /// It leads on the <c>Message-ID</c> because that is what a signed arrival names, and carries the account after it
+    /// because the record must also have been sent through the signed author's account. Partial over records that
+    /// carry one, since a send whose MIME named none can never be looked up this way.
+    /// </remarks>
+    internal const string OutgoingEmailInternetMessageIdIndexName = "ix_outgoing_emails_internet_message_id";
+
     /// <summary>The foreign key that removes an outgoing email's recipients with the record.</summary>
     /// <remarks>
     /// Named because EF's convention composes one from both table names and PostgreSQL truncates an identifier at 63

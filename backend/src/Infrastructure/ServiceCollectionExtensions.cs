@@ -1025,7 +1025,13 @@ public static class ServiceCollectionExtensions
                             provider.GetRequiredService<EmailSignatureTrustOptions>(),
                             provider.GetRequiredService<TrustAnchorLoader>(),
                             provider.GetRequiredService<ISecretReferenceResolver>(),
-                            provider.GetRequiredService<SecureMimeSignatureVerifier>())),
+                            provider.GetRequiredService<SecureMimeSignatureVerifier>()),
+                        // Unconditional, unlike the DNS-backed verification: it asks nothing outside the database,
+                        // and an account in no organization is answered by one indexed read before any key is.
+                        new OrganizationSignatureVerifier(
+                            new PersistedOrganizationSenderDirectory(
+                                new Lazy<MailFathomDbContext>(provider.GetRequiredService<MailFathomDbContext>)),
+                            provider.GetRequiredService<ISenderIdentityDirectory>())),
                     provider.GetRequiredService<ISenderTrustPolicyReader>()),
                 provider.GetRequiredService<MachineAuthorshipProfile>());
 

@@ -162,13 +162,14 @@ internal sealed class InMemoryOutgoingEmailStore(
         IPersistenceSession session,
         OutgoingEmailRequest request,
         OutgoingEmailPrincipal principal,
-        long mimeByteLength,
+        ReadOnlyMemory<byte> rawMime,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(principal);
 
+        var mimeByteLength = rawMime.Length;
         this.openRequests.Add(request);
 
         if (this.identities.TryGetValue(IdentityOf(request), out var existing))

@@ -103,4 +103,17 @@ public sealed class DkimSignatureTagsTests
         Assert.True(read);
         Assert.Equal("SIGNER.EXAMPLE.TEST", domain.NormalizedValue);
     }
+
+    /// <summary>A signature is matched on the algorithm its own tag names, however the tag or its value is cased or folded.</summary>
+    [Theory]
+    [InlineData("v=1; a=ed25519-sha256; s=key", true)]
+    [InlineData("v=1; A=ED25519-SHA256; s=key", true)]
+    [InlineData("v=1;\r\n\ta=ed25519-sha256; s=key", true)]
+    [InlineData("v=1; a=rsa-sha256; s=key", false)]
+    [InlineData("v=1; s=key; b=YT1lZDI1NTE5LXNoYTI1Ng==", false)]
+    public void NamesAlgorithm_ASignature_MatchesOnlyTheAlgorithmItsTagNames(string headerValue, bool expected)
+    {
+        // Act, Assert
+        Assert.Equal(expected, DkimSignatureTags.NamesAlgorithm(headerValue, "ed25519-sha256"));
+    }
 }

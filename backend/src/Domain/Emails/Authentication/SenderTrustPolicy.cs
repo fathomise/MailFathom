@@ -7,8 +7,9 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// <summary>Decides whether one account recognizes the author a message authenticated as.</summary>
 /// <remarks>
 /// <para>
-/// The rule is deliberately narrow. An author is recognized when their domain belongs to an account this deployment
-/// synchronizes, or when an entry on the receiving account's trusted-sender list names them. Everything else is unknown,
+/// The rule is deliberately narrow. An author is recognized when a signature of the receiving account's organization
+/// proved them a member of it, when their domain belongs to an account this deployment synchronizes, or when an entry on
+/// the receiving account's trusted-sender list names them. Everything else is unknown,
 /// including most legitimate mail, because the claim being published is <em>this deployment does not know who wrote
 /// this</em> rather than <em>this is suspicious</em>.
 /// </para>
@@ -32,6 +33,7 @@ public sealed class SenderTrustPolicy
     private readonly HashSet<SenderDomain> ownAccountDomains;
     private readonly IReadOnlyList<TrustedSenderEntry> configuredEntries;
     private readonly IReadOnlyList<TrustedSenderEntry> storedEntries;
+    private readonly string[] statements;
 
     private SenderTrustPolicy(
         HashSet<SenderDomain> ownAccountDomains,
@@ -42,12 +44,13 @@ public sealed class SenderTrustPolicy
         this.configuredEntries = configuredEntries;
         this.storedEntries = storedEntries;
 
-        this.Revision = SenderTrustPolicyRevision.Of(
+        this.statements =
         [
             .. ownAccountDomains.Select(static domain => $"account:{domain.NormalizedValue}"),
             .. configuredEntries.Select(static entry => $"configured:{entry.ToPolicyStatement()}"),
             .. storedEntries.Select(static entry => $"stored:{entry.ToPolicyStatement()}"),
-        ]);
+        ];
+        this.Revision = SenderTrustPolicyRevision.Of(this.statements);
     }
 
     /// <summary>Gets the policy that recognizes nobody, which is what an account this deployment no longer serves has.</summary>
@@ -58,7 +61,8 @@ public sealed class SenderTrustPolicy
     /// </remarks>
     public static SenderTrustPolicy RecognizingNobody { get; } = new([], [], []);
 
-    /// <summary>Gets the revision that names this policy, which every verdict it reaches is stored with.</summary>
+    /// <summary>Gets the revision that names this policy, which a verdict reached without an organization verification is stored with.</summary>
+    /// <remarks>A verdict reached for an account of an organization carries a revision that also names that organization, so it differs from this one.</remarks>
     public SenderTrustPolicyRevision Revision { get; }
 
     /// <summary>Builds the policy one account judges its mail by.</summary>
@@ -85,12 +89,25 @@ public sealed class SenderTrustPolicy
     /// <summary>Decides what this deployment makes of one message's author.</summary>
     /// <param name="authentication">What the receiving mail server established about the message.</param>
     /// <param name="displayedSender">The address the message's <c>From</c> header displays, where it wrote a usable one.</param>
-    /// <returns>The verdict, always carrying <see cref="Revision" />.</returns>
+    /// <param name="organizationVerification">
+    /// What verifying the message against the receiving account's organization established, or <see langword="null" />
+    /// where the account belongs to no organization and nothing was verified.
+    /// </param>
+    /// <returns>
+    /// The verdict, carrying <see cref="Revision" />, or a revision that also names the receiving organization where
+    /// <paramref name="organizationVerification" /> was given, so a verdict says whose keys it was reached under.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="authentication" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// <para>
-    /// <b>The subject of the decision is <see cref="SenderAuthentication.AuthenticatedAuthorDomain" /> and nothing
-    /// else.</b> The <c>From</c> header on its own is written by whoever sent the message, so holding it against a list
+    /// <b>Organization membership is asked first, and needs no authenticated domain.</b> A signature of the receiving
+    /// account's organization proves the author's address rather than a domain, which is more than the lists below ever
+    /// hold, so where it holds the lists are not consulted; where it does not, the message is judged by them exactly as
+    /// it would have been with no organization at all.
+    /// </para>
+    /// <para>
+    /// <b>The subject the lists are held against is <see cref="SenderAuthentication.AuthenticatedAuthorDomain" /> and
+    /// nothing else.</b> The <c>From</c> header on its own is written by whoever sent the message, so holding it against a list
     /// would let anybody be recognized by claiming to be; and the identity the receiving server happened to authenticate
     /// belongs to whoever handed the message over, which for a relay, a mailing list, or a delivery provider is not the
     /// author at all. Recognizing a provider one correspondent uses would otherwise recognize every message that
@@ -98,33 +115,46 @@ public sealed class SenderTrustPolicy
     /// </para>
     /// <para>
     /// So a message whose author was not established, and one whose author authentication the receiving server refused,
-    /// both reach <see cref="SenderTrustLevel.Unknown" /> without the list being consulted at all. Which of the two it
+    /// both reach <see cref="SenderTrustLevel.Unknown" /> without the list being consulted at all, unless organization
+    /// membership was proved as stated above. Which of the two it
     /// was stays on <see cref="SenderAuthentication.AuthorAuthentication" />, where it was recorded, because this
     /// verdict answers only about the list.
     /// </para>
     /// </remarks>
-    public SenderTrust Evaluate(SenderAuthentication authentication, EmailAddress? displayedSender)
+    public SenderTrust Evaluate(
+        SenderAuthentication authentication,
+        EmailAddress? displayedSender,
+        OrganizationSenderVerification? organizationVerification = null)
     {
         ArgumentNullException.ThrowIfNull(authentication);
 
+        var revision = organizationVerification is { ReceivingOrganizationId: var organizationId }
+            ? SenderTrustPolicyRevision.Of([.. this.statements, $"organization:{organizationId:D}"])
+            : this.Revision;
+
+        if (organizationVerification is { SenderIsMember: true })
+        {
+            return SenderTrust.TrustedAsOrganizationMember(organizationVerification.ReceivingOrganizationId, revision);
+        }
+
         if (authentication.AuthenticatedAuthorDomain is not { } authorDomain)
         {
-            return SenderTrust.Unknown(this.Revision);
+            return SenderTrust.Unknown(revision);
         }
 
         if (this.ownAccountDomains.Contains(authorDomain))
         {
-            return SenderTrust.Trusted(SenderTrustSource.OwnAccountDomain, this.Revision);
+            return SenderTrust.Trusted(SenderTrustSource.OwnAccountDomain, revision);
         }
 
         if (Recognizes(this.configuredEntries, authorDomain, displayedSender))
         {
-            return SenderTrust.Trusted(SenderTrustSource.ConfiguredTrustedSender, this.Revision);
+            return SenderTrust.Trusted(SenderTrustSource.ConfiguredTrustedSender, revision);
         }
 
         return Recognizes(this.storedEntries, authorDomain, displayedSender)
-            ? SenderTrust.Trusted(SenderTrustSource.StoredTrustedSender, this.Revision)
-            : SenderTrust.Unknown(this.Revision);
+            ? SenderTrust.Trusted(SenderTrustSource.StoredTrustedSender, revision)
+            : SenderTrust.Unknown(revision);
     }
 
     /// <summary>Answers whether one half of the list names the author.</summary>

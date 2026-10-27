@@ -10,6 +10,7 @@ using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Failures;
+using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using Microsoft.EntityFrameworkCore;
@@ -54,14 +55,20 @@ internal sealed class OutgoingEmailStore(MailFathomDbContext readContext, TimePr
         IPersistenceSession session,
         OutgoingEmailRequest request,
         OutgoingEmailPrincipal principal,
-        long mimeByteLength,
+        ReadOnlyMemory<byte> rawMime,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(principal);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mimeByteLength);
 
+        if (rawMime.IsEmpty)
+        {
+            throw new ArgumentException("An outgoing email is recorded with the MIME it will be transmitted as.", nameof(rawMime));
+        }
+
+        // Read before joining the session, so no transaction is open while the header block is parsed.
+        var internetMessageId = await InternetMessageIdReader.ReadAsync(rawMime, cancellationToken);
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
 
         var existing = await FindByIdentityAsync(writeContext, request, cancellationToken);
@@ -90,7 +97,8 @@ internal sealed class OutgoingEmailStore(MailFathomDbContext readContext, TimePr
             RequesterIdentity = request.Requester.Identity,
             PrincipalFingerprint = principal.Fingerprint,
             Stage = OutgoingEmailStage.Recorded,
-            MimeByteLength = mimeByteLength,
+            MimeByteLength = rawMime.Length,
+            InternetMessageId = internetMessageId,
             AttemptCount = 0,
             RecordedAt = recordedAt,
             StageChangedAt = recordedAt,

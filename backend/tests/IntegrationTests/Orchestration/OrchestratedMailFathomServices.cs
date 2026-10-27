@@ -293,6 +293,9 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
         // section. Every delivery attempt reads it before it opens anything, so an account without it delivers nothing
         // rather than delivering as somebody unnamed.
         builder.Services.AddSingleton<IOutgoingSenderIdentityReader>(account);
+        // The same identity read across users, registered by the composition root for what extraction verifies: an
+        // organization's signature is held against the identities of every account the organization's users are served.
+        builder.Services.AddSingleton<ISenderIdentityDirectory>(account);
         // Whether an account files a copy of what it sends, registered by the composition root from the same options
         // section. Every outbox pass resolves it after an attempt settles, so a harness without it would fail to
         // compose rather than behave like a deployment that files nothing.

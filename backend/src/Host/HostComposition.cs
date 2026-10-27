@@ -578,6 +578,9 @@ internal static class HostComposition
         builder.Services.AddScoped(provider =>
             provider.GetRequiredService<MailSynchronizationOptions>().MachineAuthorshipProfile);
         builder.Services.AddScoped<IOutgoingSenderIdentityReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.OutgoingSenderIdentities);
+        // Not from the snapshot above: that holds the accounts of the users a work unit acts for, and a colleague's
+        // account is somebody else's.
+        builder.Services.AddScoped<ISenderIdentityDirectory, ComposedSenderIdentityDirectory>();
         builder.Services.AddScoped<IOutgoingMailFilingPolicyReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.OutgoingMailFilingPolicies);
         builder.Services.AddScoped<IOutgoingSendPermissionReader, ConfiguredOutgoingSendPermissionReader>();
         builder.Services.AddScoped<IMailFolderParticipationReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.FolderParticipation);

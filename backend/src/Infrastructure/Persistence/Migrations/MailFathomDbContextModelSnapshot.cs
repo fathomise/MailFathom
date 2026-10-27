@@ -2973,6 +2973,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("InternetMessageId")
+                        .HasMaxLength(998)
+                        .HasColumnType("character varying(998)");
+
                     b.Property<int?>("LastFailureCode")
                         .HasColumnType("integer");
 
@@ -3028,6 +3032,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("InternetMessageId", "MailboxAccountId")
+                        .HasDatabaseName("ix_outgoing_emails_internet_message_id")
+                        .HasFilter("\"InternetMessageId\" IS NOT NULL");
 
                     b.HasIndex("MailboxAccountId", "RecordedAt")
                         .HasDatabaseName("ix_outgoing_emails_outstanding")
@@ -3863,6 +3871,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasDefaultValue("Unknown");
 
+                    b.Property<Guid?>("SenderTrustOrganizationId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("SenderTrustPolicyRevision")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
@@ -4038,6 +4049,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SenderNormalizedAddress")
                         .HasDatabaseName("ix_stored_emails_sender");
+
+                    b.HasIndex("SenderTrustOrganizationId")
+                        .HasDatabaseName("ix_stored_emails_sender_trust_organization")
+                        .HasFilter("\"SenderTrustOrganizationId\" IS NOT NULL");
 
                     b.HasIndex("ToAddresses")
                         .HasDatabaseName("ix_stored_emails_to_addresses");
@@ -5245,6 +5260,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ParentStoredEmailId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SenderTrustOrganizationId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_stored_emails_sender_trust_organization");
 
                     b.Navigation("Folder");
 

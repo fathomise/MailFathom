@@ -38,6 +38,7 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     private readonly ITrustedAuthenticationAuthorityReader trustedAuthorities;
     private readonly ILocalSenderVerifier? localSenderVerifier;
     private readonly IEmailSignatureVerifier? signatureVerifier;
+    private readonly OrganizationSignatureVerifier? organizationVerifier;
     private readonly ParsedMimeMessageLoader loadMessage;
 
     /// <summary>Initializes a reader that parses with MimeKit.</summary>
@@ -51,13 +52,24 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     /// Verifies a message's S/MIME or OpenPGP signature, or <see langword="null" /> where nothing does and every message
     /// is recorded as not signed.
     /// </param>
+    /// <param name="organizationVerifier">
+    /// Verifies a message against the keys of the receiving account's organization, or <see langword="null" /> where
+    /// nothing does and no message is verified that way.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options" /> or <paramref name="trustedAuthorities" /> is <see langword="null" />.</exception>
     public MimeKitEmailMimeReader(
         EmailMimeExtractionOptions options,
         ITrustedAuthenticationAuthorityReader trustedAuthorities,
         ILocalSenderVerifier? localSenderVerifier,
-        IEmailSignatureVerifier? signatureVerifier = null)
-        : this(options, trustedAuthorities, localSenderVerifier, LoadWithoutCopyingContentAsync, signatureVerifier)
+        IEmailSignatureVerifier? signatureVerifier = null,
+        OrganizationSignatureVerifier? organizationVerifier = null)
+        : this(
+            options,
+            trustedAuthorities,
+            localSenderVerifier,
+            LoadWithoutCopyingContentAsync,
+            signatureVerifier,
+            organizationVerifier)
     {
     }
 
@@ -67,13 +79,15 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     /// <param name="localSenderVerifier">Verifies a message's own DKIM signatures, or <see langword="null" /> where nothing does.</param>
     /// <param name="loadMessage">Turns raw MIME into a parsed message.</param>
     /// <param name="signatureVerifier">Verifies a message's S/MIME or OpenPGP signature, or <see langword="null" /> where nothing does.</param>
+    /// <param name="organizationVerifier">Verifies a message against the receiving account's organization, or <see langword="null" /> where nothing does.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument other than the verifiers is <see langword="null" />.</exception>
     internal MimeKitEmailMimeReader(
         EmailMimeExtractionOptions options,
         ITrustedAuthenticationAuthorityReader trustedAuthorities,
         ILocalSenderVerifier? localSenderVerifier,
         ParsedMimeMessageLoader loadMessage,
-        IEmailSignatureVerifier? signatureVerifier = null)
+        IEmailSignatureVerifier? signatureVerifier = null,
+        OrganizationSignatureVerifier? organizationVerifier = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(trustedAuthorities);
@@ -83,6 +97,7 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
         this.trustedAuthorities = trustedAuthorities;
         this.localSenderVerifier = localSenderVerifier;
         this.signatureVerifier = signatureVerifier;
+        this.organizationVerifier = organizationVerifier;
         this.loadMessage = loadMessage;
     }
 
@@ -167,6 +182,9 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
             Signature = this.signatureVerifier is { } verifier
                 ? await verifier.VerifyAsync(message, message.From.Mailboxes.FirstOrDefault()?.Address, cancellationToken)
                 : EmailSignature.NotSigned,
+            OrganizationVerification = this.organizationVerifier is { } organizationVerifier
+                ? await organizationVerifier.VerifyAsync(accountId, message, cancellationToken)
+                : null,
         };
     }
 

@@ -4,10 +4,10 @@
 
 Every [organization](admin-endpoint.md#organizations) holds an Ed25519 signing key: the key its accounts' mail is
 signed with, so that a receiving account of the same organization can tell a colleague's message from somebody writing
-their name. **Every message an organization's account sends is signed with it** — *What is signed, and when* below.
-**Nothing verifies those signatures yet**: trusting a verified signature arrives in a later release, so everything this
-page says about what a revocation means for a receiving account describes the decision that release implements rather
-than anything a deployment does today.
+their name. **Every message an organization's account sends is signed with it** — *What is signed, and when* below —
+**and a receiving account of the same organization verifies an arriving signature against these keys.**
+[Sender authentication](../features/sender-authentication.md#a-colleague-in-the-receiving-accounts-organization) states
+what a verified signature establishes and which key states it accepts.
 [ADR 0042](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
 records how a signature is written and what it must hold before it grants trust; this page is about the keys themselves:
 where they come from, what they sign, how long one is used, how one is withdrawn, and what an operator owes them.
@@ -28,8 +28,10 @@ revoke one by hand, and — before any of it can happen — whether the deployme
 A key is in exactly one of three states. **Active** is the one key an organization signs with, and the database holds
 at most one active key per organization under a unique index rather than trusting every replica to agree. **Retired**
 is a key a rotation replaced: its private half is gone, and its public half stays so mail signed under it while it was
-active could still be verified. **Revoked** is a key an operator withdrew: ADR 0042 decides that nothing it signed is
-to be trusted from then on, whenever that mail claims to have been written.
+active is still verified. **Revoked** is a key an operator withdrew: nothing it signed is trusted from then on,
+whenever that mail claims to have been written. A verdict already stored stays until [stored mail is
+re-derived](../features/sender-authentication.md#re-deriving-what-is-already-stored), which then leaves none the
+revoked key reached.
 
 The organization's name is never stored on a key. A key reaches its organization through the store, and a listing names
 the organization by the display name it holds now. Removing an organization removes its keys with it.

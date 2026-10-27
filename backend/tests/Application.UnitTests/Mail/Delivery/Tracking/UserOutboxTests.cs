@@ -760,7 +760,7 @@ public sealed class UserOutboxTests
                     Subject = subject,
                 },
                 OutgoingEmailPrincipal.Of("test-caller"),
-                RawMime.Length,
+                RawMime,
                 TestContext.Current.CancellationToken);
 
             return opened.Record.Id;

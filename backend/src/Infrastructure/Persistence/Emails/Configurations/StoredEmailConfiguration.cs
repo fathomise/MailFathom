@@ -115,6 +115,18 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         entity.Property(email => email.SenderTrustPolicyRevision)
             .HasMaxLength(SenderTrustPolicyRevision.Length);
 
+        // Cleared rather than cascaded, so deleting an organization keeps every verdict it reached and only loses the
+        // name it would have been shown under. The index is partial because nearly every row carries none, and exists
+        // so that deletion finds the rows to clear without reading the whole table.
+        entity.HasOne<OrganizationEntity>()
+            .WithMany()
+            .HasForeignKey(email => email.SenderTrustOrganizationId)
+            .HasConstraintName(PersistenceConstraintNames.StoredEmailSenderTrustOrganizationForeignKeyName)
+            .OnDelete(DeleteBehavior.SetNull);
+        entity.HasIndex(email => email.SenderTrustOrganizationId)
+            .HasDatabaseName(PersistenceConstraintNames.StoredEmailSenderTrustOrganizationIndexName)
+            .HasFilter($"\"{nameof(StoredEmailEntity.SenderTrustOrganizationId)}\" IS NOT NULL");
+
         // How much the message's own text read as machine written. The band is stored as text like every other
         // enum here and defaults to the value that claims nothing, which is what a row written before the
         // assessment existed holds and what a deployment that turned it off writes on all of its mail. The signal
