@@ -25,7 +25,7 @@ input { font-family: inherit; }
 
 /* A rail tile's status dot. `pulse` — work under way there — sends a ring out of the dot and lets it fade; `dot` —
    something waits to be read — stands still. Under reduced motion the ring never travels and the dot alone remains. */
-@keyframes mf-rail-ring { 0% { box-shadow: 0 0 0 2px var(--rail), 0 0 0 2px var(--err) } 70%, 100% { box-shadow: 0 0 0 2px var(--rail), 0 0 0 8px transparent } }
+@keyframes mf-rail-ring { 0% { box-shadow: 0 0 0 0 var(--err) } 70%, 100% { box-shadow: 0 0 0 5px transparent } }
 [data-rail-dot="pulse"] { animation: mf-rail-ring 1.6s var(--ease-out, ease-out) infinite; }
 
 @keyframes mfmsgin{ from { opacity: 0; transform: translateY(6px) } }

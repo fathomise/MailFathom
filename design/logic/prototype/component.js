@@ -4470,17 +4470,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
         isAgent: st.screen === "agent" && !emptyApp,
         goAgent: () => { clearTimeout(this.peekT); this.goScreen("agent", { railPeek: null }); },
-        railAgentStyle: railBase + (st.screen === "agent" ? activeStyle : idleColor),
+        railAgentStyle: "position:relative;" + railBase + (st.screen === "agent" ? activeStyle : idleColor),
         agentPeekEnter: this.peekOpen("agent"),
         railPeekLeave: this.peekLeave,
         railPeekKeep: this.peekKeep,
         /* The status dot any rail tile can carry: `pulse` while something there is under way, `dot` while something
-           waits to be read. It sits just past the glyph's top end corner, clear of it, and is ringed in the rail's colour. */
+           waits to be read. It sits in the top end corner of the tile — of the glyph's pill on the phone's bar — inset
+           far enough that the pulse's 5 px ring never crosses the tile's edge. */
         agentDotShown: !!agentDot,
         agentDotKind: agentDot,
-        railIconWrapStyle: "position:relative;display:flex;align-items:center;justify-content:center",
-        railDotStyle: "position:absolute;width:9px;height:9px;border-radius:50%;background:var(--err);box-shadow:0 0 0 2px var(--rail);pointer-events:none;" +
-          (isMobile ? "top:2px;right:5px" : "top:-3px;right:-10px"),
+        railIconWrapStyle: (isMobile ? "position:relative;" : "") + "display:flex;align-items:center;justify-content:center",
+        railDotStyle: "position:absolute;width:8px;height:8px;border-radius:50%;background:var(--err);pointer-events:none;" +
+          (isMobile ? "top:6px;right:6px" : "top:8px;right:8px"),
         agentTileLabel: "Agent" + (agentDot ? " - " + [agentRuns.length ? agentRuns.length + " working" : "", agentUnread.length ? agentUnread.length + " unread" : ""].filter(Boolean).join(", ") : ""),
         railPeekShown: !!peekView,
         railPeekTitle: peekView ? peekView.title : "",
