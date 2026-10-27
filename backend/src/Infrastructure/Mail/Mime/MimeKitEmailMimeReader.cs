@@ -209,7 +209,7 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
         CancellationToken cancellationToken)
     {
         var headers = AuthenticationResultsHeaderReader.Read(message);
-        var authority = this.trustedAuthorities.GetTrustedAuthority(accountId);
+        var authority = await this.trustedAuthorities.GetTrustedAuthorityAsync(accountId, cancellationToken);
         var displayedSenderAddress = message.From.Mailboxes.FirstOrDefault()?.Address;
 
         if (this.localSenderVerifier is { } verifier

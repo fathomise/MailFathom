@@ -18,13 +18,13 @@ namespace MailFathom.SharedSources.UnitTests;
 public sealed class NoTrustedAuthenticationTests
 {
     [Fact]
-    public void GetTrustedAuthority_AnyAccount_NamesNoServer()
+    public async Task GetTrustedAuthorityAsync_AnyAccount_NamesNoServer()
     {
         // Arrange
         var authorities = new NoTrustedAuthentication();
 
         // Act
-        var authority = authorities.GetTrustedAuthority(MailAccountId.Create("primary"));
+        var authority = await authorities.GetTrustedAuthorityAsync(MailAccountId.Create("primary"), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(TrustedAuthenticationAuthority.None, authority);

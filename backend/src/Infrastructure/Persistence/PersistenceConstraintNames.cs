@@ -740,6 +740,13 @@ internal static class PersistenceConstraintNames
     internal const string OrganizationSigningKeySpentHoldsNoPrivateKeyCheckConstraintName =
         "ck_organization_signing_keys_spent_holds_no_private_key";
 
+    /// <summary>The index that keeps one IMAP host to at most one known authentication provider.</summary>
+    /// <remarks>Stated because the store reads it: an addition that meets it is a host the list already names, which an operator acts on rather than a provider failure.</remarks>
+    internal const string KnownAuthenticationProviderHostUniqueIndexName = "ix_known_authentication_providers_host";
+
+    /// <summary>The check that keeps a known-provider change record to the two acts it records.</summary>
+    internal const string KnownAuthenticationProviderChangeActCheckConstraintName = "ck_known_authentication_provider_changes_act";
+
     /// <summary>The index that keeps one settings policy to one scope: the deployment, or one organization.</summary>
     /// <remarks>Nulls are not distinct in it, so the deployment's own row is as unique as an organization's, and it is what the write storing a scope's first policy loses to when another stored one first.</remarks>
     internal const string SettingsPolicyScopeUniqueIndexName = "ix_settings_policies_scope";

@@ -333,6 +333,14 @@ internal static class AdminEndpointRoutes
     /// <returns>The path.</returns>
     internal static string UserOrganizationPath(Guid userId) => $"{UserPath(userId)}/organization";
 
+    /// <summary>Where the known authentication providers are listed, and where one is added.</summary>
+    internal const string KnownProvidersPath = $"{Prefix}/known-authentication-providers";
+
+    /// <summary>Where one host's known provider is removed.</summary>
+    /// <param name="imapHost">The host the path names.</param>
+    /// <returns>The path, with the host escaped as one segment.</returns>
+    internal static string KnownProviderPath(string imapHost) => $"{KnownProvidersPath}/{Uri.EscapeDataString(imapHost)}";
+
     /// <summary>Where the organizations a deployment holds are listed, and where one is recorded.</summary>
     internal const string OrganizationsPath = $"{Prefix}/organizations";
 

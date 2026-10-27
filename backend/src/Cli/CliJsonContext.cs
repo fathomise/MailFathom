@@ -13,6 +13,7 @@ using MailFathom.Cli.Administration.Exports;
 using MailFathom.Cli.Administration.Folders;
 using MailFathom.Cli.Administration.Grants;
 using MailFathom.Cli.Administration.Jobs;
+using MailFathom.Cli.Administration.KnownProviders;
 using MailFathom.Cli.Administration.Mailboxes;
 using MailFathom.Cli.Administration.Organizations;
 using MailFathom.Cli.Administration.Outbox;
@@ -136,6 +137,9 @@ namespace MailFathom.Cli;
 [JsonSerializable(typeof(OrganizationSigningKeyList))]
 [JsonSerializable(typeof(OrganizationSigningKeyRotated))]
 [JsonSerializable(typeof(OrganizationSigningKeyRevoked))]
+[JsonSerializable(typeof(KnownProviderList))]
+[JsonSerializable(typeof(KnownProviderRequest))]
+[JsonSerializable(typeof(KnownProviderAdded))]
 [JsonSerializable(typeof(UserOrganizationRequest))]
 [JsonSerializable(typeof(SettingsPolicy))]
 [JsonSerializable(typeof(SettingsPolicySaveRequest))]

@@ -139,6 +139,19 @@ public sealed class AdminEndpointRoutesTests
             AdminEndpointRoutes.MailAccountOrganizationPath(account));
     }
 
+    /// <summary>The known-provider paths, with a host escaped as the one segment the deployment's route reads it from.</summary>
+    [Fact]
+    public void KnownProviderPaths_AreTheRoutesTheDeploymentServesTheListAt()
+    {
+        Assert.Equal("/api/admin/known-authentication-providers", AdminEndpointRoutes.KnownProvidersPath);
+        Assert.Equal(
+            "/api/admin/known-authentication-providers/imap.gmail.com",
+            AdminEndpointRoutes.KnownProviderPath("imap.gmail.com"));
+        Assert.Equal(
+            "/api/admin/known-authentication-providers/imap.example.test%2Finbox",
+            AdminEndpointRoutes.KnownProviderPath("imap.example.test/inbox"));
+    }
+
     /// <summary>
     /// The organization paths and the one moving a user between organizations, pinned for the reason every other path
     /// here is: a rename on either side would compile cleanly and leave the command reaching a 404 that reads exactly

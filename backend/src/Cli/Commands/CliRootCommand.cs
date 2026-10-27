@@ -11,6 +11,7 @@ using MailFathom.Cli.Commands.Exports;
 using MailFathom.Cli.Commands.Folders;
 using MailFathom.Cli.Commands.Groups;
 using MailFathom.Cli.Commands.Jobs;
+using MailFathom.Cli.Commands.KnownProviders;
 using MailFathom.Cli.Commands.Organizations;
 using MailFathom.Cli.Commands.Outbox;
 using MailFathom.Cli.Commands.Policies;
@@ -316,6 +317,15 @@ internal static class CliRootCommand
             DeleteUserCredentialCommand.Create(context),
         };
 
+        // Which receiving server an account believes about who sent its mail where it names none itself. Deployment-wide
+        // rather than under "account", because one entry decides it for every account on a host at once.
+        Command knownProviderCommand = new("known-provider", "Read and change the providers whose authentication results accounts believe by default.")
+        {
+            ListKnownProvidersCommand.Create(context),
+            AddKnownProviderCommand.Create(context),
+            RemoveKnownProviderCommand.Create(context),
+        };
+
         // The only option the root owns. It governs what the runner does once a command has finished rather than
         // anything a command does, so it is declared once and made recursive rather than added to each of them.
         return new RootCommand($"MailFathom administration tool ({version.Version}).")
@@ -345,6 +355,7 @@ internal static class CliRootCommand
             assignmentCommand,
             accountCommand,
             credentialCommand,
+            knownProviderCommand,
         };
     }
 }

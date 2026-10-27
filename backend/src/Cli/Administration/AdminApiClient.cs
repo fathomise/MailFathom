@@ -16,6 +16,7 @@ using MailFathom.Cli.Administration.Exports;
 using MailFathom.Cli.Administration.Folders;
 using MailFathom.Cli.Administration.Grants;
 using MailFathom.Cli.Administration.Jobs;
+using MailFathom.Cli.Administration.KnownProviders;
 using MailFathom.Cli.Administration.Mailboxes;
 using MailFathom.Cli.Administration.Organizations;
 using MailFathom.Cli.Administration.Outbox;
@@ -1993,6 +1994,60 @@ internal sealed class AdminApiClient
     /// <remarks>The organization routes answer <c>404</c> for an organization the deployment does not hold, so without this the operator would be sent after a listener and a port by a deployment that is answering perfectly well.</remarks>
     private const string NoSuchOrganization =
         "This deployment holds no organization under that identifier. Run 'mfctl organization list' and name one it holds.";
+
+    /// <summary>Reads every known authentication provider, following the listing's cursor to its end.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="cancellationToken">Cancels the requests.</param>
+    /// <returns>The entries, in the order they were added.</returns>
+    /// <exception cref="CliFailure">Thrown when the deployment refused a request or the credential, could not be reached, or answered with something that is not a listing.</exception>
+    internal async Task<IReadOnlyList<KnownProviderEntry>> ReadKnownProvidersAsync(string token, CancellationToken cancellationToken)
+    {
+        var pages = await this.ReadEveryPageAsync(
+            AdminEndpointRoutes.KnownProvidersPath,
+            token,
+            CliJsonContext.Default.KnownProviderList,
+            page => page.NextCursor,
+            cancellationToken);
+
+        return [.. pages.SelectMany(page => page.Providers ?? [])];
+    }
+
+    /// <summary>Adds a known authentication provider.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="request">The IMAP host and the authserv-id.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The entry in the form the deployment matches it by.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="request" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused either value, already lists the host, refused the credential, or could not be reached.</exception>
+    internal Task<KnownProviderAdded> AddKnownProviderAsync(
+        string token,
+        KnownProviderRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return this.RequestAsync(
+            HttpMethod.Post,
+            AdminEndpointRoutes.KnownProvidersPath,
+            token,
+            CliJsonContext.Default.KnownProviderAdded,
+            cancellationToken,
+            JsonContent.Create(request, CliJsonContext.Default.KnownProviderRequest));
+    }
+
+    /// <summary>Removes the known authentication provider for one host.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="imapHost">The IMAP host.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>A task that completes once the entry is gone.</returns>
+    /// <exception cref="CliFailure">Thrown when the list names no provider for the host, the host was refused, the credential was refused, or the deployment could not be reached.</exception>
+    internal Task RemoveKnownProviderAsync(string token, string imapHost, CancellationToken cancellationToken) =>
+        this.RequestAsync(
+            HttpMethod.Delete,
+            AdminEndpointRoutes.KnownProviderPath(imapHost),
+            token,
+            cancellationToken,
+            absenceMessage: "The deployment lists no provider for that IMAP host. Run 'mfctl known-provider list' to read the hosts it does list.");
 
     /// <summary>Reads every organization a deployment holds, following the listing's cursor to its end.</summary>
     /// <param name="token">The bearer credential to present.</param>

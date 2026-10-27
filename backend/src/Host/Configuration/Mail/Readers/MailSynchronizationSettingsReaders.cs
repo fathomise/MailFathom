@@ -49,9 +49,6 @@ internal sealed class MailSynchronizationSettingsReaders(MailSynchronizationOpti
     // configuration snapshot holds. So ConfiguredMailAccountCatalog is composed where that user is resolvable, and
     // whatever needs the account set resolves the application port instead of reaching into a snapshot for it.
 
-    /// <summary>Gets which authentication results an account believes.</summary>
-    internal ConfiguredTrustedAuthenticationAuthorityReader TrustedAuthenticationAuthorities { get; } = new(settings);
-
     /// <summary>Gets which senders an account recognizes.</summary>
     internal ConfiguredSenderTrustPolicyReader SenderTrustPolicies { get; } = new(settings);
 

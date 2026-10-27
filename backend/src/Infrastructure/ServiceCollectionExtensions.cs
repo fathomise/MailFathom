@@ -85,6 +85,7 @@ using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Application.Mail.Delivery.Submission;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Mail.Export;
+using MailFathom.Application.Mail.KnownAuthenticationProviders;
 using MailFathom.Application.Mail.Maintenance;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
@@ -154,6 +155,7 @@ using MailFathom.Infrastructure.Persistence.Accounts;
 using MailFathom.Infrastructure.Persistence.Agent;
 using MailFathom.Infrastructure.Persistence.AiProviders;
 using MailFathom.Infrastructure.Persistence.Answering;
+using MailFathom.Infrastructure.Persistence.Authentication;
 using MailFathom.Infrastructure.Persistence.Calendar;
 using MailFathom.Infrastructure.Persistence.ClientAssertions;
 using MailFathom.Infrastructure.Persistence.ClientSessions;
@@ -651,6 +653,12 @@ public static class ServiceCollectionExtensions
         // first key through the same minter in the transaction that records the organization.
         services.AddSingleton<OrganizationSigningKeyMinter>();
         services.AddScoped<IOrganizationSigningKeyStore, PersistedOrganizationSigningKeys>();
+        // The providers whose receiving server an account believes by default: one store answering both the extraction
+        // that reads an entry and the administrator who changes the list, scoped for the reason the stores above are.
+        services.AddScoped<PersistedKnownAuthenticationProviders>();
+        services.AddScoped<IKnownAuthenticationProviderStore>(provider => provider.GetRequiredService<PersistedKnownAuthenticationProviders>());
+        services.AddScoped<IKnownAuthenticationProviderDirectory>(provider => provider.GetRequiredService<PersistedKnownAuthenticationProviders>());
+        services.AddScoped<KnownAuthenticationProviderAdministration>();
         // The settings policy the deployment and each organization hold. Scoped for the reason the organization store
         // is: it reads and writes through the request's own context.
         services.AddScoped<ISettingsPolicyStore, PersistedSettingsPolicies>();

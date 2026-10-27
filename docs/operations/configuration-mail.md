@@ -78,7 +78,7 @@ than met later by a run.
 | `…:Secrets:Password` | secret block | unset | Required when the permitted mechanisms include any password mechanism; must resolve at startup | reload; material per connection |
 | `…:Mode` | enum | `Polling` | `Polling`, `Push`; push holds one connection open per account on a server supporting `NOTIFY`, and one per folder on a server offering only `IDLE` | reload; the next run adopts it |
 | `…:EarliestEmailReceivedDate` | date | unset (everything) | Not in the future (compared in UTC) | reload |
-| `…:TrustedAuthenticationServiceIdentifier` | string | unset (believe no header) | The authserv-id of the server that receives this account's mail; at most 253 characters and no whitespace, compared without regard to case. Present and unusable fails startup; omitted is an ordinary choice | reload; the next extraction reads against it |
+| `…:TrustedAuthenticationServiceIdentifier` | string | unset (believe the known provider listed for `Host`, else no header) | The authserv-id of the server that receives this account's mail; at most 253 characters and no whitespace, compared without regard to case. Present and unusable fails startup; omitted is an ordinary choice | reload; the next extraction reads against it |
 | `…:RemotelyDeletedEmailDisposition` | enum | `EraseLocalCopy` | `RetainTombstone`, `EraseLocalCopy`; see [what a deletion does](#what-a-deletion-does--three-settings) | reload; governs disappearances observed from then on |
 | `…:AuthoredDeleteEmailDisposition` | enum | `EraseLocalCopy` | `RetainLocalCopy`, `RetainTombstone`, `EraseLocalCopy`; what becomes of the local copy of mail MailFathom itself deleted, and it takes precedence over the key above for those | reload; governs deletes authored from then on |
 | `…:AuthoredDeleteServerDisposition` | enum | `Expunge` | `Expunge`, `FlagDeleted`, read by name; any other name fails startup and is refused when a record is written. What a delete MailFathom authored does on the mail server: `Expunge` removes the message, `FlagDeleted` only marks it `\Deleted` and leaves it there. `FlagDeleted` is refused as the account's setting while MailFathom holds its mailbox | reload; governs deletes authored from then on |
@@ -103,9 +103,12 @@ than met later by a run.
 | `…:SensitiveContent` | block | unset (the deployment's posture) | What this mailbox asks for over the mail in it, within what the deployment provides; [scanning this account's mail](#scanning-this-accounts-mail--sensitivecontent) holds every key | reload |
 
 `TrustedAuthenticationServiceIdentifier` names the one server whose `Authentication-Results` headers this account
-believes, which is what stops the check from being defeated by a header an attacker wrote upstream. There is nothing to
-default it to, because the right value is a property of who receives this account's mail; an account that omits it
-believes no header and every message it holds records that nothing was established.
+believes, which is what stops the check from being defeated by a header an attacker wrote upstream. The right value is
+a property of who receives this account's mail, so an account that omits it believes the server the deployment's
+[known authentication providers](admin-endpoint.md#known-authentication-providers) list for the IMAP host in its
+`Host` — `mx.google.com` for `imap.gmail.com`, out of the box — and, on a host the list does not name, no header at all,
+so every message it holds records that nothing was established. An account that sets it keeps its own whatever the list
+says, which is the setting for a mailbox behind a gateway or a self-hosted server.
 [Sender authentication](../features/sender-authentication.md) states how the header is chosen and what the verdict
 holds.
 

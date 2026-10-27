@@ -1296,7 +1296,7 @@ public sealed class MimeKitEmailMimeReaderTests
         TrustedAuthenticationAuthority.TryCreate(identifier, out var authority);
 
         var authorities = Substitute.For<ITrustedAuthenticationAuthorityReader>();
-        authorities.GetTrustedAuthority(Arg.Any<MailAccountId>()).Returns(authority);
+        authorities.GetTrustedAuthorityAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>()).Returns(authority);
 
         return authorities;
     }
