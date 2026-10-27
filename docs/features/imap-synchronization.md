@@ -225,23 +225,27 @@ are reported and nothing else is:
 
 | What the run observed | What it says | Where it leads |
 | --- | --- | --- |
-| Mail arrived for the person | One notification for the run, carrying the count — never one per message | The mailbox |
+| Mail arrived for the person and settled | One per message while five or fewer stand unread, then one carrying the count | The message, or the mailbox |
 | It ended with folders it did not finish | How many of how many, and that MailFathom will try again | Nowhere |
 | A mail server refused this account's credential | That the account needs signing in again and is no longer being fetched | The settings |
 
-**Arrival is narrower than what a run stored, and the run decides it where it stores rather than by a query
-afterwards.** A message counts as arrival when all three of these hold, and it is not arrival when any one of them
+**Arrival is said when a message settles, not when it is stored, and it is narrower than what a run stored.** A message
+the run stores waits out of every read until its spam verdict and its moving rules have placed it, as
+[the arrival pipeline](../architecture/arrival-pipeline.md#a-message-is-shown-once-it-has-settled) describes, and the
+notification is raised by the stage that settles it — so it names a message the person can already open, in the folder
+it ended up in. A settled message counts as arrival when all of these hold, and it is not arrival when any one of them
 fails:
 
-| The run stored it | Why it decides arrival |
+| The settled message | Why it decides arrival |
 | --- | --- |
-| in a folder whose role is the inbox | Mail the run brought into an archive, a sent folder, or a junk folder is mail it fetched rather than mail waiting for somebody. A server-side rule delivering into a custom folder is real mail arriving, and whether MailFathom says so is a question left open rather than answered here |
-| while the server had not marked it `\Seen` | The person read it somewhere else, so it is news to nobody. The flag is the one the server reported when it described the message, which rides the discovery fetch and costs no second round trip and no write |
-| and MailFathom did not put it there itself | Two of its own acts land a message in a folder like any other arrival: a copy it filed of the user's own outgoing message, which the person wrote, and a copy a rule made into a folder mapped as the inbox, which carries the source's flags and would otherwise announce the message it was copied from. Each is recognized by the record of the act rather than by the folder or the flag, and the run already suppresses the appearance each of them raises |
+| is in the inbox, or reached the inbox and a rule moved it on into a folder other than junk or trash | Mail the run brought into an archive, a sent folder, or any other folder directly is mail it fetched rather than mail waiting for somebody. Mail one of the person's own rules filed out of the inbox is still mail that arrived for them, so it is announced in the folder the rule chose |
+| was not judged spam, and is not in junk or trash | A message filed as junk is never news, whether a verdict or a rule put it there |
+| was not marked `\Seen` by the server when it was stored | The person read it somewhere else, so it is news to nobody. The flag is the one the server reported when it described the message, which rides the discovery fetch and costs no second round trip and no write |
+| was not put there by MailFathom itself | Two of its own acts land a message in a folder like any other arrival: a copy it filed of the user's own outgoing message, which the person wrote, and a copy a rule made, which duplicates a message already shown. Each is recognized by the record of the act when it is stored, and is stored already settled, so the settlement never sees it |
 
-Everything else a run stores is still stored, still indexed, and still searchable; it is only the sentence about
-arrival that it is left out of. A mailbox's first runs therefore backfill years of history without announcing it, which
-is what the narrowing is chiefly for.
+Everything else a run stores is still stored, still indexed, and still searchable once it settles; it is only the
+sentence about arrival that it is left out of. A mailbox's first runs therefore backfill years of history without
+announcing it, which is what the narrowing is chiefly for.
 
 **A few messages are said one at a time, and more than five as one.** While an account's unread arrivals number five or
 fewer, each message is a notification of its own, naming who sent it and what it is about and leading to it, because
@@ -251,9 +255,9 @@ unread each later arrival replaces it again with a count that includes its own �
 centre and announced like any other. Reading it ends the merge. A run that commits forty messages is therefore still one
 row to somebody who was away, and forty would bury every other kind of notification under one mailbox's traffic. The
 rule is counted per person and per account, so one busy account never folds another's mail into its count. A run whose
-arrival is empty says nothing at all — a run that stored nothing, a run that stored only outside the inbox, and a run
-that stored only mail already read are the same silence — and neither does a run that finished every folder it
-scheduled.
+settled arrival is empty says nothing at all — a run that settled nothing, a run whose mail settled only outside the
+inbox, and a run that settled only mail already read are the same silence — and neither does a run that finished every
+folder it scheduled.
 
 **A condition already standing unread is not said twice.** Each notification names the condition it was raised for, and
 the schema refuses a second unread row for the same one — so an account whose credential is refused on every run for a
@@ -274,9 +278,9 @@ something reached this person's mailbox and when, and for one about a message wh
 thirty-day retention bound and the cascades from the message answer for; the bound is swept on each account's own run
 beside the audit-trail retention passes.
 
-**Reporting never fails a run.** It happens after every pass that can still commit mail, so what is reported is the run's whole
-arrival rather than whatever had landed when the report was composed, and a failure there is logged without putting the
-account into backoff — fetching an account's mail less often because a report could not be written would answer the
+**Reporting never fails a run.** The unfinished folders and the refused credential are reported after every pass that
+can still commit mail, and arrival by the settlement stage as each message settles; a failure in either is logged without
+putting the account into backoff — fetching an account's mail less often because a report could not be written would answer the
 wrong problem with the wrong remedy. Nothing is replayed either: what the next run says is what that run observed,
 because a stale count is worse than a missing one.
 

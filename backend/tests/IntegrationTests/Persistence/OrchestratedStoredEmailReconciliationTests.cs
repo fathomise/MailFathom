@@ -381,6 +381,12 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);
 
+        await OrchestratedSettlement.ApplyAsync(
+            services,
+            storedEmailIds.Values,
+            SyntheticEmail.ReceivedAt,
+            cancellationToken);
+
         return storedEmailIds;
     }
 

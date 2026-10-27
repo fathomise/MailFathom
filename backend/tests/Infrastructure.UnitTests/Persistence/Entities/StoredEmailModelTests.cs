@@ -224,6 +224,38 @@ public sealed class StoredEmailModelTests
         Assert.Equal(DeleteBehavior.SetNull, reference.DeleteBehavior);
     }
 
+    /// <summary>The settling queue holds only what has not settled, so it stays the size of the last few runs' mail.</summary>
+    [Fact]
+    public void StoredEmailModel_SettlingIndex_HoldsOnlyRowsStillSettling()
+    {
+        // Act
+        var index = FindStoredEmailIndex(PersistenceConstraintNames.StoredEmailSettlingIndexName);
+
+        // Assert
+        Assert.Equal([nameof(StoredEmailEntity.MailboxAccountId), nameof(StoredEmailEntity.Id)], index.Properties.Select(property => property.Name));
+        Assert.Equal($"\"{nameof(StoredEmailEntity.SettledAt)}\" IS NULL", index.GetFilter());
+    }
+
+    /// <summary>
+    /// A message has usually left the folder it arrived in by the time it settles, so removing that folder clears the
+    /// reference rather than being refused by it or erasing the message.
+    /// </summary>
+    [Fact]
+    public void StoredEmailModel_ArrivalFolderReference_ClearsTheColumnWhenTheFolderIsRemoved()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var reference = StoredEmailEntityType(context)
+            .GetForeignKeys()
+            .Single(key => key.Properties.Any(property => property.Name == nameof(StoredEmailEntity.ArrivalFolderId)));
+
+        // Assert
+        Assert.Equal(typeof(MailFolderEntity), reference.PrincipalEntityType.ClrType);
+        Assert.Equal(DeleteBehavior.SetNull, reference.DeleteBehavior);
+    }
+
     /// <summary>
     /// EF Core leaves a value equal to the property's sentinel out of an insert and lets the column default write it, so a
     /// column whose default differs from its sentinel stores the default in place of a value written as the CLR default.

@@ -343,6 +343,22 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
                 $"\"{nameof(StoredEmailEntity.RulesEvaluatedAt)}\" IS NULL AND "
                 + $"\"{nameof(StoredEmailEntity.FiledFromOutgoingEmailId)}\" IS NULL");
 
+        // The settling queue, filtered for the reason the rule queue above is: a row settles once and stays settled, so in
+        // steady state the filter holds only the mail of the last few runs while every read of the account runs past it.
+        entity.HasIndex(
+                email => new { email.MailboxAccountId, email.Id },
+                PersistenceConstraintNames.StoredEmailSettlingIndexName)
+            .HasDatabaseName(PersistenceConstraintNames.StoredEmailSettlingIndexName)
+            .HasFilter($"\"{nameof(StoredEmailEntity.SettledAt)}\" IS NULL");
+
+        // Set null rather than no action, unlike the folder reference above: a message has left the folder it arrived in
+        // by the time a rule's move settles, so that folder may be removed while the row still names it, and the only
+        // reader — the settlement deciding whether to announce — then treats the message as not having reached the inbox.
+        entity.HasOne(email => email.ArrivalFolder)
+            .WithMany()
+            .HasForeignKey(email => email.ArrivalFolderId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // What synchronization asks of every message it meets in a held account's sent folder: whether it is the copy
         // of a send already filed locally. Filtered to the filed copies no server has returned yet, which is a handful
         // at most, so the question costs an empty probe on every other message rather than a walk of the account.

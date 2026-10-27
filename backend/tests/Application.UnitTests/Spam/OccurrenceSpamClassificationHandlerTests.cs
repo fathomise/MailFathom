@@ -6,6 +6,7 @@ using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Synchronization;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -152,6 +153,7 @@ public sealed class OccurrenceSpamClassificationHandlerTests
                     actions ?? SpamActionSettings.None,
                     SpamClassificationHarness.OccurrenceReader(Account, Inbox),
                     sessionFactory,
-                    commitPolicy)));
+                    commitPolicy),
+                new MailAccountRunSignal()));
     }
 }

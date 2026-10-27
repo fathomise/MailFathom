@@ -562,6 +562,37 @@ internal sealed class StoredEmailEntity
     /// </remarks>
     public DateTimeOffset? RulesEvaluatedAt { get; set; }
 
+    /// <summary>
+    /// Gets or sets when the message settled, or <see langword="null" /> while it is still settling.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A message synchronization has just stored is settling until its spam verdict and its moving rules have decided
+    /// where it belongs, and a settling message is absent from every read a person or a tool makes. The value is written
+    /// once, by the settlement pass, and never cleared, so the read predicate, the arrival signal, and the arrival
+    /// notification all answer from one durable fact rather than each deriving it again.
+    /// </para>
+    /// <para>
+    /// A message MailFathom wrote itself — a filed copy of a send or a draft, or a held account's local copy — is stored
+    /// settled, because nothing arrived. The migration that adds the column settles every row already stored, so an
+    /// upgrade hides nothing.
+    /// </para>
+    /// </remarks>
+    public DateTimeOffset? SettledAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the folder synchronization stored the message into, or <see langword="null" /> for a row stored
+    /// before arrivals were recorded and for a message no source delivered.
+    /// </summary>
+    /// <remarks>
+    /// Written once, at the arrival, and never moved with the message. The settlement reads it to tell a message that
+    /// reached the inbox from one that arrived in another folder, which is the line the arrival notification is drawn on
+    /// once a rule or a spam verdict has moved the message on.
+    /// </remarks>
+    public Guid? ArrivalFolderId { get; set; }
+
+    public MailFolderEntity? ArrivalFolder { get; set; }
+
     public uint ConcurrencyVersion { get; set; }
 
     public EmailMessageContentEntity? Content { get; set; }

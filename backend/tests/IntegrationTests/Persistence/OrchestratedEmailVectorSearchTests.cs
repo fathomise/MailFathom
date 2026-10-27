@@ -119,7 +119,7 @@ public sealed class OrchestratedEmailVectorSearchTests(MailFathomOrchestrationFi
         keyword: null,
         hasAttachments: null);
 
-    /// <summary>Stores one synthetic message and cuts it, which is the state an account run leaves one in.</summary>
+    /// <summary>Stores, cuts, and settles one synthetic message: the state an account run leaves one in.</summary>
     private static async Task<StoredEmailId> StoreOneMessageAsync(
         OrchestratedMailFathomServices services,
         MailFolderResolution binding,
@@ -148,6 +148,11 @@ public sealed class OrchestratedEmailVectorSearchTests(MailFathomOrchestrationFi
 
         // The passages every vector below hangs on, cut in their own transaction because storing no longer cuts.
         await OrchestratedPassages.CutAsync(services, storedEmailId, cancellationToken);
+        await OrchestratedSettlement.ApplyAsync(
+            services,
+            [storedEmailId],
+            SyntheticEmail.ReceivedAt,
+            cancellationToken);
 
         return storedEmailId;
     }

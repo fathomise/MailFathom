@@ -737,7 +737,8 @@ a second fetch fixes the first three and may well reproduce the fourth. Which on
 message.
 
 An email the local copy holds no row for, one belonging to an account this deployment no longer serves, one stored in a
-folder no mapping names at all, and — when the read answers for an agent — one stored in a folder mapped with
+folder no mapping names at all, one still [settling](../architecture/arrival-pipeline.md#a-message-is-shown-once-it-has-settled)
+— stored by a run whose verdict and rules have not placed it yet — and — when the read answers for an agent — one stored in a folder mapped with
 `VisibleToAI: false`, one judged spam, and one in the account's junk folder that its owner has not marked not spam are
 all reported as `53002 StoredEmailNotFound`. One failure covers them, for the reason
 `53001 MailAccountNotAccessible` covers both of its cases: a caller that could tell them apart could learn which

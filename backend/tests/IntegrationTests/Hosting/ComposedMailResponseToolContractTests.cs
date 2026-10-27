@@ -188,6 +188,13 @@ public sealed class ComposedMailResponseToolContractTests(MailFathomOrchestratio
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);
 
+        // The composed host runs no account run, so nothing would settle the message the tool is asked to answer.
+        await OrchestratedSettlement.ApplyAsync(
+            services,
+            [storedEmailId!.Value],
+            SyntheticEmail.ReceivedAt,
+            cancellationToken);
+
         return storedEmailId!.Value;
     }
 

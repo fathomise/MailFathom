@@ -136,90 +136,6 @@ public sealed class MailboxSynchronizerTests
         await checkpointStore.Received(1).SaveCheckpointAsync(persistenceSession, accountId, folder.Id, Arg.Any<SynchronizationCheckpoint?>(), Arg.Is<SynchronizationCheckpoint>(checkpoint => checkpoint!.LastSeenUid == uid), CancellationToken.None);
     }
 
-    /// <summary>What a run reports as arrived mail: stored in the inbox, and unread on the server when it was stored.</summary>
-    [Fact]
-    public async Task SynchronizeAsync_UnreadMessageStoredInTheInbox_ReportsItAsArrivedMail()
-    {
-        // Arrange
-        var accountId = MailAccountId.Create("primary");
-        var uidValidity = ImapUidValidity.Create(5);
-        var occurrence = EmailOccurrenceId.Create(accountId, InboxFolder.Id, uidValidity, ImapUid.Create(10));
-        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
-        var arrangement = ArrangeContentRun(options, uidValidity, [MetadataOf(occurrence, 600)], occurrence.Uid);
-        StubRetrievedContent(arrangement.Session, options, occurrence, 600);
-
-        // Act
-        var result = await arrangement.Synchronizer.SynchronizeAsync(
-            accountId,
-            InboxMapping,
-            CancellationToken.None);
-
-        // Assert
-        Assert.Equal(1, result.StoredEmailCount);
-        Assert.Single(result.ArrivedEmails);
-    }
-
-    /// <summary>
-    /// Mail the server had already marked <c>\Seen</c> is news to nobody: the person read it somewhere else, and a run
-    /// that says it arrived is announcing a backfill rather than an arrival.
-    /// </summary>
-    [Fact]
-    public async Task SynchronizeAsync_MessageTheServerHadAlreadyMarkedRead_StoresItWithoutReportingItAsArrival()
-    {
-        // Arrange
-        var accountId = MailAccountId.Create("primary");
-        var uidValidity = ImapUidValidity.Create(5);
-        var occurrence = EmailOccurrenceId.Create(accountId, InboxFolder.Id, uidValidity, ImapUid.Create(10));
-        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
-        var arrangement = ArrangeContentRun(
-            options,
-            uidValidity,
-            [MetadataOf(occurrence, 600, isRemotelySeen: true)],
-            occurrence.Uid);
-        StubRetrievedContent(arrangement.Session, options, occurrence, 600);
-
-        // Act
-        var result = await arrangement.Synchronizer.SynchronizeAsync(
-            accountId,
-            InboxMapping,
-            CancellationToken.None);
-
-        // Assert
-        Assert.Equal(1, result.StoredEmailCount);
-        Assert.Empty(result.ArrivedEmails);
-    }
-
-    /// <summary>
-    /// Only the inbox raises an arrival. Mail this run stored in an archive, a sent folder, or anywhere else the
-    /// account synchronizes is mail the run fetched rather than mail waiting for a person.
-    /// </summary>
-    [Fact]
-    public async Task SynchronizeAsync_UnreadMessageStoredOutsideTheInbox_StoresItWithoutReportingItAsArrival()
-    {
-        // Arrange
-        var accountId = MailAccountId.Create("primary");
-        var uidValidity = ImapUidValidity.Create(5);
-        var occurrence = EmailOccurrenceId.Create(accountId, ArchiveFolder.Id, uidValidity, ImapUid.Create(10));
-        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
-        var arrangement = ArrangeContentRun(
-            options,
-            uidValidity,
-            [MetadataOf(occurrence, 600)],
-            occurrence.Uid,
-            runFolder: ArchiveFolder);
-        StubRetrievedContent(arrangement.Session, options, occurrence, 600);
-
-        // Act
-        var result = await arrangement.Synchronizer.SynchronizeAsync(
-            accountId,
-            ArchiveMapping,
-            CancellationToken.None);
-
-        // Assert
-        Assert.Equal(1, result.StoredEmailCount);
-        Assert.Empty(result.ArrivedEmails);
-    }
-
     /// <summary>
     /// On a held account a stored message lands in the local folder its source corresponds to, and the source is what
     /// the run resolved: its alias to match it by, its role to decide whether a protected folder takes it, and the last
@@ -731,8 +647,11 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Empty(result.ArrivedEmails);
         Assert.Equal(0, result.RelocatedEmailCount);
+        await metadataRepository.Received(1).RecordSettledOnArrivalAsync(
+            persistenceSession,
+            storedEmailId,
+            Arg.Any<CancellationToken>());
         await metadataRepository.DidNotReceiveWithAnyArgs().TryCarryToOccurrenceAsync(
             Arg.Any<IPersistenceSession>(),
             Arg.Any<StoredEmailId>(),
@@ -3172,7 +3091,6 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Empty(result.ArrivedEmails);
         await context.AssertJoinedToTheSendAsync();
     }
 
@@ -3192,7 +3110,6 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Empty(result.ArrivedEmails);
         await context.AssertJoinedToTheSendAsync();
     }
 
@@ -3208,7 +3125,6 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Single(result.ArrivedEmails);
         await context.AssertStoredAsArrivingMailAsync();
     }
 

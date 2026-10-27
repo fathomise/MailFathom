@@ -123,6 +123,13 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
             Assert.Equal(MailboxMutationStatus.Performed, outcome.Status);
         }
 
+        // A synchronizer run alone leaves its mail settling, and the summary read below admits settled mail only.
+        await OrchestratedSettlement.ApplyAsync(
+            services,
+            storedIds.Values,
+            TimeProvider.System.GetUtcNow(),
+            cancellationToken);
+
         // Act
         var result = await SynchronizeAsync(services, FolderMapping, cancellationToken);
 
@@ -229,6 +236,13 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
             (await SynchronizeAsync(services, ReadFolderMapping, cancellationToken))
                 .Reconciliation
                 .OwnMutationCompletedEmailCount);
+
+        // A synchronizer run alone leaves its mail settling, and every read below admits settled mail only.
+        await OrchestratedSettlement.ApplyAsync(
+            services,
+            [.. stored.Values.Select(row => row.StoredEmailId)],
+            TimeProvider.System.GetUtcNow(),
+            cancellationToken);
 
         var retained = stored[AuthoredDeleteEmailDisposition.RetainLocalCopy];
         var tombstoned = stored[AuthoredDeleteEmailDisposition.RetainTombstone];

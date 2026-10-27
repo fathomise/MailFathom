@@ -24,7 +24,7 @@ public readonly record struct ClientSignalKind
 
     private ClientSignalKind(string name) => this.name = name;
 
-    /// <summary>Gets the kind raised when a synchronization run committed mail.</summary>
+    /// <summary>Gets the kind raised when a run settled newly arrived mail, so every read now returns it.</summary>
     public static ClientSignalKind MailArrived { get; } = new("mail.arrived");
 
     /// <summary>Gets the kind raised when mail was moved or deleted remotely, keywords moved, or a pending change settled.</summary>

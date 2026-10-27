@@ -68,7 +68,10 @@ public sealed class MailFolderModelTests
         Assert.Equal("\"SourceFolderAlias\" IS NOT NULL AND \"ErasedAt\" IS NULL", index.GetFilter());
     }
 
-    /// <summary>Erasing an account takes its hierarchy with it, and removing a folder never takes the mail filed in it.</summary>
+    /// <summary>
+    /// Erasing an account takes its hierarchy with it, and removing a folder never takes the mail filed in it: a reference
+    /// to the folder a message is in refuses the removal, and the one to the folder it arrived in only clears.
+    /// </summary>
     [Fact]
     public void MailFolderModel_TheKeys_CascadeFromTheAccountAndNeverOntoStoredMail()
     {
@@ -88,7 +91,10 @@ public sealed class MailFolderModelTests
         // Assert
         Assert.Equal(DeleteBehavior.Cascade, accountKey.DeleteBehavior);
         Assert.NotEmpty(storedEmailKeys);
-        Assert.All(storedEmailKeys, foreignKey => Assert.Equal(DeleteBehavior.NoAction, foreignKey.DeleteBehavior));
+        Assert.All(storedEmailKeys, foreignKey => Assert.Contains(foreignKey.DeleteBehavior, (DeleteBehavior[])[DeleteBehavior.NoAction, DeleteBehavior.SetNull]));
+        Assert.All(
+            storedEmailKeys.Where(foreignKey => foreignKey.DeleteBehavior == DeleteBehavior.SetNull),
+            foreignKey => Assert.Equal([nameof(StoredEmailEntity.ArrivalFolderId)], foreignKey.Properties.Select(property => property.Name)));
     }
 
     /// <summary>Every hierarchy write bumps the revision, so it is what makes a write conditional on the hierarchy it read.</summary>

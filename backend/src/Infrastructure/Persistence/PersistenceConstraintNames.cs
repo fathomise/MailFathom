@@ -90,6 +90,8 @@ internal static class PersistenceConstraintNames
     /// <summary>The queue of mail no rule pass has evaluated, which is read once per account run and is usually empty.</summary>
     internal const string StoredEmailAwaitingRuleEvaluationIndexName = "ix_stored_emails_awaiting_rule_evaluation";
 
+    internal const string StoredEmailSettlingIndexName = "ix_stored_emails_settling";
+
     /// <summary>The sent copies a held account filed locally that no server has returned yet, found by their <c>Message-ID</c>.</summary>
     internal const string StoredEmailFiledSentCopyIndexName = "ix_stored_emails_filed_sent_copy";
 
