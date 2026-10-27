@@ -4452,7 +4452,7 @@ record's already-derived text and reach a client entitled to read that record ov
 
 | Signal | What it says |
 | --- | --- |
-| `mail.arrived` | A run committed mail into one folder, and how much |
+| `mail.arrived` | A run settled newly arrived mail of one account — its verdict and its rules have placed it, so every route above now returns it — and how much |
 | `mail.changed` | Stored mail in one folder, or in every folder of one account, is no longer what a client last read, naming up to 100 of the rows |
 | `mail.flags.changed` | Nothing moved but the `\Seen` or `\Flagged` flag of up to 100 rows, and where each of those flags now stands |
 | `folders.changed` | The set of folders an account mirrors, or a held account's local folders, has moved |
@@ -4478,7 +4478,10 @@ settled against the server — a move, a copy, a delete, a keyword or a flag cha
 run's reconciliation finds moved are known by the server's folders rather than by the folders a client draws, so their
 `mail.changed` and `mail.flags.changed` carry no folder and reach every folder of the account; a client re-reads what it
 draws of that account, and applies a stated flag to whichever row it holds. A change made to mail MailFathom holds
-names the folder it happened in, and an arrival names the folder it landed in.
+names the folder it happened in. An arrival names no folder either: what a run settles is a set of messages each in the
+folder its verdict and its rules left it in, so its `mail.arrived` reaches every folder of the account, and a client
+re-reads what it draws of that account. Mail a run stored but has not settled is not said at all, because no route
+returns it yet.
 
 **A settled move is announced twice.** The first statement comes when the mail server has taken the move, which is
 before the account's next run finds the message in its new folder and moves the stored row with it — so a client
@@ -4486,9 +4489,9 @@ re-reading on it reads a folder that does not hold the message yet. The run that
 naming the messages it carried, and that is the read that finds them. A client holding none of the named rows reads its
 folder's leading page again, as it would for an arrival.
 
-**Statements are folded per user, per kind, and per place over half a second.** A run committing a folder's worth of
-mail is one arrival to the person who was away from the screen rather than one statement per message, and two folders'
-arrivals stay two statements so a client is never told that mail arrived without being told where to look.
+**Statements are folded per user, per kind, and per place over half a second.** A run settling a mailbox's worth of
+mail is one arrival to the person who was away from the screen rather than one statement per message, and two accounts'
+arrivals stay two statements.
 
 **A client with no channel behaves exactly as one that never had it.** Every screen re-reads over the routes above, and
 the channel only decides when. So a deployment behind a reverse proxy that does not pass the WebSocket upgrade, or one

@@ -1,6 +1,6 @@
 # The arrival pipeline
 
-<!-- describes: backend/src/Application/Synchronization/MailboxSynchronizer.cs, backend/src/Application/Emails/Chunking/MailChunkingPass.cs, backend/src/Infrastructure/Persistence/Emails/StoredEmailChunkingStore.cs, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/Extraction/SenderTrustEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Extraction/MachineAuthorshipEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Threads/EmailThreadAssembly.cs, backend/src/Application/Spam/Gating/**, backend/src/Application/Spam/Runs/SpamClassificationPass.cs, backend/src/Application/Spam/Floor/SpamVerdictFloorPass.cs, backend/src/Application/Spam/SpamClassificationArrivals.cs, backend/src/Application/Contacts/Collection/MailContactCollector.cs, backend/src/Application/Spam/EmailSpamClassificationHandler.cs, backend/src/Application/Rules/Evaluation/MailRuleEvaluationPass.cs, backend/src/Application/Emails/Enrichment/MailEnrichmentPass.cs, backend/src/Application/Emails/ThreadStates/ThreadStateDerivationPass.cs, backend/src/Host/Hosting/Workers/AccountSynchronizationSupervisor.cs, backend/src/Host/Hosting/Workers/MailEmbeddingWorker.cs -->
+<!-- describes: backend/src/Application/Synchronization/MailboxSynchronizer.cs, backend/src/Application/Emails/Chunking/MailChunkingPass.cs, backend/src/Infrastructure/Persistence/Emails/StoredEmailChunkingStore.cs, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/Extraction/SenderTrustEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Extraction/MachineAuthorshipEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Threads/EmailThreadAssembly.cs, backend/src/Application/Spam/Gating/**, backend/src/Application/Spam/Runs/SpamClassificationPass.cs, backend/src/Application/Spam/Floor/SpamVerdictFloorPass.cs, backend/src/Application/Spam/SpamClassificationArrivals.cs, backend/src/Application/Contacts/Collection/MailContactCollector.cs, backend/src/Application/Spam/EmailSpamClassificationHandler.cs, backend/src/Application/Rules/Evaluation/MailRuleEvaluationPass.cs, backend/src/Application/Emails/Settlement/**, backend/src/Infrastructure/Persistence/Emails/MailSettlementStore.cs, backend/src/Application/Emails/Enrichment/MailEnrichmentPass.cs, backend/src/Application/Emails/ThreadStates/ThreadStateDerivationPass.cs, backend/src/Host/Hosting/Workers/AccountSynchronizationSupervisor.cs, backend/src/Host/Hosting/Workers/MailEmbeddingWorker.cs -->
 
 Nine features decide what happens to a message between the moment synchronization fetches it and the moment
 everything derived from it exists. Each of them documents its own half, and none of them can state the order, because
@@ -27,6 +27,7 @@ flowchart TD
         floor["Raise junk mail to the spam floor — every account, classifying or not"]
         classify["Classification pass — only when somebody asked for a run over the whole mailbox"]
         rules["Rule evaluation pass"]
+        settle["Settle: admit the message to every read, and announce its arrival"]
         cut["Cut the passages"]
         read["Read the attachments — only where the deployment turned it on"]
         offer(["Offer the message to the embedding backlog"])
@@ -64,7 +65,7 @@ flowchart TD
     gate -- "not junk, or no classification covers the folder" --> rules
     gate -- "no verdict yet: queued, running, or the job ran out of attempts" --> held["Held; the next run or a sweep asks again"]
     gate -- "released: unclassifiable, or waited longer than allowed" --> rules
-    rules --> cut
+    rules --> settle --> cut
     cut --> offer
     cut --> read
     read --> offer
@@ -152,11 +153,10 @@ record. [Mail delivery](../features/mail-delivery.md#how-a-written-down-send-rea
 described; nothing else on this page concerns it.
 
 The last step of that sequence belongs to no arrival either, and is drawn nowhere above for the same reason: once the
-passes have finished, the run tells every user the account is assigned to what happened to it — mail arrived, a credential was refused,
+passes have finished, the run tells every user the account is assigned to what happened to it — a credential was refused,
 some folders did not finish. It is stated per run rather than per message, which is why it cannot sit on this page's
-graph: what it reports is the run's own outcome, and the count it carries is how much of what the passes above stored
-was mail arriving for the person — the inbox, unread on the server, and nothing MailFathom itself placed there —
-rather than anything derived from one message. It is the weakest link in the sequence exactly as the drain is, and for
+graph: what it reports is the run's own outcome rather than anything derived from one message. Arrival is not part of
+it: that is said by the settlement, below, about each message as it settles. It is the weakest link in the sequence exactly as the drain is, and for
 a stronger reason — a run whose whole point was to fetch mail must not be failed by the record saying it did.
 [What a run tells the person whose mailbox it is](../features/imap-synchronization.md#what-a-run-tells-the-person-whose-mailbox-it-is)
 describes it; nothing else on this page concerns it either.
@@ -166,6 +166,56 @@ outside the commit that follows it, so does the chat provider a picture is descr
 reached only by the worker, which consumes committed state. The chat provider is drawn apart from the sidecar because
 it is not one: a sidecar is a process a deployment runs beside MailFathom, and this is a remote endpoint configured under
 `Chat:` that mail content leaves the deployment to reach.
+
+## A message is shown once it has settled
+
+**Nothing reads a message the run has just stored until its spam verdict and its moving rules have placed it.** A row
+is stored *settling*, and the settlement stage that follows the rule pass is what admits it: it writes the instant the
+message settled, and every read a person or an agent makes — each listing, count, search, retrieval, thread, and read by
+identifier, over the client endpoint and the MCP tools alike — admits settled mail alone, through the one selection
+predicate they share and the one read by identifier. Without it a reader sees a message in the inbox and then sees it
+vanish into junk or into the folder a rule filed it in, and is told about mail that was already somewhere else. What
+keeps working on settling mail is everything MailFathom does on its own behalf rather than a reader's: erasure, export,
+retention, the drain and the restore, reconciliation, the rule pass and classification themselves.
+
+A message settles once every one of these holds, and the settlement reads each from what the stages before it already
+recorded rather than asking them again:
+
+| It waits for | Until | Why |
+| --- | --- | --- |
+| Its content | The payload is stored, or will never be because it is over the size limit | The sender's authentication — DKIM, SPF, DMARC, the trust this deployment grants — and the message's own signature are established when its content is read, so a message waiting for storage headroom would otherwise be shown as from an unverified sender and verified a run later |
+| A spam verdict | The gate above admits or withholds it | A verdict may still file it into junk |
+| The rules | The rule pass has evaluated it, or no rule ever will — junk, a tombstone, the person's own sent copy | A rule may still move it |
+| A move a rule or a verdict asked for | The move has reached the stored row | So it is shown once, in the folder it ends up in |
+
+Where a move is committed differs by custody phase, and the move's own record already says which, so the phase is never
+read here. On a mirrored account the record carries the move to the server and the row reaches its destination when
+synchronization observes the placement, so the message waits for that observation — the next run, which the verdict
+and a rule that asked for a move each bring forward. A held account commits the move locally with no record, so nothing
+is left to wait for once the rule pass has run. A restoring account commits locally before opening the record that
+carries it to the source, and that record is marked as already committed, so it is not waited for either.
+
+**Every wait is bounded.** A verdict is released on the classification's own terms, and anything else — a stalled rule
+pass, a move that never reaches the row, content that never finds headroom — is released once the message has waited
+the classification wait plus fifteen minutes. A late message is shown late rather than never, and each release is
+counted on `mailfathom.mail.settlements` under the reason, so a stage that stalls shows up there rather than as mail
+somebody is still waiting for.
+
+**Settling is idempotent across replicas.** Two runs reaching the same message is the ordinary case, so the write is
+one conditional statement that settles only rows still settling and returns the ones it settled — and only those are
+signalled and announced. A message a competing replica settled first is neither signalled nor announced a second time.
+Each batch the settlement walks is announced as soon as it is settled, so a walk that fails or is cancelled between
+batches leaves no batch it already settled unannounced. The announcement itself is not durable: the settlement commits
+first and a settled message is never read again, so a failure or a cancellation inside the announcement of the batch
+just settled — after its `mail.arrived` signal, while the notification is being raised — leaves that batch shown
+without a notification. The run logs the failure, and the mail is in the folder as it would have been. Three messages are stored already settled, because none has anything to
+wait for or is news: the copy MailFathom filed of the person's own outgoing message, a copy a rule made of a message
+already shown, and a message stored again because a delete the person asked for was undone on the server. So is
+everything a held account files locally, which no synchronization stores.
+
+What it hands a client and the person is said on settlement rather than on the commit: `mail.arrived` carries how many
+messages one run settled, and the arrival notification is raised for those of them
+[the person is told about](../features/imap-synchronization.md#what-a-run-tells-the-person-whose-mailbox-it-is).
 
 ## The sidecar fails closed, and classification fails open
 
@@ -397,6 +447,7 @@ has a scanner switched on.
 | Classification, its verdicts, and the gate | [Spam classification](../features/spam-classification.md) |
 | Recording the people an account corresponds with | [Contacts](../features/contacts.md#collecting-contacts-from-arriving-mail) |
 | The user's rules and what a match asks for | [Mail rules](../features/mail-rules.md) |
+| When a message settles, and what a read admits | [A message is shown once it has settled](#a-message-is-shown-once-it-has-settled) |
 | Redaction, the stamp, and the egress guard | [Sensitive-content scanning](../features/sensitive-content-scanning.md) |
 | The boundary rules a cut obeys, and what a passage of an attachment carries | [Message chunks](../features/message-chunks.md) |
 | What a document attachment is read with, and what a read reports | [Attachment text extraction](../features/attachment-text-extraction.md) |

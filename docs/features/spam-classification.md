@@ -726,6 +726,14 @@ signal instead of stalling the pass that produced it, and it is watched where ev
 per job type saturates at exactly the bound enqueuing is refused at, which
 [telemetry](../operations/telemetry.md#durable-background-work) states in full.
 
+**A verdict brings the account's next run forward.** A message waits out of every read until its verdict and its rules
+have placed it, and the rules and the settlement are steps of the account run rather than of the job — so a job that
+reaches a verdict asks for that run now rather than at the next interval, and the message is shown, or filed into junk,
+as soon as the run after the verdict has carried it. The request reaches the supervisor in the process the job ran in
+and no other; on a replica that is not running the account, the message waits for the account's own interval instead.
+[A message is shown once it has settled](../architecture/arrival-pipeline.md#a-message-is-shown-once-it-has-settled)
+states what else it waits for.
+
 **A copy of this deployment's own outgoing mail is not asked for either**, and it is the one message whose scoring is
 decided by where it came from rather than by what it holds. A message MailFathom
 [filed](mail-delivery.md#the-copy-in-the-accounts-own-folders) into the account's own sent folder was composed

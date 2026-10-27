@@ -14,6 +14,7 @@ using MailFathom.Application.Emails.Embeddings.Limits;
 using MailFathom.Application.Emails.Embeddings.Vectorization;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Execution;
 using MailFathom.Application.Jobs.Scheduling;
@@ -137,6 +138,7 @@ public sealed class TelemetrySurfaceContractTests
 
     private static readonly MailboxReadTelemetry MailboxRead = new();
     private static readonly MailExtractionBackfillTelemetry ExtractionBackfill = new();
+    private static readonly MailSettlementTelemetry Settlement = new();
     private static readonly MailSynchronizationTelemetry Synchronization = new(Clock);
     private static readonly PersistenceCommitTelemetry PersistenceCommits = new();
     private static readonly SensitiveContentDerivationTelemetry Derivation = new();
@@ -177,6 +179,7 @@ public sealed class TelemetrySurfaceContractTests
         typeof(MailboxMutationTelemetry),
         typeof(MailboxReadTelemetry),
         typeof(MailExtractionBackfillTelemetry),
+        typeof(MailSettlementTelemetry),
         typeof(MailSynchronizationTelemetry),
         typeof(ObjectStorageTelemetry),
         typeof(OrganizationSigningKeyTelemetry),
@@ -313,6 +316,7 @@ public sealed class TelemetrySurfaceContractTests
         DriveAuthorizationRefusals();
         DriveContactCollection();
         DriveDerivedWorkGate();
+        DriveSettlement();
         DriveEmbedding();
         DriveJobQueue();
         await DriveAnsweringAsync();
@@ -471,6 +475,14 @@ public sealed class TelemetrySurfaceContractTests
         }
 
         DerivedWorkGate.RecordDiscardedPassages(61_003);
+    }
+
+    private static void DriveSettlement()
+    {
+        foreach (var settlement in Enum.GetValues<MailSettlement>().Where(static settlement => settlement != MailSettlement.Settling))
+        {
+            Settlement.RecordSettled(settlement);
+        }
     }
 
     private static void DriveEmbedding()

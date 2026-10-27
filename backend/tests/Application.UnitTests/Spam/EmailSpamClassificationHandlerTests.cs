@@ -7,6 +7,7 @@ using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Signals;
+using MailFathom.Application.Synchronization;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -29,6 +30,8 @@ public sealed class EmailSpamClassificationHandlerTests
     private static readonly DateTimeOffset EvaluatedAt = new(2026, 8, 13, 9, 0, 0, TimeSpan.Zero);
 
     private readonly SpamClassificationHarness harness = new(EvaluatedAt);
+
+    private MailAccountRunSignal RunSignal { get; } = new();
 
     public EmailSpamClassificationHandlerTests()
     {
@@ -57,6 +60,38 @@ public sealed class EmailSpamClassificationHandlerTests
         Assert.Equal([emailId], this.harness.Classifications.Saved.Select(classification => classification.EmailId));
         Assert.Equal(SpamVerdict.Spam, this.harness.Classifications.Saved.Single().Verdict);
         Assert.Equal(1, this.harness.Mutations.OpenedRecordCount);
+    }
+
+    /// <summary>The message stays settling until a run has offered it to the rules, so a verdict asks for that run now.</summary>
+    [Fact]
+    public async Task RunAsync_AVerdictIsReached_BringsTheAccountsNextRunForward()
+    {
+        // Arrange
+        var emailId = this.StoreEmail();
+
+        // Act
+        await this.CreateHandler().RunAsync(
+            ClassifyStoredEmailSpamJobPayload.For(Account, emailId),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(this.RunSignal.TakeRaise(Account));
+    }
+
+    /// <summary>A job that reached no verdict changed nothing a run could act on, so it asks for no run.</summary>
+    [Fact]
+    public async Task RunAsync_NoVerdictIsReached_LeavesTheAccountsNextRunWhereItWas()
+    {
+        // Arrange
+        var neverStored = StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000003"));
+
+        // Act
+        await this.CreateHandler().RunAsync(
+            ClassifyStoredEmailSpamJobPayload.For(Account, neverStored),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(this.RunSignal.TakeRaise(Account));
     }
 
     /// <summary>An attempt that committed its verdict and lost its lease leaves the next one the filing to finish.</summary>
@@ -280,6 +315,7 @@ public sealed class EmailSpamClassificationHandlerTests
                 actions ?? SpamActionSettings.None,
                 occurrences ?? SpamClassificationHarness.OccurrenceReader(Account, Inbox),
                 sessionFactory,
-                commitPolicy));
+                commitPolicy),
+            this.RunSignal);
     }
 }

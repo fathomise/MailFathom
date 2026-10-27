@@ -6,6 +6,7 @@ using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Execution;
 using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Spam;
@@ -38,30 +39,41 @@ namespace MailFathom.Application.Spam;
 /// is a change an operator switched on, and that is written down as a durable mutation record for the account's own
 /// convergence pass to carry.
 /// </para>
+/// <para>
+/// A verdict brings the account's next synchronization run forward. The message it is about stays out of every read
+/// until the run has offered it to the rules and carried whatever the verdict asked of the mailbox, so waiting out the
+/// interval would hold it back for exactly that long. The signal reaches this replica's own runs only; an account another
+/// replica runs settles the message on its own interval.
+/// </para>
 /// </remarks>
 public sealed class EmailSpamClassificationHandler : IJobHandler
 {
     private readonly IEmailSpamClassificationStore classifications;
     private readonly EmailSpamClassifier classifier;
     private readonly SpamActionRecorder actionRecorder;
+    private readonly MailAccountRunSignal runSignal;
 
     /// <summary>Initializes the handler over the work one job describes.</summary>
     /// <param name="classifications">Reads the verdict an earlier attempt recorded, so a repeated attempt still acts on it.</param>
     /// <param name="classifier">Reaches a verdict about the stored email and records it.</param>
     /// <param name="actionRecorder">Writes down whatever the operator's switches ask a verdict to do to the mailbox.</param>
+    /// <param name="runSignal">Brings the account's next synchronization run forward once a verdict exists.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     public EmailSpamClassificationHandler(
         IEmailSpamClassificationStore classifications,
         EmailSpamClassifier classifier,
-        SpamActionRecorder actionRecorder)
+        SpamActionRecorder actionRecorder,
+        MailAccountRunSignal runSignal)
     {
         ArgumentNullException.ThrowIfNull(classifications);
         ArgumentNullException.ThrowIfNull(classifier);
         ArgumentNullException.ThrowIfNull(actionRecorder);
+        ArgumentNullException.ThrowIfNull(runSignal);
 
         this.classifications = classifications;
         this.classifier = classifier;
         this.actionRecorder = actionRecorder;
+        this.runSignal = runSignal;
     }
 
     /// <inheritdoc />
@@ -93,6 +105,8 @@ public sealed class EmailSpamClassificationHandler : IJobHandler
                 classification,
                 SpamActionPosture.Acting,
                 cancellationToken);
+
+            this.runSignal.BringForward(account);
         }
     }
 

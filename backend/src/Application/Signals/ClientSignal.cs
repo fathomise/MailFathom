@@ -133,10 +133,10 @@ public sealed class ClientSignal
     /// <summary>Gets the scope two signals must share before one folds into the other.</summary>
     internal ClientSignalScope Scope => new(this.User, this.Kind, this.Account, this.Folder, this.Run, this.Conversation);
 
-    /// <summary>States that a synchronization run committed mail into one folder.</summary>
+    /// <summary>States that a run settled newly arrived mail, which every read now returns.</summary>
     /// <param name="account">The account the run was over.</param>
-    /// <param name="folder">The folder the mail was committed into, or <see langword="null" /> when the run cannot say, which a client reads as any folder of the account.</param>
-    /// <param name="newEmailCount">How many occurrences the run committed there.</param>
+    /// <param name="folder">The folder the mail settled in, or <see langword="null" /> when it settled across several, which a client reads as any folder of the account.</param>
+    /// <param name="newEmailCount">How many messages the run settled.</param>
     /// <returns>The signal.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="newEmailCount" /> is not positive, an arrival of nothing being no arrival.</exception>
     public static ClientSignal MailArrived(MailAccountId account, MailFolderId? folder, int newEmailCount)

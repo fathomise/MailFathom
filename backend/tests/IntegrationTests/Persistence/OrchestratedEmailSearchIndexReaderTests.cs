@@ -303,6 +303,8 @@ public sealed class OrchestratedEmailSearchIndexReaderTests(MailFathomOrchestrat
             return;
         }
 
+        List<StoredEmailId> storedEmailIds = [];
+
         var commitResult = await services.CommitAsync(
             async (scope, session, token) =>
             {
@@ -310,16 +312,18 @@ public sealed class OrchestratedEmailSearchIndexReaderTests(MailFathomOrchestrat
 
                 foreach (var (remoteMetadata, extraction) in SeededEmails(binding))
                 {
-                    await repository.UpsertMetadataAsync(
+                    storedEmailIds.Add(await repository.UpsertMetadataAsync(
                         session, remoteMetadata,
                         extraction,
                         StoredEmailContentAvailability.Available,
-                        token);
+                        token));
                 }
             },
             cancellationToken);
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);
+
+        await OrchestratedSettlement.ApplyAsync(services, storedEmailIds, FirstReceivedAt, cancellationToken);
     }
 
     /// <summary>Describes the seeded volume: one row whose body repeats a term, and five that mention it once.</summary>

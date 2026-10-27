@@ -3659,6 +3659,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ArrivalFolderId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("AttachmentCount")
                         .HasColumnType("integer");
 
@@ -3881,6 +3884,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("SentAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("SettledAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("SignatureAuthorityCheck")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -4027,6 +4033,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ArrivalFolderId");
+
                     b.HasIndex("CcAddresses")
                         .HasDatabaseName("ix_stored_emails_cc_addresses");
 
@@ -4110,6 +4118,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasIndex(new[] { "MailboxAccountId", "InternetMessageId" }, "ix_stored_emails_filed_sent_copy")
                         .HasDatabaseName("ix_stored_emails_filed_sent_copy")
                         .HasFilter("\"FiledFromOutgoingEmailId\" IS NOT NULL AND \"UidValidity\" IS NULL");
+
+                    b.HasIndex(new[] { "MailboxAccountId", "Id" }, "ix_stored_emails_settling")
+                        .HasDatabaseName("ix_stored_emails_settling")
+                        .HasFilter("\"SettledAt\" IS NULL");
 
                     b.ToTable("stored_emails", null, t =>
                         {
@@ -5234,6 +5246,11 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", b =>
                 {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailFolderEntity", "ArrivalFolder")
+                        .WithMany()
+                        .HasForeignKey("ArrivalFolderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.EmailThreadEntity", null)
                         .WithMany()
                         .HasForeignKey("EmailThreadId")
@@ -5266,6 +5283,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasForeignKey("SenderTrustOrganizationId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_stored_emails_sender_trust_organization");
+
+                    b.Navigation("ArrivalFolder");
 
                     b.Navigation("Folder");
 

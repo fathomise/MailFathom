@@ -513,6 +513,8 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
             return;
         }
 
+        List<StoredEmailId> storedEmailIds = [];
+
         var commitResult = await services.CommitAsync(
             async (scope, session, token) =>
             {
@@ -520,16 +522,18 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
 
                 foreach (var seededEmail in SeededEmails(binding))
                 {
-                    await repository.UpsertMetadataAsync(
+                    storedEmailIds.Add(await repository.UpsertMetadataAsync(
                         session, seededEmail.RemoteMetadata,
                         seededEmail.Extraction,
                         StoredEmailContentAvailability.Available,
-                        token);
+                        token));
                 }
             },
             cancellationToken);
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);
+
+        await OrchestratedSettlement.ApplyAsync(services, storedEmailIds, FirstReceivedAt, cancellationToken);
     }
 
     /// <summary>Describes the seeded volume: tie-grouped dated mail, an undated tail, and the three addressable rows.</summary>

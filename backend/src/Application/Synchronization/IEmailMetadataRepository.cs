@@ -106,6 +106,22 @@ public interface IEmailMetadataRepository
         OutgoingEmailId outgoingEmailId,
         CancellationToken cancellationToken);
 
+    /// <summary>Records that one stored email settled the moment it was stored, because it is a copy a rule made rather than an arrival.</summary>
+    /// <param name="session">The explicit persistence session this write participates in, which is the one storing the email.</param>
+    /// <param name="storedEmailId">The email that was just stored.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>A task that completes when the settlement is written.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when no stored email carries <paramref name="storedEmailId" />.</exception>
+    /// <remarks>
+    /// The message it duplicates has settled and been shown already, so the copy has nothing to wait for and is not new
+    /// mail to announce. Settling it with the store keeps it out of the settlement pass altogether.
+    /// </remarks>
+    Task RecordSettledOnArrivalAsync(
+        IPersistenceSession session,
+        StoredEmailId storedEmailId,
+        CancellationToken cancellationToken);
+
     /// <summary>Stores a message MailFathom filed itself into a held account's local folder, with no occurrence on any server.</summary>
     /// <param name="session">The explicit persistence session this write participates in.</param>
     /// <param name="account">The account the message is filed for.</param>

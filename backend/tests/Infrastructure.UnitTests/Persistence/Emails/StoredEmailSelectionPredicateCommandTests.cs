@@ -69,6 +69,20 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         Assert.Contains("@>", narrowing, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Every listing, count, search, and thread reads through this narrowing, so a message still settling is absent from
+    /// all of them at once — and from whichever reader is added next — rather than from the ones somebody remembered.
+    /// </summary>
+    [Fact]
+    public void Matching_AnySelection_AdmitsOnlyMailThatHasSettled()
+    {
+        // Act
+        var narrowing = NarrowingOf(SelectionWith());
+
+        // Assert
+        Assert.Contains($"\"{nameof(StoredEmailEntity.SettledAt)}\" IS NOT NULL", narrowing, StringComparison.Ordinal);
+    }
+
     /// <summary>A filter nobody named narrows nothing, which is what keeps an unfiltered listing off both columns.</summary>
     [Fact]
     public void Matching_NeitherFilterNamed_LeavesBothColumnsOutOfTheCommand()

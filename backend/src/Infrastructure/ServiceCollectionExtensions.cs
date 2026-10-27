@@ -59,6 +59,7 @@ using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Application.Emails.SearchEmails;
+using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Emails.ThreadStates;
@@ -511,6 +512,10 @@ public static class ServiceCollectionExtensions
         // the metadata write does on its way past, because both of those stages may still change what a message is.
         services.AddScoped<IStoredEmailChunkingStore, StoredEmailChunkingStore>();
         services.AddScoped<MailChunkingPass>();
+        // The end of an arrival: the pass that makes a message readable once its verdict and its rules have placed it,
+        // and announces it then rather than when synchronization committed it.
+        services.AddScoped<IMailSettlementStore, MailSettlementStore>();
+        services.AddScoped<MailSettlementPass>();
         // The reading of what a message's attachments say, and the pass that performs it. A stage behind the cut rather
         // than part of it, because it is the only one that parses octets a stranger composed and the only one that may
         // reach a provider — so a message reaches retrieval on its own words first and gains its attachments' words
@@ -1148,6 +1153,7 @@ public static class ServiceCollectionExtensions
         // A singleton for the reason every other instrument here is one: what it counts is a fact about the process, and
         // a scoped instance would create a meter per request.
         services.AddSingleton<IDerivedWorkGateTelemetry, DerivedWorkGateTelemetry>();
+        services.AddSingleton<IMailSettlementTelemetry, MailSettlementTelemetry>();
         services.AddSingleton<SensitiveContentEgressGuard>();
         // Its refusing counterpart, registered on the same terms and inert in the same two ways for the same user: no
         // redactor where nothing is switched on for them, and a policy that stops nothing where neither the deployment

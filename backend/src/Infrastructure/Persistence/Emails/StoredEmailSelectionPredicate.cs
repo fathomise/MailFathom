@@ -135,7 +135,7 @@ internal static class StoredEmailSelectionPredicate
         MailboxScope scope,
         MailAccountId? withinAccount = null)
     {
-        emails = emails.Where(StoredEmailTombstone.IsNotTombstoned);
+        emails = emails.Where(StoredEmailTombstone.IsNotTombstoned).Where(StoredEmailSettlement.IsSettled);
 
         // The containment is unconditional, which is what makes an empty account list fail closed. The generated
         // identifier names one mailbox across the deployment, so the accounts a caller is assigned are the whole of

@@ -332,6 +332,16 @@ MailFathom's own names, and nothing about a message reaches either. [Junk is kep
 mail](../features/spam-classification.md#junk-is-kept-out-of-what-a-deployment-derives-from-mail) holds what each answer
 means and what the wait is.
 
+Settling arriving mail publishes `mailfathom.mail.settlements`, one count per message a run settled, tagged with
+`mailfathom.mail.settlement` as one of `settled`, `released_as_unclassifiable`, `released_without_verdict`, or
+`released_after_waiting`. A message is kept out of every read until its verdict and its rules have placed it, and each
+wait is bounded, so the last three are mail shown before a stage finished: a message no classification can read, one
+whose verdict never came within the classification wait, and one still waiting on its content, a rule pass, or a move
+when the longest wait ran out. `released_after_waiting` is the one worth alerting on — a deployment releasing mail that
+way is one whose rule pass or move convergence has stalled. Only the run that actually settled a message counts it, so
+the counter is additive across replicas and is summed. [A message is shown once it has
+settled](../architecture/arrival-pipeline.md#a-message-is-shown-once-it-has-settled) holds what each wait is.
+
 The spam model stage publishes `mailfathom.spam.model_stage.consultations`, one count per message the stage would have
 asked a decision model about, tagged with `mailfathom.spam.model_stage.job` — `decide_verdict` or `name_subcategory` —
 and `mailfathom.spam.model_stage.outcome`: `answered`, `not_activated`, `budget_exhausted`, `provider_unavailable`,

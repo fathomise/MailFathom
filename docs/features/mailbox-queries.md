@@ -693,7 +693,9 @@ list, mirrored or not and withheld or not, is [the administrative status route](
   readers that return mail because every read model attaches freshness.
 - `MailFathom.Infrastructure.Persistence.Emails` — `StoredEmailTimelineReader`, which evaluates every filter, the keyset
   boundary, the ordering, and the row limit in PostgreSQL and tracks no entities. `StoredEmailSelectionPredicate` is the
-  filter predicate, shared with search, and `StoredEmailSummaryRow` carries the column list and the mapping, shared with
+  filter predicate, shared with search, and it admits no tombstoned row and no row still
+  [settling](../architecture/arrival-pipeline.md#a-message-is-shown-once-it-has-settled) — a message a run stored whose
+  verdict and rules have not placed it yet, which the single-email lookup answers as absent too. `StoredEmailSummaryRow` carries the column list and the mapping, shared with
   search and with the single-email lookup. Both are written once because each is a control that decides what a mailbox
   read can return at all: a second copy would have to be found and read before anyone could say what that is.
   `StoredEmailPreviewReader` is beside them, reading the opening of the derived text of one page's rows by identity and

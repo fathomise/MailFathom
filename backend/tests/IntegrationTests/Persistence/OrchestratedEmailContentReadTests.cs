@@ -235,6 +235,12 @@ public sealed class OrchestratedEmailContentReadTests(MailFathomOrchestrationFix
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);
 
+        await OrchestratedSettlement.ApplyAsync(
+            services,
+            [storedEmailId!.Value],
+            SyntheticEmail.ReceivedAt,
+            cancellationToken);
+
         return storedEmailId!.Value;
     }
 }
