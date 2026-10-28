@@ -10,6 +10,7 @@ import { Icon } from '../controls/Icon';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // Writing a task down, which is the one way this client puts something into the list. What it records is asserted by
 // whoever typed it, which is not a field on this form and never could be: the surface reads the origin off who is
@@ -65,6 +66,10 @@ export function NewTask({
     const line = draft.title.trim();
     const savable = line !== '' && line.length <= longestTaskTitle;
 
+    // Saving writes the task, so while the server is out of reach it says why it cannot act — beside the button, where
+    // a finger reads it as well as a mouse — and nothing typed is lost: the dialog stays open on what was written.
+    const refused = useWriteRefusal()(translate('tasks.saveTask'));
+
     return (
         <dialog
             onToggle={closesOnBack}
@@ -79,7 +84,7 @@ export function NewTask({
                 // engine clears it on the next `showModal`: an answer read twice would write the task again.
                 dialog.returnValue = '';
 
-                if (answer === 'save' && line !== '' && line.length <= longestTaskTitle) {
+                if (answer === 'save' && refused === null && line !== '' && line.length <= longestTaskTitle) {
                     onSave({ title: line, dueOn: draft.dueOn });
                 }
 
@@ -96,7 +101,7 @@ export function NewTask({
                     // made from the keyboard.
                     submitting.preventDefault();
 
-                    if (savable) {
+                    if (savable && refused === null) {
                         asked.current?.close('save');
                     }
                 }}
@@ -155,6 +160,12 @@ export function NewTask({
                     </div>
                 </div>
 
+                {refused === null ? null : (
+                    <p role="status" className="px-4.5 pb-2.25 text-sm text-muted text-pretty">
+                        {refused}
+                    </p>
+                )}
+
                 <div className="flex flex-wrap justify-end gap-2.25 px-4.5 pb-4.5">
                     <button
                         type="button"
@@ -169,7 +180,8 @@ export function NewTask({
                     <button
                         type="submit"
                         disabled={!savable}
-                        className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100`}
+                        aria-disabled={refused === null ? undefined : true}
+                        className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
                     >
                         {translate('tasks.saveTask')}
                     </button>

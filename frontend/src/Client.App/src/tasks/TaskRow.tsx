@@ -13,6 +13,7 @@ import { wordCalendarDay, wordDueDay } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { wordReminderCount } from '../reminders/reminderWords';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // One thing a person owes, as the design draws a task: the box that completes it, the line it is drawn with,
 // the mark saying it came out of mail, the way back to the message it came out of, the day it is due, and the act that
@@ -111,6 +112,22 @@ export function TaskRow({
     const timeZone = useReadingZone();
     const counted = new Intl.NumberFormat(locale);
     const press = useRowPress(onPress);
+    const writeRefused = useWriteRefusal();
+
+    // Every control on the row but the way to the message it cites writes, so while the server is out of reach each
+    // is drawn as one that cannot act and is named by why, rather than taken and failing after.
+    const refusedAs = (label: string): { readonly held?: true; readonly hint?: string } => {
+        const why = writeRefused(label);
+
+        return why === null ? {} : { held: true, hint: why };
+    };
+    const boxLabel = translate(completed ? 'tasks.markNotDoneRow' : 'tasks.markDoneRow', { title: task.title });
+    const boxRefused = writeRefused(boxLabel);
+    const remindersLabel = translate(task.reminders.length === 0 ? 'tasks.addReminder' : 'tasks.remindersOnRow', {
+        title: task.title,
+        count: wordReminderCount(task.reminders.length, locale, translate),
+    });
+    const remindersRefused = writeRefused(remindersLabel);
 
     // The act that puts a task in the day and the chip that says it is there are the same place on the row, so the
     // press removes the control holding focus. Where the press came from this row, focus goes to the chip that took
@@ -191,14 +208,19 @@ export function TaskRow({
                     </SymbolControl>
                 ) : null}
 
+                {/* Refused rather than disabled while the server is out of reach: a disabled box leaves the keyboard
+                    and says nothing, while this one stays where it is, unchanged by a press, and is named by why. */}
                 <input
                     type="checkbox"
                     checked={completed}
-                    aria-label={translate(completed ? 'tasks.markNotDoneRow' : 'tasks.markDoneRow', {
-                        title: task.title,
-                    })}
-                    className="mt-0.5 size-5 shrink-0 accent-accent"
-                    onChange={onToggleCompleted}
+                    aria-label={boxRefused ?? boxLabel}
+                    aria-disabled={boxRefused === null ? undefined : true}
+                    className="mt-0.5 size-5 shrink-0 accent-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                    onChange={() => {
+                        if (boxRefused === null) {
+                            onToggleCompleted();
+                        }
+                    }}
                 />
 
                 <div className="flex min-w-0 flex-col gap-1.5">
@@ -230,16 +252,17 @@ export function TaskRow({
             <div className="flex flex-wrap items-center gap-2.5">
                 {onReminders === undefined ? null : (
                     <SymbolControl
-                        label={translate(task.reminders.length === 0 ? 'tasks.addReminder' : 'tasks.remindersOnRow', {
-                            title: task.title,
-                            count: wordReminderCount(task.reminders.length, locale, translate),
-                        })}
+                        label={remindersRefused ?? remindersLabel}
                         className={`flex items-center gap-1 rounded-md border px-2.25 py-1 text-xs font-semibold transition hover:border-accent hover:text-accent-deep ${
                             task.reminders.length === 0
                                 ? 'border-line bg-sunken text-muted'
                                 : 'border-accent-line bg-accent-soft text-accent-deep'
-                        }`}
-                        onPress={onReminders}
+                        } ${remindersRefused === null ? '' : 'cursor-not-allowed opacity-60'}`}
+                        onPress={() => {
+                            if (remindersRefused === null) {
+                                onReminders();
+                            }
+                        }}
                     >
                         <Icon
                             name={task.reminders.length === 0 ? 'notifications' : 'notifications_active'}
@@ -261,7 +284,13 @@ export function TaskRow({
                 )}
 
                 {onAccept === undefined ? null : (
-                    <Control label={translate('tasks.accept')} icon="check" shape="primary" onPress={onAccept} />
+                    <Control
+                        label={translate('tasks.accept')}
+                        icon="check"
+                        shape="primary"
+                        {...refusedAs(translate('tasks.accept'))}
+                        onPress={onAccept}
+                    />
                 )}
 
                 {task.dueOn === null || completed || onSchedule === undefined ? null : scheduled ? (
@@ -277,6 +306,7 @@ export function TaskRow({
                         label={translate('tasks.schedule')}
                         icon="calendar_month"
                         shape="accentPill"
+                        {...refusedAs(translate('tasks.schedule'))}
                         onPress={() => {
                             askedFromHere.current = true;
                             onSchedule();

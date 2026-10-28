@@ -7,6 +7,7 @@ import {
     isNotificationTime,
     readClientPreferences,
     unsetClientPreferences,
+    wentUnanswered,
     writeClientPreferences,
     type ClientMessageView,
     type ClientPreferences,
@@ -97,6 +98,12 @@ export interface ClientPreferencesInForce {
     /** Whether the deployment refused the last change, which is the one thing about this a screen has to say out loud. */
     readonly notStated: boolean;
 
+    /**
+     * Whether nothing answered the last change — or a gateway answered for the server, which proves nothing about
+     * whether it was handed on. It may well have been saved, so it is never said not to have been.
+     */
+    readonly stateUnknown: boolean;
+
     readonly chooseTheme: (choice: ThemeChoice) => void;
     readonly chooseTabMode: (openMailInTabs: boolean) => void;
     readonly chooseTelemetry: (telemetryEnabled: boolean) => void;
@@ -119,6 +126,7 @@ interface HeldPreferences {
     readonly session: ClientSession | null;
     readonly preferences: ClientPreferences;
     readonly notStated: boolean;
+    readonly stateUnknown: boolean;
 
     // Whether the person moved the telemetry switch here and the deployment has not taken that answer yet, which is
     // the one case a write states the switch at all. Everywhere else the value this holds is not theirs to state: a
@@ -133,6 +141,7 @@ const heldForNobody: HeldPreferences = {
     session: null,
     preferences: unsetClientPreferences,
     notStated: false,
+    stateUnknown: false,
     telemetryOwed: false,
 };
 
@@ -198,7 +207,13 @@ export function useClientPreferences(
                 return;
             }
 
-            const read = { session, preferences: answer.value, notStated: false, telemetryOwed: false };
+            const read = {
+                session,
+                preferences: answer.value,
+                notStated: false,
+                stateUnknown: false,
+                telemetryOwed: false,
+            };
 
             latest.current = read;
             rememberTelemetry(person, answer.value.telemetryEnabled);
@@ -223,7 +238,7 @@ export function useClientPreferences(
         reading.current?.abort();
 
         const telemetryOwed = telemetryMoved || (latest.current.session === session && latest.current.telemetryOwed);
-        const chosen = { session, preferences, notStated: false, telemetryOwed };
+        const chosen = { session, preferences, notStated: false, stateUnknown: false, telemetryOwed };
 
         latest.current = chosen;
         rememberTelemetry(person, preferences.telemetryEnabled);
@@ -236,8 +251,14 @@ export function useClientPreferences(
         const stated = telemetryOwed ? preferences : { ...preferences, telemetryEnabled: null };
 
         void writeClientPreferences(session, transport, stated).then(async (answer) => {
+            // A change nobody answered is not known to have been refused, so it is said as unknown rather than as
+            // not saved; one the server refused is the sentence it always was.
+            const unknown = answer.outcome === 'failed' && wentUnanswered(answer.failure);
+
             setHeld((current) =>
-                current.session === session ? { ...current, notStated: answer.outcome !== 'read' } : current,
+                current.session === session
+                    ? { ...current, notStated: answer.outcome !== 'read' && !unknown, stateUnknown: unknown }
+                    : current,
             );
 
             // That somebody changed how they want the client to behave, and whether the deployment took it. Which
@@ -280,7 +301,15 @@ export function useClientPreferences(
                 return;
             }
 
-            const reread = { session, preferences: holding.value, notStated: true, telemetryOwed: false };
+            // What the server holds stands in for the choice either way. A refusal is still said as one; a change
+            // nobody answered is settled by this answer, which is what the screen now draws.
+            const reread = {
+                session,
+                preferences: holding.value,
+                notStated: !unknown,
+                stateUnknown: false,
+                telemetryOwed: false,
+            };
 
             latest.current = reread;
             rememberTelemetry(person, holding.value.telemetryEnabled);
@@ -326,6 +355,7 @@ export function useClientPreferences(
         notificationSeconds: inForce.preferences.notificationSeconds,
         trustedLinkDomains: inForce.preferences.trustedLinkDomains,
         notStated: inForce.notStated,
+        stateUnknown: inForce.stateUnknown,
         chooseTheme: (choice) => {
             setThemeChoice(choice);
             state({ ...composedFrom(), theme: choice });

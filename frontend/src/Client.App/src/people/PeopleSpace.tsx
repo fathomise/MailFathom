@@ -8,6 +8,8 @@ import {
     eraseContact,
     promoteContact,
     recordContact,
+    wentUnanswered,
+    type ClientFailure,
     type ClientSession,
     type Contact,
     type ContactWriteOutcome,
@@ -57,6 +59,13 @@ const writeSaid: Readonly<Record<ContactWriteOutcome, MessageKey>> = {
 // Where a sentence about a write belongs: over the book for a write the book as a whole answered, and on the person's
 // own page for one about the person who is open. One state rather than two, because only one write is in flight at a
 // time and two would eventually disagree about which was the last.
+// What a write that failed is said as: a refusal the server stated changed nothing, while a write nobody answered —
+// or one a gateway answered for the server, which proves nothing about whether it was handed on — may well have
+// landed, so it is said to be unknown and never that nothing was changed.
+function failedSaid(failure: ClientFailure): MessageKey {
+    return wentUnanswered(failure) ? 'people.writeUnknown' : 'people.writeFailed';
+}
+
 interface WriteSaid {
     readonly where: 'book' | 'person';
     readonly said: MessageKey;
@@ -135,7 +144,7 @@ export function PeopleSpace({
             note: null,
         }).then((answer) => {
             if (answer.outcome === 'failed') {
-                setSaid({ where: 'book', said: 'people.writeFailed' });
+                setSaid({ where: 'book', said: failedSaid(answer.failure) });
 
                 return;
             }
@@ -171,7 +180,7 @@ export function PeopleSpace({
             note: contact.note,
         }).then((answer) => {
             if (answer.outcome === 'failed') {
-                setSaid({ where: 'person', said: 'people.writeFailed' });
+                setSaid({ where: 'person', said: failedSaid(answer.failure) });
 
                 return;
             }
@@ -203,7 +212,7 @@ export function PeopleSpace({
             setPromoting(false);
 
             if (answer.outcome === 'failed') {
-                setSaid({ where: 'person', said: 'people.writeFailed' });
+                setSaid({ where: 'person', said: failedSaid(answer.failure) });
 
                 return;
             }
@@ -241,20 +250,25 @@ export function PeopleSpace({
             const refused = answers.filter(({ answer }) => answer.outcome === 'failed').map(({ contact }) => contact);
             const erased = answers.filter(({ answer }) => answer.outcome !== 'failed').map(({ contact }) => contact.id);
 
+            // An erasure nobody answered is not known to have failed, so it is never named among those refused.
+            const unknown = answers.some(({ answer }) => answer.outcome === 'failed' && wentUnanswered(answer.failure));
+
             setSaid(
                 refused.length === 0
                     ? { where: 'book', said: 'people.erased' }
-                    : erased.length === 0
-                      ? { where: 'book', said: 'people.writeFailed' }
-                      : {
-                            where: 'book',
-                            said: 'people.eraseSomeRefused',
-                            names: {
-                                names: new Intl.ListFormat(locale, { type: 'conjunction' }).format(
-                                    refused.map((contact) => contact.displayName),
-                                ),
-                            },
-                        },
+                    : unknown
+                      ? { where: 'book', said: 'people.writeUnknown' }
+                      : erased.length === 0
+                        ? { where: 'book', said: 'people.writeFailed' }
+                        : {
+                              where: 'book',
+                              said: 'people.eraseSomeRefused',
+                              names: {
+                                  names: new Intl.ListFormat(locale, { type: 'conjunction' }).format(
+                                      refused.map((contact) => contact.displayName),
+                                  ),
+                              },
+                          },
             );
 
             setSelected((standing) => standing.filter((contact) => !erased.includes(contact)));

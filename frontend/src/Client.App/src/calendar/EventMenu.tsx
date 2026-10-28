@@ -7,6 +7,7 @@ import { ContextMenu, type ContextMenuItem } from '../contextMenu/ContextMenu';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useLocalization } from '../localization/useLocalization';
 import { useAgentHandOver } from '../routing/agentHandOver';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // What one event offers, which is this screen's own items handed to the one menu six lists share: where the menu
 // stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s.
@@ -48,6 +49,7 @@ export function EventMenu({
 }) {
     const { translate } = useLocalization();
     const handToAgent = useAgentHandOver();
+    const writeRefused = useWriteRefusal();
 
     const asking: ContextMenuItem[] =
         handToAgent === null
@@ -67,7 +69,15 @@ export function EventMenu({
         { icon: 'event', label: translate('calendar.openEvent'), choose: onOpen },
         { icon: 'notifications', label: translate('calendar.eventReminders'), choose: onAskReminders },
         ...asking,
-        { icon: 'delete', label: translate('calendar.deleteEvent'), destroys: true, choose: onAskDeletion },
+        // Deleting writes, so while the server is out of reach it stays here saying why it cannot act. Opening the
+        // event, and its reminders, opens a surface whose own writes say the same.
+        {
+            icon: 'delete',
+            label: translate('calendar.deleteEvent'),
+            destroys: true,
+            refused: writeRefused(translate('calendar.deleteEvent')),
+            choose: onAskDeletion,
+        },
     ];
 
     return <ContextMenu header={event.title} at={at} items={items} onClose={onClose} />;

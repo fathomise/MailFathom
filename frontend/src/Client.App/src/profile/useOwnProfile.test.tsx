@@ -252,8 +252,8 @@ describe('useOwnProfile', () => {
         expect(held.latest().displayName).toBe('Ada Lovelace');
     });
 
-    it('says a name that never reached the deployment did not, which is a different sentence', async () => {
-        const held = await renderProfile(drawing({ outcome: 'none' }), refusingWrites(503));
+    it('says a name the deployment would not store was not stored, which is a different sentence', async () => {
+        const held = await renderProfile(drawing({ outcome: 'none' }), refusingWrites(403));
 
         act(() => {
             held.latest().correctName('Grace Hopper');
@@ -261,7 +261,21 @@ describe('useOwnProfile', () => {
         await settled();
 
         expect(held.latest().nameNotStated).toBe(true);
+        expect(held.latest().nameStateUnknown).toBe(false);
         expect(held.latest().nameNotAcceptable).toBe(false);
+    });
+
+    // A gateway answering for the server may have handed the write on first, so the name may well have been stored.
+    it('says it is not known whether a name nobody answered was stored, never that it was not', async () => {
+        const held = await renderProfile(drawing({ outcome: 'none' }), refusingWrites(503));
+
+        act(() => {
+            held.latest().correctName('Grace Hopper');
+        });
+        await settled();
+
+        expect(held.latest().nameStateUnknown).toBe(true);
+        expect(held.latest().nameNotStated).toBe(false);
     });
 
     it('draws the correction made last rather than an answer to one it replaced', async () => {
@@ -374,7 +388,7 @@ describe('useOwnProfile', () => {
         expect(held.latest().picture).toBe(picture);
     });
 
-    it('says a picture that did not reach the deployment did not, and leaves what is drawn alone', async () => {
+    it('says a picture nobody answered for may or may not be stored, and leaves what is drawn alone', async () => {
         const held = await renderProfile(
             drawing({ outcome: 'drawn', picture }, { outcome: 'refused', reason: 'unavailable' }),
         );
@@ -384,8 +398,23 @@ describe('useOwnProfile', () => {
         });
         await settled();
 
-        expect(held.latest().pictureNotStated).toBe(true);
+        expect(held.latest().pictureStateUnknown).toBe(true);
+        expect(held.latest().pictureNotStated).toBe(false);
         expect(held.latest().picture).toBe(picture);
+    });
+
+    it('says a picture the deployment refused was not stored', async () => {
+        const held = await renderProfile(
+            drawing({ outcome: 'drawn', picture }, { outcome: 'refused', reason: 'unauthorized' }),
+        );
+
+        act(() => {
+            held.latest().choosePicture(new Blob([new Uint8Array(8)]), 'image/png');
+        });
+        await settled();
+
+        expect(held.latest().pictureNotStated).toBe(true);
+        expect(held.latest().pictureStateUnknown).toBe(false);
     });
 
     it('falls back to no picture once the deployment has removed one', async () => {
@@ -400,7 +429,7 @@ describe('useOwnProfile', () => {
         expect(held.latest().pictureNotStated).toBe(false);
     });
 
-    it('keeps the picture drawn where the removal did not reach the deployment', async () => {
+    it('keeps the picture drawn where nothing answered the removal', async () => {
         const held = await renderProfile(
             drawing({ outcome: 'drawn', picture }, { outcome: 'refused', reason: 'unavailable' }),
         );
@@ -411,7 +440,7 @@ describe('useOwnProfile', () => {
         await settled();
 
         expect(held.latest().picture).toBe(picture);
-        expect(held.latest().pictureNotStated).toBe(true);
+        expect(held.latest().pictureStateUnknown).toBe(true);
     });
 });
 
@@ -489,7 +518,7 @@ describe('useOwnProfile, about the zone this person’s days are read in', () =>
 
     // A deployment that could not be reached at all is a different sentence from one that refused the zone, and it is
     // the one a control drawing neither leaves somebody staring at their old zone with no explanation.
-    it('says the zone never reached the deployment where the write failed', async () => {
+    it('says it is not known whether a zone nobody answered was stored, and keeps drawing the one held', async () => {
         const held = await renderProfile(drawing({ outcome: 'none' }), unreachableZoneWrites());
 
         act(() => {
@@ -499,7 +528,8 @@ describe('useOwnProfile, about the zone this person’s days are read in', () =>
 
         expect(held.latest().timeZone).toBe('Europe/Warsaw');
         expect(held.latest().timeZoneNotAcceptable).toBe(false);
-        expect(held.latest().timeZoneNotStated).toBe(true);
+        expect(held.latest().timeZoneStateUnknown).toBe(true);
+        expect(held.latest().timeZoneNotStated).toBe(false);
     });
 
     // The race the proposal creates and nothing else orders: the mount-time write goes out before the screen exists,

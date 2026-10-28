@@ -8,6 +8,7 @@ import { Control } from '../controls/Control';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // What stands where the toolbar stands while people are picked out, which is the design's own bar: how many
 // are selected, the acts over the whole of them, and the way out.
@@ -58,6 +59,9 @@ export function ContactSelectionBar({
     const composing = useComposing();
     const wide = useWideWorkspace();
 
+    // Deleting writes, so while the server is out of reach it is drawn as a control that cannot act, named by why.
+    const erasureRefused = useWriteRefusal()(translate('people.deleteContacts'));
+
     // Words beside the symbols where the composition has room for them, and the symbols alone where it has not, which
     // is how the design draws this bar on a phone. The name is on the control either way.
     const shape = wide ? 'selected' : 'selectedSymbol';
@@ -96,6 +100,7 @@ export function ContactSelectionBar({
                     label={translate('people.deleteContacts')}
                     icon="delete"
                     shape={shape}
+                    {...(erasureRefused === null ? {} : { held: true, hint: erasureRefused })}
                     onPress={onAskErasure}
                 />
             ) : null}

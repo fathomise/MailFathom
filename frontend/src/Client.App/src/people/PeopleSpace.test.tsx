@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from '../shell/screenLayers';
 import { PeopleSpace } from './PeopleSpace';
 
@@ -107,7 +108,7 @@ function deployment({
 
             if (method === 'DELETE') {
                 answer = refuses.some((contact) => path.endsWith(`/contacts/${contact}`))
-                    ? { status: 503, headers: {}, body: '' }
+                    ? { status: 403, headers: {}, body: '' }
                     : {
                           ...answered,
                           body: JSON.stringify({ contact: 'anna', wasHeld: true, addressesErased: 1 }),
@@ -151,24 +152,47 @@ function drawSpace(
         writable = true,
         composing = notWriting,
         layers = null,
-    }: { writable?: boolean; composing?: Composing; layers?: ScreenLayers | null } = {},
+        lostServer = false,
+    }: { writable?: boolean; composing?: Composing; layers?: ScreenLayers | null; lostServer?: boolean } = {},
 ): void {
     render(
         <LocalizationProvider>
-            <ScreenLayersContext value={layers}>
-                <ComposingContext value={composing}>
-                    <PeopleSpace
-                        session={session}
-                        transport={transport}
-                        writable={writable}
-                        onOpenThread={vi.fn()}
-                        onOpenDocument={vi.fn()}
-                    />
-                </ComposingContext>
-            </ScreenLayersContext>
+            <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
+                <ScreenLayersContext value={layers}>
+                    <ComposingContext value={composing}>
+                        <PeopleSpace
+                            session={session}
+                            transport={transport}
+                            writable={writable}
+                            onOpenThread={vi.fn()}
+                            onOpenDocument={vi.fn()}
+                        />
+                    </ComposingContext>
+                </ScreenLayersContext>
+            </ConnectionStatusContext>
         </LocalizationProvider>,
     );
 }
+
+const serverAnswering: ConnectionStatus = {
+    level: 'online',
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => false,
+};
+
+const serverLost: ConnectionStatus = {
+    level: 'disconnected',
+    cause: 'unanswered',
+    since: 0,
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => true,
+};
 
 /** The shell's stack, which a test hands the space so it can press the back gesture the way the shell does. */
 function shell(): { readonly current: ScreenLayers } {
@@ -379,6 +403,39 @@ describe('PeopleSpace', () => {
 
         expect(await screen.findByText('Could not delete Bartek Nowak. Everybody else was deleted.')).toBeDefined();
         expect(screen.getByRole('toolbar', { name: 'Selected contacts' })).toBeDefined();
+    });
+
+    // An erasure nobody answered may have been made, so it is never named among those the server would not delete.
+    it('says it is not known whether an erasure nobody answered was made', async () => {
+        const { transport } = deployment({ refuses: [] });
+        const unanswering: MailFathomTransport = (request) =>
+            request.method === 'DELETE' ? Promise.resolve({ status: 504, headers: {}, body: '' }) : transport(request);
+
+        drawSpace(unanswering);
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }), { ctrlKey: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Delete contacts' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+
+        expect(
+            await screen.findByText('The server did not answer, so it is not known whether that was changed.'),
+        ).toBeDefined();
+    });
+
+    it('refuses deleting somebody before it is pressed while the server is out of reach, and says why', async () => {
+        const { transport, sent } = deployment();
+        drawSpace(transport, { lostServer: true });
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }), { ctrlKey: true });
+
+        const deleting = screen.getByRole('button', { name: 'Delete contacts' });
+
+        expect(deleting.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(deleting);
+
+        expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+        expect(sent().some((request) => request.method === 'DELETE')).toBe(false);
     });
 
     // Below the width the mail screens collapse at, the book and the person are one pane the reader moves between, so

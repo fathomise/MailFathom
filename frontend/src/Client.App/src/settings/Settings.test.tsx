@@ -21,6 +21,7 @@ import {
     type NotificationStanding,
     type SystemNotifier,
 } from '../shellOperations/systemNotifier';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { Settings } from './Settings';
 
 const settings: ClientPreferencesInForce = {
@@ -33,6 +34,7 @@ const settings: ClientPreferencesInForce = {
     notificationSeconds: 5,
     trustedLinkDomains: [],
     notStated: false,
+    stateUnknown: false,
     chooseTheme: () => undefined,
     chooseTabMode: () => undefined,
     chooseTelemetry: () => undefined,
@@ -48,10 +50,13 @@ const named: OwnProfileInForce = {
     picture: null,
     nameNotAcceptable: false,
     nameNotStated: false,
+    nameStateUnknown: false,
     pictureNotStated: false,
+    pictureStateUnknown: false,
     timeZone: 'Europe/Warsaw',
     timeZoneNotAcceptable: false,
     timeZoneNotStated: false,
+    timeZoneStateUnknown: false,
     correctName: () => undefined,
     chooseTimeZone: () => undefined,
     choosePicture: () => undefined,
@@ -77,6 +82,7 @@ function renderSettings({
     onClose = () => undefined,
     head = raisesNothing,
     telemetry = noTelemetry,
+    lostServer = false,
 }: {
     readonly profile?: OwnProfileInForce;
     readonly preferences?: ClientPreferencesInForce;
@@ -89,24 +95,49 @@ function renderSettings({
     readonly head?: SystemNotifier;
 
     readonly telemetry?: ClientTelemetry;
+
+    /** Whether the connection status says the server is out of reach, which refuses every write before use. */
+    readonly lostServer?: boolean;
 } = {}): RenderResult {
     return render(
         <LocalizationProvider>
             <TelemetryContext value={telemetry}>
                 <SystemNotifierContext value={head}>
-                    <Settings
-                        profile={profile}
-                        preferences={preferences}
-                        telemetryForwarding={telemetryForwarding}
-                        writesProfile={writesProfile}
-                        deploymentVersion={deploymentVersion}
-                        onClose={onClose}
-                    />
+                    <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
+                        <Settings
+                            profile={profile}
+                            preferences={preferences}
+                            telemetryForwarding={telemetryForwarding}
+                            writesProfile={writesProfile}
+                            deploymentVersion={deploymentVersion}
+                            onClose={onClose}
+                        />
+                    </ConnectionStatusContext>
                 </SystemNotifierContext>
             </TelemetryContext>
         </LocalizationProvider>,
     );
 }
+
+const serverAnswering: ConnectionStatus = {
+    level: 'online',
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => false,
+};
+
+const serverLost: ConnectionStatus = {
+    level: 'disconnected',
+    cause: 'unanswered',
+    since: 0,
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => true,
+};
 
 /** A head that offered nothing, which is a page served outside a secure context and a shell with no plugin linked. */
 const raisesNothing: SystemNotifier = {
@@ -306,14 +337,16 @@ describe('Settings', () => {
             <LocalizationProvider>
                 <TelemetryContext value={noTelemetry}>
                     <SystemNotifierContext value={raisesNothing}>
-                        <Settings
-                            profile={{ ...named }}
-                            preferences={settings}
-                            telemetryForwarding={forwardedTo}
-                            writesProfile
-                            deploymentVersion="0.9.0"
-                            onClose={() => undefined}
-                        />
+                        <ConnectionStatusContext value={serverAnswering}>
+                            <Settings
+                                profile={{ ...named }}
+                                preferences={settings}
+                                telemetryForwarding={forwardedTo}
+                                writesProfile
+                                deploymentVersion="0.9.0"
+                                onClose={() => undefined}
+                            />
+                        </ConnectionStatusContext>
                     </SystemNotifierContext>
                 </TelemetryContext>
             </LocalizationProvider>,
@@ -366,6 +399,37 @@ describe('Settings', () => {
         ).toBe(true);
         expect(screen.getByRole('switch', { name: /^Do not send telemetry/u }).matches(':disabled')).toBe(true);
         expect(screen.getByRole('radio', { name: 'Polski' }).matches(':disabled')).toBe(false);
+    });
+
+    // A change made while the server is out of reach would have no route to it, so what it keeps is withdrawn before
+    // it is used, with its own sentence; the language, which is this machine's, stays offered.
+    it('withdraws the settings that follow the person while the server is out of reach, and says why', () => {
+        renderSettings({ lostServer: true });
+        openApplication();
+
+        expect(screen.getByText(/no connection to the MailFathom server/u)).toBeDefined();
+        expect(screen.queryByText(/may not change the settings that follow you/u)).toBeNull();
+        expect(
+            screen.getByRole('switch', { name: /^Expand the whole thread automatically/u }).matches(':disabled'),
+        ).toBe(true);
+        expect(screen.getByRole('radio', { name: 'Polski' }).matches(':disabled')).toBe(false);
+    });
+
+    it('shows the profile rather than offering a change of it while the server is out of reach', () => {
+        renderSettings({ profile: { ...named, picture: 'data:image/png;base64,AA==' }, lostServer: true });
+
+        expect(screen.getByRole('textbox', { name: 'Full name' })).toHaveProperty('readOnly', true);
+        expect(screen.getByRole('combobox', { name: /^Time zone/u })).toHaveProperty('disabled', true);
+        expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
+        expect(screen.getByText(/no connection to the MailFathom server/u)).toBeDefined();
+    });
+
+    it('says it is not known whether a name nobody answered was stored', () => {
+        renderSettings({ profile: { ...named, nameStateUnknown: true } });
+
+        expect(
+            screen.getByText('The server did not answer, so it is not known whether that name was saved.'),
+        ).toBeDefined();
     });
 
     it('offers every setting that follows the person where this credential may change them', () => {

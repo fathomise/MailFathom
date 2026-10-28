@@ -6,6 +6,7 @@ import type { PersonalTask } from '@mailfathom/client-backend';
 import { ContextMenu, type ContextMenuItem } from '../contextMenu/ContextMenu';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useLocalization } from '../localization/useLocalization';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // What a task's row offers, which is this list's own items handed to the one menu six lists share: where the menu
 // stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s.
@@ -61,26 +62,36 @@ export function TaskRowMenu({
     readonly onClose: () => void;
 }) {
     const { translate } = useLocalization();
+    const writeRefused = useWriteRefusal();
+
+    // Every item but selecting the row and opening the message it cites writes, so while the server is out of reach
+    // each of those stays in the menu saying why it cannot act, rather than being taken and failing after.
+    const writing = (icon: ContextMenuItem['icon'], label: string, choose: () => void): ContextMenuItem => ({
+        icon,
+        label,
+        refused: writeRefused(label),
+        choose,
+    });
 
     const items: ContextMenuItem[] = [
         { icon: 'check_box', label: translate('tasks.selectTasks'), choose: onSelect },
-        {
-            icon: task.completed ? 'radio_button_unchecked' : 'check_circle',
-            label: translate(task.completed ? 'tasks.markNotDone' : 'tasks.markDone'),
-            choose: onToggleCompleted,
-        },
+        writing(
+            task.completed ? 'radio_button_unchecked' : 'check_circle',
+            translate(task.completed ? 'tasks.markNotDone' : 'tasks.markDone'),
+            onToggleCompleted,
+        ),
     ];
 
     if (onAccept !== undefined) {
-        items.push({ icon: 'check', label: translate('tasks.accept'), choose: onAccept });
+        items.push(writing('check', translate('tasks.accept'), onAccept));
     }
 
     if (onReminders !== undefined) {
-        items.push({ icon: 'notifications_active', label: translate('reminders.title'), choose: onReminders });
+        items.push(writing('notifications_active', translate('reminders.title'), onReminders));
     }
 
     if (task.dueOn !== null && onSchedule !== undefined) {
-        items.push({ icon: 'calendar_month', label: translate('tasks.scheduleInCalendar'), choose: onSchedule });
+        items.push(writing('calendar_month', translate('tasks.scheduleInCalendar'), onSchedule));
     }
 
     if (onOpenSource !== undefined) {
@@ -88,10 +99,12 @@ export function TaskRowMenu({
     }
 
     items.push({
-        icon: 'delete',
-        label: translate(task.origin === 'Proposed' ? 'tasks.declineTask' : 'tasks.deleteTask'),
+        ...writing(
+            'delete',
+            translate(task.origin === 'Proposed' ? 'tasks.declineTask' : 'tasks.deleteTask'),
+            onAskErasure,
+        ),
         destroys: true,
-        choose: onAskErasure,
     });
 
     return <ContextMenu header={task.title} at={at} items={items} onClose={onClose} />;

@@ -9,10 +9,12 @@ import {
     deleteCalendarEvent,
     readsCalendarDescriptions,
     recordCalendarEvent,
+    wentUnanswered,
     type CalendarEvent,
     type CalendarEventAmendment,
     type CalendarEventRecord,
     type CalendarWriteOutcome,
+    type ClientFailure,
     type ClientFailureReason,
     type ClientSession,
     type MailFathomTransport,
@@ -82,6 +84,13 @@ const spanFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
     unreadable: 'calendar.failedUnreadable',
     missing: 'calendar.failedUnavailable',
 };
+
+// What a write that failed is said as: a refusal the server stated changed nothing, while a write nobody answered —
+// or one a gateway answered for the server, which proves nothing about whether it was handed on — may well have
+// landed, so it is said to be unknown and never that nothing was changed. The span read again after it says which.
+function failedSaid(failure: ClientFailure): MessageKey {
+    return wentUnanswered(failure) ? 'calendar.writeUnknown' : 'calendar.writeFailed';
+}
 
 // Where a sentence about a write belongs: over the calendar for one the screen as a whole answered, and inside the
 // dialog for one about the event that is open. One state rather than two, because only one write is in flight at a
@@ -199,7 +208,7 @@ export function CalendarSpace({
         readAfter(
             recordCalendarEvent(session, transport, stated).then((answer) => ({
                 where: 'calendar' as const,
-                said: answer.outcome === 'failed' ? 'calendar.writeFailed' : writeSaid[answer.value.outcome],
+                said: answer.outcome === 'failed' ? failedSaid(answer.failure) : writeSaid[answer.value.outcome],
             })),
         );
     }
@@ -219,7 +228,7 @@ export function CalendarSpace({
 
                 return {
                     where: 'event' as const,
-                    said: answer.outcome === 'failed' ? 'calendar.writeFailed' : writeSaid[answer.value.outcome],
+                    said: answer.outcome === 'failed' ? failedSaid(answer.failure) : writeSaid[answer.value.outcome],
                 };
             }),
         );
@@ -253,7 +262,7 @@ export function CalendarSpace({
             proposal,
             acceptCalendarEvent(session, transport, proposal.id).then((answer) => ({
                 failed: answer.outcome === 'failed',
-                said: answer.outcome === 'failed' ? 'calendar.writeFailed' : writeSaid[answer.value.outcome],
+                said: answer.outcome === 'failed' ? failedSaid(answer.failure) : writeSaid[answer.value.outcome],
             })),
         );
     }
@@ -267,9 +276,7 @@ export function CalendarSpace({
             proposal,
             deleteCalendarEvent(session, transport, proposal.id).then((answer) => ({
                 failed: answer.outcome === 'failed',
-                said: (answer.outcome === 'failed'
-                    ? 'calendar.writeFailed'
-                    : 'calendar.proposalDismissed') satisfies MessageKey,
+                said: answer.outcome === 'failed' ? failedSaid(answer.failure) : 'calendar.proposalDismissed',
             })),
         );
     }
@@ -291,9 +298,17 @@ export function CalendarSpace({
             const refused = answers.filter(({ answer }) => answer.outcome === 'failed').map(({ event }) => event.id);
             const removed = answers.filter(({ answer }) => answer.outcome !== 'failed').map(({ event }) => event.id);
 
+            // A delete nobody answered is not known to have failed, so it is not counted among those refused.
+            const unknown = answers.some(({ answer }) => answer.outcome === 'failed' && wentUnanswered(answer.failure));
+
             setSaid({
                 where: 'calendar',
-                said: refused.length === 0 ? 'calendar.deleted' : 'calendar.deleteSomeRefused',
+                said:
+                    refused.length === 0
+                        ? 'calendar.deleted'
+                        : unknown
+                          ? 'calendar.writeUnknown'
+                          : 'calendar.deleteSomeRefused',
             });
 
             setSelected((held) => held.filter((event) => !removed.includes(event)));

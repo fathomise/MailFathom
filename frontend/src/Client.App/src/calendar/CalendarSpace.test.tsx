@@ -103,6 +103,7 @@ function deployment({
     readsDescriptions = true,
     refuses = [],
     refusesAcceptance = false,
+    leavesUnanswered = false,
 }: {
     events?: readonly unknown[];
 
@@ -114,6 +115,9 @@ function deployment({
 
     /** Whether taking a proposal onto the calendar fails, which is what the card coming back is about. */
     refusesAcceptance?: boolean;
+
+    /** Whether a gateway answers every write for the server, which says nothing about whether it was handed on. */
+    leavesUnanswered?: boolean;
 } = {}): { readonly transport: MailFathomTransport; readonly sent: () => readonly ClientRequest[] } {
     const sent: ClientRequest[] = [];
 
@@ -127,12 +131,14 @@ function deployment({
 
             if (path.includes('/calendar/drafts')) {
                 answer = { ...answered, body: JSON.stringify({ readsDescriptions }) };
+            } else if (method !== 'GET' && leavesUnanswered) {
+                answer = { status: 504, headers: {}, body: '' };
             } else if (method === 'DELETE') {
                 answer = refuses.some((event) => path.endsWith(`/calendar/${event}`))
-                    ? { status: 503, headers: {}, body: '' }
+                    ? { status: 403, headers: {}, body: '' }
                     : { status: 204, headers: {}, body: '' };
             } else if (method === 'POST' && path.endsWith('/acceptance') && refusesAcceptance) {
-                answer = { status: 503, headers: {}, body: '' };
+                answer = { status: 403, headers: {}, body: '' };
             } else if (method === 'POST' || method === 'PUT') {
                 answer = { ...answered, body: JSON.stringify(review) };
             } else {
@@ -268,8 +274,24 @@ describe('CalendarSpace', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
-        expect(await screen.findByText('The server did not answer, so nothing was changed.')).toBeDefined();
+        expect(await screen.findByText('The server did not take that, so nothing was changed.')).toBeDefined();
         expect(screen.getByText('Lunch with Celina')).toBeDefined();
+    });
+
+    // A gateway answering for the server may have handed the write on first, so what became of it is not known: the
+    // sentence says that much, and never that nothing was changed.
+    it('says it is not known whether a write nobody answered was made, never that nothing was', async () => {
+        const { transport } = deployment({ leavesUnanswered: true });
+        drawSpace(transport);
+
+        expect(await screen.findByText('Lunch with Celina')).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+        expect(
+            await screen.findByText('The server did not answer, so it is not known whether that was changed.'),
+        ).toBeDefined();
+        expect(screen.queryByText(/nothing was changed/u)).toBeNull();
     });
 
     it('lets a proposal go by deleting it, and takes the card away as it goes', async () => {

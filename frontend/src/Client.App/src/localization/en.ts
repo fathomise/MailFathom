@@ -578,7 +578,8 @@ export const en = {
         'Both settings are read from the arguments MailFathom was started with, from its environment, and from client.conf beside its own configuration, in that order.',
 
     'preferences.notStated': 'That change was not saved to the server.',
-    'preferences.noConnection': 'There is no connection to the MailFathom server, so these cannot be changed until it is back.',
+    'preferences.noConnection':
+        'There is no connection to the MailFathom server, so these cannot be changed until it is back.',
     'preferences.stateUnknown': 'The server did not answer, so it is not known whether that change was saved.',
 
     'settings.title': 'Settings',

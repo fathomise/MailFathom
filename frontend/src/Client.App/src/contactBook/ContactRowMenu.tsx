@@ -7,6 +7,7 @@ import { useComposing } from '../composer/useComposing';
 import { ContextMenu, type ContextMenuItem } from '../contextMenu/ContextMenu';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useLocalization } from '../localization/useLocalization';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // What a contact's row offers, which is this list's own items handed to the one menu six lists share: where the menu
 // stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s.
@@ -47,6 +48,7 @@ export function ContactRowMenu({
 }) {
     const { translate } = useLocalization();
     const composing = useComposing();
+    const writeRefused = useWriteRefusal();
 
     const items: ContextMenuItem[] = [
         { icon: 'check_box', label: translate('people.selectContacts'), choose: onSelect },
@@ -65,10 +67,12 @@ export function ContactRowMenu({
     items.push({ icon: 'person', label: translate('people.openContact'), choose: onOpen });
 
     if (erasable) {
+        // Deleting writes, so while the server is out of reach it stays here saying why it cannot act.
         items.push({
             icon: 'delete',
             label: translate('people.deleteContact'),
             destroys: true,
+            refused: writeRefused(translate('people.deleteContact')),
             choose: onAskErasure,
         });
     }

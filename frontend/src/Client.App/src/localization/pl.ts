@@ -585,7 +585,8 @@ export const pl: Catalogue = {
         'Oba ustawienia są odczytywane z argumentów uruchomienia MailFathom, z jego środowiska oraz z pliku client.conf obok jego własnej konfiguracji – w tej kolejności.',
 
     'preferences.notStated': 'Ta zmiana nie została zapisana na serwerze.',
-    'preferences.noConnection': 'Brak połączenia z serwerem MailFathom, więc nie można ich zmienić, dopóki połączenie nie wróci.',
+    'preferences.noConnection':
+        'Brak połączenia z serwerem MailFathom, więc nie można ich zmienić, dopóki połączenie nie wróci.',
     'preferences.stateUnknown': 'Serwer nie odpowiedział, więc nie wiadomo, czy ta zmiana została zapisana.',
 
     'settings.title': 'Ustawienia',
@@ -634,7 +635,8 @@ export const pl: Catalogue = {
         'W tej strefie zapisywana jest każda pokazywana Ci data i to ona rozstrzyga, co znaczy „w tym tygodniu” i „od wtorku”, gdy pytasz o swoją pocztę.',
     'settings.timeZoneNotAcceptable':
         'Ta strefa czasowa nie została przyjęta, więc Twoje daty są nadal zapisywane w poprzedniej.',
-    'settings.timeZoneStateUnknown': 'Serwer nie odpowiedział, więc nie wiadomo, czy ta strefa czasowa została zapisana.',
+    'settings.timeZoneStateUnknown':
+        'Serwer nie odpowiedział, więc nie wiadomo, czy ta strefa czasowa została zapisana.',
     'settings.timeZoneNotStored':
         'Ta strefa czasowa nie została zapisana na serwerze, więc Twoje daty są nadal zapisywane w poprzedniej.',
     'settings.messageView': 'Widok wiadomości',
@@ -1184,7 +1186,8 @@ export const pl: Catalogue = {
     'outbox.unknownTitle': 'Nie wiadomo, czy to zostało zrobione',
     'outbox.decisionUnknown':
         'Serwer nie odpowiedział, więc mogło to zostać zrobione. Nadawcza pokaże, co dzieje się z wiadomością, gdy serwer znów odpowie.',
-    'outbox.noConnection': 'Brak połączenia z serwerem MailFathom, więc niczego tu nie można zdecydować, dopóki nie wróci.',
+    'outbox.noConnection':
+        'Brak połączenia z serwerem MailFathom, więc niczego tu nie można zdecydować, dopóki nie wróci.',
 
     'list.label': 'Wiadomości',
     'list.reading': 'Wczytywanie poczty…',

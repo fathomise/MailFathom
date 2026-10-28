@@ -18,6 +18,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { ReminderPanel } from '../reminders/ReminderPanel';
 import { wordReminderCount } from '../reminders/reminderWords';
 import { useTopLayerSurface } from '../shell/screenLayers';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { EventFields } from './EventFields';
 import { draftOn, draftedFrom, recordOf, type EventDraft } from './eventDraft';
 
@@ -75,6 +76,10 @@ export function NewEvent({
     const panel = useRef<HTMLDialogElement>(null);
 
     const record = recordOf(draft);
+
+    // Saving writes the event, so while the server is out of reach it says why it cannot act — over the buttons, where
+    // a finger reads it as well as a mouse — and the dialog keeps everything typed into it.
+    const refused = useWriteRefusal()(translate('calendar.saveEvent'));
 
     function emptied(): void {
         setDescribed('');
@@ -142,7 +147,7 @@ export function NewEvent({
                     // made from the keyboard.
                     submitting.preventDefault();
 
-                    if (record !== null) {
+                    if (record !== null && refused === null) {
                         // An event written here is the reader's own, which is what `sourceMessage` being absent
                         // states: a calendar entry carrying a message is one the deployment read out of that message.
                         onSave({ ...record, sourceMessage: null });
@@ -230,6 +235,12 @@ export function NewEvent({
                     </button>
                 </div>
 
+                {refused === null ? null : (
+                    <p role="status" className="px-4.5 pb-2.25 text-sm text-muted text-pretty">
+                        {refused}
+                    </p>
+                )}
+
                 <div className="flex flex-wrap justify-end gap-2.25 px-4.5 pb-4.5">
                     <button
                         type="button"
@@ -244,7 +255,8 @@ export function NewEvent({
                     <button
                         type="submit"
                         disabled={record === null}
-                        className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100`}
+                        aria-disabled={refused === null ? undefined : true}
+                        className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
                     >
                         {translate('calendar.saveEvent')}
                     </button>
