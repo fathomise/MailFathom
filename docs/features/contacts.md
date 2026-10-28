@@ -229,8 +229,8 @@ trusted. A mailbox's collected book is never consulted, because collection write
 forgers included. The comparison is the address's comparison form, so `Anna@Example.test` and `anna@example.test` are
 one sender. What else the message has to prove before a contact counts — an author tied to the address by DMARC, an
 aligned DKIM signature, or the author's own verified signature, never SPF alone — and in which order a contact ranks
-against the owner's own addresses and an organization's signature is [sender authentication § Which senders this
-deployment recognizes](sender-authentication.md#which-senders-this-deployment-recognizes).
+against the owner's own addresses and an organization's signature is [sender authentication § Whether the author is
+one this deployment recognizes](sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes).
 
 **Every address records who wrote it, and only a person or an administrator grants trust.** Each address row carries
 the surface its write came through, the user, the credential the write was admitted by, and when:

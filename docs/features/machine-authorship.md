@@ -114,7 +114,7 @@ beside it: a digest of the weights and the thresholds, so two readings carrying 
 different weightings and one carrying none was reached by nothing at all.
 
 It is a digest rather than a version number somebody raises by hand, for the reason [the sender-trust policy
-revision](sender-authentication.md#the-verdict-outlives-the-list) is one: a number maintained by hand is wrong the first
+revision](sender-authentication.md#the-verdict-outlives-the-configuration) is one: a number maintained by hand is wrong the first
 time a weight moves without it, and the whole value of the column is that it cannot be.
 
 What re-judges mail already stored is [`mfctl mailbox rederive`](imap-synchronization.md#bringing-stored-mail-up-to-a-later-release),
