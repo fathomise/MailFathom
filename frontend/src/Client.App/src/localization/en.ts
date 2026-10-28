@@ -1303,6 +1303,7 @@ export const en = {
     'connection.lost': 'The server has not answered after {total} attempts.',
     'connection.unreadable': 'The server answered, but this client could not act on the answer: {reason}.',
     'connection.offline': 'This machine is offline. The client reconnects on its own when the network comes back.',
+    'connection.writeRefused': '{control} - no connection to the MailFathom server.',
     'connection.unknown': 'Mailbox status unknown: no connection to the MailFathom server.',
     'connectionStatus.connecting': 'Connecting to the server…',
     'connectionStatus.online': 'Connected to the server.',
@@ -1895,8 +1896,13 @@ export const en = {
     'pendingChange.changeNotUsable': 'The change asked for is not one a single request can name - please report it.',
     'pendingChange.destinationNotAllowed':
         'That folder does not take it: drafts stay in the drafts folder or a folder you made, and nothing else goes there.',
-    'pendingChange.notDelivered': 'This change did not reach the server.',
-    'pendingChange.notDeliveredBody': 'Nothing was written down, so your mailbox is unchanged.',
+    'pendingChange.outcomeUnknown': 'Not known whether this reached the server',
+    'pendingChange.outcomeUnknownBody':
+        'The connection went as this change was made. It stays shown as you asked until the server answers again, and then as the server holds it.',
+    'pendingChange.refused': 'The server refused this change.',
+    'pendingChange.refusedBody': 'Nothing was written down, so your mailbox is unchanged: {reason}.',
+    'pendingChange.reread': 'The screen now shows what the server holds',
+    'pendingChange.rereadBody': 'Some changes made as the connection went did not reach it.',
     'pendingChange.retry': 'Try again',
     'pendingChange.stoppedFollowing': 'This client stopped checking where your changes have got to.',
     'pendingChange.stoppedFollowingBody':

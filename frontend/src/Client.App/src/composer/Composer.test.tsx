@@ -324,6 +324,7 @@ const defaultStatus: ConnectionStatus = {
     retry: () => undefined,
     detailsOpen: false,
     showDetails: () => undefined,
+    disconnectedNow: () => false,
 };
 
 function drawComposer(

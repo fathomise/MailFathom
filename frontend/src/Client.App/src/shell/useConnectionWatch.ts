@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { SignalledChanges } from '../signals/signalledChanges';
 import type { ChannelStep } from '../signals/useSignals';
 import { nextChangeIn, readConnection, type ConnectionEvidence, type ConnectionStatus } from './connectionStatus';
@@ -230,6 +230,17 @@ export function useConnectionWatch(
     // The details are about a delay or a lost server, so they are open only while there is one to say.
     const [detailsAsked, setDetailsAsked] = useState(false);
     const reading = readConnection(evidence, clock);
+
+    // What `disconnectedNow` answers, written as the status commits and before any effect runs — so a request the
+    // probe abandons in an effect fails into a client whose status already says the server is lost.
+    const disconnectedAtCommit = useRef(false);
+    const lostNow = reading.level === 'disconnected';
+
+    useLayoutEffect(() => {
+        disconnectedAtCommit.current = lostNow;
+    }, [lostNow]);
+
+    const disconnectedNow = useCallback(() => disconnectedAtCommit.current, []);
     const status: ConnectionStatus = {
         ...reading,
         attempts: connection.unansweredSince === null ? null : connection.attempts,
@@ -239,6 +250,7 @@ export function useConnectionWatch(
         },
         detailsOpen: detailsAsked && (reading.level === 'delayed' || reading.level === 'disconnected'),
         showDetails: setDetailsAsked,
+        disconnectedNow,
     };
 
     return { status, channelStood };

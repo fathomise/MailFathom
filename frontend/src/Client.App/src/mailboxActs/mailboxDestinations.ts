@@ -74,6 +74,9 @@ export type ActRefusal =
     /** The credential this client signed in under may not write what the act writes. */
     | 'notOffered'
 
+    /** The server is out of reach, so the act would have no route to it. */
+    | 'noConnection'
+
     /** Nothing is picked out or open, so the act has nothing to be about. */
     | 'nothingToActOn'
 

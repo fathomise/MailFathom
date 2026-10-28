@@ -67,6 +67,7 @@ const disconnectedStatus: ConnectionStatus = {
     retry: () => undefined,
     detailsOpen: false,
     showDetails: () => undefined,
+    disconnectedNow: () => false,
 };
 
 function renderSummary(

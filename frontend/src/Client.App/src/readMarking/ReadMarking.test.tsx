@@ -256,8 +256,8 @@ describe('ReadMarkingProvider', () => {
         });
     });
 
-    it('stops claiming a message read where the deployment could not be reached', async () => {
-        const { result } = marking(() => Promise.reject(new Error('the connection was refused')));
+    it('stops claiming a message read where the server refused the change', async () => {
+        const { result } = marking(() => Promise.resolve({ status: 403, body: '', headers: {} }));
 
         act(() => {
             result.current.markRead(opened('first'));
@@ -270,12 +270,26 @@ describe('ReadMarkingProvider', () => {
         });
     });
 
+    // Nothing answered, so it is not known whether the message was marked — and it most likely was. It stays drawn read
+    // until the read made once the server answers again says otherwise.
+    it('goes on drawing a message read where nothing answered, since it most likely landed', async () => {
+        const { result } = marking(() => Promise.reject(new Error('the connection was refused')));
+
+        act(() => {
+            result.current.markRead(opened('first'));
+        });
+
+        await screen.findByText('Not known whether this reached the server');
+
+        expect(drawnUnread(result.current, 'first', true)).toBe(false);
+    });
+
     // Asking again is the queue handing the change back to whoever submitted it, and what this component owes that is
     // the marking exactly as it was — the same account and the same folder — before the request goes out a second
     // time. A restore that lost where the message was counted would leave a folder's unread count answering for a
     // message it no longer holds.
     it('restores where a message was counted when the person asks for the change again', async () => {
-        const { result } = marking(() => Promise.reject(new Error('the connection was refused')));
+        const { result } = marking(() => Promise.resolve({ status: 403, body: '', headers: {} }));
 
         act(() => {
             result.current.markRead(opened('first', { account: 'personal', folder: 'ARCHIVE' }));
@@ -299,7 +313,7 @@ describe('ReadMarkingProvider', () => {
         const refused: MailFathomTransport = (request) => {
             requests.push(request);
 
-            return Promise.reject(new Error('the connection was refused'));
+            return Promise.resolve({ status: 403, body: '', headers: {} });
         };
 
         let signedIn = signedInAs;

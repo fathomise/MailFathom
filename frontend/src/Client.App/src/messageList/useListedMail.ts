@@ -40,17 +40,23 @@ export interface ListedMail {
     /** Where a message the list has drawn belongs, or `null` for one it never drew. */
     readonly placeOf: (storedEmailId: string) => ActedMessage | null;
 
-    /** Writes down where the mail of a page that has just arrived belongs, and how it stood when it did. */
-    readonly drew: (
-        emails: readonly {
-            readonly id: string;
-            readonly account: string;
-            readonly folder: string;
-            readonly unread: boolean;
-            readonly flagged: boolean;
-            readonly spam: MailSpamVerdict | null;
-        }[],
-    ) => void;
+    /**
+     * Writes down where the mail of a page that has just arrived belongs, and how it stood when it did.
+     *
+     * @param askedAt When the read that answered with the page was asked for, which is what tells a page the server
+     * answered after a change went unanswered from one it was already answering before.
+     */
+    readonly drew: (emails: readonly DrawnMail[], askedAt: number) => void;
+
+    /**
+     * Listens for every page the list or the search draws, as it lands.
+     *
+     * It is how a change whose outcome is not known learns what the server holds: the read made once the server
+     * answers again says it, and nothing else has to be asked.
+     *
+     * @returns How to stop listening, which is what an effect returns.
+     */
+    readonly observe: (listener: (emails: readonly DrawnMail[], askedAt: number) => void) => () => void;
 
     /** Selects every message the list is showing, and does nothing where no list is on the screen. */
     readonly selectAll: () => void;
@@ -63,6 +69,16 @@ export interface ListedMail {
 
     /** Puts one of the tree's standing views in force on the list, and does nothing where no list is on the screen. */
     readonly stand: (view: StandingView) => void;
+}
+
+/** One message as a page drew it: where it is, and how its two flags and its spam verdict stood. */
+export interface DrawnMail {
+    readonly id: string;
+    readonly account: string;
+    readonly folder: string;
+    readonly unread: boolean;
+    readonly flagged: boolean;
+    readonly spam: MailSpamVerdict | null;
 }
 
 /** What a list on the screen answers for, filled by the list itself and by nothing above it. */
@@ -81,6 +97,7 @@ export interface ListedMailbox {
 export const nothingListed: ListedMail = {
     placeOf: () => null,
     drew: () => undefined,
+    observe: () => () => undefined,
     selectAll: () => undefined,
     takeFocus: () => undefined,
     listing: () => undefined,

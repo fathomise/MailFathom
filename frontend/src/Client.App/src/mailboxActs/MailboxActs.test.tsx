@@ -15,6 +15,7 @@ import type {
 import { LocalizationProvider } from '../localization/Localization';
 import { PendingChangeLines } from '../pendingChanges/PendingChangeLines';
 import { ReadMarkingContext, nothingMarkedRead, type ReadMarking } from '../readMarking/useReadMarking';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { PendingChangesProvider } from '../pendingChanges/PendingChanges';
 import { followedChangeInterval } from '../pendingChanges/usePendingChanges';
 import { TelemetryContext, noTelemetry, type ClientTelemetry } from '../telemetry/clientTelemetry';
@@ -274,6 +275,19 @@ const someoneElse: ClientSession = { baseAddress: 'https://mail.example.invalid'
  * the same answer put on the screen. So a toast on the screen says nothing yet about what `held` answers, however
  * surely the provider wrote the two in one render, and a case that awaited the one waits for the other.
  */
+/** The connection status at one level, as the frame hands it. */
+function statusAt(level: 'online' | 'disconnected'): ConnectionStatus {
+    const shared = {
+        attempts: null,
+        retry: () => undefined,
+        detailsOpen: false,
+        showDetails: () => undefined,
+        disconnectedNow: () => level === 'disconnected',
+    };
+
+    return level === 'online' ? { level, ...shared } : { level, cause: 'unanswered', since: 0, ...shared };
+}
+
 function acting(
     deployment: Deployment,
     {
@@ -283,6 +297,7 @@ function acting(
         composes = false,
         telemetry = noTelemetry,
         marking = nothingMarkedRead,
+        status = 'online',
     }: {
         flags?: boolean;
         moves?: boolean;
@@ -290,6 +305,7 @@ function acting(
         composes?: boolean;
         telemetry?: ClientTelemetry;
         marking?: ReadMarking;
+        status?: 'online' | 'disconnected';
     } = {},
 ): { readonly held: () => MailboxActs; readonly signIn: (next: ClientSession) => void } {
     let signedIn = session;
@@ -300,20 +316,22 @@ function acting(
                 <TelemetryContext value={telemetry}>
                     <ReadMarkingContext value={marking}>
                         <ToastsProvider>
-                            <PendingChangesProvider session={signedIn} transport={deployment.transport}>
-                                <PendingChangeLines />
-                                <MailboxActsProvider
-                                    session={signedIn}
-                                    transport={deployment.transport}
-                                    online
-                                    flags={flags}
-                                    moves={moves}
-                                    deletes={deletes}
-                                    composes={composes}
-                                >
-                                    {children}
-                                </MailboxActsProvider>
-                            </PendingChangesProvider>
+                            <ConnectionStatusContext value={statusAt(status)}>
+                                <PendingChangesProvider session={signedIn} transport={deployment.transport}>
+                                    <PendingChangeLines />
+                                    <MailboxActsProvider
+                                        session={signedIn}
+                                        transport={deployment.transport}
+                                        online
+                                        flags={flags}
+                                        moves={moves}
+                                        deletes={deletes}
+                                        composes={composes}
+                                    >
+                                        {children}
+                                    </MailboxActsProvider>
+                                </PendingChangesProvider>
+                            </ConnectionStatusContext>
                         </ToastsProvider>
                     </ReadMarkingContext>
                 </TelemetryContext>
@@ -933,23 +951,51 @@ describe('MailboxActsProvider', () => {
         });
     });
 
-    it('says an act that never reached the deployment changed nothing, and claims nothing about the message', async () => {
+    it('says an act the server refused changed nothing, and claims nothing about the message', async () => {
         const deployment = deploymentAnswering({}, 403);
         const { held } = acting(deployment);
 
         perform(held, 'flag', [invoice]);
 
-        await screen.findByText('This change did not reach the server.');
+        await screen.findByText('The server refused this change.');
 
         await waitFor(() => {
             expect(held().asked.has('message-1')).toBe(false);
         });
     });
 
+    // A gateway answering for the server may have handed the request on first, so a `504` on a write settles nothing:
+    // the act most likely landed, and what it drew stays drawn until the server says otherwise.
+    it('says an act a gateway answered for is of unknown outcome, and keeps drawing it', async () => {
+        const deployment = deploymentAnswering({}, 504);
+        const { held } = acting(deployment);
+
+        perform(held, 'flag', [invoice]);
+
+        await screen.findByText('Not known whether this reached the server');
+
+        expect(held().asked.get('message-1')?.act).toBe('flag');
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
+    it('refuses every act before it is pressed while the server is out of reach', async () => {
+        const deployment = deploymentAnswering();
+        const { held } = acting(deployment, { status: 'disconnected' });
+
+        await waitFor(() => {
+            expect(held().refusalOf('archive', [invoice])).toBe('noConnection');
+        });
+        expect(held().refusalOf('flag', [invoice])).toBe('noConnection');
+
+        perform(held, 'flag', [invoice]);
+
+        expect(deployment.requests.filter((request) => request.path.includes('/mutations'))).toStrictEqual([]);
+    });
+
     // A submission over the bound is several batches and they do not answer together. What one of them was written
     // down for is written down, however the batch beside it ended: a row cleared on the strength of somebody else's
     // failure is a client disagreeing with the mailbox about mail the deployment is holding.
-    it('keeps what one batch wrote down when the batch beside it never reached the deployment', async () => {
+    it('keeps what one batch wrote down when the batch beside it was never answered', async () => {
         const requests: ClientRequest[] = [];
         const spread = Array.from({ length: mostMessagesPerMutation + 1 }, (_, at) => ({
             storedEmailId: `message-${String(at)}`,
@@ -991,12 +1037,10 @@ describe('MailboxActsProvider', () => {
 
         perform(held, 'flag', spread);
 
-        await screen.findByText('This change did not reach the server.');
+        await screen.findByText('Not known whether this reached the server');
 
-        await waitFor(() => {
-            expect(held().asked.has(`message-${String(mostMessagesPerMutation)}`)).toBe(false);
-        });
-
+        // The batch nobody answered most likely landed too, so its message goes on being drawn as asked.
+        expect(held().asked.get(`message-${String(mostMessagesPerMutation)}`)?.act).toBe('flag');
         expect(held().asked.get('message-0')?.act).toBe('flag');
     });
 
@@ -1029,7 +1073,7 @@ describe('MailboxActsProvider', () => {
 
         perform(held, 'flag', [invoice]);
 
-        await screen.findByText('This change did not reach the server.');
+        await screen.findByText('Not known whether this reached the server');
 
         expect(recordsOf(recording.recorded, 'act_asked')).toHaveLength(1);
         expect(recordsOf(recording.recorded, 'act_refused')).toStrictEqual([]);

@@ -460,6 +460,10 @@ export function useConnection(
         };
     }, [lost, attempts, baseAddress, presenting]);
 
+    // The abandoning itself waits for the status to have said the server is lost, so what each abandoned request fails
+    // into is a client whose status already says it — which is what lets the failure leave the saying to the status.
+    const abandoning = useRef(false);
+
     // The liveness probe is this same session read, asked quietly and as a probe: one attempt, ahead of any queue, and
     // bounded. Any answer at all says the server is there — a refusal from its limiter or a gateway's `503` included —
     // so a server refusing the probe under load is never called lost. Only silence is a probe nobody answered.
@@ -490,7 +494,7 @@ export function useConnection(
                 ? previous
                 : { presentedAt: baseAddress, presenting, since },
         );
-        inFlight.abandonStill();
+        abandoning.current = true;
     });
 
     const liveness = useRef<LivenessProbe | null>(null);
@@ -520,6 +524,11 @@ export function useConnection(
     // probes already, and a second schedule for the same question is what `reconnection.ts` exists to rule out.
     useEffect(() => {
         liveness.current?.lost(lost);
+
+        if (lost && abandoning.current) {
+            abandoning.current = false;
+            inFlight.abandonStill();
+        }
     }, [lost, baseAddress, presenting, online, inFlight]);
 
     return {

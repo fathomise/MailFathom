@@ -201,6 +201,7 @@ export function SearchResults({
         }
 
         let listening = true;
+        const askedAt = Date.now();
 
         void readMailSearch(session, transport, queryFor(ask, wantedCursor)).then((result) => {
             if (!listening) {
@@ -216,7 +217,7 @@ export function SearchResults({
             } else {
                 // Written down for the reason the folder's list writes its pages down: a result opened from here is
                 // the message the toolbar acts on, and the toolbar knows where a message belongs only from this.
-                listed.drew(result.value.results);
+                listed.drew(result.value.results, askedAt);
                 setFound((current) => withPage(wantedCursor === null ? null : current, result.value, refresh));
             }
         });

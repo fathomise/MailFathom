@@ -10,6 +10,8 @@ import {
     moveMail,
     readMailFolders,
     releaseMailDeletes,
+    wentUnanswered,
+    type ClientFailure,
     type ClientFailureReason,
     type ClientResult,
     type ClientSession,
@@ -26,6 +28,7 @@ import { usePendingChanges } from '../pendingChanges/usePendingChanges';
 import { useReadMarking } from '../readMarking/useReadMarking';
 import { useSpamMarks } from '../spamMarking/useSpamMarks';
 import { useTelemetry } from '../telemetry/clientTelemetry';
+import { disconnected, saidByTheStatus, useConnectionStatus } from '../shell/connectionStatus';
 import { useToasts } from '../toasts/useToasts';
 import {
     deletesPermanently,
@@ -35,6 +38,7 @@ import {
     filingFor,
     mayBeTakenBack,
     refusalFor,
+    type ActRefusal,
     type MoveDestination,
 } from './mailboxDestinations';
 import {
@@ -229,6 +233,15 @@ interface Submitted {
     readonly answer: ClientResult<readonly MailMutationResult[]>;
 }
 
+/** The messages of every batch nobody answered, whose outcome is therefore not known. */
+function unansweredIn(answered: readonly Submitted[]): ReadonlySet<string> {
+    return new Set(
+        answered
+            .filter(({ answer }) => answer.outcome === 'failed' && wentUnanswered(answer.failure))
+            .flatMap(({ messages }) => messages.map((message) => message.storedEmailId)),
+    );
+}
+
 export function MailboxActsProvider({
     session,
     transport,
@@ -265,6 +278,9 @@ export function MailboxActsProvider({
 }) {
     const { locale, translate } = useLocalization();
     const toasts = useToasts();
+    const status = useConnectionStatus();
+    const { disconnectedNow } = status;
+    const lostServer = disconnected(status);
     const telemetry = useTelemetry();
     const pending = usePendingChanges();
     const marking = useReadMarking();
@@ -339,7 +355,7 @@ export function MailboxActsProvider({
     // A folder made, renamed, moved, or deleted here reads them again, for the reason the tree does: the destinations
     // this offers are those folders, and a folder somebody has just made is one they mean to file into at once.
     useEffect(() => {
-        if (session === null || !online || !(flags || moves || deletes || composes)) {
+        if (session === null || !online || lostServer || !(flags || moves || deletes || composes)) {
             return;
         }
 
@@ -360,6 +376,11 @@ export function MailboxActsProvider({
                 return;
             }
 
+            // A server out of reach is the status's to say, and the folders are read again the moment it answers.
+            if (saidByTheStatus(disconnectedNow, answer.failure.reason)) {
+                return;
+            }
+
             toasts.raise({
                 kind: 'warning',
                 title: translate('act.foldersNotRead', {
@@ -377,9 +398,30 @@ export function MailboxActsProvider({
         return () => {
             listening = false;
         };
-    }, [session, transport, online, flags, moves, deletes, composes, attempts, foldersChanged, toasts, translate]);
+    }, [
+        session,
+        transport,
+        online,
+        lostServer,
+        flags,
+        moves,
+        deletes,
+        composes,
+        attempts,
+        foldersChanged,
+        toasts,
+        translate,
+        disconnectedNow,
+    ]);
 
-    function refusalOf(act: MailboxAct, messages: readonly ActedMessage[]) {
+    // An act with no route to the server is refused before it is pressed, as ADR 0028 asks of a client that cannot
+    // reach its deployment, rather than accepted and then reported as a write whose outcome is unknown. That is left to
+    // the few seconds before a lost connection is noticed.
+    function refusalOf(act: MailboxAct, messages: readonly ActedMessage[]): ActRefusal | null {
+        if (lostServer && messages.length > 0) {
+            return 'noConnection';
+        }
+
         return refusalFor(act, messages, held.directory, { flags, moves, deletes });
     }
 
@@ -581,6 +623,7 @@ export function MailboxActsProvider({
         function submission(
             batches: readonly Submitted[],
             results: readonly MailMutationResult[] | null,
+            failure: ClientFailure | null,
         ): ChangeSubmission {
             const carried = batches.flatMap(({ messages }) => messages);
 
@@ -588,6 +631,8 @@ export function MailboxActsProvider({
                 act,
                 asked: carried.map((message) => message.storedEmailId),
                 results,
+                failure,
+                askedIn: new Map(carried.map((message) => [message.storedEmailId, message.folder])),
                 askAgain: (storedEmailIds) => {
                     const named = new Set(storedEmailIds);
 
@@ -604,19 +649,33 @@ export function MailboxActsProvider({
         }
 
         const reached = answered.filter(({ answer }) => answer.outcome === 'read');
-        const lost = answered.filter(({ answer }) => answer.outcome === 'failed');
 
         if (reached.length > 0) {
             pending.follow(
                 submission(
                     reached,
                     reached.flatMap(({ answer }) => (answer.outcome === 'read' ? answer.value : [])),
+                    null,
                 ),
             );
         }
 
-        if (lost.length > 0) {
-            pending.follow(submission(lost, null));
+        // The batches nobody answered are one silence, and those the server refused are one refusal per reason it
+        // gave: a refusal says nothing was written down, while silence leaves the outcome unknown.
+        const lost = new Map<ClientFailureReason | null, { failure: ClientFailure | null; batches: Submitted[] }>();
+
+        for (const batch of answered) {
+            if (batch.answer.outcome === 'failed') {
+                const failure = wentUnanswered(batch.answer.failure) ? null : batch.answer.failure;
+                const reason = failure?.reason ?? null;
+                const gathered = lost.get(reason) ?? { failure, batches: [] };
+
+                lost.set(reason, { failure: gathered.failure, batches: [...gathered.batches, batch] });
+            }
+        }
+
+        for (const { failure, batches } of lost.values()) {
+            pending.follow(submission(batches, null, failure));
         }
     }
 
@@ -715,8 +774,13 @@ export function MailboxActsProvider({
             const written = writtenDown(answered);
             const returned = messages.filter((message) => written.has(message.storedEmailId));
 
+            // A way back nobody answered is not known to have failed, so the act it reverses is not drawn again over it.
+            const unknown = unansweredIn(answered);
+
             stillFiled(
-                messages.filter((message) => !written.has(message.storedEmailId)).map((one) => one.storedEmailId),
+                messages
+                    .filter((message) => !written.has(message.storedEmailId) && !unknown.has(message.storedEmailId))
+                    .map((one) => one.storedEmailId),
             );
 
             if (returned.length > 0) {
@@ -801,9 +865,15 @@ export function MailboxActsProvider({
 
             // Everything that was not written down stops being claimed here, rather than only where the queue lets go
             // of it: a message already where it was asked to go is a refusal nobody is told about, and an act filing
-            // it into the folder it is already in has not taken it out of the list it is drawn in either.
+            // it into the folder it is already in has not taken it out of the list it is drawn in either. A batch
+            // nobody answered is the exception: its outcome is not known, and it most likely landed, so it stays
+            // drawn as asked until the read made once the server answers again says otherwise.
+            const unknown = unansweredIn(answered);
+
             forget(
-                messages.filter((message) => !written.has(message.storedEmailId)).map((one) => one.storedEmailId),
+                messages
+                    .filter((message) => !written.has(message.storedEmailId) && !unknown.has(message.storedEmailId))
+                    .map((one) => one.storedEmailId),
                 act,
             );
 

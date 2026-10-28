@@ -38,7 +38,7 @@ describe('ListedMailProvider', () => {
     it('says where a message the list drew belongs, which the workspace’s identities alone cannot', () => {
         const listed = held();
 
-        listed.drew([drawn(1)]);
+        listed.drew([drawn(1)], 0);
 
         expect(listed.placeOf('message-1')).toStrictEqual({
             storedEmailId: 'message-1',
@@ -57,7 +57,10 @@ describe('ListedMailProvider', () => {
     it('gives up the oldest reading once it is holding as much as it may, a folder outgrowing any map', () => {
         const listed = held();
 
-        listed.drew(Array.from({ length: mostPlacesRemembered + 2 }, (_, at) => drawn(at)));
+        listed.drew(
+            Array.from({ length: mostPlacesRemembered + 2 }, (_, at) => drawn(at)),
+            0,
+        );
 
         expect(listed.placeOf('message-0')).toBeNull();
         expect(listed.placeOf('message-1')).toBeNull();

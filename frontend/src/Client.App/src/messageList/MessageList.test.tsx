@@ -1023,6 +1023,7 @@ describe('MessageList', () => {
 
         expect(listed.drew).toHaveBeenCalledWith(
             expect.arrayContaining([expect.objectContaining({ id: 'message-1', account: 'work', folder: 'INBOX' })]),
+            expect.any(Number),
         );
     });
 

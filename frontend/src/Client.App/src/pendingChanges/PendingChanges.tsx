@@ -6,14 +6,25 @@ import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import {
     mostRecordsPerRead,
     readMailMutationRecords,
+    wentUnanswered,
     type ClientSession,
     type MailFathomTransport,
     type MailMutationOutcome,
 } from '@mailfathom/client-backend';
 import { useLocalization } from '../localization/useLocalization';
+import { useListedMail, type DrawnMail } from '../messageList/useListedMail';
+import { disconnected, saidByTheStatus, useConnectionStatus } from '../shell/connectionStatus';
+import { useSignalledChanges } from '../signals/signalledChanges';
 import { useToasts } from '../toasts/useToasts';
 import { failureLabels, refusalReasons, refusalTitles, standingReasons } from './changeWording';
-import { readSubmission, standingOf, type ChangeSubmission, type PendingChange } from './changeStandings';
+import {
+    landedAs,
+    readSubmission,
+    standingOf,
+    type ChangeAct,
+    type ChangeSubmission,
+    type PendingChange,
+} from './changeStandings';
 import {
     followedChangeInterval,
     mostFollowingAttempts,
@@ -45,6 +56,28 @@ interface Held {
     readonly session: ClientSession | null;
     readonly followed: readonly FollowedChange[];
     readonly undecided: readonly HeldUndecided[];
+    readonly unknown: readonly UnknownChange[];
+}
+
+/**
+ * A change whose write nobody answered, held until the read made once the server answers again says where it stands.
+ *
+ * It is drawn as asked until then, because once an act is committed on arrival a write that went out has most likely
+ * landed and only its answer was lost. It has no record to follow — none was answered — so it is held against what the
+ * lists draw instead: the first page asked for after it went unanswered that draws the message settles it.
+ */
+interface UnknownChange {
+    readonly act: ChangeAct;
+    readonly storedEmailId: string;
+
+    /** The folder the act was asked in, which a filing act's landing is read against. */
+    readonly askedIn: string | null;
+
+    /** When the write ended unanswered; a page asked for before it cannot say what became of the write. */
+    readonly since: number;
+
+    /** Stops drawing the act, so what the server holds is drawn instead. */
+    readonly letGo: () => void;
 }
 
 /** A change being followed, beside what its producer said asking again and letting go mean for it. */
@@ -58,7 +91,7 @@ interface HeldUndecided extends UndecidedChange {
     readonly letGo: () => void;
 }
 
-const nothingHeld: Held = { session: null, followed: [], undecided: [] };
+const nothingHeld: Held = { session: null, followed: [], undecided: [], unknown: [] };
 
 const noneAbandoned: readonly AbandonedChange[] = [];
 
@@ -98,6 +131,14 @@ export function PendingChangesProvider({
 }) {
     const { locale, translate } = useLocalization();
     const toasts = useToasts();
+    const status = useConnectionStatus();
+    const listed = useListedMail();
+    const changes = useSignalledChanges();
+
+    // While the server is out of reach the status already says so, and asking where changes stand would only count
+    // failures towards giving up and then say so a second time. Following stops without counting, and starts again —
+    // from the attempts it had — the moment the server answers.
+    const lostServer = disconnected(status);
     const [held, setHeld] = useState<Held>(nothingHeld);
     const [failures, setFailures] = useState<Failures>(noFailures);
     const [round, setRound] = useState(0);
@@ -144,6 +185,10 @@ export function PendingChangesProvider({
             }
 
             setRound((current) => current + 1);
+
+            if (answer.outcome === 'failed' && saidByTheStatus(status.disconnectedNow, answer.failure.reason)) {
+                return;
+            }
 
             if (answer.outcome === 'failed') {
                 // Only a deployment that did not answer is worth asking again. A credential it refused, or an answer
@@ -212,6 +257,7 @@ export function PendingChangesProvider({
                           session: asking,
                           followed: [...stillWaiting, ...current.followed.slice(page.length)],
                           undecided: [...current.undecided, ...undecided],
+                          unknown: current.unknown,
                       }
                     : current,
             );
@@ -229,7 +275,7 @@ export function PendingChangesProvider({
     });
 
     useEffect(() => {
-        if (session === null || !follows || attempts >= mostFollowingAttempts) {
+        if (session === null || !follows || attempts >= mostFollowingAttempts || lostServer) {
             return;
         }
 
@@ -242,7 +288,54 @@ export function PendingChangesProvider({
             abandoned = true;
             clearTimeout(waiting);
         };
-    }, [session, follows, attempts, round]);
+    }, [session, follows, attempts, round, lostServer]);
+
+    // What an unknown write became, read off the first page that draws its message after it went unanswered. One whose
+    // act the server shows is let be — what it draws is what the server holds. One the server does not show is let go
+    // of, so the server's own state is drawn, and that is said once for every such write the page settles.
+    const settleUnknown = useEffectEvent((emails: readonly DrawnMail[], askedAt: number) => {
+        const drawn = new Map(emails.map((email) => [email.id, email]));
+        const settled = inForce.unknown.filter(
+            (change) => askedAt >= change.since && drawn.has(change.storedEmailId),
+        );
+
+        if (settled.length === 0) {
+            return;
+        }
+
+        const settledNow = new Set(settled);
+        const notMade = settled.filter((change) => {
+            const email = drawn.get(change.storedEmailId);
+
+            return email !== undefined && !landedAs(change.act, change.askedIn, email);
+        });
+
+        setHeld((current) =>
+            current.session === inForce.session
+                ? { ...current, unknown: current.unknown.filter((change) => !settledNow.has(change)) }
+                : current,
+        );
+
+        for (const change of notMade) {
+            change.letGo();
+        }
+
+        if (notMade.length > 0) {
+            toasts.raise({
+                kind: 'info',
+                title: translate('pendingChange.reread'),
+                body: translate('pendingChange.rereadBody'),
+            });
+        }
+    });
+
+    useEffect(
+        () =>
+            listed.observe((emails, askedAt) => {
+                settleUnknown(emails, askedAt);
+            }),
+        [listed],
+    );
 
     function report(submission: ChangeSubmission, outcome: MailMutationOutcome, storedEmailIds: readonly string[]) {
         const reason = refusalReasons[outcome];
@@ -268,14 +361,16 @@ export function PendingChangesProvider({
     }
 
     function follow(submission: ChangeSubmission): void {
-        // Nothing reached the deployment, so nothing was written down and the mailbox is untouched. There is no queue
-        // to put it in — a write is made or it does not happen — so what is owed is the sentence and the way back.
-        if (submission.results === null) {
+        // The server answered with a refusal it stated, so nothing was written down and the mailbox is untouched: the
+        // screen stops claiming the change, and what is owed is the sentence and the way back.
+        if (submission.results === null && submission.failure !== null && !wentUnanswered(submission.failure)) {
+            const reason = submission.failure.reason;
+
             submission.letGo(submission.asked);
             toasts.raise({
                 kind: 'error',
-                title: translate('pendingChange.notDelivered'),
-                body: translate('pendingChange.notDeliveredBody'),
+                title: translate('pendingChange.refused'),
+                body: translate('pendingChange.refusedBody', { reason: translate(failureLabels[reason]) }),
                 action: {
                     label: translate('pendingChange.retry'),
                     take: () => {
@@ -283,6 +378,42 @@ export function PendingChangesProvider({
                     },
                 },
             });
+
+            return;
+        }
+
+        // Nothing answered — or a gateway did, which proves nothing about whether the request was handed on. A client
+        // that heard nothing cannot know the change did not land, and once acts commit on arrival it most likely did.
+        // So the act stays drawn as asked, nothing offers to send it again, and everything is read again: the read made
+        // once the server answers settles each message, through `settleUnknown` above.
+        if (submission.results === null) {
+            const since = Date.now();
+            const arriving = submission.asked.map<UnknownChange>((storedEmailId) => ({
+                act: submission.act,
+                storedEmailId,
+                askedIn: submission.askedIn.get(storedEmailId) ?? null,
+                since,
+                letGo: () => {
+                    submission.letGo([storedEmailId]);
+                },
+            }));
+
+            setHeld((current) => {
+                const carried = current.session === session ? current : nothingHeld;
+
+                return { ...carried, session, unknown: [...carried.unknown, ...arriving] };
+            });
+            toasts.raise({
+                kind: 'warning',
+                title: translate('pendingChange.outcomeUnknown'),
+                body: translate('pendingChange.outcomeUnknownBody'),
+            });
+
+            // Read again at once where the server is answering; where it is not, the status reads every screen again
+            // the moment it does.
+            if (!status.disconnectedNow()) {
+                changes.refresh();
+            }
 
             return;
         }
@@ -313,7 +444,7 @@ export function PendingChangesProvider({
         setHeld((current) => {
             const carried = current.session === session ? current : nothingHeld;
 
-            return { session, followed: [...carried.followed, ...arriving], undecided: carried.undecided };
+            return { ...carried, session, followed: [...carried.followed, ...arriving] };
         });
         onFollowed?.(arriving.map((change) => change.recordId));
     }

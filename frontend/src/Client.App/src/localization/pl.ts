@@ -1324,6 +1324,7 @@ export const pl: Catalogue = {
     'connection.lost': 'Serwer nie odpowiedział po {total} próbach.',
     'connection.unreadable': 'Serwer odpowiedział, ale klient nie mógł wykorzystać tej odpowiedzi: {reason}.',
     'connection.offline': 'Ta maszyna nie ma połączenia z siecią. Klient połączy się ponownie sam, gdy sieć wróci.',
+    'connection.writeRefused': '{control} – brak połączenia z serwerem MailFathom.',
     'connection.unknown': 'Stan skrzynek nieznany: brak połączenia z serwerem MailFathom.',
     'connectionStatus.connecting': 'Łączenie z serwerem…',
     'connectionStatus.online': 'Połączono z serwerem.',
@@ -1926,8 +1927,13 @@ export const pl: Catalogue = {
     'pendingChange.changeNotUsable': 'Wskazanej zmiany nie da się wyrazić w jednym żądaniu – zgłoś to jako usterkę.',
     'pendingChange.destinationNotAllowed':
         'Ten folder jej nie przyjmie: wersje robocze zostają w folderze wersji roboczych albo w folderze utworzonym przez Ciebie, a nic innego tam nie trafia.',
-    'pendingChange.notDelivered': 'Ta zmiana nie dotarła do serwera.',
-    'pendingChange.notDeliveredBody': 'Nic nie zostało zapisane, więc skrzynka pozostaje bez zmian.',
+    'pendingChange.outcomeUnknown': 'Nie wiadomo, czy to dotarło do serwera',
+    'pendingChange.outcomeUnknownBody':
+        'Połączenie zerwało się w chwili tej zmiany. Pozostaje pokazana tak, jak o nią poproszono, dopóki serwer znów nie odpowie, a potem tak, jak zapisał ją serwer.',
+    'pendingChange.refused': 'Serwer odrzucił tę zmianę.',
+    'pendingChange.refusedBody': 'Nic nie zostało zapisane, więc skrzynka pozostaje bez zmian: {reason}.',
+    'pendingChange.reread': 'Ekran pokazuje teraz to, co zapisał serwer',
+    'pendingChange.rereadBody': 'Część zmian wprowadzonych w chwili zerwania połączenia do niego nie dotarła.',
     'pendingChange.retry': 'Spróbuj ponownie',
     'pendingChange.stoppedFollowing': 'Ten klient przestał sprawdzać, dokąd doszły Twoje zmiany.',
     'pendingChange.stoppedFollowingBody':

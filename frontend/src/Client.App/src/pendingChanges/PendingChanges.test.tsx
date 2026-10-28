@@ -5,6 +5,7 @@
 import { act, fireEvent, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
+    ClientFailure,
     ClientRequest,
     ClientSession,
     MailFathomTransport,
@@ -12,6 +13,9 @@ import type {
     MailMutationResult,
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ListedMailContext, nothingListed, type DrawnMail, type ListedMail } from '../messageList/useListedMail';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
+import { SignalledChangesContext, nothingSignalled } from '../signals/signalledChanges';
 import { ToastsProvider } from '../toasts/Toasts';
 import { toastLeaving, toastLifetime } from '../toasts/useToasts';
 import { PendingChangesProvider } from './PendingChanges';
@@ -44,11 +48,17 @@ const recordId = '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91';
 const asked: string[] = [];
 const letGo: string[] = [];
 
-function submission(results: readonly MailMutationResult[] | null, named: readonly string[] = [storedEmailId]) {
+function submission(
+    results: readonly MailMutationResult[] | null,
+    named: readonly string[] = [storedEmailId],
+    failure: ClientFailure | null = null,
+) {
     return {
         act: 'markRead',
         asked: named,
         results,
+        failure,
+        askedIn: new Map<string, string>(),
         askAgain: (storedEmailIds) => asked.push(...storedEmailIds),
         letGo: (storedEmailIds) => letGo.push(...storedEmailIds),
     } satisfies ChangeSubmission;
@@ -130,11 +140,63 @@ let signedInAs: ClientSession | null = session;
 // What the notification centre says the mailbox gave up on, which is read while the wrapper renders like the session.
 let abandonedHere: readonly AbandonedChange[] = [];
 
+/** The connection status at one level, as the frame hands it. */
+function statusAt(level: 'online' | 'disconnected'): ConnectionStatus {
+    const shared = {
+        attempts: null,
+        retry: () => undefined,
+        detailsOpen: false,
+        showDetails: () => undefined,
+        disconnectedNow: () => level === 'disconnected',
+    };
+
+    return level === 'online'
+        ? { level, ...shared }
+        : { level, cause: 'unanswered', since: 0, ...shared };
+}
+
+// Whether the server answers, read while the wrapper renders like the session.
+let statusHere: ConnectionStatus = statusAt('online');
+
+// What the lists draw, handed to whatever is listening the way a page that lands hands it over.
+const observers = new Set<(emails: readonly DrawnMail[], askedAt: number) => void>();
+const listedHere: ListedMail = {
+    ...nothingListed,
+    observe: (observer) => {
+        observers.add(observer);
+
+        return () => {
+            observers.delete(observer);
+        };
+    },
+};
+
+// How many times every screen was asked to read again.
+let refreshes = 0;
+const changesHere = {
+    ...nothingSignalled,
+    refresh: () => {
+        refreshes += 1;
+    },
+};
+
+/** A page landing that draws the one message, read or unread, asked for at the instant named. */
+function pageDraws(unread: boolean, askedAt: number): void {
+    act(() => {
+        for (const observer of [...observers]) {
+            observer(
+                [{ id: storedEmailId, account: 'work', folder: 'inbox', unread, flagged: false, spam: null }],
+                askedAt,
+            );
+        }
+    });
+}
+
 function following(
     transport: MailFathomTransport,
     signedIn: ClientSession | null = session,
     abandoned: readonly AbandonedChange[] = [],
-): { signInAsSomebodyElse: () => void } {
+): { signInAsSomebodyElse: () => void; statusBecomes: (level: 'online' | 'disconnected') => void } {
     signedInAs = signedIn;
     abandonedHere = abandoned;
 
@@ -142,10 +204,20 @@ function following(
         wrapper: ({ children }: { readonly children: ReactNode }) => (
             <LocalizationProvider>
                 <ToastsProvider>
-                    <PendingChangesProvider session={signedInAs} transport={transport} abandoned={abandonedHere}>
-                        <PendingChangeLines />
-                        {children}
-                    </PendingChangesProvider>
+                    <SignalledChangesContext value={changesHere}>
+                        <ConnectionStatusContext value={statusHere}>
+                            <ListedMailContext value={listedHere}>
+                                <PendingChangesProvider
+                                    session={signedInAs}
+                                    transport={transport}
+                                    abandoned={abandonedHere}
+                                >
+                                    <PendingChangeLines />
+                                    {children}
+                                </PendingChangesProvider>
+                            </ListedMailContext>
+                        </ConnectionStatusContext>
+                    </SignalledChangesContext>
                 </ToastsProvider>
             </LocalizationProvider>
         ),
@@ -156,6 +228,10 @@ function following(
     return {
         signInAsSomebodyElse: () => {
             signedInAs = somebodyElse;
+            view.rerender();
+        },
+        statusBecomes: (level) => {
+            statusHere = statusAt(level);
             view.rerender();
         },
     };
@@ -189,6 +265,8 @@ beforeEach(() => {
     vi.useFakeTimers();
     asked.length = 0;
     letGo.length = 0;
+    refreshes = 0;
+    statusHere = statusAt('online');
 });
 
 afterEach(() => {
@@ -315,17 +393,92 @@ describe('PendingChangesProvider', () => {
         expect(screen.getByText('2 messages were not marked read.')).toBeTruthy();
     });
 
-    it('says a change that never reached the deployment changed nothing, and offers it again', () => {
+    // Nothing answered, so the client cannot know the change did not land — and once acts commit on arrival it most
+    // likely did. Saying nothing was saved would be a guess, and *Try again* could record it twice.
+    it('says a write nobody answered may have landed, keeps drawing it, offers nothing, and reads everything again', () => {
         following(standingAt('pending').transport);
 
         hand(submission(null));
 
-        expect(screen.getByText('This change did not reach the server.')).toBeTruthy();
+        expect(screen.getByText('Not known whether this reached the server')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+        expect(letGo).toStrictEqual([]);
+        expect(refreshes).toBe(1);
+    });
+
+    it('says a refusal the server stated changed nothing, and offers it again', () => {
+        following(standingAt('pending').transport);
+
+        hand(submission(null, [storedEmailId], { reason: 'unauthorized', status: 403 }));
+
+        expect(screen.getByText('The server refused this change.')).toBeTruthy();
         expect(letGo).toStrictEqual([storedEmailId]);
 
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
         expect(asked).toStrictEqual([storedEmailId]);
+    });
+
+    it('treats a gateway answering a write for the server as an answer that settles nothing', () => {
+        following(standingAt('pending').transport);
+
+        hand(submission(null, [storedEmailId], null));
+
+        expect(screen.getByText('Not known whether this reached the server')).toBeTruthy();
+    });
+
+    it('lets an unknown write go and says so once, when the read made afterwards shows it did not land', async () => {
+        vi.setSystemTime(1_000);
+        following(standingAt('pending').transport);
+
+        hand(submission(null));
+        await afterTheToast();
+
+        // A page asked for before the write went unanswered cannot say what became of it.
+        pageDraws(true, 999);
+        expect(letGo).toStrictEqual([]);
+
+        pageDraws(true, 1_000);
+        expect(letGo).toStrictEqual([storedEmailId]);
+        expect(screen.getByText('The screen now shows what the server holds')).toBeTruthy();
+
+        // Settled once: a later page says nothing more about it.
+        await afterTheToast();
+        pageDraws(true, 2_000);
+        expect(letGo).toStrictEqual([storedEmailId]);
+        expect(screen.queryByText('The screen now shows what the server holds')).toBeNull();
+    });
+
+    it('says nothing when the read made afterwards confirms the unknown write landed', async () => {
+        vi.setSystemTime(1_000);
+        following(standingAt('pending').transport);
+
+        hand(submission(null));
+        await afterTheToast();
+        pageDraws(false, 1_500);
+
+        expect(letGo).toStrictEqual([]);
+        expect(screen.queryByText('The screen now shows what the server holds')).toBeNull();
+    });
+
+    it('stops asking where changes stand while the server is out of reach, counting nothing, and resumes after', async () => {
+        const deployment = unreachable();
+        const tree = following(deployment.transport);
+
+        hand(submission(recorded(recordId)));
+        tree.statusBecomes('disconnected');
+
+        for (let attempt = 0; attempt < 2 * mostFollowingAttempts; attempt += 1) {
+            await pass(followedChangeInterval);
+        }
+
+        expect(deployment.requests).toHaveLength(0);
+        expect(screen.queryByText('This client stopped checking where your changes have got to.')).toBeNull();
+
+        tree.statusBecomes('online');
+        await pass(followedChangeInterval);
+
+        expect(deployment.requests).toHaveLength(1);
     });
 
     it('puts a change the account stopped retrying in front of the person, saying both sides', async () => {

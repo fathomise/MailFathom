@@ -158,6 +158,7 @@ export function flagActFor(acts: MailboxActs, messages: readonly ActedMessage[])
 /** Why a control cannot act, exhaustive by its own type so a reason added later has to be given words. */
 export const refusalSaid: Readonly<Record<ActRefusal, MessageKey>> = {
     notOffered: 'act.notOffered',
+    noConnection: 'connection.writeRefused',
     nothingToActOn: 'act.nothingToActOn',
     noArchiveFolder: 'act.noArchiveFolder',
     noTrashFolder: 'act.noTrashFolder',

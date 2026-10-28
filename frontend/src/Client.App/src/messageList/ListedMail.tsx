@@ -4,7 +4,13 @@
 
 import { useRef, useState, type ReactNode } from 'react';
 import type { ActedMessage } from '../mailboxActs/useMailboxActs';
-import { ListedMailContext, mostPlacesRemembered, type ListedMail, type ListedMailbox } from './useListedMail';
+import {
+    ListedMailContext,
+    mostPlacesRemembered,
+    type DrawnMail,
+    type ListedMail,
+    type ListedMailbox,
+} from './useListedMail';
 
 // What the list has drawn, held for the surfaces above it. What it holds is refs on purpose: nothing in them changes
 // what is on the screen, and re-rendering on every arriving page would cost the list its scrolling — the one
@@ -14,11 +20,12 @@ import { ListedMailContext, mostPlacesRemembered, type ListedMail, type ListedMa
 export function ListedMailProvider({ children }: { readonly children: ReactNode }) {
     const places = useRef(new Map<string, ActedMessage>());
     const mailbox = useRef<ListedMailbox | null>(null);
+    const observers = useRef(new Set<(emails: readonly DrawnMail[], askedAt: number) => void>());
 
     // Built once, so the value never changes identity and no consumer re-renders because of this provider.
     const [listed] = useState<ListedMail>(() => ({
         placeOf: (storedEmailId) => places.current.get(storedEmailId) ?? null,
-        drew: (emails) => {
+        drew: (emails, askedAt) => {
             for (const email of emails) {
                 places.current.set(email.id, {
                     storedEmailId: email.id,
@@ -38,6 +45,17 @@ export function ListedMailProvider({ children }: { readonly children: ReactNode 
 
                 places.current.delete(oldest);
             }
+
+            for (const observer of [...observers.current]) {
+                observer(emails, askedAt);
+            }
+        },
+        observe: (observer) => {
+            observers.current.add(observer);
+
+            return () => {
+                observers.current.delete(observer);
+            };
         },
         selectAll: () => {
             mailbox.current?.selectAll();

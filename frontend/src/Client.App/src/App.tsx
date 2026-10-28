@@ -1134,44 +1134,45 @@ export function App({
                             {/* Above everything that changes a mailbox, because following a change is not the business of whichever
             screen asked for one: what is waiting, what the deployment refused, and what only a person can settle are
             one queue whoever produced the change. */}
-                            <PendingChangesProvider
-                                session={session}
-                                transport={readMail}
-                                abandoned={abandonedChanges}
-                                onFollowed={(recordIds) => {
-                                    recordIds.forEach((recordId) => changesFollowedHere.current.add(recordId));
-                                }}
-                                onDecided={notifications.changeDecided}
-                            >
-                                {/* Above the frame rather than inside a space, because three unrelated places below read what has been
+                            {/* Above the frame for the reason the marking is, and above the acts because the acts read it: what the
+            list has drawn is where a message belongs, and every act on one has to name that. Above the pending changes
+            too, because a write nobody answered is settled by the first page the lists draw once the server answers
+            again. It holds nothing that is drawn, so nothing below re-renders because of it. */}
+                            <ListedMailProvider>
+                                <PendingChangesProvider
+                                    session={session}
+                                    transport={readMail}
+                                    abandoned={abandonedChanges}
+                                    onFollowed={(recordIds) => {
+                                        recordIds.forEach((recordId) => changesFollowedHere.current.add(recordId));
+                                    }}
+                                    onDecided={notifications.changeDecided}
+                                >
+                                    {/* Above the frame rather than inside a space, because three unrelated places below read what has been
             marked: the row that draws a message, the folder tree that counts unread mail, and the body that marks one
             on being drawn. What it holds goes with the credential, exactly as the workspace does. Whether opening a
             message marks it read is the two halves ADR 0026 gives: the reader's own setting says what they want of
             every account they read, and the grant says whether this credential may write a flag at all. */}
-                                <ReadMarkingProvider
-                                    session={session}
-                                    signedInAs={signedInAs}
-                                    transport={readMail}
-                                    writesFlags={writesFlags}
-                                    marksOnOpening={preferences.markReadOnOpen}
-                                >
-                                    {/* Above the frame for the same reason: which of the two reading surfaces a message opens on decides
+                                    <ReadMarkingProvider
+                                        session={session}
+                                        signedInAs={signedInAs}
+                                        transport={readMail}
+                                        writesFlags={writesFlags}
+                                        marksOnOpening={preferences.markReadOnOpen}
+                                    >
+                                        {/* Above the frame for the same reason: which of the two reading surfaces a message opens on decides
                 how every message anywhere below is drawn, and the two components that read it — the body and the
                 control on the message head — sit several levels under the reading pane and under the conversation
                 alike. */}
-                                    <AiFiltersShownContext value={preferences.aiFiltersShown}>
-                                        {/* Above the frame for the same reason again: whether the tree carries the standing views is
+                                        <AiFiltersShownContext value={preferences.aiFiltersShown}>
+                                            {/* Above the frame for the same reason again: whether the tree carries the standing views is
                                 read by a section three components under the mail space, behind a space and a column
                                 that have nothing to do with the setting. */}
-                                        <MessageViewContext value={preferences.messageView}>
-                                            {/* Above the frame because every surface that draws a link opens it through the
+                                            <MessageViewContext value={preferences.messageView}>
+                                                {/* Above the frame because every surface that draws a link opens it through the
                                         one operation this wraps, so the question before a link leaves the client is
                                         asked in one place, against the person's own trusted domains. */}
-                                            <LinkQuestion trustedDomains={preferences.trustedLinkDomains}>
-                                                {/* Above the frame for the reason the marking is, and above the acts because the acts read it: what the
-            list has drawn is where a message belongs, and every act on one has to name that. It holds nothing that is
-            drawn, so nothing below re-renders because of it. */}
-                                                <ListedMailProvider>
+                                                <LinkQuestion trustedDomains={preferences.trustedLinkDomains}>
                                                     {/* Above the frame as well, because four surfaces reach the same five acts — the toolbar over what is
             open, the bar over a selection, the row that draws one as pending, and the message somebody swiped — and a
             second implementation of *archive* is how two of them come to file mail differently. */}
@@ -1892,12 +1893,12 @@ export function App({
                                                             </ComposingContext>
                                                         </MailboxActsProvider>
                                                     </FolderMaintenanceProvider>
-                                                </ListedMailProvider>
-                                            </LinkQuestion>
-                                        </MessageViewContext>
-                                    </AiFiltersShownContext>
-                                </ReadMarkingProvider>
-                            </PendingChangesProvider>
+                                                </LinkQuestion>
+                                            </MessageViewContext>
+                                        </AiFiltersShownContext>
+                                    </ReadMarkingProvider>
+                                </PendingChangesProvider>
+                            </ListedMailProvider>
                         </ConnectionStatusContext>
                     </SignalledChangesContext>
                 </ScreenLayersContext>
