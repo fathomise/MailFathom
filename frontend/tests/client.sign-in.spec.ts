@@ -381,9 +381,10 @@ async function presentedSinceRenewing(page: Page, presented: readonly string[], 
     return presented.slice(from);
 }
 
-// The instant a check about renewing starts its clock at: two hours before the corpus session ends, so the renewal it
-// sees is one the running clock brought due rather than one signing in made.
-const beforeTheSessionEnds = new Date(Date.parse(deployment.mintedSession.expiresAt) - 2 * sessionRenewalMargin);
+// Start one tick before renewal is due, so signing in does not itself bring it due.
+const beforeTheSessionEnds = new Date(
+    Date.parse(deployment.mintedSession.expiresAt) - sessionRenewalMargin - renewalCheckInterval,
+);
 
 // Renewing is a timer the client runs against an instant the deployment stated, and what it changes is every request
 // afterwards — which is the seam `useSessionRenewal.test.ts` stops short of: it proves the hook hands the renewed
@@ -394,9 +395,7 @@ test('renews the session before it ends, and presents the renewed one on everyth
 }) => {
     const presented = presentedBy(page);
 
-    await page.clock.install({
-        time: new Date(Date.parse(deployment.mintedSession.expiresAt) - sessionRenewalMargin - renewalCheckInterval),
-    });
+    await page.clock.install({ time: beforeTheSessionEnds });
     await openSignedIn(page, '/#/mail');
     await page.clock.runFor(2 * renewalCheckInterval);
 
@@ -423,7 +422,7 @@ test('renews a provider grant with its refresh token before the access token end
     await page.getByRole('button', { name: 'Continue to Keycloak' }).click();
     await expect(page.getByRole('navigation', { name: 'Spaces' })).toBeVisible();
 
-    await page.clock.runFor(deployment.issuedToken.expires_in * 1_000 - grantRenewalMargin + renewalCheckInterval);
+    await page.clock.fastForward(deployment.issuedToken.expires_in * 1_000 - grantRenewalMargin + renewalCheckInterval);
 
     const since = await presentedSinceRenewing(page, presented, deployment.expectedRenewedGrantAuthorization);
 
@@ -441,7 +440,7 @@ for (const refusal of [
         met: 'renewing it',
         refused: '**/api/client/session/token',
         async meet(page: Page): Promise<void> {
-            await page.clock.runFor(sessionRenewalMargin + renewalCheckInterval);
+            await page.clock.runFor(2 * renewalCheckInterval);
         },
     },
     {
