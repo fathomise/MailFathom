@@ -145,7 +145,13 @@ export {
     type AgentProposalState,
 } from './agentConversations';
 export { reportingRefusedCredential } from './credentialRefusal';
-export { failureReasonForStatus, type ClientFailure, type ClientFailureReason, type ClientResult } from './failure';
+export {
+    failureReasonForStatus,
+    wentUnanswered,
+    type ClientFailure,
+    type ClientFailureReason,
+    type ClientResult,
+} from './failure';
 export type {
     AnswerConfidence,
     AnswerLink,
@@ -562,6 +568,7 @@ export {
     type SignalChannelOpening,
     type SignalledFlags,
     type SignalNotificationKind,
+    type SignalStanding,
     type SignalStream,
     type SignalStreamSchedule,
     type SignalTicket,

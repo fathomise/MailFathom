@@ -7,6 +7,7 @@ import { BrandMark } from '../controls/BrandMark';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { addressOf, askingSpaces, barSpaces, overflowSpaces, spaceLabels, type Space } from '../routing/spaces';
+import { ConnectionAlarm, ConnectionAnnouncement } from './ConnectionStatusLine';
 import { spaceIcons } from './spaceIcons';
 import { NavigationMark } from './NavigationMark';
 import { SpacePeek, type PeekAnchor } from './SpacePeek';
@@ -132,6 +133,7 @@ export function SpaceNavigation({
             {wide ? (
                 <div className="mt-auto flex flex-none flex-col items-center justify-center gap-3.5 pt-3">
                     {developer}
+                    <ConnectionAlarm />
                     {refresh}
                     {notifications}
                     {account}
@@ -148,6 +150,8 @@ export function SpaceNavigation({
                     />
                 </>
             )}
+
+            <ConnectionAnnouncement />
         </nav>
     );
 }

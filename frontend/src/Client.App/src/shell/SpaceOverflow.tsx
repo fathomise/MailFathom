@@ -5,6 +5,8 @@
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { addressOf, spaceLabels, type Space } from '../routing/spaces';
+import { disconnected, useConnectionStatus } from './connectionStatus';
+import { ConnectionStatusLine } from './ConnectionStatusLine';
 import { useTopLayerSurface } from './screenLayers';
 import { NavigationMark } from './NavigationMark';
 import { spaceIcons } from './spaceIcons';
@@ -66,18 +68,30 @@ export function SpaceOverflow({
     // as a second copy of it: the control that names it is what opens and closes it.
     const closesOnBack = useTopLayerSurface();
 
+    // A phone has no rail for the alarm to stand in, so the tile behind which the status stands carries its dot and
+    // says in its name why.
+    const alarmed = disconnected(useConnectionStatus());
+
     return (
         <>
             <button
                 type="button"
                 popoverTarget={sheet}
+                aria-label={alarmed ? translate('shell.moreDisconnected') : undefined}
                 aria-current={holdsCurrent ? 'true' : undefined}
                 className={`flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition ${
                     holdsCurrent ? 'font-semibold text-accent-deep' : 'text-muted hover:bg-hover hover:text-text'
                 }`}
             >
-                <NavigationMark current={holdsCurrent}>
+                <NavigationMark current={holdsCurrent} className="relative">
                     <Icon name="more_horiz" className="size-icon-2xl" />
+
+                    {alarmed ? (
+                        <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute top-1.5 end-1.5 size-2 rounded-full bg-error"
+                        />
+                    ) : null}
                 </NavigationMark>
                 <span className="max-w-full truncate">{translate('shell.more')}</span>
             </button>
@@ -106,6 +120,7 @@ export function SpaceOverflow({
                     ))}
 
                     <div className="mt-1 flex flex-col gap-1 border-t border-line-soft pt-2">
+                        <ConnectionStatusLine place="sheet" />
                         {developer}
                         {refresh}
                         {account}

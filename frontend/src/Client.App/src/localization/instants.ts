@@ -269,6 +269,29 @@ export function wordCalendarDay(day: string, locale: Locale): string {
 }
 
 /**
+ * How long ago something began, as the language says it — *40 seconds ago*, *3 minutes ago*, *2 hours ago* — in the
+ * largest unit it has reached.
+ *
+ * Always a count rather than *now* or *a minute ago*, because what it says is when a fault began, and a reader comparing
+ * two of them is owed two numbers.
+ *
+ * @param since The instant it began, as milliseconds.
+ * @param now The instant it is worded at, passed rather than read so a test pins it.
+ */
+export function wordElapsed(since: number, now: number, locale: Locale): string {
+    const seconds = Math.max(0, Math.round((now - since) / 1000));
+    const worded = new Intl.RelativeTimeFormat(locale, { numeric: 'always' });
+
+    if (seconds < 60) {
+        return worded.format(-seconds, 'second');
+    }
+
+    const minutes = Math.floor(seconds / 60);
+
+    return minutes < 60 ? worded.format(-minutes, 'minute') : worded.format(-Math.floor(minutes / 60), 'hour');
+}
+
+/**
  * How long something lasts, worded by `Intl` in the unit it was counted in.
  *
  * Minutes that make whole hours are worded as hours, because *two hours* is what somebody says and *120 minutes* is

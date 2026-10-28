@@ -21,6 +21,7 @@ export const pl: Catalogue = {
     'shell.account': 'Konto i ustawienia',
     'shell.accountMenu': 'Konto',
     'shell.more': 'Więcej',
+    'shell.moreDisconnected': 'Więcej - brak połączenia z serwerem',
     'shell.spaceWithCounts': '{space} - {counts}',
     'shell.mailboxes': 'Skrzynki',
     'shell.tabMode': 'Tryb zakładek',
@@ -1010,8 +1011,8 @@ export const pl: Catalogue = {
     'compose.pastRecall': 'Wiadomość została wysłana, więc nie da się jej wycofać.',
     'compose.noSuchSend': 'Serwer nie prowadzi już tej wysyłki.',
     'compose.sendNotRead': 'Nie udało się odczytać tej wysyłki: {reason}.',
-    'compose.offline':
-        'Ta maszyna jest bez sieci. To, co piszesz, zostaje tutaj, a zapisać lub wysłać można to, gdy sieć wróci.',
+    'compose.disconnected':
+        'Brak połączenia z serwerem. To, co piszesz, nie jest zapisane na serwerze, a zamknięcie tej karty lub okna je utraci. Zapisać lub wysłać można to, gdy połączenie wróci.',
     'compose.refusedSendingNotEnabled': 'Ten serwer nie wysyła poczty. Administrator może włączyć wysyłkę.',
     'compose.refusedRecipient':
         'Serwer odrzucił jeden z adresów. Administrator decyduje, na jakie adresy może iść poczta.',
@@ -1323,6 +1324,23 @@ export const pl: Catalogue = {
     'connection.lost': 'Serwer nie odpowiedział po {total} próbach.',
     'connection.unreadable': 'Serwer odpowiedział, ale klient nie mógł wykorzystać tej odpowiedzi: {reason}.',
     'connection.offline': 'Ta maszyna nie ma połączenia z siecią. Klient połączy się ponownie sam, gdy sieć wróci.',
+    'connection.unknown': 'Stan skrzynek nieznany: brak połączenia z serwerem MailFathom.',
+    'connectionStatus.connecting': 'Łączenie z serwerem…',
+    'connectionStatus.online': 'Połączono z serwerem.',
+    'connectionStatus.delayed': 'Połączono, z opóźnieniem.',
+    'connectionStatus.disconnected': 'Brak połączenia z serwerem.',
+    'connectionStatus.alarm': 'Brak połączenia z serwerem',
+    'connectionStatus.unanswered': 'Serwer nie odpowiedział.',
+    'connectionStatus.attempt': 'Kolejna próba - {attempt} z {total}.',
+    'connectionStatus.attemptsSpent': 'Brak odpowiedzi po {total} próbach.',
+    'connectionStatus.channel':
+        'Bieżące zmiany z serwera nie docierają, więc to, co widzisz, jest aktualne na chwilę ostatniego odświeżenia.',
+    'connectionStatus.mailServer':
+        'Konto {account} nie może połączyć się ze swoim serwerem poczty. Jego zmiany są przechowywane w MailFathom i trafią na serwer poczty, gdy znów będzie dostępny.',
+    'connectionStatus.since': 'Zaczęło się {time}.',
+    'connectionStatus.retryHint':
+        'Ponów pyta od razu. W przeciwnym razie klient pyta sam, najpóźniej przy następnym odświeżeniu, w ciągu pięciu minut.',
+    'connectionStatus.retry': 'Ponów',
 
     'containment.failed': 'Ta część MailFathom przestała działać. Nie ma to wpływu na resztę ekranu.',
     'containment.failedAgain': 'Ta część MailFathom znów przestała działać. Nie ma to wpływu na resztę ekranu.',

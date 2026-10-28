@@ -8,6 +8,8 @@ import {
     readDeploymentSession,
     readMailAccounts,
     reconnectionDelay,
+    wentUnanswered,
+    type ClientFailure,
     type ClientResult,
     type ClientSession,
     type DeploymentSession,
@@ -44,13 +46,26 @@ export interface Connection {
     /** How many automatic attempts have been made since the deployment last answered. */
     readonly attempts: number;
 
+    /**
+     * Since when the deployment has not answered a read, whether or not that read left the frame standing, or `null`
+     * while it answers.
+     *
+     * It is said apart from `session` because a refresh nobody answered keeps the answer before it on the screen, so
+     * the frame alone would go on claiming a deployment that has gone quiet. The connection status reads it.
+     */
+    readonly unansweredSince: number | null;
+
+    /** When the accounts last answered, which is when the connection status first saw whatever they said. */
+    readonly accountsReadAt: number | null;
+
     /** Reads everything again, from a person asking rather than from the client trying on its own. */
     readonly reread: () => void;
 
     /**
      * Reads everything again on the client's own account — a refresh — leaving what stands on the screen where the
      * deployment does not answer: a refresh that failed is one the next repeats, not a frame replaced by a deployment
-     * that stopped answering.
+     * that stopped answering. It is also a fresh start for the automatic attempts, which is how a deployment that has
+     * gone quiet past them is reached again at the next periodic refresh, on *Retry*, and on *Refresh*.
      */
     readonly refresh: () => void;
 }
@@ -149,6 +164,18 @@ interface Reaching {
 // Nothing spent, against an identity no credential will ever match, which is also what a person asking again resets to.
 const noneMade: Reaching = { made: 0, presentedAt: null, presenting: null };
 
+/**
+ * Which sign-in a read went unanswered for, and since when.
+ *
+ * Tagged with the address and the identity for the reason an answer is: a deployment that went quiet for one person is
+ * nothing to say to the next, who has not asked it anything yet.
+ */
+interface Unanswered {
+    readonly presentedAt: string;
+    readonly presenting: string;
+    readonly since: number;
+}
+
 function subscribeToConnectivity(changed: () => void): () => void {
     window.addEventListener('online', changed);
     window.addEventListener('offline', changed);
@@ -199,6 +226,8 @@ export function useConnection(
     const [read, setRead] = useState(0);
     const [reaching, setReaching] = useState<Reaching>(noneMade);
     const [answered, setAnswered] = useState<Answered>(nothingRead);
+    const [standingUnanswered, setStandingUnanswered] = useState<Unanswered | null>(null);
+    const [accountsReadAt, setAccountsReadAt] = useState<number | null>(null);
 
     // Worked out during a render for the same reason the answer is: a budget spent against one identity is nothing to
     // the next one, so signing in as somebody else starts at nothing without an effect having to clear it.
@@ -218,12 +247,31 @@ export function useConnection(
             return;
         }
 
-        // Taken by the read it was set for, so every read after it — a person's, an automatic retry — is not a refresh
-        // unless it was asked for as one.
-        const keepsWhatStands = quietly.current;
-        quietly.current = false;
+        // Taken by the read it was set for, so every read after it — a person's — is not a refresh unless it was asked
+        // for as one. An automatic attempt keeps what stands too: it is made because a read went unanswered, and where
+        // that read had left the frame standing, the attempt after it is no reason to take the frame down.
         const retriedByCaller = automatically.current;
         automatically.current = false;
+        const keepsWhatStands = quietly.current || retriedByCaller;
+        quietly.current = false;
+
+        // A read nobody answered is said here rather than by the frame, which may still show the answer before it.
+        // Any answer ends it, and only the last read of an attempt says so — a session read answering while the
+        // accounts beside it go unanswered is the same silence, not a moment of the server being back.
+        const heard = (failure: ClientFailure | null): void => {
+            if (failure === null || !wentUnanswered(failure)) {
+                setStandingUnanswered(null);
+
+                return;
+            }
+
+            // The first read nobody answered is when it began; the attempts after it are the same silence.
+            setStandingUnanswered((previous) =>
+                previous?.presentedAt === baseAddress && previous.presenting === presenting
+                    ? previous
+                    : { presentedAt: baseAddress, presenting, since: Date.now() },
+            );
+        };
 
         // Abandoning is what says an answer is nobody's to render any more, and it is one mechanism rather than two:
         // the signal already has to travel to the transport, so a second flag beside it would be a second thing to
@@ -274,6 +322,8 @@ export function useConnection(
             }
 
             if (session.outcome === 'failed') {
+                heard(session.failure);
+
                 const unanswered: Answered = {
                     session,
                     accounts: null,
@@ -310,6 +360,8 @@ export function useConnection(
             // and it would arrive as a failure on a screen, where what is true is that the client is not offering
             // something rather than that something went wrong.
             if (!readsMail) {
+                heard(null);
+
                 return;
             }
 
@@ -326,6 +378,8 @@ export function useConnection(
                 return;
             }
 
+            heard(accounts.outcome === 'failed' ? accounts.failure : null);
+
             // The accounts the previous attempt answered with already stand, above, so a refresh that could not read
             // them again leaves them there.
             if (keepsWhatStands && accounts.outcome === 'failed') {
@@ -338,6 +392,7 @@ export function useConnection(
                 presentedAt: baseAddress,
                 presenting,
             });
+            setAccountsReadAt(Date.now());
         })();
 
         return () => {
@@ -353,11 +408,20 @@ export function useConnection(
     const current = answered.presentedAt === baseAddress && answered.presenting === presenting;
     const connection = current ? answered : nothingRead;
 
+    const unanswered =
+        online &&
+        standingUnanswered !== null &&
+        standingUnanswered.presentedAt === baseAddress &&
+        standingUnanswered.presenting === presenting;
+    const unansweredSince = unanswered ? standingUnanswered.since : null;
+
     // Only a deployment that did not answer is reached for again. A credential it refused, a grant it does not hold,
     // and an answer this client could not read each repeat identically however many times they are asked for, so the
-    // budget is spent on the one failure that passes on its own.
+    // budget is spent on the one failure that passes on its own. A refresh nobody answered is reached for the same
+    // way, under the frame it left standing.
     const lost =
-        connection.session?.outcome === 'failed' && connection.session.failure.reason === 'unavailable' && online;
+        (connection.session?.outcome === 'failed' && connection.session.failure.reason === 'unavailable' && online) ||
+        unanswered;
 
     useEffect(() => {
         if (!lost || attempts >= mostReconnectionAttempts) {
@@ -383,6 +447,8 @@ export function useConnection(
         accounts: connection.accounts,
         online,
         attempts,
+        unansweredSince,
+        accountsReadAt: current ? accountsReadAt : null,
         reread: () => {
             quietly.current = false;
             setReaching(noneMade);
@@ -390,6 +456,7 @@ export function useConnection(
         },
         refresh: () => {
             quietly.current = true;
+            setReaching(noneMade);
             setRead((token) => token + 1);
         },
     };

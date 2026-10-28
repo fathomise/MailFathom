@@ -12,9 +12,10 @@ import { PendingChangeLines } from '../pendingChanges/PendingChangeLines';
 import { needsAttention } from '../synchronization/synchronizationState';
 import { AccountLine } from './AccountLine';
 import { offers } from './capabilities';
+import { disconnected, useConnectionStatus } from './connectionStatus';
 import { mostReconnectionAttempts, type Connection } from './useConnection';
 
-// The line in Discover and Mail saying what the client is looking at and how current it is, and the short panel behind it
+// The line at the foot of Mail's folder column saying what the client is looking at and how current it is, and the short panel behind it
 // naming each account once one of them needs a look. Three different things blur into one spinner unless they are kept apart, so each has its own
 // sentence: whether this client can reach its deployment at all, whether that deployment is refreshing these accounts,
 // and which of them is not current.
@@ -80,7 +81,19 @@ export function ConnectionSummary({ connection }: { readonly connection: Connect
 
 function Freshness({ connection }: { readonly connection: Connection }) {
     const { locale, translate } = useLocalization();
+    const status = useConnectionStatus();
     const { session, accounts, online, attempts, reread } = connection;
+
+    // Once a session stands, whether the server is reachable is the status's to say, in the user menu; what this line
+    // owes then is only that, without the server, it cannot know how current the mailboxes are. Before one stands this
+    // line is the only thing on the screen, so it still says what the connection is doing.
+    if (session?.outcome === 'read' && disconnected(status)) {
+        return (
+            <Line tone="quiet" announced>
+                {translate('connection.unknown')}
+            </Line>
+        );
+    }
 
     // Nothing is being read and nothing will be until the network comes back, which is a different sentence from a
     // deployment that is not answering: one of them is this machine's to fix and the other is not.

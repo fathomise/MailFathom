@@ -42,8 +42,7 @@ export function Space({
 
     /**
      * What the deployment says about the connection, which the Mail space stands at the foot of its folder column and
-     * no other space here draws: how current the mailboxes are is said where mail is read, and Discover is handed it
-     * where it is built.
+     * no other space draws: how current the mailboxes are is said where mail is read.
      */
     readonly status: ReactNode;
 

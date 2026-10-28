@@ -310,7 +310,7 @@ describe('App sign-in', () => {
     it('clears what the person carried between the spaces when the deployment stops accepting what was kept', async () => {
         // One deployment whose answer to the accounts changes under the client, which is what a service restarted with
         // a different password looks like from here: the read that was working starts refusing.
-        let accounts: Answer = { status: 503, body: '' };
+        let accounts: Answer = directory(true, [workAccount]);
         const send: DeploymentTransport = () => (request) => {
             asked.push(request);
 
@@ -323,14 +323,14 @@ describe('App sign-in', () => {
 
         renderApp(servedFrom, null, send, storeKeeping());
         signIn();
-        await screen.findByRole('button', { name: 'Try again' });
+        await framed();
 
         fireEvent.change(screen.getByRole('searchbox', { name: 'Ask your mail' }), {
             target: { value: 'the renewal Nordwind sent' },
         });
 
         accounts = { status: 401, body: '' };
-        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
         await screen.findByText('This server has stopped accepting the sign-in that was kept. Sign in again.');
 
         // Being turned away mid-session returns this person to the sign-in exactly as signing out does, so what they

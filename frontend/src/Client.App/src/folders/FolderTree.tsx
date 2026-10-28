@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import {
     readMailFolders,
     readManagedMailFolders,
+    wentUnanswered,
     type ClientFailureReason,
     type ClientResult,
     type ClientSession,
@@ -114,7 +115,6 @@ export function FolderTree({
     // Which row's menu is open and where the gesture that opened it happened. One at a time, because a second menu
     // over the first is a reader choosing which of them their next press belongs to.
     const [menu, setMenu] = useState<{ readonly key: string; readonly at: MenuPoint } | null>(null);
-    const [connected, setConnected] = useState(online);
 
     // What the service says may be done to each account's folders, by account. Absent for an account whose report has
     // not arrived or did not answer, which draws a column with no acts on it rather than acts drawn on a guess.
@@ -125,21 +125,9 @@ export function FolderTree({
     const [trashed, setTrashed] = useState<readonly ActedMessage[]>([]);
     const deleting = useRef<HTMLDialogElement>(null);
 
-    // A network gap ends the answer it interrupted rather than outliving it. Coming back re-reads with the attempt
-    // unchanged, so an answer kept across the gap would report a read that is over while the new one is still running,
-    // and the tree would swap under a reader with nothing having said one was in flight. Adjusted during render, which
-    // is where React answers a changed prop: an effect would set it a rendered frame too late, which is the frame the
-    // stale tree would be drawn in.
-    if (connected !== online) {
-        setConnected(online);
-
-        if (!online) {
-            setAnswered(null);
-        }
-    }
-
-    // Nothing is read without a network, and coming back re-runs this — which is the whole of the recovery from that
-    // direction, exactly as it is for the accounts the frame reads.
+    // Nothing is read without a network, and coming back re-runs this under whatever is drawn — which is the whole of
+    // the recovery from that direction, exactly as it is for the accounts the frame reads. A tree already drawn stands
+    // through the gap: whether the server can be reached is the connection status's to say, never this column's.
     useEffect(() => {
         if (!online) {
             return;
@@ -152,12 +140,19 @@ export function FolderTree({
                 // A read under a tree already drawn — a signal, a refresh — that the deployment did not answer leaves the
                 // tree standing rather than replacing it with a sentence about a failure: what is drawn is still the
                 // truest thing anybody has, and the next signal or refresh asks again. A first read and a retry have
-                // nothing drawn under them, so their failure is said.
-                setAnswered((current) =>
-                    result.outcome === 'failed' && current?.attempt === attempt && current.result.outcome === 'read'
-                        ? current
-                        : { attempt, result },
-                );
+                // nothing drawn under them, so their failure is said — unless nothing answered at all, which is the
+                // connection's to say: the tree keeps reading until the server is back and a refresh asks again.
+                setAnswered((current) => {
+                    if (result.outcome === 'read') {
+                        return { attempt, result };
+                    }
+
+                    if (current?.attempt === attempt && current.result.outcome === 'read') {
+                        return current;
+                    }
+
+                    return wentUnanswered(result.failure) ? null : { attempt, result };
+                });
             }
         });
 
@@ -269,13 +264,8 @@ export function FolderTree({
         [signalledChanges],
     );
 
-    if (!online) {
-        return <Note>{translate('connection.offline')}</Note>;
-    }
-
-    // Every read this tree starts is one with nothing worth keeping on the screen behind it: the first, one a retry
-    // started from a failure, and one the network coming back started after the offline note had already replaced the
-    // tree. So a read in flight is the whole of what the screen says, rather than a line beside a drawing that would
+    // Every read this tree starts with nothing drawn is one with nothing worth keeping on the screen behind it: the
+    // first, one a retry started from a failure, and one that nothing answered. So a read in flight is the whole of what the screen says, rather than a line beside a drawing that would
     // otherwise be a sentence about the attempt before it.
     if (answered?.attempt !== attempt) {
         return <Note announced>{translate('folders.reading')}</Note>;

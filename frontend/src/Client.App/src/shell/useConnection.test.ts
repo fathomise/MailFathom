@@ -217,6 +217,73 @@ describe('useConnection', () => {
         expect(result.current.accounts?.outcome).toBe('read');
     });
 
+    // A quiet refresh keeps the frame, and that is exactly what used to hide a server that had stopped answering: the
+    // status reads `unanswered` rather than the session, so the frame stands and the status still turns red.
+    it('says the server went unanswered on a quiet refresh while keeping the frame, and an answer clears it', async () => {
+        let failing = false;
+        const failingLater: DeploymentTransport = () => (request) =>
+            failing
+                ? Promise.resolve({ status: 503, body: '', headers: {} })
+                : Promise.resolve(request.path.endsWith('/session') ? readsMail : oneAccount);
+
+        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, failingLater, nothingToDo));
+
+        await waitFor(() => {
+            expect(result.current.accounts?.outcome).toBe('read');
+        });
+
+        expect(result.current.unansweredSince).toBeNull();
+
+        failing = true;
+
+        act(() => {
+            result.current.refresh();
+        });
+
+        await waitFor(() => {
+            expect(result.current.unansweredSince).not.toBeNull();
+        });
+
+        expect(result.current.session?.outcome).toBe('read');
+
+        failing = false;
+
+        act(() => {
+            result.current.refresh();
+        });
+
+        await waitFor(() => {
+            expect(result.current.unansweredSince).toBeNull();
+        });
+    });
+
+    it('says nothing went unanswered for a refresh the server answered with a refusal', async () => {
+        let refusing = false;
+        const refusingLater: DeploymentTransport = () => (request) =>
+            refusing
+                ? Promise.resolve({ status: 500, body: '', headers: {} })
+                : Promise.resolve(request.path.endsWith('/session') ? readsMail : oneAccount);
+
+        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, refusingLater, nothingToDo));
+
+        await waitFor(() => {
+            expect(result.current.accounts?.outcome).toBe('read');
+        });
+
+        refusing = true;
+
+        act(() => {
+            result.current.refresh();
+        });
+        await act(async () => {
+            for (let turn = 0; turn < 10; turn += 1) {
+                await Promise.resolve();
+            }
+        });
+
+        expect(result.current.unansweredSince).toBeNull();
+    });
+
     // The other half of keeping what was read: a grant that stopped reading mail asks for no accounts at all, so
     // nothing later in the attempt replaces the tree that stands — and one left up goes on offering mail the
     // deployment has begun refusing, for as long as that person stays signed in.

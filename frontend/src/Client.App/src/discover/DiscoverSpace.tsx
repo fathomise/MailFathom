@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import type {
     ClientFailureReason,
     ClientSession,
@@ -75,7 +75,6 @@ const notAsked: Readonly<Record<ClientFailureReason, MessageKey>> = {
  * @param transport How every read and the question itself go out.
  * @param accounts The accounts the client has read, which is what the evidence names the mailbox of a source by.
  * @param asking Whether the question field is drawn, which it is only while this is the space in front.
- * @param status What the deployment is doing, which this space and Mail show and no other does.
  * @param onOpenMessage Opens the message a citation names, which is the Mail space's to draw and the frame's to perform.
  * @param schedule How the follower waits, which a test replaces so nothing polls in it.
  */
@@ -84,7 +83,6 @@ export function DiscoverSpace({
     transport,
     accounts,
     asking,
-    status,
     onOpenMessage,
     schedule = whileTheRunIsSilent,
 }: {
@@ -92,7 +90,6 @@ export function DiscoverSpace({
     readonly transport: MailFathomTransport;
     readonly accounts: readonly MailAccount[];
     readonly asking: boolean;
-    readonly status: ReactNode;
     readonly onOpenMessage: (storedEmailId: string) => void;
     readonly schedule?: RunFollowingSchedule;
 }) {
@@ -142,8 +139,6 @@ export function DiscoverSpace({
                 <h1 className="text-3xl leading-tight font-semibold tracking-tight workspace:text-md workspace:leading-normal workspace:tracking-normal">
                     {translate('space.discover')}
                 </h1>
-
-                {status}
 
                 {asked === null ? null : (
                     <span className="ms-auto flex items-center gap-2.25">

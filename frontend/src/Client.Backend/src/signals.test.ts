@@ -18,6 +18,7 @@ import {
     type ClientSignal,
     type MailFathomSignalChannel,
     type SignalChannelOpening,
+    type SignalStanding,
     type SignalStreamSchedule,
 } from './signals';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
@@ -424,49 +425,108 @@ describe('openSignalStream', () => {
         await stream.close();
     });
 
-    it('says a connection stands each time one does, the first and every one reopened after a drop', async () => {
-        let stood = 0;
+    it('says a connection stands each time one does, and that it dropped in between', async () => {
+        const stood: SignalStanding[] = [];
         const channel = channelUnderTest();
         const stream = openSignalStream(
             session,
             answering({ status: 200, body: minted }),
             channel.channel,
             () => undefined,
-            () => {
-                stood += 1;
-            },
+            (standing) => stood.push(standing),
             scheduleRecording([]),
         );
 
         await settle();
-        expect(stood).toBe(1);
+        expect(stood).toStrictEqual(['opened']);
 
         channel.openings[0]?.dropped();
         await settle();
 
-        expect(stood).toBe(2);
+        expect(stood).toStrictEqual(['opened', 'dropped', 'opened']);
 
         await stream.close();
     });
 
-    it('says nothing stands against a deployment serving no channel', async () => {
-        let stood = 0;
+    it('says a server that answers and serves no channel refused it', async () => {
+        const stood: SignalStanding[] = [];
         const stream = openSignalStream(
             session,
             answering({ status: 404, body: '' }),
             () => Promise.reject(new Error('never asked')),
             () => undefined,
-            () => {
-                stood += 1;
-            },
+            (standing) => stood.push(standing),
             scheduleWaiting([], 3),
         );
 
         await settle();
 
-        expect(stood).toBe(0);
+        expect(stood).toStrictEqual(['refused', 'refused', 'refused']);
 
         await stream.close();
+    });
+
+    it('says a minted ticket whose socket would not open was refused', async () => {
+        const stood: SignalStanding[] = [];
+        const stream = openSignalStream(
+            session,
+            answering({ status: 200, body: minted }),
+            () => Promise.reject(new Error('upgrade refused')),
+            () => undefined,
+            (standing) => stood.push(standing),
+            scheduleWaiting([], 1),
+        );
+
+        await settle();
+
+        expect(stood).toStrictEqual(['refused']);
+
+        await stream.close();
+    });
+
+    it('says a mint nothing answered went unanswered, a gateway answering in its place included', async () => {
+        const stood: SignalStanding[] = [];
+        let answers = 0;
+        const stream = openSignalStream(
+            session,
+            () => {
+                answers += 1;
+
+                return answers === 1
+                    ? Promise.reject(new Error('no route to host'))
+                    : Promise.resolve({ status: 504, body: '', headers: {} });
+            },
+            () => Promise.reject(new Error('never asked')),
+            () => undefined,
+            (standing) => stood.push(standing),
+            scheduleWaiting([], 2),
+        );
+
+        await settle();
+
+        expect(stood).toStrictEqual(['unanswered', 'unanswered']);
+
+        await stream.close();
+    });
+
+    it('says nothing dropped when the caller closes a connection that stands', async () => {
+        const stood: SignalStanding[] = [];
+        const channel = channelUnderTest();
+        const stream = openSignalStream(
+            session,
+            answering({ status: 200, body: minted }),
+            channel.channel,
+            () => undefined,
+            (standing) => stood.push(standing),
+            scheduleRecording([]),
+        );
+
+        await settle();
+        await stream.close();
+        channel.openings[0]?.dropped();
+        await settle();
+
+        expect(stood).toStrictEqual(['opened']);
     });
 
     it('goes on trying past the budget at the longest wait rather than stopping', async () => {

@@ -376,18 +376,21 @@ describe('useSignals catching up', () => {
         expect(refreshes()).toBe(2);
     });
 
-    it('refreshes nothing, on the interval or when asked, where nobody is signed in', async () => {
+    it('refreshes nothing on the interval where no channel is held, and every screen once when asked', async () => {
         vi.useFakeTimers();
         windowIs('visible');
         const deployment = channelHoldingOneConnection();
         const view = renderHook(() => useSignals(null, mintsTickets, deployment.channel, neverReopens));
         const refreshes = listening(view.result.current);
 
-        act(() => {
-            view.result.current.refresh();
-        });
         await pass(refreshInterval * 2);
 
         expect(refreshes()).toBe(0);
+
+        act(() => {
+            view.result.current.refresh();
+        });
+
+        expect(refreshes()).toBe(1);
     });
 });

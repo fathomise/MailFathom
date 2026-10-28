@@ -5,6 +5,7 @@
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { useSignalledChanges } from '../signals/signalledChanges';
+import { disconnected, useConnectionStatus } from './connectionStatus';
 import { useRefreshUnderWay } from './useRefreshUnderWay';
 
 // The one control in the navigation that goes nowhere and changes nothing: it asks the client to read again what it is
@@ -36,6 +37,7 @@ export function Refresh() {
     const { translate } = useLocalization();
     const changes = useSignalledChanges();
     const working = useRefreshUnderWay();
+    const status = useConnectionStatus();
 
     return (
         <button
@@ -46,7 +48,15 @@ export function Refresh() {
             aria-disabled={working}
             className={`flex flex-1 cursor-pointer flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition workspace:size-8.5 workspace:flex-none workspace:justify-center workspace:gap-0 workspace:rounded-lg workspace:border workspace:px-0 workspace:py-0 ${working ? underWay : resting}`}
             onClick={() => {
-                if (!working) {
+                if (working) {
+                    return;
+                }
+
+                // While the server is out of reach this is *Retry*, which reads the frame again where no channel
+                // stands for a refresh to travel over.
+                if (disconnected(status)) {
+                    status.retry();
+                } else {
                     changes.refresh();
                 }
             }}

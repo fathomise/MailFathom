@@ -550,7 +550,7 @@ test('keeps what is being written across a reload and while offline, and sends a
     await expect(message).toHaveText(words);
 
     await context.setOffline(true);
-    await expect(composer.getByText(/^This machine is offline\./u)).toBeVisible();
+    await expect(composer.getByText(/^No connection to the server\./u)).toBeVisible();
     await message.click();
     await page.keyboard.press('ControlOrMeta+End');
     await page.keyboard.type(writtenOffline);

@@ -12,6 +12,7 @@ import {
     type AttachmentTaken,
 } from '../deployment/attachmentExchange';
 import { AttachmentUploadContext, type AttachmentUpload } from '../deployment/attachmentUpload';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { LocalizationProvider } from '../localization/Localization';
 import { TelemetryContext, noTelemetry, type ClientTelemetry } from '../telemetry/clientTelemetry';
 import { recordingTelemetry, recordsOf } from '../telemetry/telemetry.harness';
@@ -317,6 +318,14 @@ const uploadsOneFile: AttachmentUpload = () =>
         headers: {},
     });
 
+const defaultStatus: ConnectionStatus = {
+    level: 'online',
+    attempts: 0,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+};
+
 function drawComposer(
     opening: ComposerOpening = { kind: 'new' },
     answers: Answers = {},
@@ -327,6 +336,7 @@ function drawComposer(
     telemetry: ClientTelemetry = noTelemetry,
     exchange: AttachmentExchange = takesNothing,
     showsOutbox = false,
+    status: ConnectionStatus | null = null,
 ): {
     closed: ReturnType<typeof vi.fn>;
     asked: ClientRequest[];
@@ -368,20 +378,22 @@ function drawComposer(
                         <AttachmentExchangeContext value={exchange}>
                             <AttachmentUploadContext value={upload}>
                                 <Pointing />
-                                <Framed>
-                                    {(onClosed) => (
-                                        <Composer
-                                            session={session}
-                                            transport={transport}
-                                            accounts={accounts}
-                                            opening={opening}
-                                            online={online}
-                                            drafts={drafts}
-                                            showsOutbox={showsOutbox}
-                                            onClosed={onClosed}
-                                        />
-                                    )}
-                                </Framed>
+                                <ConnectionStatusContext value={status ?? defaultStatus}>
+                                    <Framed>
+                                        {(onClosed) => (
+                                            <Composer
+                                                session={session}
+                                                transport={transport}
+                                                accounts={accounts}
+                                                opening={opening}
+                                                online={online}
+                                                drafts={drafts}
+                                                showsOutbox={showsOutbox}
+                                                onClosed={onClosed}
+                                            />
+                                        )}
+                                    </Framed>
+                                </ConnectionStatusContext>
                             </AttachmentUploadContext>
                         </AttachmentExchangeContext>
                     </WorkspaceProvider>
@@ -1051,8 +1063,23 @@ describe('Composer, a message of its own', () => {
     it('says what is kept while the machine is offline rather than offering a send that cannot happen', () => {
         drawComposer({ kind: 'new' }, {}, [work], false);
 
-        expect(screen.getByText(/This machine is offline/u)).toBeDefined();
+        expect(
+            screen.getByText(
+                'No connection to the server. What you write is not saved on the server, and closing this tab or window loses it. It can be saved or sent once the connection is back.',
+            ),
+        ).toBeDefined();
         expect(screen.getByRole('button', { name: 'Send' }).hasAttribute('disabled')).toBe(true);
+    });
+
+    it('warns that the words are not saved while the server does not answer, though this machine has a network', () => {
+        drawComposer({ kind: 'new' }, {}, [work], true, undefined, false, undefined, undefined, false, {
+            ...defaultStatus,
+            level: 'disconnected',
+            cause: 'unanswered',
+            since: 0,
+        });
+
+        expect(screen.getByText(/closing this tab or window loses it/u)).toBeDefined();
     });
 
     // The message has gone as far as this screen can send it, and neither way of asking is on the screen to ask a
