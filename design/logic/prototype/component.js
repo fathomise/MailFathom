@@ -259,19 +259,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   /* THE SENDER MARK — what the service publishes about who sent a received message (data/prototype/sender-marks.js),
      read into the one mark a row and an opened message carry and the steps its details popup lists. The first rule
      that holds decides the mark: a signature that does not match its content, then trust, then a signature verified
-     by the author, then failed sender authentication; everything else is neutral. */
+     by the author, then a sender known by their address alone, then failed sender authentication; everything else is
+     neutral. Known is neutral in tone and carries no check mark or shield, so it is never read as Trusted. */
   const MARKS = {
     warnSig: { glyph: "gpp_bad", word: "Suspicious", tone: "err", name: "Suspicious - the signature does not match" },
     trusted: { glyph: "verified_user", word: "Trusted", tone: "ok", name: "Trusted sender" },
     verified: { glyph: "signature", word: "Verified", tone: "accent", name: "Verified signature" },
+    known: { glyph: "person", word: "Known", tone: "known", name: "Known sender" },
     warnAuth: { glyph: "gpp_bad", word: "Suspicious", tone: "err", name: "Suspicious - sender authentication failed" },
     neutral: { glyph: "shield", word: "", tone: "plain", name: "Sender not recognized" },
   };
-  const MARK_INK = { err: "var(--err-text)", ok: "var(--ok-text)", accent: "var(--accent-d)", plain: "var(--muted)" };
+  const MARK_INK = { err: "var(--err-text)", ok: "var(--ok-text)", accent: "var(--accent-d)", known: "var(--muted)", plain: "var(--muted)" };
   const MARK_PILL = {
     err: "color:var(--err-text);background:var(--err-soft);border:1px solid var(--err);",
     ok: "color:var(--ok-text);background:var(--ok-soft);border:1px solid transparent;",
     accent: "color:var(--accent-d);background:var(--accent-soft);border:1px solid transparent;",
+    known: "color:var(--muted);background:var(--sub);border:1px solid var(--line);",
     plain: "color:var(--muted);background:transparent;border:1px solid transparent;",
   };
   const STEP_RESULT = {
@@ -290,7 +293,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const markKeyOf = (r) => r.sig && r.sig.content === "fail" ? "warnSig"
     : r.trust ? "trusted"
     : sigVerified(r) ? "verified"
+    : r.known ? "known"
     : r.author === "failed" ? "warnAuth" : "neutral";
+  /* Where a known sender's address was found. Under a DMARC fail a sender is only ever known because the domain's
+     policy only monitors (p=none), so that case needs no flag of its own. */
+  const knownWhere = (r) => {
+    const s = r.known.source;
+    return s === "orgContact" ? r.from + " is in your organization's contacts"
+      : s === "ownAddress" ? r.from + " is one of your own addresses"
+      : s === "own" ? r.from + " is at " + domainOf(r.from) + ", a domain of your own accounts"
+      : r.from + " is in your contacts";
+  };
   /* A message from somebody other than the thread's newest sender reads that person's own record where one exists. */
   const senderRecord = (threadId, from) => {
     const t = THREADS.find(x => x.id === threadId) || {};
@@ -312,6 +325,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       : r.trust.source === "own"
       ? r.trust.match + " is a domain of your own accounts."
       : "the sender is on this account's trusted senders.");
+    if (k === "known") return knownWhere(r) + ", but nothing confirmed that " + fromDom + " sent this message." +
+      (r.dmarc === "fail" ? " Its checks failed, and " + fromDom + " publishes a monitoring-only policy." : "");
     if (k === "verified") return "It carries a signature that verified, made by " + r.from + ", the address it is from" +
       (r.author === "failed" ? ". Sender authentication failed, which a forward or a mailing list often causes." : ".");
     if (r.sig && r.sig.signer && r.sig.signer !== r.from) return "It is signed, but by " + r.sig.signer + ", not by the address it is from.";
@@ -338,6 +353,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       step("DMARC", nobody ? notRun
         : own ? ["unchecked", "Not reported: MailFathom's own check does not evaluate DMARC."]
         : r.dmarc === "pass" ? ["pass", fromDom + " publishes a DMARC policy, and the message meets it."]
+        : r.dmarc === "fail" && r.known ? ["fail", "The message fails the DMARC policy " + fromDom + " publishes, a policy that only monitors (p=none)."]
         : r.dmarc === "fail" ? ["fail", "The message fails the DMARC policy " + fromDom + " publishes."]
         : r.dmarc === "none" ? ["unchecked", "No policy published: " + fromDom + " publishes no DMARC policy, so there was nothing to evaluate."]
         : r.dmarc === "temperror" ? ["unchecked", "A temporary error: the policy of " + fromDom + " could not be looked up when the message arrived."]
@@ -355,12 +371,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ? ["pass", "A member of your organization" + (r.trust.org ? ", " + r.trust.org + "." : ".") +
           " The organization's signature proves the message comes from " + r.from +
           (r.trust.org ? "." : "; the organization has since been deleted, so its name is not shown.")]
+        : r.known
+        ? ["skip", "Skipped, because nothing confirmed that " + domainOf(r.from) + " sent this message."]
         : r.author !== "authenticated"
         ? ["skip", "Skipped, because the author was not authenticated."]
         : r.trust && r.trust.source === "ownAddress" ? ["pass", r.from + " is one of your own addresses."]
         : r.trust && r.trust.source === "own" ? ["pass", r.trust.match + " is a domain of your own accounts."]
         : r.trust ? ["pass", "The sender is on this account's trusted senders."]
         : ["fail", "This account does not recognize " + r.from + ": it is not one of your own addresses, and it is not on the account's trusted senders."]),
+      ...(r.known ? [step("Known sender", ["pass", knownWhere(r) + ". It is known by that address alone."])] : []),
     ];
     const s = r.sig;
     if (!s) return { auth, trust, sig: [step("Signed", ["skip", "Not signed: the message carries no S/MIME or OpenPGP signature, so there is nothing to verify."])] };
@@ -4353,7 +4372,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             senderPopHeadStyle: "flex:0 0 auto;display:flex;align-items:flex-start;gap:12px;border-bottom:1px solid var(--line);" + (touch ? "padding:4px 12px 14px 18px" : "padding:16px 10px 14px 18px"),
             senderPopTileStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;box-sizing:border-box;" +
               MARK_PILL[M.tone] + (M.tone === "plain" ? "background:var(--sub);border-color:var(--line);" : "") + markGlyph(20),
-            senderPopTitleStyle: "font-size:15px;font-weight:600;line-height:1.35;color:" + (M.tone === "plain" ? "var(--text)" : MARK_INK[M.tone]),
+            senderPopTitleStyle: "font-size:15px;font-weight:600;line-height:1.35;color:" + (M.tone === "plain" || M.tone === "known" ? "var(--text)" : MARK_INK[M.tone]),
             senderPopBodyStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;" + (touch ? "padding:14px 18px 22px" : "padding:14px 18px 18px"),
           };
         })(),

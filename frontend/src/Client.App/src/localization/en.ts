@@ -1536,11 +1536,13 @@ export const en = {
     'senderMark.name.signatureMismatch': 'Suspicious - the signature does not match',
     'senderMark.name.trusted': 'Trusted sender',
     'senderMark.name.verified': 'Verified signature',
+    'senderMark.name.known': 'Known sender',
     'senderMark.name.authenticationFailed': 'Suspicious - sender authentication failed',
     'senderMark.name.neutral': 'Sender not recognized',
     'senderMark.word.suspicious': 'Suspicious',
     'senderMark.word.trusted': 'Trusted',
     'senderMark.word.verified': 'Verified',
+    'senderMark.word.known': 'Known',
     'senderMark.details': 'Sender details',
     'senderMark.rowDetail': '{sender} - {mark}',
     'senderMark.close': 'Close',
@@ -1568,6 +1570,22 @@ export const en = {
     'senderMark.why.authenticatedUnrecognized':
         '{authenticated} authenticated this message, but this account does not recognize the sender.',
     'senderMark.why.nothingEstablished': 'Nothing established who sent this message.',
+    'senderMark.why.knownContact':
+        '{address} is in your contacts, but nothing confirmed that {domain} sent this message.',
+    'senderMark.why.knownOrganizationContact':
+        "{address} is in your organization's contacts, but nothing confirmed that {domain} sent this message.",
+    'senderMark.why.knownOwnAddress':
+        '{address} is one of your own addresses, but nothing confirmed that {domain} sent this message.',
+    'senderMark.why.knownOwnDomain':
+        '{address} is at {domain}, a domain of your own accounts, but nothing confirmed that {domain} sent this message.',
+    'senderMark.why.knownContactMonitoringOnly':
+        '{address} is in your contacts, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
+    'senderMark.why.knownOrganizationContactMonitoringOnly':
+        "{address} is in your organization's contacts, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.",
+    'senderMark.why.knownOwnAddressMonitoringOnly':
+        '{address} is one of your own addresses, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
+    'senderMark.why.knownOwnDomainMonitoringOnly':
+        '{address} is at {domain}, a domain of your own accounts, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
     'senderMark.group.authentication': 'Sender authentication',
     'senderMark.group.trust': 'Trust',
     'senderMark.group.signature': 'Signature',
@@ -1581,6 +1599,7 @@ export const en = {
     'senderMark.step.dmarc': 'DMARC',
     'senderMark.step.authorDomain': 'Author domain',
     'senderMark.step.trustedSender': 'Trusted sender',
+    'senderMark.step.knownSender': 'Known sender',
     'senderMark.step.signed': 'Signed',
     'senderMark.step.content': 'Content unchanged',
     'senderMark.step.authority': 'Certificate authority',
@@ -1605,6 +1624,8 @@ export const en = {
     'senderMark.dmarc.locally': "Not reported: MailFathom's own check does not evaluate DMARC.",
     'senderMark.dmarc.pass': '{domain} publishes a DMARC policy, and the message meets it.',
     'senderMark.dmarc.fail': 'The message fails the DMARC policy {domain} publishes.',
+    'senderMark.dmarc.failMonitoringOnly':
+        'The message fails the DMARC policy {domain} publishes, a policy that only monitors (p=none).',
     'senderMark.dmarc.noPolicy':
         'No policy published: {domain} publishes no DMARC policy, so there was nothing to evaluate.',
     'senderMark.dmarc.temporaryError':
@@ -1618,6 +1639,13 @@ export const en = {
     'senderMark.author.failedNobody': '{domain} is not established as the author. No domain authenticated the message.',
     'senderMark.author.notEstablished': 'Not established: nothing tied {domain} to the message.',
     'senderMark.trust.skipped': 'Skipped, because the author was not authenticated.',
+    'senderMark.trust.skippedKnown': 'Skipped, because nothing confirmed that {domain} sent this message.',
+    'senderMark.known.contact': '{address} is in your contacts. It is known by that address alone.',
+    'senderMark.known.organizationContact':
+        "{address} is in your organization's contacts. It is known by that address alone.",
+    'senderMark.known.ownAddress': '{address} is one of your own addresses. It is known by that address alone.',
+    'senderMark.known.ownDomain':
+        '{address} is at {domain}, a domain of your own accounts. It is known by that address alone.',
     'senderMark.trust.ownAddress': '{address} is one of your own addresses.',
     'senderMark.trust.ownDomain': '{domain} is a domain of your own accounts.',
     'senderMark.trust.trustedSenders': "The sender is on this account's trusted senders.",

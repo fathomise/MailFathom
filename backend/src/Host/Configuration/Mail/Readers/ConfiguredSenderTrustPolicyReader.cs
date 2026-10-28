@@ -61,7 +61,8 @@ internal sealed class ConfiguredSenderTrustPolicyReader : ISenderTrustPolicyRead
     /// <remarks>
     /// The addresses count on every one of the owner's mailboxes, and the domains only on a mailbox that set
     /// <see cref="MailSynchronizationAccountOptions.TrustOwnAccountDomains" />, so opting one account in leaves the
-    /// owner's other accounts as they were.
+    /// owner's other accounts as they were. <see cref="MailSynchronizationAccountOptions.Strict" /> is each mailbox's own
+    /// in the same way.
     /// </remarks>
     private static IEnumerable<(string? Id, SenderTrustPolicy Policy)> PoliciesOf(
         IReadOnlyList<MailSynchronizationAccountOptions> owned)
@@ -73,7 +74,8 @@ internal sealed class ConfiguredSenderTrustPolicyReader : ISenderTrustPolicyRead
             MailSynchronizationOptions.TryReadAccountId(account.AccountId),
             SenderTrustPolicy.Create(
                 ownAccountAddresses,
-                account.TrustOwnAccountDomains ? ownAccountDomains : [])));
+                account.TrustOwnAccountDomains ? ownAccountDomains : [],
+                account.Strict)));
     }
 
     /// <summary>Reads the addresses one person's own accounts state: each user name that is an address, and each address an account sends as.</summary>

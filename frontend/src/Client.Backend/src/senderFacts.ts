@@ -14,8 +14,13 @@ import { asRecord } from './json';
 /** What was established about the author the message displays. */
 export type MailAuthorAuthentication = 'NotEstablished' | 'Failed' | 'Authenticated';
 
-/** Whether this deployment recognizes that author. */
-export type MailDeploymentTrust = 'Unknown' | 'Trusted';
+/**
+ * Whether this deployment recognizes that author.
+ *
+ * `Known` is a sender recognized by the `From` address alone, where nothing established that their domain sent the
+ * message; it is a weaker claim than `Trusted` and never one.
+ */
+export type MailDeploymentTrust = 'Unknown' | 'Trusted' | 'Known';
 
 /**
  * What verifying the message's own S/MIME or OpenPGP signature concluded.
@@ -39,7 +44,7 @@ export interface MailListedSender {
 
 export const authorAuthentications: readonly MailAuthorAuthentication[] = ['NotEstablished', 'Failed', 'Authenticated'];
 
-export const deploymentTrusts: readonly MailDeploymentTrust[] = ['Unknown', 'Trusted'];
+export const deploymentTrusts: readonly MailDeploymentTrust[] = ['Unknown', 'Trusted', 'Known'];
 
 export const signatureOutcomes: readonly MailSignatureOutcome[] = ['NotSigned', 'Verified', 'Failed', 'NotVerifiable'];
 

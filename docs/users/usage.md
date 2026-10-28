@@ -95,7 +95,7 @@ common misreadings:
 - `senderVerification` is what somebody else established, next to the `senderAddress` the message wrote about itself.
   `authorAuthentication` is what your mail server concluded about the sender shown in `From` — `authenticated`,
   `failed`, or `notEstablished` — and `deploymentTrust` is whether this deployment recognizes that
-  sender — one of your own addresses, a contact somebody wrote down, or a colleague your organization's signature proves — `trusted` or `unknown`. **Read the two together.** `authenticated` beside `unknown` is ordinary mail from
+  sender — one of your own addresses, a contact somebody wrote down, or a colleague your organization's signature proves — `trusted`, `known`, or `unknown`. `known` means only that the address shown is one of those while nothing confirmed its domain sent the message, so anybody could have written it. **Read the two together.** `authenticated` beside `unknown` is ordinary mail from
   somebody you have never listed and says nothing against it; `unknown` on its own says only that this deployment does
   not recognize the sender, and it is what an email whose sender failed authentication carries too. Its third part,
   `signature`, is what the message's own S/MIME or OpenPGP signature proves: `verified`, `failed`, `notVerifiable` with

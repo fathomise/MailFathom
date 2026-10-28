@@ -69,9 +69,11 @@ internal sealed class DnsDmarcRecordResolver : IDmarcRecordResolver
     /// <inheritdoc />
     public async Task<DmarcRecordLookup> ResolveAsync(SenderDomain fromDomain, CancellationToken cancellationToken)
     {
-        foreach (var name in DmarcRecord.DiscoveryNames(fromDomain))
+        var names = DmarcRecord.DiscoveryNames(fromDomain);
+
+        for (var position = 0; position < names.Count; position++)
         {
-            var answer = await this.ReadNameAsync(name, cancellationToken);
+            var answer = await this.ReadNameAsync(names[position], position == 0, cancellationToken);
 
             if (answer != DmarcRecordLookup.NotPublished)
             {
@@ -82,12 +84,19 @@ internal sealed class DnsDmarcRecordResolver : IDmarcRecordResolver
         return DmarcRecordLookup.NotPublished;
     }
 
+    /// <summary>Records a record found at one name of the walk, which decides which of its policy tags apply.</summary>
+    private static DmarcRecordLookup FoundAt(DmarcRecord record, bool atFromDomain) =>
+        atFromDomain ? DmarcRecordLookup.Found(record) : DmarcRecordLookup.FoundAtParent(record);
+
     /// <summary>Reads the one DMARC record a name holds, from the cache where it still holds an answer.</summary>
     /// <remarks>
     /// A name past what a resolver accepts once <c>_dmarc.</c> is prepended cannot exist in DNS, so it publishes nothing
     /// and the walk moves to its shorter parent.
     /// </remarks>
-    private async Task<DmarcRecordLookup> ReadNameAsync(SenderDomain name, CancellationToken cancellationToken)
+    private async Task<DmarcRecordLookup> ReadNameAsync(
+        SenderDomain name,
+        bool atFromDomain,
+        CancellationToken cancellationToken)
     {
         if (!SenderDomain.TryCreate($"{DmarcRecord.RecordLabel}.{name.Value}", out var recordName))
         {
@@ -97,7 +106,7 @@ internal sealed class DnsDmarcRecordResolver : IDmarcRecordResolver
         if (this.cache.TryRead(recordName.NormalizedValue, out var cachedText))
         {
             return cachedText is not null && DmarcRecord.TryParse(cachedText, out var cachedRecord)
-                ? DmarcRecordLookup.Found(cachedRecord)
+                ? FoundAt(cachedRecord, atFromDomain)
                 : DmarcRecordLookup.NotPublished;
         }
 
@@ -106,11 +115,11 @@ internal sealed class DnsDmarcRecordResolver : IDmarcRecordResolver
             return DmarcRecordLookup.NotReadable;
         }
 
-        return this.Hold(recordName.NormalizedValue, response);
+        return this.Hold(recordName.NormalizedValue, response, atFromDomain);
     }
 
     /// <summary>Reads an answer by RFC 9989's rule, holding what it found: exactly one DMARC record, or none.</summary>
-    private DmarcRecordLookup Hold(string recordName, IDnsQueryResponse response)
+    private DmarcRecordLookup Hold(string recordName, IDnsQueryResponse response, bool atFromDomain)
     {
         if (response.HasError && response.Header.ResponseCode != DnsHeaderResponseCode.NotExistentDomain)
         {
@@ -134,7 +143,7 @@ internal sealed class DnsDmarcRecordResolver : IDmarcRecordResolver
 
         this.cache.Store(recordName, text, TimeSpan.FromSeconds(timeToLive));
 
-        return DmarcRecordLookup.Found(record);
+        return FoundAt(record, atFromDomain);
     }
 
     /// <summary>Asks for one name, answering with nothing where the network does not answer in time.</summary>

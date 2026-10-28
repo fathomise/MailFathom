@@ -76,10 +76,10 @@ Recipients are PostgreSQL `text[]` columns — `to_addresses`, `cc_addresses`, `
 
 ### The sender-authentication verdict
 
-Eleven columns record what was established about who actually sent the message:
+Twelve columns record what was established about who actually sent the message:
 `SenderAuthenticationOutcome`, `SenderAuthenticationMethod`, `AuthenticatedSenderDomain`, `DkimSignerDomain`,
-`SpfMailFromDomain`, `DmarcOutcome`, `AuthorAuthenticationOutcome`, `AuthorAuthenticationRoute`,
-`AuthenticatedAuthorDomain`, `DisplayedAuthorDomain`, and `SenderAuthenticationSource`. The six enums are
+`SpfMailFromDomain`, `DmarcOutcome`, `DmarcPolicy`, `AuthorAuthenticationOutcome`, `AuthorAuthenticationRoute`,
+`AuthenticatedAuthorDomain`, `DisplayedAuthorDomain`, and `SenderAuthenticationSource`. The seven enums are
 text for the reason `content_availability` is, and the five domains are `character varying(253)` — the length a
 resolver accepts, which the domain value already refuses to exceed, so no value ever reaches a column that would reject
 it.
@@ -92,6 +92,12 @@ from anything else on the row, and it cannot be inferred from the account's conf
 changed since. On a `LocalVerification` row `SpfMailFromDomain` is empty and `DmarcOutcome` is `NotReported` by
 construction rather than by outcome: after delivery there is no envelope to authenticate, and the domain's DMARC record
 is read for its alignment mode alone.
+
+`DmarcPolicy` qualifies `DmarcOutcome` and is set only where that is `Fail`: what the displayed domain's record asks
+for failing mail, read when the message was stored on an account that is not strict — `MonitoringOnly` where every
+policy tag that applies reads `none`, `Enforcing` otherwise, and `NotEstablished` where nothing was read. It records
+the reading the judgment at extraction made of whether the sender can be [known](../features/sender-authentication.md#known-by-address-alone-on-an-account-that-is-not-strict),
+and nothing reads it back yet.
 
 Four of them — `AuthorAuthenticationOutcome`, `AuthorAuthenticationRoute`, `AuthenticatedAuthorDomain`, and
 `DisplayedAuthorDomain` — are about the
@@ -119,8 +125,8 @@ all of its mail. What reads the verdict is the arriving message's own presentati
 so a join per row would buy a nullable association nothing is ever without.
 
 Every enum column carries a database default naming what was true of a row written before it existed —
-`NotEstablished`, `None`, `NotReported`, `NotEstablished` again for the author, `None` for the author's route, and
-`ReceivingServer` for the source,
+`NotEstablished`, `None`, `NotReported`, `NotEstablished` for the DMARC policy, `NotEstablished` again for the author,
+`None` for the author's route, and `ReceivingServer` for the source,
 since every row written before this deployment verified anything itself came from the trusted-header reading whatever
 it found — so the migration that adds a column fills every stored message in rather than leaving a value nothing
 wrote. A domain column takes no default and is simply
@@ -142,8 +148,9 @@ left unknown.
 
 They are columns beside the authentication verdict rather than a group of their own because they are read together and
 written together — a re-derivation replaces both, so an answer can never sit beside an identity a different list
-judged. `SenderTrustLevel` has two values and nothing more, because the difference between an author nobody named and an
-author nothing established is the authentication columns' to state. What the revision buys is that a change to what
+judged. `SenderTrustLevel` has three values and nothing more — `Unknown`, `Trusted`, and `Known`, the last being an
+address a source recognizes while nothing tied the message to it — because the difference between an author nobody
+named and an author nothing established is the authentication columns' to state. What the revision buys is that a change to what
 configuration states about the owner is legible rather than silent: a stored verdict keeps the answer it was given, and
 the revision says which configuration gave it.
 [Sender authentication](../features/sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes)

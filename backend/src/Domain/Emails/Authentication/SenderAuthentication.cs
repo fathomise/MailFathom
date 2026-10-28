@@ -61,6 +61,7 @@ public sealed record SenderAuthentication
         this.AuthenticatedAuthorDomain = this.AuthorAuthentication == AuthorAuthenticationOutcome.Authenticated
             ? fromDomain
             : null;
+        this.DmarcPolicy = dmarc == DmarcOutcome.Fail ? dmarcRecord.Policy : DmarcPolicyReading.NotEstablished;
     }
 
     /// <summary>Gets what was established about the identity that handed the message over.</summary>
@@ -147,9 +148,19 @@ public sealed record SenderAuthentication
     /// </remarks>
     public SenderDomain? AuthenticatedAuthorDomain { get; }
 
+    /// <summary>Gets the policy the displayed domain's DMARC record states, read where the trusted server reported DMARC <c>fail</c>.</summary>
+    /// <remarks>
+    /// <see cref="DmarcPolicyReading.NotEstablished" /> for every verdict that is not a server's <c>fail</c>, and for a
+    /// <c>fail</c> on an account that never reads the record. It decides one thing only: whether a relaxed account may
+    /// still recognize the displayed sender by address, which it may where the domain asks only to be monitored. It
+    /// never changes <see cref="AuthorAuthentication" />, which stays failed.
+    /// </remarks>
+    public DmarcPolicyReading DmarcPolicy { get; }
+
     /// <summary>Records that nothing was established about a message's sender.</summary>
     /// <param name="fromDomain">The domain the message displays as its sender, where it wrote a usable one.</param>
     /// <param name="dmarc">What the trusted header reported for DMARC, where one was read at all.</param>
+    /// <param name="dmarcRecord">What looking for the displayed domain's DMARC record found, read for its policy where <paramref name="dmarc" /> is a failure.</param>
     /// <returns>The verdict.</returns>
     /// <remarks>
     /// The DMARC result is carried even here, because a trusted header may state one for a message neither check
@@ -159,7 +170,8 @@ public sealed record SenderAuthentication
     /// </remarks>
     public static SenderAuthentication NotEstablished(
         SenderDomain? fromDomain = null,
-        DmarcOutcome dmarc = DmarcOutcome.NotReported) =>
+        DmarcOutcome dmarc = DmarcOutcome.NotReported,
+        DmarcRecordLookup? dmarcRecord = null) =>
         new(
             SenderAuthenticationOutcome.NotEstablished,
             SenderAuthenticationMethod.None,
@@ -171,13 +183,17 @@ public sealed record SenderAuthentication
             SenderAuthenticationSource.ReceivingServer,
             verifiedDkimDomains: [],
             passedSpfDomains: [],
-            DmarcRecordLookup.NotReadable);
+            dmarcRecord ?? DmarcRecordLookup.NotReadable);
 
     /// <summary>Records that the receiving server checked an identity and it did not hold.</summary>
     /// <param name="fromDomain">The domain the message displays as its sender, where it wrote a usable one.</param>
     /// <param name="dmarc">What the trusted header reported for DMARC.</param>
+    /// <param name="dmarcRecord">What looking for the displayed domain's DMARC record found, read for its policy where <paramref name="dmarc" /> is a failure.</param>
     /// <returns>The verdict.</returns>
-    public static SenderAuthentication Failed(SenderDomain? fromDomain, DmarcOutcome dmarc) =>
+    public static SenderAuthentication Failed(
+        SenderDomain? fromDomain,
+        DmarcOutcome dmarc,
+        DmarcRecordLookup? dmarcRecord = null) =>
         new(
             SenderAuthenticationOutcome.Failed,
             SenderAuthenticationMethod.None,
@@ -189,7 +205,7 @@ public sealed record SenderAuthentication
             SenderAuthenticationSource.ReceivingServer,
             verifiedDkimDomains: [],
             passedSpfDomains: [],
-            DmarcRecordLookup.NotReadable);
+            dmarcRecord ?? DmarcRecordLookup.NotReadable);
 
     /// <summary>Records that this deployment verified a DKIM signature itself, no trusted server having said anything.</summary>
     /// <param name="verifiedSigningDomains">Every domain whose signature verified here, in the order the message carried them.</param>
@@ -288,8 +304,8 @@ public sealed record SenderAuthentication
     /// <param name="dmarc">What the trusted header reported for DMARC, held to the domain it named.</param>
     /// <param name="dmarcRecord">
     /// What looking for the displayed domain's DMARC record found, which decides DKIM alignment where the server reported
-    /// no usable result. It is not consulted where the server found no record or an unusable one, since DKIM then aligns
-    /// by the relation.
+    /// no usable result. It is not consulted for alignment where the server found no record or an unusable one, since
+    /// DKIM then aligns by the relation, and it is read for its policy where the server reported DMARC <c>fail</c>.
     /// </param>
     /// <returns>The verdict, naming the first DKIM domain as authoritative wherever one is present.</returns>
     /// <exception cref="ArgumentNullException">Thrown when either collection or <paramref name="dmarcRecord" /> is <see langword="null" />.</exception>

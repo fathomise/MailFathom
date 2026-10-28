@@ -12,7 +12,8 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// It verifies no signature, evaluates no policy, and reads no <c>Received</c> chain — a message's authenticity was
 /// decided by the server that observed the connection, and nothing after delivery can decide it again. The one thing it
 /// may need from outside is the displayed domain's DMARC record, for its alignment mode where the server reported no
-/// DMARC result that counts; <see cref="DomainWhoseDmarcRecordDecides" /> says when, and the caller looks it up.
+/// DMARC result that counts, and on an account that is not strict for its policy where the server reported
+/// <c>fail</c>; <see cref="DomainWhoseDmarcRecordDecides" /> says when, and the caller looks it up.
 /// </para>
 /// <para>
 /// The selection rule is the security property rather than a detail of it. Every other <c>Authentication-Results</c>
@@ -99,42 +100,52 @@ public static class SenderAuthenticationReading
         }
 
         return WasIdentityAttempted(trustedHeader.Methods)
-            ? SenderAuthentication.Failed(fromDomain, dmarc)
-            : SenderAuthentication.NotEstablished(fromDomain, dmarc);
+            ? SenderAuthentication.Failed(fromDomain, dmarc, dmarcRecord)
+            : SenderAuthentication.NotEstablished(fromDomain, dmarc, dmarcRecord);
     }
 
     /// <summary>Names the domain whose DMARC record the verdict depends on, where it depends on one.</summary>
     /// <param name="headers">Every <c>Authentication-Results</c> header the message carried, topmost first.</param>
     /// <param name="authority">The one server this account believes, which may name none.</param>
     /// <param name="fromAddresses">Every address the message's <c>From</c> header wrote, in order.</param>
+    /// <param name="readsPolicyOfAFailure">
+    /// Whether the account recognizes a sender by address alone, and so needs the domain's policy to know whether a
+    /// server's DMARC <c>fail</c> still allows it. A strict account never does, and asks DNS nothing for a failure.
+    /// </param>
     /// <returns>
     /// The displayed domain, where the server reported no DMARC result that counts or only a temporary error and a DKIM
-    /// signature it verified could align; otherwise <see langword="null" />, and no lookup is made.
+    /// signature it verified could align, or where it reported a <c>fail</c> that counts and
+    /// <paramref name="readsPolicyOfAFailure" /> holds; otherwise <see langword="null" />, and no lookup is made.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="headers" /> or <paramref name="fromAddresses" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// A server's <c>pass</c> and <c>fail</c> settle the author without the record, and its <c>none</c> and
-    /// <c>permerror</c> say it already found no usable one. A signature on another branch of the naming tree could not
-    /// align under any record, so it buys no lookup either.
+    /// A server's <c>pass</c> settles the author without the record, and its <c>none</c> and <c>permerror</c> say it
+    /// already found no usable one. Its <c>fail</c> settles the author too, and the record is read then only for its
+    /// policy. A signature on another branch of the naming tree could not align under any record, so it buys no lookup
+    /// either.
     /// </remarks>
     public static SenderDomain? DomainWhoseDmarcRecordDecides(
         IReadOnlyList<AuthenticationResultsHeader> headers,
         TrustedAuthenticationAuthority authority,
-        IReadOnlyList<string> fromAddresses)
+        IReadOnlyList<string> fromAddresses,
+        bool readsPolicyOfAFailure)
     {
         ArgumentNullException.ThrowIfNull(headers);
         ArgumentNullException.ThrowIfNull(fromAddresses);
 
         if (DisplayedDomainOf(fromAddresses) is not { } fromDomain
-            || FindTrustedHeader(headers, authority) is not { } trustedHeader
-            || ReadDmarcOutcome(trustedHeader.Methods, fromAddresses) is not (DmarcOutcome.NotReported or DmarcOutcome.TemporaryError))
+            || FindTrustedHeader(headers, authority) is not { } trustedHeader)
         {
             return null;
         }
 
-        return ReadVerifiedDkimDomains(trustedHeader.Methods).Any(signing => signing.SharesBranchWith(fromDomain))
-            ? fromDomain
-            : null;
+        return ReadDmarcOutcome(trustedHeader.Methods, fromAddresses) switch
+        {
+            DmarcOutcome.Fail => readsPolicyOfAFailure ? fromDomain : null,
+            DmarcOutcome.NotReported or DmarcOutcome.TemporaryError
+                when ReadVerifiedDkimDomains(trustedHeader.Methods).Any(signing => signing.SharesBranchWith(fromDomain)) => fromDomain,
+            _ => null,
+        };
     }
 
     /// <summary>Answers whether the account's trusted server wrote a statement about this message at all.</summary>

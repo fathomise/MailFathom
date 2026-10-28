@@ -278,6 +278,7 @@ public sealed class MailRuleFactsTests
 
     [Theory]
     [InlineData(SenderTrustLevel.Trusted, "trusted")]
+    [InlineData(SenderTrustLevel.Known, "known")]
     [InlineData(SenderTrustLevel.Unknown, "unknown")]
     public async Task ResolveAsync_SenderTrust_AnswersWithItsAuthoringName(SenderTrustLevel stored, string expected)
     {

@@ -474,7 +474,7 @@ comparison, operator, and function checks below are made against.
 | `recipientAddresses` | text set | The addresses the email was sent to and copied to, in their comparison form |
 | `recipientDomains` | text set | The distinct domains of every recipient address |
 | `authorAuthentication` | text | What was established about the author the email displays — `authenticated`, `failed`, or `notEstablished`. Reached by the receiving server, or by local DKIM verification where that server wrote nothing; a rule reads the conclusion and not which of the two produced it |
-| `senderTrust` | text | Whether this deployment recognizes that author — `trusted` or `unknown` |
+| `senderTrust` | text | Whether this deployment recognizes that author — `trusted`, `known`, or `unknown` |
 | `receivedAt` | timestamp | When the last receiving hop recorded the email; absent when no hop recorded one |
 | `sentAt` | timestamp | When the sender's client stamped the email; absent when it carries no such header |
 | `ageInDays` | number | Days since the email was received; absent when nothing recorded that |
@@ -525,6 +525,12 @@ means and what it is worth.
 of legitimate mail from a correspondent nobody has named, so a rule acting on it alone acts on most of a mailbox; what
 carries a real statement is `authorAuthentication == 'failed'`, which is a receiving server reporting that the
 displayed author did not satisfy their own domain's published policy.
+
+**`known` is a value of its own, and `senderTrust == 'trusted'` does not match it.** It says the address the email
+displays is a contact, one of the owner's addresses, or at one of the owner's domains, while nothing established that
+its domain sent the email — a `From` header anybody can write, which a relaxed account (the default; see
+[`Strict`](../operations/configuration-mail.md#one-account--a-mailbox-in-a-users-record)) still marks. A rule meant to file `known` mail with
+`trusted` mail names both: `senderTrust == 'trusted' or senderTrust == 'known'`.
 
 **`machineAuthorship` publishes the band and not the number behind it.** The likelihood a reader is shown is a
 heuristic comparable only within one weighting, so a rule written against a threshold would change meaning the next

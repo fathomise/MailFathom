@@ -35,7 +35,34 @@ public sealed class DnsDmarcRecordResolverTests
 
         // Assert
         Assert.Equal(DkimAlignmentMode.Strict, answer.Record?.DkimAlignment);
+        Assert.Equal(DmarcPolicyReading.Enforcing, answer.Policy);
         Assert.Equal(["_dmarc.bank.example.test"], QueriedNames(lookup));
+    }
+
+    /// <summary>
+    /// A record found above the displayed domain is read by the tags it applies beneath itself, so a parent publishing
+    /// <c>p=none; sp=reject</c> enforces for the name below it, whether it was asked for or read back from the cache.
+    /// </summary>
+    [Fact]
+    public async Task ResolveAsync_RecordAtAParent_ReadsThePolicyItAppliesBeneathItself()
+    {
+        // Arrange
+        var lookup = LookupAnswering(new Dictionary<string, IDnsQueryResponse>
+        {
+            ["_dmarc.example.test"] = Records("v=DMARC1; p=none; sp=reject"),
+        });
+        var resolver = CreateResolver(lookup);
+
+        // Act
+        var below = await resolver.ResolveAsync(DomainOf("bank.example.test"), CancellationToken.None);
+        var belowFromTheCache = await resolver.ResolveAsync(DomainOf("bank.example.test"), CancellationToken.None);
+        var atTheParent = await resolver.ResolveAsync(DomainOf("example.test"), CancellationToken.None);
+
+        // Assert
+        Assert.Equal(DmarcPolicyReading.Enforcing, below.Policy);
+        Assert.Equal(DmarcPolicyReading.Enforcing, belowFromTheCache.Policy);
+        Assert.Equal(DmarcPolicyReading.MonitoringOnly, atTheParent.Policy);
+        Assert.Equal(["_dmarc.bank.example.test", "_dmarc.example.test"], QueriedNames(lookup));
     }
 
     /// <summary>A name with no record, or with no answer at all, is passed over for its parent.</summary>
@@ -55,6 +82,7 @@ public sealed class DnsDmarcRecordResolverTests
 
         // Assert
         Assert.Equal(DkimAlignmentMode.Relaxed, answer.Record?.DkimAlignment);
+        Assert.Equal(DmarcPolicyReading.MonitoringOnly, answer.Policy);
         Assert.Equal(
             ["_dmarc.mail.bank.example.test", "_dmarc.bank.example.test", "_dmarc.example.test"],
             QueriedNames(lookup));

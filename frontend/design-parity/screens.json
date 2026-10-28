@@ -325,6 +325,37 @@
       ]
     },
     {
+      "id": "mail-sender-known",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 7
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Known sender"
+          }
+        },
+        {
+          "expect": {
+            "role": "heading",
+            "name": "Known sender"
+          }
+        }
+      ]
+    },
+    {
       "id": "mail-outbox",
       "route": "/#/mail",
       "signIn": true,

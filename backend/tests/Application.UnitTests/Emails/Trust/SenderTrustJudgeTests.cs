@@ -69,6 +69,46 @@ public sealed class SenderTrustJudgeTests
         Assert.Null(judged.SenderTrust.RecognizingContactId);
     }
 
+    /// <summary>
+    /// An address nobody with authority wrote never makes a sender known either, so a relaxed account leaves a message
+    /// nothing authenticated unknown where only such an address holds its sender.
+    /// </summary>
+    [Theory]
+    [InlineData(ContactAddressWriterKind.Agent)]
+    [InlineData(ContactAddressWriterKind.Unrecorded)]
+    public async Task JudgeAsync_AddressNobodyWithAuthorityWroteAndNothingAuthenticated_LeavesTheSenderUnknown(ContactAddressWriterKind writer)
+    {
+        // Arrange
+        var judge = JudgeHolding(Holding(Account, "alice@partner.example", FirstContact, SenderTrustBook.Personal, writer));
+        var message = MessageWith(
+            SenderAuthentication.NotEstablished(),
+            [new EmailParticipant(EmailAddressRole.From, AddressOf("alice@partner.example"))]);
+
+        // Act
+        var judged = await JudgeOneAsync(judge, message);
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Unknown, judged.SenderTrust.Level);
+    }
+
+    /// <summary>On a relaxed account, a person's contact makes a sender nothing authenticated known, under the contact that holds them.</summary>
+    [Fact]
+    public async Task JudgeAsync_PersonsContactAndNothingAuthenticated_KnowsTheSender()
+    {
+        // Arrange
+        var judge = JudgeHolding(Holding(Account, "alice@partner.example", FirstContact, SenderTrustBook.Personal, ContactAddressWriterKind.Person));
+        var message = MessageWith(
+            SenderAuthentication.NotEstablished(),
+            [new EmailParticipant(EmailAddressRole.From, AddressOf("Alice@Partner.example"))]);
+
+        // Act
+        var judged = await JudgeOneAsync(judge, message);
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Known, judged.SenderTrust.Level);
+        Assert.Equal(FirstContact, judged.SenderTrust.RecognizingContactId);
+    }
+
     /// <summary>A contact in a book another account reaches says nothing about mail this account received.</summary>
     [Fact]
     public async Task JudgeAsync_ContactInABookOnlyAnotherAccountReaches_LeavesTheSenderUnknown()

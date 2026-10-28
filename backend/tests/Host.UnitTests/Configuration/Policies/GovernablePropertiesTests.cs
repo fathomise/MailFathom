@@ -111,6 +111,7 @@ public sealed class GovernablePropertiesTests
                 "SpamClassification:ModelStage:NameSubcategoriesOfDeterministicSpam Value",
                 "SpamClassification:ModelStage:Threshold Value",
                 "SpamClassification:ScannedFolders List",
+                "Strict Value",
                 "TransportSecurity Block",
                 "TransportSecurity:AllowClearTextAuthenticationOverUnencryptedConnection Value",
                 "TransportSecurity:AllowInsecureConnection Value",

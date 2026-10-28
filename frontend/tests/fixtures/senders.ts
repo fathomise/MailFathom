@@ -6,9 +6,11 @@
 // four facts every row carries, and the evidence the message route answers beside them. Both are stated from one kind
 // per message, so a row and the message it opens never disagree about one sender.
 //
-// The kinds are the four marks a screen draws and the two ways a warning is reached, each on a message the first
+// The kinds are the five marks a screen draws and the two ways a warning is reached, each on a message the first
 // screen of the folder shows, so every mark can be looked at without scrolling. A member of the reader's organization
 // is trusted twice over: once naming the organization, and once where it has since been deleted and no name is left.
+// A sender known by their address alone is known twice as well: once where nothing established the author, and once
+// where the domain's checks failed under a policy that only monitors.
 
 import { markupOnlyId, newsletterId } from './messages';
 
@@ -20,7 +22,9 @@ export type SenderKind =
     | 'failedAuthentication'
     | 'unrecognized'
     | 'organizationMember'
-    | 'deletedOrganizationMember';
+    | 'deletedOrganizationMember'
+    | 'known'
+    | 'knownMonitoringOnly';
 
 const kindsById: Readonly<Record<string, SenderKind>> = {
     [newsletterId]: 'trusted',
@@ -31,6 +35,8 @@ const kindsById: Readonly<Record<string, SenderKind>> = {
     'message-4': 'failedAuthentication',
     'message-5': 'deletedOrganizationMember',
     'message-6': 'organizationMember',
+    'message-3': 'known',
+    'message-7': 'knownMonitoringOnly',
 };
 
 /** The sender state of the message the corpus holds under that identity; anything not named is an unrecognized one. */
@@ -131,6 +137,25 @@ const deletedOrganizationMember = {
     trustOrganization: null,
 };
 
+// Known by the address alone: a signature the sender's invoicing service made in its own name, which aligns with nothing.
+const knownSender = {
+    ...authenticated,
+    authorAuthentication: 'NotEstablished',
+    deploymentTrust: 'Known',
+    authenticatedDomain: null,
+    dkimDomain: 'INVOICING.EXAMPLE.INVALID',
+    spfDomain: 'INVOICING.EXAMPLE.INVALID',
+    dmarc: 'NotReported',
+    trustSource: 'PersonalContact',
+};
+const knownMonitoredSender = {
+    ...knownSender,
+    authorAuthentication: 'Failed',
+    authenticatedDomain: 'INVOICING.EXAMPLE.INVALID',
+    dmarc: 'Fail',
+    trustSource: 'OrganizationContact',
+};
+
 const evidence = {
     trusted: { sender: trusted, signature: notSigned },
     verified: { sender: authenticated, signature: verifiedSignature },
@@ -149,6 +174,8 @@ const evidence = {
     unrecognized: { sender: authenticated, signature: notSigned },
     organizationMember: { sender: organizationMember, signature: notSigned },
     deletedOrganizationMember: { sender: deletedOrganizationMember, signature: notSigned },
+    known: { sender: knownSender, signature: notSigned },
+    knownMonitoringOnly: { sender: knownMonitoredSender, signature: notSigned },
 } as const;
 
 /** What the message route answers about who sent a message of that kind: its `sender` and its `signature`. */

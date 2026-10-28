@@ -431,7 +431,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
-        services.AddSingleton(Substitute.For<ISenderTrustPolicyReader>());
+        services.AddSingleton(TrustPoliciesRecognizingNobody());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         this.AddScanningPostures(services, SensitiveContentCategory.Create("ProviderToken"));
 
@@ -470,6 +470,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
+        services.AddSingleton(TrustPoliciesRecognizingNobody());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
         services.AddInfrastructure(
@@ -518,6 +519,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
+        services.AddSingleton(TrustPoliciesRecognizingNobody());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
         services.AddSingleton(dmarcRecords);
@@ -562,6 +564,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
+        services.AddSingleton(TrustPoliciesRecognizingNobody());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
         services.AddSingleton(dmarcRecords);
@@ -607,6 +610,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
+        services.AddSingleton(TrustPoliciesRecognizingNobody());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
         services.AddInfrastructure(
@@ -645,6 +649,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
+        services.AddSingleton(TrustPoliciesRecognizingNobody());
         services.AddSingleton(MachineAuthorshipProfile.Disabled);
 
         services.AddInfrastructure(
@@ -682,6 +687,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
+        services.AddSingleton(TrustPoliciesRecognizingNobody());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         this.AddScanningPostures(services, category);
 
@@ -1046,5 +1052,14 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
             MailAnsweringBudget.Default);
 
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>The Host registers the account trust policies; these tests stand in an account recognizing nobody, which is relaxed.</summary>
+    private static ISenderTrustPolicyReader TrustPoliciesRecognizingNobody()
+    {
+        var reader = Substitute.For<ISenderTrustPolicyReader>();
+        reader.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.RecognizingNobody);
+
+        return reader;
     }
 }

@@ -427,7 +427,8 @@ author to hold your own addresses, your contacts, or `TrustOwnAccountDomains` ag
 work on a mailbox whose provider records nothing, and it is on by default. What it cannot reach is the part that needed
 the connection: no SPF result, no DMARC outcome, and so no warning about a forged domain — your receiving server
 already refused or filed that before delivery. The DMARC record is read beside a trusted server too, where that
-server's verdict leaves open whether a signature counts as the author's. Those lookups are the only DNS queries
+server's verdict leaves open whether a signature counts as the author's, and where that server reports a DMARC failure
+on an account that is not `Strict`, to learn whether the domain asks only to be monitored. Those lookups are the only DNS queries
 MailFathom sends, and one switch governs them all, so an operator who wants none turns it off — see [the mail configuration](../operations/configuration-mail.md#mailsynchronization).
 
 **Mail you send from one of your own addresses is trusted with nothing to configure**, once its author authenticated:

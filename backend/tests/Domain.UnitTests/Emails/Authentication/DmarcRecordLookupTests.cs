@@ -52,6 +52,31 @@ public sealed class DmarcRecordLookupTests
         Assert.Equal(expected, aligned);
     }
 
+    /// <summary>A record found at the displayed domain is read by <c>p</c>, one found above it by the tags it applies beneath itself.</summary>
+    [Theory]
+    [InlineData(true, DmarcPolicyReading.Enforcing)]
+    [InlineData(false, DmarcPolicyReading.MonitoringOnly)]
+    public void Policy_RecordFoundAtTheDomainOrAParent_ReadsTheTagsThatApplyThere(bool atFromDomain, DmarcPolicyReading expected)
+    {
+        // Arrange
+        Assert.True(DmarcRecord.TryParse("v=DMARC1; p=reject; sp=none", out var record));
+
+        // Act
+        var lookup = atFromDomain ? DmarcRecordLookup.Found(record) : DmarcRecordLookup.FoundAtParent(record);
+
+        // Assert
+        Assert.Equal(expected, lookup.Policy);
+    }
+
+    /// <summary>A domain publishing no record, and one whose record could not be read, never reads as only monitoring.</summary>
+    [Fact]
+    public void Policy_NoRecord_IsNotEstablished()
+    {
+        // Assert
+        Assert.Equal(DmarcPolicyReading.NotEstablished, DmarcRecordLookup.NotPublished.Policy);
+        Assert.Equal(DmarcPolicyReading.NotEstablished, DmarcRecordLookup.NotReadable.Policy);
+    }
+
     private static SenderDomain DomainOf(string written)
     {
         SenderDomain.TryCreate(written, out var domain);

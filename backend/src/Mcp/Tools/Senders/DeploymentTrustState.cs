@@ -4,7 +4,7 @@
 
 namespace MailFathom.Mcp.Tools.Senders;
 
-/// <summary>Reports whether this deployment recognizes an email's authenticated author, as the protocol spells it.</summary>
+/// <summary>Reports whether this deployment recognizes an email's author, and whether anything tied the email to them, as the protocol spells it.</summary>
 /// <remarks>
 /// It is this deployment's own classification rather than the result of any check, which is why it is published beside
 /// <see cref="AuthorAuthenticationState" /> and never folded into it.
@@ -16,4 +16,8 @@ internal enum DeploymentTrustState
 
     /// <summary>The email's authenticated author is one this deployment recognizes.</summary>
     Trusted = 1,
+
+    /// <summary>The address the email displays is one this deployment recognizes, while nothing established that its domain sent it.</summary>
+    /// <remarks>A header anybody can write, so it is never a reason to treat the sender as trusted.</remarks>
+    Known = 2,
 }

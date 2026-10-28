@@ -64,14 +64,14 @@ public sealed class SenderTrustPolicyTests
         Assert.Equal(SenderTrustSource.OwnAccountAddress, trust.GrantedBy);
     }
 
-    /// <summary>The owner's address in a <c>From</c> nothing authenticated is a claim anybody can write, so it recognizes nothing.</summary>
+    /// <summary>On a strict account, the owner's address in a <c>From</c> nothing authenticated is a claim anybody can write, so it recognizes nothing.</summary>
     [Theory]
     [InlineData(DmarcOutcome.Fail)]
     [InlineData(DmarcOutcome.NotReported)]
-    public void Evaluate_OwnAddressDisplayedButNotAuthenticated_LeavesTheMessageUnknown(DmarcOutcome dmarc)
+    public void Evaluate_OwnAddressDisplayedButNotAuthenticatedOnAStrictAccount_LeavesTheMessageUnknown(DmarcOutcome dmarc)
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create([AddressOf("me@shared.example")], []);
+        var policy = SenderTrustPolicy.Create([AddressOf("me@shared.example")], [], isStrict: true);
 
         // Act
         var notEstablished = Judge(policy, SenderAuthentication.NotEstablished(), "me@shared.example");
@@ -214,14 +214,14 @@ public sealed class SenderTrustPolicyTests
     }
 
     /// <summary>
-    /// SPF proves only which server handed the message over, so an author aligned through it alone is recognized by no
-    /// source, the owner's own included.
+    /// SPF proves only which server handed the message over, so on a strict account an author aligned through it alone is
+    /// recognized by no source, the owner's own included.
     /// </summary>
     [Fact]
-    public void Evaluate_AuthorAlignedOnlyThroughSpf_LeavesTheMessageUnknown()
+    public void Evaluate_AuthorAlignedOnlyThroughSpfOnAStrictAccount_LeavesTheMessageUnknown()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create([AddressOf("alice@partner.example")], [DomainOf("partner.example")]);
+        var policy = SenderTrustPolicy.Create([AddressOf("alice@partner.example")], [DomainOf("partner.example")], isStrict: true);
         var authentication = SenderAuthentication.Authenticated(
             [DomainOf("relay.example")],
             [DomainOf("partner.example")],
@@ -238,11 +238,11 @@ public sealed class SenderTrustPolicyTests
         Assert.Equal(SenderTrustSource.None, trust.GrantedBy);
     }
 
-    /// <summary>A signature by a domain other than the author's ties the message to nobody a contact holds.</summary>
+    /// <summary>A signature by a domain other than the author's ties the message to nobody a contact holds, so a strict account recognizes nobody.</summary>
     [Theory]
     [InlineData(DmarcOutcome.Fail)]
     [InlineData(DmarcOutcome.NotReported)]
-    public void Evaluate_ThirdPartySignatureOverAContactsAddress_LeavesTheMessageUnknown(DmarcOutcome dmarc)
+    public void Evaluate_ThirdPartySignatureOverAContactsAddressOnAStrictAccount_LeavesTheMessageUnknown(DmarcOutcome dmarc)
     {
         // Arrange
         var authentication = SenderAuthentication.Authenticated(
@@ -253,7 +253,7 @@ public sealed class SenderTrustPolicyTests
             DmarcRecordLookup.NotPublished);
 
         // Act
-        var trust = Judge(SenderTrustPolicy.RecognizingNobody, authentication, "security@bank.example", ByPersonalContact);
+        var trust = Judge(StrictRecognizingNobody, authentication, "security@bank.example", ByPersonalContact);
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
@@ -298,13 +298,13 @@ public sealed class SenderTrustPolicyTests
         Assert.Equal(TrustedAuthorEvidence.Authentication, trust.AuthorEvidence);
     }
 
-    /// <summary>A verified signature by somebody other than the author ties the message to nobody.</summary>
+    /// <summary>A verified signature by somebody other than the author ties the message to nobody, so a strict account recognizes nobody.</summary>
     [Fact]
-    public void Evaluate_VerifiedSignatureOfAnotherSigner_LeavesTheMessageUnknown()
+    public void Evaluate_VerifiedSignatureOfAnotherSignerOnAStrictAccount_LeavesTheMessageUnknown()
     {
         // Act
         var trust = Judge(
-            SenderTrustPolicy.RecognizingNobody,
+            StrictRecognizingNobody,
             SenderAuthentication.NotEstablished(),
             "alice@partner.example",
             ByPersonalContact,
@@ -330,6 +330,171 @@ public sealed class SenderTrustPolicyTests
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
+    }
+
+    /// <summary>
+    /// On a relaxed account, a message nothing tied to its address is known by whichever source holds that address, in
+    /// the same order trust asks them, and names the contact where the source is one.
+    /// </summary>
+    [Theory]
+    [InlineData(true, true, true, true, SenderTrustSource.OrganizationContact)]
+    [InlineData(false, true, true, true, SenderTrustSource.OwnAccountAddress)]
+    [InlineData(false, false, true, true, SenderTrustSource.OwnAccountDomain)]
+    [InlineData(false, false, false, true, SenderTrustSource.PersonalContact)]
+    public void Evaluate_AddressASourceHoldsButNothingTiedTheMessageOnARelaxedAccount_IsKnownByTheHighest(
+        bool organizationContact,
+        bool ownAddress,
+        bool ownDomain,
+        bool personalContact,
+        SenderTrustSource expected)
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create(
+            ownAddress ? [AddressOf("me@work.example")] : [],
+            ownDomain ? [DomainOf("work.example")] : []);
+        var contacts = new RecognizingContacts(
+            organizationContact ? OrganizationContact : null,
+            personalContact ? PersonalContact : null);
+        ContactId? expectedContact = expected switch
+        {
+            SenderTrustSource.OrganizationContact => OrganizationContact,
+            SenderTrustSource.PersonalContact => PersonalContact,
+            _ => null,
+        };
+
+        // Act
+        var trust = Judge(policy, SenderAuthentication.NotEstablished(DomainOf("work.example")), "me@work.example", contacts);
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Known, trust.Level);
+        Assert.Equal(expected, trust.GrantedBy);
+        Assert.Equal(TrustedAuthorEvidence.None, trust.AuthorEvidence);
+        Assert.Equal(expectedContact, trust.RecognizingContactId);
+        Assert.False(trust.IsTrusted);
+    }
+
+    /// <summary>An author aligned only through SPF is not tied to the address, so a relaxed account knows it by the address alone.</summary>
+    [Fact]
+    public void Evaluate_ContactAlignedOnlyThroughSpfOnARelaxedAccount_IsKnown()
+    {
+        // Arrange
+        var authentication = SenderAuthentication.Authenticated(
+            [DomainOf("relay.example")],
+            [DomainOf("partner.example")],
+            DomainOf("partner.example"),
+            DmarcOutcome.NotReported,
+            DmarcRecordLookup.NotPublished);
+
+        // Act
+        var trust = Judge(SenderTrustPolicy.RecognizingNobody, authentication, "alice@partner.example", ByPersonalContact);
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Known, trust.Level);
+        Assert.Equal(PersonalContact, trust.RecognizingContactId);
+    }
+
+    /// <summary>The address is one mailbox however its letters were cased, so a differently cased <c>From</c> is still known as the owner's.</summary>
+    [Fact]
+    public void Evaluate_OwnAddressInAnotherCaseNotAuthenticatedOnARelaxedAccount_IsKnownAsOwnAddress()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([AddressOf("Me@Shared.example")], []);
+
+        // Act
+        var trust = Judge(policy, SenderAuthentication.NotEstablished(DomainOf("shared.example")), "ME@SHARED.EXAMPLE");
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Known, trust.Level);
+        Assert.Equal(SenderTrustSource.OwnAccountAddress, trust.GrantedBy);
+    }
+
+    /// <summary>A message that authenticates is trusted under the same source whether the account is relaxed or strict.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Evaluate_AuthenticatedContact_IsTrustedOnEitherKindOfAccount(bool isStrict)
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([], [], isStrict);
+
+        // Act
+        var trust = Judge(policy, WrittenBy("partner.example"), "alice@partner.example", ByPersonalContact);
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
+        Assert.Equal(SenderTrustSource.PersonalContact, trust.GrantedBy);
+    }
+
+    /// <summary>A strict account never knows a sender by address alone, whichever source holds it.</summary>
+    [Fact]
+    public void Evaluate_AddressEverySourceHoldsButNotAuthenticatedOnAStrictAccount_LeavesTheMessageUnknown()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([AddressOf("me@work.example")], [DomainOf("work.example")], isStrict: true);
+
+        // Act
+        var trust = Judge(
+            policy,
+            SenderAuthentication.NotEstablished(DomainOf("work.example")),
+            "me@work.example",
+            new RecognizingContacts(OrganizationContact, PersonalContact));
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
+        Assert.Equal(SenderTrustSource.None, trust.GrantedBy);
+        Assert.Null(trust.RecognizingContactId);
+    }
+
+    /// <summary>
+    /// A server's DMARC <c>fail</c> stays a failure on a relaxed account unless the domain asks only to be monitored, and
+    /// stays one on a strict account whatever the domain asks.
+    /// </summary>
+    [Theory]
+    [InlineData(false, DmarcPolicyReading.MonitoringOnly, SenderTrustLevel.Known)]
+    [InlineData(false, DmarcPolicyReading.Enforcing, SenderTrustLevel.Unknown)]
+    [InlineData(false, DmarcPolicyReading.NotEstablished, SenderTrustLevel.Unknown)]
+    [InlineData(true, DmarcPolicyReading.MonitoringOnly, SenderTrustLevel.Unknown)]
+    public void Evaluate_ContactAfterAServerDmarcFail_IsKnownOnlyUnderAMonitoringOnlyPolicyOnARelaxedAccount(
+        bool isStrict,
+        DmarcPolicyReading policyRead,
+        SenderTrustLevel expected)
+    {
+        // Arrange
+        var authentication = SenderAuthentication.Failed(
+            DomainOf("partner.example"),
+            DmarcOutcome.Fail,
+            LookupReading(policyRead));
+
+        // Act
+        var trust = Judge(SenderTrustPolicy.Create([], [], isStrict), authentication, "alice@partner.example", ByPersonalContact);
+
+        // Assert
+        Assert.Equal(policyRead, authentication.DmarcPolicy);
+        Assert.Equal(AuthorAuthenticationOutcome.Failed, authentication.AuthorAuthentication);
+        Assert.Equal(expected, trust.Level);
+    }
+
+    /// <summary>A sender no source holds is unknown on a relaxed account too, however little authenticated.</summary>
+    [Fact]
+    public void Evaluate_AddressNoSourceHoldsOnARelaxedAccount_LeavesTheMessageUnknown()
+    {
+        // Act
+        var trust = Judge(SenderTrustPolicy.RecognizingNobody, SenderAuthentication.NotEstablished(), "stranger@partner.example");
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
+    }
+
+    /// <summary>Turning an account strict, or back, changes what it recognizes, so it names another revision.</summary>
+    [Fact]
+    public void Revision_StrictAccount_IsAnotherRevisionThanARelaxedOne()
+    {
+        // Act
+        var relaxed = SenderTrustPolicy.Create([AddressOf("me@shared.example")], []).Revision;
+        var strict = SenderTrustPolicy.Create([AddressOf("me@shared.example")], [], isStrict: true).Revision;
+
+        // Assert
+        Assert.NotEqual(relaxed, strict);
     }
 
     /// <summary>Adding an address the owner holds changes what the policy recognizes, so it names another revision.</summary>
@@ -456,6 +621,14 @@ public sealed class SenderTrustPolicyTests
     }
 
     private static RecognizingContacts ByPersonalContact => new(null, PersonalContact);
+
+    private static SenderTrustPolicy StrictRecognizingNobody => SenderTrustPolicy.Create([], [], isStrict: true);
+
+    /// <summary>Builds what reading a record found at the displayed domain answers with, for each policy it can read as.</summary>
+    private static DmarcRecordLookup LookupReading(DmarcPolicyReading policy) =>
+        policy == DmarcPolicyReading.NotEstablished
+            ? DmarcRecordLookup.NotReadable
+            : DmarcRecordLookup.Found(new DmarcRecord(DkimAlignmentMode.Relaxed) { PolicyAtDomain = policy });
 
     private static SenderTrust Judge(
         SenderTrustPolicy policy,

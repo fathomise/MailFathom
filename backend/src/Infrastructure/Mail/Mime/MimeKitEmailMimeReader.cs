@@ -39,6 +39,7 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     private readonly ILocalSenderVerifier? localSenderVerifier;
     private readonly IEmailSignatureVerifier? signatureVerifier;
     private readonly OrganizationSignatureVerifier? organizationVerifier;
+    private readonly ISenderTrustPolicyReader? trustPolicies;
     private readonly ParsedMimeMessageLoader loadMessage;
 
     /// <summary>Initializes a reader that parses with MimeKit.</summary>
@@ -56,20 +57,26 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     /// Verifies a message against the keys of the receiving account's organization, or <see langword="null" /> where
     /// nothing does and no message is verified that way.
     /// </param>
+    /// <param name="trustPolicies">
+    /// Says whether each account is strict, which decides whether a server's DMARC <c>fail</c> sends the displayed
+    /// domain's record to be read for its policy, or <see langword="null" /> where no record is ever read for that.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options" /> or <paramref name="trustedAuthorities" /> is <see langword="null" />.</exception>
     public MimeKitEmailMimeReader(
         EmailMimeExtractionOptions options,
         ITrustedAuthenticationAuthorityReader trustedAuthorities,
         ILocalSenderVerifier? localSenderVerifier,
         IEmailSignatureVerifier? signatureVerifier = null,
-        OrganizationSignatureVerifier? organizationVerifier = null)
+        OrganizationSignatureVerifier? organizationVerifier = null,
+        ISenderTrustPolicyReader? trustPolicies = null)
         : this(
             options,
             trustedAuthorities,
             localSenderVerifier,
             LoadWithoutCopyingContentAsync,
             signatureVerifier,
-            organizationVerifier)
+            organizationVerifier,
+            trustPolicies)
     {
     }
 
@@ -80,6 +87,7 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     /// <param name="loadMessage">Turns raw MIME into a parsed message.</param>
     /// <param name="signatureVerifier">Verifies a message's S/MIME or OpenPGP signature, or <see langword="null" /> where nothing does.</param>
     /// <param name="organizationVerifier">Verifies a message against the receiving account's organization, or <see langword="null" /> where nothing does.</param>
+    /// <param name="trustPolicies">Says whether each account is strict, or <see langword="null" /> where no record is read for a failure's policy.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument other than the verifiers is <see langword="null" />.</exception>
     internal MimeKitEmailMimeReader(
         EmailMimeExtractionOptions options,
@@ -87,7 +95,8 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
         ILocalSenderVerifier? localSenderVerifier,
         ParsedMimeMessageLoader loadMessage,
         IEmailSignatureVerifier? signatureVerifier = null,
-        OrganizationSignatureVerifier? organizationVerifier = null)
+        OrganizationSignatureVerifier? organizationVerifier = null,
+        ISenderTrustPolicyReader? trustPolicies = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(trustedAuthorities);
@@ -98,6 +107,7 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
         this.localSenderVerifier = localSenderVerifier;
         this.signatureVerifier = signatureVerifier;
         this.organizationVerifier = organizationVerifier;
+        this.trustPolicies = trustPolicies;
         this.loadMessage = loadMessage;
     }
 
@@ -206,7 +216,9 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
     /// <para>
     /// Where the server's verdict leaves DKIM alignment open, the displayed domain's DMARC record is read for it through
     /// the same verifier, so a deployment that switched local verification off asks DNS nothing on either path and DKIM
-    /// aligns only where the server reported a DMARC result that settles it.
+    /// aligns only where the server reported a DMARC result that settles it. Where the server reported a <c>fail</c>
+    /// and the account is not strict, the record is read the same way for its policy, which decides whether the sender
+    /// may still be recognized by address.
     /// </para>
     /// </remarks>
     private async Task<SenderAuthentication> ReadSenderAuthenticationAsync(
@@ -228,7 +240,12 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
             return await verifier.VerifyAsync(message, fromAddresses.FirstOrDefault(), cancellationToken);
         }
 
-        var dmarcRecord = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(headers, authority, fromAddresses) is { } fromDomain
+        var readsPolicyOfAFailure = this.trustPolicies?.GetTrustPolicy(accountId).IsStrict == false;
+        var dmarcRecord = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(
+            headers,
+            authority,
+            fromAddresses,
+            readsPolicyOfAFailure) is { } fromDomain
             ? await verifier.ReadDmarcRecordAsync(fromDomain, cancellationToken)
             : DmarcRecordLookup.NotReadable;
 

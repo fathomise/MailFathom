@@ -3831,6 +3831,13 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasDefaultValue("NotReported");
 
+                    b.Property<string>("DmarcPolicy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("NotEstablished");
+
                     b.Property<Guid?>("EmailThreadId")
                         .HasColumnType("uuid");
 

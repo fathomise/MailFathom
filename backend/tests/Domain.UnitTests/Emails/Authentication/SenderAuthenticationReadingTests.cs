@@ -592,10 +592,62 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header(TrustedIdentifier, methods) };
 
         // Act
-        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(headers, TrustedAuthority, ["alerts@bank.test"]);
+        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(
+            headers,
+            TrustedAuthority,
+            ["alerts@bank.test"],
+            readsPolicyOfAFailure: false);
 
         // Assert
         Assert.Equal(expected, domain?.NormalizedValue);
+    }
+
+    /// <summary>
+    /// A server's <c>fail</c> asks for the displayed domain's record only on an account that reads its policy, and then
+    /// whether or not any signature could align, since the record is read for the policy rather than for alignment.
+    /// </summary>
+    [Theory]
+    [InlineData(true, "bank.test", "BANK.TEST")]
+    [InlineData(true, "provider.test", "BANK.TEST")]
+    [InlineData(false, "bank.test", null)]
+    public void DomainWhoseDmarcRecordDecides_ServerFail_AsksOnlyWhereThePolicyIsRead(
+        bool readsPolicyOfAFailure,
+        string signingDomain,
+        string? expected)
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Dkim("pass", signingDomain), Dmarc("fail", "bank.test")) };
+
+        // Act
+        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(
+            headers,
+            TrustedAuthority,
+            ["alerts@bank.test"],
+            readsPolicyOfAFailure);
+
+        // Assert
+        Assert.Equal(expected, domain?.NormalizedValue);
+    }
+
+    /// <summary>The policy read for a server's <c>fail</c> is kept on the verdict, which still records the author as failed.</summary>
+    [Fact]
+    public void Read_ServerFailWithTheDomainsRecordRead_KeepsThePolicyBesideTheFailure()
+    {
+        // Arrange
+        var headers = new[] { Header(TrustedIdentifier, Spf("fail", "alerts@bank.test"), Dmarc("fail", "bank.test")) };
+        Assert.True(DmarcRecord.TryParse("v=DMARC1; p=none", out var record));
+
+        // Act
+        var authentication = SenderAuthenticationReading.Read(
+            headers,
+            TrustedAuthority,
+            ["alerts@bank.test"],
+            DmarcRecordLookup.Found(record));
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationOutcome.Failed, authentication.AuthorAuthentication);
+        Assert.Equal(DmarcOutcome.Fail, authentication.Dmarc);
+        Assert.Equal(DmarcPolicyReading.MonitoringOnly, authentication.DmarcPolicy);
     }
 
     /// <summary>A pass about another domain does not count, so the record still decides and is asked for.</summary>
@@ -606,7 +658,11 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header(TrustedIdentifier, Dkim("pass", "bank.test"), Dmarc("pass", "other.test")) };
 
         // Act
-        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(headers, TrustedAuthority, ["alerts@bank.test"]);
+        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(
+            headers,
+            TrustedAuthority,
+            ["alerts@bank.test"],
+            readsPolicyOfAFailure: false);
 
         // Assert
         Assert.Equal("BANK.TEST", domain?.NormalizedValue);
@@ -620,7 +676,11 @@ public sealed class SenderAuthenticationReadingTests
         var headers = new[] { Header("someone.else.test", Dkim("pass", "bank.test")) };
 
         // Act
-        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(headers, TrustedAuthority, ["alerts@bank.test"]);
+        var domain = SenderAuthenticationReading.DomainWhoseDmarcRecordDecides(
+            headers,
+            TrustedAuthority,
+            ["alerts@bank.test"],
+            readsPolicyOfAFailure: true);
 
         // Assert
         Assert.Null(domain);

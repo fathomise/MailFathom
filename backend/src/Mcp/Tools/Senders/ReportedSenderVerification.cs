@@ -39,8 +39,8 @@ internal sealed record ReportedSenderVerification
     [Description("What the receiving mail server established about the author shown in the From header: 'authenticated' when it confirmed the displayed author, 'failed' when it evaluated the displayed domain under that domain's own published policy and the email did not satisfy it, and 'notEstablished' when nothing trusted was enough to conclude either way — which is also what an email carries when the mailbox trusts no authentication-reporting server, and what mail stored before this deployment recorded the answer carries until it is re-read. It is not derived from senderAddress, which is a claim the email wrote about itself.")]
     public required AuthorAuthenticationState AuthorAuthentication { get; init; }
 
-    /// <summary>Gets whether this deployment recognizes the author it authenticated.</summary>
-    [Description("Whether this deployment recognizes the authenticated author: 'trusted' when they are one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves, 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.")]
+    /// <summary>Gets whether this deployment recognizes the author it authenticated, or only the address the email displays.</summary>
+    [Description("Whether this deployment recognizes the author: 'trusted' when the authenticated author is one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves; 'known' when the address the email displays is one of the owner's own addresses or domains or such a contact but nothing established that its domain sent the email — a From header anybody can write, so 'known' is never a reason to treat the sender as trusted; 'unknown' when nothing this deployment holds names the address, when the mailbox is strict and nothing tied the email to the address it names, or when the receiving server's DMARC check failed and the domain's published policy does not ask only to be monitored. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, so it says nothing on its own — read it together with authorAuthentication.")]
     public required DeploymentTrustState DeploymentTrust { get; init; }
 
     /// <summary>Gets what verifying the email's own signature found.</summary>
@@ -89,6 +89,7 @@ internal sealed record ReportedSenderVerification
         {
             SenderTrustLevel.Unknown => DeploymentTrustState.Unknown,
             SenderTrustLevel.Trusted => DeploymentTrustState.Trusted,
+            SenderTrustLevel.Known => DeploymentTrustState.Known,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(level),
                 level,

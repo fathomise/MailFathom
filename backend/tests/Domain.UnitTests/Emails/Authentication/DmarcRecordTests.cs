@@ -95,6 +95,35 @@ public sealed class DmarcRecordTests
         Assert.Equal("D.E.F.G.H.I.TEST", names[1].NormalizedValue);
     }
 
+    /// <summary>
+    /// A record asks only to be monitored at its own domain where <c>p</c> reads <c>none</c>, and beneath it only where
+    /// <c>sp</c>, or <c>p</c> in its absence, and <c>np</c> where present, all read <c>none</c>; a missing or unrecognized
+    /// policy never does.
+    /// </summary>
+    [Theory]
+    [InlineData("v=DMARC1; p=none", DmarcPolicyReading.MonitoringOnly, DmarcPolicyReading.MonitoringOnly)]
+    [InlineData("v=DMARC1; p=NONE; rua=mailto:r@bank.test", DmarcPolicyReading.MonitoringOnly, DmarcPolicyReading.MonitoringOnly)]
+    [InlineData("v=DMARC1; p=reject", DmarcPolicyReading.Enforcing, DmarcPolicyReading.Enforcing)]
+    [InlineData("v=DMARC1; p=quarantine; sp=none", DmarcPolicyReading.Enforcing, DmarcPolicyReading.MonitoringOnly)]
+    [InlineData("v=DMARC1; p=none; sp=reject", DmarcPolicyReading.MonitoringOnly, DmarcPolicyReading.Enforcing)]
+    [InlineData("v=DMARC1; p=none; np=reject", DmarcPolicyReading.MonitoringOnly, DmarcPolicyReading.Enforcing)]
+    [InlineData("v=DMARC1; p=none; sp=none; np=none", DmarcPolicyReading.MonitoringOnly, DmarcPolicyReading.MonitoringOnly)]
+    [InlineData("v=DMARC1; adkim=s", DmarcPolicyReading.Enforcing, DmarcPolicyReading.Enforcing)]
+    [InlineData("v=DMARC1; p=monitor", DmarcPolicyReading.Enforcing, DmarcPolicyReading.Enforcing)]
+    public void TryParse_PolicyTags_ReadsWhetherTheRecordOnlyMonitors(
+        string text,
+        DmarcPolicyReading atDomain,
+        DmarcPolicyReading belowDomain)
+    {
+        // Act
+        var parsed = DmarcRecord.TryParse(text, out var record);
+
+        // Assert
+        Assert.True(parsed);
+        Assert.Equal(atDomain, record!.PolicyAtDomain);
+        Assert.Equal(belowDomain, record.PolicyBelowDomain);
+    }
+
     private static SenderDomain DomainOf(string written)
     {
         SenderDomain.TryCreate(written, out var domain);

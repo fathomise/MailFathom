@@ -94,6 +94,7 @@ than met later by a run.
 | `…:AnsweringAuditTrail:Enabled` | bool | `false` | Whether a finished `ask_mail` run leaves a durable entry naming the mail it read from this account | reload; governs runs from then on |
 | `…:AnsweringAuditTrail:Retention` | TimeSpan | `30.00:00:00` | 1 day – 3650 days; how long this account's answering entries are kept | reload; the next account run erases against the new window |
 | `…:TrustOwnAccountDomains` | bool | `false` | Whether this account recognizes every author writing from a domain one of its owner's accounts uses. The set is read from the `UserName` of each account the same person owns, where that is an address, so it needs no list of its own; two people this deployment serves are two correspondents, so one's mail domain is never something the other recognizes. **Leave it off on a large shared provider** — `gmail.com`, `outlook.com`, `wp.pl` — where every stranger writes from the same domain; turn it on for an account whose domain is the owner's own. The owner's own addresses are recognized whatever it says | reload; the next extraction judges against it |
+| `…:Strict` | bool | `false` | Whether this account marks only senders something established. Off, the account is **relaxed**: a message nothing tied to its `From` address is still marked *known* where that address is a contact a person or an administrator wrote down, one of the owner's own addresses, or at one of the owner's domains under `TrustOwnAccountDomains`. **A forged `From` showing such an address is marked known too** — see below. On, no message on the account is ever known | reload; the next extraction judges against it, and `mfctl mailbox rederive` re-judges stored mail |
 | `…:Folders` | list | inbox by role | Aliases unique; each entry below | reload |
 | `…:SpamClassification` | block | unset (nothing classified) | This mailbox's own classification posture and what a verdict does to it; [classifying this account's mail](#classifying-this-accounts-mail--spamclassification) holds every key | reload |
 | `…:SensitiveContent` | block | unset (the deployment's posture) | What this mailbox asks for over the mail in it, within what the deployment provides; [scanning this account's mail](#scanning-this-accounts-mail--sensitivecontent) holds every key | reload |
@@ -131,13 +132,29 @@ established author reaches unknown without either being consulted. [Whether your
 message](../users/mailbox-providers.md#whether-your-server-says-who-sent-a-message) is how that is checked against a
 deployment's own delivered mail before entries are written here.
 
+`Strict` decides what becomes of a message whose author nothing tied to the `From` address. A **relaxed** account —
+every account, unless it sets `Strict` to `true` — asks the same sources of the address alone, compared without regard
+to case, and marks a match **known** rather than trusted, naming the source. That is what makes the marks useful at
+all for most correspondents: a company on a hosted suite that never set up DKIM for its own domain, mail sent through
+an invoicing tool or a CRM signing with its own name, and a provider that rewrites delivered mail all leave the author
+unestablished. **It trades a real check for a header anybody can write**: on a relaxed account, a forged `From`
+showing a contact's address is marked known exactly as the contact's own mail is. That is why *known* is a mark of its
+own that never reads as trusted, why rules and agents see it as a separate value, and why a mailbox where a forged
+`From` matters more than an empty mark sets `Strict`. A receiving server's DMARC `fail` keeps the warning on either
+kind of account, with one exception on a relaxed one: where the displayed domain's own record asks only to be
+monitored (`p=none`, and `sp` and `np` where they apply), the failure is read as checks that did not hold and the
+message can be known. Reading that record is a `_dmarc` lookup made on such a failure, under the same
+`VerifyDkimLocally` switch as every other lookup below; a strict account makes none for it. A collected contact, and
+an address an agent wrote, never make a sender known, and the organization signature is never known — it is trusted.
+
 `VerifyDkimLocally` is what a deployment whose receiving server writes no `Authentication-Results` header at all
 depends on. Without it every message there records that nothing was established, no author ever authenticates, and
 neither list above is ever consulted; with it, a message's own DKIM signatures are verified against the keys their
 domains publish and the whole chain has an identity to stand on. It defaults to **on** for that reason — shipping it
 off would switch it off for exactly the mailboxes it exists for, while leaving them looking correctly configured — and
 an account whose server does write the header goes on believing that server, and only has the displayed domain's
-DMARC record read where that server's verdict leaves DKIM alignment open.
+DMARC record read where that server's verdict leaves DKIM alignment open, or, on an account that is not `Strict`,
+where it reported a DMARC `fail` whose policy decides whether the sender can be known.
 
 **It is the one path in MailFathom that makes an outbound DNS query, and what it sends is
 `<selector>._domainkey.<signing-domain>` and `_dmarc.<domain>`** for the displayed domain and its parents: names a

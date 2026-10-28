@@ -1250,6 +1250,44 @@ public sealed class MimeKitEmailMimeReaderTests
         await verifier.Received(1).ReadDmarcRecordAsync(DomainOf("bank.test"), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// A server's DMARC <c>fail</c> has the displayed domain's record read for its policy on an account that is not
+    /// strict, and kept beside the failure; a strict account asks DNS nothing for it.
+    /// </summary>
+    [Theory]
+    [InlineData(false, DmarcPolicyReading.MonitoringOnly)]
+    [InlineData(true, DmarcPolicyReading.NotEstablished)]
+    public async Task ReadMetadataAsync_TrustedDmarcFail_ReadsThePolicyOnlyOnAnAccountThatIsNotStrict(
+        bool isStrict,
+        DmarcPolicyReading expected)
+    {
+        // Arrange
+        Assert.True(DmarcRecord.TryParse("v=DMARC1; p=none", out var record));
+        var verifier = LocalVerifierAnswering(dmarcRecord: DmarcRecordLookup.Found(record));
+        var policies = Substitute.For<ISenderTrustPolicyReader>();
+        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], isStrict));
+        var reader = new MimeKitEmailMimeReader(
+            new EmailMimeExtractionOptions(),
+            TrustedAuthorities("mx.example.test"),
+            verifier,
+            trustPolicies: policies);
+        var content = MimeFixtures.Message(
+            "Authentication-Results: mx.example.test; spf=fail smtp.mailfrom=alerts@bank.test; dmarc=fail header.from=bank.test",
+            "From: alerts@bank.test",
+            "Content-Type: text/plain",
+            string.Empty,
+            "Body");
+
+        // Act
+        var result = await reader.ReadMetadataAsync(MimeFixtures.Account, content.RawMime, CancellationToken.None);
+
+        // Assert
+        var authentication = AssertExtracted(result).SenderAuthentication;
+        Assert.Equal(AuthorAuthenticationOutcome.Failed, authentication.AuthorAuthentication);
+        Assert.Equal(expected, authentication.DmarcPolicy);
+        await verifier.Received(isStrict ? 0 : 1).ReadDmarcRecordAsync(DomainOf("bank.test"), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>A trusted DMARC <c>pass</c> about the displayed domain settles the author, so no record is read.</summary>
     [Fact]
     public async Task ReadMetadataAsync_TrustedDmarcPass_ReadsNoRecordAndRecordsTheRoute()

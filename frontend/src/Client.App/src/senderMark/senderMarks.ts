@@ -12,13 +12,14 @@ import type { MessageKey } from '../localization/en';
 // cannot come to disagree about one sender.
 //
 // The first rule that holds decides, in the design's order: a signature that does not match what it signs, then a
-// sender this account trusts, then a signature the author made that verified, then sender authentication that failed.
-// Everything else is the neutral mark. A trusted sender's verified signature is therefore drawn as trusted, a forged
+// sender this account trusts, then a signature the author made that verified, then a sender known by their address
+// alone, then sender authentication that failed. Everything else is the neutral mark. A known sender outranks a failure
+// because the service reaches it under one only where the domain publishes a policy that merely monitors. A trusted sender's verified signature is therefore drawn as trusted, a forged
 // signature on a trusted sender as a warning, and a verified signature beside failed authentication as verified —
 // which is how a forward or a mailing list usually reads.
 
 /** The mark a message carries about its sender. */
-export type SenderMark = 'signatureMismatch' | 'trusted' | 'verified' | 'authenticationFailed' | 'neutral';
+export type SenderMark = 'signatureMismatch' | 'trusted' | 'verified' | 'known' | 'authenticationFailed' | 'neutral';
 
 /** Chooses the mark from the facts a row, or a message, publishes about its sender. */
 export function senderMarkOf(sender: MailListedSender): SenderMark {
@@ -32,6 +33,10 @@ export function senderMarkOf(sender: MailListedSender): SenderMark {
 
     if (sender.signatureOutcome === 'Verified' && sender.signerMatchesAuthor) {
         return 'verified';
+    }
+
+    if (sender.deploymentTrust === 'Known') {
+        return 'known';
     }
 
     return sender.authorAuthentication === 'Failed' ? 'authenticationFailed' : 'neutral';
@@ -55,7 +60,7 @@ export function marksSender(role: MailFolderRole | null): boolean {
     return role !== 'Sent' && role !== 'Drafts';
 }
 
-type Tone = 'warning' | 'trusted' | 'verified' | 'plain';
+type Tone = 'warning' | 'trusted' | 'verified' | 'known' | 'plain';
 
 /** How each mark is drawn: its symbol, its colour, its name, and the word a badge says beside the symbol. */
 export const senderMarksDrawn: Readonly<
@@ -82,6 +87,12 @@ export const senderMarksDrawn: Readonly<
         name: 'senderMark.name.verified',
         word: 'senderMark.word.verified',
     },
+    known: {
+        icon: 'person',
+        tone: 'known',
+        name: 'senderMark.name.known',
+        word: 'senderMark.word.known',
+    },
     authenticationFailed: {
         icon: 'gpp_bad',
         tone: 'warning',
@@ -96,6 +107,7 @@ export const senderMarkInk: Readonly<Record<Tone, string>> = {
     warning: 'text-error-text',
     trusted: 'text-healthy-text',
     verified: 'text-accent-deep',
+    known: 'text-muted',
     plain: 'text-muted',
 };
 
@@ -104,5 +116,6 @@ export const senderMarkPill: Readonly<Record<Tone, string>> = {
     warning: 'border-error bg-error-soft text-error-text',
     trusted: 'border-transparent bg-healthy-soft text-healthy-text',
     verified: 'border-transparent bg-accent-soft text-accent-deep',
+    known: 'border-line bg-sunken text-muted',
     plain: 'border-transparent bg-transparent text-muted',
 };

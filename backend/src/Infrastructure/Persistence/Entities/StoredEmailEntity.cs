@@ -156,6 +156,13 @@ internal sealed class StoredEmailEntity
     /// <summary>Gets or sets the DMARC result the trusted header reported, or that it reported none.</summary>
     public DmarcOutcome DmarcOutcome { get; set; }
 
+    /// <summary>Gets or sets what the displayed domain's DMARC record asks for failing mail, read where the server reported <c>fail</c>.</summary>
+    /// <remarks>
+    /// Stored beside the result it qualifies, as the reading extraction made, and read back by nothing yet: judging a
+    /// stored message again after a contact changes is #2783's, and it is the reader this column is recorded for.
+    /// </remarks>
+    public DmarcPolicyReading DmarcPolicy { get; set; }
+
     /// <summary>Gets or sets what the receiving server established about the author the message displays.</summary>
     /// <remarks>
     /// A separate conclusion from <see cref="SenderAuthenticationOutcome" /> rather than a reading of it, because the
