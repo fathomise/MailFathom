@@ -78,6 +78,11 @@ public sealed class ContactRecordInvalidException : MailFathomException
     public static ContactRecordInvalidException PreferredAddressNotHeld() =>
         new("The preferred address is one of the addresses the contact holds.");
 
+    /// <summary>Refuses an amendment stating an address again that the record it states does not hold.</summary>
+    /// <returns>The failure to raise.</returns>
+    public static ContactRecordInvalidException RestatedAddressNotHeld() =>
+        new("A restated address is one of the addresses the contact holds.");
+
     /// <summary>Refuses a note the book cannot hold.</summary>
     /// <param name="cause">The validation failure the domain value raised, kept as the inner exception.</param>
     /// <returns>The failure to raise.</returns>

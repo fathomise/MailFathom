@@ -9,7 +9,9 @@ import type {
     ClientSession,
     MailAttachment,
     MailBody,
+    ClientResponse,
     MailCarried,
+    MailFathomTransport,
     MailMessage,
     MailSpamVerdict,
 } from '@mailfathom/client-backend';
@@ -33,6 +35,8 @@ const session: ClientSession = {
     baseAddress: 'https://mail.example.invalid',
     authorization: 'Basic dGVzdA==',
 };
+
+const answersNothing: MailFathomTransport = () => new Promise<ClientResponse>(() => undefined);
 
 const storedEmailId = '00000000-0000-4000-8000-000000000000';
 
@@ -62,6 +66,10 @@ const described: MailMessage = {
         dmarc: 'NotReported',
         trustSource: null,
         trustOrganization: null,
+        authorRoute: null,
+        trustEvidence: null,
+        trustContact: null,
+        addToContacts: null,
     },
     signature: {
         outcome: 'NotSigned',
@@ -172,6 +180,7 @@ function drawing(
                                         <OpenAttachmentContext value={() => undefined}>
                                             <OpenedMessage
                                                 session={session}
+                                                transport={answersNothing}
                                                 message={message}
                                                 body={body}
                                                 onShowFullHtml={onShowFullHtml}

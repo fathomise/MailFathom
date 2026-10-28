@@ -115,9 +115,19 @@ const authenticated = {
     dmarc: 'Pass',
     trustSource: null,
     trustOrganization: null,
+    authorRoute: 'DmarcPass',
+    trustEvidence: null,
+    trustContact: null,
+    addToContacts: null,
 };
 
-const trusted = { ...authenticated, deploymentTrust: 'Trusted', trustSource: 'PersonalContact' };
+const trusted = {
+    ...authenticated,
+    deploymentTrust: 'Trusted',
+    trustSource: 'PersonalContact',
+    trustEvidence: 'Authentication',
+    trustContact: 'Reader',
+};
 
 // The organization's signature proves the address itself, so the member whose organization was deleted is one no
 // receiving server established anything about and is trusted all the same.
@@ -126,6 +136,7 @@ const organizationMember = {
     deploymentTrust: 'Trusted',
     trustSource: 'OrganizationMember',
     trustOrganization: 'Nordwind',
+    trustEvidence: 'Authentication',
 };
 const deletedOrganizationMember = {
     ...organizationMember,
@@ -135,6 +146,8 @@ const deletedOrganizationMember = {
     spfDomain: null,
     dmarc: 'NotReported',
     trustOrganization: null,
+    authorRoute: null,
+    trustEvidence: 'AuthorSignature',
 };
 
 // Known by the address alone: a signature the sender's invoicing service made in its own name, which aligns with nothing.
@@ -147,6 +160,8 @@ const knownSender = {
     spfDomain: 'INVOICING.EXAMPLE.INVALID',
     dmarc: 'NotReported',
     trustSource: 'PersonalContact',
+    authorRoute: null,
+    trustContact: 'Reader',
 };
 const knownMonitoredSender = {
     ...knownSender,
@@ -154,6 +169,7 @@ const knownMonitoredSender = {
     authenticatedDomain: 'INVOICING.EXAMPLE.INVALID',
     dmarc: 'Fail',
     trustSource: 'OrganizationContact',
+    trustContact: null,
 };
 
 const evidence = {
@@ -168,10 +184,13 @@ const evidence = {
             dkimDomain: null,
             spfDomain: 'LISTS.EXAMPLE.INVALID',
             dmarc: 'Fail',
+            authorRoute: null,
+            addToContacts: { restatedContactId: null },
         },
         signature: notSigned,
     },
-    unrecognized: { sender: authenticated, signature: notSigned },
+    // The details offer to write an author nobody recognizes down as a new contact of the reader's own.
+    unrecognized: { sender: { ...authenticated, addToContacts: { restatedContactId: null } }, signature: notSigned },
     organizationMember: { sender: organizationMember, signature: notSigned },
     deletedOrganizationMember: { sender: deletedOrganizationMember, signature: notSigned },
     known: { sender: knownSender, signature: notSigned },

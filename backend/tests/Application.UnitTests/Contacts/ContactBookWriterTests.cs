@@ -420,6 +420,95 @@ public sealed class ContactBookWriterTests
         Assert.Equal(new ContactAddressWriter(surface, User, Credential), book.Writers[held.Id]);
     }
 
+    /// <summary>
+    /// A restated address takes the person as its writer although the contact keeps it, and a kept address the
+    /// amendment does not name keeps the writer it had, so restating one address leaves every other one's standing alone.
+    /// </summary>
+    [Fact]
+    public async Task AmendAsync_RestatingOneKeptAddress_RecordsThePersonOnItAloneAmongTheKeptOnes()
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var held = Contact.Create(
+            AContactId(),
+            ContactDisplayName.Create("Anna Kowalska"),
+            [Address("anna@example.test"), Address("anna@personal.test")],
+            Address("anna@example.test"),
+            note: null,
+            ContactOrigin.Asserted,
+            Now,
+            Now);
+        book.Hold(ContactBookHolder.Of(User), held, new ContactAddressWriter(ContactAddressWriterKind.Agent, User, Credential: null));
+
+        var writer = WriterOver(book);
+        var draft = new ContactRecordDraft
+        {
+            DisplayName = "Anna Kowalska",
+            Addresses = ["anna@example.test", "anna@personal.test"],
+            PreferredAddress = "anna@example.test",
+        };
+
+        // Act
+        var result = await writer.AmendAsync(
+            held.Id,
+            draft,
+            ["ANNA@example.test"],
+            ContactAddressWriterKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ContactWriteOutcome.Written, result.Outcome);
+        Assert.Equal(ContactAddressWriterKind.Person, book.WriterOf(held.Id, Address("anna@example.test")));
+        Assert.Equal(ContactAddressWriterKind.Agent, book.WriterOf(held.Id, Address("anna@personal.test")));
+    }
+
+    /// <summary>A restated address the record does not hold is refused, because there is nothing of the record to state again.</summary>
+    [Fact]
+    public async Task AmendAsync_RestatingAnAddressTheRecordDoesNotHold_IsRefusedAndWritesNothing()
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var held = ContactOf("Anna Kowalska", "anna@example.test", ContactOrigin.Asserted);
+        book.Hold(held);
+
+        var writer = WriterOver(book);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<ContactRecordInvalidException>(() => writer.AmendAsync(
+            held.Id,
+            DraftOf("Anna Kowalska", "anna@example.test"),
+            ["someone@example.test"],
+            ContactAddressWriterKind.Person,
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(ContactRecordInvalidException.RestatedAddressNotHeld().Message, refusal.Message);
+        Assert.False(book.Writers.ContainsKey(held.Id));
+    }
+
+    /// <summary>A surface whose word grants nothing never restates, because doing so could only take a person's standing away.</summary>
+    [Fact]
+    public async Task AmendAsync_RestatingThroughAnAgent_IsRefusedAsAProgrammingError()
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var held = ContactOf("Anna Kowalska", "anna@example.test", ContactOrigin.Asserted);
+        book.Hold(held);
+
+        var writer = WriterOver(book);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<ArgumentException>(() => writer.AmendAsync(
+            held.Id,
+            DraftOf("Anna Kowalska", "anna@example.test"),
+            ["anna@example.test"],
+            ContactAddressWriterKind.Agent,
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal("restatedAddresses", refusal.ParamName);
+    }
+
     /// <summary>A promotion records whoever promoted as the writer of the copy's addresses.</summary>
     [Theory]
     [InlineData(ContactAddressWriterKind.Person)]

@@ -195,7 +195,13 @@ describe('readMailMessage', () => {
     it('reads the evidence the verdict was reached from beside the two outcomes it is published with', async () => {
         const message = await readingOf(described());
 
-        expect(message?.sender).toEqual(verdict);
+        expect(message?.sender).toEqual({
+            ...verdict,
+            authorRoute: null,
+            trustEvidence: null,
+            trustContact: null,
+            addToContacts: null,
+        });
     });
 
     it('reads a message nothing authenticated as one naming no domain', async () => {
@@ -268,6 +274,45 @@ describe('readMailMessage', () => {
         );
 
         expect(message?.sender).toMatchObject({ trustSource: 'OrganizationMember', trustOrganization: read });
+    });
+
+    it('reads what established the author, what tied it to the contact, and whose contact that is', async () => {
+        const message = await readingOf(
+            described({
+                sender: {
+                    ...verdict,
+                    authorRoute: 'AlignedDkim',
+                    trustEvidence: 'AuthorSignature',
+                    trustContact: 'AnotherUser',
+                },
+            }),
+        );
+
+        expect(message?.sender).toMatchObject({
+            authorRoute: 'AlignedDkim',
+            trustEvidence: 'AuthorSignature',
+            trustContact: 'AnotherUser',
+        });
+    });
+
+    it('reads a verdict that leaves the route, the evidence, the holder and the offer out as none of them', async () => {
+        const message = await readingOf(described({ sender: verdict }));
+
+        expect(message?.sender).toMatchObject({
+            authorRoute: null,
+            trustEvidence: null,
+            trustContact: null,
+            addToContacts: null,
+        });
+    });
+
+    it.each([
+        ['a contact recorded afresh', { restatedContactId: null }, { restatedContactId: null }],
+        ['a contact whose address is stated again', { restatedContactId: messageId }, { restatedContactId: messageId }],
+    ])('reads an offer to add the author as %s', async (_shape, addToContacts, read) => {
+        const message = await readingOf(described({ sender: { ...verdict, addToContacts } }));
+
+        expect(message?.sender.addToContacts).toEqual(read);
     });
 
     it('reads a signed message’s signature whole, with every step and the signer it names', async () => {
@@ -348,6 +393,15 @@ describe('readMailMessage', () => {
             senderWith({ trustSource: 'OrganizationMember', trustOrganization: ['Nordwind'] }),
         ],
         ['an organization named beside another trust source', senderWith({ trustOrganization: 'Nordwind' })],
+        ['an author route this build does not publish', senderWith({ authorRoute: 'Spf' })],
+        ['trust evidence this build does not publish', senderWith({ trustEvidence: 'Signature' })],
+        ['a contact holder this build does not publish', senderWith({ trustContact: 'Mine' })],
+        [
+            'a contact holder beside another trust source',
+            senderWith({ trustSource: 'OrganizationContact', trustContact: 'Reader' }),
+        ],
+        ['an offer that is not a record', senderWith({ addToContacts: true })],
+        ['an offer naming a contact that is not text', senderWith({ addToContacts: { restatedContactId: 7 } })],
         ['a message saying nothing about its signature', described({ signature: undefined })],
         ['a signature that is not a record', described({ signature: 'Verified' })],
         ['a signature outcome this build does not publish', signatureWith({ outcome: 'Forged' })],

@@ -228,12 +228,19 @@ export function recordContact(
     );
 }
 
-/** Amends one contact this user asserted to the record the caller states, which is the whole record. */
+/**
+ * Amends one contact this user asserted to the record the caller states, which is the whole record.
+ *
+ * An address the record keeps keeps whoever wrote it, so saving a record the user did not change vouches for nothing an
+ * agent added. `restatedAddresses` is how they vouch for one: each address named there, which the record must also
+ * hold, is recorded as written by them.
+ */
 export function amendContact(
     session: ClientSession,
     transport: MailFathomTransport,
     contactId: string,
     record: ContactRecord,
+    restatedAddresses: readonly string[] = [],
 ): Promise<ClientResult<ContactWrite>> {
     return spanned(`PUT ${contactsRoute}/{contactId}`, async () =>
         writeOf(
@@ -241,10 +248,57 @@ export function amendContact(
                 method: 'PUT',
                 path: routeFor(session, contactRoute(contactId)),
                 headers: { ...headersFor(session), 'Content-Type': 'application/json' },
-                body: JSON.stringify(record),
+                body: JSON.stringify(restatedAddresses.length === 0 ? record : { ...record, restatedAddresses }),
                 longestAnswer: longestContactAnswer,
             }),
         ),
+    );
+}
+
+/** Who the sender details write down when somebody adds a message's author to their contacts. */
+export interface AuthorToAdd {
+    /** The name the message displays beside the address, or the address where it displays none. */
+    readonly displayName: string;
+    readonly address: string;
+
+    /** The reader's own contact already holding the address, as the service offered it, or `null` for a new one. */
+    readonly restatedContactId: string | null;
+}
+
+/**
+ * Writes a message's author down in this user's own book, as the sender details offer it: a new contact named by the
+ * name the message displays, or — where a contact of theirs already holds the address without their having written it
+ * down — that contact's own record stated again with the address restated. Either way the address ends up written by
+ * this user, which is what makes their mail from it count.
+ */
+export async function addAuthorToContacts(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    author: AuthorToAdd,
+): Promise<ClientResult<ContactWrite>> {
+    if (author.restatedContactId === null) {
+        return recordContact(session, transport, {
+            displayName: author.displayName,
+            addresses: [author.address],
+            preferredAddress: author.address,
+            note: null,
+        });
+    }
+
+    const holder = await readContact(session, transport, author.restatedContactId);
+
+    if (holder.outcome === 'failed') {
+        return holder;
+    }
+
+    const { displayName, addresses, preferredAddress, note } = holder.value;
+
+    return amendContact(
+        session,
+        transport,
+        author.restatedContactId,
+        { displayName, addresses, preferredAddress, note },
+        [author.address],
     );
 }
 

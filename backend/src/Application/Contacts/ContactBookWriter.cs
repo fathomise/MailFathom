@@ -106,17 +106,51 @@ public sealed class ContactBookWriter
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="draft" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
     /// <exception cref="ContactRecordInvalidException">Thrown when the record breaks a rule the book holds.</exception>
+    public Task<ContactWriteResult> AmendAsync(
+        ContactId contactId,
+        ContactRecordDraft draft,
+        ContactAddressWriterKind writtenThrough,
+        CancellationToken cancellationToken) =>
+        this.AmendAsync(contactId, draft, restatedAddresses: [], writtenThrough, cancellationToken);
+
+    /// <summary>Amends one contact to the record the caller states, stating some of the addresses it keeps again under the caller.</summary>
+    /// <param name="contactId">The contact to amend.</param>
+    /// <param name="draft">The record the contact is to have afterwards.</param>
+    /// <param name="restatedAddresses">Addresses of <paramref name="draft" /> the caller states again, at most as many as one contact may hold, each of which takes the caller as its writer although the contact keeps it.</param>
+    /// <param name="writtenThrough">The surface the caller wrote through, which an address the amendment adds or restates records.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The amended record, or the refusal naming what stopped it.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="draft" /> or <paramref name="restatedAddresses" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when addresses are restated through a surface whose word grants nothing, which could only take a person's standing away.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
+    /// <exception cref="ContactRecordInvalidException">Thrown when the record breaks a rule the book holds, or a restated address is not one of its addresses.</exception>
+    /// <remarks>
+    /// This is how a person makes an address count that an agent wrote, or that was written before writers were
+    /// recorded: an ordinary amendment keeps the writer each kept address has, and a contact holding that address alone
+    /// cannot be amended without it. Restating an address the record already holds under the person writes nothing
+    /// new about it but the time.
+    /// </remarks>
     public async Task<ContactWriteResult> AmendAsync(
         ContactId contactId,
         ContactRecordDraft draft,
+        IReadOnlyCollection<string> restatedAddresses,
         ContactAddressWriterKind writtenThrough,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(draft);
+        ArgumentNullException.ThrowIfNull(restatedAddresses);
+
+        if (restatedAddresses.Count > 0 && !ContactAddressWriter.GrantsTrustAs(writtenThrough))
+        {
+            throw new ArgumentException(
+                "Only a surface whose word grants trust states an address again.",
+                nameof(restatedAddresses));
+        }
 
         this.authorization.RequirePermission(MailFathomPermission.ContactsWrite);
 
         var record = ReadRecord(draft);
+        var restated = ReadRestatedAddresses(restatedAddresses, record.Addresses);
 
         var scope = await this.ownership.ReadScopeAsync(cancellationToken);
 
@@ -130,6 +164,7 @@ public sealed class ContactBookWriter
                 Addresses = record.Addresses,
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
+                RestatedAddresses = restated,
             },
             this.WriterThrough(writtenThrough),
             cancellationToken);
@@ -215,6 +250,23 @@ public sealed class ContactBookWriter
         }
 
         return new ContactRecord(displayName, addresses, preferredAddress, ReadNote(draft.Note));
+    }
+
+    /// <summary>Reads the addresses an amendment states again, each of which has to be one the record it states holds.</summary>
+    private static EmailAddress[] ReadRestatedAddresses(
+        IReadOnlyCollection<string> supplied,
+        IReadOnlyCollection<EmailAddress> held)
+    {
+        if (supplied.Count > Contact.MaximumAddressCount)
+        {
+            throw ContactRecordInvalidException.TooManyAddresses();
+        }
+
+        EmailAddress[] restated = [.. supplied.Select(ReadAddress).Distinct()];
+
+        return restated.All(held.Contains)
+            ? restated
+            : throw ContactRecordInvalidException.RestatedAddressNotHeld();
     }
 
     /// <summary>Reads the addresses a draft states, as the mailboxes they name rather than as the spellings it carried.</summary>

@@ -201,6 +201,34 @@ public sealed class StoredEmailSummaryRowTests
         Assert.Equal(SenderTrustSource.PersonalContact, summary.SenderVerification.DeploymentTrustGrantedBy);
     }
 
+    /// <summary>
+    /// A row a personal contact recognized reads back the route that established its author, what tied the message to
+    /// the address, and the contact that recognized it, which is what the sender details name and nothing else carries.
+    /// </summary>
+    [Fact]
+    public void ToSummary_ARowAContactRecognized_CarriesTheRouteTheEvidenceAndTheRecognizingContact()
+    {
+        // Arrange
+        var contactId = Guid.CreateVersion7();
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0) with
+        {
+            AuthorAuthenticationOutcome = AuthorAuthenticationOutcome.Authenticated,
+            AuthorAuthenticationRoute = AuthorAuthenticationRoute.AlignedDkim,
+            SenderTrustLevel = SenderTrustLevel.Trusted,
+            SenderTrustGrantedBy = SenderTrustSource.PersonalContact,
+            SenderTrustAuthorEvidence = TrustedAuthorEvidence.AuthorSignature,
+            SenderTrustContactId = contactId,
+        };
+
+        // Act
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationRoute.AlignedDkim, summary.SenderAuthenticationEvidence.AuthorRoute);
+        Assert.Equal(TrustedAuthorEvidence.AuthorSignature, summary.SenderVerification.DeploymentTrustAuthorEvidence);
+        Assert.Equal(contactId, summary.SenderVerification.RecognizingContactId?.Value);
+    }
+
     /// <summary>A row nothing authenticated reads back no DKIM or SPF domain and no trust source.</summary>
     [Fact]
     public void ToSummary_ARowNothingAuthenticated_CarriesNoDomainAndNoTrustSource()
@@ -215,6 +243,8 @@ public sealed class StoredEmailSummaryRowTests
         Assert.Null(summary.SenderAuthenticationEvidence.DkimDomain);
         Assert.Null(summary.SenderAuthenticationEvidence.SpfDomain);
         Assert.Equal(SenderTrustSource.None, summary.SenderVerification.DeploymentTrustGrantedBy);
+        Assert.Equal(AuthorAuthenticationRoute.None, summary.SenderAuthenticationEvidence.AuthorRoute);
+        Assert.Null(summary.SenderVerification.RecognizingContactId);
     }
 
     /// <summary>
@@ -329,6 +359,7 @@ public sealed class StoredEmailSummaryRowTests
         IsRemotelyDeleted: false,
         RemoteKeywords: [],
         AuthorAuthenticationOutcome.NotEstablished,
+        AuthorAuthenticationRoute.None,
         SenderTrustLevel.Unknown,
         AuthenticatedSenderDomain: null,
         DisplayedAuthorDomain: null,
@@ -339,6 +370,8 @@ public sealed class StoredEmailSummaryRowTests
         SpfMailFromDomain: null,
         SenderTrustSource.None,
         SenderTrustOrganizationId: null,
+        TrustedAuthorEvidence.None,
+        SenderTrustContactId: null,
         band,
         likelihood,
         MachineAuthorshipSignals.HiddenCharacters,

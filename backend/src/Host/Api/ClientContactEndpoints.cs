@@ -199,7 +199,7 @@ internal static class ClientContactEndpoints
 
     /// <summary>Amends one contact of the acting user's own book to the record they state.</summary>
     /// <param name="contactId">The contact to amend.</param>
-    /// <param name="request">The record the contact is to have afterwards.</param>
+    /// <param name="request">The record the contact is to have afterwards, and which of its kept addresses the person states again.</param>
     /// <param name="contacts">Performs the write.</param>
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
     /// <returns><c>200</c> with the outcome, or <c>400</c> naming which rule the record broke.</returns>
@@ -207,11 +207,12 @@ internal static class ClientContactEndpoints
     /// The whole record rather than the difference from the one held, which is what keeps adding an address, dropping
     /// one, choosing a different preferred address, and correcting a name one operation whose result the book's
     /// invariants are checked against. A contact a mailbox collected answers with the outcome that its origin refuses
-    /// the writer, which is the answer that tells a screen to offer the promotion instead.
+    /// the writer, which is the answer that tells a screen to offer the promotion instead. A restated address records
+    /// the person as its writer although the contact keeps it, which is how an address an agent wrote comes to count.
     /// </remarks>
     internal static async Task<Results<Ok<ContactWriteResponse>, ProblemHttpResult>> AmendAsync(
         [FromRoute] Guid contactId,
-        [FromBody] ContactRecordRequest? request,
+        [FromBody] ClientContactAmendmentRequest? request,
         [FromServices] ContactBookWriter contacts,
         CancellationToken cancellationToken)
     {
@@ -222,15 +223,28 @@ internal static class ClientContactEndpoints
             return NoContact();
         }
 
-        if (DraftOf(request) is not { } draft)
+        if (request is null)
         {
             return NoRecord();
         }
 
+        var draft = new ContactRecordDraft
+        {
+            DisplayName = request.DisplayName,
+            Addresses = request.Addresses,
+            PreferredAddress = request.PreferredAddress,
+            Note = request.Note,
+        };
+
         try
         {
             return TypedResults.Ok(
-                ContactWriteResponse.For(await contacts.AmendAsync(identity, draft, ContactAddressWriterKind.Person, cancellationToken)));
+                ContactWriteResponse.For(await contacts.AmendAsync(
+                    identity,
+                    draft,
+                    request.RestatedAddresses ?? [],
+                    ContactAddressWriterKind.Person,
+                    cancellationToken)));
         }
         catch (ContactRecordInvalidException refusal)
         {

@@ -31,6 +31,7 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
 {
     private readonly Dictionary<ContactId, HeldContact> heldById = [];
     private readonly Dictionary<ContactId, ContactAddressWriter> writers = [];
+    private readonly Dictionary<(ContactId Contact, EmailAddress Address), ContactAddressWriter> addressWriters = [];
 
     /// <summary>Gets how many contacts the books hold between them.</summary>
     internal int ContactCount => this.heldById.Count;
@@ -48,6 +49,17 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
 
     /// <summary>Gets the writer each written contact's last write was stated by, for a test asserting who a write records.</summary>
     internal IReadOnlyDictionary<ContactId, ContactAddressWriter> Writers => this.writers;
+
+    /// <summary>Gets the writer one address of a contact records, which is unrecorded for an address put in place by <c>Hold</c>.</summary>
+    internal ContactAddressWriterKind WriterOf(ContactId contact, EmailAddress address) =>
+        this.addressWriters.GetValueOrDefault((contact, address))?.Kind ?? ContactAddressWriterKind.Unrecorded;
+
+    /// <summary>Puts a contact into one named book with every address recorded as written by the writer named, for arranging who stated what.</summary>
+    internal void Hold(ContactBookHolder holder, Contact contact, ContactAddressWriter writer)
+    {
+        this.Hold(holder, contact);
+        this.RecordWriters(contact, contact.Addresses, writer);
+    }
 
     /// <summary>Puts a contact into the deployment user's own book without going through a write, for arranging what was already held.</summary>
     internal void Hold(Contact contact) => this.Hold(SyntheticUser.Deployment, contact);
@@ -95,6 +107,7 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
 
         this.heldById[contact.Id] = new HeldContact(holder, contact);
         this.writers[contact.Id] = writer;
+        this.RecordWriters(contact, contact.Addresses, writer);
 
         return Task.CompletedTask;
     }
@@ -105,13 +118,15 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
         ContactBookHolder holder,
         Contact contact,
         ContactAddressWriter writer,
+        IReadOnlyCollection<EmailAddress> restatedAddresses,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(holder);
         ArgumentNullException.ThrowIfNull(contact);
         ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(restatedAddresses);
 
-        if (this.HeldIn(holder, contact.Id) is null)
+        if (this.HeldIn(holder, contact.Id) is not { } replaced)
         {
             return Task.FromResult(false);
         }
@@ -127,6 +142,18 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
 
         this.heldById[contact.Id] = new HeldContact(holder, contact);
         this.writers[contact.Id] = writer;
+
+        // The rule ContactStore holds per address row: a dropped address loses its writer, an added or restated one
+        // takes this write's, and every other kept one keeps the writer it had.
+        foreach (var dropped in replaced.Addresses.Except(contact.Addresses))
+        {
+            this.addressWriters.Remove((contact.Id, dropped));
+        }
+
+        this.RecordWriters(
+            contact,
+            [.. contact.Addresses.Where(address => !replaced.Holds(address) || restatedAddresses.Contains(address))],
+            writer);
 
         return Task.FromResult(true);
     }
@@ -294,6 +321,44 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A contact put in place by <c>Hold</c> without a writer was written by nobody this double recorded, so its
+    /// addresses answer with the unrecorded writer, which is what an address carries where no writer was recorded.
+    /// </remarks>
+    public Task<IReadOnlyList<ContactAddressHolding>> FindAddressHoldingsAsync(
+        IReadOnlyCollection<ContactBookHolder> books,
+        IReadOnlyCollection<EmailAddress> addresses,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(books);
+        ArgumentNullException.ThrowIfNull(addresses);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            addresses.Count,
+            Contact.MaximumAddressCount,
+            nameof(addresses));
+
+        this.BatchedLookupCount++;
+
+        var keys = books.Select(book => book.Key).ToHashSet(StringComparer.Ordinal);
+
+        IReadOnlyList<ContactAddressHolding> holdings =
+        [
+            .. this.heldById.Values
+                .Where(held => keys.Contains(held.Holder.Key))
+                .SelectMany(held => addresses
+                    .Distinct()
+                    .Where(held.Contact.Holds)
+                    .Select(address => new ContactAddressHolding(
+                        held.Holder,
+                        address,
+                        held.Contact.Id,
+                        this.WriterOf(held.Contact.Id, address)))),
+        ];
+
+        return Task.FromResult(holdings);
+    }
+
+    /// <inheritdoc />
     public Task<ContactPage> ReadPageAsync(
         ContactBookScope scope,
         ContactQuery query,
@@ -368,6 +433,14 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
     }
 
     /// <summary>Reads one contact of one book, answering with nothing where the identity is filed under another.</summary>
+    private void RecordWriters(Contact contact, IEnumerable<EmailAddress> addresses, ContactAddressWriter writer)
+    {
+        foreach (var address in addresses)
+        {
+            this.addressWriters[(contact.Id, address)] = writer;
+        }
+    }
+
     private Contact? HeldIn(ContactBookHolder holder, ContactId contactId) =>
         this.heldById.TryGetValue(contactId, out var held)
         && string.Equals(held.Holder.Key, holder.Key, StringComparison.Ordinal)

@@ -356,7 +356,7 @@ public sealed class ClientContactEndpointsTests
         // Act
         var result = await ClientContactEndpoints.AmendAsync(
             Guid.Empty,
-            new ContactRecordRequest("Anna Kowalska", ["anna@example.test"], "anna@example.test", Note: null),
+            new ClientContactAmendmentRequest("Anna Kowalska", ["anna@example.test"], "anna@example.test", Note: null, RestatedAddresses: null),
             this.Writer(),
             TestContext.Current.CancellationToken);
 
@@ -377,7 +377,7 @@ public sealed class ClientContactEndpointsTests
         // Act
         var result = await ClientContactEndpoints.AmendAsync(
             Guid.CreateVersion7(Now),
-            new ContactRecordRequest("Anna Kowalska", ["anna@example.test"], "anna@example.test", Note: null),
+            new ClientContactAmendmentRequest("Anna Kowalska", ["anna@example.test"], "anna@example.test", Note: null, RestatedAddresses: null),
             this.Writer(),
             TestContext.Current.CancellationToken);
 
@@ -385,6 +385,80 @@ public sealed class ClientContactEndpointsTests
         var answered = Assert.IsType<Ok<ContactWriteResponse>>(result.Result);
         Assert.Equal(nameof(ContactWriteOutcome.NotFound), answered.Value!.Outcome);
         Assert.Null(answered.Value.Contact);
+    }
+
+    /// <summary>
+    /// A restated address the record does not hold is a request to repair rather than an address to attribute, so it is
+    /// refused before anything is written.
+    /// </summary>
+    [Fact]
+    public async Task AmendAsync_ARestatedAddressTheRecordDoesNotHold_IsRefusedWithoutWriting()
+    {
+        // Arrange
+        // Act
+        var result = await ClientContactEndpoints.AmendAsync(
+            Guid.CreateVersion7(Now),
+            new ClientContactAmendmentRequest(
+                "Anna Kowalska",
+                ["anna@example.test"],
+                "anna@example.test",
+                Note: null,
+                RestatedAddresses: ["someone@example.test"]),
+            this.Writer(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.Empty(this.store.ReceivedCalls());
+    }
+
+    /// <summary>
+    /// A restated address the record keeps reaches the store as restated under the person, which is what records them as
+    /// its writer in place of whoever wrote it before.
+    /// </summary>
+    [Fact]
+    public async Task AmendAsync_RestatingAnAddressTheRecordKeeps_HandsItToTheStoreUnderThePerson()
+    {
+        // Arrange
+        var held = ContactOf("Anna Kowalska", "anna@example.test");
+        var kept = Mailbox("anna@example.test");
+        this.HoldsNoAddresses();
+        this.directory
+            .FindAsync(Arg.Any<ContactBookScope>(), held.Id, Arg.Any<CancellationToken>())
+            .Returns(held);
+        this.store
+            .ReplaceAsync(
+                Arg.Any<IPersistenceSession>(),
+                Arg.Any<ContactBookHolder>(),
+                Arg.Any<Contact>(),
+                Arg.Any<ContactAddressWriter>(),
+                Arg.Any<IReadOnlyCollection<EmailAddress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        var result = await ClientContactEndpoints.AmendAsync(
+            held.Id.Value,
+            new ClientContactAmendmentRequest(
+                "Anna Kowalska",
+                ["anna@example.test"],
+                "anna@example.test",
+                Note: null,
+                RestatedAddresses: ["Anna@Example.test"]),
+            this.Writer(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<ContactWriteResponse>>(result.Result);
+        Assert.Equal(nameof(ContactWriteOutcome.Written), answered.Value!.Outcome);
+        await this.store.Received(1).ReplaceAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<ContactBookHolder>(),
+            Arg.Any<Contact>(),
+            Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Person),
+            Arg.Is<IReadOnlyCollection<EmailAddress>>(restated => restated.SequenceEqual(new[] { kept })),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>A promotion states an identity and nothing else, so its answer must not be the book's own contents under the writing grant.</summary>

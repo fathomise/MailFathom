@@ -1556,8 +1556,25 @@ export const en = {
         '{authenticated} authenticated this message, and {address} is one of your own addresses.',
     'senderMark.why.trustedOwnDomain':
         '{authenticated} authenticated this message, and {domain} is a domain of your own accounts.',
-    'senderMark.why.trustedSender':
-        "{authenticated} authenticated this message, and the sender is on this account's trusted senders.",
+    'senderMark.why.trustedOrganizationContact':
+        '{authenticated} authenticated this message, and {address} is a contact of your organization.',
+    'senderMark.why.trustedYourContact': '{authenticated} authenticated this message, and {address} is your contact.',
+    'senderMark.why.trustedAnotherUsersContact':
+        '{authenticated} authenticated this message, and {address} is a contact of another user of this mailbox.',
+    'senderMark.why.trustedUnnamed':
+        '{authenticated} authenticated this message, and this account recognizes {address}.',
+    'senderMark.why.signedOwnAddress':
+        'Its signature verified, made by {address}, the address it is from, and that address is one of your own addresses.',
+    'senderMark.why.signedOwnDomain':
+        'Its signature verified, made by {address}, the address it is from, and {domain} is a domain of your own accounts.',
+    'senderMark.why.signedOrganizationContact':
+        'Its signature verified, made by {address}, the address it is from, and that address is a contact of your organization.',
+    'senderMark.why.signedYourContact':
+        'Its signature verified, made by {address}, the address it is from, and that address is your contact.',
+    'senderMark.why.signedAnotherUsersContact':
+        'Its signature verified, made by {address}, the address it is from, and that address is a contact of another user of this mailbox.',
+    'senderMark.why.signedUnnamed':
+        'Its signature verified, made by {address}, the address it is from, and this account recognizes that address.',
     'senderMark.why.trustedOrganizationMember':
         "The sender is a member of your organization, {organization}, and the organization's signature proves this message comes from this address.",
     'senderMark.why.trustedOrganizationMemberDeleted':
@@ -1638,6 +1655,8 @@ export const en = {
         '{domain} is not established as the author. {authenticated} authenticated the message instead.',
     'senderMark.author.failedNobody': '{domain} is not established as the author. No domain authenticated the message.',
     'senderMark.author.notEstablished': 'Not established: nothing tied {domain} to the message.',
+    'senderMark.author.spfAlone':
+        '{domain} is established as the author by SPF alone. SPF says only which server handed the message over, so it makes nobody trusted.',
     'senderMark.trust.skipped': 'Skipped, because the author was not authenticated.',
     'senderMark.trust.skippedKnown': 'Skipped, because nothing confirmed that {domain} sent this message.',
     'senderMark.known.contact': '{address} is in your contacts. It is known by that address alone.',
@@ -1646,15 +1665,35 @@ export const en = {
     'senderMark.known.ownAddress': '{address} is one of your own addresses. It is known by that address alone.',
     'senderMark.known.ownDomain':
         '{address} is at {domain}, a domain of your own accounts. It is known by that address alone.',
+    'senderMark.trust.spfAlone':
+        'Skipped, because SPF alone established the author, and SPF alone makes nobody trusted.',
     'senderMark.trust.ownAddress': '{address} is one of your own addresses.',
     'senderMark.trust.ownDomain': '{domain} is a domain of your own accounts.',
-    'senderMark.trust.trustedSenders': "The sender is on this account's trusted senders.",
+    'senderMark.trust.organizationContact': '{address} is a contact of your organization.',
+    'senderMark.trust.yourContact': '{address} is your contact.',
+    'senderMark.trust.anotherUsersContact': '{address} is a contact of another user of this mailbox.',
+    'senderMark.trust.recognized': 'This account recognizes {address}.',
     'senderMark.trust.organizationMember':
         "A member of your organization, {organization}. The organization's signature proves the message comes from {address}.",
     'senderMark.trust.organizationMemberDeleted':
         "A member of your organization. The organization's signature proves the message comes from {address}; the organization has since been deleted, so its name is not shown.",
     'senderMark.trust.unrecognized':
-        "This account does not recognize {address}: it is not one of your own addresses, and it is not on the account's trusted senders.",
+        "This account does not recognize {address}: it is not one of your own addresses, and it is not among your contacts or your organization's.",
+    'senderMark.add.offer': 'Add to contacts',
+    'senderMark.add.title': 'Add {name} to your contacts?',
+    'senderMark.add.restated':
+        '{address} is already in your contacts, but you did not write it down yourself, so it counts only once you add it.',
+    'senderMark.add.what':
+        'Mail from {address} is then marked trusted whenever its sender is authenticated, and known whenever it shows this address, unless this account is strict.',
+    'senderMark.add.warning':
+        'This message stays a warning on a strict account, or where {domain} publishes a quarantine or reject policy; on a relaxed account under a monitoring-only policy it becomes known.',
+    'senderMark.add.confirm': 'Add to contacts',
+    'senderMark.add.adding': 'Adding…',
+    'senderMark.add.retry': 'Try again',
+    'senderMark.add.cancel': 'Cancel',
+    'senderMark.add.failed': '{name} could not be added to your contacts: {reason}',
+    'senderMark.add.changed': 'your contacts changed since this message was read',
+    'senderMark.add.done': '{name} is in your contacts now. The mark changes once your mail is checked again.',
     'senderMark.signed.not':
         'Not signed: the message carries no S/MIME or OpenPGP signature, so there is nothing to verify.',
     'senderMark.signed.detachedAt': 'S/MIME, detached (multipart/signed), signed {when}.',

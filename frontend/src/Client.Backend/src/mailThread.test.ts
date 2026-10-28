@@ -75,6 +75,10 @@ const described = {
         dmarc: 'NotReported',
         trustSource: null,
         trustOrganization: null,
+        authorRoute: null,
+        trustEvidence: null,
+        trustContact: null,
+        addToContacts: null,
     },
     signature: {
         outcome: 'NotSigned',

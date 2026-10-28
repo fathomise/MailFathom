@@ -5,6 +5,7 @@
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Contacts;
 
@@ -60,14 +61,16 @@ public interface IContactStore
     /// <param name="session">The session the write joins.</param>
     /// <param name="holder">The book holding the record being replaced.</param>
     /// <param name="contact">The contact as it is to stand, identified by its own identity.</param>
-    /// <param name="writer">Who wrote the replacement, which an address it adds records.</param>
+    /// <param name="writer">Who wrote the replacement, which an address it adds or restates records.</param>
+    /// <param name="restatedAddresses">The addresses the replacement keeps that the writer states again, which take <paramref name="writer" /> as well; an address the replacement does not hold is ignored.</param>
     /// <param name="cancellationToken">Cancels the staging.</param>
     /// <returns><see langword="true" /> when that book held the contact and the replacement was staged; <see langword="false" /> when it holds none.</returns>
     /// <exception cref="ArgumentNullException">Thrown when a required argument is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when the session cannot supply this store's persistence context.</exception>
     /// <remarks>
     /// An address the record no longer names is removed rather than left behind, which is what makes a replacement the
-    /// whole record instead of an addition to it, and an address it keeps keeps the writer it already had. Two
+    /// whole record instead of an addition to it, and an address it keeps keeps the writer it already had unless it is
+    /// among <paramref name="restatedAddresses" />. Two
     /// amendments of one contact are last-writer-wins, which is what an amendment stating the whole record means: the
     /// later one is the record. What is not left to that is a contact erased while an amendment was in flight — the
     /// row's concurrency token turns that into a conflict, so the retry reads a book holding nobody and answers so
@@ -78,6 +81,7 @@ public interface IContactStore
         ContactBookHolder holder,
         Contact contact,
         ContactAddressWriter writer,
+        IReadOnlyCollection<EmailAddress> restatedAddresses,
         CancellationToken cancellationToken);
 
     /// <summary>Erases one contact and everything derived from it, from whichever book of the scope holds it.</summary>

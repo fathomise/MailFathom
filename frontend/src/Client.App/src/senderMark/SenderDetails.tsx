@@ -2,8 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useId, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 import {
+    addAuthorToContacts,
     readMailMessage,
     type ClientFailure,
     type ClientFailureReason,
@@ -24,13 +26,13 @@ import { useTopLayerSurface } from '../shell/screenLayers';
 import { pressedOutside } from '../shell/usePressOutsideSurface';
 import { useDesktopComposition } from '../shell/useWideWorkspace';
 import { detailsPlacement } from './detailsPlacement';
-import { senderMarkInk, senderMarkPill, senderMarksDrawn } from './senderMarks';
+import { listedSenderOf, senderMarkInk, senderMarkOf, senderMarkPill, senderMarksDrawn } from './senderMarks';
 import { senderVerificationOf, type Said, type VerificationStep } from './verificationSteps';
 
 // What was established about who sent one message, step by step: the mark and why it is the mark, then every check
-// that reached it, each with its result and the reason a step was not reached. It answers the question a mark raises
-// and nothing else — there is no act here, and adding somebody to the trusted senders is not one of the things it
-// offers.
+// that reached it, each with its result and the reason a step was not reached. The one act here is the one the service
+// offers on the message: writing its author down in the reader's own contacts, said before it is done, and leaving the
+// mark as it stands until the mail is judged again.
 //
 // **Anchored under the mark at the desktop, a sheet rising from the foot of the window below it**, which is the design's
 // own: a popup beside a list row reads as about that row where there is room for both, and a finger wants the whole
@@ -120,10 +122,14 @@ export function SenderDetails({
 
 /** The details of a message already read, which need no read of their own. */
 export function MessageSenderDetails({
+    session,
+    transport,
     message,
     anchor,
     dialog,
 }: {
+    readonly session: ClientSession;
+    readonly transport: MailFathomTransport;
     readonly message: MailMessage;
     readonly anchor: AskedSender['anchor'];
     readonly dialog: RefObject<HTMLDialogElement | null>;
@@ -131,11 +137,35 @@ export function MessageSenderDetails({
     const { translate } = useLocalization();
     const names = useId();
 
+    // These details stay mounted while the message is open, so each opening starts the act afresh, and an author
+    // already added is not offered again from the message read before the addition.
+    const [opening, setOpening] = useState(0);
+    const [added, setAdded] = useState(false);
+
     return (
-        <DetailsDialog dialog={dialog} anchor={anchor} names={names}>
+        <DetailsDialog
+            dialog={dialog}
+            anchor={anchor}
+            names={names}
+            onOpened={() => {
+                setOpening(opening + 1);
+            }}
+        >
             <Verification
                 message={message}
                 names={names}
+                act={
+                    <AddToContacts
+                        key={opening}
+                        session={session}
+                        transport={transport}
+                        message={message}
+                        added={added}
+                        onAdded={() => {
+                            setAdded(true);
+                        }}
+                    />
+                }
                 close={
                     <SurfaceControl
                         label={translate('senderMark.close')}
@@ -154,11 +184,13 @@ function DetailsDialog({
     dialog,
     anchor,
     names,
+    onOpened,
     children,
 }: {
     readonly dialog: RefObject<HTMLDialogElement | null>;
     readonly anchor: AskedSender['anchor'];
     readonly names: string;
+    readonly onOpened?: () => void;
     readonly children: ReactNode;
 }) {
     const closesOnBack = useTopLayerSurface();
@@ -173,7 +205,13 @@ function DetailsDialog({
     return (
         <dialog
             ref={dialog}
-            onToggle={closesOnBack}
+            onToggle={(event) => {
+                closesOnBack(event);
+
+                if (event.newState === 'open') {
+                    onOpened?.();
+                }
+            }}
             aria-labelledby={names}
             data-pull="down"
             onClick={(event) => {
@@ -258,17 +296,26 @@ function AskedSenderDetails({
         );
     }
 
-    return <Verification message={read.message} names={names} close={close} />;
+    return (
+        <Verification
+            message={read.message}
+            names={names}
+            close={close}
+            act={<AddToContacts session={session} transport={transport} message={read.message} />}
+        />
+    );
 }
 
 function Verification({
     message,
     names,
     close,
+    act,
 }: {
     readonly message: MailMessage;
     readonly names: string;
     readonly close: ReactNode;
+    readonly act: ReactNode;
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
@@ -323,8 +370,177 @@ function Verification({
                         </ul>
                     </section>
                 ))}
+
+                {act}
             </div>
         </>
+    );
+}
+
+/** Where the act of adding the author stands within one opening of the details. */
+type Addition =
+    { readonly phase: 'offered' | 'asking' | 'adding' | 'added' } | { readonly phase: 'failed'; readonly reason: Said };
+
+const addButton =
+    'flex h-8.5 items-center justify-center gap-1.5 rounded-md text-base whitespace-nowrap transition aria-disabled:cursor-progress aria-disabled:opacity-70';
+
+// The author written down in the reader's own book, offered where the service said it may be and said in full before
+// it is done. The mark is left as it stands: what the addition changes is the next judgment of the mail, not this one.
+function AddToContacts({
+    session,
+    transport,
+    message,
+    added = false,
+    onAdded,
+}: {
+    readonly session: ClientSession;
+    readonly transport: MailFathomTransport;
+    readonly message: MailMessage;
+
+    /** Whether this author was added in an earlier opening, which leaves nothing to offer. */
+    readonly added?: boolean;
+    readonly onAdded?: () => void;
+}) {
+    const { translate } = useLocalization();
+    const [addition, setAddition] = useState<Addition>({ phase: 'offered' });
+    const offer = useRef<HTMLButtonElement>(null);
+    const confirm = useRef<HTMLButtonElement>(null);
+    const done = useRef<HTMLParagraphElement>(null);
+    const titleId = useId();
+    const offered = message.sender.addToContacts;
+    const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
+
+    if (offered === null || author === null || (added && addition.phase !== 'added')) {
+        return null;
+    }
+
+    const { address } = author;
+    const { restatedContactId } = offered;
+    const name = author.displayName ?? address;
+    const mark = senderMarkOf(listedSenderOf(message));
+    const warning = mark === 'signatureMismatch' || mark === 'authenticationFailed';
+    const domain = address.slice(address.lastIndexOf('@') + 1);
+
+    function move(next: Addition, focused: RefObject<HTMLElement | null>): void {
+        flushSync(() => {
+            setAddition(next);
+        });
+        focused.current?.focus();
+    }
+
+    async function add(): Promise<void> {
+        move({ phase: 'adding' }, confirm);
+
+        const written = await addAuthorToContacts(session, transport, {
+            displayName: name,
+            address,
+            restatedContactId,
+        });
+
+        if (written.outcome === 'failed') {
+            move({ phase: 'failed', reason: { key: failureLabels[written.failure.reason] } }, confirm);
+        } else if (written.value.outcome === 'Written') {
+            move({ phase: 'added' }, done);
+            onAdded?.();
+        } else {
+            move({ phase: 'failed', reason: { key: 'senderMark.add.changed' } }, confirm);
+        }
+    }
+
+    if (addition.phase === 'added') {
+        return (
+            <p
+                ref={done}
+                role="status"
+                tabIndex={-1}
+                className="flex items-start gap-2 rounded-lg bg-healthy-soft px-3.5 py-2.5 text-base/normal text-pretty text-healthy-text outline-none"
+            >
+                <Icon name="check_circle" className="size-icon-sm shrink-0" />
+                <span>{translate('senderMark.add.done', { name })}</span>
+            </p>
+        );
+    }
+
+    if (addition.phase === 'offered') {
+        return (
+            <button
+                ref={offer}
+                type="button"
+                className={`${addButton} self-start border border-line-strong px-3.75 text-text-soft hover:bg-hover`}
+                onClick={() => {
+                    move({ phase: 'asking' }, confirm);
+                }}
+            >
+                <Icon name="person_add" className="size-icon-sm" />
+                {translate('senderMark.add.offer')}
+            </button>
+        );
+    }
+
+    const busy = addition.phase === 'adding';
+
+    return (
+        <div
+            role="group"
+            aria-labelledby={titleId}
+            className="flex flex-col gap-2.5 rounded-lg border border-line bg-sunken px-3.5 py-3"
+        >
+            <p id={titleId} className="text-base font-semibold text-text">
+                {translate('senderMark.add.title', { name })}
+            </p>
+
+            <p className="text-base/normal text-pretty wrap-anywhere text-text-soft">
+                {[
+                    restatedContactId === null ? null : translate('senderMark.add.restated', { address }),
+                    translate('senderMark.add.what', { address }),
+                    warning ? translate('senderMark.add.warning', { domain }) : null,
+                ]
+                    .filter((sentence) => sentence !== null)
+                    .join(' ')}
+            </p>
+
+            {addition.phase === 'failed' ? (
+                <p role="alert" className="text-base/normal text-pretty text-error-text">
+                    {translate('senderMark.add.failed', { name, reason: say(translate, addition.reason) })}
+                </p>
+            ) : null}
+
+            <div className="flex flex-wrap gap-2">
+                <button
+                    ref={confirm}
+                    type="button"
+                    aria-disabled={busy ? true : undefined}
+                    className={`${addButton} bg-accent px-4 font-semibold text-on-accent`}
+                    onClick={() => {
+                        if (!busy) {
+                            void add();
+                        }
+                    }}
+                >
+                    {translate(
+                        busy
+                            ? 'senderMark.add.adding'
+                            : addition.phase === 'failed'
+                              ? 'senderMark.add.retry'
+                              : 'senderMark.add.confirm',
+                    )}
+                </button>
+
+                {/* A write already sent is not taken back, so the card is not left while it is in flight. */}
+                <button
+                    type="button"
+                    aria-disabled={busy ? true : undefined}
+                    className={`${addButton} border border-line-strong px-3.75 text-text-soft hover:bg-hover`}
+                    onClick={() => {
+                        if (!busy) {
+                            move({ phase: 'offered' }, offer);
+                        }
+                    }}
+                >
+                    {translate('senderMark.add.cancel')}
+                </button>
+            </div>
+        </div>
     );
 }
 

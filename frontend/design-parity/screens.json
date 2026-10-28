@@ -356,6 +356,43 @@
       ]
     },
     {
+      "id": "mail-sender-add",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 3
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Sender not recognized"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Add to contacts"
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Cancel"
+          }
+        }
+      ]
+    },
+    {
       "id": "mail-outbox",
       "route": "/#/mail",
       "signIn": true,

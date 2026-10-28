@@ -51,6 +51,30 @@ export type MailDmarcOutcome =
 export type MailTrustSource =
     'OwnAccountDomain' | 'OrganizationMember' | 'OwnAccountAddress' | 'OrganizationContact' | 'PersonalContact';
 
+/**
+ * What established an authenticated author: the domain's DMARC pass, a DKIM signature aligned with it, or SPF alone —
+ * which says only which server handed the message over, and so makes nobody trusted.
+ */
+export type MailAuthorRoute = 'DmarcPass' | 'AlignedDkim' | 'AlignedSpf';
+
+/**
+ * What tied a trusted message to the address or domain a written-down source holds: the domain's own checks, or the
+ * author's own verified signature where those did not hold.
+ */
+export type MailTrustEvidence = 'Authentication' | 'AuthorSignature';
+
+/** Whose book holds the contact that recognized the author: the reader's own, or another user of this mailbox's. */
+export type MailTrustContact = 'Reader' | 'AnotherUser';
+
+/**
+ * How *Add to contacts* would write the author down for the reader: as a new contact, or — where a contact of theirs
+ * already holds the address without their having written it down themselves — by stating that address again on it.
+ */
+export interface MailContactAddition {
+    /** The reader's own contact whose address is stated again, or `null` for a contact recorded afresh. */
+    readonly restatedContactId: string | null;
+}
+
 /** How a signed message arrived. */
 export type MailSignatureFormat = 'SecureMimeDetached' | 'SecureMimeOpaque' | 'OpenPgpMime';
 
@@ -139,6 +163,22 @@ export interface MailSenderVerdict {
      * message arrived.
      */
     readonly trustOrganization: string | null;
+
+    /** What established the author where it was authenticated, or `null` where it was not. */
+    readonly authorRoute: MailAuthorRoute | null;
+
+    /** What tied a trusted message to the address a written-down source holds, or `null` where nothing had to. */
+    readonly trustEvidence: MailTrustEvidence | null;
+
+    /** Whose book holds the recognizing contact. Only `PersonalContact` ever carries one, and it says nothing else. */
+    readonly trustContact: MailTrustContact | null;
+
+    /**
+     * How the reader may add the author to their contacts, or `null` where the service offers no such act: the author is
+     * one of their own addresses, somebody already wrote them down for the reader or their organization, or the reader
+     * holds no grant to write contacts.
+     */
+    readonly addToContacts: MailContactAddition | null;
 }
 
 /** The result of each step a signature verification takes, in the order a reader is shown them. */
@@ -270,6 +310,12 @@ const trustSources: readonly MailTrustSource[] = [
     'OrganizationContact',
     'PersonalContact',
 ];
+
+const authorRoutes: readonly MailAuthorRoute[] = ['DmarcPass', 'AlignedDkim', 'AlignedSpf'];
+
+const trustEvidences: readonly MailTrustEvidence[] = ['Authentication', 'AuthorSignature'];
+
+const trustContacts: readonly MailTrustContact[] = ['Reader', 'AnotherUser'];
 
 const signatureFormats: readonly MailSignatureFormat[] = ['SecureMimeDetached', 'SecureMimeOpaque', 'OpenPgpMime'];
 
@@ -561,6 +607,24 @@ function parseSenderVerdict(value: unknown): MailSenderVerdict | null {
         return null;
     }
 
+    const authorRoute = record['authorRoute'] ?? null;
+    const trustEvidence = record['trustEvidence'] ?? null;
+    const trustContact = record['trustContact'] ?? null;
+    const addToContacts = parseContactAddition(record['addToContacts'] ?? null);
+
+    if (!isOptionalOneOf(authorRoute, authorRoutes) || !isOptionalOneOf(trustEvidence, trustEvidences)) {
+        return null;
+    }
+
+    // Only a personal contact is in somebody's own book, so a holder beside any other source is not a verdict either.
+    if (!isOptionalOneOf(trustContact, trustContacts) || (trustContact !== null && trustSource !== 'PersonalContact')) {
+        return null;
+    }
+
+    if (addToContacts === undefined) {
+        return null;
+    }
+
     return {
         authorAuthentication,
         deploymentTrust,
@@ -571,7 +635,23 @@ function parseSenderVerdict(value: unknown): MailSenderVerdict | null {
         dmarc,
         trustSource,
         trustOrganization,
+        authorRoute,
+        trustEvidence,
+        trustContact,
+        addToContacts,
     };
+}
+
+// `undefined` for a shape the service never sends, so it is refused rather than read as no offer.
+function parseContactAddition(value: unknown): MailContactAddition | null | undefined {
+    if (value === null) {
+        return null;
+    }
+
+    const record = asRecord(value);
+    const restatedContactId = record?.['restatedContactId'] ?? null;
+
+    return record !== null && isOptionalText(restatedContactId) ? { restatedContactId } : undefined;
 }
 
 function parseSignature(value: unknown): MailSignature | null {

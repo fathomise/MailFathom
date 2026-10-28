@@ -1292,6 +1292,54 @@
         ],
         "type": "object"
       },
+      "ClientContactAmendmentRequest": {
+        "properties": {
+          "addresses": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "preferredAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "restatedAddresses": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "displayName",
+          "addresses",
+          "preferredAddress",
+          "note",
+          "restatedAddresses"
+        ],
+        "type": "object"
+      },
       "ClientContactCorrespondenceResponse": {
         "properties": {
           "contactId": {
@@ -2403,6 +2451,21 @@
         ],
         "type": "object"
       },
+      "ClientMailContactAdditionResponse": {
+        "properties": {
+          "restatedContactId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "restatedContactId"
+        ],
+        "type": "object"
+      },
       "ClientMailDeleteRequest": {
         "properties": {
           "storedEmailId": {
@@ -3392,6 +3455,16 @@
       },
       "ClientMailSenderVerdictResponse": {
         "properties": {
+          "addToContacts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailContactAdditionResponse"
+              }
+            ]
+          },
           "authenticatedDomain": {
             "type": [
               "null",
@@ -3403,6 +3476,12 @@
           },
           "authorAuthentication": {
             "type": "string"
+          },
+          "authorRoute": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "deploymentTrust": {
             "type": "string"
@@ -3417,6 +3496,18 @@
             "type": "string"
           },
           "spfDomain": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "trustContact": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "trustEvidence": {
             "type": [
               "null",
               "string"
@@ -3444,7 +3535,11 @@
           "spfDomain",
           "dmarc",
           "trustSource",
-          "trustOrganization"
+          "trustOrganization",
+          "authorRoute",
+          "trustEvidence",
+          "trustContact",
+          "addToContacts"
         ],
         "type": "object"
       },
@@ -18882,7 +18977,7 @@
                     "type": "null"
                   },
                   {
-                    "$ref": "#/components/schemas/ContactRecordRequest"
+                    "$ref": "#/components/schemas/ClientContactAmendmentRequest"
                   }
                 ]
               }

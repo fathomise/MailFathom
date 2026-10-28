@@ -57,6 +57,15 @@ public sealed record SenderAuthenticationEvidence
     /// <remarks>Never named on a verdict MailFathom reached itself, which reads DKIM alone.</remarks>
     public SenderDomain? SpfDomain { get; init; }
 
+    /// <summary>Gets what established an authenticated author, which is <see cref="AuthorAuthenticationRoute.None" /> wherever nothing did.</summary>
+    /// <remarks>
+    /// It is what separates two authenticated authors a reader is shown alike: one the domain's DMARC result or an
+    /// aligned DKIM signature established, which a trust source accepts, and one only an aligned SPF identity
+    /// established, which authenticates whoever handed the message over and makes nobody trusted. Mail stored before the
+    /// route was recorded reads as none until a re-derivation reaches it.
+    /// </remarks>
+    public AuthorAuthenticationRoute AuthorRoute { get; init; } = AuthorAuthenticationRoute.None;
+
     /// <summary>Gets which check established <see cref="AuthenticatedDomain" />, or that none did.</summary>
     public required SenderAuthenticationMethod AuthenticatedBy { get; init; }
 

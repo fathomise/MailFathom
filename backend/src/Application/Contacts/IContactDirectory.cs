@@ -148,6 +148,29 @@ public interface IContactDirectory
         IReadOnlyCollection<EmailAddress> addresses,
         CancellationToken cancellationToken);
 
+    /// <summary>Reads which of the given books hold each of the given addresses, under which contact, and who wrote each one in.</summary>
+    /// <param name="books">The books read, which need not form a scope.</param>
+    /// <param name="addresses">The addresses to look up, at most as many as one contact may hold.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>One holding for every book and address it holds; an address none of the books holds has none.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when a required argument is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when more addresses are supplied than one contact may hold.</exception>
+    /// <remarks>
+    /// <para>
+    /// A set of books rather than a scope, because the question is about named books — whether a reader's own book or
+    /// their organization's already holds an address with a writer whose word makes it count — and never about which
+    /// record a listing would show. So no precedence applies: every book holding an address answers for it.
+    /// </para>
+    /// <para>
+    /// It takes no lock and joins no transaction. What it answers may change the moment after, and a caller acting on
+    /// it goes through a write that asks again.
+    /// </para>
+    /// </remarks>
+    Task<IReadOnlyList<ContactAddressHolding>> FindAddressHoldingsAsync(
+        IReadOnlyCollection<ContactBookHolder> books,
+        IReadOnlyCollection<EmailAddress> addresses,
+        CancellationToken cancellationToken);
+
     /// <summary>Reads one bounded page of the books a scope reads.</summary>
     /// <param name="scope">The books read.</param>
     /// <param name="query">What to read and where to continue from.</param>

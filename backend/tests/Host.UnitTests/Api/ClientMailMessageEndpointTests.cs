@@ -8,7 +8,9 @@ using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
+using MailFathom.Application.Emails.Trust;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
@@ -72,7 +74,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AReadMessage_CarriesTheHeadersTheMessageDisplayed()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith());
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Equal(Message, response.StoredEmailId);
@@ -100,7 +102,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AMessageCarryingFiles_DescribesEachAtThePositionItsDownloadIsAskedWith()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith());
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Collection(
@@ -125,7 +127,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AMessageWhosePartsWereRead_CarriesTheCountsBesideTheDescriptions()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith());
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
 
         // Assert
         Assert.NotNull(response.Carried);
@@ -150,7 +152,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var response = ClientMailMessageResponse.For(message);
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Null(response.Carried);
@@ -182,7 +184,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var response = ClientMailMessageResponse.For(message);
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Equal("Readable", response.Body.Availability);
@@ -198,7 +200,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AReadMessage_CarriesTheSenderVerdictAsTwoStates()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith());
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Equal("Authenticated", response.Sender.AuthorAuthentication);
@@ -222,7 +224,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith(evidence));
+        var response = ClientMailMessageResponse.For(MessageWith(evidence), SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Equal("mail.example.test", response.Sender.AuthenticatedDomain);
@@ -233,7 +235,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AMessageNothingAuthenticated_NamesNoDomain()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith());
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Null(response.Sender.AuthenticatedDomain);
@@ -258,7 +260,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(MessageWith(evidence)).Sender;
+        var sender = ClientMailMessageResponse.For(MessageWith(evidence), SenderContactStanding.Unanswered).Sender;
 
         // Assert
         Assert.Equal("ReceivingServer", sender.AuthenticationSource);
@@ -281,7 +283,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(MessageWith(evidence)).Sender;
+        var sender = ClientMailMessageResponse.For(MessageWith(evidence), SenderContactStanding.Unanswered).Sender;
 
         // Assert
         Assert.Equal("LocalVerification", sender.AuthenticationSource);
@@ -310,7 +312,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
 
         // Assert
         Assert.Equal(published, sender.TrustSource);
@@ -338,7 +340,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
 
         // Assert
         Assert.Equal("OrganizationMember", sender.TrustSource);
@@ -361,7 +363,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
 
         // Assert
         Assert.Null(sender.TrustOrganization);
@@ -375,10 +377,100 @@ public sealed class ClientMailMessageEndpointTests
         var message = MessageWith() with { SenderVerification = SenderVerification.NotEstablished };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
 
         // Assert
         Assert.Null(sender.TrustSource);
+    }
+
+    /// <summary>The route that established an authenticated author is published by its own name, and none where nothing did.</summary>
+    /// <param name="route">The route the evidence records.</param>
+    /// <param name="published">What the wire carries for it.</param>
+    [Theory]
+    [InlineData(AuthorAuthenticationRoute.DmarcPass, "DmarcPass")]
+    [InlineData(AuthorAuthenticationRoute.AlignedDkim, "AlignedDkim")]
+    [InlineData(AuthorAuthenticationRoute.AlignedSpf, "AlignedSpf")]
+    [InlineData(AuthorAuthenticationRoute.None, null)]
+    public void For_AnAuthenticationRoute_PublishesItByName(AuthorAuthenticationRoute route, string? published)
+    {
+        // Arrange
+        var message = MessageWith(SenderAuthenticationEvidence.None with { AuthorRoute = route });
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
+
+        // Assert
+        Assert.Equal(published, sender.AuthorRoute);
+    }
+
+    /// <summary>What tied a trusted message to its address is published by its own name, and none where nothing was asked of it.</summary>
+    /// <param name="evidence">The evidence the verdict records.</param>
+    /// <param name="published">What the wire carries for it.</param>
+    [Theory]
+    [InlineData(TrustedAuthorEvidence.Authentication, "Authentication")]
+    [InlineData(TrustedAuthorEvidence.AuthorSignature, "AuthorSignature")]
+    [InlineData(TrustedAuthorEvidence.None, null)]
+    public void For_TrustEvidence_PublishesItByName(TrustedAuthorEvidence evidence, string? published)
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with { DeploymentTrustAuthorEvidence = evidence },
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
+
+        // Assert
+        Assert.Equal(published, sender.TrustEvidence);
+    }
+
+    /// <summary>Whose contact recognized the author is published beside a personal contact source and beside no other.</summary>
+    /// <param name="grantedBy">What recognized the author.</param>
+    /// <param name="published">What the wire carries for the reader's own contact.</param>
+    [Theory]
+    [InlineData(SenderTrustSource.PersonalContact, "Reader")]
+    [InlineData(SenderTrustSource.OrganizationContact, null)]
+    public void For_AReadersOwnContact_IsPublishedOnlyBesideAPersonalContactSource(SenderTrustSource grantedBy, string? published)
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with { DeploymentTrustGrantedBy = grantedBy },
+        };
+        var standing = new SenderContactStanding { RecognizingContactHolder = RecognizingContactHolder.Reader };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message, standing).Sender;
+
+        // Assert
+        Assert.Equal(published, sender.TrustContact);
+    }
+
+    /// <summary>
+    /// An offer to write the sender down is published with the contact it restates, or with none for a new contact, and
+    /// is absent where it is not offered.
+    /// </summary>
+    [Fact]
+    public void For_AnOfferToAddTheSender_PublishesTheContactItRestatesOrNone()
+    {
+        // Arrange
+        var restated = ContactId.Create(Guid.Parse("0199f000-0000-7000-8000-0000000000c1"));
+
+        // Act
+        var restating = ClientMailMessageResponse.For(
+            MessageWith(),
+            new SenderContactStanding { ContactAddition = new ContactAdditionOffer(restated) }).Sender;
+        var recording = ClientMailMessageResponse.For(
+            MessageWith(),
+            new SenderContactStanding { ContactAddition = new ContactAdditionOffer(RestatedContactId: null) }).Sender;
+        var withheld = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered).Sender;
+
+        // Assert
+        Assert.Equal(restated.Value, restating.AddToContacts?.RestatedContactId);
+        Assert.NotNull(recording.AddToContacts);
+        Assert.Null(recording.AddToContacts.RestatedContactId);
+        Assert.Null(withheld.AddToContacts);
     }
 
     /// <summary>The flags a pane draws are the ones the mail server last showed, and unread is the absence of the seen flag.</summary>
@@ -386,7 +478,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AReadMessage_CarriesTheFlagsTheServerLastShowed()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith());
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
 
         // Assert
         Assert.True(response.Unread);
@@ -424,7 +516,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var signature = ClientMailMessageResponse.For(message).Signature;
+        var signature = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Signature;
 
         // Assert
         Assert.Equal("Verified", signature.Outcome);
@@ -442,7 +534,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AnUnsignedMessage_CarriesNotSignedWithEveryStepSkipped()
     {
         // Act
-        var signature = ClientMailMessageResponse.For(MessageWith()).Signature;
+        var signature = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered).Signature;
 
         // Assert
         Assert.Equal("NotSigned", signature.Outcome);
@@ -467,7 +559,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var response = ClientMailMessageResponse.For(message);
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Equal(new ClientMailSpamVerdictResponse("Spam", "Person", "Scam", "Person", null, null), response.Spam);

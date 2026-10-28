@@ -5,6 +5,7 @@
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Emails.Trust;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
@@ -61,6 +62,7 @@ internal static class ClientMailMessageEndpoint
     /// <summary>Serves one of the acting user's messages, or reports that there is no such message.</summary>
     /// <param name="storedEmailId">The message to read, as a list row or a conversation published it.</param>
     /// <param name="content">Reads the message from the local copy, for a caller the read's own grant admits.</param>
+    /// <param name="senders">Reads what the message's sender is to this caller, which is asked per reader rather than stored.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the message, <c>404</c> where this user has no such message, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>
@@ -71,9 +73,11 @@ internal static class ClientMailMessageEndpoint
     internal static async Task<Results<Ok<ClientMailMessageResponse>, NotFound>> ReadMessageAsync(
         [FromRoute] Guid storedEmailId,
         [FromServices] EmailContentReader content,
+        [FromServices] SenderContactStandingReader senders,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(senders);
 
         if (storedEmailId == Guid.Empty)
         {
@@ -82,9 +86,14 @@ internal static class ClientMailMessageEndpoint
 
         var result = await content.ReadContentAsync(RequestFor(storedEmailId), cancellationToken);
 
-        return result.Emails[0].Content is { } message
-            ? TypedResults.Ok(ClientMailMessageResponse.For(message))
-            : TypedResults.NotFound();
+        if (result.Emails[0].Content is not { } message)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var standings = await senders.ReadAsync([message], cancellationToken);
+
+        return TypedResults.Ok(ClientMailMessageResponse.For(message, standings[message.StoredEmailId]));
     }
 
     /// <summary>Composes the read this route makes, which asks for a description and for no representation at all.</summary>
@@ -139,11 +148,13 @@ internal sealed record ClientMailMessageResponse(
 {
     /// <summary>Describes one message for the wire.</summary>
     /// <param name="message">The message the use case read.</param>
+    /// <param name="standing">What the message's sender is to the caller reading it.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="message" /> is <see langword="null" />.</exception>
-    internal static ClientMailMessageResponse For(ReadEmailContent message)
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    internal static ClientMailMessageResponse For(ReadEmailContent message, SenderContactStanding standing)
     {
         ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(standing);
 
         return new ClientMailMessageResponse(
             message.StoredEmailId.Value,
@@ -153,7 +164,10 @@ internal sealed record ClientMailMessageResponse(
             message.SizeOctets,
             ClientMailMessageHeadersResponse.For(message.Headers),
             ClientMailMessageBodyResponse.For(message.Body),
-            ClientMailSenderVerdictResponse.For(message.SenderVerification, message.SenderAuthenticationEvidence),
+            ClientMailSenderVerdictResponse.For(
+                message.SenderVerification,
+                message.SenderAuthenticationEvidence,
+                standing),
             ClientMailSignatureResponse.For(message.SenderVerification.Signature),
             [.. message.Attachments.Select((attachment, position) =>
                 ClientMailAttachmentResponse.For(attachment, position))],
@@ -248,6 +262,10 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// <param name="Dmarc">The DMARC result the verdict was reached with, as the outcome's own name.</param>
 /// <param name="TrustSource">What recognized the author — <c>OwnAccountDomain</c>, <c>OrganizationMember</c>, <c>OwnAccountAddress</c>, <c>OrganizationContact</c>, or <c>PersonalContact</c> — or <see langword="null" /> where nothing did.</param>
 /// <param name="TrustOrganization">The current display name of the organization whose signature recognized the author, present only where <paramref name="TrustSource" /> is <c>OrganizationMember</c> and that organization still exists.</param>
+/// <param name="AuthorRoute">What established an authenticated author — <c>DmarcPass</c>, <c>AlignedDkim</c>, or <c>AlignedSpf</c> — or <see langword="null" /> where nothing did.</param>
+/// <param name="TrustEvidence">What tied a trusted message to the address its source recognized — <c>Authentication</c> or <c>AuthorSignature</c> — or <see langword="null" /> where nothing was asked of it.</param>
+/// <param name="TrustContact">Whose book holds the personal contact that recognized the author — <c>Reader</c> or <c>AnotherUser</c> — present only where <paramref name="TrustSource" /> is <c>PersonalContact</c>.</param>
+/// <param name="AddToContacts">How this caller may write the sender down in their own book, or <see langword="null" /> where that is not offered.</param>
 /// <remarks>
 /// <para>
 /// The two outcomes are published side by side and are never collapsed into one value, because a screen drawing a single
@@ -279,6 +297,11 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// organization it was, and its name is read as it is now, so a rename reaches stored mail and a deletion leaves the
 /// source standing without a name.
 /// </para>
+/// <para>
+/// The last two are not stored with the message at all. They are asked per reader on each request, because two users
+/// of one mailbox read one verdict and hold different books: whose book holds the contact a verdict names, of which
+/// nothing else of that record is published, and whether this caller may write the sender down.
+/// </para>
 /// </remarks>
 internal sealed record ClientMailSenderVerdictResponse(
     string AuthorAuthentication,
@@ -289,19 +312,26 @@ internal sealed record ClientMailSenderVerdictResponse(
     string? SpfDomain,
     string Dmarc,
     string? TrustSource,
-    string? TrustOrganization)
+    string? TrustOrganization,
+    string? AuthorRoute,
+    string? TrustEvidence,
+    string? TrustContact,
+    ClientMailContactAdditionResponse? AddToContacts)
 {
     /// <summary>Describes one message's sender verdict for the wire.</summary>
     /// <param name="verification">The verdict the read carried.</param>
     /// <param name="evidence">What that verdict was reached from, of which the displayed author's domain is not published.</param>
+    /// <param name="standing">What the sender is to the caller reading the message.</param>
     /// <returns>The response body.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     internal static ClientMailSenderVerdictResponse For(
         SenderVerification verification,
-        SenderAuthenticationEvidence evidence)
+        SenderAuthenticationEvidence evidence,
+        SenderContactStanding standing)
     {
         ArgumentNullException.ThrowIfNull(verification);
         ArgumentNullException.ThrowIfNull(evidence);
+        ArgumentNullException.ThrowIfNull(standing);
 
         return new ClientMailSenderVerdictResponse(
             verification.AuthorAuthentication.ToString(),
@@ -316,9 +346,27 @@ internal sealed record ClientMailSenderVerdictResponse(
                 : verification.DeploymentTrustGrantedBy.ToString(),
             verification.DeploymentTrustGrantedBy is SenderTrustSource.OrganizationMember
                 ? verification.RecognizingOrganizationName
+                : null,
+            evidence.AuthorRoute is AuthorAuthenticationRoute.None ? null : evidence.AuthorRoute.ToString(),
+            verification.DeploymentTrustAuthorEvidence is TrustedAuthorEvidence.None
+                ? null
+                : verification.DeploymentTrustAuthorEvidence.ToString(),
+            verification.DeploymentTrustGrantedBy is SenderTrustSource.PersonalContact
+                ? standing.RecognizingContactHolder?.ToString()
+                : null,
+            standing.ContactAddition is { } addition
+                ? new ClientMailContactAdditionResponse(addition.RestatedContactId?.Value)
                 : null);
     }
 }
+
+/// <summary>That the caller may write a message's sender down in their own book, and which of their contacts it states the address on again.</summary>
+/// <param name="RestatedContactId">The caller's own contact that holds the address under a writer whose word does not count, or <see langword="null" /> where the act records a new contact.</param>
+/// <remarks>
+/// It describes an act and performs none. The act goes through the contact routes and their
+/// <c>mailfathom.contacts.write</c>, which ask again whether the address is held.
+/// </remarks>
+internal sealed record ClientMailContactAdditionResponse(Guid? RestatedContactId);
 
 /// <summary>What verifying one message's own S/MIME or OpenPGP signature found, step by step.</summary>
 /// <param name="Outcome">The verdict the steps add up to — <c>NotSigned</c>, <c>Verified</c>, <c>Failed</c>, or <c>NotVerifiable</c> — as the outcome's own name.</param>

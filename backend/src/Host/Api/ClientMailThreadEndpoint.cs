@@ -5,6 +5,7 @@
 using MailFathom.Application.Emails.BrowseThread;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Trust;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
@@ -64,6 +65,7 @@ internal static class ClientMailThreadEndpoint
     /// <param name="content">Whether each message arrives with what it says, which is what a caller drawing the conversation asks for.</param>
     /// <param name="thread">Reads the conversation, for a caller the read's own grant admits.</param>
     /// <param name="messages">Reads the messages themselves, where the caller asked for them.</param>
+    /// <param name="senders">Reads what each drawn message's sender is to this caller, which is asked per reader rather than stored.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the page, <c>400</c> naming what was wrong with the request, <c>404</c> where this user has no such conversation, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>
@@ -78,10 +80,12 @@ internal static class ClientMailThreadEndpoint
         [FromQuery] bool? content,
         [FromServices] MailThreadBrowser thread,
         [FromServices] EmailContentReader messages,
+        [FromServices] SenderContactStandingReader senders,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(messages);
+        ArgumentNullException.ThrowIfNull(senders);
 
         if (threadId == Guid.Empty)
         {
@@ -117,8 +121,9 @@ internal static class ClientMailThreadEndpoint
             }
 
             var drawn = drawing ? await ReadMessagesAsync(page, messages, cancellationToken) : [];
+            var standings = await senders.ReadAsync(drawn, cancellationToken);
 
-            return TypedResults.Ok(ClientMailThreadResponse.For(page, drawn));
+            return TypedResults.Ok(ClientMailThreadResponse.For(page, drawn, standings));
         }
         catch (MailboxQueryCursorMalformedException)
         {
@@ -206,12 +211,17 @@ internal sealed record ClientMailThreadResponse(
     /// <summary>Describes one page of one conversation for the wire.</summary>
     /// <param name="thread">The page the use case read.</param>
     /// <param name="drawn">The messages themselves, where the caller asked for them, and empty where it did not.</param>
+    /// <param name="standings">What each drawn message's sender is to the caller, keyed by the message.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="thread" /> or <paramref name="drawn" /> is <see langword="null" />.</exception>
-    internal static ClientMailThreadResponse For(BrowsedThread thread, IReadOnlyList<ReadEmailContent> drawn)
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    internal static ClientMailThreadResponse For(
+        BrowsedThread thread,
+        IReadOnlyList<ReadEmailContent> drawn,
+        IReadOnlyDictionary<StoredEmailId, SenderContactStanding> standings)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(drawn);
+        ArgumentNullException.ThrowIfNull(standings);
 
         var byIdentity = drawn.ToDictionary(message => message.StoredEmailId);
 
@@ -220,7 +230,8 @@ internal sealed record ClientMailThreadResponse(
             [.. thread.Messages.Select(message => ClientMailThreadEmailResponse.For(
                 message,
                 thread.MessageCount,
-                byIdentity.GetValueOrDefault(message.Email.StoredEmailId)))],
+                byIdentity.GetValueOrDefault(message.Email.StoredEmailId),
+                standings.GetValueOrDefault(message.Email.StoredEmailId, SenderContactStanding.Unanswered)))],
             [.. thread.Participants.Select(ClientMailThreadParticipantResponse.For)],
             thread.MessageCount,
             thread.MoreMessagesNotAssembled,
@@ -266,6 +277,7 @@ internal sealed record ClientMailThreadEmailResponse(
     /// <param name="message">The message the use case read.</param>
     /// <param name="threadMessageCount">How many messages the conversation holds of those this caller may see.</param>
     /// <param name="drawn">The message itself, where the caller asked for it and its local copy could be read.</param>
+    /// <param name="standing">What the drawn message's sender is to the caller, which only a drawn message carries.</param>
     /// <returns>The response body.</returns>
     /// <remarks>
     /// <para>
@@ -286,7 +298,8 @@ internal sealed record ClientMailThreadEmailResponse(
     internal static ClientMailThreadEmailResponse For(
         BrowsedThreadEmail message,
         int threadMessageCount,
-        ReadEmailContent? drawn) => new(
+        ReadEmailContent? drawn,
+        SenderContactStanding standing) => new(
         message.Position,
         message.AnsweredStoredEmailId?.Value,
         ClientMailTimelineEntryResponse.For(
@@ -294,7 +307,7 @@ internal sealed record ClientMailThreadEmailResponse(
             message.Contribution,
             message.Enrichment,
             threadMessageCount),
-        drawn is null ? null : ClientMailMessageResponse.For(drawn),
+        drawn is null ? null : ClientMailMessageResponse.For(drawn, standing),
         drawn is null ? null : ClientMailBodyResponse.For(drawn, remoteImagesRequested: false));
 }
 

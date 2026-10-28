@@ -4,6 +4,7 @@
 
 using System.Security.Cryptography;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Contacts;
 using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
@@ -15,6 +16,8 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
+using MailFathom.Application.Emails.Trust;
+using MailFathom.Application.Mail;
 using MailFathom.Application.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -310,7 +313,7 @@ public sealed class ClientMailThreadEndpointTests
         var message = new BrowsedThreadEmail(email, Position: 0, AnsweredStoredEmailId: null, "what I added", Enrichment: null);
 
         // Act
-        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: DrawnMessage());
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: DrawnMessage(), standing: SenderContactStanding.Unanswered);
 
         // Assert
         Assert.NotNull(response.Message);
@@ -341,7 +344,7 @@ public sealed class ClientMailThreadEndpointTests
             PageSize: 10);
 
         // Act
-        var response = ClientMailThreadResponse.For(thread, [DrawnMessage()]);
+        var response = ClientMailThreadResponse.For(thread, [DrawnMessage()], new Dictionary<StoredEmailId, SenderContactStanding>());
 
         // Assert
         Assert.NotNull(response.Messages[0].Message);
@@ -385,7 +388,7 @@ public sealed class ClientMailThreadEndpointTests
             PageSize: 25);
 
         // Act
-        var response = ClientMailThreadResponse.For(thread, []);
+        var response = ClientMailThreadResponse.For(thread, [], new Dictionary<StoredEmailId, SenderContactStanding>());
 
         // Assert
         Assert.Equal(500, response.MessageCount);
@@ -410,7 +413,7 @@ public sealed class ClientMailThreadEndpointTests
         var message = new BrowsedThreadEmail(SyntheticListedEmail(), Position: 2, answered, "what I added", Enrichment: null);
 
         // Act
-        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 4, drawn: null);
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 4, drawn: null, standing: SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Equal(2, response.Position);
@@ -433,7 +436,7 @@ public sealed class ClientMailThreadEndpointTests
             Enrichment: null);
 
         // Act
-        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: null);
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: null, standing: SenderContactStanding.Unanswered);
 
         // Assert
         Assert.Null(response.AnsweredId);
@@ -563,6 +566,7 @@ public sealed class ClientMailThreadEndpointTests
             content,
             this.Browser(),
             ReadingNothing(),
+            NoStandings(),
             TestContext.Current.CancellationToken);
 
     /// <summary>Reads the conversation with its messages drawn, over a content read that answers for the summaries given.</summary>
@@ -576,7 +580,20 @@ public sealed class ClientMailThreadEndpointTests
             content: true,
             this.Browser(participation),
             this.ReadingDrawnMessages(summaries, participation),
+            NoStandings(),
             TestContext.Current.CancellationToken);
+
+    /// <summary>A standings read for a caller holding no contact grant, which asks the books nothing about a message no personal contact recognized.</summary>
+    private static SenderContactStandingReader NoStandings()
+    {
+        var authorization = AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead);
+
+        return new SenderContactStandingReader(
+            authorization,
+            new ContactBookOwnership(authorization, new ContactBookScopes(new StubMailAccountAssignments(), new StatedAdministrativeTargets())),
+            Substitute.For<IContactDirectory>(),
+            Substitute.For<ISenderTrustPolicyReader>());
+    }
 
     /// <summary>A content read that answers, so the route's own composition is exercised rather than only its refusals.</summary>
     /// <remarks>

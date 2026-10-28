@@ -115,6 +115,12 @@ internal static class AuthoredSendGovernors
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlySet<EmailAddress>>(new HashSet<EmailAddress>());
 
+        public Task<IReadOnlyList<ContactAddressHolding>> FindAddressHoldingsAsync(
+            IReadOnlyCollection<ContactBookHolder> books,
+            IReadOnlyCollection<EmailAddress> addresses,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ContactAddressHolding>>([]);
+
         public Task<ContactPage> ReadPageAsync(
             ContactBookScope scope,
             ContactQuery query,
