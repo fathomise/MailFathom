@@ -10,10 +10,11 @@ namespace MailFathom.Application.Access;
 /// <remarks>
 /// <para>
 /// This is the whole of what the application layer learns about the outside of a request. It carries the identity the
-/// work was admitted under, the user it is acting for where there is one, and the permissions that identity holds, and
-/// nothing else: no credential, no claim an authorization server issued, no scheme, no transport. Which credential
-/// admitted a caller is a question the transport answered and no use case has any business re-deciding, which is why
-/// nothing here can be asked it.
+/// work was admitted under, the user it is acting for where there is one, the permissions that identity holds, and the
+/// identifier of the credential that admitted a caller — never its material, no claim an authorization server issued,
+/// no scheme, no transport. Which credential admitted a caller is a question the transport answered and no use case
+/// re-decides: the identifier is carried only so an act whose record says who performed it can name the credential,
+/// and nothing decides access from it.
 /// </para>
 /// <para>
 /// The user and the permissions are two axes rather than one, and neither implies the other. A permission says what

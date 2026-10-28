@@ -54,7 +54,7 @@ namespace MailFathom.Host.Configuration.Policies;
 /// A policy is never logged, and a refusal repeats of it only what <see cref="SettingsPolicyCandidate" /> states: a
 /// language, a zone, or a recording level somebody misspelled, the alias a folder was given and the special-use role
 /// it names, and a key shaped like a setting's name. By the rules it is judged under it carries no name, no address, and no credential of anybody it
-/// governs, but a forced list of trusted senders is still a list of somebody's correspondents, so it is handled as
+/// governs, but a forced list of contact-collection exclusions can still name somebody's correspondents, so it is handled as
 /// the records it governs are.
 /// </para>
 /// </remarks>

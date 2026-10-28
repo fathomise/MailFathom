@@ -33,7 +33,7 @@ public sealed class EmailMimeExtractionOptions
     /// <para>
     /// It defaults to on because the deployment it exists for is one whose receiving server writes no
     /// <c>Authentication-Results</c> header at all. There, the sender verdict is not established on every message and
-    /// the trusted-sender list has no identity to match against, so this is not an extra check over a working verdict —
+    /// no contact has an established author to recognize, so this is not an extra check over a working verdict —
     /// it is the only thing between that mailbox and a verdict that says nothing.
     /// </para>
     /// <para>

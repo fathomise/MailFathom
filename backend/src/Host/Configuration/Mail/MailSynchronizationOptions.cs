@@ -502,7 +502,7 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
     /// <para>
     /// It defaults to on because the deployment it was built for is the one whose receiving server writes no
     /// <c>Authentication-Results</c> header. Every message there records that nothing was established, no author ever
-    /// authenticates, and the trusted-sender list has no identity to be held against — so shipping this off would
+    /// authenticates, and no contact has an established author to recognize — so shipping this off would
     /// switch it off for exactly the mailboxes it exists for, while leaving them looking correctly configured.
     /// </para>
     /// <para>

@@ -28,7 +28,7 @@ namespace MailFathom.Host.Configuration.UserSettings;
 /// What belongs in it is whatever is that person's own rather than the deployment's or a mailbox's. Today that is the
 /// language this deployment writes for them in, the zone their own days are read in, the level their own client is
 /// asked to record at, the stored file they are drawn by, and which of the two mail-serving endpoints they are served
-/// on; the mail rules and the trusted senders join them as each moves out of the deployment's
+/// on; the mail rules join them as they move out of the deployment's
 /// section, and each arrives as a property here rather than as a second document. What never belongs in it is a value
 /// the deployment set in its own configuration: nothing here shadows a configuration key, and a property that would
 /// need to is a deployment setting somebody put in the wrong document. What a deployment or an organization states

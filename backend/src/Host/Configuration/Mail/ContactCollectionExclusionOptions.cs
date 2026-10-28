@@ -25,7 +25,7 @@ internal sealed class ContactCollectionExclusionOptions
 
     /// <summary>Gets or sets whether a domain entry also reaches the names beneath that domain.</summary>
     /// <remarks>
-    /// Opt-in per entry rather than a mode the list runs in, for the reason a trusted sender's is: an organization whose
+    /// Opt-in per entry rather than a mode the list runs in: an organization whose
     /// automation lives on names beneath its own domain is excluded in one entry, and one host excluded inside a domain
     /// full of correspondents must not take the rest of the domain with it. It says nothing about a pattern entry, which
     /// can write its own, and startup refuses it there rather than accepting a setting that would do nothing.

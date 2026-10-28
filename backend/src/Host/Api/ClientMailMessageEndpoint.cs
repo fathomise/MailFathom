@@ -274,7 +274,7 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// checked the message, the DKIM and SPF domains that passed, the DMARC result, and what recognized a trusted author.
 /// None of it changes what a reader acts on, which stays the two outcomes, and a verdict MailFathom reached itself names
 /// no SPF domain and reports no DMARC result because its own check reads DKIM alone. Trust is the source in force when
-/// the message was extracted, so a change to the trusted senders since reaches mail extracted after it. The organization
+/// the message was extracted, so a contact written down since reaches mail extracted after it. The organization
 /// a member was recognized by is the one exception to reading everything as stored: the verdict recorded which
 /// organization it was, and its name is read as it is now, so a rename reaches stored mail and a deletion leaves the
 /// source standing without a name.

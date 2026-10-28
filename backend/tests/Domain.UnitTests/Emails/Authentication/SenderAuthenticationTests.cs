@@ -208,7 +208,7 @@ public sealed class SenderAuthenticationTests
     /// <remarks>
     /// Both directions are the same fact about the naming tree: a zone was delegated, downwards, by whoever holds the
     /// name above it. What is established stays the displayed domain rather than the signing one, because the
-    /// trusted-sender list is held against what the reader is shown.
+    /// contact book is held against what the reader is shown.
     /// </remarks>
     [Theory]
     [InlineData("mail.partner.test", "partner.test")]

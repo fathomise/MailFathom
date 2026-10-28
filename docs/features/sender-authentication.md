@@ -622,5 +622,4 @@ what re-reads that mail, writing the whole group of columns back through the ext
 Every domain either verdict names is personal data, and so is the address a verdict is stored beside and the contact it
 names, which say who somebody corresponds with. No log line, metric, or exception message carries one. What those may report is the
 occurrence identity and the outcome. The startup refusal for an unusable configured identifier names the account and
-not the value, and the refusal for an unusable trusted-sender entry names the account and the entry's position, for the
-same reason the failure rules refuse a host name in any message a boundary publishes.
+not the value, for the same reason the failure rules refuse a host name in any message a boundary publishes.

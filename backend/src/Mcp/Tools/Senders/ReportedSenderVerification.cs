@@ -40,7 +40,7 @@ internal sealed record ReportedSenderVerification
     public required AuthorAuthenticationState AuthorAuthentication { get; init; }
 
     /// <summary>Gets whether this deployment recognizes the author it authenticated.</summary>
-    [Description("Whether this deployment's own trusted-sender configuration recognizes the authenticated author: 'trusted' when it names them, 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.")]
+    [Description("Whether this deployment recognizes the authenticated author: 'trusted' when they are one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves, 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.")]
     public required DeploymentTrustState DeploymentTrust { get; init; }
 
     /// <summary>Gets what verifying the email's own signature found.</summary>
