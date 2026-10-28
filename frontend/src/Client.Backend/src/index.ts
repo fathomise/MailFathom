@@ -537,7 +537,7 @@ export {
     type OwnTimeZone,
     type OwnTimeZoneChange,
 } from './ownTimeZone';
-export { mostReconnectionAttempts, reconnectionDelay } from './reconnection';
+export { livenessBound, mostReconnectionAttempts, reconnectionDelay } from './reconnection';
 export { mostRetries, retryDelay } from './transientFailures';
 export {
     followRun,

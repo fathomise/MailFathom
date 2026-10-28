@@ -5,7 +5,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClientResponse } from '@mailfathom/client-backend';
+import { requestsInFlightOver } from '../deployment/requestsInFlight';
 import type { DeploymentTransport } from '../deployment/sendToDeployment';
+import { probeAfter } from './livenessProbe';
 import { mostReconnectionAttempts, reconnectionDelay, useConnection, type SignedInCaller } from './useConnection';
 
 // The waiting the hook does between attempts, as a function of its arguments rather than of a clock or of a draw it
@@ -518,5 +520,134 @@ describe('useConnection', () => {
         // The new credential's first read has failed once, which is one failure rather than a spent budget: the client
         // still owes them every automatic attempt instead of telling them the deployment has stopped answering.
         expect(result.current.attempts).toBe(0);
+    });
+
+    it('makes each automatic attempt a liveness probe, bounded and ahead of any queue', async () => {
+        vi.useFakeTimers();
+
+        const probes: (true | undefined)[] = [];
+        const recordingFailures: DeploymentTransport = () => (request) => {
+            probes.push(request.probes);
+
+            return Promise.resolve({ status: 503, body: '', headers: {} });
+        };
+
+        renderHook(() => useConnection(baseAddress, firstPerson, recordingFailures, nothingToDo));
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(60_000);
+        });
+
+        expect(probes.slice(0, 2)).toEqual([undefined, true]);
+    });
+});
+
+// The liveness probe as the frame holds it: the session read, asked quietly and as a probe, while a request waits or
+// once the signal channel drops. Its schedule is `livenessProbe.test.ts`'s; what is proven here is what an answer and a
+// silence do to the status, and to the requests still waiting.
+
+describe('useConnection liveness probe', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    /** A deployment that answers the frame's own reads and answers each probe as told. */
+    function probedWith(probe: () => Promise<ClientResponse>): { send: DeploymentTransport; probed: string[] } {
+        const probed: string[] = [];
+
+        return {
+            probed,
+            send: () => (request) => {
+                if (request.probes === true) {
+                    probed.push(request.path);
+
+                    return probe();
+                }
+
+                return Promise.resolve(request.path.endsWith('/session') ? readsMail : oneAccount);
+            },
+        };
+    }
+
+    it('calls the server lost after two probes nobody answered, and abandons what was still waiting on it', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(0);
+
+        const inFlight = requestsInFlightOver(() => Date.now());
+        const deployment = probedWith(() => Promise.reject(new TypeError('Failed to fetch')));
+        const { result } = renderHook(() =>
+            useConnection(baseAddress, firstPerson, deployment.send, nothingToDo, inFlight),
+        );
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        const waiting = inFlight.enter(true, false);
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(probeAfter);
+        });
+
+        expect(deployment.probed).toHaveLength(1);
+        expect(result.current.unansweredSince).toBeNull();
+        expect(waiting.signal.aborted).toBe(false);
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(probeAfter);
+        });
+
+        expect(result.current.unansweredSince).toBe(probeAfter);
+        expect(waiting.signal.aborted).toBe(true);
+    });
+
+    it('leaves a slow request running and the status as it was when the probe is answered, even by the limiter', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(0);
+
+        const inFlight = requestsInFlightOver(() => Date.now());
+        const deployment = probedWith(() => Promise.resolve({ status: 429, body: '', headers: {} }));
+        const { result } = renderHook(() =>
+            useConnection(baseAddress, firstPerson, deployment.send, nothingToDo, inFlight),
+        );
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        const slow = inFlight.enter(false, false);
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(3 * probeAfter);
+        });
+
+        expect(deployment.probed).toHaveLength(3);
+        expect(result.current.unansweredSince).toBeNull();
+        expect(slow.signal.aborted).toBe(false);
+    });
+
+    it('asks the server at once when the signal channel drops', async () => {
+        vi.useFakeTimers();
+
+        const deployment = probedWith(() => Promise.resolve(readsMail));
+        const { result } = renderHook(() =>
+            useConnection(baseAddress, firstPerson, deployment.send, nothingToDo, requestsInFlightOver(Date.now)),
+        );
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        act(() => {
+            result.current.channelDropped();
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(deployment.probed).toEqual([`${baseAddress}/api/client/session`]);
     });
 });

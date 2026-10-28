@@ -5,7 +5,8 @@
 import { waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { mostRetries } from '@mailfathom/client-backend';
-import { deploymentFetchOver, type Fetching, type Pausing, type RequestWatcher } from './deploymentFetch';
+import { deploymentFetchOver, unwatched, type Bounding, type Fetching, type Pausing, type RequestWatcher } from './deploymentFetch';
+import { requestsInFlightOver } from './requestsInFlight';
 
 // Everything this module cannot decide arrives as a function, so a test hands over the wire, the wait, and the spread
 // rather than patching `fetch` or installing a clock: what is proven is the order of attempts and the waits between
@@ -155,7 +156,7 @@ describe('deploymentFetchOver', () => {
         const wait = waitsRecorded();
         const fetchFromDeployment = deploymentFetchOver(wire.fetching, wait.pausing, () => 0.5);
 
-        const status = await fetchFromDeployment('/api/client/session', {}, statusOf, true);
+        const status = await fetchFromDeployment('/api/client/session', {}, statusOf, { retriedByCaller: true });
 
         expect(status).toBe(429);
         expect(wire.attempts).toHaveLength(1);
@@ -336,5 +337,119 @@ describe('deploymentFetchOver', () => {
         ).rejects.toThrow();
 
         expect(ended).toEqual(['failed']);
+    });
+
+    it('puts a probe on the wire though every place is taken by a request that hangs', async () => {
+        const opened: string[] = [];
+        const fetching: Fetching = (path) => {
+            opened.push(path);
+
+            return path === '/hung' ? new Promise<Response>(() => undefined) : Promise.resolve(answered());
+        };
+        const fetchFromDeployment = deploymentFetchOver(fetching, waitsRecorded().pausing, () => 0.5, 1);
+
+        void fetchFromDeployment('/hung', {}, statusOf).catch(() => undefined);
+        await waitFor(() => {
+            expect(opened).toEqual(['/hung']);
+        });
+        const probed = await fetchFromDeployment('/session', {}, statusOf, { probes: true });
+
+        expect(probed).toBe(200);
+        expect(opened).toEqual(['/hung', '/session']);
+    });
+
+    it('puts a probe on the wire once, whatever the limiter asked of it', async () => {
+        const wire = wireAnswering(() => throttled({ 'Retry-After': '3' }), answered);
+        const wait = waitsRecorded();
+        const fetchFromDeployment = deploymentFetchOver(wire.fetching, wait.pausing, () => 0.5);
+
+        const status = await fetchFromDeployment('/session', {}, statusOf, { probes: true });
+
+        expect(status).toBe(429);
+        expect(wire.attempts).toHaveLength(1);
+        expect(wait.waits).toEqual([]);
+    });
+
+    it('gives a probe up once its bound has passed with nothing answered', async () => {
+        const bounds: number[] = [];
+        let overstay = (): void => undefined;
+        const bounding: Bounding = (milliseconds) => {
+            const bound = new AbortController();
+
+            bounds.push(milliseconds);
+            overstay = () => {
+                bound.abort();
+            };
+
+            return { signal: bound.signal, release: () => undefined };
+        };
+        const fetching: Fetching = (_path, init) =>
+            new Promise((_resolve, reject) => {
+                init.signal?.addEventListener('abort', () => {
+                    reject(new DOMException('bounded', 'AbortError'));
+                });
+            });
+        const fetchFromDeployment = deploymentFetchOver(
+            fetching,
+            waitsRecorded().pausing,
+            () => 0.5,
+            6,
+            () => unwatched,
+            requestsInFlightOver(() => 0),
+            bounding,
+        );
+
+        const probing = fetchFromDeployment('/session', {}, statusOf, { probes: true });
+        overstay();
+
+        await expect(probing).rejects.toMatchObject({ name: 'AbortError' });
+        expect(bounds).toEqual([15_000]);
+    });
+
+    it('enters every request but a probe where a probe can ask about it, and lets it go once it is over', async () => {
+        const inFlight = requestsInFlightOver(() => 7);
+        const seen: (number | null)[] = [];
+        const fetchFromDeployment = deploymentFetchOver(
+            wireAnswering(answered).fetching,
+            waitsRecorded().pausing,
+            () => 0.5,
+            6,
+            () => unwatched,
+            inFlight,
+        );
+        const noting = (): Promise<number> => {
+            seen.push(inFlight.oldestWrite());
+
+            return Promise.resolve(200);
+        };
+
+        await fetchFromDeployment('/mutations/flags', { method: 'POST' }, noting);
+        await fetchFromDeployment('/session', {}, noting, { probes: true });
+
+        expect(seen).toEqual([7, null]);
+        expect(inFlight.oldest()).toBeNull();
+    });
+
+    it('ends a request a probe abandoned while it waited out a retry, with no attempt after it', async () => {
+        const inFlight = requestsInFlightOver(() => 0);
+        const wire = wireAnswering(unavailable, answered);
+        const pausing: Pausing = (_milliseconds, abandoned) =>
+            new Promise((_resolve, reject) => {
+                abandoned?.addEventListener('abort', () => {
+                    reject(new DOMException('abandoned', 'AbortError'));
+                });
+                inFlight.abandonStill();
+            });
+        const fetchFromDeployment = deploymentFetchOver(
+            wire.fetching,
+            pausing,
+            () => 0.5,
+            6,
+            () => unwatched,
+            inFlight,
+        );
+
+        await expect(fetchFromDeployment('/contacts', {}, statusOf)).rejects.toMatchObject({ name: 'AbortError' });
+        expect(wire.attempts).toHaveLength(1);
     });
 });

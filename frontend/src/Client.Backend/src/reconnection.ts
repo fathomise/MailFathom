@@ -32,3 +32,13 @@ export function reconnectionDelay(made: number, drawn: number): number {
 
     return Math.round(nominal * (0.75 + drawn / 2));
 }
+
+/**
+ * The longest one question whether the server is still there may take, in milliseconds.
+ *
+ * It bounds three things that each do nothing long: the liveness probe the shell sends when the channel drops or a
+ * request has waited a while, the ticket the signal stream mints before it opens a connection, and the opening of that
+ * connection. Any of them still unanswered past it is a link that is not carrying anything, which is the case a
+ * request's own lack of a bound could otherwise leave waiting for as long as the browser does.
+ */
+export const livenessBound = 15_000;

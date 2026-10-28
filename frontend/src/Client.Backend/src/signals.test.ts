@@ -125,13 +125,14 @@ describe('readSignalTicket', () => {
     });
 
     // The stream mints another ticket on its own schedule whenever one is refused, so a transport that retried the mint
-    // as well would put every refused attempt on the wire several times over.
-    it('leaves retrying a refused mint to the stream rather than to the transport', async () => {
+    // as well would put every refused attempt on the wire several times over — and a mint with no bound would wait on a
+    // dead link for as long as the browser does. A probe is put on the wire once and given up after its bound.
+    it('mints as a probe: once, ahead of any queue, and bounded', async () => {
         const { transport, requests } = recording({ status: 200, body: minted });
 
         await readSignalTicket(session, transport);
 
-        expect(requests[0]?.retriedByCaller).toBe(true);
+        expect(requests[0]?.probes).toBe(true);
     });
 
     it('reads the ticket and when presenting it stops working', async () => {

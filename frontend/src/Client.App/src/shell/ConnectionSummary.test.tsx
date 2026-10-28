@@ -84,6 +84,7 @@ function renderSummary(
                 unansweredSince: null,
                 accountsReadAt: null,
                 reread: () => undefined,
+                channelDropped: () => undefined,
                 refresh: () => undefined,
                 ...connection,
             }}

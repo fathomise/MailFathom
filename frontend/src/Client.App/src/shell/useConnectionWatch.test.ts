@@ -44,6 +44,7 @@ function connected(change: Partial<Connection> = {}, accounts: readonly MailAcco
         unansweredSince: null,
         accountsReadAt: Date.now(),
         reread: () => undefined,
+        channelDropped: () => undefined,
         refresh: () => undefined,
         ...change,
     };
@@ -93,6 +94,21 @@ describe('useConnectionWatch', () => {
         pass(10_000);
 
         expect(view.result.current.status.level).toBe('delayed');
+    });
+
+    it('asks the server whether it is still there the moment the channel drops', () => {
+        const channelDropped = vi.fn();
+        const view = renderHook(() => useConnectionWatch(signedIn, connected({ channelDropped }), true, changes()));
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+        expect(channelDropped).not.toHaveBeenCalled();
+
+        act(() => {
+            view.result.current.channelStood('dropped');
+        });
+        expect(channelDropped).toHaveBeenCalledTimes(1);
     });
 
     it('is online as soon as the first channel opening stands', () => {

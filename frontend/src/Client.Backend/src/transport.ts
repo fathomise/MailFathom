@@ -36,6 +36,16 @@ export interface ClientRequest {
      * `transientFailures.ts` exists to rule out.
      */
     readonly retriedByCaller?: true;
+
+    /**
+     * The request asks whether the server is still there, so the transport puts it on the wire at once, once, and gives
+     * up on it after `livenessBound`.
+     *
+     * At once, because a probe that queued behind the requests it is checking on could be held back by exactly the
+     * requests a dead link left hanging. Once, because a retry underneath it, or a `Retry-After` it honoured, would
+     * stretch it past the bound that makes it a question rather than a wait. It implies `retriedByCaller`.
+     */
+    readonly probes?: true;
 }
 
 /** What came back, reduced to the three things this package reads. */

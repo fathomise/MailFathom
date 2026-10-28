@@ -2,7 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { retryDelay } from '@mailfathom/client-backend';
+import { livenessBound, retryDelay } from '@mailfathom/client-backend';
+import { requestsInFlight, requestsInFlightOver, type RequestsInFlight } from './requestsInFlight';
 
 // The one place in this client a request to the deployment is put on the wire. The four modules in this directory that
 // call `fetch` each read a different kind of answer, and they share what happens before any answer is read: how many
@@ -30,25 +31,45 @@ export type Fetching = (path: string, init: RequestInit) => Promise<Response>;
 /** Waits the given number of milliseconds, and rejects as soon as the signal abandons the wait. */
 export type Pausing = (milliseconds: number, abandoned: AbortSignal | null | undefined) => Promise<void>;
 
+/** A signal abandoned once that many milliseconds have passed, and the way to let the timer go sooner. */
+export type Bounding = (milliseconds: number) => { readonly signal: AbortSignal; readonly release: () => void };
+
+/** How one request is put on the wire, beyond what the request itself says. */
+export interface RequestHandling {
+    /**
+     * Whether the caller sends this request again on a schedule of its own, in which case it is put on the wire once —
+     * see `ClientRequest.retriedByCaller`.
+     */
+    readonly retriedByCaller?: boolean;
+
+    /**
+     * Whether it asks if the server is still there — see `ClientRequest.probes`. It takes no place among
+     * {@link mostRequestsInFlight}, is put on the wire once, is given up after `livenessBound`, and is not one of the
+     * requests a probe asks about.
+     */
+    readonly probes?: boolean;
+}
+
 /**
  * Puts a request on the wire within the client's share of the deployment, and hands the answer to whoever reads it.
  *
  * @param path Where the request goes.
  * @param init The request itself; its body is sent again unchanged when the request is retried, which is what every
  * body this client sends — a string, a `Blob`, or nothing — allows.
- * @param answered Reads the answer that is final. The request keeps its place among those in flight until this
- * settles, because the deployment counts a request until its answer has been sent in full.
- * @param retriedByCaller Whether the caller sends this request again on a schedule of its own, in which case it is put
- * on the wire once — see `ClientRequest.retriedByCaller`.
+ * @param answered Reads the answer that is final, and calls `moved` as its body arrives, which is what keeps a long
+ * download alive however the probe concludes. The request keeps its place among those in flight until this settles,
+ * because the deployment counts a request until its answer has been sent in full.
+ * @param handling How it is put on the wire beyond what it says itself.
  * @returns What `answered` returned.
  * @throws What `fetch` throws — a network failure that outlasted the retries, or an abandoned request — which every
- * caller already reads as nothing having answered.
+ * caller already reads as nothing having answered. A request a probe gave up on is one of those: whoever made it reads
+ * it exactly as a link that failed under it, which is what it was.
  */
 export type DeploymentFetch = <TAnswer>(
     path: string,
     init: RequestInit,
-    answered: (response: Response) => Promise<TAnswer>,
-    retriedByCaller?: boolean,
+    answered: (response: Response, moved: () => void) => Promise<TAnswer>,
+    handling?: RequestHandling,
 ) => Promise<TAnswer>;
 
 /**
@@ -95,6 +116,8 @@ export function watchRequestsWith(watcher: RequestWatcher): void {
  * @param drawing Where the spread between retries comes from, a value in `[0, 1)`.
  * @param most How many requests may be in flight at once.
  * @param watching What is told where each request has got to.
+ * @param entering Where every request but a probe is entered, which is what a probe that went unanswered abandons.
+ * @param bounding How a probe's bound is kept.
  */
 export function deploymentFetchOver(
     fetching: Fetching,
@@ -102,6 +125,8 @@ export function deploymentFetchOver(
     drawing: () => number,
     most: number = mostRequestsInFlight,
     watching: RequestWatcher = () => unwatched,
+    entering: RequestsInFlight = requestsInFlightOver(() => Date.now()),
+    bounding: Bounding = boundBy,
 ): DeploymentFetch {
     let inFlight = 0;
     const waiting: (() => void)[] = [];
@@ -149,9 +174,23 @@ export function deploymentFetchOver(
         });
     };
 
-    return async (path, init, answered, retriedByCaller = false) => {
+    return async (path, init, answered, handling = {}) => {
         const method = init.method ?? 'GET';
         const watch = watching(path, init);
+        const probes = handling.probes === true;
+        const retriedByCaller = probes || handling.retriedByCaller === true;
+
+        // A probe is bounded and takes no place, so six requests a dead link left hanging cannot hold back the question
+        // whether the link is dead. Every other request is entered where that question can be asked about it, and is
+        // abandoned through the same signal its caller holds — a wait before a retry included, so no retry is put on a
+        // dead link a second after the probe gave up on it.
+        const bound = probes ? bounding(livenessBound) : null;
+        const entered = probes ? null : entering.enter(method.toUpperCase() !== 'GET', init.body instanceof Blob);
+        const signal = eitherOf(init.signal, bound?.signal ?? entered?.signal);
+        const sending: RequestInit = { ...init, signal };
+        const moved = (): void => {
+            entered?.moved();
+        };
 
         try {
             for (let made = 0; ; made += 1) {
@@ -167,25 +206,34 @@ export function deploymentFetchOver(
                               drawing(),
                           );
 
-                await acquire(init.signal);
+                if (!probes) {
+                    await acquire(signal);
+                }
+
+                const releasing = (): void => {
+                    if (!probes) {
+                        release();
+                    }
+                };
+
                 watch.sent(made);
 
                 let response: Response;
 
                 try {
-                    response = await fetching(path, init);
+                    response = await fetching(path, sending);
                 } catch (failure) {
-                    release();
+                    releasing();
 
                     // An abandoned request is the caller's act rather than a failure, so it ends the attempts at once.
-                    const delay = init.signal?.aborted === true ? null : delayAfter(null);
+                    const delay = signal?.aborted === true ? null : delayAfter(null);
 
                     if (delay === null) {
                         throw failure;
                     }
 
                     watch.retrying(delay);
-                    await pausing(delay, init.signal);
+                    await pausing(delay, signal);
 
                     continue;
                 }
@@ -195,31 +243,64 @@ export function deploymentFetchOver(
                 const delay = delayAfter(response);
 
                 if (delay === null) {
+                    // The answer that will be read has begun, so from here its bytes are what say it is alive. One
+                    // the transport is about to wait out says nothing of the kind.
+                    entered?.answered();
+
                     try {
-                        const answer = await answered(response);
+                        const answer = await answered(response, moved);
 
                         watch.ended('read');
 
                         return answer;
                     } finally {
-                        release();
+                        releasing();
                     }
                 }
 
                 // The place is given up for the wait, so what the deployment is refusing this request for is not also
                 // what holds back every other request this client has to make.
-                release();
+                releasing();
                 void response.body?.cancel();
                 watch.retrying(delay);
-                await pausing(delay, init.signal);
+                await pausing(delay, signal);
             }
         } catch (failure) {
-            watch.ended(init.signal?.aborted === true ? 'abandoned' : 'failed');
+            watch.ended(signal?.aborted === true ? 'abandoned' : 'failed');
 
             throw failure;
+        } finally {
+            entered?.left();
+            bound?.release();
         }
     };
 }
+
+/** The signal that is abandoned when either of the two is, or the one there is. */
+function eitherOf(first: AbortSignal | null | undefined, second: AbortSignal | null | undefined): AbortSignal | null {
+    const signals = [first, second].filter((signal): signal is AbortSignal => signal !== null && signal !== undefined);
+
+    if (signals.length < 2) {
+        return signals[0] ?? null;
+    }
+
+    return AbortSignal.any(signals);
+}
+
+/** A bound kept by the browser's own timer. */
+const boundBy: Bounding = (milliseconds) => {
+    const bounding = new AbortController();
+    const timer = setTimeout(() => {
+        bounding.abort(new DOMException('The probe was not answered within its bound.', 'TimeoutError'));
+    }, milliseconds);
+
+    return {
+        signal: bounding.signal,
+        release: () => {
+            clearTimeout(timer);
+        },
+    };
+};
 
 /** What a request abandoned before it reached the wire rejects with, which is what an abandoned `fetch` rejects with. */
 function abandonment(): DOMException {
@@ -255,4 +336,5 @@ export const fetchFromDeployment: DeploymentFetch = deploymentFetchOver(
     Math.random,
     mostRequestsInFlight,
     (path, init) => watchingTheWire(path, init),
+    requestsInFlight,
 );

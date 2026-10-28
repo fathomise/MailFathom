@@ -238,11 +238,14 @@ async function fetchedOctets(
                 credentials: deploymentCredentials,
                 signal: abandoned,
             },
-            async (response) => {
+            async (response, moved) => {
                 const answer = await attachmentOctetsOf(
                     response,
                     request.longestAnswer ?? longestResponseBody,
-                    arrived,
+                    (octets) => {
+                        moved();
+                        arrived(octets);
+                    },
                 );
 
                 // A read that stopped partway is reported as the person's act where it was one: the answer had begun,

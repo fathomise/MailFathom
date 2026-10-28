@@ -181,8 +181,11 @@ export function readSignalTicket(
             headers: headersFor(session),
             longestAnswer: longestTicketAnswer,
 
-            // The stream this ticket opens mints another on its own schedule whenever one is refused, and never stops.
-            retriedByCaller: true,
+            // The stream this ticket opens mints another on its own schedule whenever one is refused, and never stops —
+            // so the mint is put on the wire once, ahead of any queue, and given up after `livenessBound`. A mint is a
+            // question whether the server is there at all, and unbounded it would wait on a dead link for as long as the
+            // browser does, holding the stream's reconnection behind it.
+            probes: true,
         });
 
         if (response === null) {

@@ -46,15 +46,15 @@ export const sendToDeployment: DeploymentTransport = (abandoned) => (request) =>
             body: request.body ?? null,
             signal: abandoned,
         },
-        async (response) => ({
+        async (response, moved) => ({
             status: response.status,
-            body: await readBoundedBody(response, request.longestAnswer ?? longestResponseBody),
+            body: await readBoundedBody(response, request.longestAnswer ?? longestResponseBody, moved),
 
             // Lower-cased already, which is what `ClientResponse` states its names are: the platform's own header
             // collection normalizes them, so a lookup there needs no second spelling to try.
             headers: Object.fromEntries(response.headers),
         }),
-        request.retriedByCaller === true,
+        { retriedByCaller: request.retriedByCaller === true, probes: request.probes === true },
     );
 
 /**
@@ -70,8 +70,10 @@ export const sendToDeployment: DeploymentTransport = (abandoned) => (request) =>
  *
  * An answer that goes over comes back empty, which every operation already refuses as unreadable — see
  * `longestResponseBody` for why that is the accurate outcome rather than a lost distinction.
+ *
+ * Each chunk is reported as it arrives, so a long answer whose bytes keep coming is never taken for a dead link.
  */
-async function readBoundedBody(response: Response, longest: number): Promise<string> {
+async function readBoundedBody(response: Response, longest: number, moved: () => void): Promise<string> {
     const reading = response.body?.getReader();
 
     if (reading === undefined) {
@@ -92,6 +94,7 @@ async function readBoundedBody(response: Response, longest: number): Promise<str
         }
 
         read += value.byteLength;
+        moved();
 
         if (read > longest) {
             await reading.cancel();

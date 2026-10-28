@@ -183,11 +183,11 @@ export function useConnectionWatch(
     }, [quiet, changes]);
 
     // Read when the stream reports rather than captured, so the callback stays one function for the stream's life.
-    const { refresh: refreshFrame } = connection;
-    const frameUnanswered = useRef({ unanswered: connection.unansweredSince !== null, refreshFrame });
+    const { refresh: refreshFrame, channelDropped } = connection;
+    const frameUnanswered = useRef({ unanswered: connection.unansweredSince !== null, refreshFrame, channelDropped });
 
     useEffect(() => {
-        frameUnanswered.current = { unanswered: connection.unansweredSince !== null, refreshFrame };
+        frameUnanswered.current = { unanswered: connection.unansweredSince !== null, refreshFrame, channelDropped };
     });
 
     const channelStood = useCallback((step: ChannelStep) => {
@@ -218,6 +218,12 @@ export function useConnectionWatch(
 
         if (frame.unanswered && (step === 'opened' || step === 'refused')) {
             frame.refreshFrame();
+        }
+
+        // SignalR's keep-alive dropped a connection that heard nothing for thirty seconds, which is the first sign of a
+        // link that died without the browser noticing: the server is asked at once whether it is still there.
+        if (step === 'dropped') {
+            frame.channelDropped();
         }
     }, []);
 
