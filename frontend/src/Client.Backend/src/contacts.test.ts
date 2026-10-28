@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+    addAuthorToContacts,
     amendContact,
     eraseContact,
     promoteContact,
@@ -234,6 +235,81 @@ describe('amendContact', () => {
         const result = await amendContact(session, answering({ status: 200, body }), 'a', record);
 
         expect(result.outcome === 'read' && result.value.outcome).toBe('AddressHeldByAnotherContact');
+    });
+
+    it('names the addresses the user vouches for beside the record that keeps them', async () => {
+        const { transport, requests } = recording({
+            status: 200,
+            body: JSON.stringify({ outcome: 'Written', contact: asserted, addressHolder: null }),
+        });
+
+        await amendContact(session, transport, 'a', record, ['anna@example.invalid']);
+
+        expect(requests[0]?.body).toBe(JSON.stringify({ ...record, restatedAddresses: ['anna@example.invalid'] }));
+    });
+});
+
+describe('addAuthorToContacts', () => {
+    const written = JSON.stringify({ outcome: 'Written', contact: asserted, addressHolder: null });
+
+    it('records an author nobody holds as a new contact named by the name the message displays', async () => {
+        const { transport, requests } = recording({ status: 200, body: written });
+
+        await addAuthorToContacts(session, transport, {
+            displayName: 'Anna Kowalska',
+            address: 'anna@example.invalid',
+            restatedContactId: null,
+        });
+
+        expect(requests.map((request) => [request.method, request.path, request.body])).toEqual([
+            ['POST', 'https://mail.example.invalid/api/client/contacts', JSON.stringify(record)],
+        ]);
+    });
+
+    it('states the contact already holding the address again, unchanged, with that address restated', async () => {
+        const requests: ClientRequest[] = [];
+        const transport: MailFathomTransport = (request) => {
+            requests.push(request);
+
+            return Promise.resolve({
+                status: 200,
+                body: request.method === 'GET' ? JSON.stringify(asserted) : written,
+                headers: {},
+            });
+        };
+
+        await addAuthorToContacts(session, transport, {
+            displayName: 'Anna',
+            address: 'a.kowalska@example.invalid',
+            restatedContactId: asserted.id,
+        });
+
+        expect(requests.map((request) => [request.method, request.body ?? null])).toEqual([
+            ['GET', null],
+            [
+                'PUT',
+                JSON.stringify({
+                    displayName: asserted.displayName,
+                    addresses: asserted.addresses,
+                    preferredAddress: asserted.preferredAddress,
+                    note: asserted.note,
+                    restatedAddresses: ['a.kowalska@example.invalid'],
+                }),
+            ],
+        ]);
+    });
+
+    it('writes nothing where the contact to state again could not be read', async () => {
+        const { transport, requests } = recording({ status: 404, body: '' });
+
+        const result = await addAuthorToContacts(session, transport, {
+            displayName: 'Anna',
+            address: 'anna@example.invalid',
+            restatedContactId: asserted.id,
+        });
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
+        expect(requests.map((request) => request.method)).toEqual(['GET']);
     });
 });
 

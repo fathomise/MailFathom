@@ -124,6 +124,7 @@ public sealed class ContactEndpointsTests
             Arg.Any<ContactBookHolder>(),
             Arg.Any<Contact>(),
             Arg.Any<ContactAddressWriter>(),
+            Arg.Any<IReadOnlyCollection<EmailAddress>>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -182,6 +183,7 @@ public sealed class ContactEndpointsTests
             Arg.Any<ContactBookHolder>(),
             Arg.Any<Contact>(),
             Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Administrator),
+            Arg.Any<IReadOnlyCollection<EmailAddress>>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -717,6 +719,7 @@ public sealed class ContactEndpointsTests
             Arg.Any<ContactBookHolder>(),
             Arg.Any<Contact>(),
             Arg.Any<ContactAddressWriter>(),
+            Arg.Any<IReadOnlyCollection<EmailAddress>>(),
             Arg.Any<CancellationToken>());
     }
 

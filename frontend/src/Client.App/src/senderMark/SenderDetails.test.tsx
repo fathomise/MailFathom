@@ -47,6 +47,41 @@ async function read(kind: SenderKind): Promise<MailMessage> {
     return result.value;
 }
 
+const answersNothing: MailFathomTransport = () => new Promise<ClientResponse>(() => undefined);
+
+/** The reader's contact holding the author's address, as the book states it. */
+const heldContact = {
+    id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90',
+    displayName: 'Example',
+    addresses: ['news@example.invalid'],
+    preferredAddress: 'news@example.invalid',
+    note: null,
+    origin: 'Asserted',
+    recordedAt: '2026-03-01T08:00:00+00:00',
+    amendedAt: '2026-03-01T08:00:00+00:00',
+};
+
+/** What the book answers to a write it performed, naming the contact it wrote. */
+const contactWritten: ClientResponse = {
+    status: 200,
+    body: JSON.stringify({ outcome: 'Written', contact: heldContact, addressHolder: null }),
+    headers: {},
+};
+
+/** The unrecognized sender, offered as a restatement of the address the reader's own contact holds. */
+const offeredAsRestated: ClientResponse = {
+    status: 200,
+    body: JSON.stringify({
+        ...newsletterMessage,
+        ...messageSenderEvidence('unrecognized'),
+        sender: {
+            ...messageSenderEvidence('unrecognized').sender,
+            addToContacts: { restatedContactId: heldContact.id },
+        },
+    }),
+    headers: {},
+};
+
 const fromRow: AskedSender = { storedEmailId: newsletterId, message: null, anchor: null };
 
 function Explaining({ transport }: { readonly transport: MailFathomTransport }) {
@@ -102,7 +137,13 @@ function ExplainingEachPress({ transport }: { readonly transport: MailFathomTran
     );
 }
 
-function ExplainingInHand({ message }: { readonly message: MailMessage }) {
+function ExplainingInHand({
+    message,
+    transport = answersNothing,
+}: {
+    readonly message: MailMessage;
+    readonly transport?: MailFathomTransport;
+}) {
     const dialog = useRef<HTMLDialogElement>(null);
 
     return (
@@ -116,7 +157,13 @@ function ExplainingInHand({ message }: { readonly message: MailMessage }) {
                 {opening}
             </button>
 
-            <MessageSenderDetails message={message} anchor={null} dialog={dialog} />
+            <MessageSenderDetails
+                session={session}
+                transport={transport}
+                message={message}
+                anchor={null}
+                dialog={dialog}
+            />
         </>
     );
 }
@@ -270,16 +317,251 @@ describe('SenderDetails', () => {
         expect(screen.queryByRole('dialog')).toBeNull();
     });
 
-    it('offers nothing to act on the sender with, trusting one included', async () => {
-        explain(() => Promise.resolve(answering('unrecognized')));
+    it('offers nothing to act on a sender already in the reader’s contacts', async () => {
+        explain(() => Promise.resolve(answering('trusted')));
 
         const details = await screen.findByRole('dialog');
 
-        await within(details).findByRole('heading', { name: 'Sender not recognized' });
+        await within(details).findByRole('heading', { name: 'Trusted sender' });
 
         expect(within(details).getAllByRole('button')).toEqual([
             within(details).getByRole('button', { name: 'Close' }),
         ]);
+    });
+
+    it('says what adding a sender does before it writes anything', async () => {
+        const asked: ClientRequest[] = [];
+
+        explain((request) => {
+            asked.push(request);
+
+            return Promise.resolve(answering('unrecognized'));
+        });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+
+        const asking = screen.getByRole('group', { name: 'Add Example to your contacts?' });
+
+        expect(
+            within(asking).getByText(
+                'Mail from news@example.invalid is then marked trusted whenever its sender is authenticated, and known whenever it shows this address, unless this account is strict.',
+            ),
+        ).toBeDefined();
+        expect(document.activeElement).toBe(within(asking).getByRole('button', { name: 'Add to contacts' }));
+        expect(asked).toHaveLength(1);
+    });
+
+    it('adds a warning’s sender only after saying the warning stays where the domain’s policy says so', async () => {
+        explain(() => Promise.resolve(answering('failedAuthentication')));
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+
+        expect(
+            screen.getByText(/This message stays a warning on a strict account, or where example\.invalid publishes/),
+        ).toBeDefined();
+    });
+
+    it('writes the author down as a new contact and says the mark changes once the mail is checked again', async () => {
+        const asked: ClientRequest[] = [];
+
+        explain((request) => {
+            asked.push(request);
+
+            return Promise.resolve(request.method === 'POST' ? contactWritten : answering('unrecognized'));
+        });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+        fireEvent.click(
+            within(screen.getByRole('group', { name: 'Add Example to your contacts?' })).getByRole('button', {
+                name: 'Add to contacts',
+            }),
+        );
+
+        const done = await screen.findByText(
+            'Example is in your contacts now. The mark changes once your mail is checked again.',
+        );
+
+        expect(asked[1]).toMatchObject({
+            method: 'POST',
+            path: 'https://mail.example.invalid/api/client/contacts',
+            body: JSON.stringify({
+                displayName: 'Example',
+                addresses: ['news@example.invalid'],
+                preferredAddress: 'news@example.invalid',
+                note: null,
+            }),
+        });
+        expect(document.activeElement).toBe(done.closest('[role="status"]'));
+        expect(screen.getByRole('heading', { name: 'Sender not recognized' })).toBeDefined();
+    });
+
+    it('says why an addition failed and offers to try again', async () => {
+        explain((request) =>
+            Promise.resolve(
+                request.method === 'POST' ? { status: 503, body: '', headers: {} } : answering('unrecognized'),
+            ),
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+        fireEvent.click(
+            within(screen.getByRole('group', { name: 'Add Example to your contacts?' })).getByRole('button', {
+                name: 'Add to contacts',
+            }),
+        );
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Example could not be added to your contacts: unavailable',
+        );
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
+    });
+
+    it('says the reader’s contacts changed where the book did not write the author down', async () => {
+        explain((request) =>
+            Promise.resolve(
+                request.method === 'POST'
+                    ? {
+                          status: 200,
+                          body: JSON.stringify({
+                              outcome: 'AddressHeldByAnotherContact',
+                              contact: null,
+                              addressHolder: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91',
+                          }),
+                          headers: {},
+                      }
+                    : answering('unrecognized'),
+            ),
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+        fireEvent.click(
+            within(screen.getByRole('group', { name: 'Add Example to your contacts?' })).getByRole('button', {
+                name: 'Add to contacts',
+            }),
+        );
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Example could not be added to your contacts: your contacts changed since this message was read',
+        );
+    });
+
+    it('holds Cancel while the write is in flight, so the card is not left before the book answers', async () => {
+        explain((request) =>
+            request.method === 'POST'
+                ? new Promise<ClientResponse>(() => undefined)
+                : Promise.resolve(answering('unrecognized')),
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+        fireEvent.click(
+            within(screen.getByRole('group', { name: 'Add Example to your contacts?' })).getByRole('button', {
+                name: 'Add to contacts',
+            }),
+        );
+
+        const cancel = await screen.findByRole('button', { name: 'Cancel' });
+
+        expect(cancel.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(cancel);
+
+        expect(screen.getByRole('group', { name: 'Add Example to your contacts?' })).toBeDefined();
+        expect(screen.getByRole('button', { name: 'Adding…' })).toBeDefined();
+    });
+
+    it('restates the address the reader’s own contact holds, saying so before it writes', async () => {
+        const asked: ClientRequest[] = [];
+
+        explain((request) => {
+            asked.push(request);
+
+            if (request.method === 'PUT') {
+                return Promise.resolve(contactWritten);
+            }
+
+            return Promise.resolve(
+                request.path.includes('/contacts/')
+                    ? { status: 200, body: JSON.stringify(heldContact), headers: {} }
+                    : offeredAsRestated,
+            );
+        });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+
+        const asking = screen.getByRole('group', { name: 'Add Example to your contacts?' });
+
+        expect(
+            within(asking).getByText(
+                /^news@example\.invalid is already in your contacts, but you did not write it down yourself, so it counts only once you add it\. Mail from/,
+            ),
+        ).toBeDefined();
+
+        fireEvent.click(within(asking).getByRole('button', { name: 'Add to contacts' }));
+        await screen.findByText('Example is in your contacts now. The mark changes once your mail is checked again.');
+
+        expect(asked.slice(1).map((request) => [request.method, request.path, request.body ?? null])).toEqual([
+            ['GET', `https://mail.example.invalid/api/client/contacts/${heldContact.id}`, null],
+            [
+                'PUT',
+                `https://mail.example.invalid/api/client/contacts/${heldContact.id}`,
+                JSON.stringify({
+                    displayName: 'Example',
+                    addresses: ['news@example.invalid'],
+                    preferredAddress: 'news@example.invalid',
+                    note: null,
+                    restatedAddresses: ['news@example.invalid'],
+                }),
+            ],
+        ]);
+    });
+
+    it('shows a write still in flight when the details are opened again, rather than offering a second one', async () => {
+        const asked: ClientRequest[] = [];
+        let answer: (response: ClientResponse) => void = () => undefined;
+
+        render(
+            <LocalizationProvider>
+                <ExplainingEachPress
+                    transport={(request) => {
+                        asked.push(request);
+
+                        return request.method === 'POST'
+                            ? new Promise<ClientResponse>((resolve) => {
+                                  answer = resolve;
+                              })
+                            : Promise.resolve(answering('unrecognized'));
+                    }}
+                />
+            </LocalizationProvider>,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: opening }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+        fireEvent.click(
+            within(screen.getByRole('group', { name: 'Add Example to your contacts?' })).getByRole('button', {
+                name: 'Add to contacts',
+            }),
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+        fireEvent.click(screen.getByRole('button', { name: opening }));
+
+        expect(await screen.findByRole('button', { name: 'Adding…' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Add to contacts' })).toBeNull();
+
+        answer(contactWritten);
+
+        await screen.findByText('Example is in your contacts now. The mark changes once your mail is checked again.');
+
+        expect(asked.filter((request) => request.method === 'POST')).toHaveLength(1);
+    });
+
+    it('goes back to the offer when the addition is cancelled', async () => {
+        explain(() => Promise.resolve(answering('unrecognized')));
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+        expect(screen.queryByRole('group', { name: 'Add Example to your contacts?' })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add to contacts' }));
     });
 });
 
@@ -301,5 +583,28 @@ describe('MessageSenderDetails', () => {
                 'example.invalid is not established as the author. lists.example.invalid authenticated the message instead.',
             ),
         ).toBeDefined();
+    });
+
+    it('offers nothing again in a later opening once the author was added', async () => {
+        const message = await read('unrecognized');
+
+        render(
+            <LocalizationProvider>
+                <ExplainingInHand message={message} transport={() => Promise.resolve(contactWritten)} />
+            </LocalizationProvider>,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: opening }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add to contacts' }));
+        fireEvent.click(
+            within(screen.getByRole('group', { name: 'Add Example to your contacts?' })).getByRole('button', {
+                name: 'Add to contacts',
+            }),
+        );
+        await screen.findByText('Example is in your contacts now. The mark changes once your mail is checked again.');
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+        fireEvent.click(screen.getByRole('button', { name: opening }));
+
+        expect(screen.queryByRole('button', { name: 'Add to contacts' })).toBeNull();
     });
 });

@@ -19,6 +19,25 @@ public sealed class SenderTrustPolicyTests
 
     private static readonly ContactId PersonalContact = ContactId.Create(Guid.Parse("0199f000-0000-7000-8000-0000000000c2"));
 
+    /// <summary>An address the owner holds is answered as theirs however its letters were cased, and any other address is not.</summary>
+    /// <param name="written">The address asked about.</param>
+    /// <param name="expected">Whether it is the owner's.</param>
+    [Theory]
+    [InlineData("Me@Shared.example", true)]
+    [InlineData("me@shared.example", true)]
+    [InlineData("someone@shared.example", false)]
+    public void IsOwnAccountAddress_AnAddress_AnswersWhetherTheOwnerHoldsIt(string written, bool expected)
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([AddressOf("me@shared.example")], [DomainOf("shared.example")]);
+
+        // Act
+        var isOwn = policy.IsOwnAccountAddress(AddressOf(written));
+
+        // Assert
+        Assert.Equal(expected, isOwn);
+    }
+
     /// <summary>Mail one of this deployment's own accounts wrote is recognized wherever it was delivered.</summary>
     [Fact]
     public void Evaluate_AuthorAtAnotherConfiguredAccountsDomain_IsRecognizedAsOwn()

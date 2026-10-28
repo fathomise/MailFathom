@@ -67,6 +67,7 @@ internal sealed class StubContactBook
                 Arg.Any<ContactBookHolder>(),
                 Arg.Any<Contact>(),
                 Arg.Any<ContactAddressWriter>(),
+                Arg.Any<IReadOnlyCollection<EmailAddress>>(),
                 Arg.Any<CancellationToken>())
             .Returns(true);
     }

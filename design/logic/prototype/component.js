@@ -302,7 +302,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     return s === "orgContact" ? r.from + " is in your organization's contacts"
       : s === "ownAddress" ? r.from + " is one of your own addresses"
       : s === "own" ? r.from + " is at " + domainOf(r.from) + ", a domain of your own accounts"
-      : r.from + " is in your contacts";
+      : r.from + " " + trustedAs(r.known);
   };
   /* A message from somebody other than the thread's newest sender reads that person's own record where one exists. */
   const senderRecord = (threadId, from) => {
@@ -314,17 +314,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     const addr = c ? c.mail : "";
     return { from: addr, checker: "server", dkim: domainOf(addr), spf: domainOf(addr), dmarc: "pass", author: "authenticated", authDomain: domainOf(addr), trust: null, sig: null };
   };
+  /* What a written-down source says about the address it holds. A contact names whose book it is in only as far as
+     ADR 0043 lets it: the reader's own, or another user of this mailbox's, and nothing from that record. */
+  const trustedAs = (t) => t.source === "contact" ? (t.mine ? "is your contact" : "is a contact of another user of this mailbox")
+    : t.source === "orgContact" ? "is a contact of your organization"
+    : "is one of your own addresses";
+  /* SPF alone says which server handed a message over, so it establishes the author for the steps and makes nobody
+     trusted; a domain's DMARC pass or an aligned DKIM signature does both. */
+  const spfAlone = (r) => r.author === "authenticated" && r.route === "spf";
   const senderWhy = (k, r) => {
     const fromDom = domainOf(r.from);
     if (k === "warnSig") return "Its signature does not match its content: it was changed after it was signed, or the signature is forged.";
     if (k === "warnAuth") return fromDom + " did not authenticate this message, so it may not come from who it names.";
     if (k === "trusted" && r.trust.source === "org") return "The sender is a member of your organization" +
       (r.trust.org ? ", " + r.trust.org : "") + ", and the organization's signature proves this message comes from this address.";
-    if (k === "trusted") return r.authDomain + " authenticated this message, and " + (r.trust.source === "ownAddress"
-      ? r.from + " is one of your own addresses."
-      : r.trust.source === "own"
-      ? r.trust.match + " is a domain of your own accounts."
-      : "the sender is on this account's trusted senders.");
+    if (k === "trusted") {
+      const bySignature = r.trust.via === "signature";
+      const lead = bySignature ? "Its signature verified, made by " + r.from + ", the address it is from, and "
+        : r.authDomain + " authenticated this message, and ";
+      return lead + (r.trust.source === "own" ? r.trust.match + " is a domain of your own accounts."
+        : (bySignature ? "that address " : r.from + " ") + trustedAs(r.trust) + ".");
+    }
     if (k === "known") return knownWhere(r) + ", but nothing confirmed that " + fromDom + " sent this message." +
       (r.dmarc === "fail" ? " Its checks failed, and " + fromDom + " publishes a monitoring-only policy." : "");
     if (k === "verified") return "It carries a signature that verified, made by " + r.from + ", the address it is from" +
@@ -359,7 +369,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         : r.dmarc === "temperror" ? ["unchecked", "A temporary error: the policy of " + fromDom + " could not be looked up when the message arrived."]
         : r.dmarc === "permerror" ? ["unchecked", "A permanent error: the policy " + fromDom + " publishes cannot be read."]
         : ["unchecked", "Not reported: the receiving mail server did not report a DMARC result."]),
-      step("Author domain", r.author === "authenticated"
+      step("Author domain", spfAlone(r)
+        ? ["pass", fromDom + " is established as the author by SPF alone. SPF says only which server handed the message over, so it makes nobody trusted."]
+        : r.author === "authenticated"
         ? ["pass", fromDom + " is established as the author" + (r.authDomain === fromDom ? ": it authenticated the message itself." : ". " + r.authDomain + " authenticated the message.")]
         : r.author === "failed"
         ? ["fail", fromDom + " is not established as the author. " + (r.authDomain ? r.authDomain + " authenticated the message instead." : "No domain authenticated the message.")]
@@ -373,12 +385,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (r.trust.org ? "." : "; the organization has since been deleted, so its name is not shown.")]
         : r.known
         ? ["skip", "Skipped, because nothing confirmed that " + domainOf(r.from) + " sent this message."]
-        : r.author !== "authenticated"
-        ? ["skip", "Skipped, because the author was not authenticated."]
-        : r.trust && r.trust.source === "ownAddress" ? ["pass", r.from + " is one of your own addresses."]
         : r.trust && r.trust.source === "own" ? ["pass", r.trust.match + " is a domain of your own accounts."]
-        : r.trust ? ["pass", "The sender is on this account's trusted senders."]
-        : ["fail", "This account does not recognize " + r.from + ": it is not one of your own addresses, and it is not on the account's trusted senders."]),
+        : r.trust ? ["pass", r.from + " " + trustedAs(r.trust) + "."]
+        : sigVerified(r) || (r.author === "authenticated" && !spfAlone(r))
+        ? ["fail", "This account does not recognize " + r.from + ": it is not one of your own addresses, and it is not among your contacts or your organization's."]
+        : spfAlone(r) ? ["skip", "Skipped, because SPF alone established the author, and SPF alone makes nobody trusted."]
+        : ["skip", "Skipped, because the author was not authenticated."]),
       ...(r.known ? [step("Known sender", ["pass", knownWhere(r) + ". It is known by that address alone."])] : []),
     ];
     const s = r.sig;
@@ -1987,12 +1999,40 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : { left: 0, top: 0, bottom: 0 };
       const a = this.localPt(r.left, r.bottom);
       this._markTrigger = el || null;
-      this.setState({ senderMark: { key, id: threadId, from: from || null, x: a.x, y: a.y, top: this.localPt(r.left, r.top).y, centred: !el }, senderMore: {} });
+      this.setState({ senderMark: { key, id: threadId, from: from || null, x: a.x, y: a.y, top: this.localPt(r.left, r.top).y, centred: !el }, senderMore: {}, senderAdd: null });
       setTimeout(() => { const p = this.senderPopRef.current; if (p && p.focus) p.focus(); }, 0);
+    };
+    /* Add to contacts, from the details: offered where the service offers it, said before it writes, then written.
+       A press says what follows (`confirm`); confirming writes (`adding`) and lands on `added`, or on `failed` while
+       the client cannot reach its server. The mark itself does not move: it changes once stored mail is judged again,
+       so the details go on reading the verdict the message carries. An address added is not offered again. */
+    senderAddStep = (phase) => {
+      const smk = this.state.senderMark;
+      if (!smk) return;
+      if (phase !== "adding") {
+        this.setState({ senderAdd: phase ? { key: smk.key, phase } : null });
+        /* The question opens at the foot of the steps, so it is brought into view and its first answer takes focus;
+           cancelling hands focus back to the act it came from. */
+        setTimeout(() => {
+          const p = this.senderPopRef.current;
+          const el = p && p.querySelector(phase ? "[data-sender-add] [role=button]" : "[data-sender-add-offer]");
+          if (el) { el.scrollIntoView({ block: "nearest" }); el.focus(); }
+        }, 0);
+        return;
+      }
+      this.setState({ senderAdd: { key: smk.key, phase: "adding" } });
+      const from = (senderRecord(smk.id, smk.from) || {}).from;
+      setTimeout(() => {
+        const cur = this.state.senderAdd;
+        if (!cur || cur.key !== smk.key) return;
+        if (this.connNow().status === "offline") { this.setState({ senderAdd: { key: smk.key, phase: "failed" } }); return; }
+        this.setState(s3 => ({ senderAdd: { key: smk.key, phase: "added" }, contactsAdded: (s3.contactsAdded || []).concat([from]) }));
+        setTimeout(() => { const p = this.senderPopRef.current; const el = p && p.querySelector("[data-sender-add-done]"); if (el) el.focus(); }, 0);
+      }, 700);
     };
     closeSenderMark = (refocus) => {
       const t = this._markTrigger;
-      this.setState({ senderMark: null });
+      this.setState({ senderMark: null, senderAdd: null });
       if (refocus && t && t.focus) setTimeout(() => t.focus(), 0);
     };
 
@@ -4340,6 +4380,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               };
             }),
           });
+          const add = st.senderAdd && st.senderAdd.key === smk.key ? st.senderAdd.phase : null;
+          const addOffered = !!r.add && (add === "added" || !(st.contactsAdded || []).includes(r.from));
+          const addName = smk.from || (THREADS.find(x => x.id === smk.id) || {}).from || r.from;
+          const addWarn = k === "warnAuth" || k === "warnSig";
+          const pressed = (e) => {
+            if (!e || e.type !== "keydown") return true;
+            if (e.key !== "Enter" && e.key !== " ") return false;
+            e.preventDefault();
+            return true;
+          };
+          const addBtn = (primary) => "display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;border-radius:8px;min-height:" + (touch ? 44 : 34) + "px;" +
+            (primary ? "font-weight:600;color:var(--onaccent);background:var(--accent);padding:0 16px" : "color:var(--text2);border:1px solid var(--border2);padding:0 15px");
           const bw = st.vw || 1200;
           const bh = st.vh || (typeof window !== "undefined" ? window.innerHeight : 900);
           const W = 392;
@@ -4361,6 +4413,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             senderPopFrom: r.from,
             senderPopGlyph: M.glyph,
             senderPopGroups: [group("Sender authentication", steps.auth, "a"), group("Trust", steps.trust, "t"), group("Signature", steps.sig, "s")],
+            senderAddShown: addOffered,
+            senderAddOffer: addOffered && !add,
+            senderAddAsking: add === "confirm" || add === "adding" || add === "failed",
+            senderAddBusy: add === "adding",
+            senderAddFailed: add === "failed",
+            senderAddDone: add === "added",
+            senderAddTitle: "Add " + addName + " to your contacts?",
+            senderAddWhat: (r.add === "restate" ? r.from + " is already in your contacts, but you did not write it down yourself, so it counts only once you add it. " : "") +
+              "Mail from " + r.from + " is then marked trusted whenever its sender is authenticated, and known whenever it shows this address, unless this account is strict." +
+              (addWarn ? " This message stays a warning on a strict account, or where " + domainOf(r.from) + " publishes a quarantine or reject policy; on a relaxed account under a monitoring-only policy it becomes known." : ""),
+            senderAddFailText: addName + " could not be added to your contacts: unavailable",
+            senderAddDoneText: addName + " is in your contacts now. The mark changes once your mail is checked again.",
+            senderAddConfirmLabel: add === "adding" ? "Adding…" : add === "failed" ? "Try again" : "Add to contacts",
+            senderAddOpen: (e) => { if (pressed(e)) this.senderAddStep("confirm"); },
+            senderAddCancel: (e) => { if (pressed(e) && add !== "adding") this.senderAddStep(null); },
+            senderAddConfirm: (e) => { if (pressed(e) && add !== "adding") this.senderAddStep("adding"); },
+            senderAddOfferStyle: addBtn(false) + ";align-self:flex-start",
+            senderAddPrimaryStyle: addBtn(true) + (add === "adding" ? ";opacity:.7;cursor:progress" : ""),
+            senderAddSecondaryStyle: addBtn(false) + (add === "adding" ? ";opacity:.7;cursor:progress" : ""),
+            senderAddCardStyle: "display:flex;flex-direction:column;gap:10px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:12px 14px",
+            senderAddDoneStyle: "display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.5;color:var(--ok-text);background:var(--ok-soft);border-radius:12px;padding:10px 14px;text-wrap:pretty",
             senderPopStyle: touch
               ? "position:fixed;z-index:93;left:0;right:0;bottom:0;margin:0 auto;width:100%;max-width:600px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";" +
                 frame + "border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -12px 40px var(--sh-3)"

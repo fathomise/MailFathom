@@ -6,6 +6,7 @@ using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Failures;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Contacts;
+using MailFathom.Domain.Emails;
 using MailFathom.Mcp.Tools.Contacts;
 using MailFathom.Mcp.UnitTests.TestDoubles;
 using NSubstitute;
@@ -66,6 +67,7 @@ public sealed class UpdateContactToolTests
             Arg.Any<ContactBookHolder>(),
             Arg.Any<Contact>(),
             Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Agent),
+            Arg.Is<IReadOnlyCollection<EmailAddress>>(restated => restated.Count == 0),
             Arg.Any<CancellationToken>());
     }
 

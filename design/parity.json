@@ -816,6 +816,43 @@
         }
       ]
     },
+    "mail-sender-add": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Satisfaction survey - due 05.09"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Sender not recognized"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Add to contacts"
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Cancel"
+          }
+        }
+      ]
+    },
     "message-source-failed": {
       "file": "prototype.dc.html",
       "properties": {

@@ -4,7 +4,13 @@
 
 import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { isSpam, type ClientSession, type MailCarried, type MailMessage } from '@mailfathom/client-backend';
+import {
+    isSpam,
+    type ClientSession,
+    type MailCarried,
+    type MailFathomTransport,
+    type MailMessage,
+} from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
@@ -51,11 +57,13 @@ const longestFragment = 2000;
 
 export function OpenedMessage({
     session,
+    transport,
     message,
     body,
     onShowFullHtml,
 }: {
     readonly session: ClientSession;
+    readonly transport: MailFathomTransport;
 
     /** The message as the deployment described it, which is what everything but the words is drawn from. */
     readonly message: MailMessage;
@@ -223,7 +231,15 @@ export function OpenedMessage({
 
             {message.carried === null ? null : <Carried carried={message.carried} />}
 
-            {marked ? <MessageSenderDetails message={message} anchor={anchor} dialog={details} /> : null}
+            {marked ? (
+                <MessageSenderDetails
+                    session={session}
+                    transport={transport}
+                    message={message}
+                    anchor={anchor}
+                    dialog={details}
+                />
+            ) : null}
         </>
     );
 }

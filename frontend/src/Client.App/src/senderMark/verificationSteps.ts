@@ -17,8 +17,9 @@ import { listedSenderOf, senderMarkOf, type SenderMark } from './senderMarks';
 // reason. It is arithmetic over what the message route answered and nothing else, so every sentence here is one the
 // service's facts support: no step claims more than was recorded, and none is left out because it did not pass.
 //
-// Two things the design names are not recorded, and the sentences say what is rather than inventing them: which
-// receiving mail server checked a message, and which address or domain on the trusted senders matched its author.
+// One thing the design names is not recorded, and the sentences say what is rather than inventing it: which receiving
+// mail server checked a message. A contact that recognized the author is named only as far as whose book holds it —
+// the reader's own, another user of this mailbox's, or the organization's — and nothing from its record.
 
 /** One sentence as the catalogue holds it, with the values its holes are filled from. */
 export interface Said {
@@ -110,7 +111,7 @@ export function senderVerificationOf(message: MailMessage, wordAt: WordInstant):
         why: whyOf(mark, message.sender, message.signature, named),
         groups: [
             { name: 'senderMark.group.authentication', steps: authenticationSteps(message.sender, named.domain) },
-            { name: 'senderMark.group.trust', steps: trustSteps(message.sender, named) },
+            { name: 'senderMark.group.trust', steps: trustSteps(message.sender, message.signature, named) },
             { name: 'senderMark.group.signature', steps: signatureSteps(message.signature, named.address, wordAt) },
         ],
         keyDetails: message.signature.format === 'OpenPgpMime',
@@ -222,11 +223,21 @@ function authenticationSteps(sender: MailSenderVerdict, domain: string): readonl
     ];
 }
 
+// SPF says which server handed a message over and nothing about who wrote it, so it establishes an author for these
+// steps and makes nobody trusted.
+function establishedBySpfAlone(sender: MailSenderVerdict): boolean {
+    return sender.authorAuthentication === 'Authenticated' && sender.authorRoute === 'AlignedSpf';
+}
+
 function authorStep(sender: MailSenderVerdict, domain: string): VerificationStep {
     const authenticated = sender.authenticatedDomain === null ? null : spoken(sender.authenticatedDomain);
 
     switch (sender.authorAuthentication) {
         case 'Authenticated':
+            if (establishedBySpfAlone(sender)) {
+                return step('senderMark.step.authorDomain', 'Passed', 'senderMark.author.spfAlone', { domain });
+            }
+
             return authenticated === null || authenticated === domain
                 ? step('senderMark.step.authorDomain', 'Passed', 'senderMark.author.itself', { domain })
                 : step('senderMark.step.authorDomain', 'Passed', 'senderMark.author.by', { domain, authenticated });
@@ -242,17 +253,69 @@ function authorStep(sender: MailSenderVerdict, domain: string): VerificationStep
     }
 }
 
-function trustedWhy(sender: MailSenderVerdict, authenticated: string, named: Named): Said {
+/** What somebody wrote down that recognized the author, as far as the details may name it. */
+type Recognition =
+    'ownAddress' | 'ownDomain' | 'organizationContact' | 'yourContact' | 'anotherUsersContact' | 'unnamed';
+
+// A personal contact is named by whose book holds it and by nothing else; where the service did not say whose, it is
+// left unnamed rather than guessed.
+function recognitionOf(sender: MailSenderVerdict): Recognition {
     switch (sender.trustSource) {
-        case 'OrganizationMember':
-            return organizationMemberWhy(sender.trustOrganization);
         case 'OwnAccountAddress':
-            return { key: 'senderMark.why.trustedOwnAddress', values: { authenticated, address: named.address } };
+            return 'ownAddress';
         case 'OwnAccountDomain':
-            return { key: 'senderMark.why.trustedOwnDomain', values: { authenticated, domain: named.domain } };
+            return 'ownDomain';
+        case 'OrganizationContact':
+            return 'organizationContact';
+        case 'PersonalContact':
+            return sender.trustContact === null
+                ? 'unnamed'
+                : sender.trustContact === 'Reader'
+                  ? 'yourContact'
+                  : 'anotherUsersContact';
         default:
-            return { key: 'senderMark.why.trustedSender', values: { authenticated } };
+            return 'unnamed';
     }
+}
+
+// Why a recognized author is trusted, by what tied the message to them: the domain's checks, or their own signature.
+const trustedWhyKeys: Readonly<
+    Record<Recognition, { readonly authentication: MessageKey; readonly signature: MessageKey }>
+> = {
+    ownAddress: { authentication: 'senderMark.why.trustedOwnAddress', signature: 'senderMark.why.signedOwnAddress' },
+    ownDomain: { authentication: 'senderMark.why.trustedOwnDomain', signature: 'senderMark.why.signedOwnDomain' },
+    organizationContact: {
+        authentication: 'senderMark.why.trustedOrganizationContact',
+        signature: 'senderMark.why.signedOrganizationContact',
+    },
+    yourContact: { authentication: 'senderMark.why.trustedYourContact', signature: 'senderMark.why.signedYourContact' },
+    anotherUsersContact: {
+        authentication: 'senderMark.why.trustedAnotherUsersContact',
+        signature: 'senderMark.why.signedAnotherUsersContact',
+    },
+    unnamed: { authentication: 'senderMark.why.trustedUnnamed', signature: 'senderMark.why.signedUnnamed' },
+};
+
+const trustedStepKeys: Readonly<Record<Recognition, MessageKey>> = {
+    ownAddress: 'senderMark.trust.ownAddress',
+    ownDomain: 'senderMark.trust.ownDomain',
+    organizationContact: 'senderMark.trust.organizationContact',
+    yourContact: 'senderMark.trust.yourContact',
+    anotherUsersContact: 'senderMark.trust.anotherUsersContact',
+    unnamed: 'senderMark.trust.recognized',
+};
+
+function trustedWhy(sender: MailSenderVerdict, authenticated: string, named: Named): Said {
+    if (sender.trustSource === 'OrganizationMember') {
+        return organizationMemberWhy(sender.trustOrganization);
+    }
+
+    const keys = trustedWhyKeys[recognitionOf(sender)];
+
+    return {
+        key: sender.trustEvidence === 'AuthorSignature' ? keys.signature : keys.authentication,
+        values: { authenticated, address: named.address, domain: named.domain },
+    };
 }
 
 // An organization deleted since keeps the reason and loses only the name it would have been shown under.
@@ -268,24 +331,17 @@ function monitoringOnlyFailure(sender: MailSenderVerdict): boolean {
     return sender.deploymentTrust === 'Known' && sender.authorAuthentication === 'Failed';
 }
 
-type KnownSource = 'contact' | 'organizationContact' | 'ownAddress' | 'ownDomain';
-
-function knownSourceOf(sender: MailSenderVerdict): KnownSource {
-    switch (sender.trustSource) {
-        case 'OrganizationContact':
-            return 'organizationContact';
-        case 'OwnAccountAddress':
-            return 'ownAddress';
-        case 'OwnAccountDomain':
-            return 'ownDomain';
-        default:
-            return 'contact';
-    }
-}
-
-const knownWhySaid: Readonly<Record<KnownSource, { readonly plain: MessageKey; readonly monitoringOnly: MessageKey }>> =
+const knownWhySaid: Readonly<Record<Recognition, { readonly plain: MessageKey; readonly monitoringOnly: MessageKey }>> =
     {
-        contact: { plain: 'senderMark.why.knownContact', monitoringOnly: 'senderMark.why.knownContactMonitoringOnly' },
+        yourContact: {
+            plain: 'senderMark.why.knownYourContact',
+            monitoringOnly: 'senderMark.why.knownYourContactMonitoringOnly',
+        },
+        anotherUsersContact: {
+            plain: 'senderMark.why.knownAnotherUsersContact',
+            monitoringOnly: 'senderMark.why.knownAnotherUsersContactMonitoringOnly',
+        },
+        unnamed: { plain: 'senderMark.why.knownUnnamed', monitoringOnly: 'senderMark.why.knownUnnamedMonitoringOnly' },
         organizationContact: {
             plain: 'senderMark.why.knownOrganizationContact',
             monitoringOnly: 'senderMark.why.knownOrganizationContactMonitoringOnly',
@@ -300,15 +356,17 @@ const knownWhySaid: Readonly<Record<KnownSource, { readonly plain: MessageKey; r
         },
     };
 
-const knownStepSaid: Readonly<Record<KnownSource, MessageKey>> = {
-    contact: 'senderMark.known.contact',
+const knownStepSaid: Readonly<Record<Recognition, MessageKey>> = {
+    yourContact: 'senderMark.known.yourContact',
+    anotherUsersContact: 'senderMark.known.anotherUsersContact',
+    unnamed: 'senderMark.known.recognized',
     organizationContact: 'senderMark.known.organizationContact',
     ownAddress: 'senderMark.known.ownAddress',
     ownDomain: 'senderMark.known.ownDomain',
 };
 
 function knownWhy(sender: MailSenderVerdict, named: Named): Said {
-    const said = knownWhySaid[knownSourceOf(sender)];
+    const said = knownWhySaid[recognitionOf(sender)];
 
     return {
         key: monitoringOnlyFailure(sender) ? said.monitoringOnly : said.plain,
@@ -318,21 +376,21 @@ function knownWhy(sender: MailSenderVerdict, named: Named): Said {
 
 // A known sender is not a trusted one, so the trust step is skipped for the reason that keeps it from being one, and a
 // step of its own says where the address was found.
-function trustSteps(sender: MailSenderVerdict, named: Named): readonly VerificationStep[] {
+function trustSteps(sender: MailSenderVerdict, signature: MailSignature, named: Named): readonly VerificationStep[] {
     if (sender.deploymentTrust !== 'Known') {
-        return [trustStep(sender, named)];
+        return [trustStep(sender, signature, named)];
     }
 
     return [
         step('senderMark.step.trustedSender', 'Skipped', 'senderMark.trust.skippedKnown', { domain: named.domain }),
-        step('senderMark.step.knownSender', 'Passed', knownStepSaid[knownSourceOf(sender)], {
+        step('senderMark.step.knownSender', 'Passed', knownStepSaid[recognitionOf(sender)], {
             address: named.address,
             domain: named.domain,
         }),
     ];
 }
 
-function trustStep(sender: MailSenderVerdict, named: Named): VerificationStep {
+function trustStep(sender: MailSenderVerdict, signature: MailSignature, named: Named): VerificationStep {
     // The organization's signature proves the address itself rather than a domain, so it is the one source that holds
     // whatever sender authentication found.
     if (sender.deploymentTrust === 'Trusted' && sender.trustSource === 'OrganizationMember') {
@@ -346,28 +404,27 @@ function trustStep(sender: MailSenderVerdict, named: Named): VerificationStep {
               });
     }
 
-    if (sender.authorAuthentication !== 'Authenticated') {
-        return step('senderMark.step.trustedSender', 'Skipped', 'senderMark.trust.skipped');
+    if (sender.deploymentTrust === 'Trusted') {
+        return step('senderMark.step.trustedSender', 'Passed', trustedStepKeys[recognitionOf(sender)], {
+            address: named.address,
+            domain: named.domain,
+        });
     }
 
-    if (sender.deploymentTrust !== 'Trusted') {
+    // What somebody wrote down counts only for a message tied to it: by the domain's DMARC pass or an aligned DKIM
+    // signature, or by the author's own signature where those did not hold — never by SPF alone.
+    const signedByAuthor = signature.outcome === 'Verified' && signature.signerMatchesAuthor;
+    const authenticatedOutright = sender.authorAuthentication === 'Authenticated' && !establishedBySpfAlone(sender);
+
+    if (signedByAuthor || authenticatedOutright) {
         return step('senderMark.step.trustedSender', 'Failed', 'senderMark.trust.unrecognized', {
             address: named.address,
         });
     }
 
-    switch (sender.trustSource) {
-        case 'OwnAccountAddress':
-            return step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.ownAddress', {
-                address: named.address,
-            });
-        case 'OwnAccountDomain':
-            return step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.ownDomain', {
-                domain: named.domain,
-            });
-        default:
-            return step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.trustedSenders');
-    }
+    return establishedBySpfAlone(sender)
+        ? step('senderMark.step.trustedSender', 'Skipped', 'senderMark.trust.spfAlone')
+        : step('senderMark.step.trustedSender', 'Skipped', 'senderMark.trust.skipped');
 }
 
 // What a step says when nothing more particular applies: one not reached because an earlier one did not pass, one the

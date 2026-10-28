@@ -2315,6 +2315,27 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </div>
         </sc-for>
+        <sc-if value="{{ senderAddShown }}" hint-placeholder-val="{{ false }}">
+          <sc-if value="{{ senderAddOffer }}" hint-placeholder-val="{{ false }}">
+            <div data-sender-add-offer role="button" tabindex="0" onClick="{{ senderAddOpen }}" onKeyDown="{{ senderAddOpen }}" style="{{ senderAddOfferStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ senderResultGlyphStyle }}">person_add</span>Add to contacts</div>
+          </sc-if>
+          <sc-if value="{{ senderAddAsking }}" hint-placeholder-val="{{ false }}">
+            <div data-sender-add role="group" aria-label="{{ senderAddTitle }}" style="{{ senderAddCardStyle }}">
+              <div style="font-size:13px;font-weight:600;color:var(--text)">{{ senderAddTitle }}</div>
+              <div style="font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty;overflow-wrap:anywhere">{{ senderAddWhat }}</div>
+              <sc-if value="{{ senderAddFailed }}" hint-placeholder-val="{{ false }}">
+                <div role="alert" style="font-size:13px;line-height:1.5;color:var(--err-text);text-wrap:pretty">{{ senderAddFailText }}</div>
+              </sc-if>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <div role="button" tabindex="0" aria-disabled="{{ senderAddBusy }}" onClick="{{ senderAddConfirm }}" onKeyDown="{{ senderAddConfirm }}" style="{{ senderAddPrimaryStyle }}" style-hover="cursor:pointer">{{ senderAddConfirmLabel }}</div>
+                <div role="button" tabindex="0" aria-disabled="{{ senderAddBusy }}" onClick="{{ senderAddCancel }}" onKeyDown="{{ senderAddCancel }}" style="{{ senderAddSecondaryStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ senderAddDone }}" hint-placeholder-val="{{ false }}">
+            <div data-sender-add-done role="status" tabindex="-1" style="{{ senderAddDoneStyle }}"><span aria-hidden="true" style="{{ senderResultGlyphStyle }}">check_circle</span><span>{{ senderAddDoneText }}</span></div>
+          </sc-if>
+        </sc-if>
       </div>
     </div>
   </sc-if>

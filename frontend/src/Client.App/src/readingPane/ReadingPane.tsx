@@ -488,6 +488,7 @@ function OpenMessage({
             <div className="flex flex-col gap-3 px-5.5 py-4.5">
                 <OpenedMessage
                     session={session}
+                    transport={transport}
                     message={message}
                     body={bodyRead}
                     onShowFullHtml={() => {

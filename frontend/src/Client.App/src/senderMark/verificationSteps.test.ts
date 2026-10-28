@@ -64,6 +64,19 @@ const authenticated: MailSenderVerdict = {
     dmarc: 'Pass',
     trustSource: null,
     trustOrganization: null,
+    authorRoute: 'DmarcPass',
+    trustEvidence: null,
+    trustContact: null,
+    addToContacts: null,
+};
+
+/** The author as one of the reader's own contacts recognized them, tied to the message by the domain's checks. */
+const yourContact: MailSenderVerdict = {
+    ...authenticated,
+    deploymentTrust: 'Trusted',
+    trustSource: 'PersonalContact',
+    trustEvidence: 'Authentication',
+    trustContact: 'Reader',
 };
 
 function message(sender: MailSenderVerdict, signature: MailSignature = unsigned): MailMessage {
@@ -194,20 +207,89 @@ describe('senderVerificationOf', () => {
         ).toMatchObject({ result: 'Skipped' });
     });
 
-    it('says what recognized a trusted author, and never which entry matched, since that is not recorded', () => {
-        const trusted = message({ ...authenticated, deploymentTrust: 'Trusted', trustSource: 'PersonalContact' });
+    it('says the reader’s own contact recognized a trusted author, and nothing else of that record', () => {
+        const trusted = message(yourContact);
 
         expect(senderVerificationOf(trusted, asSent).why).toEqual({
-            key: 'senderMark.why.trustedSender',
-            values: { authenticated: 'contoso.example' },
+            key: 'senderMark.why.trustedYourContact',
+            values: {
+                authenticated: 'contoso.example',
+                address: 'a.kowalska@contoso.example',
+                domain: 'contoso.example',
+            },
         });
-        expect(stepNamed(trusted, 'senderMark.step.trustedSender')?.detail.key).toBe('senderMark.trust.trustedSenders');
+        expect(stepNamed(trusted, 'senderMark.step.trustedSender')).toMatchObject({
+            result: 'Passed',
+            detail: { key: 'senderMark.trust.yourContact', values: { address: 'a.kowalska@contoso.example' } },
+        });
+    });
+
+    it('says a contact of another user of the mailbox recognized the author, without naming whose', () => {
+        const trusted = message({ ...yourContact, trustContact: 'AnotherUser' });
+
+        expect(senderVerificationOf(trusted, asSent).why.key).toBe('senderMark.why.trustedAnotherUsersContact');
+        expect(stepNamed(trusted, 'senderMark.step.trustedSender')?.detail.key).toBe(
+            'senderMark.trust.anotherUsersContact',
+        );
+    });
+
+    it('says the organization’s contacts recognized an author one of them holds', () => {
+        const trusted = message({ ...yourContact, trustSource: 'OrganizationContact', trustContact: null });
+
+        expect(senderVerificationOf(trusted, asSent).why.key).toBe('senderMark.why.trustedOrganizationContact');
+        expect(stepNamed(trusted, 'senderMark.step.trustedSender')?.detail.key).toBe(
+            'senderMark.trust.organizationContact',
+        );
+    });
+
+    it('leaves a personal contact unnamed where the service did not say whose book holds it', () => {
+        const trusted = message({ ...yourContact, trustContact: null });
+
+        expect(senderVerificationOf(trusted, asSent).why.key).toBe('senderMark.why.trustedUnnamed');
+        expect(stepNamed(trusted, 'senderMark.step.trustedSender')?.detail.key).toBe('senderMark.trust.recognized');
+    });
+
+    // The domain's checks did not hold, so what tied the message to the contact is the author's own signature.
+    it('says the author’s own verified signature is why a contact made them trusted, where that is what tied them', () => {
+        const trusted = message(
+            { ...yourContact, authorAuthentication: 'Failed', authorRoute: null, trustEvidence: 'AuthorSignature' },
+            signedByAuthor,
+        );
+
+        expect(senderVerificationOf(trusted, asSent).why.key).toBe('senderMark.why.signedYourContact');
+    });
+
+    it('reads an author SPF alone established as authenticated, and says it makes nobody trusted', () => {
+        const spfAlone = message({
+            ...authenticated,
+            authorRoute: 'AlignedSpf',
+            dkimDomain: null,
+            dmarc: 'NoPolicyPublished',
+        });
+
+        expect(stepNamed(spfAlone, 'senderMark.step.authorDomain')).toMatchObject({
+            result: 'Passed',
+            detail: { key: 'senderMark.author.spfAlone' },
+        });
+        expect(stepNamed(spfAlone, 'senderMark.step.trustedSender')).toMatchObject({
+            result: 'Skipped',
+            detail: { key: 'senderMark.trust.spfAlone' },
+        });
+    });
+
+    it('fails the trust step for an author whose own signature tied the message to them and nothing recognized', () => {
+        const signed = message({ ...authenticated, authorAuthentication: 'Failed', authorRoute: null }, signedByAuthor);
+
+        expect(stepNamed(signed, 'senderMark.step.trustedSender')).toMatchObject({
+            result: 'Failed',
+            detail: { key: 'senderMark.trust.unrecognized' },
+        });
     });
 
     it('says a domain of the reader’s own accounts recognized an author it did', () => {
         const own = message({ ...authenticated, deploymentTrust: 'Trusted', trustSource: 'OwnAccountDomain' });
 
-        expect(stepNamed(own, 'senderMark.step.trustedSender')?.detail).toEqual({
+        expect(stepNamed(own, 'senderMark.step.trustedSender')?.detail).toMatchObject({
             key: 'senderMark.trust.ownDomain',
             values: { domain: 'contoso.example' },
         });
@@ -218,7 +300,11 @@ describe('senderVerificationOf', () => {
 
         expect(senderVerificationOf(own, asSent).why).toEqual({
             key: 'senderMark.why.trustedOwnAddress',
-            values: { authenticated: 'contoso.example', address: 'a.kowalska@contoso.example' },
+            values: {
+                authenticated: 'contoso.example',
+                address: 'a.kowalska@contoso.example',
+                domain: 'contoso.example',
+            },
         });
         expect(stepNamed(own, 'senderMark.step.trustedSender')).toMatchObject({
             result: 'Passed',
@@ -244,14 +330,31 @@ describe('senderVerificationOf', () => {
     };
 
     it.each([
-        ['PersonalContact', 'senderMark.why.knownContact', 'senderMark.known.contact'],
-        ['OrganizationContact', 'senderMark.why.knownOrganizationContact', 'senderMark.known.organizationContact'],
-        ['OwnAccountAddress', 'senderMark.why.knownOwnAddress', 'senderMark.known.ownAddress'],
-        ['OwnAccountDomain', 'senderMark.why.knownOwnDomain', 'senderMark.known.ownDomain'],
+        ['PersonalContact', 'Reader', 'senderMark.why.knownYourContact', 'senderMark.known.yourContact'],
+        [
+            'PersonalContact',
+            'AnotherUser',
+            'senderMark.why.knownAnotherUsersContact',
+            'senderMark.known.anotherUsersContact',
+        ],
+        ['PersonalContact', null, 'senderMark.why.knownUnnamed', 'senderMark.known.recognized'],
+        [
+            'OrganizationContact',
+            null,
+            'senderMark.why.knownOrganizationContact',
+            'senderMark.known.organizationContact',
+        ],
+        ['OwnAccountAddress', null, 'senderMark.why.knownOwnAddress', 'senderMark.known.ownAddress'],
+        ['OwnAccountDomain', null, 'senderMark.why.knownOwnDomain', 'senderMark.known.ownDomain'],
     ] as const)(
-        'says a %s knew the sender by address alone, and that nothing confirmed the domain',
-        (source, why, known) => {
-            const read = message({ ...notEstablished, deploymentTrust: 'Known', trustSource: source });
+        'says a %s held by %s knew the sender by address alone, and that nothing confirmed the domain',
+        (source, contact, why, known) => {
+            const read = message({
+                ...notEstablished,
+                deploymentTrust: 'Known',
+                trustSource: source,
+                trustContact: contact,
+            });
             const named = { address: 'a.kowalska@contoso.example', domain: 'contoso.example' };
 
             expect(senderVerificationOf(read, asSent)).toMatchObject({

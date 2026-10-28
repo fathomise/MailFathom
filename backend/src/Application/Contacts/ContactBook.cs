@@ -325,7 +325,7 @@ public sealed class ContactBook
     /// <summary>Amends a contact of the caller's own book to the record they state, if its origin admits that writer.</summary>
     /// <param name="scope">The books the caller reads, whose own book the amendment may reach.</param>
     /// <param name="amendment">The record the contact is to have, and the origin the writer acts under.</param>
-    /// <param name="statedBy">Who is writing, which an address the amendment adds records; an address it keeps keeps its own.</param>
+    /// <param name="statedBy">Who is writing, which an address the amendment adds or restates records; any other address it keeps keeps its own.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The amended record, or the refusal naming what stopped it.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> or <paramref name="amendment" /> is <see langword="null" />.</exception>
@@ -389,7 +389,7 @@ public sealed class ContactBook
                     return ContactWriteResult.AddressHeldBy(addressHolder);
                 }
 
-                return await this.store.ReplaceAsync(session, holder, amended, statedBy, token)
+                return await this.store.ReplaceAsync(session, holder, amended, statedBy, amendment.RestatedAddresses, token)
                     ? ContactWriteResult.Written(amended)
                     : ContactWriteResult.NotFound();
             },

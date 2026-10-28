@@ -1690,6 +1690,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ContactBookScopes>();
         services.AddScoped<ContactBookOwnership>();
 
+        // What a message's sender is to the caller reading it, asked over their own books per read rather than stored.
+        services.AddScoped<SenderContactStandingReader>();
+
         // The two caller-facing use cases over it, which are what the protocol tools reach. They are separate from the
         // book because they carry what a caller-facing act owes and the book does not: the grant the caller has to hold,
         // and the bounds every request is checked against before the store is reached.

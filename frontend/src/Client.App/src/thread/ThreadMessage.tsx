@@ -141,6 +141,7 @@ export function ThreadMessage({
                     ) : (
                         <OpenedMessage
                             session={session}
+                            transport={transport}
                             message={message.message}
                             body={body}
                             onShowFullHtml={onShowFullHtml}

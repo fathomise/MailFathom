@@ -7,6 +7,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
+using MailFathom.Domain.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using Microsoft.EntityFrameworkCore;
@@ -73,12 +74,14 @@ internal sealed class ContactStore : IContactStore
         ContactBookHolder holder,
         Contact contact,
         ContactAddressWriter writer,
+        IReadOnlyCollection<EmailAddress> restatedAddresses,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(holder);
         ArgumentNullException.ThrowIfNull(contact);
         ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(restatedAddresses);
 
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var bookHolderId = holder.Key;
@@ -97,9 +100,9 @@ internal sealed class ContactStore : IContactStore
             return false;
         }
 
-        // Every address the record held or will hold, which covers each one the amendment adds or removes: locking
-        // the ones it keeps as well only serializes the amendment against readers of an address whose standing it
-        // does not change.
+        // Every address the record held or will hold, which covers each one the amendment adds, removes, or restates:
+        // locking the ones it keeps as well only serializes the amendment against readers of an address whose standing
+        // it does not change.
         await ContactAddressLocks.TakeAsync(
             writeContext,
             held.Addresses
@@ -113,7 +116,7 @@ internal sealed class ContactStore : IContactStore
         held.Note = contact.Note?.Value;
         held.AmendedAt = contact.AmendedAt;
 
-        ReplaceAddresses(writeContext, held, holder, contact, writer);
+        ReplaceAddresses(writeContext, held, holder, contact, writer, restatedAddresses);
 
         return true;
     }
@@ -190,26 +193,34 @@ internal sealed class ContactStore : IContactStore
     /// <summary>Brings the stored address rows to exactly the set the amended contact names.</summary>
     /// <remarks>
     /// An address the record still names keeps its row, and with it the writer who stated it, so an amendment that only
-    /// changed the name beside it changes neither who stated the address nor whether it grants trust. An address the
-    /// amendment adds records the amendment's writer. What was dropped is deleted rather than left orphaned, which is
-    /// also what frees the address for another contact to claim.
+    /// changed the name beside it changes neither who stated the address nor whether it grants trust — unless the
+    /// writer restated it, which records them as its writer in place of whoever was. An address the amendment adds
+    /// records the amendment's writer. What was dropped is deleted rather than left orphaned, which is also what frees
+    /// the address for another contact to claim.
     /// </remarks>
-    private static void ReplaceAddresses(
+    internal static void ReplaceAddresses(
         MailFathomDbContext writeContext,
         ContactEntity held,
         ContactBookHolder holder,
         Contact contact,
-        ContactAddressWriter writer)
+        ContactAddressWriter writer,
+        IReadOnlyCollection<EmailAddress> restatedAddresses)
     {
         var named = contact.Addresses.ToDictionary(
             address => address.NormalizedAddress,
             StringComparer.Ordinal);
+        var restated = restatedAddresses.Select(address => address.NormalizedAddress).ToHashSet(StringComparer.Ordinal);
 
         foreach (var stored in held.Addresses.ToArray())
         {
             if (named.Remove(stored.NormalizedAddress, out var address))
             {
                 stored.Address = address.Address;
+
+                if (restated.Contains(stored.NormalizedAddress))
+                {
+                    Restate(stored, writer, contact.AmendedAt);
+                }
             }
             else
             {
@@ -222,5 +233,14 @@ internal sealed class ContactStore : IContactStore
         {
             held.Addresses.Add(ContactMapping.ToAddressEntity(holder, contact, added, writer));
         }
+    }
+
+    /// <summary>Records a kept address as written by the amendment's writer, at the amendment's time.</summary>
+    private static void Restate(ContactAddressEntity stored, ContactAddressWriter writer, DateTimeOffset amendedAt)
+    {
+        stored.WriterKind = writer.Kind;
+        stored.WriterUserId = writer.User?.Value;
+        stored.WriterCredentialId = writer.Credential;
+        stored.WrittenAt = amendedAt;
     }
 }

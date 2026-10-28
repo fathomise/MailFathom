@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
@@ -69,6 +70,7 @@ internal sealed record StoredEmailSummaryRow(
     bool IsRemotelyDeleted,
     string[] RemoteKeywords,
     AuthorAuthenticationOutcome AuthorAuthenticationOutcome,
+    AuthorAuthenticationRoute AuthorAuthenticationRoute,
     SenderTrustLevel SenderTrustLevel,
     string? AuthenticatedSenderDomain,
     string? DisplayedAuthorDomain,
@@ -79,6 +81,8 @@ internal sealed record StoredEmailSummaryRow(
     string? SpfMailFromDomain,
     SenderTrustSource SenderTrustGrantedBy,
     Guid? SenderTrustOrganizationId,
+    TrustedAuthorEvidence SenderTrustAuthorEvidence,
+    Guid? SenderTrustContactId,
     MachineAuthorshipBand MachineAuthorshipBand,
     double MachineAuthorshipLikelihood,
     MachineAuthorshipSignals MachineAuthorshipSignals,
@@ -121,6 +125,7 @@ internal sealed record StoredEmailSummaryRow(
             email.IsRemotelyDeleted,
             email.RemoteKeywords,
             email.AuthorAuthenticationOutcome,
+            email.AuthorAuthenticationRoute,
             email.SenderTrustLevel,
             email.AuthenticatedSenderDomain,
             email.DisplayedAuthorDomain,
@@ -131,6 +136,8 @@ internal sealed record StoredEmailSummaryRow(
             email.SpfMailFromDomain,
             email.SenderTrustGrantedBy,
             email.SenderTrustOrganizationId,
+            email.SenderTrustAuthorEvidence,
+            email.SenderTrustContactId,
             email.MachineAuthorshipBand,
             email.MachineAuthorshipLikelihood,
             email.MachineAuthorshipSignals,
@@ -244,6 +251,10 @@ internal sealed record StoredEmailSummaryRow(
                 AuthorAuthentication = this.AuthorAuthenticationOutcome,
                 DeploymentTrust = this.SenderTrustLevel,
                 DeploymentTrustGrantedBy = this.SenderTrustGrantedBy,
+                DeploymentTrustAuthorEvidence = this.SenderTrustAuthorEvidence,
+                RecognizingContactId = this.SenderTrustContactId is { } contactId && contactId != Guid.Empty
+                    ? ContactId.Create(contactId)
+                    : null,
                 RecognizingOrganizationName = this.SenderTrustOrganizationId is { } organizationId
                     ? organizationNames.GetValueOrDefault(organizationId)
                     : null,
@@ -255,6 +266,7 @@ internal sealed record StoredEmailSummaryRow(
                 DisplayedAuthorDomain = StoredDomain(this.DisplayedAuthorDomain),
                 DkimDomain = StoredDomain(this.DkimSignerDomain),
                 SpfDomain = StoredDomain(this.SpfMailFromDomain),
+                AuthorRoute = this.AuthorAuthenticationRoute,
                 AuthenticatedBy = this.SenderAuthenticationMethod,
                 Dmarc = this.DmarcOutcome,
                 Source = this.SenderAuthenticationSource,

@@ -1578,8 +1578,25 @@ export const pl: Catalogue = {
         '{authenticated} uwierzytelniła tę wiadomość, a {address} to jeden z Twoich własnych adresów.',
     'senderMark.why.trustedOwnDomain':
         '{authenticated} uwierzytelniła tę wiadomość, a {domain} to domena Twoich własnych kont.',
-    'senderMark.why.trustedSender':
-        '{authenticated} uwierzytelniła tę wiadomość, a nadawca jest na liście zaufanych nadawców tego konta.',
+    'senderMark.why.trustedOrganizationContact':
+        '{authenticated} uwierzytelniła tę wiadomość, a {address} to kontakt Twojej organizacji.',
+    'senderMark.why.trustedYourContact': '{authenticated} uwierzytelniła tę wiadomość, a {address} to Twój kontakt.',
+    'senderMark.why.trustedAnotherUsersContact':
+        '{authenticated} uwierzytelniła tę wiadomość, a {address} to kontakt innego użytkownika tej skrzynki.',
+    'senderMark.why.trustedUnnamed':
+        '{authenticated} uwierzytelniła tę wiadomość, a to konto rozpoznaje adres {address}.',
+    'senderMark.why.signedOwnAddress':
+        'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a ten adres to jeden z Twoich własnych adresów.',
+    'senderMark.why.signedOwnDomain':
+        'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a {domain} to domena Twoich własnych kont.',
+    'senderMark.why.signedOrganizationContact':
+        'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a ten adres to kontakt Twojej organizacji.',
+    'senderMark.why.signedYourContact':
+        'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a ten adres to Twój kontakt.',
+    'senderMark.why.signedAnotherUsersContact':
+        'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a ten adres to kontakt innego użytkownika tej skrzynki.',
+    'senderMark.why.signedUnnamed':
+        'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a to konto rozpoznaje ten adres.',
     'senderMark.why.trustedOrganizationMember':
         'Nadawca jest członkiem Twojej organizacji, {organization}, a podpis organizacji potwierdza, że ta wiadomość pochodzi z tego adresu.',
     'senderMark.why.trustedOrganizationMemberDeleted':
@@ -1593,16 +1610,24 @@ export const pl: Catalogue = {
     'senderMark.why.authenticatedUnrecognized':
         '{authenticated} uwierzytelniła tę wiadomość, ale to konto nie rozpoznaje nadawcy.',
     'senderMark.why.nothingEstablished': 'Nic nie ustaliło, kto wysłał tę wiadomość.',
-    'senderMark.why.knownContact':
-        '{address} jest w Twoich kontaktach, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownYourContact':
+        '{address} to Twój kontakt, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownAnotherUsersContact':
+        '{address} to kontakt innego użytkownika tej skrzynki, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownUnnamed':
+        'To konto rozpoznaje adres {address}, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
     'senderMark.why.knownOrganizationContact':
         '{address} jest w kontaktach Twojej organizacji, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
     'senderMark.why.knownOwnAddress':
         '{address} to jeden z Twoich własnych adresów, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
     'senderMark.why.knownOwnDomain':
         '{address} należy do {domain}, domeny Twoich własnych kont, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
-    'senderMark.why.knownContactMonitoringOnly':
-        '{address} jest w Twoich kontaktach, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownYourContactMonitoringOnly':
+        '{address} to Twój kontakt, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownAnotherUsersContactMonitoringOnly':
+        '{address} to kontakt innego użytkownika tej skrzynki, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownUnnamedMonitoringOnly':
+        'To konto rozpoznaje adres {address}, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
     'senderMark.why.knownOrganizationContactMonitoringOnly':
         '{address} jest w kontaktach Twojej organizacji, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
     'senderMark.why.knownOwnAddressMonitoringOnly':
@@ -1661,24 +1686,49 @@ export const pl: Catalogue = {
     'senderMark.author.failedNobody':
         '{domain} nie jest ustalona jako autor. Żadna domena nie uwierzytelniła wiadomości.',
     'senderMark.author.notEstablished': 'Nieustalone: nic nie powiązało domeny {domain} z wiadomością.',
+    'senderMark.author.spfAlone':
+        '{domain} jest ustalona jako autor wyłącznie przez SPF. SPF mówi tylko, który serwer przekazał wiadomość, więc nikogo nie czyni zaufanym.',
     'senderMark.trust.skipped': 'Pominięte, bo autor nie został uwierzytelniony.',
     'senderMark.trust.skippedKnown': 'Pominięte, bo nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
-    'senderMark.known.contact': '{address} jest w Twoich kontaktach. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.yourContact': '{address} to Twój kontakt. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.anotherUsersContact':
+        '{address} to kontakt innego użytkownika tej skrzynki. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.recognized': 'To konto rozpoznaje adres {address}. Nadawca jest znany tylko z tego adresu.',
     'senderMark.known.organizationContact':
         '{address} jest w kontaktach Twojej organizacji. Nadawca jest znany tylko z tego adresu.',
     'senderMark.known.ownAddress':
         '{address} to jeden z Twoich własnych adresów. Nadawca jest znany tylko z tego adresu.',
     'senderMark.known.ownDomain':
         '{address} należy do {domain}, domeny Twoich własnych kont. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.trust.spfAlone': 'Pominięte, bo autora ustalił wyłącznie SPF, a sam SPF nikogo nie czyni zaufanym.',
     'senderMark.trust.ownAddress': '{address} to jeden z Twoich własnych adresów.',
     'senderMark.trust.ownDomain': '{domain} to domena Twoich własnych kont.',
-    'senderMark.trust.trustedSenders': 'Nadawca jest na liście zaufanych nadawców tego konta.',
+    'senderMark.trust.organizationContact': '{address} to kontakt Twojej organizacji.',
+    'senderMark.trust.yourContact': '{address} to Twój kontakt.',
+    'senderMark.trust.anotherUsersContact': '{address} to kontakt innego użytkownika tej skrzynki.',
+    'senderMark.trust.recognized': 'To konto rozpoznaje adres {address}.',
     'senderMark.trust.organizationMember':
         'Członek Twojej organizacji, {organization}. Podpis organizacji potwierdza, że wiadomość pochodzi z adresu {address}.',
     'senderMark.trust.organizationMemberDeleted':
         'Członek Twojej organizacji. Podpis organizacji potwierdza, że wiadomość pochodzi z adresu {address}; organizacja została od tego czasu usunięta, więc jej nazwa nie jest pokazywana.',
     'senderMark.trust.unrecognized':
-        'To konto nie rozpoznaje adresu {address}: nie jest to żaden z Twoich własnych adresów i nie ma go na liście zaufanych nadawców konta.',
+        'To konto nie rozpoznaje adresu {address}: nie jest to żaden z Twoich własnych adresów i nie ma go wśród Twoich kontaktów ani kontaktów Twojej organizacji.',
+    'senderMark.add.offer': 'Dodaj do kontaktów',
+    'senderMark.add.title': 'Dodać {name} do kontaktów?',
+    'senderMark.add.restated':
+        'Adres {address} jest już w Twoich kontaktach, ale nie został zapisany przez Ciebie, więc liczy się dopiero, gdy go dodasz.',
+    'senderMark.add.what':
+        'Poczta z adresu {address} będzie wtedy oznaczana jako zaufana, gdy nadawca zostanie uwierzytelniony, i jako znana, gdy tylko pokazuje ten adres, chyba że to konto jest ścisłe.',
+    'senderMark.add.warning':
+        'Ta wiadomość pozostaje ostrzeżeniem na koncie ścisłym albo tam, gdzie {domain} publikuje politykę quarantine lub reject; na koncie swobodnym, przy polityce wyłącznie monitorującej, staje się znana.',
+    'senderMark.add.confirm': 'Dodaj do kontaktów',
+    'senderMark.add.adding': 'Dodawanie…',
+    'senderMark.add.retry': 'Spróbuj ponownie',
+    'senderMark.add.cancel': 'Anuluj',
+    'senderMark.add.failed': 'Nie udało się dodać {name} do kontaktów: {reason}',
+    'senderMark.add.changed': 'Twoje kontakty zmieniły się od odczytania tej wiadomości',
+    'senderMark.add.done':
+        '{name} jest teraz w Twoich kontaktach. Oznaczenie zmieni się, gdy Twoja poczta zostanie ponownie sprawdzona.',
     'senderMark.signed.not':
         'Niepodpisana: wiadomość nie ma podpisu S/MIME ani OpenPGP, więc nie ma czego weryfikować.',
     'senderMark.signed.detachedAt': 'S/MIME, odłączony (multipart/signed), podpisana {when}.',

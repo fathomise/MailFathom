@@ -249,6 +249,44 @@ internal sealed class ContactDirectory(MailFathomDbContext readContext) : IConta
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<ContactAddressHolding>> FindAddressHoldingsAsync(
+        IReadOnlyCollection<ContactBookHolder> books,
+        IReadOnlyCollection<EmailAddress> addresses,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(books);
+        ArgumentNullException.ThrowIfNull(addresses);
+
+        var supplied = SuppliedByNormalizedAddress(addresses);
+        var booksByKey = books.DistinctBy(book => book.Key, StringComparer.Ordinal)
+            .ToDictionary(book => book.Key, StringComparer.Ordinal);
+
+        if (supplied.Count == 0 || booksByKey.Count == 0)
+        {
+            return [];
+        }
+
+        var normalizedAddresses = supplied.Keys.ToArray();
+        var bookKeys = booksByKey.Keys.ToArray();
+
+        var held = await readContext.ContactAddresses
+            .AsNoTracking()
+            .Where(address =>
+                bookKeys.Contains(address.BookHolderId) && normalizedAddresses.Contains(address.NormalizedAddress))
+            .Select(address => new { address.BookHolderId, address.NormalizedAddress, address.ContactId, address.WriterKind })
+            .ToArrayAsync(cancellationToken);
+
+        return
+        [
+            .. held.Select(row => new ContactAddressHolding(
+                booksByKey[row.BookHolderId],
+                supplied[row.NormalizedAddress],
+                ContactId.Create(row.ContactId),
+                row.WriterKind)),
+        ];
+    }
+
+    /// <inheritdoc />
     public async Task<ContactPage> ReadPageAsync(
         ContactBookScope scope,
         ContactQuery query,

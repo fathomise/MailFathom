@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Signatures;
 
@@ -55,6 +56,21 @@ public sealed record SenderVerification
     /// after it, so this names what held then, and removing the contact it names resets it to not evaluated.
     /// </remarks>
     public SenderTrustSource DeploymentTrustGrantedBy { get; init; } = SenderTrustSource.None;
+
+    /// <summary>Gets what tied a trusted message to the address its source recognized, which is <see cref="TrustedAuthorEvidence.None" /> wherever nothing was asked of the message.</summary>
+    /// <remarks>
+    /// The domain's own checks, or the author's own verified S/MIME or OpenPGP signature where those did not hold. A
+    /// verdict the organization's signature reached asks for neither, so it carries none.
+    /// </remarks>
+    public TrustedAuthorEvidence DeploymentTrustAuthorEvidence { get; init; } = TrustedAuthorEvidence.None;
+
+    /// <summary>Gets the contact that recognized the author, or <see langword="null" /> where no contact did.</summary>
+    /// <remarks>
+    /// Set only where <see cref="DeploymentTrustGrantedBy" /> names a contact source. It is a reference rather than the
+    /// record: every act that removes a contact resets each verdict naming it first, so a stored reference never names
+    /// a contact that is gone. Which book it is in is the reader's to ask; nothing of the record itself travels here.
+    /// </remarks>
+    public ContactId? RecognizingContactId { get; init; }
 
     /// <summary>Gets the current display name of the organization whose signature recognized the author, or <see langword="null" /> where none did or it has since been deleted.</summary>
     /// <remarks>

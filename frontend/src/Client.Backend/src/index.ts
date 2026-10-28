@@ -62,6 +62,7 @@ export {
     type CorrespondingThread,
 } from './contactCorrespondence';
 export {
+    addAuthorToContacts,
     amendContact,
     collectedContactsRoute,
     contactPromotionRoute,
@@ -76,6 +77,7 @@ export {
     readContact,
     readOwnContacts,
     recordContact,
+    type AuthorToAdd,
     type Contact,
     type ContactErasure,
     type ContactOrigin,
@@ -346,7 +348,9 @@ export {
     readMailMessage,
     type MailAttachment,
     type MailAuthenticationSource,
+    type MailAuthorRoute,
     type MailCarried,
+    type MailContactAddition,
     type MailDmarcOutcome,
     type MailMessage,
     type MailMessageBodyForms,
@@ -363,6 +367,8 @@ export {
     type MailSignatureTrustAnchor,
     type MailSignatureUnverifiableReason,
     type MailSigner,
+    type MailTrustContact,
+    type MailTrustEvidence,
     type MailTrustSource,
 } from './mailMessage';
 export {

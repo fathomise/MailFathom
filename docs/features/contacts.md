@@ -1,6 +1,6 @@
 # Contacts
 
-<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
+<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
 
 MailFathom holds a contact book of its own: people, the addresses they use, and what a user recorded about them, in
 the same PostgreSQL database the mail is in. This page describes the record and the rules every writer of it obeys —
@@ -244,14 +244,17 @@ the surface its write came through, the user, the credential the write was admit
 
 An agent may write somebody down for a user, and that record is read like any other; what it never does is make that
 person's mail trusted, so an instruction an agent followed from a message cannot vouch for the message's own sender. The
-MCP tools that write say so in their descriptions. An amendment keeps the writer each kept address already has and gives
-an address it adds its own writer, whoever amends. So restating a record through MCP does not take away trust a person
+MCP tools that write say so in their descriptions. An amendment keeps the writer each kept address already has, unless
+the person restates it as below, and gives an address it adds its own writer, whoever amends. So restating a record through MCP does not take away trust a person
 granted, and cannot add any — and a person saving the record in the client, which states every address it holds, does
 not vouch for an address an agent added only because it was there. A promotion records whoever promoted.
 
 An address an agent wrote, or one recorded as `Unrecorded`, therefore grants nothing until a person or an administrator
-writes it down themselves: by removing it from the contact and adding it again in a later amendment, or by recording the
-contact afresh. Amending a contact while keeping the address leaves its writer as it was.
+writes it down themselves. A person does that by naming the address in the `restatedAddresses` of [the client's
+amendment](../operations/client-endpoint.md#the-contact-routes), which records them as its writer although the contact
+keeps it — the sender details' *Add to contacts* does exactly that for the address a message displays — or by
+recording the contact afresh. Amending a contact while keeping the address without restating it leaves its writer as
+it was, and no other surface restates: the MCP tools and the administrative routes never do.
 
 **A trusted verdict names the contact that granted it, and removing that contact takes the trust away.** Erasing a
 contact, erasing the user whose book holds it, and deleting the organization whose book holds it each reset every

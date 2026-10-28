@@ -63,7 +63,7 @@ public sealed class PromoteContactToolTests
             Arg.Any<CancellationToken>());
 
         await book.Store.DidNotReceiveWithAnyArgs()
-            .ReplaceAsync(default!, default!, default!, default!, TestContext.Current.CancellationToken);
+            .ReplaceAsync(default!, default!, default!, default!, default!, TestContext.Current.CancellationToken);
     }
 
     /// <summary>Asking twice is asking once, so the second call answers with the state the first left the record in.</summary>

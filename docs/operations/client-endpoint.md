@@ -1,6 +1,6 @@
 # The client endpoint
 
-<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
+<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
 
 Where the MailFathom client reaches the service, what a deployment has to enable before it answers, and what a person's
 mail client presents to get in.
@@ -1492,7 +1492,11 @@ of its body exist to be asked for:
     "spfDomain": "BOUNCES.EXAMPLE.TEST",
     "dmarc": "Pass",
     "trustSource": "PersonalContact",
-    "trustOrganization": null
+    "trustOrganization": null,
+    "authorRoute": "DmarcPass",
+    "trustEvidence": "Authentication",
+    "trustContact": "Reader",
+    "addToContacts": null
   },
   "signature": {
     "outcome": "Verified",
@@ -1600,6 +1604,10 @@ combined into them here.
 | `dmarc` | `NotReported`, `Pass`, `Fail`, `NoPolicyPublished`, `TemporaryError`, `PermanentError` |
 | `trustSource` | `OrganizationMember`, `OrganizationContact`, `OwnAccountAddress`, `OwnAccountDomain`, `PersonalContact`, or `null` where nothing recognized the author |
 | `trustOrganization` | The current display name of the organization whose signature recognized the author, present only where `trustSource` is `OrganizationMember` and that organization still exists; `null` otherwise |
+| `authorRoute` | `DmarcPass`, `AlignedDkim`, `AlignedSpf`, or `null` where nothing established the author |
+| `trustEvidence` | `Authentication`, `AuthorSignature`, or `null` where nothing was asked of the message |
+| `trustContact` | `Reader` or `AnotherUser`, present only where `trustSource` is `PersonalContact`; `null` otherwise |
+| `addToContacts` | `{ "restatedContactId": <contact identifier or null> }` where this caller may write the sender down, or `null` where that is not offered |
 
 `authenticationSource` names which reading produced the verdict rather than asserting that a server established
 something, so `ReceivingServer` is also what a message carries when nothing was read at all. A reader concludes that
@@ -1615,8 +1623,43 @@ addresses the receiving account's owner holds; `OwnAccountDomain` a domain of on
 that opted into those; and `PersonalContact` a contact in the own book of a user the account is assigned to. Where
 several recognize the author the first of those is reported ([Sender
 authentication](../features/sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes)). Which
-contact matched is not published. It is the source in force when the message was stored, so a contact written since
-reaches mail stored after it, and removing the contact resets the verdict it granted.
+contact matched is not published: `trustContact` says only whether it is the reader's own. It is the source in force
+when the message was stored, so a contact written since reaches mail stored after it, and removing the contact resets
+the verdict it granted.
+
+**`authorRoute` is what established an `Authenticated` author**: `DmarcPass` where the receiving server reported a DMARC
+`pass` for the domain of the first `From` mailbox, `AlignedDkim` where a verified DKIM signature aligns with that domain
+under its own DMARC record, and `AlignedSpf` where only an SPF identity the receiving server checked lines up with it.
+Where several hold, the first of those is named. The difference matters because `AlignedSpf` authenticates whoever
+handed the message over rather than the author's own domain, so it makes nobody trusted: every trust source that needs
+an authenticated author accepts the first two alone. A details popup says SPF alone established such an author.
+
+**`trustEvidence` is what tied a trusted message to the address its source recognized.** `Authentication` is the
+domain's own checks — a DMARC `pass` or an aligned DKIM signature — and `AuthorSignature` the author's own verified
+S/MIME or OpenPGP signature naming them, which is what is asked where authentication did not hold, as a forward or a
+mailing list breaks it. A verdict the organization's signature reached asks for neither and carries `null`, as does
+every verdict that is not trusted.
+
+**`trustContact` and `addToContacts` are not stored with the message.** They are computed for the caller on each
+request, because the users of a shared mailbox read one verdict and hold different books.
+
+- `trustContact` is `Reader` where the caller's own book holds the personal contact the verdict names, and
+  `AnotherUser` where another user of the mailbox does. It says only that, and nothing else from that record — not its
+  name, its note, or which user holds it ([ADR 0043](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0043-how-a-sender-is-verified-and-trusted-and-contacts-as-the-one-trusted-sender-list.md)).
+  It needs no grant beyond `mailfathom.mail.read`.
+- `addToContacts` is offered where the message displays a first `From` mailbox, the caller holds both
+  `mailfathom.contacts.read` and `mailfathom.contacts.write`, the address is not one of the owner's own, and neither the
+  caller's own book nor their organization's already holds it under a person or an administrator. Where a contact of
+  the caller's own book holds it under an agent or an unrecorded writer, `restatedContactId` names that contact;
+  otherwise it is `null` and the act records a new contact. The route neither draws nor refuses the act by folder; a
+  client offers it on received mail and never on Sent or Drafts, where no mark is drawn.
+
+**The act itself goes through [the contact routes](#the-contact-routes).** A new contact is a `POST` naming the
+displayed name and the address. A restatement reads the named contact and `PUT`s the same record back with
+`restatedAddresses` naming the address, which records the person as its writer although the contact keeps it — the
+only way an address an agent wrote comes to count, because an amendment otherwise keeps each kept address's writer and
+a contact holding that address alone cannot be amended without it. The message's own mark changes only once stored
+mail is judged again; nothing re-judges it on the write.
 
 **`trustOrganization` is the organization's name as it reads now, not as it read when the message arrived.** The
 verdict records which organization's signature proved the member, never its name, so the name is read through that
@@ -3422,6 +3465,17 @@ collected is answered `OriginRefusesWriter` rather than performed. Promotion is 
 this user's own copy of the collected record, which they then amend like any other. Erasing is not gated that way,
 because somebody asking to be taken out of a contact book is not answered with which book they happen to be in — so an
 erasure reaches a collected record too, and takes it out of that mailbox's book for every user assigned the mailbox.
+
+**An amendment can state a kept address again.** Each address records who wrote it, and an amendment that keeps an
+address keeps that writer, so an address an agent wrote or one recorded before writers were stays one that makes
+nobody trusted however often its contact is amended. The amendment's body therefore takes an optional
+`restatedAddresses` beside the four fields of the record — a list of addresses, empty when absent — and each one named
+there records this person as its writer, at the amendment's time, although the contact keeps it; every other kept
+address keeps the writer it had. Each has to be one of the record's `addresses`, compared without regard to case as
+the book compares them, and the list is bounded like the addresses themselves, at 32; anything else is refused with a
+`400` naming the rule, before the book is read. Only this route takes it: the administrative routes write as an
+administrator through a record of their own, and the tools over the book never restate anything. [The message
+route](#the-message-route)'s `addToContacts` names the contact a restatement goes to.
 
 **A write reports an outcome rather than refusing.** A person the books do not hold, an address another contact already
 holds, a record whose origin refuses the writer, and a promotion of somebody already asserted are all named in the

@@ -7,19 +7,26 @@
 // receiving server, MailFathom's own DKIM check, or nobody; `dkim` and `spf` name the domain whose check passed, null
 // where none did; `dmarc` is pass, fail, none (no policy published), unreported, temperror or permerror; `author` is
 // whether the domain in From was established as the author and `authDomain` the domain that actually authenticated
-// it; `trust` says why this account recognizes the author - on its trusted senders (`list`), one of the owner's own
-// addresses (`ownAddress`), a domain of the owner's own accounts on an account that opted into them (`own`), or a member of the account's organization proven by the organization's signature (`org`, naming the
-// organization's display name, null where that organization has since been deleted); `known` says where an author whose
-// authentication did not hold was found by their From address alone on a relaxed account - in a contact (`contact`), the
-// organization's contacts (`orgContact`), the owner's own addresses (`ownAddress`) or domains (`own`) - and beside a
-// DMARC fail it means the domain publishes a monitoring-only policy; `sig` is the S/MIME or OpenPGP
-// signature, null where the message carries none. A thread missing here is an authenticated sender the account does not recognize.
+// it; `route` is what established an authenticated author where it is SPF alone (`spf`), the domain's DMARC pass or an
+// aligned DKIM signature otherwise; `trust` says why this account recognizes the author - a contact (`contact`, `mine`
+// true where it is in the reader's own book and false where it is in another user of this mailbox's), a contact of
+// the account's organization (`orgContact`), one of the owner's own addresses (`ownAddress`), a domain of the owner's
+// own accounts on an account that opted into them (`own`), or a member of the account's organization proven by the
+// organization's signature (`org`, naming the organization's display name, null where that organization has since
+// been deleted), with `via: "signature"` where the author's own verified signature rather than the domain's checks tied
+// the message to that address; `known` says where an author whose authentication did not hold was found by their From
+// address alone on a relaxed account - in a contact (`contact`), the organization's contacts (`orgContact`), the
+// owner's own addresses (`ownAddress`) or domains (`own`) - and beside a DMARC fail it means the domain publishes a
+// monitoring-only policy; `add` is whether the details offer Add to contacts - `new` for a contact recorded afresh,
+// `restate` where a contact of the reader's already holds the address but they did not write it down themselves,
+// absent where it is not offered; `sig` is the S/MIME or OpenPGP signature, null where the message carries none. A
+// thread missing here is an authenticated sender the account does not recognize.
 MailFathomDesign.data.senderMarks = {
   ownDomains: { acc1: "nordwind.example", acc2: "mail.example" },
   threads: {
     contoso: {
       from: "a.kowalska@contoso.example", checker: "server", dkim: "contoso.example", spf: "contoso.example", dmarc: "pass",
-      author: "authenticated", authDomain: "contoso.example", trust: { source: "list", match: "contoso.example" },
+      author: "authenticated", authDomain: "contoso.example", trust: { source: "contact", mine: true },
       sig: {
         format: "smime-detached", signedAt: "27.08.2026 09:13", content: "pass", signer: "a.kowalska@contoso.example",
         ca: { result: "public", name: "Harbourline Public Email CA R4" }, validity: "pass",
@@ -33,11 +40,11 @@ MailFathomDesign.data.senderMarks = {
     },
     anna2: {
       from: "a.kowalska@contoso.example", checker: "server", dkim: "contoso.example", spf: "contoso.example", dmarc: "pass",
-      author: "authenticated", authDomain: "contoso.example", trust: { source: "list", match: "contoso.example" }, sig: null,
+      author: "authenticated", authDomain: "contoso.example", trust: { source: "contact", mine: true }, sig: null,
     },
     finanse: {
       from: "invoices@company.example", checker: "server", dkim: "company.example", spf: "company.example", dmarc: "pass",
-      author: "authenticated", authDomain: "company.example", trust: { source: "list", match: "invoices@company.example" },
+      author: "authenticated", authDomain: "company.example", trust: { source: "orgContact" },
       sig: {
         format: "smime-opaque", smimeType: "signed-data", signedAt: "27.08.2026 08:01", content: "fail", signer: "invoices@company.example",
         ca: { result: "public", name: "Harbourline Public Email CA R4" }, validity: "pass",
@@ -51,7 +58,7 @@ MailFathomDesign.data.senderMarks = {
     },
     piotr: {
       from: "p.zielinski@company.example", checker: "server", dkim: null, spf: "lists.partners.example", dmarc: "fail",
-      author: "failed", authDomain: "lists.partners.example", trust: null,
+      author: "failed", authDomain: "lists.partners.example", trust: { source: "contact", mine: false, via: "signature" },
       sig: {
         format: "smime-detached", signedAt: "26.08.2026 16:39", content: "pass", signer: "p.zielinski@company.example",
         ca: { result: "public", name: "Harbourline Public Email CA R4" }, validity: "pass",
@@ -96,7 +103,7 @@ MailFathomDesign.data.senderMarks = {
     },
     hr1: {
       from: "hr@company.example", checker: "server", dkim: "company.example", spf: "company.example", dmarc: "pass",
-      author: "authenticated", authDomain: "company.example", trust: null,
+      author: "authenticated", authDomain: "company.example", trust: null, add: "new",
       sig: {
         format: "smime-opaque", smimeType: "signed-data", signedAt: "27.08.2026 07:54", content: "pass", signer: "hr-system@company.example",
         ca: { result: "public", name: "Harbourline Public Email CA R4" }, validity: "pass",
@@ -110,7 +117,7 @@ MailFathomDesign.data.senderMarks = {
     },
     north1: {
       from: "r.lis@northwind.example", checker: "server", dkim: "northwind.example", spf: null, dmarc: "temperror",
-      author: "notEstablished", authDomain: null, trust: null, known: { source: "contact" },
+      author: "notEstablished", authDomain: null, trust: null, known: { source: "contact", mine: true },
       sig: {
         format: "pgp", signedAt: "27.08.2026 07:10", content: "pass", signer: "r.lis@northwind.example",
         key: "known", keyValidity: "expired", keyExpired: "30.06.2026", revocation: { result: "pass" },
@@ -122,7 +129,7 @@ MailFathomDesign.data.senderMarks = {
     },
     bank1: {
       from: "noreply@bank.example", checker: "server", dkim: "bulk-sender.example", spf: "bulk-sender.example", dmarc: "fail",
-      author: "failed", authDomain: "bulk-sender.example", trust: null, sig: null,
+      author: "failed", authDomain: "bulk-sender.example", trust: null, add: "new", sig: null,
     },
     fabrikam1: {
       from: "t.bak@fabrikam.example", checker: "server", dkim: "fabrikam.example", spf: "fabrikam.example", dmarc: "pass",
@@ -175,7 +182,7 @@ MailFathomDesign.data.senderMarks = {
     },
     klient3: {
       from: "e.sikora@adventure.example", checker: "server", dkim: "adventure.example", spf: "adventure.example", dmarc: "pass",
-      author: "authenticated", authDomain: "adventure.example", trust: null,
+      author: "authenticated", authDomain: "adventure.example", trust: null, add: "restate",
       sig: {
         format: "pgp", signedAt: "26.08.2026 10:13", content: "pass", signer: "e.sikora@adventure.example",
         key: "known", keyValidity: "pass", revocation: { result: "pass" },
@@ -228,8 +235,8 @@ MailFathomDesign.data.senderMarks = {
       author: "notEstablished", authDomain: null, trust: null, sig: null,
     },
     spamParcel: {
-      from: "notice@parcel-track.example", checker: "server", dkim: "parcel-track.example", spf: "parcel-track.example", dmarc: "none",
-      author: "authenticated", authDomain: "parcel-track.example", trust: null, sig: null,
+      from: "notice@parcel-track.example", checker: "server", dkim: null, spf: "parcel-track.example", dmarc: "none",
+      author: "authenticated", route: "spf", authDomain: "parcel-track.example", trust: null, sig: null,
     },
     spamEstate: {
       from: "executor@marlowe-estate.example", checker: "none", dkim: null, spf: null, dmarc: "unreported",

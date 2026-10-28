@@ -89,6 +89,15 @@ public sealed class SenderTrustPolicy
         return new SenderTrustPolicy([.. ownAccountAddresses], [.. ownAccountDomains], isStrict);
     }
 
+    /// <summary>Answers whether an address is one the receiving account's owner holds, compared in its comparison form.</summary>
+    /// <param name="address">The address to ask about.</param>
+    /// <returns><see langword="true" /> where the owner holds the address on one of their accounts; otherwise <see langword="false" />.</returns>
+    /// <remarks>
+    /// It is the set <see cref="Evaluate" /> recognizes an own address by, asked without any of the evidence a verdict
+    /// needs: a reader is never offered to write down an address that is already theirs.
+    /// </remarks>
+    public bool IsOwnAccountAddress(EmailAddress address) => this.ownAccountAddresses.Contains(address);
+
     /// <summary>Decides what this deployment makes of one message's author.</summary>
     /// <param name="authentication">What the receiving mail server, or local verification, established about the message.</param>
     /// <param name="signature">What verifying the message's own S/MIME or OpenPGP signature found.</param>
