@@ -194,6 +194,6 @@ describe('SpaceOverflow', () => {
 
         expect(screen.getByRole('button', { name: 'More' })).toBeDefined();
         expect(screen.getByText('Connected to the server.')).toBeDefined();
-        expect(screen.queryByRole('button', { name: /connected to the server/u, hidden: true })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Connected to the server.', hidden: true })).toBeNull();
     });
 });
