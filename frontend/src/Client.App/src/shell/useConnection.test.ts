@@ -257,6 +257,39 @@ describe('useConnection', () => {
         });
     });
 
+    // An automatic attempt keeps what stands, and after a first read nobody answered nothing does: the accounts that
+    // attempt fails to read are what there is to say, rather than a reading state nothing is left to end.
+    it('says the accounts failed where an automatic attempt could not read them and none had been read', async () => {
+        vi.useFakeTimers();
+
+        let sessionAnswers = false;
+        const answeringLater: DeploymentTransport = () => (request) => {
+            if (!request.path.endsWith('/session')) {
+                return Promise.resolve({ status: 500, body: '', headers: {} });
+            }
+
+            return Promise.resolve(sessionAnswers ? readsMail : { status: 503, body: '', headers: {} });
+        };
+
+        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, answeringLater, nothingToDo));
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(result.current.unansweredSince).not.toBeNull();
+
+        sessionAnswers = true;
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(60_000);
+        });
+
+        expect(result.current.session?.outcome).toBe('read');
+        expect(result.current.accounts?.outcome).toBe('failed');
+        expect(result.current.unansweredSince).toBeNull();
+    });
+
     it('says nothing went unanswered for a refresh the server answered with a refusal', async () => {
         let refusing = false;
         const refusingLater: DeploymentTransport = () => (request) =>

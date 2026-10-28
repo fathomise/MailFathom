@@ -101,15 +101,17 @@ function Details({ status, place }: { readonly status: ConnectionStatus; readonl
                       lines:
                           status.cause === 'offline'
                               ? [translate('connection.offline')]
-                              : [
-                                    translate('connectionStatus.unanswered'),
-                                    status.attempts < mostReconnectionAttempts
-                                        ? translate('connectionStatus.attempt', {
-                                              attempt: count(status.attempts + 1),
-                                              total,
-                                          })
-                                        : translate('connectionStatus.attemptsSpent', { total }),
-                                ],
+                              : status.attempts === null
+                                ? [translate('connectionStatus.unanswered')]
+                                : [
+                                      translate('connectionStatus.unanswered'),
+                                      status.attempts < mostReconnectionAttempts
+                                          ? translate('connectionStatus.attempt', {
+                                                attempt: count(status.attempts + 1),
+                                                total,
+                                            })
+                                          : translate('connectionStatus.attemptsSpent', { total }),
+                                  ],
                       since: status.since,
                   },
               ]

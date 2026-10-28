@@ -129,8 +129,11 @@ export function nextChangeIn(evidence: ConnectionEvidence, now: number): number 
 
 /** The status as every surface reads it. */
 export type ConnectionStatus = ConnectionReading & {
-    /** How many automatic attempts at the session read have been made since the server last answered it. */
-    readonly attempts: number;
+    /**
+     * How many automatic attempts at the session read have been made since the server last answered it, or `null` where
+     * the session read is not what went unanswered — a ticket nothing answered is retried on the stream's own schedule.
+     */
+    readonly attempts: number | null;
 
     /** Reads everything again, which is what *Retry* and *Refresh* both ask for. */
     readonly retry: () => void;
@@ -148,7 +151,7 @@ export type ConnectionStatus = ConnectionReading & {
 /** What a surface reads where nothing has said otherwise, which is a client that has not yet heard anything. */
 const notYetHeard: ConnectionStatus = {
     level: 'connecting',
-    attempts: 0,
+    attempts: null,
     retry: () => undefined,
     detailsOpen: false,
     showDetails: () => undefined,

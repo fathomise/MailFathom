@@ -217,7 +217,7 @@ export function useConnectionWatch(
     const reading = readConnection(evidence, clock);
     const status: ConnectionStatus = {
         ...reading,
-        attempts: connection.attempts,
+        attempts: connection.unansweredSince === null ? null : connection.attempts,
         retry: () => {
             setDetailsAsked(false);
             changes.refresh();

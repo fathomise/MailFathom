@@ -101,6 +101,53 @@ describe('useConnectionWatch', () => {
         expect(view.result.current.status.level).toBe('online');
     });
 
+    it('is not connected while a ticket goes unanswered, counting no session-read attempts for it', () => {
+        const view = renderHook(() => useConnectionWatch(signedIn, connected({ attempts: 3 }), true, changes()));
+
+        act(() => {
+            view.result.current.channelStood('opening');
+        });
+        act(() => {
+            view.result.current.channelStood('unanswered');
+        });
+
+        expect(view.result.current.status).toMatchObject({
+            level: 'disconnected',
+            cause: 'unanswered',
+            attempts: null,
+        });
+    });
+
+    it('reads the frame again once a ticket is answered after its session read went unanswered', () => {
+        const refresh = vi.fn();
+        const view = renderHook(() =>
+            useConnectionWatch(signedIn, connected({ unansweredSince: Date.now(), refresh }), true, changes()),
+        );
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+
+        expect(refresh).toHaveBeenCalledOnce();
+    });
+
+    it('stays out of connecting when a channel that has stood is held again for the same sign-in', () => {
+        const view = renderHook(({ held }) => useConnectionWatch(signedIn, connected(), held, changes()), {
+            initialProps: { held: true },
+        });
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+        view.rerender({ held: false });
+        view.rerender({ held: true });
+        act(() => {
+            view.result.current.channelStood('opening');
+        });
+
+        expect(view.result.current.status.level).toBe('online');
+    });
+
     it('measures an unreachable mail server from when this client first read it so', () => {
         const watched = changes();
         const view = renderHook(({ connection }) => useConnectionWatch(signedIn, connection, false, watched), {

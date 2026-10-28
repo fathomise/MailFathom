@@ -381,18 +381,16 @@ export function useConnection(
             heard(accounts.outcome === 'failed' ? accounts.failure : null);
 
             // The accounts the previous attempt answered with already stand, above, so a refresh that could not read
-            // them again leaves them there.
-            if (keepsWhatStands && accounts.outcome === 'failed') {
-                return;
-            }
+            // them again leaves them there. Where none had been read, the failure is what there is to say.
+            setAnswered((previous) =>
+                keepsWhatStands && accounts.outcome === 'failed' && previous.accounts?.outcome === 'read'
+                    ? previous
+                    : { session, accounts, presentedAt: baseAddress, presenting },
+            );
 
-            setAnswered({
-                session,
-                accounts,
-                presentedAt: baseAddress,
-                presenting,
-            });
-            setAccountsReadAt(Date.now());
+            if (accounts.outcome === 'read') {
+                setAccountsReadAt(Date.now());
+            }
         })();
 
         return () => {

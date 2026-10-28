@@ -4,17 +4,36 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import { ConnectionStatusContext, type ConnectionReading, type ConnectionStatus } from './connectionStatus';
 import { ConnectionAlarm, ConnectionAnnouncement, ConnectionStatusLine } from './ConnectionStatusLine';
 
+// The details word how long ago a cause began against the clock, so the clock is held still.
+const now = Date.parse('2026-08-31T09:41:00+00:00');
+
+beforeEach(() => {
+    vi.useFakeTimers({ now });
+});
+
+afterEach(() => {
+    vi.useRealTimers();
+});
+
 /** The status as the frame would hand it, with the details held the way the frame holds them. */
-function Holding({ reading, retry }: { readonly reading: ConnectionReading; readonly retry: () => void }) {
+function Holding({
+    reading,
+    retry,
+    attempts,
+}: {
+    readonly reading: ConnectionReading;
+    readonly retry: () => void;
+    readonly attempts: number | null;
+}) {
     const [detailsOpen, showDetails] = useState(false);
     const status: ConnectionStatus = {
         ...reading,
-        attempts: 1,
+        attempts,
         retry,
         detailsOpen: detailsOpen && (reading.level === 'delayed' || reading.level === 'disconnected'),
         showDetails,
@@ -29,10 +48,10 @@ function Holding({ reading, retry }: { readonly reading: ConnectionReading; read
     );
 }
 
-function draw(reading: ConnectionReading, retry: () => void = () => undefined): void {
+function draw(reading: ConnectionReading, retry: () => void = () => undefined, attempts: number | null = 1): void {
     render(
         <LocalizationProvider>
-            <Holding reading={reading} retry={retry} />
+            <Holding reading={reading} retry={retry} attempts={attempts} />
         </LocalizationProvider>,
     );
 }
@@ -58,8 +77,8 @@ describe('ConnectionStatusLine', () => {
         draw({
             level: 'delayed',
             delays: [
-                { kind: 'channel', since: Date.now() - 40_000 },
-                { kind: 'mailServer', account: 'Work', since: Date.now() - 120_000 },
+                { kind: 'channel', since: now - 40_000 },
+                { kind: 'mailServer', account: 'Work', since: now - 120_000 },
             ],
         });
 
@@ -79,7 +98,7 @@ describe('ConnectionStatusLine', () => {
     it('opens a lost server onto the attempt it is on and Retry, which reads everything again', () => {
         const retry = vi.fn();
 
-        draw({ level: 'disconnected', cause: 'unanswered', since: Date.now() }, retry);
+        draw({ level: 'disconnected', cause: 'unanswered', since: now }, retry);
         fireEvent.click(screen.getByRole('button', { name: 'Not connected to the server.' }));
 
         expect(screen.getByText('The server did not answer.')).toBeDefined();
@@ -89,17 +108,25 @@ describe('ConnectionStatusLine', () => {
 
         expect(retry).toHaveBeenCalledOnce();
     });
+
+    it('counts no attempts for a server whose ticket went unanswered while the session read was answered', () => {
+        draw({ level: 'disconnected', cause: 'unanswered', since: now }, () => undefined, null);
+        fireEvent.click(screen.getByRole('button', { name: 'Not connected to the server.' }));
+
+        expect(screen.getByText('The server did not answer.')).toBeDefined();
+        expect(screen.queryByText(/attempt/u)).toBeNull();
+    });
 });
 
 describe('ConnectionAlarm', () => {
     it('stands only while the server is out of reach', () => {
-        draw({ level: 'delayed', delays: [{ kind: 'channel', since: Date.now() }] });
+        draw({ level: 'delayed', delays: [{ kind: 'channel', since: now }] });
 
         expect(screen.queryByRole('button', { name: 'Not connected to the server' })).toBeNull();
     });
 
     it('opens onto the details, by name rather than by colour', () => {
-        draw({ level: 'disconnected', cause: 'offline', since: Date.now() });
+        draw({ level: 'disconnected', cause: 'offline', since: now });
 
         fireEvent.click(screen.getByRole('button', { name: 'Not connected to the server' }));
 
