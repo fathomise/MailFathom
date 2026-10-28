@@ -39,6 +39,8 @@ namespace MailFathom.IntegrationTests.Persistence;
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
 public sealed class OrchestratedContactCollectionTests(MailFathomOrchestrationFixture orchestration)
 {
+    private static readonly ContactAddressWriter PersonWriting = new(ContactAddressWriterKind.Person, User: null, Credential: null);
+
     private const string FolderAlias = "contact-collection-tally";
 
     /// <summary>The first UID of the block this class seeds, which is what tells its rows from another class's.</summary>
@@ -253,6 +255,7 @@ public sealed class OrchestratedContactCollectionTests(MailFathomOrchestrationFi
                     PreferredAddress = Address(addresses[0]),
                     Origin = origin,
                 },
+                PersonWriting,
                 token),
             cancellationToken);
 

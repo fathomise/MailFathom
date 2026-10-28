@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Emails.Trust;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Emails;
 
@@ -35,6 +36,7 @@ public sealed class StoredEmailExtractionBackfill
     private readonly IStoredEmailExtractionBackfillStore backfillStore;
     private readonly IEmailContentStore contentStore;
     private readonly IEmailMimeReader mimeReader;
+    private readonly SenderTrustJudge senderTrust;
     private readonly OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy;
     private readonly StoredEmailExtractionBackfillOptions options;
 
@@ -42,6 +44,7 @@ public sealed class StoredEmailExtractionBackfill
     /// <param name="backfillStore">Reads what remains and writes what one email's re-reading produced.</param>
     /// <param name="contentStore">Reads back the raw MIME an earlier run stored.</param>
     /// <param name="mimeReader">Turns that raw MIME into normalized metadata and text.</param>
+    /// <param name="senderTrust">Judges each re-read message's author inside the batch's transaction.</param>
     /// <param name="concurrencyRetryPolicy">Commits a batch, retrying a conflict with a competing writer.</param>
     /// <param name="options">Bounds one run.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
@@ -49,18 +52,21 @@ public sealed class StoredEmailExtractionBackfill
         IStoredEmailExtractionBackfillStore backfillStore,
         IEmailContentStore contentStore,
         IEmailMimeReader mimeReader,
+        SenderTrustJudge senderTrust,
         OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy,
         StoredEmailExtractionBackfillOptions options)
     {
         ArgumentNullException.ThrowIfNull(backfillStore);
         ArgumentNullException.ThrowIfNull(contentStore);
         ArgumentNullException.ThrowIfNull(mimeReader);
+        ArgumentNullException.ThrowIfNull(senderTrust);
         ArgumentNullException.ThrowIfNull(concurrencyRetryPolicy);
         ArgumentNullException.ThrowIfNull(options);
 
         this.backfillStore = backfillStore;
         this.contentStore = contentStore;
         this.mimeReader = mimeReader;
+        this.senderTrust = senderTrust;
         this.concurrencyRetryPolicy = concurrencyRetryPolicy;
         this.options = options;
     }
@@ -220,12 +226,17 @@ public sealed class StoredEmailExtractionBackfill
         this.concurrencyRetryPolicy.CommitAsync(
             async (persistenceSession, attemptCancellationToken) =>
             {
-                foreach (var extraction in extractions)
+                var judged = await this.senderTrust.JudgeAsync(
+                    persistenceSession,
+                    [.. extractions.Select(static extraction => extraction.Metadata)],
+                    attemptCancellationToken);
+
+                foreach (var (extraction, metadata) in extractions.Zip(judged))
                 {
                     await this.backfillStore.ApplyExtractionAsync(
                         persistenceSession,
                         extraction.StoredEmailId,
-                        extraction.Metadata,
+                        metadata,
                         attemptCancellationToken);
                 }
 

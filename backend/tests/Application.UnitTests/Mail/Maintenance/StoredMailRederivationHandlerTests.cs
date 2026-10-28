@@ -475,6 +475,7 @@ public sealed class StoredMailRederivationHandlerTests
                 this.runs,
                 contentStore,
                 mimeReader,
+                SenderTrustJudges.Over(),
                 commitPolicy,
                 this.timeProvider,
                 AccessAuthorizations.ForPrincipal(AuthorizedPrincipal.Process)),

@@ -2046,7 +2046,7 @@ public sealed class MailboxSynchronizerTests
                 new FakeTimeProvider()),
             mimeReader: ReaderYielding(CreateExtractedMetadata(accountId) with
             {
-                SenderTrust = SenderTrust.TrustedAsOrganizationMember(organization, SenderTrustPolicyRevision.None),
+                OrganizationVerification = new OrganizationSenderVerification(organization, SenderIsMember: true),
             }));
         StubRetrievedContent(arrangement.Session, options, occurrence, 600);
 
@@ -3222,6 +3222,7 @@ public sealed class MailboxSynchronizerTests
             storedContentCeiling ?? new StoredContentCeiling(new InMemoryStoredContentClaimStore(), ceilingBytes: null),
             rawMimeMemoryBudget ?? new RawMimeMemoryBudget(long.MaxValue),
             mimeReader ?? CreateMimeReaderThatExtractsEverything(),
+            SenderTrustJudges.Over(),
             mutations,
             filingStore ?? CreateFilingStoreWithNothingFiled(),
             new FlaggedDeleteFollower(

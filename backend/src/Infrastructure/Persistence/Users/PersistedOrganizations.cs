@@ -257,7 +257,8 @@ internal sealed class PersistedOrganizations(
     /// The organization's contact book goes with it by cascade. Before it does, the deletion takes the address lock
     /// <see cref="ContactAddressLocks" /> describes for every address that book held, like any other act removing a
     /// contact, so a reader serializing on an address sees the book wholly before the deletion or wholly after it. Those
-    /// locks are taken before the organization row is, in the order a contact write takes them.
+    /// locks are taken before the organization row is, in the order a contact write takes them. Every trust verdict one
+    /// of that book's contacts granted is reset to not evaluated before the cascade, in the same transaction.
     /// </para>
     /// </remarks>
     public async Task<OrganizationWriteResult> DeleteAsync(Guid organizationId, CancellationToken cancellationToken)
@@ -291,6 +292,12 @@ internal sealed class PersistedOrganizations(
         }
 
         await this.LockBookAddressesAsync(organizationId, lockedAddresses, cancellationToken);
+
+        var organizationBook = ContactBookHolder.OfOrganization(organizationId).Key;
+        await ContactTrustVerdicts.ResetNamingAsync(
+            dbContext,
+            dbContext.Contacts.Where(contact => contact.BookHolderId == organizationBook).Select(contact => contact.Id),
+            cancellationToken);
 
         await dbContext.Organizations
             .Where(organization => organization.Id == organizationId)

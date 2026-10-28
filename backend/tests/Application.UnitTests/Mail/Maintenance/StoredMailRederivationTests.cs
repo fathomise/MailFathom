@@ -424,6 +424,7 @@ public sealed class StoredMailRederivationTests
             this.runs,
             contentStore,
             mimeReader,
+            SenderTrustJudges.Over(),
             new OptimisticConcurrencyRetryPolicy(
                 sessionFactory,
                 new PersistenceConcurrencyOptions { MaximumCommitAttempts = 2 },

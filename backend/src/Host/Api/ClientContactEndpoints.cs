@@ -189,7 +189,7 @@ internal static class ClientContactEndpoints
 
         try
         {
-            return TypedResults.Ok(ContactWriteResponse.For(await contacts.RecordAsync(draft, cancellationToken)));
+            return TypedResults.Ok(ContactWriteResponse.For(await contacts.RecordAsync(draft, ContactAddressWriterKind.Person, cancellationToken)));
         }
         catch (ContactRecordInvalidException refusal)
         {
@@ -230,7 +230,7 @@ internal static class ClientContactEndpoints
         try
         {
             return TypedResults.Ok(
-                ContactWriteResponse.For(await contacts.AmendAsync(identity, draft, cancellationToken)));
+                ContactWriteResponse.For(await contacts.AmendAsync(identity, draft, ContactAddressWriterKind.Person, cancellationToken)));
         }
         catch (ContactRecordInvalidException refusal)
         {
@@ -261,7 +261,7 @@ internal static class ClientContactEndpoints
         }
 
         return TypedResults.Ok(
-            ContactWriteResponse.OutcomeOf(await contacts.PromoteAsync(identity, cancellationToken)));
+            ContactWriteResponse.OutcomeOf(await contacts.PromoteAsync(identity, ContactAddressWriterKind.Person, cancellationToken)));
     }
 
     /// <summary>Erases one person the acting user reads, and everything the book derived from them.</summary>

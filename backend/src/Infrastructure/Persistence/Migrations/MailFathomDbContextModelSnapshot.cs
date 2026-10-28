@@ -440,6 +440,22 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
+                    b.Property<Guid?>("WriterCredentialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("WriterKind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("Unrecorded");
+
+                    b.Property<Guid?>("WriterUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("WrittenAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BookHolderId", "NormalizedAddress")
@@ -3944,6 +3960,20 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
+                    b.Property<string>("SenderTrustAddress")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("SenderTrustAuthorEvidence")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("None");
+
+                    b.Property<Guid?>("SenderTrustContactId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("SenderTrustGrantedBy")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -4142,6 +4172,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasIndex("SenderNormalizedAddress")
                         .HasDatabaseName("ix_stored_emails_sender");
 
+                    b.HasIndex("SenderTrustContactId")
+                        .HasDatabaseName("ix_stored_emails_sender_trust_contact")
+                        .HasFilter("\"SenderTrustContactId\" IS NOT NULL");
+
                     b.HasIndex("SenderTrustOrganizationId")
                         .HasDatabaseName("ix_stored_emails_sender_trust_organization")
                         .HasFilter("\"SenderTrustOrganizationId\" IS NOT NULL");
@@ -4156,6 +4190,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("MailboxAccountId", "Id")
                         .HasDatabaseName("ix_stored_emails_account_identity");
+
+                    b.HasIndex("MailboxAccountId", "SenderTrustAddress")
+                        .HasDatabaseName("ix_stored_emails_sender_trust_address")
+                        .HasFilter("\"SenderTrustAddress\" IS NOT NULL");
 
                     b.HasIndex("FolderId", "ReceivedAt", "Id")
                         .IsDescending(false, true, true)

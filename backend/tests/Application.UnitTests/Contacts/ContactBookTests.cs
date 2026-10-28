@@ -19,6 +19,8 @@ namespace MailFathom.Application.UnitTests.Contacts;
 
 public sealed class ContactBookTests
 {
+    private static readonly ContactAddressWriter PersonWriting = new(ContactAddressWriterKind.Person, User: null, Credential: null);
+
     private static readonly DateTimeOffset Now = new(2026, 3, 1, 9, 0, 0, TimeSpan.Zero);
 
     private static readonly UserId User = SyntheticUser.Deployment;
@@ -40,6 +42,7 @@ public sealed class ContactBookTests
         var result = await contactBook.RecordAsync(
             User,
             NewContactOf("Anna Kowalska", ["anna@example.test", "anna.kowalska@work.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -64,12 +67,14 @@ public sealed class ContactBookTests
         var first = await contactBook.RecordAsync(
             User,
             NewContactOf("Anna Kowalska", ["anna@example.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Act
         var second = await contactBook.RecordAsync(
             User,
             NewContactOf("Anna K.", ["ANNA@EXAMPLE.TEST"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -91,6 +96,7 @@ public sealed class ContactBookTests
         var result = await BookOver(book).AmendAsync(
             Scope,
             AmendmentOf(contact, ContactOrigin.Collected, "Anna Nowak", ["anna@example.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -117,6 +123,7 @@ public sealed class ContactBookTests
         var result = await BookOver(book).AmendAsync(
             Scope,
             AmendmentOf(contact, ContactOrigin.Asserted, "Anna Nowak", ["anna@example.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -141,6 +148,7 @@ public sealed class ContactBookTests
         var result = await BookOver(book, clock).AmendAsync(
             Scope,
             AmendmentOf(contact, ContactOrigin.Asserted, "Anna Nowak", ["anna@example.test", "anna@personal.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -166,6 +174,7 @@ public sealed class ContactBookTests
         var result = await BookOver(book).AmendAsync(
             Scope,
             AmendmentOf(anna, ContactOrigin.Asserted, "Anna Kowalska", ["anna@example.test", "marek@example.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -185,6 +194,7 @@ public sealed class ContactBookTests
         var result = await BookOver(book).AmendAsync(
             Scope,
             AmendmentOf(absent, ContactOrigin.Asserted, "Anna Kowalska", ["anna@example.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -210,6 +220,7 @@ public sealed class ContactBookTests
             Scope,
             contact.Id,
             ContactOrigin.Asserted,
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -235,6 +246,7 @@ public sealed class ContactBookTests
             Scope,
             contact.Id,
             ContactOrigin.Asserted,
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -256,6 +268,7 @@ public sealed class ContactBookTests
             Scope,
             contact.Id,
             ContactOrigin.Collected,
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -321,6 +334,7 @@ public sealed class ContactBookTests
                 Note = ContactNote.Create("Owes an answer about the contract."),
                 Origin = ContactOrigin.Asserted,
             },
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Act
@@ -389,6 +403,7 @@ public sealed class ContactBookTests
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => book.RecordAsync(
             User,
             NewContactOf("Ada Lovelace", ["ada@example.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken));
 
         // Assert
@@ -430,6 +445,7 @@ public sealed class ContactBookTests
         var result = await book.RecordAsync(
             User,
             NewContactOf("Ada Lovelace", ["ada@example.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -468,6 +484,7 @@ public sealed class ContactBookTests
                 Scope,
                 ContactId.Create(Guid.CreateVersion7(Now)),
                 ContactOrigin.Asserted,
+                PersonWriting,
                 TestContext.Current.CancellationToken);
         var byAgent = await BookOver(
                 store,
@@ -476,6 +493,7 @@ public sealed class ContactBookTests
                 Scope,
                 ContactId.Create(Guid.CreateVersion7(Now)),
                 ContactOrigin.Asserted,
+                PersonWriting,
                 TestContext.Current.CancellationToken);
 
         // Assert
@@ -501,6 +519,7 @@ public sealed class ContactBookTests
             Scope,
             collected.Id,
             ContactOrigin.Collected,
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -694,6 +713,7 @@ public sealed class ContactBookTests
         var result = await book.RecordAsync(
             User,
             NewContactOf("Ada Lovelace", ["ada@example.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -804,10 +824,11 @@ public sealed class ContactBookTests
                 targets));
 
         // Act
-        var promoted = await book.PromoteAsync(Scope, collected.Id, ContactOrigin.Asserted, TestContext.Current.CancellationToken);
+        var promoted = await book.PromoteAsync(Scope, collected.Id, ContactOrigin.Asserted, PersonWriting, TestContext.Current.CancellationToken);
         var amended = await book.AmendAsync(
             Scope,
             AmendmentOf(collected, ContactOrigin.Asserted, "Marek Kowalski", ["marek@example.test"]),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -835,7 +856,7 @@ public sealed class ContactBookTests
                 targets));
 
         // Act
-        var promoted = await book.PromoteAsync(Scope, collected.Id, ContactOrigin.Asserted, TestContext.Current.CancellationToken);
+        var promoted = await book.PromoteAsync(Scope, collected.Id, ContactOrigin.Asserted, PersonWriting, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(ContactWriteOutcome.Written, promoted.Outcome);

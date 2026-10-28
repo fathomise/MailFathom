@@ -44,6 +44,7 @@ public interface IContactStore
     /// <param name="session">The session the write joins.</param>
     /// <param name="holder">The book the contact is written into.</param>
     /// <param name="contact">The contact to add.</param>
+    /// <param name="writer">Who wrote it, which every one of its addresses records.</param>
     /// <param name="cancellationToken">Cancels the staging.</param>
     /// <returns>A task that completes once the insert is staged; nothing is committed here.</returns>
     /// <exception cref="ArgumentNullException">Thrown when a required argument is <see langword="null" />.</exception>
@@ -52,27 +53,31 @@ public interface IContactStore
         IPersistenceSession session,
         ContactBookHolder holder,
         Contact contact,
+        ContactAddressWriter writer,
         CancellationToken cancellationToken);
 
     /// <summary>Stages the held record being replaced by the one supplied, address rows included.</summary>
     /// <param name="session">The session the write joins.</param>
     /// <param name="holder">The book holding the record being replaced.</param>
     /// <param name="contact">The contact as it is to stand, identified by its own identity.</param>
+    /// <param name="writer">Who wrote the replacement, which an address it adds records.</param>
     /// <param name="cancellationToken">Cancels the staging.</param>
     /// <returns><see langword="true" /> when that book held the contact and the replacement was staged; <see langword="false" /> when it holds none.</returns>
     /// <exception cref="ArgumentNullException">Thrown when a required argument is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when the session cannot supply this store's persistence context.</exception>
     /// <remarks>
     /// An address the record no longer names is removed rather than left behind, which is what makes a replacement the
-    /// whole record instead of an addition to it. Two amendments of one contact are last-writer-wins, which is what an
-    /// amendment stating the whole record means: the later one is the record. What is not left to that is a contact
-    /// erased while an amendment was in flight — the row's concurrency token turns that into a conflict, so the retry
-    /// reads a book holding nobody and answers so instead of putting the person back.
+    /// whole record instead of an addition to it, and an address it keeps keeps the writer it already had. Two
+    /// amendments of one contact are last-writer-wins, which is what an amendment stating the whole record means: the
+    /// later one is the record. What is not left to that is a contact erased while an amendment was in flight — the
+    /// row's concurrency token turns that into a conflict, so the retry reads a book holding nobody and answers so
+    /// instead of putting the person back.
     /// </remarks>
     Task<bool> ReplaceAsync(
         IPersistenceSession session,
         ContactBookHolder holder,
         Contact contact,
+        ContactAddressWriter writer,
         CancellationToken cancellationToken);
 
     /// <summary>Erases one contact and everything derived from it, from whichever book of the scope holds it.</summary>
@@ -86,7 +91,8 @@ public interface IContactStore
     /// <remarks>
     /// Answering for a contact no book of the scope holds is a completed erasure rather than a failure: the state the
     /// caller asked for is the state the books are in, and reporting it as an error would only tell them whether
-    /// somebody had already erased that person.
+    /// somebody had already erased that person. Every stored trust verdict naming the contact is reset to the
+    /// not-evaluated verdict first, in the same transaction, so no trusted mark is left naming a contact that is gone.
     /// </remarks>
     Task<ContactErasure> EraseAsync(
         IPersistenceSession session,

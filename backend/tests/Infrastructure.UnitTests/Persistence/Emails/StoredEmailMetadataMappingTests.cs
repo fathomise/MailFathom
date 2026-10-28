@@ -6,6 +6,7 @@ using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
@@ -602,19 +603,26 @@ public sealed class StoredEmailMetadataMappingTests
     {
         // Arrange
         var entity = CreateEntity();
-        var revision = SenderTrustPolicyRevision.Of(["domain:PARTNER.EXAMPLE"]);
+        var revision = SenderTrustPolicyRevision.Of(["own:ME@PARTNER.EXAMPLE"]);
+        var contact = ContactId.Create(Guid.Parse("0199f000-0000-7000-8000-0000000000c1"));
 
         // Act
         StoredEmailMetadataMapping.ApplyExtractedMetadata(
             entity,
             CreateExtractedMetadata(
-                senderTrust: SenderTrust.Trusted(
-                    SenderTrustSource.ConfiguredTrustedSender,
+                participants: [Participant(EmailAddressRole.From, displayName: null, "Alice@Partner.example")],
+                senderTrust: SenderTrust.TrustedByContact(
+                    SenderTrustSource.PersonalContact,
+                    contact,
+                    TrustedAuthorEvidence.AuthorSignature,
                     revision)));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, entity.SenderTrustLevel);
-        Assert.Equal(SenderTrustSource.ConfiguredTrustedSender, entity.SenderTrustGrantedBy);
+        Assert.Equal(SenderTrustSource.PersonalContact, entity.SenderTrustGrantedBy);
+        Assert.Equal(TrustedAuthorEvidence.AuthorSignature, entity.SenderTrustAuthorEvidence);
+        Assert.Equal(contact.Value, entity.SenderTrustContactId);
+        Assert.Equal("ALICE@PARTNER.EXAMPLE", entity.SenderTrustAddress);
         Assert.Equal(revision.Value, entity.SenderTrustPolicyRevision);
     }
 
@@ -668,9 +676,11 @@ public sealed class StoredEmailMetadataMappingTests
         StoredEmailMetadataMapping.ApplyExtractedMetadata(
             entity,
             CreateExtractedMetadata(
-                senderTrust: SenderTrust.Trusted(
-                    SenderTrustSource.StoredTrustedSender,
-                    SenderTrustPolicyRevision.Of(["domain:PARTNER.EXAMPLE"]))));
+                senderTrust: SenderTrust.TrustedByContact(
+                    SenderTrustSource.PersonalContact,
+                    ContactId.Create(Guid.Parse("0199f000-0000-7000-8000-0000000000c1")),
+                    TrustedAuthorEvidence.Authentication,
+                    SenderTrustPolicyRevision.Of(["own:ME@PARTNER.EXAMPLE"]))));
 
         // Act
         StoredEmailMetadataMapping.ApplyExtractedMetadata(
@@ -680,6 +690,8 @@ public sealed class StoredEmailMetadataMappingTests
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, entity.SenderTrustLevel);
         Assert.Equal(SenderTrustSource.None, entity.SenderTrustGrantedBy);
+        Assert.Equal(TrustedAuthorEvidence.None, entity.SenderTrustAuthorEvidence);
+        Assert.Null(entity.SenderTrustContactId);
         Assert.Equal(narrowed.Value, entity.SenderTrustPolicyRevision);
     }
 

@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Failures;
+using MailFathom.Application.Persistence;
 using MailFathom.Domain.Contacts;
 using MailFathom.Mcp.Tools.Contacts;
 using MailFathom.Mcp.UnitTests.TestDoubles;
@@ -38,6 +39,34 @@ public sealed class UpdateContactToolTests
         Assert.Equal(ContactWriteState.Written, result.State);
         Assert.Equal("Anna Nowak", result.Contact?.DisplayName);
         Assert.Equal(["anna.nowak@example.test"], result.Contact?.Addresses);
+    }
+
+    /// <summary>An amendment through the tool records the agent as the writer of what it states, which grants no trust.</summary>
+    [Fact]
+    public async Task UpdateContactAsync_ARecordTheBookAccepts_RecordsTheAgentAsTheWriter()
+    {
+        // Arrange
+        var held = StubContactBook.ContactOf("Anna Kowalska", "anna@example.test");
+        var book = new StubContactBook();
+        book.Directory.FindAsync(Arg.Any<ContactBookScope>(), held.Id, Arg.Any<CancellationToken>()).Returns(held);
+
+        var tool = new UpdateContactTool(book.Writer);
+
+        // Act
+        await tool.UpdateContactAsync(
+            held.Id.ToString(),
+            "Anna Nowak",
+            ["anna.nowak@example.test"],
+            "anna.nowak@example.test",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        await book.Store.Received(1).ReplaceAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<ContactBookHolder>(),
+            Arg.Any<Contact>(),
+            Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Agent),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>An omitted note clears the one held, which is what stating the whole record means.</summary>

@@ -11,7 +11,7 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// <remarks>
 /// <para>
 /// A sending domain arrives from four unrelated places — a DKIM signature's <c>d=</c> tag, an SPF check's envelope
-/// sender, the <c>From</c> header a client displays, and an entry an operator wrote on a trusted-sender list — and the
+/// sender, the <c>From</c> header a client displays, and a domain of the owner's own accounts — and the
 /// whole point of a verdict is that those can be held against each other. A comparison form derived at each of those
 /// call sites would drift between them, so the normalization is the type's own rule and <see cref="NormalizedValue" />
 /// is the only form anything compares.

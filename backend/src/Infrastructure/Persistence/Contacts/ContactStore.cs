@@ -49,11 +49,13 @@ internal sealed class ContactStore : IContactStore
         IPersistenceSession session,
         ContactBookHolder holder,
         Contact contact,
+        ContactAddressWriter writer,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(holder);
         ArgumentNullException.ThrowIfNull(contact);
+        ArgumentNullException.ThrowIfNull(writer);
 
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
 
@@ -62,7 +64,7 @@ internal sealed class ContactStore : IContactStore
             contact.Addresses.Select(address => address.NormalizedAddress),
             cancellationToken);
 
-        writeContext.Contacts.Add(ContactMapping.ToEntity(holder, contact));
+        writeContext.Contacts.Add(ContactMapping.ToEntity(holder, contact, writer));
     }
 
     /// <inheritdoc />
@@ -70,11 +72,13 @@ internal sealed class ContactStore : IContactStore
         IPersistenceSession session,
         ContactBookHolder holder,
         Contact contact,
+        ContactAddressWriter writer,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(holder);
         ArgumentNullException.ThrowIfNull(contact);
+        ArgumentNullException.ThrowIfNull(writer);
 
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var bookHolderId = holder.Key;
@@ -109,7 +113,7 @@ internal sealed class ContactStore : IContactStore
         held.Note = contact.Note?.Value;
         held.AmendedAt = contact.AmendedAt;
 
-        ReplaceAddresses(writeContext, held, holder, contact);
+        ReplaceAddresses(writeContext, held, holder, contact, writer);
 
         return true;
     }
@@ -134,6 +138,13 @@ internal sealed class ContactStore : IContactStore
             .ToArrayAsync(cancellationToken);
 
         await ContactAddressLocks.TakeAsync(writeContext, heldAddresses, cancellationToken);
+
+        await ContactTrustVerdicts.ResetNamingAsync(
+            writeContext,
+            writeContext.Contacts
+                .Where(record => record.Id == contactValue && books.Contains(record.BookHolderId))
+                .Select(record => record.Id),
+            cancellationToken);
 
         // Deleted rather than counted and then cascaded, so the number reported is the number of rows this statement
         // removed. Counting first would report what a separate statement saw, which a write committed between the two
@@ -178,15 +189,17 @@ internal sealed class ContactStore : IContactStore
 
     /// <summary>Brings the stored address rows to exactly the set the amended contact names.</summary>
     /// <remarks>
-    /// An address the record still names keeps its row, so the identifier a future derived record could hang on survives
-    /// an amendment that only changed the name beside it. What was dropped is deleted rather than left orphaned, which
-    /// is also what frees the address for another contact to claim.
+    /// An address the record still names keeps its row, and with it the writer who stated it, so an amendment that only
+    /// changed the name beside it changes neither who stated the address nor whether it grants trust. An address the
+    /// amendment adds records the amendment's writer. What was dropped is deleted rather than left orphaned, which is
+    /// also what frees the address for another contact to claim.
     /// </remarks>
     private static void ReplaceAddresses(
         MailFathomDbContext writeContext,
         ContactEntity held,
         ContactBookHolder holder,
-        Contact contact)
+        Contact contact,
+        ContactAddressWriter writer)
     {
         var named = contact.Addresses.ToDictionary(
             address => address.NormalizedAddress,
@@ -207,7 +220,7 @@ internal sealed class ContactStore : IContactStore
 
         foreach (var added in named.Values)
         {
-            held.Addresses.Add(ContactMapping.ToAddressEntity(holder, contact, added));
+            held.Addresses.Add(ContactMapping.ToAddressEntity(holder, contact, added, writer));
         }
     }
 }

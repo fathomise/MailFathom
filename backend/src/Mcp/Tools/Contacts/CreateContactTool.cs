@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Contacts;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Failures;
 using MailFathom.Mcp.Tools.Categories;
 using MailFathom.Mcp.Tools.Results;
@@ -70,7 +71,8 @@ internal sealed class CreateContactTool(ContactBookWriter contactBookWriter)
         + "the same person records them once and then answers addressHeldByAnotherContact, because one address belongs "
         + "to one contact within a book; look that contact up with get_contact rather than writing a second record. An "
         + "address one of your mail accounts collected is free here, and your record is what answers for it afterwards. "
-        + "Ask the person you are acting for before writing somebody down.")]
+        + "Ask the person you are acting for before writing somebody down. A record written here makes nobody a "
+        + "trusted sender: mail from its addresses is trusted only once the person writes it down themselves.")]
     public async Task<ContactWriteToolResult> CreateContactAsync(
         [Description("The name to record for this person, as it should be read back, up to 256 characters. Characters that render as nothing are refused.")]
         string displayName,
@@ -90,7 +92,7 @@ internal sealed class CreateContactTool(ContactBookWriter contactBookWriter)
             Note = note,
         };
 
-        var written = await contactBookWriter.RecordAsync(draft, cancellationToken);
+        var written = await contactBookWriter.RecordAsync(draft, ContactAddressWriterKind.Agent, cancellationToken);
 
         return ContactWriteToolResult.From(written);
     }

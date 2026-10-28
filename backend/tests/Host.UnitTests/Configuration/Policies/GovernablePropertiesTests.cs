@@ -120,7 +120,6 @@ public sealed class GovernablePropertiesTests
                 "TransportSecurity:TrustedCertificateAuthority Secret",
                 "TrustOwnAccountDomains Value",
                 "TrustedAuthenticationServiceIdentifier Value",
-                "TrustedSenders List",
                 "UserName Value",
         ];
 

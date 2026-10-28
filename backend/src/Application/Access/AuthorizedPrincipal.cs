@@ -10,10 +10,11 @@ namespace MailFathom.Application.Access;
 /// <remarks>
 /// <para>
 /// This is the whole of what the application layer learns about the outside of a request. It carries the identity the
-/// work was admitted under, the user it is acting for where there is one, and the permissions that identity holds, and
-/// nothing else: no credential, no claim an authorization server issued, no scheme, no transport. Which credential
-/// admitted a caller is a question the transport answered and no use case has any business re-deciding, which is why
-/// nothing here can be asked it.
+/// work was admitted under, the user it is acting for where there is one, the permissions that identity holds, and the
+/// identifier of the credential that admitted a caller — never its material, no claim an authorization server issued,
+/// no scheme, no transport. Which credential admitted a caller is a question the transport answered and no use case
+/// re-decides: the identifier is carried only so an act whose record says who performed it can name the credential,
+/// and nothing decides access from it.
 /// </para>
 /// <para>
 /// The user and the permissions are two axes rather than one, and neither implies the other. A permission says what
@@ -101,6 +102,14 @@ public sealed class AuthorizedPrincipal
 
     /// <summary>Gets what this principal holds, each permission with the scopes it is held at, which is empty for every kind but a caller.</summary>
     public ScopedGrant Grant { get; }
+
+    /// <summary>Gets the user credential the transport admitted this caller by, or <see langword="null" /> where none did.</summary>
+    /// <remarks>
+    /// MailFathom's own identifier for a record beside a user, never the credential material. Nothing decides access
+    /// from it: it is here so an act whose record says who performed it — an address written into a contact — can name
+    /// the credential as well as the user.
+    /// </remarks>
+    public Guid? Credential { get; private init; }
 
     /// <summary>Gets the permissions this principal holds at any scope, which is empty for every kind but a caller.</summary>
     public IReadOnlySet<MailFathomPermission> Permissions => this.Grant.Permissions;
@@ -256,6 +265,14 @@ public sealed class AuthorizedPrincipal
             ? this.Holds(permission)
             : this.Grant.Covers(permission, target);
     }
+
+    /// <summary>Records the user credential the transport admitted this caller by.</summary>
+    /// <param name="credential">The credential, or <see langword="null" /> where none admitted the caller.</param>
+    /// <returns>This principal, naming the credential.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when this principal is not a caller, which no credential admits.</exception>
+    public AuthorizedPrincipal AdmittedByCredential(Guid? credential) => this.Kind == AuthorizedPrincipalKind.Caller
+        ? new AuthorizedPrincipal(this.Kind, this.Identity, this.User, this.Grant) { Credential = credential }
+        : throw new InvalidOperationException("Only a caller is admitted by a credential.");
 
     private static ScopedGrant AtDeployment(IEnumerable<MailFathomPermission> grantedPermissions)
     {

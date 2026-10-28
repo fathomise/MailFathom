@@ -41,7 +41,7 @@ namespace MailFathom.Host.Configuration.Policies;
 /// Every fault is reported rather than the first, for the reason a record's binder reports them all: whoever is
 /// correcting a policy one sentence at a time learns about the next only by saving it again. A value is repeated
 /// only where the record's own rule quotes it — a language, a zone, a recording level somebody misspelled, the alias
-/// a folder was given and the special-use role it names — and never otherwise, because a forced list of trusted senders is somebody's addresses; a key somebody wrote is
+/// a folder was given and the special-use role it names — and never otherwise, because a forced list of contact-collection exclusions can hold somebody's addresses; a key somebody wrote is
 /// repeated only where it is shaped like a setting's name, so a refusal is MailFathom's own words rather than the
 /// document's.
 /// </para>
@@ -421,7 +421,7 @@ internal sealed class SettingsPolicyCandidate
 
     /// <summary>Reports whether every key the binder did not know is shaped like a setting's name, and so may be repeated back.</summary>
     /// <remarks>
-    /// A key inside a list entry is text whoever wrote the policy chose, and in a list of trusted senders the likeliest
+    /// A key inside a list entry is text whoever wrote the policy chose, and in a list of contact-collection exclusions the likeliest
     /// thing to be written where a setting's name belongs is an address. The binder writes the names quoted and
     /// separated by a comma, so a name carrying either reads here as one that is not a setting's.
     /// </remarks>

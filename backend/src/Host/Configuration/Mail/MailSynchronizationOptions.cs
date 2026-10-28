@@ -502,7 +502,7 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
     /// <para>
     /// It defaults to on because the deployment it was built for is the one whose receiving server writes no
     /// <c>Authentication-Results</c> header. Every message there records that nothing was established, no author ever
-    /// authenticates, and the trusted-sender list has no identity to be held against — so shipping this off would
+    /// authenticates, and no contact has an established author to recognize — so shipping this off would
     /// switch it off for exactly the mailboxes it exists for, while leaving them looking correctly configured.
     /// </para>
     /// <para>
@@ -942,35 +942,6 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// </remarks>
     public bool TrustOwnAccountDomains { get; set; }
 
-    /// <summary>Gets or sets the senders this account recognizes on top of its owner's own addresses and, where it opted in, domains.</summary>
-    /// <remarks>
-    /// <para>
-    /// Per account rather than deployment-wide, because the accounts an instance synchronizes are different
-    /// correspondence: a work account's counterparties have nothing to do with a personal one's, and one list would
-    /// either recognize too much on one account or make a user maintain the union of both.
-    /// </para>
-    /// <para>
-    /// This is the declared half of the list and the store holds the half somebody adds while the deployment is
-    /// running; an entry in either recognizes a sender, and a reload can no more remove a stored entry than a stored
-    /// entry can shadow one written here. An entry that names neither a domain nor an address, names both, or writes
-    /// one nothing can compare fails startup naming this account and the entry's position.
-    /// </para>
-    /// </remarks>
-    public List<TrustedSenderOptions> TrustedSenders { get; set; } = [];
-
-    /// <summary>Gets the configured entries as the values the matcher holds a sender against, dropping the unusable ones.</summary>
-    /// <remarks>
-    /// An unusable entry is skipped here rather than raised over, because startup validation refuses that configuration
-    /// and a reload being rejected must not make an arriving message throw. What that costs is one entry of one
-    /// account's list, and the cost is in the safe direction: an entry nobody could read recognizes nobody.
-    /// </remarks>
-    internal IReadOnlyList<TrustedSenderEntry> ConfiguredTrustedSenders =>
-    [
-        .. (this.TrustedSenders ?? [])
-            .Select(static configured => configured.TryCreateEntry(out var entry) ? entry : null)
-            .OfType<TrustedSenderEntry>(),
-    ];
-
     /// <summary>Gets or sets whether this account records the people it corresponds with, and under what bounds.</summary>
     /// <remarks>
     /// Per account rather than deployment-wide, because what it produces is a record about third parties and the
@@ -1216,11 +1187,6 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
             yield return new ValidationResult(
                 $"Account '{this.AccountId}': the trusted authentication service identifier must be a domain-shaped token of at most {TrustedAuthenticationAuthority.MaximumLength} characters, or be omitted so that the account believes the known authentication provider listed for its IMAP host, or no header where none is listed.",
                 [nameof(this.TrustedAuthenticationServiceIdentifier)]);
-        }
-
-        foreach (var result in this.ValidateTrustedSenders())
-        {
-            yield return result;
         }
 
         foreach (var result in this.ValidateContactCollection())
@@ -1493,41 +1459,6 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
                 yield return new ValidationResult(
                     $"Account '{this.AccountId}': contact collection exclusion {position} must name exactly one of a usable domain or a usable address pattern, may ask to include subdomains only where it names a domain, and may not write a pattern whose only characters are the two wildcards and the at-sign.",
                     [nameof(this.ContactCollection)]);
-            }
-        }
-    }
-
-    /// <summary>Reports every trusted-sender entry that names no sender this system can compare against.</summary>
-    /// <returns>One result per unusable entry, empty when every entry names exactly one usable sender.</returns>
-    /// <remarks>
-    /// <para>
-    /// A typo here fails startup rather than degrading to an entry that recognizes nobody, because the two are
-    /// indistinguishable afterwards: a list nobody wrote and a list whose entries match nothing both leave every
-    /// sender unrecognized, and an operator would meet the difference as mail that never stops carrying a warning.
-    /// </para>
-    /// <para>
-    /// The message names the account and the entry's position and never the value it holds, because a domain and an
-    /// address are both personal data and a validation failure is written to a log.
-    /// </para>
-    /// </remarks>
-    private IEnumerable<ValidationResult> ValidateTrustedSenders()
-    {
-        if (this.TrustedSenders is null)
-        {
-            yield return new ValidationResult(
-                $"Account '{this.AccountId}': the trusted sender configuration must be a list.",
-                [nameof(this.TrustedSenders)]);
-
-            yield break;
-        }
-
-        foreach (var (entry, position) in this.TrustedSenders.Select(static (entry, index) => (Entry: entry, Position: index)))
-        {
-            if (entry is null || !entry.TryCreateEntry(out _))
-            {
-                yield return new ValidationResult(
-                    $"Account '{this.AccountId}': trusted sender {position} must name exactly one of a usable domain or a usable address, and may ask to include subdomains only where it names a domain.",
-                    [nameof(this.TrustedSenders)]);
             }
         }
     }

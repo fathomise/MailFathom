@@ -423,7 +423,7 @@ your own mail.
 the signing domains publish in DNS, and reads the sender's DMARC record to learn whether a signature counts as the
 author's. The signature check is a fallback rather than a second opinion: it happens only for an account
 whose server wrote nothing MailFathom trusts, and it establishes a signing domain where there would otherwise be no
-author to hold your own addresses, `TrustedSenders`, or `TrustOwnAccountDomains` against at all. It is what makes those
+author to hold your own addresses, your contacts, or `TrustOwnAccountDomains` against at all. It is what makes those
 work on a mailbox whose provider records nothing, and it is on by default. What it cannot reach is the part that needed
 the connection: no SPF result, no DMARC outcome, and so no warning about a forged domain — your receiving server
 already refused or filed that before delivery. The DMARC record is read beside a trusted server too, where that

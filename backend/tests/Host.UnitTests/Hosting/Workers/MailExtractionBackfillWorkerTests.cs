@@ -445,6 +445,7 @@ public sealed class MailExtractionBackfillWorkerTests : IDisposable
         services.AddSingleton(backfillStore);
         services.AddSingleton(Substitute.For<IEmailContentStore>());
         services.AddSingleton(Substitute.For<IEmailMimeReader>());
+        services.AddSingleton(SenderTrustJudges.Over());
         services.AddSingleton(Substitute.For<IPersistenceSessionFactory>());
         services.AddSingleton(new PersistenceConcurrencyOptions());
         services.AddSingleton(new StoredEmailExtractionBackfillOptions

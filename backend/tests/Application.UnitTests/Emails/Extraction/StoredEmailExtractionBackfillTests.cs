@@ -11,6 +11,7 @@ using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
+using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
@@ -316,6 +317,7 @@ public sealed class StoredEmailExtractionBackfillTests
             store,
             contentStore,
             mimeReader,
+            SenderTrustJudges.Over(),
             retryPolicy,
             new StoredEmailExtractionBackfillOptions
             {

@@ -111,7 +111,7 @@ const authenticated = {
     trustOrganization: null,
 };
 
-const trusted = { ...authenticated, deploymentTrust: 'Trusted', trustSource: 'ConfiguredTrustedSender' };
+const trusted = { ...authenticated, deploymentTrust: 'Trusted', trustSource: 'PersonalContact' };
 
 // The organization's signature proves the address itself, so the member whose organization was deleted is one no
 // receiving server established anything about and is trusted all the same.

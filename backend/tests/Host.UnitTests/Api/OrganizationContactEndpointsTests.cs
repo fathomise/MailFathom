@@ -15,6 +15,7 @@ using MailFathom.Domain.Synchronization;
 using MailFathom.Host.Api;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.TestSupport;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -60,6 +61,7 @@ public sealed class OrganizationContactEndpointsTests
 
         // Act
         var result = await OrganizationContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             Organization,
             new ContactRecordRequest("Biuro Rachunkowe", ["biuro@example.test"], "biuro@example.test", Note: null),
             this.Book(AdministrativeGrant.WholeSurface),
@@ -75,6 +77,7 @@ public sealed class OrganizationContactEndpointsTests
             Arg.Any<IPersistenceSession>(),
             ContactBookHolder.OfOrganization(Organization),
             Arg.Any<Contact>(),
+            Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Administrator),
             Arg.Any<CancellationToken>());
     }
 
@@ -93,6 +96,7 @@ public sealed class OrganizationContactEndpointsTests
 
         // Act
         var notHeld = await OrganizationContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             AnotherOrganization,
             new ContactRecordRequest("Biuro Rachunkowe", ["biuro@example.test"], "biuro@example.test", Note: null),
             this.Book(AdministrativeGrant.WholeSurface),
@@ -100,6 +104,7 @@ public sealed class OrganizationContactEndpointsTests
             AdministrativeGrant.WholeSurface,
             TestContext.Current.CancellationToken);
         var notCovered = await OrganizationContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             Organization,
             new ContactRecordRequest("Biuro Rachunkowe", ["biuro@example.test"], "biuro@example.test", Note: null),
             this.Book(scopedElsewhere),
@@ -112,7 +117,7 @@ public sealed class OrganizationContactEndpointsTests
         var second = Assert.IsType<ProblemHttpResult>(notCovered.Result);
         Assert.Equal(400, first.StatusCode);
         Assert.Equal(400, second.StatusCode);
-        await this.store.DidNotReceiveWithAnyArgs().AddAsync(default!, default!, default!, TestContext.Current.CancellationToken);
+        await this.store.DidNotReceiveWithAnyArgs().AddAsync(default!, default!, default!, default!, TestContext.Current.CancellationToken);
     }
 
     /// <summary>An administrator of another organization is served an empty book rather than told whether this one exists.</summary>
@@ -150,6 +155,7 @@ public sealed class OrganizationContactEndpointsTests
 
         // Act
         var result = await OrganizationContactEndpoints.PromoteAsync(
+            new DefaultHttpContext(),
             Organization,
             collected.Id.Value,
             Account.Value,
@@ -169,6 +175,7 @@ public sealed class OrganizationContactEndpointsTests
             Arg.Is<Contact>(copy => copy.Organization == Organization
                 && copy.Origin == ContactOrigin.Asserted
                 && copy.Id != collected.Id),
+            Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Administrator),
             Arg.Any<CancellationToken>());
     }
 
@@ -186,6 +193,7 @@ public sealed class OrganizationContactEndpointsTests
 
         // Act
         var result = await OrganizationContactEndpoints.PromoteAsync(
+            new DefaultHttpContext(),
             Organization,
             collected.Id.Value,
             Account.Value,
@@ -198,7 +206,7 @@ public sealed class OrganizationContactEndpointsTests
 
         // Assert
         Assert.IsType<ProblemHttpResult>(result.Result);
-        await this.store.DidNotReceiveWithAnyArgs().AddAsync(default!, default!, default!, TestContext.Current.CancellationToken);
+        await this.store.DidNotReceiveWithAnyArgs().AddAsync(default!, default!, default!, default!, TestContext.Current.CancellationToken);
     }
 
     private static IDeploymentMailAccountCatalog CatalogServing(MailAccountId account)

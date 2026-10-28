@@ -18,10 +18,9 @@ namespace MailFathom.Domain.Contacts.Collection;
 /// <c>*+noreply@*</c> and <c>bot-*@example.test</c> select on how an address is spelled, wherever it is hosted.
 /// </para>
 /// <para>
-/// Reaching under a domain is opt-in per entry rather than a mode the list runs in, for the reason
-/// <see cref="TrustedSenderEntry" /> gives: one host excluded inside a domain full of correspondents must not take the
-/// rest of the domain with it, and an organization whose automation lives on names beneath its own domain must be
-/// excludable in one entry.
+/// Reaching under a domain is opt-in per entry rather than a mode the list runs in: one host excluded inside a domain
+/// full of correspondents must not take the rest of the domain with it, and an organization whose automation lives on
+/// names beneath its own domain must be excludable in one entry.
 /// </para>
 /// <para>
 /// A pattern is held against the address's own comparison form, so it is the same matching rule the book stores and

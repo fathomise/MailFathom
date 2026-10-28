@@ -2,9 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Contacts;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Persistence;
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Access;
+using MailFathom.Infrastructure.Persistence.Contacts;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
@@ -90,6 +93,12 @@ internal static class UserAccountErasure
         ArgumentNullException.ThrowIfNull(quiescedAccounts);
 
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var ownBook = ContactBookHolder.Of(UserId.Create(userId)).Key;
+
+        // A contact write takes its address locks before its foreign key reads the user row, so the addresses of the
+        // user's own book are locked before that row is and again once it is held, which reaches only what a write
+        // committed in between.
+        await LockBookAddressesAsync(writeContext, ownBook, cancellationToken);
 
         // The user row is held for the rest of the transaction, so two erasures of one user are serialized, and a
         // write that keys onto that row — an assignment naming it — waits on the foreign-key check until this
@@ -166,6 +175,14 @@ internal static class UserAccountErasure
         // subject has to be true of the bucket as well as of the database, so this is the one deletion path that may
         // not leave its objects to the sweep.
         await ReleasedContentObjects.ReleaseForUserAsync(session, userId, cancellationToken);
+
+        // A trust verdict a contact of the user's own book granted is reset before the cascade takes the contact, so
+        // no trusted mark is left naming somebody nobody holds any more.
+        await LockBookAddressesAsync(writeContext, ownBook, cancellationToken);
+        await ContactTrustVerdicts.ResetNamingAsync(
+            writeContext,
+            writeContext.Contacts.Where(contact => contact.BookHolderId == ownBook).Select(contact => contact.Id),
+            cancellationToken);
 
         var rowsErasedBesideTheCascade = await EraseOrphanedAccountsAsync(
             session,
@@ -353,6 +370,20 @@ internal static class UserAccountErasure
             .ToHashSet();
 
         return [.. namingAnAccount.Where(candidate => !reachedFromEachOther.Contains(candidate))];
+    }
+
+    /// <summary>Takes the address lock for every address one contact book holds.</summary>
+    private static async Task LockBookAddressesAsync(
+        MailFathomDbContext writeContext,
+        string bookHolder,
+        CancellationToken cancellationToken)
+    {
+        var addresses = await writeContext.ContactAddresses
+            .Where(address => address.BookHolderId == bookHolder)
+            .Select(address => address.NormalizedAddress)
+            .ToArrayAsync(cancellationToken);
+
+        await ContactAddressLocks.TakeAsync(writeContext, addresses, cancellationToken);
     }
 
     /// <summary>Erases everything stored for each account the departing user was the last assigned to.</summary>

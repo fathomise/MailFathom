@@ -91,6 +91,10 @@ public sealed class AccessAuthorization
     /// </remarks>
     public string? PrincipalIdentity => this.principals.Current?.Identity;
 
+    /// <summary>Gets the user credential the caller in hand was admitted by, or <see langword="null" /> where none admitted it.</summary>
+    /// <remarks>Read by an act that records who performed it; nothing decides access from it.</remarks>
+    public Guid? PrincipalCredential => this.principals.Current?.Credential;
+
     /// <summary>Requires that an admitted caller holding one named capability is what reached this use case.</summary>
     /// <param name="permission">The capability the operation is published under.</param>
     /// <exception cref="ArgumentException">Thrown when <paramref name="permission" /> names no published capability, which is a defect in the calling use case rather than a refusal.</exception>

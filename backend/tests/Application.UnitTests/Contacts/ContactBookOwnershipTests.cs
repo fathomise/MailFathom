@@ -27,6 +27,8 @@ namespace MailFathom.Application.UnitTests.Contacts;
 /// </remarks>
 public sealed class ContactBookOwnershipTests
 {
+    private static readonly ContactAddressWriter PersonWriting = new(ContactAddressWriterKind.Person, User: null, Credential: null);
+
     private static readonly DateTimeOffset Now = new(2026, 3, 1, 9, 0, 0, TimeSpan.Zero);
 
     /// <summary>The organization whose book the organization tests write and read, which is the one a scoped administrator is arranged over.</summary>
@@ -272,6 +274,7 @@ public sealed class ContactBookOwnershipTests
         var result = await book.RecordAsync(
             SyntheticUser.Another,
             NewContactOf("Anna Kowalska", "anna@example.test"),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -471,6 +474,7 @@ public sealed class ContactBookOwnershipTests
         var result = await book.RecordInOrganizationAsync(
             Organization,
             NewContactOf("Biuro Rachunkowe", "biuro@example.test"),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -494,6 +498,7 @@ public sealed class ContactBookOwnershipTests
         var result = await book.RecordInOrganizationAsync(
             Organization,
             NewContactOf("Biuro Rachunkowe", "biuro@example.test"),
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -513,6 +518,7 @@ public sealed class ContactBookOwnershipTests
         var refusal = await Record.ExceptionAsync(() => book.RecordInOrganizationAsync(
             Organization,
             NewContactOf("Biuro Rachunkowe", "biuro@example.test"),
+            PersonWriting,
             TestContext.Current.CancellationToken));
 
         // Assert
@@ -543,6 +549,7 @@ public sealed class ContactBookOwnershipTests
                 Addresses = [Address("biuro@example.test")],
                 PreferredAddress = Address("biuro@example.test"),
             },
+            PersonWriting,
             TestContext.Current.CancellationToken);
         var erasure = await book.EraseAsync(scope, recorded.Id, TestContext.Current.CancellationToken);
 
@@ -596,6 +603,7 @@ public sealed class ContactBookOwnershipTests
             ContactBookScope.OfOrganization(Organization, [SyntheticMailAccount.Deployment]),
             collected.Id,
             ContactOrigin.Asserted,
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -626,60 +634,12 @@ public sealed class ContactBookOwnershipTests
             ContactBookScope.OfOrganization(Organization, []),
             recorded.Id,
             ContactOrigin.Asserted,
+            PersonWriting,
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(ContactWriteOutcome.AlreadyAsserted, result.Outcome);
         Assert.Equal(1, store.ContactCount);
-    }
-
-    /// <summary>MailFathom's own work finds the organization's contact by an address in any casing, and nothing a member wrote.</summary>
-    [Fact]
-    public async Task FindOrganizationHolderAsync_AnAddressInAnotherCasing_NamesTheOrganizationsContactAlone()
-    {
-        // Arrange
-        var store = new InMemoryContactBookStore();
-        var recorded = OrganizationContactOf("Biuro Rachunkowe", "biuro@example.test");
-        store.Hold(ContactBookHolder.OfOrganization(Organization), recorded);
-        store.Hold(SyntheticUser.Deployment, ContactOf("Anna Kowalska", "anna@example.test"));
-
-        var book = CollectingBookOf(store);
-
-        // Act
-        var found = await book.FindOrganizationHolderAsync(
-            Organization,
-            Address("Biuro@Example.TEST"),
-            TestContext.Current.CancellationToken);
-        var unknown = await book.FindOrganizationHolderAsync(
-            Organization,
-            Address("anna@example.test"),
-            TestContext.Current.CancellationToken);
-        var elsewhere = await book.FindOrganizationHolderAsync(
-            AnotherOrganization,
-            Address("biuro@example.test"),
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(recorded.Id, found);
-        Assert.Null(unknown);
-        Assert.Null(elsewhere);
-    }
-
-    /// <summary>The lookup serves work MailFathom runs for nobody, so a caller cannot ask it.</summary>
-    [Fact]
-    public async Task FindOrganizationHolderAsync_ReachedByACaller_IsRefused()
-    {
-        // Arrange
-        var book = BookOf(new InMemoryContactBookStore(), SyntheticUser.Deployment, MailFathomPermission.ContactsRead);
-
-        // Act
-        var refusal = await Record.ExceptionAsync(() => book.FindOrganizationHolderAsync(
-            Organization,
-            Address("biuro@example.test"),
-            TestContext.Current.CancellationToken));
-
-        // Assert
-        Assert.IsType<PrincipalNotAuthorizedException>(refusal);
     }
 
     private static ContactBookReader ReaderOf(

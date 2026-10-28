@@ -73,7 +73,7 @@ internal static class StoredEmailMetadataMapping
 
         ApplyAttachmentSummary(entity, metadata.Attachments);
         ApplySenderAuthentication(entity, metadata.SenderAuthentication);
-        ApplySenderTrust(entity, metadata.SenderTrust);
+        ApplySenderTrust(entity, metadata.SenderTrust, metadata.Participants);
         ApplyMachineAuthorship(entity, metadata.MachineAuthorship);
         ApplySignature(entity, metadata.Signature);
     }
@@ -99,21 +99,31 @@ internal static class StoredEmailMetadataMapping
         entity.SenderAuthenticationSource = authentication.Source;
     }
 
-    /// <summary>Records what this deployment made of the author the message authenticated as.</summary>
+    /// <summary>Records what this deployment made of the message's author, and the address it was judged for.</summary>
     /// <remarks>
-    /// Written whole beside the verdict it reads, so a re-derivation after a trusted-sender list changed replaces both
-    /// halves rather than leaving an answer beside the identity a different list judged. A revision that names no
-    /// policy is stored as absent rather than as an empty string, because the column's null is what says no policy
-    /// judged this row.
+    /// Written whole beside the verdict it reads, so a re-derivation replaces every column rather than leaving one from
+    /// an earlier judgment. A revision that names no policy is stored as absent rather than as an empty string, because
+    /// the column's null is what says no policy judged this row. The address is the first <c>From</c> mailbox, the same
+    /// one the verdict was reached for, and absent where it does not fit the column a contact's address would.
     /// </remarks>
-    private static void ApplySenderTrust(StoredEmailEntity entity, SenderTrust trust)
+    private static void ApplySenderTrust(
+        StoredEmailEntity entity,
+        SenderTrust trust,
+        IReadOnlyList<EmailParticipant> participants)
     {
         entity.SenderTrustLevel = trust.Level;
         entity.SenderTrustGrantedBy = trust.GrantedBy;
+        entity.SenderTrustAuthorEvidence = trust.AuthorEvidence;
         entity.SenderTrustPolicyRevision = trust.PolicyRevision.NamesAPolicy
             ? trust.PolicyRevision.Value
             : null;
         entity.SenderTrustOrganizationId = trust.RecognizingOrganizationId;
+        entity.SenderTrustContactId = trust.RecognizingContactId?.Value;
+        entity.SenderTrustAddress = participants
+            .FirstOrDefault(static participant => participant.Role == EmailAddressRole.From)?.Address.NormalizedAddress
+            is { Length: <= StoredEmailEntity.MaximumAddressLength } address
+                ? address
+                : null;
     }
 
     /// <summary>Records how much the message's own text read as machine written.</summary>

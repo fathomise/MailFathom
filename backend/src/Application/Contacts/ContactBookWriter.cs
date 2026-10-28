@@ -21,7 +21,9 @@ namespace MailFathom.Application.Contacts;
 /// </para>
 /// <para>
 /// Every write acts under <see cref="ContactOrigin.Asserted" />, because a caller granted this permission is writing for
-/// the user: what an agent is told to record is a person somebody wrote down. What follows from it is the one refusal a
+/// the user: what an agent is told to record is a person somebody wrote down. Which surface the write came through is
+/// recorded on every address it writes all the same, because an address only a person or an administrator wrote can make
+/// its sender trusted, and one an agent wrote never does. What follows from the origin is the one refusal a
 /// caller meets that is about the record rather than about the request — amending a contact this deployment collected is
 /// refused until it has been promoted. Promotion is the fourth act for exactly that reason: leaving it to the
 /// administrative surface alone would put every collected record permanently out of this one's reach, so it is offered
@@ -64,12 +66,16 @@ public sealed class ContactBookWriter
 
     /// <summary>Records a person the book does not yet hold.</summary>
     /// <param name="draft">The record to write.</param>
+    /// <param name="writtenThrough">The surface the caller wrote through, which every address records.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The record as written, or the refusal naming what stopped it.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="draft" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
     /// <exception cref="ContactRecordInvalidException">Thrown when the record breaks a rule the book holds.</exception>
-    public Task<ContactWriteResult> RecordAsync(ContactRecordDraft draft, CancellationToken cancellationToken)
+    public Task<ContactWriteResult> RecordAsync(
+        ContactRecordDraft draft,
+        ContactAddressWriterKind writtenThrough,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(draft);
 
@@ -87,12 +93,14 @@ public sealed class ContactBookWriter
                 Note = record.Note,
                 Origin = CallerWriter,
             },
+            this.WriterThrough(writtenThrough),
             cancellationToken);
     }
 
     /// <summary>Amends one contact to the record the caller states.</summary>
     /// <param name="contactId">The contact to amend.</param>
     /// <param name="draft">The record the contact is to have afterwards.</param>
+    /// <param name="writtenThrough">The surface the caller wrote through, which an address the amendment adds records.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The amended record, or the refusal naming what stopped it.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="draft" /> is <see langword="null" />.</exception>
@@ -101,6 +109,7 @@ public sealed class ContactBookWriter
     public async Task<ContactWriteResult> AmendAsync(
         ContactId contactId,
         ContactRecordDraft draft,
+        ContactAddressWriterKind writtenThrough,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(draft);
@@ -122,11 +131,13 @@ public sealed class ContactBookWriter
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
             },
+            this.WriterThrough(writtenThrough),
             cancellationToken);
     }
 
     /// <summary>Takes on a contact this deployment collected, so it becomes one the user asserted.</summary>
     /// <param name="contactId">The contact to promote.</param>
+    /// <param name="writtenThrough">The surface the caller wrote through, which every address of the copy records.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The promoted record, or the refusal naming what stopped it.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
@@ -138,13 +149,21 @@ public sealed class ContactBookWriter
     /// every other write here does — a caller granted this permission is writing for the user — which is also what
     /// keeps collection from performing it on its own output.
     /// </remarks>
-    public async Task<ContactWriteResult> PromoteAsync(ContactId contactId, CancellationToken cancellationToken)
+    public async Task<ContactWriteResult> PromoteAsync(
+        ContactId contactId,
+        ContactAddressWriterKind writtenThrough,
+        CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.ContactsWrite);
 
         var scope = await this.ownership.ReadScopeAsync(cancellationToken);
 
-        return await this.book.PromoteAsync(scope, contactId, CallerWriter, cancellationToken);
+        return await this.book.PromoteAsync(
+            scope,
+            contactId,
+            CallerWriter,
+            this.WriterThrough(writtenThrough),
+            cancellationToken);
     }
 
     /// <summary>Erases one person and everything the book derived from them.</summary>
@@ -166,6 +185,10 @@ public sealed class ContactBookWriter
 
         return await this.book.EraseAsync(scope, contactId, cancellationToken);
     }
+
+    /// <summary>Names the caller as the writer of what it states through one surface.</summary>
+    private ContactAddressWriter WriterThrough(ContactAddressWriterKind surface) =>
+        new(surface, this.ownership.User, this.authorization.PrincipalCredential);
 
     /// <summary>Reads the record a draft states, refusing the one rule it broke.</summary>
     /// <remarks>

@@ -604,7 +604,9 @@ Six parts of it are worth reading before a caller writes against them:
   and nothing on the way to a listing verified it. `authorAuthentication` is what was established about the author the
   email displays — by the receiving mail server, or, where that server wrote nothing, by this deployment verifying the
   message's own DKIM signatures — `authenticated`, `failed`, or `notEstablished`, and `deploymentTrust` is
-  whether this deployment's own trusted-sender configuration names that author — `trusted` or `unknown`. Neither is
+  whether this deployment recognizes that author — the owner's own addresses, the owner's own domains on an account
+  that turns `TrustOwnAccountDomains` on, a contact a person or an administrator wrote down, or the receiving
+  organization's signature — `trusted` or `unknown`. Neither is
   derived from the other and no field merges them, because **`authenticated` beside `unknown` is the ordinary state of
   legitimate mail from a correspondent nobody has named** and must not read as a finding against the message. `unknown`
   is also what an email whose author failed carries, which is why the pair is read together. Both values are read from

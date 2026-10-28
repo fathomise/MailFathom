@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Failures;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Failures;
 using MailFathom.Mcp.Tools.Categories;
 using MailFathom.Mcp.Tools.Results;
@@ -76,7 +77,9 @@ internal sealed class UpdateContactTool(ContactBookWriter contactBookWriter)
         + "record does not name is removed, and an omitted note clears the one held. Read the contact with get_contact "
         + "first so nothing is dropped by accident. Writes to local state only, and touches no mail. A contact a mail "
         + "account collected from arriving mail answers contactWasCollected: that record is the mailbox's and the "
-        + "account's other users read it, so take your own copy on with promote_contact and amend the copy.")]
+        + "account's other users read it, so take your own copy on with promote_contact and amend the copy. An "
+        + "address this adds makes nobody a trusted sender, while one the record already held keeps whatever trust its "
+        + "earlier writer gave it.")]
     public async Task<ContactWriteToolResult> UpdateContactAsync(
         [Description("The contactId of the person to amend, as a listing or an earlier write returned it.")]
         string contactId,
@@ -101,6 +104,7 @@ internal sealed class UpdateContactTool(ContactBookWriter contactBookWriter)
         var amended = await contactBookWriter.AmendAsync(
             ContactArguments.NamedContact(contactId),
             draft,
+            ContactAddressWriterKind.Agent,
             cancellationToken);
 
         return ContactWriteToolResult.From(amended);

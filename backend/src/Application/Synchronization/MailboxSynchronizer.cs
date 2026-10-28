@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
+using MailFathom.Application.Emails.Trust;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
@@ -45,6 +46,7 @@ public sealed class MailboxSynchronizer
     private readonly StoredContentCeiling storedContentCeiling;
     private readonly RawMimeMemoryBudget rawMimeMemoryBudget;
     private readonly IEmailMimeReader mimeReader;
+    private readonly SenderTrustJudge senderTrust;
     private readonly IMailboxMutationReconciliationStore mutationStore;
     private readonly IOutgoingMailFilingStore filingStore;
     private readonly FlaggedDeleteFollower flaggedDeleteFollower;
@@ -78,6 +80,7 @@ public sealed class MailboxSynchronizer
         StoredContentCeiling storedContentCeiling,
         RawMimeMemoryBudget rawMimeMemoryBudget,
         IEmailMimeReader mimeReader,
+        SenderTrustJudge senderTrust,
         IMailboxMutationReconciliationStore mutationStore,
         IOutgoingMailFilingStore filingStore,
         FlaggedDeleteFollower flaggedDeleteFollower,
@@ -106,6 +109,7 @@ public sealed class MailboxSynchronizer
         this.storedContentCeiling = storedContentCeiling;
         this.rawMimeMemoryBudget = rawMimeMemoryBudget;
         this.mimeReader = mimeReader;
+        this.senderTrust = senderTrust;
         this.mutationStore = mutationStore;
         this.filingStore = filingStore;
         this.flaggedDeleteFollower = flaggedDeleteFollower;
@@ -1212,10 +1216,14 @@ public sealed class MailboxSynchronizer
         await this.concurrencyRetryPolicy.CommitAsync(
             async (persistenceSession, attemptCancellationToken) =>
             {
+                var judged = extraction.Metadata is { } extracted
+                    ? (await this.senderTrust.JudgeAsync(persistenceSession, [extracted], attemptCancellationToken))[0]
+                    : null;
+
                 storedEmailId = await this.metadataRepository.UpsertMetadataAsync(
                     persistenceSession,
                     metadata,
-                    extraction.Metadata,
+                    judged,
                     StoredEmailContentAvailability.Available,
                     attemptCancellationToken);
                 await this.contentStore.SaveContentAsync(

@@ -35,7 +35,7 @@ public sealed class ContactMappingTests
             note: "Owes an answer.");
 
         // Act
-        var entity = ContactMapping.ToEntity(OwnBook, contact);
+        var entity = ContactMapping.ToEntity(OwnBook, contact, ContactAddressWriter.Unrecorded);
 
         // Assert
         Assert.Equal("Anna Kowalska", entity.DisplayName);
@@ -58,7 +58,7 @@ public sealed class ContactMappingTests
         var contact = ContactOf("Anna Kowalska", ["anna@example.test", "anna@personal.test"]);
 
         // Act
-        var entity = ContactMapping.ToEntity(OwnBook, contact);
+        var entity = ContactMapping.ToEntity(OwnBook, contact, ContactAddressWriter.Unrecorded);
 
         // Assert
         Assert.All(entity.Addresses, address => Assert.Equal(contact.Id.Value, address.ContactId));
@@ -79,13 +79,35 @@ public sealed class ContactMappingTests
         var holder = ContactBookHolder.Of(SyntheticUser.Another);
 
         // Act
-        var entity = ContactMapping.ToEntity(holder, contact);
+        var entity = ContactMapping.ToEntity(holder, contact, ContactAddressWriter.Unrecorded);
 
         // Assert
         Assert.Equal(SyntheticUser.Another.Value, entity.UserId);
         Assert.Null(entity.MailboxAccountId);
         Assert.Equal(holder.Key, entity.BookHolderId);
         Assert.All(entity.Addresses, address => Assert.Equal(holder.Key, address.BookHolderId));
+    }
+
+    /// <summary>Every address row records who wrote it and when, because the writer is what decides whether it grants trust.</summary>
+    [Fact]
+    public void ToEntity_AContactAWriterStated_RecordsThatWriterOnEveryAddress()
+    {
+        // Arrange
+        var credential = Guid.Parse("0199f000-0000-7000-8000-0000000000d1");
+        var writer = new ContactAddressWriter(ContactAddressWriterKind.Administrator, SyntheticUser.Deployment, credential);
+        var contact = ContactOf("Anna Kowalska", ["anna@example.test", "anna@personal.test"]);
+
+        // Act
+        var entity = ContactMapping.ToEntity(OwnBook, contact, writer);
+
+        // Assert
+        Assert.All(entity.Addresses, address =>
+        {
+            Assert.Equal(ContactAddressWriterKind.Administrator, address.WriterKind);
+            Assert.Equal(SyntheticUser.Deployment.Value, address.WriterUserId);
+            Assert.Equal(credential, address.WriterCredentialId);
+            Assert.Equal(contact.AmendedAt, address.WrittenAt);
+        });
     }
 
     /// <summary>A collected record is filed under the mail account it arrived on rather than under any user.</summary>
@@ -100,7 +122,7 @@ public sealed class ContactMappingTests
         var contact = ContactOf("Anna Kowalska", ["anna@example.test"], origin: ContactOrigin.Collected);
 
         // Act
-        var entity = ContactMapping.ToEntity(AccountBook, contact);
+        var entity = ContactMapping.ToEntity(AccountBook, contact, ContactAddressWriter.Unrecorded);
 
         // Assert
         Assert.Null(entity.UserId);
@@ -132,7 +154,7 @@ public sealed class ContactMappingTests
             organization);
 
         // Act
-        var entity = ContactMapping.ToEntity(book, contact);
+        var entity = ContactMapping.ToEntity(book, contact, ContactAddressWriter.Unrecorded);
         var rebuilt = ContactMapping.ToContact(entity);
 
         // Assert
@@ -159,7 +181,7 @@ public sealed class ContactMappingTests
         var holder = intoAccountBook ? AccountBook : OwnBook;
 
         // Act, Assert
-        Assert.Throws<ArgumentException>(() => ContactMapping.ToEntity(holder, contact));
+        Assert.Throws<ArgumentException>(() => ContactMapping.ToEntity(holder, contact, ContactAddressWriter.Unrecorded));
     }
 
     /// <summary>A stored contact reads back as the record it was written from.</summary>
@@ -175,7 +197,7 @@ public sealed class ContactMappingTests
             origin: ContactOrigin.Collected);
 
         // Act
-        var rebuilt = ContactMapping.ToContact(ContactMapping.ToEntity(AccountBook, contact));
+        var rebuilt = ContactMapping.ToContact(ContactMapping.ToEntity(AccountBook, contact, ContactAddressWriter.Unrecorded));
 
         // Assert
         Assert.Equal(contact.Id, rebuilt.Id);
@@ -196,7 +218,7 @@ public sealed class ContactMappingTests
         var contact = ContactOf("Anna Kowalska", ["anna@example.test"]);
 
         // Act
-        var rebuilt = ContactMapping.ToContact(ContactMapping.ToEntity(OwnBook, contact));
+        var rebuilt = ContactMapping.ToContact(ContactMapping.ToEntity(OwnBook, contact, ContactAddressWriter.Unrecorded));
 
         // Assert
         Assert.Null(rebuilt.Note);
@@ -207,7 +229,7 @@ public sealed class ContactMappingTests
     public void ToContact_ARowNamingAPreferredAddressTheContactDoesNotHold_IsRefused()
     {
         // Arrange
-        var entity = ContactMapping.ToEntity(OwnBook, ContactOf("Anna Kowalska", ["anna@example.test"]));
+        var entity = ContactMapping.ToEntity(OwnBook, ContactOf("Anna Kowalska", ["anna@example.test"]), ContactAddressWriter.Unrecorded);
         entity.PreferredNormalizedAddress = "SOMEBODY.ELSE@EXAMPLE.TEST";
 
         // Act, Assert
@@ -219,7 +241,7 @@ public sealed class ContactMappingTests
     public void ToContact_ARowWithNoAddress_IsRefused()
     {
         // Arrange
-        var entity = ContactMapping.ToEntity(OwnBook, ContactOf("Anna Kowalska", ["anna@example.test"]));
+        var entity = ContactMapping.ToEntity(OwnBook, ContactOf("Anna Kowalska", ["anna@example.test"]), ContactAddressWriter.Unrecorded);
         entity.Addresses.Clear();
 
         // Act, Assert
@@ -240,7 +262,7 @@ public sealed class ContactMappingTests
             amendedAt);
 
         // Act
-        var row = ContactMapping.ToAddressEntity(OwnBook, amended, Address("anna@personal.test"));
+        var row = ContactMapping.ToAddressEntity(OwnBook, amended, Address("anna@personal.test"), ContactAddressWriter.Unrecorded);
 
         // Assert
         Assert.Equal(amendedAt, TimestampOf(row.Id));

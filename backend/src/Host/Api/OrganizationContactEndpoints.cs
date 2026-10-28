@@ -144,6 +144,7 @@ internal static class OrganizationContactEndpoints
     }
 
     /// <summary>Records a person an organization's book does not yet hold.</summary>
+    /// <param name="context">The request, whose administrator every address records as its writer.</param>
     /// <param name="organizationId">The organization whose book the person is written into.</param>
     /// <param name="request">The record to write.</param>
     /// <param name="book">Performs the write.</param>
@@ -152,6 +153,7 @@ internal static class OrganizationContactEndpoints
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
     /// <returns><c>200</c> with the outcome, or <c>400</c> naming which rule the record broke.</returns>
     internal static async Task<Results<Ok<ContactWriteResponse>, ProblemHttpResult>> RecordAsync(
+        HttpContext context,
         Guid organizationId,
         [FromBody] ContactRecordRequest? request,
         [FromServices] ContactBook book,
@@ -188,6 +190,7 @@ internal static class OrganizationContactEndpoints
                 Note = record.Note,
                 Origin = AdministrativeWriter,
             },
+            ContactEndpoints.AdministratorWriting(context),
             cancellationToken);
 
         return TypedResults.Ok(ContactWriteResponse.For(written));
@@ -268,6 +271,7 @@ internal static class OrganizationContactEndpoints
     }
 
     /// <summary>Amends one contact of an organization's book to the record the caller states.</summary>
+    /// <param name="context">The request, whose administrator an address the amendment adds records as its writer.</param>
     /// <param name="organizationId">The organization whose book holds the contact.</param>
     /// <param name="contactId">The contact to amend.</param>
     /// <param name="request">The record the contact is to have afterwards.</param>
@@ -277,6 +281,7 @@ internal static class OrganizationContactEndpoints
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
     /// <returns><c>200</c> with the outcome, or <c>400</c> naming which rule the record broke.</returns>
     internal static async Task<Results<Ok<ContactWriteResponse>, ProblemHttpResult>> AmendAsync(
+        HttpContext context,
         Guid organizationId,
         Guid contactId,
         [FromBody] ContactRecordRequest? request,
@@ -320,12 +325,14 @@ internal static class OrganizationContactEndpoints
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
             },
+            ContactEndpoints.AdministratorWriting(context),
             cancellationToken);
 
         return TypedResults.Ok(ContactWriteResponse.For(amended));
     }
 
     /// <summary>Promotes a contact one mail account collected into an organization's book.</summary>
+    /// <param name="context">The request, whose administrator every address of the copy records as its writer.</param>
     /// <param name="organizationId">The organization whose book the copy is written into.</param>
     /// <param name="contactId">The collected contact to promote.</param>
     /// <param name="account">The mail account whose collected book holds the contact.</param>
@@ -345,6 +352,7 @@ internal static class OrganizationContactEndpoints
     /// mailbox keeps its own.
     /// </remarks>
     internal static async Task<Results<Ok<ContactWriteResponse>, ProblemHttpResult>> PromoteAsync(
+        HttpContext context,
         Guid organizationId,
         Guid contactId,
         [FromQuery] string? account,
@@ -388,6 +396,7 @@ internal static class OrganizationContactEndpoints
             ContactBookScope.OfOrganization(organizationId, [servedAccount]),
             identity,
             AdministrativeWriter,
+            ContactEndpoints.AdministratorWriting(context),
             cancellationToken);
 
         return TypedResults.Ok(ContactWriteResponse.OutcomeOf(promoted));

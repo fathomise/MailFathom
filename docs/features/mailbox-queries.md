@@ -355,7 +355,7 @@ says.
 
 The sender's address is what the message wrote about itself, so the summary carries beside it what somebody else
 established: `SenderVerification`, the pair of *what was concluded about the displayed author* and *whether this
-deployment recognizes that author* — with what recognized it, the trusted senders, a domain of the owner's own
+deployment recognizes that author* — with what recognized it, a contact, the owner's own address or a domain of the owner's
 accounts, or the organization's signature proving a member — beside a third fact folded into neither, *what the message's own S/MIME or OpenPGP
 signature proves*. All of it is read from the columns synchronization wrote. A listing evaluates no policy,
 resolves no DNS, and re-reads no header — a query that reached a verdict of its own would answer a different question

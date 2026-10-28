@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Failures;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Failures;
 using MailFathom.Mcp.Tools.Categories;
 using MailFathom.Mcp.Tools.Results;
@@ -80,7 +81,8 @@ internal sealed class PromoteContactTool(ContactBookWriter contactBookWriter)
         + "update_contact on a record that answered contactWasCollected. Nothing about the person is rewritten. Writes "
         + "to local state only, and touches no mail. A contact you had already written down answers alreadyAsserted, "
         + "and one you have already promoted answers notFound because your own copy now answers for the address. The "
-        + "answer carries the outcome alone and never the record; read the person with get_contact.")]
+        + "answer carries the outcome alone and never the record; read the person with get_contact. The copy makes "
+        + "nobody a trusted sender.")]
     public async Task<ContactWriteToolResult> PromoteContactAsync(
         [Description("The contactId of the collected person to take on, as a listing or an earlier read returned it.")]
         string contactId,
@@ -88,6 +90,7 @@ internal sealed class PromoteContactTool(ContactBookWriter contactBookWriter)
     {
         var promoted = await contactBookWriter.PromoteAsync(
             ContactArguments.NamedContact(contactId),
+            ContactAddressWriterKind.Agent,
             cancellationToken);
 
         return ContactWriteToolResult.OutcomeOf(promoted);

@@ -439,8 +439,9 @@ public sealed class OrchestratedMailRuleEvaluationTests(MailFathomOrchestrationF
                 AuthenticatedDomain,
                 DmarcOutcome.Pass,
                 DmarcRecordLookup.NotPublished),
-            SenderTrust = SenderTrust.Trusted(
-                SenderTrustSource.ConfiguredTrustedSender,
+            SenderTrust = SenderTrust.TrustedAsOwn(
+                SenderTrustSource.OwnAccountDomain,
+                TrustedAuthorEvidence.Authentication,
                 SenderTrustPolicyRevision.FromStoredValue("0a1b2c3d4e5f0a1b")),
             MachineAuthorship = MachineAuthorshipAssessment.Assessed(
                 MachineAuthorshipBand.Likely,

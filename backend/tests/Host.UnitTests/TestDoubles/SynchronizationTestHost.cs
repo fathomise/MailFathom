@@ -218,6 +218,9 @@ internal static class SynchronizationTestHost
         services.AddSingleton(Substitute.For<IRemoteFolderCreator>());
         services.AddScoped<MailFolderResolver>();
         services.AddScoped<OptimisticConcurrencyRetryPolicy>();
+        // Every message a run stores is judged for trust inside its storing transaction; no account here recognizes
+        // anybody, so the judge records that nobody was recognized.
+        services.AddSingleton(SenderTrustJudges.Over());
         services.AddScoped<MailboxSynchronizer>();
         services.AddScoped<FlaggedDeleteFollower>();
         services.AddScoped<MailboxReconciler>();

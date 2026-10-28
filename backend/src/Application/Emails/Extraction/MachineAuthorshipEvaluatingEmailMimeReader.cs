@@ -10,8 +10,7 @@ namespace MailFathom.Application.Emails.Extraction;
 /// <summary>Judges how much a message's own text reads as machine written, from the text the parse already produced.</summary>
 /// <remarks>
 /// <para>
-/// A decorator rather than a step inside the parsing adapter, for the reason
-/// <see cref="SenderTrustEvaluatingEmailMimeReader" /> is one: what the message's bytes say is read out of the message,
+/// A decorator rather than a step inside the parsing adapter: what the message's bytes say is read out of the message,
 /// while what a combination of signals is worth is a judgement this deployment makes and may make differently later.
 /// Keeping the judgement above the parser leaves the parser with no opinion to hold.
 /// </para>
