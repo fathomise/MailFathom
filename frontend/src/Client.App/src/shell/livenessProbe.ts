@@ -12,9 +12,11 @@ import type { RequestsInFlight } from '../deployment/requestsInFlight';
 // enough for the ceiling an operator configured. So what is bounded is a separate question: the probe, which asks
 // something cheap and gives up on it after `livenessBound`.
 //
-// It asks at two moments. When the signal channel drops, because SignalR's keep-alive has just said the link carried
-// nothing for thirty seconds. And every {@link probeAfter} while a request has been in flight that long, which covers a
-// server with no channel at all. One probe nobody answered says little — a link saturated by an upload can hold a probe
+// It asks at three moments. When the signal channel drops, because SignalR's keep-alive has just said the link carried
+// nothing for thirty seconds. Every {@link probeAfter} while a request has been in flight that long. And every
+// {@link probeAfter} while no channel stands at all — one that will not reopen, or a deployment that serves none —
+// because then nothing else would notice a server that went quiet while nobody was asking it anything, and the status
+// would go on saying *delayed* about a server that is not there. While a channel stands, its keep-alive is that watch. One probe nobody answered says little — a link saturated by an upload can hold a probe
 // up on a connection that is alive — so it takes {@link missesBeforeLost} in a row before the server is called lost.
 //
 // While the server is lost this asks nothing. Reaching for it again is the frame's own schedule in `useConnection.ts`,
@@ -37,6 +39,9 @@ export interface LivenessProbe {
     /** Whether the server is lost, during which nothing is asked here. Coming back starts the count again. */
     readonly lost: (isLost: boolean) => void;
 
+    /** Whether a signal channel stands, without which the server is asked on the interval whether or not anything waits. */
+    readonly channelStands: (stands: boolean) => void;
+
     /** Stops asking, for good. */
     readonly stop: () => void;
 }
@@ -56,6 +61,7 @@ export function probeLiveness(
 ): LivenessProbe {
     let stopped = false;
     let isLost = false;
+    let channelDown = false;
     let asking = false;
     let missed = 0;
     let firstMissedAt: number | null = null;
@@ -66,9 +72,14 @@ export function probeLiveness(
 
     const dueAt = (): number | null => {
         // A probe that went unanswered is followed by the next one a fixed interval after it, whatever is in flight: the
-        // link is in question now, and a server with nothing pending would otherwise never be asked a second time.
-        if (missed > 0 && lastAskedAt !== null) {
+        // link is in question now, and a server with nothing pending would otherwise never be asked a second time. With
+        // no channel standing the same interval runs from the last question, or from now where none was asked yet.
+        if ((missed > 0 || channelDown) && lastAskedAt !== null) {
             return lastAskedAt + probeAfter;
+        }
+
+        if (channelDown) {
+            return Date.now() + probeAfter;
         }
 
         const oldest = inFlight.oldest();
@@ -102,7 +113,7 @@ export function probeLiveness(
                 // waiting may have been answered since, and one that has not waited long enough is no reason to ask.
                 const oldest = inFlight.oldest();
 
-                if (missed === 0 && (oldest === null || Date.now() - oldest < probeAfter)) {
+                if (missed === 0 && !channelDown && (oldest === null || Date.now() - oldest < probeAfter)) {
                     schedule();
 
                     return;
@@ -171,6 +182,14 @@ export function probeLiveness(
             isLost = nowLost;
             missed = 0;
             firstMissedAt = null;
+            schedule();
+        },
+        channelStands: (stands) => {
+            if (channelDown === !stands) {
+                return;
+            }
+
+            channelDown = !stands;
             schedule();
         },
         stop: () => {

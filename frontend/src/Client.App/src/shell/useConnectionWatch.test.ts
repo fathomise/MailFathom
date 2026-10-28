@@ -45,6 +45,8 @@ function connected(change: Partial<Connection> = {}, accounts: readonly MailAcco
         accountsReadAt: Date.now(),
         reread: () => undefined,
         channelDropped: () => undefined,
+        readUnderWay: () => false,
+        channelStands: () => undefined,
         refresh: () => undefined,
         ...change,
     };
@@ -109,6 +111,29 @@ describe('useConnectionWatch', () => {
             view.result.current.channelStood('dropped');
         });
         expect(channelDropped).toHaveBeenCalledTimes(1);
+    });
+
+    // Without a standing channel nothing else would notice a server that went quiet while nobody asked it anything, so
+    // the probe is told to ask on its interval — and told to stop once a channel stands, whose keep-alive is that watch.
+    it('tells the probe to ask on its interval while the channel does not stand, and to stop once it does', () => {
+        const channelStands = vi.fn();
+        const view = renderHook(() => useConnectionWatch(signedIn, connected({ channelStands }), true, changes()));
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+        expect(channelStands).toHaveBeenLastCalledWith(true);
+
+        act(() => {
+            view.result.current.channelStood('dropped');
+        });
+        pass(10_000);
+        expect(channelStands).toHaveBeenLastCalledWith(false);
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+        expect(channelStands).toHaveBeenLastCalledWith(true);
     });
 
     it('is online as soon as the first channel opening stands', () => {

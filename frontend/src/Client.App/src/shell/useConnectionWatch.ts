@@ -185,11 +185,23 @@ export function useConnectionWatch(
     }, [quiet, changes]);
 
     // Read when the stream reports rather than captured, so the callback stays one function for the stream's life.
-    const { refresh: refreshFrame, channelDropped } = connection;
-    const frameUnanswered = useRef({ unanswered: connection.unansweredSince !== null, refreshFrame, channelDropped });
+    const { refresh: refreshFrame, channelDropped, readUnderWay, channelStands } = connection;
+    const frameUnanswered = useRef({
+        unanswered: connection.unansweredSince !== null,
+        refreshFrame,
+        channelDropped,
+        readUnderWay,
+        channelStands,
+    });
 
     useEffect(() => {
-        frameUnanswered.current = { unanswered: connection.unansweredSince !== null, refreshFrame, channelDropped };
+        frameUnanswered.current = {
+            unanswered: connection.unansweredSince !== null,
+            refreshFrame,
+            channelDropped,
+            readUnderWay,
+            channelStands,
+        };
     });
 
     const channelStood = useCallback((step: ChannelStep) => {
@@ -215,10 +227,12 @@ export function useConnectionWatch(
         });
 
         // A ticket was answered, so a server whose last read went unanswered is there again: the frame is read, and
-        // its answering is what reads every other screen.
+        // its answering is what reads every other screen — unless the frame's own read is already on its way, whose
+        // answer says the same thing a moment later. A mint is a probe, so it overtakes the reads queued behind the
+        // frame's and would otherwise ask for that answer twice.
         const frame = frameUnanswered.current;
 
-        if (frame.unanswered && (step === 'opened' || step === 'refused')) {
+        if (frame.unanswered && !frame.readUnderWay() && (step === 'opened' || step === 'refused')) {
             frame.refreshFrame();
         }
 
@@ -233,6 +247,18 @@ export function useConnectionWatch(
     // The details are about a delay or a lost server, so they are open only while there is one to say.
     const [detailsAsked, setDetailsAsked] = useState(false);
     const reading = readConnection(evidence, clock);
+
+    // Whether the status is resting on a channel that does not stand — one past its grace, or none held at all. The
+    // liveness probe then asks the server on its interval whatever is waiting, so a server that went quiet while
+    // nobody asked it anything is said to be lost rather than left *delayed*; a standing channel's keep-alive is that
+    // watch otherwise.
+    const channelDown =
+        (reading.level === 'delayed' && reading.delays.some((delay) => delay.kind === 'channel')) ||
+        (heldFor === null && reading.level !== 'connecting');
+
+    useEffect(() => {
+        frameUnanswered.current.channelStands(!channelDown);
+    }, [channelDown]);
 
     // What `disconnectedNow` answers, written as the status commits and before any effect runs — so a request the
     // probe abandons in an effect fails into a client whose status already says the server is lost.

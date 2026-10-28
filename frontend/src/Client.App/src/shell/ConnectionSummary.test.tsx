@@ -86,6 +86,8 @@ function renderSummary(
                 accountsReadAt: null,
                 reread: () => undefined,
                 channelDropped: () => undefined,
+                readUnderWay: () => false,
+                channelStands: () => undefined,
                 refresh: () => undefined,
                 ...connection,
             }}

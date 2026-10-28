@@ -415,6 +415,16 @@ describe('Settings', () => {
         expect(screen.getByRole('radio', { name: 'Polski' }).matches(':disabled')).toBe(false);
     });
 
+    // The grant's refusal is for good and the connection's is for now, so somebody who may never change these is told
+    // that rather than told to wait for a server that will refuse them anyway.
+    it('says the credential may not change them before saying there is no connection', () => {
+        renderSettings({ writesProfile: false, lostServer: true });
+        openApplication();
+
+        expect(screen.getByText(/may not change the settings that follow you/u)).toBeDefined();
+        expect(screen.queryByText(/no connection to the MailFathom server/u)).toBeNull();
+    });
+
     it('shows the profile rather than offering a change of it while the server is out of reach', () => {
         renderSettings({ profile: { ...named, picture: 'data:image/png;base64,AA==' }, lostServer: true });
 

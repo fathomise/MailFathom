@@ -4933,16 +4933,17 @@ reply waits on an AI provider, a folder act waits on a mail server, an attachmen
 `ClientEndpoint:RequestTimeout` ends a request at whatever the operator configured — so any bound short enough to catch
 a dead link would cut one of those. What is bounded is a liveness probe: the client's own session read, put on the wire
 once, ahead of the six requests it already has in flight, and given up after fifteen seconds. It goes out when the
-[signal channel](#the-signal-channel) drops, which SignalR's keep-alive notices within thirty seconds, and every twenty
-seconds while any request has waited that long, which covers a deployment serving no channel. Any answer at all — a
-`429` from the limiter or a proxy's `503` included — means the deployment is there, and a slow request is left running.
-Two probes in a row that nothing answered turn the client's connection status to *Not connected to the server*, and
-every request still waiting is abandoned except one whose body is visibly moving — a download whose bytes arrived within
-the last fifteen seconds, or an upload whose answer has not begun. A dead link is therefore said within about a minute
-whatever the operator configured, and a long request on a live connection is never cut. While the status says so, every
-control that writes is refused before it is pressed. Minting a signal ticket and opening the hub connection carry the
-same fifteen-second bound, so a channel reopening over a link that died cannot wait on either for as long as the browser
-does.
+[signal channel](#the-signal-channel) drops, which SignalR's keep-alive notices within thirty seconds, every twenty
+seconds while any request has waited that long, and every twenty seconds while no channel stands at all — one that will
+not reopen, or a deployment serving none — so a deployment that went quiet while nobody asked it anything is said to be
+lost rather than left *Connected, with a delay*. Any answer at all — a `429` from the limiter or a proxy's `503`
+included — means the deployment is there, and a slow request is left running. Two probes in a row that nothing answered
+turn the client's connection status to *Not connected to the server*, and every request still waiting is abandoned
+except one whose body is visibly moving — a download whose bytes arrived within the last fifteen seconds, or an upload
+whose answer has not begun. A dead link is therefore said within about a minute whatever the operator configured, and a
+long request on a live connection is never cut. While the status says so, every control that writes is refused before it
+is pressed. Minting a signal ticket and opening the hub connection carry the same fifteen-second bound, so a channel
+reopening over a link that died cannot wait on either for as long as the browser does.
 
 **A write nobody answered is reported as outcome unknown, never as nothing having been saved.** That covers a write the
 probe abandoned, one the network failed in transit, and one answered `502`, `503`, or `504`, since a gateway may have

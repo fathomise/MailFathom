@@ -40,6 +40,16 @@ describe('useFocusKeptWhenWithdrawn', () => {
         expect(document.activeElement).toBe(screen.getByText('No connection.'));
     });
 
+    it('hands focus back to the group once it is offered again and the reason has gone', () => {
+        const view = render(<Group withdrawn={false} />);
+
+        screen.getByRole('button', { name: said.choose }).focus();
+        view.rerender(<Group withdrawn />);
+        view.rerender(<Group withdrawn={false} />);
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: said.choose }));
+    });
+
     it('leaves focus where it is when it was outside the group', () => {
         const view = render(<Group withdrawn={false} />);
         const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });

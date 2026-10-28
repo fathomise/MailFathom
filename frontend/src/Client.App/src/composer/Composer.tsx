@@ -615,13 +615,17 @@ export function Composer({
 
             const deploymentHasIt = outcome.kind === 'queued' || outcome.kind === 'withdrawn';
 
+            // A send nobody answered may be queued already, so its words are not handed back to the tab to be sent a
+            // second time: the deployment holds them either way, as the draft that was saved first or as the send.
+            const deploymentMayHaveIt = deploymentHasIt || outcome.kind === 'sendUnknown';
+
             // Only while this composer is still the one on the screen: closed in flight, it has already gone, and
             // closing again would close whatever the person opened in its place.
             if (present.current) {
                 if (deploymentHasIt) {
                     close(focusIsHere());
                 }
-            } else if (!deploymentHasIt && rememberedComposition() === null) {
+            } else if (!deploymentMayHaveIt && rememberedComposition() === null) {
                 rememberComposition(written);
             }
         });
@@ -712,10 +716,11 @@ export function Composer({
     }
 
     // Whether the message is still being written rather than on its way, read by every control that changes it. Two
-    // presses would queue the same message twice — while the first is still in flight, and equally once it is
-    // queued — and a save or an attach after that would say what is happening over the queued state and take the way
-    // to withdraw off the screen with it.
-    const stillBeingWritten = draft.standing.kind !== 'sending' && draft.standing.kind !== 'queued';
+    // presses would queue the same message twice — while the first is still in flight, once it is queued, and equally
+    // once a send went unanswered and may be queued already — and a save or an attach after that would say what is
+    // happening over the queued state and take the way to withdraw off the screen with it.
+    const stillBeingWritten =
+        draft.standing.kind !== 'sending' && draft.standing.kind !== 'queued' && draft.standing.kind !== 'sendUnknown';
 
     // Whether it may be filed, which is the same question and a deployment that answers. Attaching does not ask it:
     // a chosen file is held here until the message is saved or sent, so it costs nothing and is offered offline.

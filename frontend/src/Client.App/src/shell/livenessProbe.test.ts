@@ -132,4 +132,33 @@ describe('probeLiveness', () => {
         expect(probe.asked).toHaveLength(3);
         expect(gaveUp).toHaveBeenCalledTimes(1);
     });
+
+    // A server that went quiet while nothing was asked of it is still a server that is not there: with no channel to
+    // notice, the interval is what does, and the status turns red rather than staying *delayed* for as long as nobody acts.
+    it('asks every interval while no channel stands, with nothing waiting, and gives up after two silences', async () => {
+        const inFlight = requestsInFlightOver(() => Date.now());
+        const probe = probing('missed', 'missed');
+        const gaveUp = vi.fn();
+        const liveness = probeLiveness(inFlight, probe.ask, gaveUp);
+
+        liveness.channelStands(false);
+        await vi.advanceTimersByTimeAsync(probeAfter);
+        await vi.advanceTimersByTimeAsync(probeAfter);
+
+        expect(probe.asked).toEqual([probeAfter, 2 * probeAfter]);
+        expect(gaveUp).toHaveBeenCalledExactlyOnceWith(probeAfter);
+    });
+
+    it('stops asking on the interval once a channel stands again', async () => {
+        const inFlight = requestsInFlightOver(() => Date.now());
+        const probe = probing('answered');
+        const liveness = probeLiveness(inFlight, probe.ask, () => undefined);
+
+        liveness.channelStands(false);
+        await vi.advanceTimersByTimeAsync(probeAfter);
+        liveness.channelStands(true);
+        await vi.advanceTimersByTimeAsync(5 * probeAfter);
+
+        expect(probe.asked).toEqual([probeAfter]);
+    });
 });

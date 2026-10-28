@@ -130,19 +130,20 @@ export function Settings({
 
     // What the deployment keeps is withdrawn for one of two reasons, each with its own sentence: this credential may
     // not change it, or the server is out of reach right now — when a change would have no route to it and is refused
-    // before it is made rather than reported after. What this machine keeps for itself stays offered either way.
+    // before it is made rather than reported after. The grant's reason is said first, being for good where the
+    // connection's is for now: somebody who may never change these is not told to wait for the server. What this
+    // machine keeps for itself stays offered either way.
     const lostServer = disconnected(useConnectionStatus());
-    const writable = writesProfile && !lostServer;
-    const preferencesWithdrawn: MessageKey | null = writable
-        ? null
+    const preferencesWithdrawn: MessageKey | null = !writesProfile
+        ? 'settings.preferencesNotYours'
         : lostServer
           ? 'settings.preferencesNoConnection'
-          : 'settings.preferencesNotYours';
-    const profileWithdrawn: MessageKey | null = writable
-        ? null
+          : null;
+    const profileWithdrawn: MessageKey | null = !writesProfile
+        ? 'settings.profileNotYours'
         : lostServer
           ? 'settings.profileNoConnection'
-          : 'settings.profileNotYours';
+          : null;
 
     // The one imperative browser API this surface synchronizes with, which is the whole of what an effect is for. It
     // runs once, because the element is in the document exactly as long as the surface is open.

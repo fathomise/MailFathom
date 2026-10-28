@@ -424,14 +424,21 @@ describe('deploymentFetchOver', () => {
             () => unwatched,
             inFlight,
         );
-        const noting = (): Promise<number> => {
+        const notingWrites = (): Promise<number> => {
             seen.push(inFlight.oldestWrite());
 
             return Promise.resolve(200);
         };
 
-        await fetchFromDeployment('/mutations/flags', { method: 'POST' }, noting);
-        await fetchFromDeployment('/session', {}, noting, { probes: true });
+        // Any request at all, since a probe is a read and would never show among the writes whether it was entered.
+        const notingAny = (): Promise<number> => {
+            seen.push(inFlight.oldest());
+
+            return Promise.resolve(200);
+        };
+
+        await fetchFromDeployment('/mutations/flags', { method: 'POST' }, notingWrites);
+        await fetchFromDeployment('/session', {}, notingAny, { probes: true });
 
         expect(seen).toEqual([7, null]);
         expect(inFlight.oldest()).toBeNull();

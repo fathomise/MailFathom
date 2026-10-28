@@ -650,4 +650,30 @@ describe('useConnection liveness probe', () => {
 
         expect(deployment.probed).toEqual([`${baseAddress}/api/client/session`]);
     });
+
+    // A server that went quiet while nothing was asked of it is lost all the same: with no channel standing, the probe
+    // asks on its interval and the status turns red after two silences, with nothing in flight at all.
+    it('calls an idle server lost after two silences while no channel stands', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(0);
+
+        const deployment = probedWith(() => Promise.reject(new TypeError('Failed to fetch')));
+        const { result } = renderHook(() =>
+            useConnection(baseAddress, firstPerson, deployment.send, nothingToDo, requestsInFlightOver(Date.now)),
+        );
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        act(() => {
+            result.current.channelStands(false);
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(2 * probeAfter);
+        });
+
+        expect(deployment.probed).toHaveLength(2);
+        expect(result.current.unansweredSince).toBe(probeAfter);
+    });
 });

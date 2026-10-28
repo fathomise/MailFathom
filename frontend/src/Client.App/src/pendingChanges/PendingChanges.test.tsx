@@ -417,12 +417,16 @@ describe('PendingChangesProvider', () => {
         expect(asked).toStrictEqual([storedEmailId]);
     });
 
+    // A gateway may have handed the write on before it gave up, so its 504 settles nothing: the write stays drawn, and
+    // nothing offers to send it again.
     it('treats a gateway answering a write for the server as an answer that settles nothing', () => {
         following(standingAt('pending').transport);
 
-        hand(submission(null, [storedEmailId], null));
+        hand(submission(null, [storedEmailId], { reason: 'unavailable', status: 504 }));
 
         expect(screen.getByText('Not known whether this reached the server')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+        expect(letGo).toStrictEqual([]);
     });
 
     it('lets an unknown write go and says so once, when the read made afterwards shows it did not land', async () => {

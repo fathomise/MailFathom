@@ -2381,5 +2381,10 @@ describe('Composer, while the connection is in question', () => {
         expect(await screen.findByText('Not known whether this was sent')).toBeDefined();
         expect(screen.queryByText('Message not sent')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+
+        // The send may be queued already, so the composer still standing offers no second one.
+        const send = screen.getByRole('button', { name: 'Send' });
+
+        expect(send.hasAttribute('disabled') || send.getAttribute('aria-disabled') === 'true').toBe(true);
     });
 });

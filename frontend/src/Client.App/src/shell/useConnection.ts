@@ -70,6 +70,19 @@ export interface Connection {
     readonly channelDropped: () => void;
 
     /**
+     * Whether a signal channel stands. Without one the liveness probe asks the server on its interval even while
+     * nothing waits, so a server that went quiet is said to be lost rather than merely delayed.
+     */
+    readonly channelStands: (stands: boolean) => void;
+
+    /**
+     * Whether the frame's own read is on its way now, asked at the moment rather than read off a render. Something
+     * else answering — a ticket minted beside it — is then no reason to read the frame a second time: the read
+     * already out is what will say the server is back.
+     */
+    readonly readUnderWay: () => boolean;
+
+    /**
      * Reads everything again on the client's own account — a refresh — leaving what stands on the screen where the
      * deployment does not answer: a refresh that failed is one the next repeats, not a frame replaced by a deployment
      * that stopped answering. It is also a fresh start for the automatic attempts, which is how a deployment that has
@@ -239,6 +252,10 @@ export function useConnection(
     const [standingUnanswered, setStandingUnanswered] = useState<Unanswered | null>(null);
     const [accountsReadAt, setAccountsReadAt] = useState<number | null>(null);
 
+    // How many of the frame's own reads are on their way, which `readUnderWay` answers. A ref because nothing is drawn
+    // from it: it is asked when something else answered, never during a render.
+    const reading = useRef(0);
+
     // Worked out during a render for the same reason the answer is: a budget spent against one identity is nothing to
     // the next one, so signing in as somebody else starts at nothing without an effect having to clear it.
     const attempts = reaching.presentedAt === baseAddress && reaching.presenting === presenting ? reaching.made : 0;
@@ -323,6 +340,8 @@ export function useConnection(
 
             setRead((token) => token + 1);
         };
+
+        reading.current += 1;
 
         void (async () => {
             const presentedToRead = credential();
@@ -411,7 +430,9 @@ export function useConnection(
             if (accounts.outcome === 'read') {
                 setAccountsReadAt(Date.now());
             }
-        })();
+        })().finally(() => {
+            reading.current -= 1;
+        });
 
         return () => {
             attempted.abort();
@@ -498,6 +519,9 @@ export function useConnection(
 
     const liveness = useRef<LivenessProbe | null>(null);
 
+    // Whether a channel stands, as the connection status last said, handed to a probe started after it was said.
+    const channelStanding = useRef(true);
+
     useEffect(() => {
         if (baseAddress === null || presenting === null || !online) {
             return;
@@ -512,6 +536,7 @@ export function useConnection(
         );
 
         liveness.current = probe;
+        probe.channelStands(channelStanding.current);
 
         return () => {
             probe.stop();
@@ -542,6 +567,11 @@ export function useConnection(
         accountsReadAt: current ? accountsReadAt : null,
         channelDropped: () => {
             liveness.current?.channelDropped();
+        },
+        readUnderWay: () => reading.current > 0,
+        channelStands: (stands) => {
+            channelStanding.current = stands;
+            liveness.current?.channelStands(stands);
         },
         reread: () => {
             quietly.current = false;
