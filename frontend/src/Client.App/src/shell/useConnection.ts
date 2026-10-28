@@ -473,9 +473,8 @@ export function useConnection(
         }
 
         const onTheWire = send(new AbortController().signal);
-        const session = await readDeploymentSession(
-            { baseAddress, authorization: carried.current ?? '' },
-            (request) => onTheWire({ ...request, probes: true }),
+        const session = await readDeploymentSession({ baseAddress, authorization: carried.current ?? '' }, (request) =>
+            onTheWire({ ...request, probes: true }),
         );
 
         return session.outcome === 'read' || session.failure.status !== null ? 'answered' : 'missed';

@@ -150,9 +150,7 @@ function statusAt(level: 'online' | 'disconnected'): ConnectionStatus {
         disconnectedNow: () => level === 'disconnected',
     };
 
-    return level === 'online'
-        ? { level, ...shared }
-        : { level, cause: 'unanswered', since: 0, ...shared };
+    return level === 'online' ? { level, ...shared } : { level, cause: 'unanswered', since: 0, ...shared };
 }
 
 // Whether the server answers, read while the wrapper renders like the session.

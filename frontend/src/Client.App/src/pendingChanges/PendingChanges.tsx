@@ -295,9 +295,7 @@ export function PendingChangesProvider({
     // of, so the server's own state is drawn, and that is said once for every such write the page settles.
     const settleUnknown = useEffectEvent((emails: readonly DrawnMail[], askedAt: number) => {
         const drawn = new Map(emails.map((email) => [email.id, email]));
-        const settled = inForce.unknown.filter(
-            (change) => askedAt >= change.since && drawn.has(change.storedEmailId),
-        );
+        const settled = inForce.unknown.filter((change) => askedAt >= change.since && drawn.has(change.storedEmailId));
 
         if (settled.length === 0) {
             return;

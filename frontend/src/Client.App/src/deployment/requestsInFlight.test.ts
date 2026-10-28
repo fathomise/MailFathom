@@ -7,7 +7,10 @@ import { movingWithin, requestsInFlightOver } from './requestsInFlight';
 
 // The clock is a variable the test moves, so what is proven is which request counts as moving at which instant.
 
-function heldAt(start: number): { readonly at: { now: number }; readonly inFlight: ReturnType<typeof requestsInFlightOver> } {
+function heldAt(start: number): {
+    readonly at: { now: number };
+    readonly inFlight: ReturnType<typeof requestsInFlightOver>;
+} {
     const at = { now: start };
 
     return { at, inFlight: requestsInFlightOver(() => at.now) };

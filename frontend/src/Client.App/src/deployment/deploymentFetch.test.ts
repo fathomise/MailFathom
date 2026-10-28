@@ -5,7 +5,14 @@
 import { waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { mostRetries } from '@mailfathom/client-backend';
-import { deploymentFetchOver, unwatched, type Bounding, type Fetching, type Pausing, type RequestWatcher } from './deploymentFetch';
+import {
+    deploymentFetchOver,
+    unwatched,
+    type Bounding,
+    type Fetching,
+    type Pausing,
+    type RequestWatcher,
+} from './deploymentFetch';
 import { requestsInFlightOver } from './requestsInFlight';
 
 // Everything this module cannot decide arrives as a function, so a test hands over the wire, the wait, and the spread
