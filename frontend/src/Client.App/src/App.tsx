@@ -85,7 +85,7 @@ import { addressOf } from './routing/spaces';
 import { useSpace } from './routing/useSpace';
 import { MailSearch } from './search/MailSearch';
 import { offers, spacesOffered, withheldFrom } from './shell/capabilities';
-import { ConnectionStatusContext } from './shell/connectionStatus';
+import { ConnectionStatusContext, saidByTheStatus } from './shell/connectionStatus';
 import { ConnectionSummary } from './shell/ConnectionSummary';
 import { Departing } from './shell/Departing';
 import { GrantNotice } from './shell/GrantNotice';
@@ -741,6 +741,7 @@ export function App({
 
     // A send is opened in its own account's Outbox, which the notification names only by the send: so its account is
     // read first, and a send the deployment no longer answers for is said rather than opened onto nothing.
+    const { disconnectedNow } = connectionWatch.status;
     const showSend = useCallback(
         (outgoingEmailId: string, decision?: OutboxDecisionAsked['decision'], onTaken?: () => void): void => {
             if (session === null) {
@@ -766,10 +767,15 @@ export function App({
                     return;
                 }
 
+                // A server out of reach is the status's to say, and the notification is there to follow again.
+                if (saidByTheStatus(disconnectedNow, answer.failure.reason)) {
+                    return;
+                }
+
                 toasts.raise({ kind: 'warning', title: wordUnshownSend(answer.failure.reason, translate) });
             });
         },
-        [session, readMail, revise, toasts, translate],
+        [session, readMail, revise, toasts, translate, disconnectedNow],
     );
 
     // Where a notification leads. What each target kind comes to is `notifications/notificationDestination.ts`, which
@@ -823,6 +829,7 @@ export function App({
         followNotification,
         mailAccounts,
         followedHere,
+        disconnectedNow,
     );
 
     // What stands unread about a change the deployment gave up on is a question still waiting on the person, wherever

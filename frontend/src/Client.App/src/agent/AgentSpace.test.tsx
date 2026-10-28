@@ -16,6 +16,7 @@ import { newsletterId } from '../../../../tests/fixtures/messages';
 import type { ProposalLook } from '../answerCanvas/proposalAnswering';
 import { LocalizationProvider } from '../localization/Localization';
 import type { AgentHandOver } from '../routing/agentHandOver';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { nothingSignalled } from '../signals/signalledChanges';
@@ -130,24 +131,47 @@ function drawn(
     transport: MailFathomTransport,
     handOver: AgentHandOver | null = null,
     onLook: ((where: ProposalLook) => void) | null = null,
-    { inFront = true, opening = null }: { readonly inFront?: boolean; readonly opening?: AgentOpening | null } = {},
+    {
+        inFront = true,
+        opening = null,
+        lost = false,
+    }: { readonly inFront?: boolean; readonly opening?: AgentOpening | null; readonly lost?: boolean } = {},
 ) {
     return (
         <LocalizationProvider>
             <LinkOpenerContext value={() => Promise.resolve()}>
                 <WorkspaceProvider>
-                    <AgentSpaceInFrame
-                        transport={transport}
-                        handOver={handOver}
-                        onLook={onLook}
-                        inFront={inFront}
-                        opening={opening}
-                    />
+                    <ConnectionStatusContext value={lost ? serverLost : serverAnswering}>
+                        <AgentSpaceInFrame
+                            transport={transport}
+                            handOver={handOver}
+                            onLook={onLook}
+                            inFront={inFront}
+                            opening={opening}
+                        />
+                    </ConnectionStatusContext>
                 </WorkspaceProvider>
             </LinkOpenerContext>
         </LocalizationProvider>
     );
 }
+
+const statusShared = {
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+};
+
+// The status as the frame hands it, with the server answering and with it out of reach.
+const serverAnswering: ConnectionStatus = { level: 'online', ...statusShared, disconnectedNow: () => false };
+const serverLost: ConnectionStatus = {
+    level: 'disconnected',
+    cause: 'unanswered',
+    since: 0,
+    ...statusShared,
+    disconnectedNow: () => true,
+};
 
 // The frame reads the history for the rail as well as for the space, so a case draws the space under the same read.
 function AgentSpaceInFrame({
@@ -910,7 +934,9 @@ describe('AgentSpace', () => {
         expect(await within(screen.getByRole('toolbar')).findByText('1 selected')).toBeTruthy();
     });
 
-    it('says why the archive did not change', async () => {
+    // A `503` is a gateway answering for the server, which may have handed the request on first: the archive may well
+    // have changed, so the sentence says it is not known rather than that nothing happened, and offers no retry.
+    it('says it is not known whether the archive changed when the server did not answer', async () => {
         const { transport } = deploymentAnswering();
         screenOf((request) =>
             request.method === 'PUT' ? Promise.resolve({ status: 503, body: '', headers: {} }) : transport(request),
@@ -922,8 +948,67 @@ describe('AgentSpace', () => {
         fireEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
 
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'The server could not be reached, so the archive did not change. Try again.',
+            'The server did not answer, so it is not known whether the archive changed. The history shows where it stands once the server answers again.',
         );
+    });
+
+    // While the server is out of reach every control that writes says so before it is pressed, as ADR 0028 asks of a
+    // client with no route to its deployment, rather than accepting an act and reporting it failed afterwards.
+    describe('while the server is out of reach', () => {
+        it('refuses to send, saying why, and puts nothing on the wire', async () => {
+            const { transport, asked } = deploymentAnswering();
+            render(drawn(transport, null, null, { lost: true }));
+
+            fireEvent.change(await screen.findByRole('textbox', { name: 'Tell the agent what to do' }), {
+                target: { value: 'What is due today?' },
+            });
+
+            const send = screen.getByRole('button', { name: /Send/ });
+
+            expect(send.getAttribute('aria-disabled')).toBe('true');
+            expect(document.getElementById(send.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+                'Send - no connection to the MailFathom server.',
+            );
+
+            fireEvent.click(send);
+
+            expect(asked.filter((request) => request.method === 'POST')).toStrictEqual([]);
+        });
+
+        it('says in a row menu why archiving a conversation cannot be chosen', async () => {
+            const { transport, asked } = deploymentAnswering();
+            render(drawn(transport, null, null, { lost: true }));
+
+            fireEvent.keyDown(await screen.findByRole('option', { name: /How many bays were confirmed/ }), {
+                key: 'ContextMenu',
+            });
+
+            const archive = await screen.findByRole('menuitem', {
+                name: 'Archive - no connection to the MailFathom server.',
+            });
+
+            expect(archive.getAttribute('aria-disabled')).toBe('true');
+
+            fireEvent.click(archive);
+
+            expect(asked.filter((request) => request.method === 'PUT')).toStrictEqual([]);
+        });
+
+        it('holds a proposal answer and says why', async () => {
+            const { transport, asked } = deploymentAnswering();
+            render(drawn(transport, null, null, { lost: true }));
+
+            await opened('How many bays were confirmed');
+
+            const add = await screen.findByRole('button', { name: /^Add to calendar: “Walk through the four bays”/ });
+
+            expect(add.getAttribute('aria-disabled')).toBe('true');
+            expect(add.getAttribute('aria-describedby')).not.toBeNull();
+
+            fireEvent.click(add);
+
+            expect(asked.filter((request) => request.method === 'PUT')).toStrictEqual([]);
+        });
     });
 
     describe('what the agent proposed', () => {

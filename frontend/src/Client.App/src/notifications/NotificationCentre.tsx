@@ -20,12 +20,14 @@ import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useChangeDecision, type AskingAgain, type ChangeQuestion } from '../pendingChanges/useChangeDecision';
 import { useAgentHandOver } from '../routing/agentHandOver';
+import { saidByTheStatus, useConnectionStatus } from '../shell/connectionStatus';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { useToasts } from '../toasts/useToasts';
-import { failureOf } from './failures';
+import { failureOf, type FailureDecision } from './failures';
 import { useScreenLayer } from '../shell/screenLayers';
 import { useCurrentMinute } from './notificationAge';
 import { NotificationRow, type RowDecision } from './NotificationRow';
-import { notificationKindLabels } from './notificationKinds';
+import { failureDecisionShapes, notificationKindLabels } from './notificationKinds';
 import { NotificationRowMenu } from './NotificationRowMenu';
 import { wordNotification, wordNotificationSource } from './notificationWords';
 import type { NotificationCentre as Centre, NotificationFilter } from './useNotificationCentre';
@@ -128,6 +130,15 @@ export function NotificationCentre({
     const handToAgent = useAgentHandOver();
     const changes = useChangeDecision();
     const toasts = useToasts();
+    const { disconnectedNow } = useConnectionStatus();
+    const writeRefused = useWriteRefusal();
+
+    // The acts the panel itself offers over the notifications, which each write, and so each say why they cannot be
+    // pressed while the server is out of reach.
+    const markAllRefused = writeRefused(translate('notifications.markAll'));
+    const markReadRefused = writeRefused(translate('notifications.markRead'));
+    const markUnreadRefused = writeRefused(translate('notifications.markUnread'));
+    const deleteRefused = writeRefused(translate('notifications.deleteSelected'));
     const now = useCurrentMinute();
     const panel = useRef<HTMLDialogElement>(null);
     const tabs = useId();
@@ -256,13 +267,21 @@ export function NotificationCentre({
 
         const again = changes.askingAgain(question);
 
+        // Asking again writes the change afresh and letting go marks the row read, so while the server is out of reach
+        // both say so before they are taken. A refused send's two are left to the Outbox they lead to, which refuses
+        // what it cannot carry where it is decided.
+        const decisionRefused = (decision: FailureDecision): string | null =>
+            writeRefused(translate(failureDecisionShapes[decision].label));
+        const asking = again === 'choosesFolder' ? ('moveAgain' as const) : ('askAgain' as const);
+
         return [
             ...(again === null
                 ? []
                 : [
                       {
-                          decision: again === 'choosesFolder' ? ('moveAgain' as const) : ('askAgain' as const),
+                          decision: asking,
                           underWay: askingFor.includes(question.change.recordId),
+                          refused: decisionRefused(asking),
                           take: () => {
                               askAgain(notification, question, again);
                               keepFocusInPanel();
@@ -271,6 +290,7 @@ export function NotificationCentre({
                   ]),
             {
                 decision: 'letGo',
+                refused: decisionRefused('letGo'),
                 take: () => {
                     changes.letGo(question);
                     keepFocusInPanel();
@@ -311,6 +331,11 @@ export function NotificationCentre({
             setAskingFor((asking) => asking.filter((asked) => asked !== recordId));
 
             if (answer.outcome === 'failed') {
+                // A server out of reach is the status's to say; asking again is there to be pressed once it answers.
+                if (saidByTheStatus(disconnectedNow, answer.failure.reason)) {
+                    return;
+                }
+
                 toasts.raise({
                     kind: 'error',
                     title: translate('pendingChange.undecided'),
@@ -450,7 +475,13 @@ export function NotificationCentre({
                 <span className="min-w-1 flex-1" />
 
                 {centre.unreadCount > 0 ? (
-                    <Control label={translate('notifications.markAll')} shape="selected" onPress={centre.markAllRead} />
+                    <Control
+                        label={translate('notifications.markAll')}
+                        shape="selected"
+                        held={markAllRefused !== null}
+                        {...(markAllRefused === null ? {} : { hint: markAllRefused })}
+                        onPress={centre.markAllRead}
+                    />
                 ) : null}
             </fieldset>
 
@@ -475,6 +506,8 @@ export function NotificationCentre({
                         label={translate('notifications.markRead')}
                         icon="mark_email_read"
                         shape="selectedSymbol"
+                        held={markReadRefused !== null}
+                        {...(markReadRefused === null ? {} : { hint: markReadRefused })}
                         onPress={() => {
                             centre.markRead(picked, true);
                             clear();
@@ -485,6 +518,8 @@ export function NotificationCentre({
                         label={translate('notifications.markUnread')}
                         icon="mark_email_unread"
                         shape="selectedSymbol"
+                        held={markUnreadRefused !== null}
+                        {...(markUnreadRefused === null ? {} : { hint: markUnreadRefused })}
                         onPress={() => {
                             centre.markRead(picked, false);
                             clear();
@@ -498,6 +533,8 @@ export function NotificationCentre({
                         icon="delete"
                         shape="selectedSymbol"
                         className="text-error-text"
+                        held={deleteRefused !== null}
+                        {...(deleteRefused === null ? {} : { hint: deleteRefused })}
                         onPress={() => {
                             askToDelete(picked, null);
                         }}

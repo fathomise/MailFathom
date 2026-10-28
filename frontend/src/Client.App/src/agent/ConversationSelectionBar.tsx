@@ -6,6 +6,7 @@ import { Control } from '../controls/Control';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 const selectionCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     zero: 'select.count.other',
@@ -33,6 +34,11 @@ export function ConversationSelectionBar({
 }) {
     const { locale, translate } = useLocalization();
     const wide = useWideWorkspace();
+    const writeRefused = useWriteRefusal();
+
+    // Both acts write, so while the server is out of reach each is held and says why rather than failing after.
+    const archiveRefused = writeRefused(translate('agent.archive'));
+    const deleteRefused = writeRefused(translate('agent.delete'));
 
     return (
         <div
@@ -53,6 +59,8 @@ export function ConversationSelectionBar({
                 icon="archive"
                 shape={wide ? 'selected' : 'selectedSymbol'}
                 className="ms-auto"
+                held={archiveRefused !== null}
+                {...(archiveRefused === null ? {} : { hint: archiveRefused })}
                 onPress={onArchive}
             />
 
@@ -60,6 +68,8 @@ export function ConversationSelectionBar({
                 label={translate('agent.delete')}
                 icon="delete"
                 shape={wide ? 'selected' : 'selectedSymbol'}
+                held={deleteRefused !== null}
+                {...(deleteRefused === null ? {} : { hint: deleteRefused })}
                 onPress={onAskDeletion}
             />
         </div>

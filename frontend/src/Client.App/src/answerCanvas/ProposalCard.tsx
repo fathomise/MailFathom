@@ -6,8 +6,10 @@ import type { ReactNode } from 'react';
 import type { ClientFailureReason } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
+import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { AnswerBlockCard, type BlockCardTone } from './AnswerBlockCard';
 import type { AnswerBlockState } from './answerBlocks';
 import { useAnswerSources } from './answerSources';
@@ -204,25 +206,11 @@ export function ProposalCard({
                 {offered.length === 0 ? null : (
                     <div className="flex flex-wrap items-center gap-2 pointer-coarse:flex-col pointer-coarse:items-stretch">
                         {offered.map((control) => (
-                            <button
+                            <ProposalButton
                                 key={control.said}
-                                aria-label={control.name}
-                                aria-disabled={control.held === true ? true : undefined}
-                                className={`inline-flex items-center justify-center gap-1.75 rounded-md border px-3.75 py-2.25 text-md whitespace-nowrap transition disabled:opacity-60 aria-disabled:opacity-60 ${
-                                    control.primary === true
-                                        ? 'border-accent bg-accent font-semibold text-on-accent hover:bg-accent-strong'
-                                        : 'border-line-strong bg-panel text-text-soft hover:bg-hover'
-                                }`}
-                                disabled={answering?.answering === true}
-                                type="button"
-                                onClick={() => {
-                                    if (control.held !== true) {
-                                        control.run();
-                                    }
-                                }}
-                            >
-                                {control.said}
-                            </button>
+                                control={control}
+                                answering={answering?.answering === true}
+                            />
                         ))}
                     </div>
                 )}
@@ -310,6 +298,48 @@ export function ProposalCard({
                 </>
             )}
         </AnswerBlockCard>
+    );
+}
+
+/**
+ * One control answering a proposal. Every one of them writes — the answer is recorded by the server — so while the
+ * server is out of reach it says so before it is pressed, on a hover, a focus, or a tap, rather than failing after.
+ */
+function ProposalButton({ control, answering }: { readonly control: ProposalControl; readonly answering: boolean }) {
+    const writeRefused = useWriteRefusal();
+    const refused = writeRefused(control.said);
+    const said = useTip({ says: refused ?? control.name, describes: true });
+    const held = control.held === true || refused !== null;
+
+    return (
+        <>
+            <button
+                {...(refused === null ? {} : said.anchor)}
+                aria-label={control.name}
+                aria-disabled={held ? true : undefined}
+                className={`inline-flex items-center justify-center gap-1.75 rounded-md border px-3.75 py-2.25 text-md whitespace-nowrap transition disabled:opacity-60 aria-disabled:opacity-60 ${
+                    control.primary === true
+                        ? 'border-accent bg-accent font-semibold text-on-accent hover:bg-accent-strong'
+                        : 'border-line-strong bg-panel text-text-soft hover:bg-hover'
+                } ${refused === null ? '' : 'aria-disabled:cursor-not-allowed'}`}
+                disabled={answering}
+                type="button"
+                onClick={(event) => {
+                    if (refused !== null) {
+                        said.anchor.onClick(event);
+
+                        return;
+                    }
+
+                    if (!held) {
+                        control.run();
+                    }
+                }}
+            >
+                {control.said}
+            </button>
+            {refused === null ? null : said.tip}
+        </>
     );
 }
 

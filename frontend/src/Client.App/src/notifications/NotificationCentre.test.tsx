@@ -8,6 +8,7 @@ import type { ClientNotification, ClientSession, MailFathomTransport } from '@ma
 import { LocalizationProvider } from '../localization/Localization';
 import { nothingPending, PendingChangesContext, type PendingChanges } from '../pendingChanges/usePendingChanges';
 import { AgentHandOverContext, type AgentHandOver } from '../routing/agentHandOver';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from '../shell/screenLayers';
 import { ToastsProvider } from '../toasts/Toasts';
 import { NotificationCentre } from './NotificationCentre';
@@ -65,6 +66,23 @@ const acts = {
     changeDecided: vi.fn(),
 };
 
+const statusShared = {
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+};
+
+// The status as the frame hands it, with the server answering and with it out of reach.
+const serverAnswering: ConnectionStatus = { level: 'online', ...statusShared, disconnectedNow: () => false };
+const serverLost: ConnectionStatus = {
+    level: 'disconnected',
+    cause: 'unanswered',
+    since: 0,
+    ...statusShared,
+    disconnectedNow: () => true,
+};
+
 function centre(held: Partial<Centre> = {}): Centre {
     return {
         unreadCount: 1,
@@ -84,6 +102,7 @@ function panel(
     onDecideSend: (outgoingEmailId: string, decision: 'again' | 'edit', onTaken: () => void) => void = () => undefined,
     pending: PendingChanges = nothingPending,
     reading: { readonly session: ClientSession; readonly transport: MailFathomTransport } | null = null,
+    status: ConnectionStatus = serverAnswering,
 ): { readonly current: ScreenLayers } {
     // The shell around it, because the panel records itself as standing over the screen while it is shown. Its three
     // functions are the same ones for the life of the stack, so the value handed to the provider stays current
@@ -96,13 +115,15 @@ function panel(
                 <PendingChangesContext value={pending}>
                     <AgentHandOverContext value={handToAgent}>
                         <ScreenLayersContext value={result.current}>
-                            <NotificationCentre
-                                centre={centre(held)}
-                                swipe={swipe}
-                                session={reading?.session ?? null}
-                                {...(reading === null ? {} : { transport: reading.transport })}
-                                onDecideSend={onDecideSend}
-                            />
+                            <ConnectionStatusContext value={status}>
+                                <NotificationCentre
+                                    centre={centre(held)}
+                                    swipe={swipe}
+                                    session={reading?.session ?? null}
+                                    {...(reading === null ? {} : { transport: reading.transport })}
+                                    onDecideSend={onDecideSend}
+                                />
+                            </ConnectionStatusContext>
                         </ScreenLayersContext>
                     </AgentHandOverContext>
                 </PendingChangesContext>
@@ -478,6 +499,33 @@ describe('NotificationCentre', () => {
         fireEvent.click(bar.getByRole('button', { name: 'Mark as read' }));
 
         expect(acts.markRead).toHaveBeenCalledWith(['n-mail', 'n-meeting'], true);
+    });
+
+    // While the server is out of reach every act on the centre writes nothing: each is held, and says why on a hover, a
+    // focus, or a tap rather than failing after it was pressed.
+    it('holds every act on a selection, and the read control on a row, while the server is out of reach', () => {
+        panel({}, null, () => undefined, nothingPending, null, serverLost);
+        showAll();
+
+        fireEvent.pointerDown(screen.getByText('Ada Lovelace wrote'), {
+            pointerType: 'mouse',
+            button: 0,
+            ctrlKey: true,
+        });
+        const bar = within(screen.getByRole('toolbar', { name: 'Actions on the notifications selected' }));
+        const marking = bar.getByRole('button', { name: 'Mark as read' });
+
+        expect(marking.getAttribute('aria-disabled')).toBe('true');
+        expect(document.getElementById(marking.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+            'Mark as read - no connection to the MailFathom server.',
+        );
+
+        fireEvent.click(marking);
+        fireEvent.click(screen.getByRole('button', { name: 'Mark all' }));
+
+        expect(acts.markRead).not.toHaveBeenCalled();
+        expect(acts.markAllRead).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Mark all' }).getAttribute('aria-disabled')).toBe('true');
     });
 
     // The confirmation stands over the panel that opened it, so a control is looked for inside the question rather than
