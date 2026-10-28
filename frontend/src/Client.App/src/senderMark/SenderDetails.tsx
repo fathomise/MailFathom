@@ -384,6 +384,31 @@ type Addition =
 const addButton =
     'flex h-8.5 items-center justify-center gap-1.5 rounded-md text-base whitespace-nowrap transition aria-disabled:cursor-progress aria-disabled:opacity-70';
 
+// A write outlives the opening that sent it: the details can be closed while it is in flight and opened again, and what
+// they then show is that write still going rather than the act offered over it. Held per transport, which is one per
+// signed-in client, and by the author's address, which is what a second write would be about.
+const additionsInFlight = new WeakMap<MailFathomTransport, Map<string, Promise<Addition>>>();
+
+function inFlightOver(transport: MailFathomTransport): Map<string, Promise<Addition>> {
+    const held = additionsInFlight.get(transport) ?? new Map<string, Promise<Addition>>();
+
+    additionsInFlight.set(transport, held);
+
+    return held;
+}
+
+async function additionOf(written: ReturnType<typeof addAuthorToContacts>): Promise<Addition> {
+    const answer = await written;
+
+    if (answer.outcome === 'failed') {
+        return { phase: 'failed', reason: { key: failureLabels[answer.failure.reason] } };
+    }
+
+    return answer.value.outcome === 'Written'
+        ? { phase: 'added' }
+        : { phase: 'failed', reason: { key: 'senderMark.add.changed' } };
+}
+
 // The author written down in the reader's own book, offered where the service said it may be and said in full before
 // it is done. The mark is left as it stands: what the addition changes is the next judgment of the mail, not this one.
 function AddToContacts({
@@ -402,13 +427,33 @@ function AddToContacts({
     readonly onAdded?: () => void;
 }) {
     const { translate } = useLocalization();
-    const [addition, setAddition] = useState<Addition>({ phase: 'offered' });
+    const offered = message.sender.addToContacts;
+    const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
+    const [followed] = useState(() => (author === null ? undefined : inFlightOver(transport).get(author.address)));
+    const [addition, setAddition] = useState<Addition>({ phase: followed === undefined ? 'offered' : 'adding' });
     const offer = useRef<HTMLButtonElement>(null);
     const confirm = useRef<HTMLButtonElement>(null);
     const done = useRef<HTMLParagraphElement>(null);
     const titleId = useId();
-    const offered = message.sender.addToContacts;
-    const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
+
+    // A write an earlier opening sent is followed to its answer here, as if this opening had sent it.
+    useEffect(() => {
+        if (followed === undefined) {
+            return undefined;
+        }
+
+        let listening = true;
+
+        void followed.then((next) => {
+            if (listening) {
+                setAddition(next);
+            }
+        });
+
+        return () => {
+            listening = false;
+        };
+    }, [followed]);
 
     if (offered === null || author === null || (added && addition.phase !== 'added')) {
         return null;
@@ -431,19 +476,21 @@ function AddToContacts({
     async function add(): Promise<void> {
         move({ phase: 'adding' }, confirm);
 
-        const written = await addAuthorToContacts(session, transport, {
-            displayName: name,
-            address,
-            restatedContactId,
+        const inFlight = inFlightOver(transport);
+        const pending = additionOf(
+            addAuthorToContacts(session, transport, { displayName: name, address, restatedContactId }),
+        );
+
+        inFlight.set(address, pending);
+
+        const next = await pending.finally(() => {
+            inFlight.delete(address);
         });
 
-        if (written.outcome === 'failed') {
-            move({ phase: 'failed', reason: { key: failureLabels[written.failure.reason] } }, confirm);
-        } else if (written.value.outcome === 'Written') {
-            move({ phase: 'added' }, done);
+        move(next, next.phase === 'added' ? done : confirm);
+
+        if (next.phase === 'added') {
             onAdded?.();
-        } else {
-            move({ phase: 'failed', reason: { key: 'senderMark.add.changed' } }, confirm);
         }
     }
 

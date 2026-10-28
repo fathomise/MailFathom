@@ -432,7 +432,7 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
             .Select(held => held.Contact);
     }
 
-    /// <summary>Reads one contact of one book, answering with nothing where the identity is filed under another.</summary>
+    /// <summary>Records the writer of each address as the one that stated it.</summary>
     private void RecordWriters(Contact contact, IEnumerable<EmailAddress> addresses, ContactAddressWriter writer)
     {
         foreach (var address in addresses)
@@ -441,6 +441,7 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
         }
     }
 
+    /// <summary>Reads one contact of one book, answering with nothing where the identity is filed under another.</summary>
     private Contact? HeldIn(ContactBookHolder holder, ContactId contactId) =>
         this.heldById.TryGetValue(contactId, out var held)
         && string.Equals(held.Holder.Key, holder.Key, StringComparison.Ordinal)

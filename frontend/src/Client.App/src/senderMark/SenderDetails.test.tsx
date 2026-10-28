@@ -49,22 +49,35 @@ async function read(kind: SenderKind): Promise<MailMessage> {
 
 const answersNothing: MailFathomTransport = () => new Promise<ClientResponse>(() => undefined);
 
+/** The reader's contact holding the author's address, as the book states it. */
+const heldContact = {
+    id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90',
+    displayName: 'Example',
+    addresses: ['news@example.invalid'],
+    preferredAddress: 'news@example.invalid',
+    note: null,
+    origin: 'Asserted',
+    recordedAt: '2026-03-01T08:00:00+00:00',
+    amendedAt: '2026-03-01T08:00:00+00:00',
+};
+
 /** What the book answers to a write it performed, naming the contact it wrote. */
 const contactWritten: ClientResponse = {
     status: 200,
+    body: JSON.stringify({ outcome: 'Written', contact: heldContact, addressHolder: null }),
+    headers: {},
+};
+
+/** The unrecognized sender, offered as a restatement of the address the reader's own contact holds. */
+const offeredAsRestated: ClientResponse = {
+    status: 200,
     body: JSON.stringify({
-        outcome: 'Written',
-        contact: {
-            id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90',
-            displayName: 'Example',
-            addresses: ['news@example.invalid'],
-            preferredAddress: 'news@example.invalid',
-            note: null,
-            origin: 'Asserted',
-            recordedAt: '2026-03-01T08:00:00+00:00',
-            amendedAt: '2026-03-01T08:00:00+00:00',
+        ...newsletterMessage,
+        ...messageSenderEvidence('unrecognized'),
+        sender: {
+            ...messageSenderEvidence('unrecognized').sender,
+            addToContacts: { restatedContactId: heldContact.id },
         },
-        addressHolder: null,
     }),
     headers: {},
 };
@@ -453,6 +466,92 @@ describe('SenderDetails', () => {
 
         expect(screen.getByRole('group', { name: 'Add Example to your contacts?' })).toBeDefined();
         expect(screen.getByRole('button', { name: 'Adding…' })).toBeDefined();
+    });
+
+    it('restates the address the reader’s own contact holds, saying so before it writes', async () => {
+        const asked: ClientRequest[] = [];
+
+        explain((request) => {
+            asked.push(request);
+
+            if (request.method === 'PUT') {
+                return Promise.resolve(contactWritten);
+            }
+
+            return Promise.resolve(
+                request.path.includes('/contacts/')
+                    ? { status: 200, body: JSON.stringify(heldContact), headers: {} }
+                    : offeredAsRestated,
+            );
+        });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+
+        const asking = screen.getByRole('group', { name: 'Add Example to your contacts?' });
+
+        expect(
+            within(asking).getByText(
+                /^news@example\.invalid is already in your contacts, but you did not write it down yourself, so it counts only once you add it\. Mail from/,
+            ),
+        ).toBeDefined();
+
+        fireEvent.click(within(asking).getByRole('button', { name: 'Add to contacts' }));
+        await screen.findByText('Example is in your contacts now. The mark changes once your mail is checked again.');
+
+        expect(asked.slice(1).map((request) => [request.method, request.path, request.body ?? null])).toEqual([
+            ['GET', `https://mail.example.invalid/api/client/contacts/${heldContact.id}`, null],
+            [
+                'PUT',
+                `https://mail.example.invalid/api/client/contacts/${heldContact.id}`,
+                JSON.stringify({
+                    displayName: 'Example',
+                    addresses: ['news@example.invalid'],
+                    preferredAddress: 'news@example.invalid',
+                    note: null,
+                    restatedAddresses: ['news@example.invalid'],
+                }),
+            ],
+        ]);
+    });
+
+    it('shows a write still in flight when the details are opened again, rather than offering a second one', async () => {
+        const asked: ClientRequest[] = [];
+        let answer: (response: ClientResponse) => void = () => undefined;
+
+        render(
+            <LocalizationProvider>
+                <ExplainingEachPress
+                    transport={(request) => {
+                        asked.push(request);
+
+                        return request.method === 'POST'
+                            ? new Promise<ClientResponse>((resolve) => {
+                                  answer = resolve;
+                              })
+                            : Promise.resolve(answering('unrecognized'));
+                    }}
+                />
+            </LocalizationProvider>,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: opening }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Add to contacts' }));
+        fireEvent.click(
+            within(screen.getByRole('group', { name: 'Add Example to your contacts?' })).getByRole('button', {
+                name: 'Add to contacts',
+            }),
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+        fireEvent.click(screen.getByRole('button', { name: opening }));
+
+        expect(await screen.findByRole('button', { name: 'Adding…' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Add to contacts' })).toBeNull();
+
+        answer(contactWritten);
+
+        await screen.findByText('Example is in your contacts now. The mark changes once your mail is checked again.');
+
+        expect(asked.filter((request) => request.method === 'POST')).toHaveLength(1);
     });
 
     it('goes back to the offer when the addition is cancelled', async () => {
