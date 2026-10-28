@@ -394,9 +394,11 @@ test('renews the session before it ends, and presents the renewed one on everyth
 }) => {
     const presented = presentedBy(page);
 
-    await page.clock.install({ time: beforeTheSessionEnds });
+    await page.clock.install({
+        time: new Date(Date.parse(deployment.mintedSession.expiresAt) - sessionRenewalMargin - renewalCheckInterval),
+    });
     await openSignedIn(page, '/#/mail');
-    await page.clock.runFor(sessionRenewalMargin + renewalCheckInterval);
+    await page.clock.runFor(2 * renewalCheckInterval);
 
     const since = await presentedSinceRenewing(page, presented, deployment.expectedRenewedSessionAuthorization);
 
