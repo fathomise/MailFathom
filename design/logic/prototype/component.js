@@ -302,7 +302,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     return s === "orgContact" ? r.from + " is in your organization's contacts"
       : s === "ownAddress" ? r.from + " is one of your own addresses"
       : s === "own" ? r.from + " is at " + domainOf(r.from) + ", a domain of your own accounts"
-      : r.from + " is in your contacts";
+      : r.from + " " + trustedAs(r.known);
   };
   /* A message from somebody other than the thread's newest sender reads that person's own record where one exists. */
   const senderRecord = (threadId, from) => {

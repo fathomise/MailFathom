@@ -1587,16 +1587,24 @@ export const en = {
     'senderMark.why.authenticatedUnrecognized':
         '{authenticated} authenticated this message, but this account does not recognize the sender.',
     'senderMark.why.nothingEstablished': 'Nothing established who sent this message.',
-    'senderMark.why.knownContact':
-        '{address} is in your contacts, but nothing confirmed that {domain} sent this message.',
+    'senderMark.why.knownYourContact':
+        '{address} is your contact, but nothing confirmed that {domain} sent this message.',
+    'senderMark.why.knownAnotherUsersContact':
+        '{address} is a contact of another user of this mailbox, but nothing confirmed that {domain} sent this message.',
+    'senderMark.why.knownUnnamed':
+        'This account recognizes {address}, but nothing confirmed that {domain} sent this message.',
     'senderMark.why.knownOrganizationContact':
         "{address} is in your organization's contacts, but nothing confirmed that {domain} sent this message.",
     'senderMark.why.knownOwnAddress':
         '{address} is one of your own addresses, but nothing confirmed that {domain} sent this message.',
     'senderMark.why.knownOwnDomain':
         '{address} is at {domain}, a domain of your own accounts, but nothing confirmed that {domain} sent this message.',
-    'senderMark.why.knownContactMonitoringOnly':
-        '{address} is in your contacts, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
+    'senderMark.why.knownYourContactMonitoringOnly':
+        '{address} is your contact, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
+    'senderMark.why.knownAnotherUsersContactMonitoringOnly':
+        '{address} is a contact of another user of this mailbox, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
+    'senderMark.why.knownUnnamedMonitoringOnly':
+        'This account recognizes {address}, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
     'senderMark.why.knownOrganizationContactMonitoringOnly':
         "{address} is in your organization's contacts, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.",
     'senderMark.why.knownOwnAddressMonitoringOnly':
@@ -1659,7 +1667,10 @@ export const en = {
         '{domain} is established as the author by SPF alone. SPF says only which server handed the message over, so it makes nobody trusted.',
     'senderMark.trust.skipped': 'Skipped, because the author was not authenticated.',
     'senderMark.trust.skippedKnown': 'Skipped, because nothing confirmed that {domain} sent this message.',
-    'senderMark.known.contact': '{address} is in your contacts. It is known by that address alone.',
+    'senderMark.known.yourContact': '{address} is your contact. It is known by that address alone.',
+    'senderMark.known.anotherUsersContact':
+        '{address} is a contact of another user of this mailbox. It is known by that address alone.',
+    'senderMark.known.recognized': 'This account recognizes {address}. It is known by that address alone.',
     'senderMark.known.organizationContact':
         "{address} is in your organization's contacts. It is known by that address alone.",
     'senderMark.known.ownAddress': '{address} is one of your own addresses. It is known by that address alone.',

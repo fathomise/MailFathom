@@ -1610,16 +1610,24 @@ export const pl: Catalogue = {
     'senderMark.why.authenticatedUnrecognized':
         '{authenticated} uwierzytelniła tę wiadomość, ale to konto nie rozpoznaje nadawcy.',
     'senderMark.why.nothingEstablished': 'Nic nie ustaliło, kto wysłał tę wiadomość.',
-    'senderMark.why.knownContact':
-        '{address} jest w Twoich kontaktach, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownYourContact':
+        '{address} to Twój kontakt, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownAnotherUsersContact':
+        '{address} to kontakt innego użytkownika tej skrzynki, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownUnnamed':
+        'To konto rozpoznaje adres {address}, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
     'senderMark.why.knownOrganizationContact':
         '{address} jest w kontaktach Twojej organizacji, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
     'senderMark.why.knownOwnAddress':
         '{address} to jeden z Twoich własnych adresów, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
     'senderMark.why.knownOwnDomain':
         '{address} należy do {domain}, domeny Twoich własnych kont, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
-    'senderMark.why.knownContactMonitoringOnly':
-        '{address} jest w Twoich kontaktach, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownYourContactMonitoringOnly':
+        '{address} to Twój kontakt, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownAnotherUsersContactMonitoringOnly':
+        '{address} to kontakt innego użytkownika tej skrzynki, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownUnnamedMonitoringOnly':
+        'To konto rozpoznaje adres {address}, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
     'senderMark.why.knownOrganizationContactMonitoringOnly':
         '{address} jest w kontaktach Twojej organizacji, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
     'senderMark.why.knownOwnAddressMonitoringOnly':
@@ -1682,7 +1690,10 @@ export const pl: Catalogue = {
         '{domain} jest ustalona jako autor wyłącznie przez SPF. SPF mówi tylko, który serwer przekazał wiadomość, więc nikogo nie czyni zaufanym.',
     'senderMark.trust.skipped': 'Pominięte, bo autor nie został uwierzytelniony.',
     'senderMark.trust.skippedKnown': 'Pominięte, bo nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
-    'senderMark.known.contact': '{address} jest w Twoich kontaktach. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.yourContact': '{address} to Twój kontakt. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.anotherUsersContact':
+        '{address} to kontakt innego użytkownika tej skrzynki. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.recognized': 'To konto rozpoznaje adres {address}. Nadawca jest znany tylko z tego adresu.',
     'senderMark.known.organizationContact':
         '{address} jest w kontaktach Twojej organizacji. Nadawca jest znany tylko z tego adresu.',
     'senderMark.known.ownAddress':

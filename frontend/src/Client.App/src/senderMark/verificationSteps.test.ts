@@ -330,14 +330,31 @@ describe('senderVerificationOf', () => {
     };
 
     it.each([
-        ['PersonalContact', 'senderMark.why.knownContact', 'senderMark.known.contact'],
-        ['OrganizationContact', 'senderMark.why.knownOrganizationContact', 'senderMark.known.organizationContact'],
-        ['OwnAccountAddress', 'senderMark.why.knownOwnAddress', 'senderMark.known.ownAddress'],
-        ['OwnAccountDomain', 'senderMark.why.knownOwnDomain', 'senderMark.known.ownDomain'],
+        ['PersonalContact', 'Reader', 'senderMark.why.knownYourContact', 'senderMark.known.yourContact'],
+        [
+            'PersonalContact',
+            'AnotherUser',
+            'senderMark.why.knownAnotherUsersContact',
+            'senderMark.known.anotherUsersContact',
+        ],
+        ['PersonalContact', null, 'senderMark.why.knownUnnamed', 'senderMark.known.recognized'],
+        [
+            'OrganizationContact',
+            null,
+            'senderMark.why.knownOrganizationContact',
+            'senderMark.known.organizationContact',
+        ],
+        ['OwnAccountAddress', null, 'senderMark.why.knownOwnAddress', 'senderMark.known.ownAddress'],
+        ['OwnAccountDomain', null, 'senderMark.why.knownOwnDomain', 'senderMark.known.ownDomain'],
     ] as const)(
-        'says a %s knew the sender by address alone, and that nothing confirmed the domain',
-        (source, why, known) => {
-            const read = message({ ...notEstablished, deploymentTrust: 'Known', trustSource: source });
+        'says a %s held by %s knew the sender by address alone, and that nothing confirmed the domain',
+        (source, contact, why, known) => {
+            const read = message({
+                ...notEstablished,
+                deploymentTrust: 'Known',
+                trustSource: source,
+                trustContact: contact,
+            });
             const named = { address: 'a.kowalska@contoso.example', domain: 'contoso.example' };
 
             expect(senderVerificationOf(read, asSent)).toMatchObject({

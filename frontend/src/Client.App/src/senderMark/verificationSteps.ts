@@ -331,24 +331,17 @@ function monitoringOnlyFailure(sender: MailSenderVerdict): boolean {
     return sender.deploymentTrust === 'Known' && sender.authorAuthentication === 'Failed';
 }
 
-type KnownSource = 'contact' | 'organizationContact' | 'ownAddress' | 'ownDomain';
-
-function knownSourceOf(sender: MailSenderVerdict): KnownSource {
-    switch (sender.trustSource) {
-        case 'OrganizationContact':
-            return 'organizationContact';
-        case 'OwnAccountAddress':
-            return 'ownAddress';
-        case 'OwnAccountDomain':
-            return 'ownDomain';
-        default:
-            return 'contact';
-    }
-}
-
-const knownWhySaid: Readonly<Record<KnownSource, { readonly plain: MessageKey; readonly monitoringOnly: MessageKey }>> =
+const knownWhySaid: Readonly<Record<Recognition, { readonly plain: MessageKey; readonly monitoringOnly: MessageKey }>> =
     {
-        contact: { plain: 'senderMark.why.knownContact', monitoringOnly: 'senderMark.why.knownContactMonitoringOnly' },
+        yourContact: {
+            plain: 'senderMark.why.knownYourContact',
+            monitoringOnly: 'senderMark.why.knownYourContactMonitoringOnly',
+        },
+        anotherUsersContact: {
+            plain: 'senderMark.why.knownAnotherUsersContact',
+            monitoringOnly: 'senderMark.why.knownAnotherUsersContactMonitoringOnly',
+        },
+        unnamed: { plain: 'senderMark.why.knownUnnamed', monitoringOnly: 'senderMark.why.knownUnnamedMonitoringOnly' },
         organizationContact: {
             plain: 'senderMark.why.knownOrganizationContact',
             monitoringOnly: 'senderMark.why.knownOrganizationContactMonitoringOnly',
@@ -363,15 +356,17 @@ const knownWhySaid: Readonly<Record<KnownSource, { readonly plain: MessageKey; r
         },
     };
 
-const knownStepSaid: Readonly<Record<KnownSource, MessageKey>> = {
-    contact: 'senderMark.known.contact',
+const knownStepSaid: Readonly<Record<Recognition, MessageKey>> = {
+    yourContact: 'senderMark.known.yourContact',
+    anotherUsersContact: 'senderMark.known.anotherUsersContact',
+    unnamed: 'senderMark.known.recognized',
     organizationContact: 'senderMark.known.organizationContact',
     ownAddress: 'senderMark.known.ownAddress',
     ownDomain: 'senderMark.known.ownDomain',
 };
 
 function knownWhy(sender: MailSenderVerdict, named: Named): Said {
-    const said = knownWhySaid[knownSourceOf(sender)];
+    const said = knownWhySaid[recognitionOf(sender)];
 
     return {
         key: monitoringOnlyFailure(sender) ? said.monitoringOnly : said.plain,
@@ -388,7 +383,7 @@ function trustSteps(sender: MailSenderVerdict, signature: MailSignature, named: 
 
     return [
         step('senderMark.step.trustedSender', 'Skipped', 'senderMark.trust.skippedKnown', { domain: named.domain }),
-        step('senderMark.step.knownSender', 'Passed', knownStepSaid[knownSourceOf(sender)], {
+        step('senderMark.step.knownSender', 'Passed', knownStepSaid[recognitionOf(sender)], {
             address: named.address,
             domain: named.domain,
         }),

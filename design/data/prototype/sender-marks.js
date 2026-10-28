@@ -117,7 +117,7 @@ MailFathomDesign.data.senderMarks = {
     },
     north1: {
       from: "r.lis@northwind.example", checker: "server", dkim: "northwind.example", spf: null, dmarc: "temperror",
-      author: "notEstablished", authDomain: null, trust: null, known: { source: "contact" },
+      author: "notEstablished", authDomain: null, trust: null, known: { source: "contact", mine: true },
       sig: {
         format: "pgp", signedAt: "27.08.2026 07:10", content: "pass", signer: "r.lis@northwind.example",
         key: "known", keyValidity: "expired", keyExpired: "30.06.2026", revocation: { result: "pass" },
