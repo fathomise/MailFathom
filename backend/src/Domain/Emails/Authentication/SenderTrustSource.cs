@@ -4,12 +4,12 @@
 
 namespace MailFathom.Domain.Emails.Authentication;
 
-/// <summary>Which part of what this deployment knows recognized an authenticated author.</summary>
+/// <summary>Which source recognized an author, of those this deployment asks in order.</summary>
 /// <remarks>
-/// A verdict that says only <em>trusted</em> cannot be reviewed. Trust an operator declared when they set the
-/// deployment up, trust that follows from the accounts they synchronize, and trust somebody granted while it was running
-/// are three different statements, and the last of them is the one worth being able to find again — particularly where
-/// the somebody was an agent. So the verdict names the half that matched rather than only the fact that one did.
+/// A verdict that says only <em>trusted</em> cannot be reviewed. The organization's signature, a contact the
+/// organization keeps, the owner's own address or domain, and a contact a person wrote down are different statements,
+/// and a contact is the one worth being able to find again, which is why a contact's verdict also names the contact.
+/// The numbers <c>2</c> and <c>3</c> named two trusted-sender lists that contacts replaced, and are never reused.
 /// </remarks>
 public enum SenderTrustSource
 {
@@ -24,17 +24,6 @@ public enum SenderTrustSource
     /// </remarks>
     OwnAccountDomain = 1,
 
-    /// <summary>An entry on the receiving account's configured trusted-sender list named the author.</summary>
-    ConfiguredTrustedSender = 2,
-
-    /// <summary>An entry somebody added to the receiving account's stored trusted-sender list named the author.</summary>
-    /// <remarks>
-    /// The stored half is what a reader adds without editing a file and restarting. Where both halves name the same
-    /// author the configured one is reported, so a deployment's declared trust is never described as something added
-    /// later.
-    /// </remarks>
-    StoredTrustedSender = 3,
-
     /// <summary>A signature made with a key of the receiving account's organization proved the author a member of it.</summary>
     /// <remarks>
     /// It ranks first and needs no authenticated author domain, because the signature proves the address itself rather
@@ -47,9 +36,19 @@ public enum SenderTrustSource
 
     /// <summary>The author wrote as exactly one of the addresses the receiving account's owner holds.</summary>
     /// <remarks>
-    /// It is mail from the owner to themselves, so it needs no configuration. It is held against an authenticated
-    /// author exactly as an address entry on the trusted-sender list is: the author's domain is the address's domain and
-    /// <c>From</c> shows that address, and where nothing authenticated the author it recognizes nothing.
+    /// It is mail from the owner to themselves, so it needs no configuration. It is held to the rule a contact is: the
+    /// author was authenticated, or signed the message themselves, and <c>From</c> shows that address.
     /// </remarks>
     OwnAccountAddress = 5,
+
+    /// <summary>A contact the receiving account's organization keeps holds the author's address.</summary>
+    /// <remarks>
+    /// Asked right after organization membership, so a partner the whole organization deals with is reported as the
+    /// organization's rather than as one member's.
+    /// </remarks>
+    OrganizationContact = 6,
+
+    /// <summary>A contact that a user the receiving account is assigned to wrote down holds the author's address.</summary>
+    /// <remarks>Asked last, so a sender any source above also recognizes is reported under that one.</remarks>
+    PersonalContact = 7,
 }

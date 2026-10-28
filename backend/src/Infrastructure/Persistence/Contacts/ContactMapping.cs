@@ -32,9 +32,10 @@ internal static class ContactMapping
     /// <summary>Builds the rows one contact is kept as.</summary>
     /// <param name="holder">The book the contact is written into.</param>
     /// <param name="contact">The contact to keep.</param>
+    /// <param name="writer">Who wrote the contact, which every one of its addresses records.</param>
     /// <returns>The row to insert, with its address rows already attached.</returns>
     /// <exception cref="ArgumentException">Thrown when the contact's origin is not the one that book holds.</exception>
-    internal static ContactEntity ToEntity(ContactBookHolder holder, Contact contact)
+    internal static ContactEntity ToEntity(ContactBookHolder holder, Contact contact, ContactAddressWriter writer)
     {
         if (contact.Origin != holder.Origin)
         {
@@ -61,7 +62,7 @@ internal static class ContactMapping
 
         foreach (var address in contact.Addresses)
         {
-            entity.Addresses.Add(ToAddressEntity(holder, contact, address));
+            entity.Addresses.Add(ToAddressEntity(holder, contact, address, writer));
         }
 
         return entity;
@@ -71,11 +72,13 @@ internal static class ContactMapping
     /// <param name="holder">The book the contact is in, which the row repeats because the uniqueness rule spans this table alone.</param>
     /// <param name="contact">The contact the address belongs to.</param>
     /// <param name="address">The address to keep.</param>
+    /// <param name="writer">Who wrote the address, stamped with the contact's time of this write.</param>
     /// <returns>The address row.</returns>
     internal static ContactAddressEntity ToAddressEntity(
         ContactBookHolder holder,
         Contact contact,
-        EmailAddress address) =>
+        EmailAddress address,
+        ContactAddressWriter writer) =>
         new()
         {
             // Version 7 over the instant this record was written rather than a random value, so address rows are
@@ -88,6 +91,10 @@ internal static class ContactMapping
             BookHolderId = holder.Key,
             Address = address.Address,
             NormalizedAddress = address.NormalizedAddress,
+            WriterKind = writer.Kind,
+            WriterUserId = writer.User?.Value,
+            WriterCredentialId = writer.Credential,
+            WrittenAt = contact.AmendedAt,
         };
 
     /// <summary>Rebuilds the contact one stored row states.</summary>

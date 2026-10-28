@@ -462,9 +462,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
     public async Task AddInfrastructure_WithoutAScanner_ResolvesAMimeReaderThatRedactsNothing()
     {
         // Arrange
-        var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], [], []));
-
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
@@ -473,7 +470,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
-        services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
         services.AddInfrastructure(
@@ -492,54 +488,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         // Assert
         Assert.Null(extraction.Metadata?.RedactedUnder);
         Assert.Contains("body", extraction.Metadata?.Text.OriginalText ?? string.Empty, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The trust verdict is not a deployment's choice the way redaction is: a deployment that recognizes nobody still
-    /// records that it recognized nobody, which is the answer a reader is later shown. An undecorated reader would
-    /// store the value of a reading no policy judged on mail a policy was in force for.
-    /// </summary>
-    /// <remarks>
-    /// Asserted through the composed reader's behavior rather than against the type it resolves as, because the
-    /// judging reader is wrapped by every decorator registered above it and a type assertion would break — and stop
-    /// proving anything — each time one is added.
-    /// </remarks>
-    [Fact]
-    public async Task AddInfrastructure_WithoutAScanner_ResolvesAMimeReaderThatJudgesTheAuthor()
-    {
-        // Arrange
-        Assert.True(TrustedSenderEntry.TryCreateForDomain("partner.example", includeSubdomains: false, out var entry));
-        Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [], [entry], []);
-        var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(policy);
-
-        var services = new ServiceCollection();
-        services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
-        services.AddSingleton(new EmailMimeExtractionOptions());
-        services.AddSingleton(new EmailSignatureTrustOptions());
-        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
-        services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
-        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
-        services.AddSingleton(policies);
-        services.AddSingleton(MachineAuthorshipProfile.Standard);
-
-        services.AddInfrastructure(
-            _ => new PostgresConnectionSettings("Host=localhost;Database=mailfathom", null, null),
-            PostgresTextSearchConfiguration.Default,
-            MailAnsweringBudget.Default);
-
-        using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
-
-        // Act
-        var extraction = await scope.ServiceProvider
-            .GetRequiredService<IEmailMimeReader>()
-            .ReadMetadataAsync(MimeFixtures.Account, OrdinaryMessage().RawMime, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(policy.Revision, extraction.Metadata?.SenderTrust.PolicyRevision);
     }
 
     /// <summary>A deployment verifying for itself reaches the resolver, which is where the whole feature's egress is.</summary>
@@ -570,7 +518,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
-        services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
         services.AddSingleton(dmarcRecords);
@@ -615,7 +562,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
-        services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
         services.AddSingleton(dmarcRecords);
@@ -661,7 +607,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
-        services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
         services.AddInfrastructure(
@@ -700,7 +645,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
-        services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Disabled);
 
         services.AddInfrastructure(
@@ -722,54 +666,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
     }
 
     /// <summary>
-    /// The redactor wraps the judging reader rather than replacing it, and only the composed pipeline's behavior says
-    /// so: the outer type is the same either way. A deployment that configures a scanner would otherwise stop recording
-    /// trust verdicts entirely, and every existing assertion about either decorator would still pass.
-    /// </summary>
-    [Fact]
-    public async Task AddInfrastructure_WithARedactor_ResolvesAMimeReaderThatStillJudgesTheAuthor()
-    {
-        // Arrange
-        // The policy has to recognize somebody, so that its revision is not the one a reading no policy judged carries:
-        // an empty policy digests to None, which is exactly what the undecorated reader would leave behind.
-        Assert.True(TrustedSenderEntry.TryCreateForDomain("partner.example", includeSubdomains: false, out var entry));
-        Assert.NotNull(entry);
-        var policy = SenderTrustPolicy.Create([], [], [entry], []);
-        var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(policy);
-
-        var services = new ServiceCollection();
-        services.AddSingleton(TimeProvider.System);
-        services.AddSingleton(new EmailMimeExtractionOptions());
-        services.AddSingleton(new EmailSignatureTrustOptions());
-        services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
-        services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
-        services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
-        services.AddSingleton(policies);
-        services.AddSingleton(MachineAuthorshipProfile.Standard);
-        this.AddScanningPostures(services, SensitiveContentCategory.Create("ProviderToken"));
-
-        services.AddInfrastructure(
-            _ => new PostgresConnectionSettings("Host=localhost;Database=mailfathom", null, null),
-            PostgresTextSearchConfiguration.Default,
-            MailAnsweringBudget.Default);
-
-        using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
-
-        // Act
-        var extraction = await scope.ServiceProvider
-            .GetRequiredService<IEmailMimeReader>()
-            .ReadMetadataAsync(MimeFixtures.Account, OrdinaryMessage().RawMime, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(EmailMimeExtractionOutcome.Extracted, extraction.Outcome);
-        Assert.True(policy.Revision.NamesAPolicy);
-        Assert.NotEqual(SenderTrust.NotEvaluated.PolicyRevision, extraction.Metadata?.SenderTrust.PolicyRevision);
-        Assert.Equal(policy.Revision, extraction.Metadata?.SenderTrust.PolicyRevision);
-    }
-
-    /// <summary>
     /// The authorship reading is taken from the text as the parse produced it, and the composition is the only place
     /// that says so: the redactor wraps the reading rather than the reading wrapping the redactor. The scanner here
     /// covers the whole body, so a reading made after redaction would see a placeholder and report nothing at all.
@@ -786,7 +682,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderIdentityDirectory>());
-        services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         this.AddScanningPostures(services, category);
 
@@ -836,19 +731,6 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
                 new SensitiveContentRedactor(plan, [scanner], TimeProvider.System, permits),
                 SensitiveContentScreeningPolicy.ScreeningNothing(),
                 SensitiveContentDerivationStamp.Compute(plan, [scanner]))));
-    }
-
-    /// <summary>
-    /// Reads a policy that trusts nobody, which is what an account with no configured senders resolves to. A substitute
-    /// left unconfigured answers <see langword="null" /> instead, and the trust decorator judges every message the
-    /// pipeline extracts, so the reading under test would never be reached.
-    /// </summary>
-    private static ISenderTrustPolicyReader TrustPolicyReader()
-    {
-        var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(Arg.Any<MailAccountId>()).Returns(SenderTrustPolicy.Create([], [], [], []));
-
-        return policies;
     }
 
     /// <summary>Builds a message whose body hides a run of tag characters, which renders as nothing to a reader.</summary>

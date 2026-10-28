@@ -624,7 +624,7 @@
       "readOnlyHint": false,
       "title": "Create contact"
     },
-    "description": "Records a person in your own contact book: their name, every address they use, which one is preferred, and an optional note. It writes your own book and never a mail account's collected one. Writes to local state only — nothing is sent to a mail server or to anybody else, and no mail is touched. Calling twice with the same person records them once and then answers addressHeldByAnotherContact, because one address belongs to one contact within a book; look that contact up with get_contact rather than writing a second record. An address one of your mail accounts collected is free here, and your record is what answers for it afterwards. Ask the person you are acting for before writing somebody down.",
+    "description": "Records a person in your own contact book: their name, every address they use, which one is preferred, and an optional note. It writes your own book and never a mail account's collected one. Writes to local state only — nothing is sent to a mail server or to anybody else, and no mail is touched. Calling twice with the same person records them once and then answers addressHeldByAnotherContact, because one address belongs to one contact within a book; look that contact up with get_contact rather than writing a second record. An address one of your mail accounts collected is free here, and your record is what answers for it afterwards. Ask the person you are acting for before writing somebody down. A record written here makes nobody a trusted sender: mail from its addresses is trusted only once the person writes it down themselves.",
     "inputSchema": {
       "properties": {
         "addresses": {
@@ -3080,7 +3080,7 @@
       "readOnlyHint": false,
       "title": "Promote contact"
     },
-    "description": "Takes on one person a mail account collected from arriving mail, by writing your own asserted copy of the record under an identity of its own. It copies rather than moves: the mail account's record stays where it is, because the other users assigned that account read it too, and your reads answer with your copy in its place. This is the only path between the two books and it runs one way; it is also what unlocks update_contact on a record that answered contactWasCollected. Nothing about the person is rewritten. Writes to local state only, and touches no mail. A contact you had already written down answers alreadyAsserted, and one you have already promoted answers notFound because your own copy now answers for the address. The answer carries the outcome alone and never the record; read the person with get_contact.",
+    "description": "Takes on one person a mail account collected from arriving mail, by writing your own asserted copy of the record under an identity of its own. It copies rather than moves: the mail account's record stays where it is, because the other users assigned that account read it too, and your reads answer with your copy in its place. This is the only path between the two books and it runs one way; it is also what unlocks update_contact on a record that answered contactWasCollected. Nothing about the person is rewritten. Writes to local state only, and touches no mail. A contact you had already written down answers alreadyAsserted, and one you have already promoted answers notFound because your own copy now answers for the address. The answer carries the outcome alone and never the record; read the person with get_contact. The copy makes nobody a trusted sender.",
     "inputSchema": {
       "properties": {
         "contactId": {
@@ -4421,7 +4421,7 @@
       "readOnlyHint": false,
       "title": "Update contact"
     },
-    "description": "Amends one person in your own contact book. State the whole record you want them to have — the name, every address, which one is preferred, and the note — rather than only what changes: an address the new record does not name is removed, and an omitted note clears the one held. Read the contact with get_contact first so nothing is dropped by accident. Writes to local state only, and touches no mail. A contact a mail account collected from arriving mail answers contactWasCollected: that record is the mailbox's and the account's other users read it, so take your own copy on with promote_contact and amend the copy.",
+    "description": "Amends one person in your own contact book. State the whole record you want them to have — the name, every address, which one is preferred, and the note — rather than only what changes: an address the new record does not name is removed, and an omitted note clears the one held. Read the contact with get_contact first so nothing is dropped by accident. Writes to local state only, and touches no mail. A contact a mail account collected from arriving mail answers contactWasCollected: that record is the mailbox's and the account's other users read it, so take your own copy on with promote_contact and amend the copy. An address this adds makes nobody a trusted sender, while one the record already held keeps whatever trust its earlier writer gave it.",
     "inputSchema": {
       "properties": {
         "addresses": {

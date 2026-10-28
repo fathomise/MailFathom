@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Contacts;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -32,6 +33,14 @@ internal sealed class ContactAddressConfiguration : IEntityTypeConfiguration<Con
             .IsRequired();
         entity.Property(address => address.BookHolderId)
             .HasMaxLength(ContactEntity.MaximumBookHolderLength)
+            .IsRequired();
+
+        // Defaulted to the kind that grants nothing, so every address stored before the writer was recorded fails
+        // closed: some of them an agent wrote, and backfilling them as a person's would let each one grant trust.
+        entity.Property(address => address.WriterKind)
+            .HasConversion<string>()
+            .HasMaxLength(64)
+            .HasDefaultValue(ContactAddressWriterKind.Unrecorded)
             .IsRequired();
 
         // No concurrency token of its own, which ADR 0001 asks to be justified rather than assumed. An address row

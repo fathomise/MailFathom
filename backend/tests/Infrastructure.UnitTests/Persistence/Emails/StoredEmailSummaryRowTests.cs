@@ -189,7 +189,7 @@ public sealed class StoredEmailSummaryRowTests
             SpfMailFromDomain = "PARTNER.EXAMPLE",
             SenderAuthenticationMethod = SenderAuthenticationMethod.DomainKeysIdentifiedMail,
             DmarcOutcome = DmarcOutcome.Pass,
-            SenderTrustGrantedBy = SenderTrustSource.StoredTrustedSender,
+            SenderTrustGrantedBy = SenderTrustSource.PersonalContact,
         };
 
         // Act
@@ -198,7 +198,7 @@ public sealed class StoredEmailSummaryRowTests
         // Assert
         Assert.Equal("RELAY.EXAMPLE", summary.SenderAuthenticationEvidence.DkimDomain?.Value);
         Assert.Equal("PARTNER.EXAMPLE", summary.SenderAuthenticationEvidence.SpfDomain?.Value);
-        Assert.Equal(SenderTrustSource.StoredTrustedSender, summary.SenderVerification.DeploymentTrustGrantedBy);
+        Assert.Equal(SenderTrustSource.PersonalContact, summary.SenderVerification.DeploymentTrustGrantedBy);
     }
 
     /// <summary>A row nothing authenticated reads back no DKIM or SPF domain and no trust source.</summary>

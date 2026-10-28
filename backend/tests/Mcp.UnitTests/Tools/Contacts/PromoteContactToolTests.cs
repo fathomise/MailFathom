@@ -59,10 +59,11 @@ public sealed class PromoteContactToolTests
                 && promoted.Id != collected.Id
                 && promoted.Origin == ContactOrigin.Asserted
                 && promoted.DisplayName == collected.DisplayName),
+            Arg.Any<ContactAddressWriter>(),
             Arg.Any<CancellationToken>());
 
         await book.Store.DidNotReceiveWithAnyArgs()
-            .ReplaceAsync(default!, default!, default!, TestContext.Current.CancellationToken);
+            .ReplaceAsync(default!, default!, default!, Arg.Any<ContactAddressWriter>(), TestContext.Current.CancellationToken);
     }
 
     /// <summary>Asking twice is asking once, so the second call answers with the state the first left the record in.</summary>

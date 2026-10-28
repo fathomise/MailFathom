@@ -94,10 +94,6 @@ than met later by a run.
 | `…:AnsweringAuditTrail:Enabled` | bool | `false` | Whether a finished `ask_mail` run leaves a durable entry naming the mail it read from this account | reload; governs runs from then on |
 | `…:AnsweringAuditTrail:Retention` | TimeSpan | `30.00:00:00` | 1 day – 3650 days; how long this account's answering entries are kept | reload; the next account run erases against the new window |
 | `…:TrustOwnAccountDomains` | bool | `false` | Whether this account recognizes every author writing from a domain one of its owner's accounts uses. The set is read from the `UserName` of each account the same person owns, where that is an address, so it needs no list of its own; two people this deployment serves are two correspondents, so one's mail domain is never something the other recognizes. **Leave it off on a large shared provider** — `gmail.com`, `outlook.com`, `wp.pl` — where every stranger writes from the same domain; turn it on for an account whose domain is the owner's own. The owner's own addresses are recognized whatever it says | reload; the next extraction judges against it |
-| `…:TrustedSenders` | list | empty | The authors this account recognizes on top of its owner's own addresses and, where `TrustOwnAccountDomains` is on, domains; each entry below | reload; the next extraction judges against it |
-| `…:TrustedSenders:<n>:Domain` | string | unset | A domain this account recognizes. Exactly one of `Domain` and `Address` is written, and an entry writing neither or both fails startup naming the account and the entry's position | reload |
-| `…:TrustedSenders:<n>:Address` | string | unset | A single mailbox this account recognizes. It matches when the established author's domain is that address's own **and** the message's `From` displays exactly that address | reload |
-| `…:TrustedSenders:<n>:IncludeSubdomains` | bool | `false` | Whether a domain entry also reaches the names beneath that domain. Refused on an address entry, where it could mean nothing | reload |
 | `…:Folders` | list | inbox by role | Aliases unique; each entry below | reload |
 | `…:SpamClassification` | block | unset (nothing classified) | This mailbox's own classification posture and what a verdict does to it; [classifying this account's mail](#classifying-this-accounts-mail--spamclassification) holds every key | reload |
 | `…:SensitiveContent` | block | unset (the deployment's posture) | What this mailbox asks for over the mail in it, within what the deployment provides; [scanning this account's mail](#scanning-this-accounts-mail--sensitivecontent) holds every key | reload |
@@ -112,19 +108,20 @@ says, which is the setting for a mailbox behind a gateway or a self-hosted serve
 [Sender authentication](../features/sender-authentication.md) states how the header is chosen and what the verdict
 holds.
 
-`TrustedSenders` and `TrustOwnAccountDomains` are the second half of that: they decide whether a message's author is
-somebody this deployment recognizes, which is a separate question from what was established about them. Both lists are
-held against an **authenticated author** — the domain a trusted DMARC `pass` or an aligned DKIM signature established
-for the `From` header, reported by the trusted server or, where no server wrote a verdict, verified locally — and never
-against the raw header or an author aligned only through SPF, so naming a correspondent here cannot be exploited by writing their
-address into a message. Most legitimate mail stays unknown and that is the
-intended outcome: the claim is that this deployment does not know the author, not that the message is suspicious.
-One thing is recognized with nothing configured: an authenticated author whose `From` is exactly one of the owner's own
-addresses — each account's `UserName` where that is an address, and the `Delivery:FromAddress` of an account that
-sends — which is mail from the owner to themselves, held against the authenticated author exactly as an `Address`
-entry is. `TrustOwnAccountDomains` widens that to everybody at the owner's domains and is off unless an account turns
-it on, because on a large shared provider every user of that provider writes from the same domain; the same page
-states what an address entry rests on and what it deliberately does not establish. Neither is consulted for an author the receiving account's [organization
+`TrustOwnAccountDomains` is the second half of that: it decides, with the owner's own addresses, whether a message's
+author is somebody this deployment recognizes, which is a separate question from what was established about them.
+Both are held against an author tied to the `From` address — by a DMARC `pass` or an aligned DKIM signature the trusted
+server reported or local verification established, or by the message's own verified signature naming its author — and
+never against the raw header or an author aligned only through SPF, so an address cannot be recognized by writing it
+into a message. Most legitimate mail stays unknown and that is the intended outcome: the claim is that this deployment
+does not know the author, not that the message is suspicious. One thing is recognized with nothing configured: an
+author whose `From` is exactly one of the owner's own addresses — each account's `UserName` where that is an address,
+and the `Delivery:FromAddress` of an account that sends — which is mail from the owner to themselves.
+`TrustOwnAccountDomains` widens that to everybody at the owner's domains and is off unless an account turns it on,
+because on a large shared provider every user of that provider writes from the same domain. Everybody else this
+deployment trusts is a [contact](../features/contacts.md#contacts-are-the-trusted-sender-list) a person or an
+administrator wrote down, which is data rather than configuration, so no setting here lists correspondents. Nothing on
+this page is consulted for an author the receiving account's [organization
 signature](../features/sender-authentication.md#a-colleague-in-the-receiving-accounts-organization) proves a member,
 which needs no setting and no authenticated domain, so a colleague on that shared provider is recognized by the
 signature their organization's accounts sign their mail with.
@@ -366,7 +363,7 @@ the deployment's default, and last what the *Default* column above says. A setti
 forcing `TransportSecurity:ConnectionSecurity` leaves every other key of that block to resolve on its own. An account
 in no organization is governed by the deployment's policy alone.
 
-**A list is one value across the layers, and no two layers are ever merged.** `Folders`, `TrustedSenders`,
+**A list is one value across the layers, and no two layers are ever merged.** `Folders`,
 `ContactCollection:Exclusions`, `SpamClassification:ScannedFolders`, `SensitiveContent:ScreenOutgoingMailFor`, and
 `TransportSecurity:PermittedAuthenticationMechanisms` are each supplied whole by the first layer that states them: a
 declaration stating one folder is served that folder and none of a default's, and a forced list replaces whatever

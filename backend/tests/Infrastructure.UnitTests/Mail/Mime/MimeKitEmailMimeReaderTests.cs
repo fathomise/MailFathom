@@ -824,9 +824,7 @@ public sealed class MimeKitEmailMimeReaderTests
         // Arrange
         var key = OrganizationSignatureFixtures.CreateKey();
         var directory = OrganizationDirectory().Holding(SigningOrganization, key);
-        var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(MimeFixtures.Account).Returns(SenderTrustPolicy.Create([], [], [], []));
-        var reader = new SenderTrustEvaluatingEmailMimeReader(OrganizationReader(directory), policies);
+        var reader = OrganizationReader(directory);
         var stored = OrganizationSigned(key);
         var beforeRevocation = await reader.ReadMetadataAsync(MimeFixtures.Account, stored, TestContext.Current.CancellationToken);
         directory.Keys[key.KeyId] = directory.Keys[key.KeyId] with { Revoked = true };
@@ -835,9 +833,22 @@ public sealed class MimeKitEmailMimeReaderTests
         var afterRevocation = await reader.ReadMetadataAsync(MimeFixtures.Account, stored, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(SenderTrustSource.OrganizationMember, beforeRevocation.Metadata?.SenderTrust.GrantedBy);
-        Assert.Equal(SenderTrustSource.None, afterRevocation.Metadata?.SenderTrust.GrantedBy);
-        Assert.Null(afterRevocation.Metadata?.SenderTrust.RecognizingOrganizationId);
+        Assert.Equal(SenderTrustSource.OrganizationMember, JudgedAlone(beforeRevocation).GrantedBy);
+        Assert.Equal(SenderTrustSource.None, JudgedAlone(afterRevocation).GrantedBy);
+        Assert.Null(JudgedAlone(afterRevocation).RecognizingOrganizationId);
+    }
+
+    /// <summary>Reaches the verdict a message's own reading supports, with no contact and no owner's address to consult.</summary>
+    private static SenderTrust JudgedAlone(EmailMimeExtractionResult extraction)
+    {
+        var metadata = Assert.IsType<ExtractedEmailMetadata>(extraction.Metadata);
+
+        return SenderTrustPolicy.RecognizingNobody.Evaluate(
+            metadata.SenderAuthentication,
+            metadata.Signature,
+            displayedSender: null,
+            RecognizingContacts.None,
+            metadata.OrganizationVerification);
     }
 
     /// <summary>A reader composed without a verifier records every message as not signed rather than guessing.</summary>

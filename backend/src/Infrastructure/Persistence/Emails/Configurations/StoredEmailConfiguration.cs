@@ -119,6 +119,23 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
             .IsRequired();
         entity.Property(email => email.SenderTrustPolicyRevision)
             .HasMaxLength(SenderTrustPolicyRevision.Length);
+        entity.Property(email => email.SenderTrustAuthorEvidence)
+            .HasConversion<string>()
+            .HasMaxLength(64)
+            .HasDefaultValue(TrustedAuthorEvidence.None)
+            .IsRequired();
+
+        // No foreign key: every act removing a contact resets the verdicts naming it first, in its own transaction,
+        // through this partial index, so the reference never dangles and never blocks a cascade.
+        entity.HasIndex(email => email.SenderTrustContactId)
+            .HasDatabaseName(PersistenceConstraintNames.StoredEmailSenderTrustContactIndexName)
+            .HasFilter($"\"{nameof(StoredEmailEntity.SenderTrustContactId)}\" IS NOT NULL");
+
+        // The subject a verdict was reached for, by account, so re-judging the mail one address sent is an index seek.
+        entity.Property(email => email.SenderTrustAddress).HasMaxLength(StoredEmailEntity.MaximumAddressLength);
+        entity.HasIndex(email => new { email.MailboxAccountId, email.SenderTrustAddress })
+            .HasDatabaseName(PersistenceConstraintNames.StoredEmailSenderTrustAddressIndexName)
+            .HasFilter($"\"{nameof(StoredEmailEntity.SenderTrustAddress)}\" IS NOT NULL");
 
         // Cleared rather than cascaded, so deleting an organization keeps every verdict it reached and only loses the
         // name it would have been shown under. The index is partial because nearly every row carries none, and exists

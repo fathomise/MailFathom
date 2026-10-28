@@ -4,6 +4,7 @@
 
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
+using MailFathom.Application.Emails.Trust;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
@@ -42,28 +43,33 @@ public sealed class LocalMailCopier
     private readonly IEmailMetadataRepository emails;
     private readonly IEmailContentStore contents;
     private readonly IEmailMimeReader mimeReader;
+    private readonly SenderTrustJudge senderTrust;
     private readonly ILocalMailFolderStore folders;
 
     /// <summary>Initializes the copier over the stores a copied message is written through.</summary>
     /// <param name="emails">Writes the copy's own stored message.</param>
     /// <param name="contents">Reads the copied message's payload, places the copy's, and saves it.</param>
     /// <param name="mimeReader">Reads the metadata the copy is searched and threaded by.</param>
+    /// <param name="senderTrust">Judges the copy's author inside the transaction that commits it.</param>
     /// <param name="folders">Files the copy into the local folder it was copied into.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public LocalMailCopier(
         IEmailMetadataRepository emails,
         IEmailContentStore contents,
         IEmailMimeReader mimeReader,
+        SenderTrustJudge senderTrust,
         ILocalMailFolderStore folders)
     {
         ArgumentNullException.ThrowIfNull(emails);
         ArgumentNullException.ThrowIfNull(contents);
         ArgumentNullException.ThrowIfNull(mimeReader);
+        ArgumentNullException.ThrowIfNull(senderTrust);
         ArgumentNullException.ThrowIfNull(folders);
 
         this.emails = emails;
         this.contents = contents;
         this.mimeReader = mimeReader;
+        this.senderTrust = senderTrust;
         this.folders = folders;
     }
 
@@ -120,11 +126,15 @@ public sealed class LocalMailCopier
     {
         ArgumentNullException.ThrowIfNull(copy);
 
+        var judged = copy.Metadata is { } metadata
+            ? (await this.senderTrust.JudgeAsync(session, [metadata], cancellationToken))[0]
+            : null;
+
         if (await this.emails.StoreLocalCopyAsync(
                 session,
                 copy.Account,
                 binding,
-                copy.Metadata,
+                judged,
                 copy.Content.ByteLength,
                 flags,
                 cancellationToken) is not { } email)

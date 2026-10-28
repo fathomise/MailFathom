@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Failures;
+using MailFathom.Application.Persistence;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Mcp.Tools.Contacts;
@@ -39,6 +40,30 @@ public sealed class CreateContactToolTests
         Assert.Equal("anna@example.test", result.Contact?.PreferredAddress);
         Assert.Equal("Chartering broker.", result.Contact?.Note);
         Assert.Null(result.AddressHolderContactId);
+    }
+
+    /// <summary>An agent's record is read like any other, and its addresses record the agent as their writer, which grants no trust.</summary>
+    [Fact]
+    public async Task CreateContactAsync_ARecordTheBookAccepts_RecordsTheAgentAsTheWriter()
+    {
+        // Arrange
+        var book = new StubContactBook();
+        var tool = new CreateContactTool(book.Writer);
+
+        // Act
+        await tool.CreateContactAsync(
+            "Anna Kowalska",
+            ["anna@example.test"],
+            "anna@example.test",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        await book.Store.Received(1).AddAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<ContactBookHolder>(),
+            Arg.Any<Contact>(),
+            Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Agent),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>A caller writing for the user writes somebody down, so the record is asserted rather than collected.</summary>
@@ -108,6 +133,6 @@ public sealed class CreateContactToolTests
         // Assert
         Assert.DoesNotContain("@", refusal.Message, StringComparison.Ordinal);
         await book.Store.DidNotReceiveWithAnyArgs()
-            .AddAsync(default!, default!, default!, TestContext.Current.CancellationToken);
+            .AddAsync(default!, default!, default!, default!, TestContext.Current.CancellationToken);
     }
 }

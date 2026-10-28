@@ -9,6 +9,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Host.Security.Endpoints;
+using MailFathom.Host.Security.Transport;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
@@ -102,6 +103,20 @@ internal static class ContactEndpoints
     /// own surface, whose writes are people the user wrote down.
     /// </remarks>
     private const ContactOrigin AdministrativeWriter = ContactOrigin.Asserted;
+
+    /// <summary>Names the administrator a request on this surface writes addresses as: the user and the credential it was admitted by.</summary>
+    /// <param name="context">The request.</param>
+    /// <returns>The writer every address the request states records, which grants trust because an administrator stated it.</returns>
+    /// <remarks>Both are absent where the surface authenticates nobody, and the kind alone then records that an administrator wrote it.</remarks>
+    internal static ContactAddressWriter AdministratorWriting(HttpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        return new ContactAddressWriter(
+            ContactAddressWriterKind.Administrator,
+            TransportCallerUser.CarriedBy(context.User),
+            TransportCallerCredential.CarriedBy(context.User));
+    }
 
     /// <summary>Maps the contact routes into the administrative group, so they inherit its authorization.</summary>
     /// <param name="api">The administrative route group.</param>
@@ -214,6 +229,7 @@ internal static class ContactEndpoints
     }
 
     /// <summary>Records a person one user's own book does not yet hold.</summary>
+    /// <param name="context">The request, whose administrator every address records as its writer.</param>
     /// <param name="user">The user whose book the person is written into.</param>
     /// <param name="request">The record to write.</param>
     /// <param name="book">Performs the write.</param>
@@ -230,6 +246,7 @@ internal static class ContactEndpoints
     /// documents it.
     /// </remarks>
     internal static async Task<Results<Ok<ContactWriteResponse>, ProblemHttpResult>> RecordAsync(
+        HttpContext context,
         [FromQuery] Guid user,
         [FromBody] ContactRecordRequest? request,
         [FromServices] ContactBook book,
@@ -268,6 +285,7 @@ internal static class ContactEndpoints
                 Note = record.Note,
                 Origin = AdministrativeWriter,
             },
+            AdministratorWriting(context),
             cancellationToken);
 
         return TypedResults.Ok(ContactWriteResponse.For(written));
@@ -361,6 +379,7 @@ internal static class ContactEndpoints
     }
 
     /// <summary>Amends one contact of a user's own book to the record the caller states.</summary>
+    /// <param name="context">The request, whose administrator an address the amendment adds records as its writer.</param>
     /// <param name="contactId">The contact to amend.</param>
     /// <param name="user">The user whose book holds the contact.</param>
     /// <param name="request">The record the contact is to have afterwards.</param>
@@ -376,6 +395,7 @@ internal static class ContactEndpoints
     /// invariants are checked against.
     /// </remarks>
     internal static async Task<Results<Ok<ContactWriteResponse>, ProblemHttpResult>> AmendAsync(
+        HttpContext context,
         Guid contactId,
         [FromQuery] Guid user,
         [FromBody] ContactRecordRequest? request,
@@ -423,12 +443,14 @@ internal static class ContactEndpoints
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
             },
+            AdministratorWriting(context),
             cancellationToken);
 
         return TypedResults.Ok(ContactWriteResponse.For(amended));
     }
 
     /// <summary>Promotes a collected contact to one the user has taken responsibility for.</summary>
+    /// <param name="context">The request, whose administrator every address of the copy records as its writer.</param>
     /// <param name="contactId">The contact to promote.</param>
     /// <param name="user">The user taking the record on, whose own book the copy is written into.</param>
     /// <param name="book">Performs the write.</param>
@@ -444,6 +466,7 @@ internal static class ContactEndpoints
     /// route that publishes reading one.
     /// </remarks>
     internal static async Task<Results<Ok<ContactWriteResponse>, ProblemHttpResult>> PromoteAsync(
+        HttpContext context,
         Guid contactId,
         [FromQuery] Guid user,
         [FromServices] ContactBook book,
@@ -476,6 +499,7 @@ internal static class ContactEndpoints
             await scopes.ReadScopeAsync(writer, cancellationToken),
             identity,
             AdministrativeWriter,
+            AdministratorWriting(context),
             cancellationToken);
 
         return TypedResults.Ok(ContactWriteResponse.OutcomeOf(promoted));

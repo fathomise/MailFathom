@@ -12,7 +12,7 @@ namespace MailFathom.Host.Configuration.Mail.Readers;
 /// <summary>Reads which senders an account recognizes from the bound section.</summary>
 /// <remarks>
 /// The policies are built once for the snapshot this reader was constructed over rather than per lookup, because every
-/// arriving message asks for one and building a policy derives a revision over the whole effective list. The build is
+/// arriving message asks for one and building a policy derives a revision over everything it states. The build is
 /// deferred rather than done in the constructor, so a deployment that never reads a message never walks the accounts.
 /// </remarks>
 internal sealed class ConfiguredSenderTrustPolicyReader : ISenderTrustPolicyReader
@@ -41,14 +41,11 @@ internal sealed class ConfiguredSenderTrustPolicyReader : ISenderTrustPolicyRead
 
     /// <summary>Builds every account's verification policy once, keyed by the account identifier the lookups arrive with.</summary>
     /// <remarks>
-    /// The stored half of each list is empty here and is what <see href="https://github.com/fathomise/MailFathom/issues/760">#760</see>
-    /// fills in: the matcher already takes both halves, so the store arrives as a second list rather than as a second
-    /// rule. An entry whose text is unusable is skipped rather than raised over, and two accounts configured under one
-    /// identifier keep the first, both for the reason the folder mappings do — startup validation refuses each of
-    /// those, and a reload being rejected must not make a lookup throw. The accounts come from
-    /// <see cref="MailSynchronizationOptions.DeclaredAccountsByOwner" />, so a deployment that declares its mailboxes
-    /// under its served users recognizes the senders it configured rather than nobody, and each person's own addresses
-    /// and domains are trusted inside their own mailboxes rather than inside everybody's.
+    /// Two accounts configured under one identifier keep the first, for the reason the folder mappings do — startup
+    /// validation refuses that, and a reload being rejected must not make a lookup throw. The accounts come from
+    /// <see cref="MailSynchronizationOptions.DeclaredAccountsByOwner" />, so each person's own addresses and domains
+    /// are trusted inside their own mailboxes rather than inside everybody's. Contacts are not read here: they are
+    /// looked up per message when its verdict is stored.
     /// </remarks>
     private Dictionary<string, SenderTrustPolicy> ReadPolicies() =>
         this.settings.DeclaredAccountsByOwner
@@ -76,9 +73,7 @@ internal sealed class ConfiguredSenderTrustPolicyReader : ISenderTrustPolicyRead
             MailSynchronizationOptions.TryReadAccountId(account.AccountId),
             SenderTrustPolicy.Create(
                 ownAccountAddresses,
-                account.TrustOwnAccountDomains ? ownAccountDomains : [],
-                account.ConfiguredTrustedSenders,
-                storedTrustedSenders: [])));
+                account.TrustOwnAccountDomains ? ownAccountDomains : [])));
     }
 
     /// <summary>Reads the addresses one person's own accounts state: each user name that is an address, and each address an account sends as.</summary>

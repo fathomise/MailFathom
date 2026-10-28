@@ -32,6 +32,9 @@ public sealed class ContactBookWriterTests
 
     private static readonly MailAccountId Account = SyntheticMailAccount.Deployment;
 
+    /// <summary>The credential every caller here was admitted by, so a write can be seen to record it.</summary>
+    private static readonly Guid Credential = Guid.Parse("0199f000-0000-7000-8000-0000000000e1");
+
     /// <summary>The books the caller every test here arranges reads: their own, then the account assigned to them.</summary>
     private static readonly ContactBookScope Scope = ContactBookScope.Of(User, [Account]);
 
@@ -48,7 +51,7 @@ public sealed class ContactBookWriterTests
 
         // Act, Assert
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            writer.RecordAsync(DraftOf("Anna Kowalska", "anna@example.test"), TestContext.Current.CancellationToken));
+            writer.RecordAsync(DraftOf("Anna Kowalska", "anna@example.test"), ContactAddressWriterKind.Person, TestContext.Current.CancellationToken));
 
         Assert.Equal(MailFathomPermission.ContactsWrite, refusal.RequiredPermission);
         Assert.Equal(0, book.ContactCount);
@@ -86,6 +89,7 @@ public sealed class ContactBookWriterTests
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => writer.AmendAsync(
             held.Id,
             DraftOf("Someone Else", "someone.else@example.test"),
+            ContactAddressWriterKind.Person,
             TestContext.Current.CancellationToken));
 
         // Assert
@@ -105,6 +109,7 @@ public sealed class ContactBookWriterTests
         // Act
         var result = await writer.RecordAsync(
             DraftOf("Anna Kowalska", "anna@example.test"),
+            ContactAddressWriterKind.Person,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -132,6 +137,7 @@ public sealed class ContactBookWriterTests
         var result = await writer.AmendAsync(
             collected.Id,
             DraftOf("Anna K.", "anna@example.test"),
+            ContactAddressWriterKind.Person,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -152,10 +158,11 @@ public sealed class ContactBookWriterTests
         var writer = WriterOver(book);
 
         // Act
-        var promoted = await writer.PromoteAsync(collected.Id, TestContext.Current.CancellationToken);
+        var promoted = await writer.PromoteAsync(collected.Id, ContactAddressWriterKind.Person, TestContext.Current.CancellationToken);
         var amended = await writer.AmendAsync(
             promoted.Contact!.Id,
             DraftOf("Anna K.", "anna@example.test"),
+            ContactAddressWriterKind.Person,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -178,8 +185,8 @@ public sealed class ContactBookWriterTests
         var draft = DraftOf("Anna Nowak", "anna@example.test");
 
         // Act
-        await writer.AmendAsync(held.Id, draft, TestContext.Current.CancellationToken);
-        var second = await writer.AmendAsync(held.Id, draft, TestContext.Current.CancellationToken);
+        await writer.AmendAsync(held.Id, draft, ContactAddressWriterKind.Person, TestContext.Current.CancellationToken);
+        var second = await writer.AmendAsync(held.Id, draft, ContactAddressWriterKind.Person, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(ContactWriteOutcome.Written, second.Outcome);
@@ -221,7 +228,7 @@ public sealed class ContactBookWriterTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<ContactRecordInvalidException>(() =>
-            writer.RecordAsync(draft, TestContext.Current.CancellationToken));
+            writer.RecordAsync(draft, ContactAddressWriterKind.Person, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(0, book.ContactCount);
@@ -312,7 +319,7 @@ public sealed class ContactBookWriterTests
         };
 
         // Act
-        var result = await writer.RecordAsync(draft, TestContext.Current.CancellationToken);
+        var result = await writer.RecordAsync(draft, ContactAddressWriterKind.Person, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(ContactWriteOutcome.Written, result.Outcome);
@@ -341,7 +348,7 @@ public sealed class ContactBookWriterTests
 
         // Act, Assert
         await Assert.ThrowsAsync<ContactRecordInvalidException>(() =>
-            writer.RecordAsync(draft, TestContext.Current.CancellationToken));
+            writer.RecordAsync(draft, ContactAddressWriterKind.Person, TestContext.Current.CancellationToken));
 
         Assert.Equal(0, book.ContactCount);
     }
@@ -359,10 +366,33 @@ public sealed class ContactBookWriterTests
         var draft = DraftOf("Anna Kowalska", "anna@example.test") with { Note = note };
 
         // Act
-        var result = await writer.RecordAsync(draft, TestContext.Current.CancellationToken);
+        var result = await writer.RecordAsync(draft, ContactAddressWriterKind.Person, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(result.Contact?.Note);
+    }
+
+    /// <summary>
+    /// Every address a write states records the surface, the user, and the credential it came through, which is what
+    /// decides whether the address can make its sender trusted.
+    /// </summary>
+    [Theory]
+    [InlineData(ContactAddressWriterKind.Person)]
+    [InlineData(ContactAddressWriterKind.Agent)]
+    public async Task RecordAsync_ThroughASurface_RecordsTheCallerAsTheWriter(ContactAddressWriterKind surface)
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var writer = WriterOver(book);
+
+        // Act
+        var result = await writer.RecordAsync(
+            DraftOf("Anna Kowalska", "anna@example.test"),
+            surface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new ContactAddressWriter(surface, User, Credential), book.Writers[result.Contact!.Id]);
     }
 
     private static ContactBookWriter WriterOver(
@@ -374,7 +404,7 @@ public sealed class ContactBookWriterTests
         principals.Current.Returns(AuthorizedPrincipal.CallerActingFor(
             User,
             "a-caller",
-            granted.Length == 0 ? [MailFathomPermission.ContactsWrite] : granted));
+            granted.Length == 0 ? [MailFathomPermission.ContactsWrite] : granted).AdmittedByCredential(Credential));
 
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());

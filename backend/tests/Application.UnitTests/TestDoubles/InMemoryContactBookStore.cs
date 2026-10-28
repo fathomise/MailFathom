@@ -30,6 +30,7 @@ namespace MailFathom.Application.UnitTests.TestDoubles;
 internal sealed class InMemoryContactBookStore : IContactStore, IContactDirectory
 {
     private readonly Dictionary<ContactId, HeldContact> heldById = [];
+    private readonly Dictionary<ContactId, ContactAddressWriter> writers = [];
 
     /// <summary>Gets how many contacts the books hold between them.</summary>
     internal int ContactCount => this.heldById.Count;
@@ -44,6 +45,9 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
     /// separates them, so it is the one this double publishes.
     /// </remarks>
     internal int BatchedLookupCount { get; private set; }
+
+    /// <summary>Gets the writer each written contact's last write was stated by, for a test asserting who a write records.</summary>
+    internal IReadOnlyDictionary<ContactId, ContactAddressWriter> Writers => this.writers;
 
     /// <summary>Puts a contact into the deployment user's own book without going through a write, for arranging what was already held.</summary>
     internal void Hold(Contact contact) => this.Hold(SyntheticUser.Deployment, contact);
@@ -70,10 +74,12 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
         IPersistenceSession session,
         ContactBookHolder holder,
         Contact contact,
+        ContactAddressWriter writer,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(holder);
         ArgumentNullException.ThrowIfNull(contact);
+        ArgumentNullException.ThrowIfNull(writer);
 
         if (contact.Origin != holder.Origin)
         {
@@ -88,6 +94,7 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
         }
 
         this.heldById[contact.Id] = new HeldContact(holder, contact);
+        this.writers[contact.Id] = writer;
 
         return Task.CompletedTask;
     }
@@ -97,10 +104,12 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
         IPersistenceSession session,
         ContactBookHolder holder,
         Contact contact,
+        ContactAddressWriter writer,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(holder);
         ArgumentNullException.ThrowIfNull(contact);
+        ArgumentNullException.ThrowIfNull(writer);
 
         if (this.HeldIn(holder, contact.Id) is null)
         {
@@ -117,6 +126,7 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
         }
 
         this.heldById[contact.Id] = new HeldContact(holder, contact);
+        this.writers[contact.Id] = writer;
 
         return Task.FromResult(true);
     }

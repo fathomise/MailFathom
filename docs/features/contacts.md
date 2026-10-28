@@ -220,6 +220,42 @@ others for every record collection produced.
 Erasure is deliberately outside that rule. It is the data-subject path, and somebody asking to be removed from a contact
 book is not answered with which half of the book they happen to be in.
 
+## Contacts are the trusted-sender list
+
+**A sender is trusted because somebody wrote them down.** There is no list of trusted senders beside the book: when a
+message arrives, the address its `From` displays is looked up in the books the receiving account reaches — its
+organization's, and the own book of every user it is assigned to — and a contact holding it there makes the sender
+trusted. A mailbox's collected book is never consulted, because collection writes down whoever wrote to the mailbox,
+forgers included. The comparison is the address's comparison form, so `Anna@Example.test` and `anna@example.test` are
+one sender. What else the message has to prove before a contact counts — an author tied to the address by DMARC, an
+aligned DKIM signature, or the author's own verified signature, never SPF alone — and in which order a contact ranks
+against the owner's own addresses and an organization's signature is [sender authentication § Which senders this
+deployment recognizes](sender-authentication.md#which-senders-this-deployment-recognizes).
+
+**Every address records who wrote it, and only a person or an administrator grants trust.** Each address row carries
+the surface its write came through, the user, the credential the write was admitted by, and when:
+
+| Writer | Written through | Grants trust |
+|---|---|---|
+| `Person` | The client endpoint | Yes |
+| `Administrator` | The administrative endpoint and `mfctl` | Yes |
+| `Agent` | The MCP tools | No |
+| `Unrecorded` | Collection, and every address written before writers were recorded | No |
+
+An agent may write somebody down for a user, and that record is read like any other; what it never does is make that
+person's mail trusted, so an instruction an agent followed from a message cannot vouch for the message's own sender. The
+MCP tools that write say so in their descriptions. An amendment keeps the writer each kept address already has and gives
+an address it adds its own writer, so restating a record through MCP does not take away trust a person granted, and
+cannot add any. A promotion records whoever promoted. An address recorded as `Unrecorded` grants nothing until a person
+or an administrator states it again.
+
+**A trusted verdict names the contact that granted it, and removing that contact takes the trust away.** Erasing a
+contact, erasing the user whose book holds it, and deleting the organization whose book holds it each reset every
+verdict naming one of its contacts to the not-evaluated verdict, in the same transaction and before the rows go — so an
+erasure is never blocked by a verdict and no trusted mark is left naming somebody nobody holds. Each of those acts, every
+contact write, and every verdict take one lock per address first, so a verdict reads the books wholly before a write or
+wholly after it.
+
 ## Collecting contacts from arriving mail
 
 An account can record the people it corresponds with as its mail is synchronized. It is **off unless a user switched

@@ -325,14 +325,11 @@ public sealed class SettingsPolicyCandidateTests
     }
 
     /// <summary>
-    /// Two lists carry their entry's rule as a method the account's validator calls rather than as one the entry
+    /// One list carries its entry's rule as a method the account's validator calls rather than as one the entry
     /// declares. It reads the entry and nothing beside it, so it is asked of a stated list as it is of a record's —
     /// and its refusal names the entry's position and never the address or the domain the entry holds.
     /// </summary>
     [Theory]
-    [InlineData("""{"TrustedSenders":[{"Domain":"partner.example"},{"Domain":"a.example","Address":"b@a.example"}]}""", "MailAccounts:Forced: TrustedSenders entry 1 must name exactly one of")]
-    [InlineData("""{"TrustedSenders":[{"IncludeSubdomains":true}]}""", "MailAccounts:Forced: TrustedSenders entry 0 must name exactly one of")]
-    [InlineData("""{"TrustedSenders":[{"Address":"b@a.example","IncludeSubdomains":true}]}""", "MailAccounts:Forced: TrustedSenders entry 0 must name exactly one of")]
     [InlineData("""{"ContactCollection":{"Exclusions":[{"Domain":"a.example","AddressPattern":"*@a.example"}]}}""", "MailAccounts:Forced: ContactCollection:Exclusions entry 0 must name exactly one of")]
     [InlineData("""{"ContactCollection":{"Exclusions":[{"Domain":"partner.example"},{"AddressPattern":"*@*"}]}}""", "MailAccounts:Forced: ContactCollection:Exclusions entry 1 must name exactly one of")]
     public void Judge_AListEntryTheAccountsOwnRuleRefuses_IsRefusedNamingItsPositionAndNotWhatItHolds(string forced, string expected)
@@ -350,7 +347,6 @@ public sealed class SettingsPolicyCandidateTests
     }
 
     [Theory]
-    [InlineData("""{"TrustedSenders":[{"Domain":"partner.example","IncludeSubdomains":true},{"Address":"b@a.example"}]}""")]
     [InlineData("""{"ContactCollection":{"Exclusions":[{"Domain":"partner.example"},{"AddressPattern":"no-reply@*"}]}}""")]
     public void Judge_AListWhoseEveryEntryTheAccountsOwnRuleAccepts_MayBeCommitted(string forced)
     {
@@ -367,11 +363,10 @@ public sealed class SettingsPolicyCandidateTests
 
     /// <summary>
     /// A key inside a list entry is repeated back only where it is shaped like a setting's name. Where a setting's name
-    /// belongs in a list of trusted senders, what somebody is likeliest to have written instead is an address.
+    /// belongs in a list of contact-collection exclusions, what somebody is likeliest to have written instead is an address.
     /// </summary>
     [Theory]
-    [InlineData("""{"TrustedSenders":[{"jane@example.test":true}]}""", "MailAccounts:Forced names something inside TrustedSenders that is not a setting an entry of that list carries.")]
-    [InlineData("""{"TrustedSenders":[{"Realm":"a.example","jane@example.test":true}]}""", "MailAccounts:Forced names something inside TrustedSenders that is not a setting an entry of that list carries.")]
+    [InlineData("""{"ContactCollection":{"Exclusions":[{"jane@example.test":true}]}}""", "MailAccounts:Forced names something inside ContactCollection:Exclusions that is not a setting an entry of that list carries.")]
     [InlineData("""{"Folders":[{"Alias":"inbox","Remote Path":"INBOX"}]}""", "MailAccounts:Forced names something inside Folders that is not a setting an entry of that list carries.")]
     public void Judge_AListEntryKeyThatIsNotShapedLikeASettingsName_IsRefusedWithoutRepeatingIt(string forced, string expected)
     {
@@ -621,20 +616,20 @@ public sealed class SettingsPolicyCandidateTests
         Assert.Equal(4, candidate.Refusals.Count);
     }
 
-    /// <summary>A forced list of trusted senders is somebody's correspondents, so a refusal names the path and never what was written there.</summary>
+    /// <summary>A forced list of exclusions names somebody's correspondents, so a refusal names the path and never what was written there.</summary>
     [Fact]
     public void Judge_ARefusedList_NeverRepeatsWhatItHeld()
     {
         // Arrange
         const string saved =
-            """{"MailAccounts":{"Forced":{"TrustedSenders":[{"Address":"somebody@example.test","IncludeSubdomains":"sometimes"}]}}}""";
+            """{"MailAccounts":{"Forced":{"ContactCollection":{"Exclusions":[{"AddressPattern":"somebody@example.test","IncludeSubdomains":"sometimes"}]}}}}""";
 
         // Act
         var candidate = SettingsPolicyCandidate.Judge(saved);
 
         // Assert
         var refusal = Assert.Single(candidate.Refusals);
-        Assert.Contains("TrustedSenders:0:IncludeSubdomains", refusal, StringComparison.Ordinal);
+        Assert.Contains("ContactCollection:Exclusions:0:IncludeSubdomains", refusal, StringComparison.Ordinal);
         Assert.DoesNotContain("somebody@example.test", refusal, StringComparison.Ordinal);
         Assert.DoesNotContain("sometimes", refusal, StringComparison.Ordinal);
     }

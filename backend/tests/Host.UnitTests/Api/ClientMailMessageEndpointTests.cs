@@ -294,8 +294,8 @@ public sealed class ClientMailMessageEndpointTests
     /// <param name="published">The name the client reads it by.</param>
     [Theory]
     [InlineData(SenderTrustSource.OwnAccountDomain, "OwnAccountDomain")]
-    [InlineData(SenderTrustSource.ConfiguredTrustedSender, "ConfiguredTrustedSender")]
-    [InlineData(SenderTrustSource.StoredTrustedSender, "StoredTrustedSender")]
+    [InlineData(SenderTrustSource.OrganizationContact, "OrganizationContact")]
+    [InlineData(SenderTrustSource.PersonalContact, "PersonalContact")]
     [InlineData(SenderTrustSource.OrganizationMember, "OrganizationMember")]
     [InlineData(SenderTrustSource.OwnAccountAddress, "OwnAccountAddress")]
     public void For_ATrustedAuthor_PublishesWhatRecognizedThem(SenderTrustSource grantedBy, string published)
@@ -347,7 +347,7 @@ public sealed class ClientMailMessageEndpointTests
 
     /// <summary>Only the organization source names an organization, so no other trust source carries a name.</summary>
     [Fact]
-    public void For_AnAuthorATrustedSenderRecognized_PublishesNoOrganization()
+    public void For_AnAuthorAContactRecognized_PublishesNoOrganization()
     {
         // Arrange
         var message = MessageWith() with
@@ -355,7 +355,7 @@ public sealed class ClientMailMessageEndpointTests
             SenderVerification = MessageWith().SenderVerification with
             {
                 DeploymentTrust = SenderTrustLevel.Trusted,
-                DeploymentTrustGrantedBy = SenderTrustSource.StoredTrustedSender,
+                DeploymentTrustGrantedBy = SenderTrustSource.PersonalContact,
                 RecognizingOrganizationName = "Nordwind",
             },
         };

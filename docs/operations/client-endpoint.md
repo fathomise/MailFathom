@@ -1491,7 +1491,7 @@ of its body exist to be asked for:
     "dkimDomain": "EXAMPLE.TEST",
     "spfDomain": "BOUNCES.EXAMPLE.TEST",
     "dmarc": "Pass",
-    "trustSource": "ConfiguredTrustedSender",
+    "trustSource": "PersonalContact",
     "trustOrganization": null
   },
   "signature": {
@@ -1591,7 +1591,7 @@ combined into them here.
 | `dkimDomain` | The domain whose DKIM signature passed, or `null` where none did |
 | `spfDomain` | The domain whose SPF check passed, or `null` where none did or none was evaluated |
 | `dmarc` | `NotReported`, `Pass`, `Fail`, `NoPolicyPublished`, `TemporaryError`, `PermanentError` |
-| `trustSource` | `OwnAccountDomain`, `ConfiguredTrustedSender`, `StoredTrustedSender`, `OrganizationMember`, `OwnAccountAddress`, or `null` where nothing recognized the author |
+| `trustSource` | `OrganizationMember`, `OrganizationContact`, `OwnAccountAddress`, `OwnAccountDomain`, `PersonalContact`, or `null` where nothing recognized the author |
 | `trustOrganization` | The current display name of the organization whose signature recognized the author, present only where `trustSource` is `OrganizationMember` and that organization still exists; `null` otherwise |
 
 `authenticationSource` names which reading produced the verdict rather than asserting that a server established
@@ -1601,14 +1601,15 @@ nobody checked from `ReceivingServer` beside an `authorAuthentication` of `NotEs
 reports `NotReported` for DMARC. All three domains are published in the form they are stored in, which is upper-case
 ASCII with an internationalized name in its ASCII encoding, so a screen that wants another spelling makes it.
 
-**`trustSource` names what recognized the author, never which entry matched.** `OwnAccountAddress` is one of the
-addresses the receiving account's owner holds, `OwnAccountDomain` a domain of one of the owner's accounts on an account
-that opted into those, `ConfiguredTrustedSender` an entry on the receiving account's configured
-trusted-sender list, `StoredTrustedSender` one somebody added to its stored list, and `OrganizationMember` a signature
-of the receiving account's organization proving the author a member of it, which holds whatever `authorAuthentication`
-says ([Sender authentication](../features/sender-authentication.md)); where both lists name the author the configured
-one is reported. Which address or domain on a list matched is not recorded, so it is not published. It is the source
-in force when the message was extracted, so a change to the trusted senders since reaches mail extracted after it.
+**`trustSource` names what recognized the author, never which contact or entry matched.** `OrganizationMember` is a
+signature of the receiving account's organization proving the author a member of it, which holds whatever
+`authorAuthentication` says; `OrganizationContact` a contact in that organization's book; `OwnAccountAddress` one of the
+addresses the receiving account's owner holds; `OwnAccountDomain` a domain of one of the owner's accounts on an account
+that opted into those; and `PersonalContact` a contact in the own book of a user the account is assigned to. Where
+several recognize the author the first of those is reported ([Sender
+authentication](../features/sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes)). Which
+contact matched is not published. It is the source in force when the message was stored, so a contact written since
+reaches mail stored after it, and removing the contact resets the verdict it granted.
 
 **`trustOrganization` is the organization's name as it reads now, not as it read when the message arrived.** The
 verdict records which organization's signature proved the member, never its name, so the name is read through that

@@ -246,7 +246,7 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// <param name="DkimDomain">The domain whose DKIM signature passed, or <see langword="null" /> where none did.</param>
 /// <param name="SpfDomain">The domain whose SPF check passed, or <see langword="null" /> where none did or none was evaluated.</param>
 /// <param name="Dmarc">The DMARC result the verdict was reached with, as the outcome's own name.</param>
-/// <param name="TrustSource">What recognized the author — <c>OwnAccountDomain</c>, <c>ConfiguredTrustedSender</c>, <c>StoredTrustedSender</c>, <c>OrganizationMember</c>, or <c>OwnAccountAddress</c> — or <see langword="null" /> where nothing did.</param>
+/// <param name="TrustSource">What recognized the author — <c>OwnAccountDomain</c>, <c>OrganizationMember</c>, <c>OwnAccountAddress</c>, <c>OrganizationContact</c>, or <c>PersonalContact</c> — or <see langword="null" /> where nothing did.</param>
 /// <param name="TrustOrganization">The current display name of the organization whose signature recognized the author, present only where <paramref name="TrustSource" /> is <c>OrganizationMember</c> and that organization still exists.</param>
 /// <remarks>
 /// <para>

@@ -22,7 +22,7 @@ const verdict = {
     dkimDomain: 'MAIL.EXAMPLE.INVALID',
     spfDomain: 'BOUNCES.EXAMPLE.INVALID',
     dmarc: 'Pass',
-    trustSource: 'ConfiguredTrustedSender',
+    trustSource: 'PersonalContact',
     trustOrganization: null,
 };
 
@@ -234,17 +234,14 @@ describe('readMailMessage', () => {
         expect(message?.sender.trustSource).toBeNull();
     });
 
-    it.each([
-        'OwnAccountDomain',
-        'ConfiguredTrustedSender',
-        'StoredTrustedSender',
-        'OrganizationMember',
-        'OwnAccountAddress',
-    ])('reads a sender %s recognized', async (trustSource) => {
-        const message = await readingOf(described({ sender: { ...verdict, trustSource } }));
+    it.each(['OwnAccountDomain', 'OrganizationMember', 'OwnAccountAddress', 'OrganizationContact', 'PersonalContact'])(
+        'reads a sender %s recognized',
+        async (trustSource) => {
+            const message = await readingOf(described({ sender: { ...verdict, trustSource } }));
 
-        expect(message?.sender.trustSource).toBe(trustSource);
-    });
+            expect(message?.sender.trustSource).toBe(trustSource);
+        },
+    );
 
     it.each([
         ['its organization by the name it carries now', 'Nordwind', 'Nordwind'],

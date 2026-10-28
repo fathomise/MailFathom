@@ -46,6 +46,8 @@ namespace MailFathom.IntegrationTests.Persistence;
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
 public sealed class OrchestratedContactBookOwnershipTests(MailFathomOrchestrationFixture orchestration)
 {
+    private static readonly ContactAddressWriter PersonWriting = new(ContactAddressWriterKind.Person, User: null, Credential: null);
+
     /// <summary>The instant a directly constructed contact is stamped with, fixed so no test here reads a clock.</summary>
     private static readonly DateTimeOffset RecordedAt = new(2026, 3, 1, 9, 0, 0, TimeSpan.Zero);
 
@@ -136,12 +138,12 @@ public sealed class OrchestratedContactBookOwnershipTests(MailFathomOrchestratio
             var written = ours;
             var oursCommit = await services.CommitAsync(
                 (scope, session, token) => scope.GetRequiredService<IContactStore>()
-                    .AddAsync(session, ContactBookHolder.Of(servedUser), written, token),
+                    .AddAsync(session, ContactBookHolder.Of(servedUser), written, PersonWriting, token),
                 cancellationToken);
 
             var theirsCommit = await services.CommitAsync(
                 (scope, session, token) => scope.GetRequiredService<IContactStore>()
-                    .AddAsync(session, ContactBookHolder.Of(foreignUser), theirs, token),
+                    .AddAsync(session, ContactBookHolder.Of(foreignUser), theirs, PersonWriting, token),
                 cancellationToken);
 
             var heldByUs = await FindByAddressAsync(services, OwnBookOf(servedUser), SharedAddress, cancellationToken);
@@ -214,7 +216,7 @@ public sealed class OrchestratedContactBookOwnershipTests(MailFathomOrchestratio
                 PersistenceCommitResult.Committed,
                 await services.CommitAsync(
                     (scope, session, token) => scope.GetRequiredService<IContactStore>()
-                        .AddAsync(session, ContactBookHolder.Of(foreignUser), theirs, token),
+                        .AddAsync(session, ContactBookHolder.Of(foreignUser), theirs, PersonWriting, token),
                     cancellationToken));
 
             // Act
@@ -275,14 +277,14 @@ public sealed class OrchestratedContactBookOwnershipTests(MailFathomOrchestratio
                 PersistenceCommitResult.Committed,
                 await services.CommitAsync(
                     (scope, session, token) => scope.GetRequiredService<IContactStore>()
-                        .AddAsync(session, ContactBookHolder.Of(FirstAccount), onTheFirst, token),
+                        .AddAsync(session, ContactBookHolder.Of(FirstAccount), onTheFirst, PersonWriting, token),
                     cancellationToken));
 
             Assert.Equal(
                 PersistenceCommitResult.Committed,
                 await services.CommitAsync(
                     (scope, session, token) => scope.GetRequiredService<IContactStore>()
-                        .AddAsync(session, ContactBookHolder.Of(SecondAccount), onTheSecond, token),
+                        .AddAsync(session, ContactBookHolder.Of(SecondAccount), onTheSecond, PersonWriting, token),
                     cancellationToken));
 
             // Act
@@ -349,7 +351,7 @@ public sealed class OrchestratedContactBookOwnershipTests(MailFathomOrchestratio
                 PersistenceCommitResult.Committed,
                 await services.CommitAsync(
                     (scope, session, token) => scope.GetRequiredService<IContactStore>()
-                        .AddAsync(session, ContactBookHolder.Of(FirstAccount), collected, token),
+                        .AddAsync(session, ContactBookHolder.Of(FirstAccount), collected, PersonWriting, token),
                     cancellationToken));
 
             // Act
@@ -371,7 +373,7 @@ public sealed class OrchestratedContactBookOwnershipTests(MailFathomOrchestratio
                 PersistenceCommitResult.Committed,
                 await services.CommitAsync(
                     (scope, session, token) => scope.GetRequiredService<IContactStore>()
-                        .AddAsync(session, ContactBookHolder.Of(servedUser), ours, token),
+                        .AddAsync(session, ContactBookHolder.Of(servedUser), ours, PersonWriting, token),
                     cancellationToken));
 
             var afterForUs = await FindByAddressAsync(

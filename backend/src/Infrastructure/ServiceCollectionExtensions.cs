@@ -63,6 +63,7 @@ using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Emails.ThreadStates;
+using MailFathom.Application.Emails.Trust;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Jobs;
@@ -1036,23 +1037,21 @@ public static class ServiceCollectionExtensions
                 : null;
 
             var reader = new MachineAuthorshipEvaluatingEmailMimeReader(
-                new SenderTrustEvaluatingEmailMimeReader(
-                    new MimeKitEmailMimeReader(
-                        extractionOptions,
-                        provider.GetRequiredService<ITrustedAuthenticationAuthorityReader>(),
-                        localSenderVerifier,
-                        new EmailSignatureVerifier(
-                            provider.GetRequiredService<EmailSignatureTrustOptions>(),
-                            provider.GetRequiredService<TrustAnchorLoader>(),
-                            provider.GetRequiredService<ISecretReferenceResolver>(),
-                            provider.GetRequiredService<SecureMimeSignatureVerifier>()),
-                        // Unconditional, unlike the DNS-backed verification: it asks nothing outside the database,
-                        // and an account in no organization is answered by one indexed read before any key is.
-                        new OrganizationSignatureVerifier(
-                            new PersistedOrganizationSenderDirectory(
-                                new Lazy<MailFathomDbContext>(provider.GetRequiredService<MailFathomDbContext>)),
-                            provider.GetRequiredService<ISenderIdentityDirectory>())),
-                    provider.GetRequiredService<ISenderTrustPolicyReader>()),
+                new MimeKitEmailMimeReader(
+                    extractionOptions,
+                    provider.GetRequiredService<ITrustedAuthenticationAuthorityReader>(),
+                    localSenderVerifier,
+                    new EmailSignatureVerifier(
+                        provider.GetRequiredService<EmailSignatureTrustOptions>(),
+                        provider.GetRequiredService<TrustAnchorLoader>(),
+                        provider.GetRequiredService<ISecretReferenceResolver>(),
+                        provider.GetRequiredService<SecureMimeSignatureVerifier>()),
+                    // Unconditional, unlike the DNS-backed verification: it asks nothing outside the database,
+                    // and an account in no organization is answered by one indexed read before any key is.
+                    new OrganizationSignatureVerifier(
+                        new PersistedOrganizationSenderDirectory(
+                            new Lazy<MailFathomDbContext>(provider.GetRequiredService<MailFathomDbContext>)),
+                        provider.GetRequiredService<ISenderIdentityDirectory>())),
                 provider.GetRequiredService<MachineAuthorshipProfile>());
 
             // Wrapped whatever the postures say today, because they change while a scope is open: a record committed
@@ -1678,6 +1677,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IContactStore, ContactStore>();
         services.AddScoped<IContactDirectory, ContactDirectory>();
         services.AddScoped<ContactBook>();
+
+        // What every path storing a sender trust verdict asks inside its transaction: the address lock, then the books.
+        services.AddScoped<ISenderTrustBooks, SenderTrustBooks>();
+        services.AddScoped<SenderTrustJudge>();
 
         // Which books a named user reads, and which books the caller in hand reads. The first answers about whoever it
         // is asked about, which is what the administrative surface needs; the second binds that question to the

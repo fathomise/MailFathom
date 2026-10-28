@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Contacts;
+
 namespace MailFathom.Domain.Emails.Authentication;
 
 /// <summary>What this deployment decided about the author one message authenticated as.</summary>
@@ -9,13 +11,14 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// <para>
 /// It is the second of a message's two sender verdicts and reads the first. <see cref="SenderAuthentication" /> says
 /// what the receiving server established about the message, which is a fact about the message; this says whether the
-/// authenticated author is one this deployment recognizes, which is a decision about a list an operator and a reader
-/// both write to. Keeping them apart is what lets the list change without the facts changing under it, and it is why
-/// this carries no value for <em>the author was not authenticated</em> — that is the other verdict's to state.
+/// author is one this deployment recognizes, which is a decision about the contacts people and administrators wrote
+/// down. Keeping them apart is what lets a contact change without the facts changing under it, and it is why this
+/// carries no value for <em>the author was not authenticated</em> — that is the other verdict's to state.
 /// </para>
 /// <para>
 /// It is stored rather than computed on read, so a message keeps the answer it was judged with. What makes that
-/// legible is <see cref="PolicyRevision" />: it names the list the answer came from, and a verdict nothing judged
+/// legible is <see cref="PolicyRevision" />, which names the configuration the answer was reached under, and
+/// <see cref="RecognizingContactId" />, which names the contact that recognized the author. A verdict nothing judged
 /// carries <see cref="SenderTrustPolicyRevision.None" />.
 /// </para>
 /// </remarks>
@@ -25,12 +28,16 @@ public sealed record SenderTrust
         SenderTrustLevel level,
         SenderTrustSource grantedBy,
         SenderTrustPolicyRevision policyRevision,
-        Guid? recognizingOrganizationId = null)
+        TrustedAuthorEvidence authorEvidence = TrustedAuthorEvidence.None,
+        Guid? recognizingOrganizationId = null,
+        ContactId? recognizingContactId = null)
     {
         this.Level = level;
         this.GrantedBy = grantedBy;
         this.PolicyRevision = policyRevision;
+        this.AuthorEvidence = authorEvidence;
         this.RecognizingOrganizationId = recognizingOrganizationId;
+        this.RecognizingContactId = recognizingContactId;
     }
 
     /// <summary>Gets the verdict a message reaching persistence without a policy having spoken carries.</summary>
@@ -60,7 +67,23 @@ public sealed record SenderTrust
     /// </remarks>
     public Guid? RecognizingOrganizationId { get; }
 
-    /// <summary>Gets whether this deployment recognized the message's authenticated author.</summary>
+    /// <summary>Gets the contact that recognized the author, present exactly when <see cref="GrantedBy" /> is <see cref="SenderTrustSource.OrganizationContact" /> or <see cref="SenderTrustSource.PersonalContact" />.</summary>
+    /// <remarks>
+    /// A reference rather than a copy, so the verdict leads back to the contact and to who wrote its address. Unlike the
+    /// organization's reference it is never cleared on its own: every act that removes a contact resets each verdict
+    /// naming it to <see cref="NotEvaluated" /> in its own transaction, so no trusted mark is left naming nothing.
+    /// </remarks>
+    public ContactId? RecognizingContactId { get; }
+
+    /// <summary>Gets what tied the message to the address or domain the source recognized.</summary>
+    /// <remarks>
+    /// <see cref="TrustedAuthorEvidence.AuthorSignature" /> only where authentication did not hold, so the record names
+    /// what the mark rested on; <see cref="TrustedAuthorEvidence.None" /> for every verdict that is not trusted and for
+    /// one the organization's signature reached.
+    /// </remarks>
+    public TrustedAuthorEvidence AuthorEvidence { get; }
+
+    /// <summary>Gets whether this deployment recognized the message's author.</summary>
     public bool IsTrusted => this.Level == SenderTrustLevel.Trusted;
 
     /// <summary>Records that this deployment recognizes nobody in the message.</summary>
@@ -75,33 +98,58 @@ public sealed record SenderTrust
     public static SenderTrust Unknown(SenderTrustPolicyRevision policyRevision) =>
         new(SenderTrustLevel.Unknown, SenderTrustSource.None, policyRevision);
 
-    /// <summary>Records that this deployment recognized the message's authenticated author.</summary>
-    /// <param name="grantedBy">Which half named the author.</param>
+    /// <summary>Records that the author wrote as one of the receiving account owner's own addresses or domains.</summary>
+    /// <param name="grantedBy"><see cref="SenderTrustSource.OwnAccountAddress" /> or <see cref="SenderTrustSource.OwnAccountDomain" />.</param>
+    /// <param name="authorEvidence">What tied the message to that address or domain.</param>
     /// <param name="policyRevision">The policy that was applied.</param>
     /// <returns>The verdict.</returns>
     /// <exception cref="ArgumentException">
-    /// Thrown when no half is named, which is not a trusted message, or when the organization source is named, which
-    /// <see cref="TrustedAsOrganizationMember" /> records with the organization it needs.
+    /// Thrown when another source is named, each of which <see cref="TrustedAsOrganizationMember" /> or
+    /// <see cref="TrustedByContact" /> records with the reference it needs, or when no evidence is named.
     /// </exception>
-    public static SenderTrust Trusted(
+    public static SenderTrust TrustedAsOwn(
         SenderTrustSource grantedBy,
+        TrustedAuthorEvidence authorEvidence,
         SenderTrustPolicyRevision policyRevision)
     {
-        if (grantedBy == SenderTrustSource.None)
+        if (grantedBy is not (SenderTrustSource.OwnAccountAddress or SenderTrustSource.OwnAccountDomain))
         {
             throw new ArgumentException(
-                "A trusted verdict names what recognized the author, so it cannot be reached by nothing.",
+                "Only the owner's own address or domain is recorded without a reference.",
                 nameof(grantedBy));
         }
 
-        if (grantedBy == SenderTrustSource.OrganizationMember)
+        return new SenderTrust(
+            SenderTrustLevel.Trusted,
+            grantedBy,
+            policyRevision,
+            RequireEvidence(authorEvidence));
+    }
+
+    /// <summary>Records that a contact somebody wrote down holds the author's address.</summary>
+    /// <param name="grantedBy"><see cref="SenderTrustSource.OrganizationContact" /> or <see cref="SenderTrustSource.PersonalContact" />.</param>
+    /// <param name="contactId">The contact that recognized the author.</param>
+    /// <param name="authorEvidence">What tied the message to the contact's address.</param>
+    /// <param name="policyRevision">The policy that was applied.</param>
+    /// <returns>The verdict.</returns>
+    /// <exception cref="ArgumentException">Thrown when another source is named, or when no evidence is named.</exception>
+    public static SenderTrust TrustedByContact(
+        SenderTrustSource grantedBy,
+        ContactId contactId,
+        TrustedAuthorEvidence authorEvidence,
+        SenderTrustPolicyRevision policyRevision)
+    {
+        if (grantedBy is not (SenderTrustSource.OrganizationContact or SenderTrustSource.PersonalContact))
         {
-            throw new ArgumentException(
-                "A verdict an organization's signature reached names that organization.",
-                nameof(grantedBy));
+            throw new ArgumentException("Only a contact source names a contact.", nameof(grantedBy));
         }
 
-        return new SenderTrust(SenderTrustLevel.Trusted, grantedBy, policyRevision);
+        return new SenderTrust(
+            SenderTrustLevel.Trusted,
+            grantedBy,
+            policyRevision,
+            RequireEvidence(authorEvidence),
+            recognizingContactId: contactId);
     }
 
     /// <summary>Records that a signature of the receiving account's organization proved the author a member of it.</summary>
@@ -111,5 +159,16 @@ public sealed record SenderTrust
     public static SenderTrust TrustedAsOrganizationMember(
         Guid organizationId,
         SenderTrustPolicyRevision policyRevision) =>
-        new(SenderTrustLevel.Trusted, SenderTrustSource.OrganizationMember, policyRevision, organizationId);
+        new(
+            SenderTrustLevel.Trusted,
+            SenderTrustSource.OrganizationMember,
+            policyRevision,
+            recognizingOrganizationId: organizationId);
+
+    private static TrustedAuthorEvidence RequireEvidence(TrustedAuthorEvidence authorEvidence) =>
+        authorEvidence != TrustedAuthorEvidence.None
+            ? authorEvidence
+            : throw new ArgumentException(
+                "A source somebody wrote down counts only for a message tied to it.",
+                nameof(authorEvidence));
 }

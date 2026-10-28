@@ -38,12 +38,12 @@ public sealed record ExtractedEmailMetadata(
     ExtractedEmailText Text,
     SenderAuthentication SenderAuthentication)
 {
-    /// <summary>Gets what this deployment made of the message's authenticated author.</summary>
+    /// <summary>Gets what this deployment made of the message's author.</summary>
     /// <remarks>
     /// Not a parameter of the reading, because it is not read out of the message: the parsing adapter establishes what
-    /// the receiving server said and <see cref="SenderTrustEvaluatingEmailMimeReader" /> holds the author that follows
-    /// from it against the account's trusted senders afterwards. Its default is therefore the verdict of a reading no
-    /// policy has spoken over, which is unknown and carries no policy revision to say otherwise.
+    /// the receiving server said and <see cref="Trust.SenderTrustJudge" /> holds the author against the contacts and the
+    /// account's configuration inside the transaction that stores the message. Its default is therefore the verdict of a
+    /// reading no policy has spoken over, which is unknown and carries no policy revision to say otherwise.
     /// </remarks>
     public SenderTrust SenderTrust { get; init; } = SenderTrust.NotEvaluated;
 
@@ -68,7 +68,7 @@ public sealed record ExtractedEmailMetadata(
     /// <summary>Gets what verifying the message against the receiving account's organization established.</summary>
     /// <remarks>
     /// Read out of the message's bytes beside the local DKIM verification and not stored on its own:
-    /// <see cref="SenderTrustEvaluatingEmailMimeReader" /> takes it into <see cref="SenderTrust" />, which is where the
+    /// <see cref="Trust.SenderTrustJudge" /> takes it into <see cref="SenderTrust" />, which is where the
     /// recognizing organization is recorded. It is <see langword="null" /> where the receiving account belongs to no
     /// organization, which verifies nothing and leaves the message judged exactly as before.
     /// </remarks>

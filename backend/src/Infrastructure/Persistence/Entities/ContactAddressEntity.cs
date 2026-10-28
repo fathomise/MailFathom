@@ -22,6 +22,11 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 /// structural rather than remembered: the foreign key onto the contact carries both columns, so a row can only name the
 /// book its contact is filed under.
 /// </para>
+/// <para>
+/// The writer columns record who stated this address and when, which decides whether it can make its sender trusted.
+/// They are written once, when the address joins the contact, and an amendment that keeps the address keeps them. A
+/// row stored before they were recorded carries <see cref="ContactAddressWriterKind.Unrecorded" /> and no time.
+/// </para>
 /// </remarks>
 [RequiresIntegrationCoverage]
 internal sealed class ContactAddressEntity
@@ -42,4 +47,12 @@ internal sealed class ContactAddressEntity
 
     /// <summary>Gets or sets the comparison form, which is what anything matches, groups, or indexes on.</summary>
     public required string NormalizedAddress { get; set; }
+
+    public ContactAddressWriterKind WriterKind { get; set; }
+
+    public Guid? WriterUserId { get; set; }
+
+    public Guid? WriterCredentialId { get; set; }
+
+    public DateTimeOffset? WrittenAt { get; set; }
 }

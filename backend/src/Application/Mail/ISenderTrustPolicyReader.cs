@@ -7,17 +7,15 @@ using MailFathom.Domain.Emails.Authentication;
 
 namespace MailFathom.Application.Mail;
 
-/// <summary>Resolves the trusted senders one account judges its arriving mail by.</summary>
+/// <summary>Resolves what configuration states about the senders one account recognizes: its owner's own addresses and, where it opted in, domains.</summary>
 /// <remarks>
 /// <para>
-/// The list is per account because the accounts an instance synchronizes are different correspondence: a work account's
-/// counterparties have nothing to do with a personal one's, and a single list would either recognize too much on one
-/// account or make a user maintain the union of both. What is deployment-wide is the set of domains the configured
-/// accounts themselves use, which every account's policy is built with unless the deployment says otherwise.
+/// The policy is per account because each account's owner is a different person, and an account opts into its owner's
+/// domains on its own. Contacts are not part of it: they are looked up per message, when its verdict is stored.
 /// </para>
 /// <para>
-/// The configured half is validated at startup, so this never fails and never returns a policy a caller has to check
-/// again. An account this deployment no longer configures answers with
+/// It is validated at startup, so this never fails and never returns a policy a caller has to check again. An account
+/// this deployment no longer configures answers with
 /// <see cref="SenderTrustPolicy.RecognizingNobody" /> for the reason every per-account reader here does: a
 /// reading over mail whose account a reload removed must recognize nobody rather than throw.
 /// </para>

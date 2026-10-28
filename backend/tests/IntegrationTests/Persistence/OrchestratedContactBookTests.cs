@@ -38,6 +38,8 @@ namespace MailFathom.IntegrationTests.Persistence;
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
 public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture orchestration)
 {
+    private static readonly ContactAddressWriter PersonWriting = new(ContactAddressWriterKind.Person, User: null, Credential: null);
+
     /// <summary>The instant a directly constructed contact is stamped with, fixed so no test here reads a clock.</summary>
     private static readonly DateTimeOffset RecordedAt = new(2026, 3, 1, 9, 0, 0, TimeSpan.Zero);
 
@@ -145,7 +147,7 @@ public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture 
         // Act
         var promoted = await AsOperatorAsync(
             services,
-            (book, token) => book.PromoteAsync(BooksOf(services), collectedId, ContactOrigin.Asserted, token),
+            (book, token) => book.PromoteAsync(BooksOf(services), collectedId, ContactOrigin.Asserted, PersonWriting, token),
             cancellationToken);
 
         var promotedId = promoted.Contact!.Id;
@@ -157,7 +159,7 @@ public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture 
 
         var again = await AsOperatorAsync(
             services,
-            (book, token) => book.PromoteAsync(BooksOf(services), promotedId, ContactOrigin.Asserted, token),
+            (book, token) => book.PromoteAsync(BooksOf(services), promotedId, ContactOrigin.Asserted, PersonWriting, token),
             cancellationToken);
 
         var mailboxesRecordStillThere = await CountContactRowsAsync(services, collectedId, cancellationToken);
@@ -196,12 +198,12 @@ public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture 
                     .BeginSessionAsync(token);
 
                 await losingScope.GetRequiredService<IContactStore>()
-                    .AddAsync(losingSession, ContactBookHolder.Of(services.ServedUser), losing, token);
+                    .AddAsync(losingSession, ContactBookHolder.Of(services.ServedUser), losing, PersonWriting, token);
 
                 var committedFirst = await services.CommitAsync(
                     (winningScope, winningSession, winningToken) => winningScope
                         .GetRequiredService<IContactStore>()
-                        .AddAsync(winningSession, ContactBookHolder.Of(services.ServedUser), winning, winningToken),
+                        .AddAsync(winningSession, ContactBookHolder.Of(services.ServedUser), winning, PersonWriting, winningToken),
                     token);
 
                 return (committedFirst, await losingSession.CommitAsync(token));
@@ -404,6 +406,7 @@ public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture 
                     PreferredAddress = Address("added@amendment.contacts.test"),
                     Note = ContactNote.Create("Changed address in March."),
                 },
+                PersonWriting,
                 token),
             cancellationToken);
 
@@ -503,6 +506,7 @@ public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture 
                     PreferredAddress = Address(addresses[0]),
                     Origin = origin,
                 },
+                PersonWriting,
                 token),
             cancellationToken);
 

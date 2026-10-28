@@ -35,5 +35,6 @@ public static class LocalMailCopiers
             emails ?? Substitute.For<IEmailMetadataRepository>(),
             contents ?? Substitute.For<IEmailContentStore>(),
             mimeReader ?? Substitute.For<IEmailMimeReader>(),
+            SenderTrustJudges.Over(),
             folders ?? Substitute.For<ILocalMailFolderStore>());
 }

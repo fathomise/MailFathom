@@ -89,18 +89,14 @@ internal sealed class SettingsPolicySection
 
     /// <summary>Reports each entry of a stated list that the account's own rule for such an entry refuses.</summary>
     /// <remarks>
-    /// The two lists whose entries carry their rule as a method the account's validator calls. A list is stated whole,
-    /// so an entry reads nothing the account states elsewhere and the rule is as answerable here as in a record. A
-    /// refusal names the entry's position and never what it holds: a domain and an address are both somebody's.
+    /// The list whose entries carry their rule as a method the account's validator calls. A list is stated whole, so an
+    /// entry reads nothing the account states elsewhere and the rule is as answerable here as in a record. A refusal
+    /// names the entry's position and never what it holds: a domain and an address are both somebody's.
     /// </remarks>
     private static IEnumerable<string> FindUnusableListEntries(MailSynchronizationAccountOptions account) =>
-        (account.TrustedSenders ?? [])
-            .Select((entry, position) => entry is not null && entry.TryCreateEntry(out _)
+        (account.ContactCollection?.Exclusions ?? [])
+            .Select((entry, position) => entry is not null && entry.TryCreateExclusion(out _)
                 ? null
-                : $"{nameof(account.TrustedSenders)} entry {position} must name exactly one of a usable domain or a usable address, and may ask to include subdomains only where it names a domain.")
-            .Concat((account.ContactCollection?.Exclusions ?? [])
-                .Select((entry, position) => entry is not null && entry.TryCreateExclusion(out _)
-                    ? null
-                    : $"{nameof(account.ContactCollection)}:{nameof(ContactCollectionOptions.Exclusions)} entry {position} must name exactly one of a usable domain or a usable address pattern, may ask to include subdomains only where it names a domain, and may not write a pattern whose only characters are the two wildcards and the at-sign."))
+                : $"{nameof(account.ContactCollection)}:{nameof(ContactCollectionOptions.Exclusions)} entry {position} must name exactly one of a usable domain or a usable address pattern, may ask to include subdomains only where it names a domain, and may not write a pattern whose only characters are the two wildcards and the at-sign.")
             .OfType<string>();
 }

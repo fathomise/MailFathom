@@ -143,9 +143,9 @@ left unknown.
 They are columns beside the authentication verdict rather than a group of their own because they are read together and
 written together — a re-derivation replaces both, so an answer can never sit beside an identity a different list
 judged. `SenderTrustLevel` has two values and nothing more, because the difference between an author nobody named and an
-author nothing established is the authentication columns' to state. What the revision buys is that a change to a
-trusted-sender list is legible rather than silent: a stored verdict keeps the answer it was given, and the revision says
-which list gave it.
+author nothing established is the authentication columns' to state. What the revision buys is that a change to what
+configuration states about the owner is legible rather than silent: a stored verdict keeps the answer it was given, and
+the revision says which configuration gave it.
 [Sender authentication](../features/sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes)
 states the rule the verdict follows.
 
@@ -157,6 +157,17 @@ find them without reading the whole table. No name is copied onto the row: a rea
 display name of every organization its rows name in one more query, by primary key and only where a row names one, so
 a rename reaches stored mail and a deleted organization reads as none. A receiving account's organization is also part
 of the revision of every verdict reached under it, so a revision says whose keys were consulted.
+
+Three more columns say how a verdict a contact or the owner reached was reached. `SenderTrustAuthorEvidence` is text
+defaulting to `None` and names what tied the message to its `From` address — `Authentication` or `AuthorSignature`.
+`SenderTrustContactId` is the contact that granted a contact's verdict, a plain `uuid` rather than a foreign key, because
+every act removing a contact resets the verdicts naming it in its own transaction before the contact goes — so the
+erasure is never blocked by a verdict — and the partial index `ix_stored_emails_sender_trust_contact` over the rows
+that carry one is how that reset finds them. `SenderTrustAddress` is the comparison form of the message's first `From`
+mailbox, `character varying(320)` and absent where the message wrote none, on mail stored before the column existed
+until it is re-derived, and where the address is longer than the column; the partial index
+`ix_stored_emails_sender_trust_address` over `(MailboxAccountId, SenderTrustAddress)` finds an account's mail from one
+address without reading a header.
 
 ### The machine-authorship reading
 
@@ -1897,6 +1908,14 @@ foreign key to a column on the parent and the uniqueness above is over the book 
 repetition honest is the key itself: the foreign key is `(ContactId, BookHolderId)` onto the alternate key
 `(Id, BookHolderId)` on `contacts`, so an address row can only carry the book of the contact it hangs on — no other pair
 exists to point at.
+
+Each address row also records who wrote it, because that is what decides whether it makes its sender trusted.
+`WriterKind` is text — `Person`, `Administrator`, `Agent`, or `Unrecorded`, the last being the default and what a
+collected row and every row stored before the column existed carry — and `WriterUserId`, `WriterCredentialId`, and
+`WrittenAt` are the user, the credential, and the time of the write that stated the address, each null where nothing
+recorded it. An amendment that keeps an address keeps these four as they were. Only `Person` and `Administrator` grant
+trust; [contacts § Contacts are the trusted-sender list](../features/contacts.md#contacts-are-the-trusted-sender-list)
+is the rule.
 
 The preferred address is deliberately **not** a foreign key onto the address row. The two tables already point one way,
 and a key pointing back would make inserting either of them first impossible without deferring the constraint; that the

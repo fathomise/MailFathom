@@ -2,34 +2,37 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Domain.Emails.Signatures;
 using Xunit;
 
 namespace MailFathom.Domain.UnitTests.Emails.Authentication;
 
-/// <summary>Covers which authors one account recognizes, which half recognized them, and what the answer is stored with.</summary>
+/// <summary>Covers which authors one account recognizes, in which order, on what evidence, and what the answer is stored with.</summary>
 public sealed class SenderTrustPolicyTests
 {
     private static readonly Guid Organization = Guid.Parse("0199f000-0000-7000-8000-000000000001");
+
+    private static readonly ContactId OrganizationContact = ContactId.Create(Guid.Parse("0199f000-0000-7000-8000-0000000000c1"));
+
+    private static readonly ContactId PersonalContact = ContactId.Create(Guid.Parse("0199f000-0000-7000-8000-0000000000c2"));
 
     /// <summary>Mail one of this deployment's own accounts wrote is recognized wherever it was delivered.</summary>
     [Fact]
     public void Evaluate_AuthorAtAnotherConfiguredAccountsDomain_IsRecognizedAsOwn()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            [DomainOf("work.example"), DomainOf("personal.example")],
-            configuredTrustedSenders: [],
-            storedTrustedSenders: []);
+        var policy = SenderTrustPolicy.Create([], [DomainOf("work.example"), DomainOf("personal.example")]);
 
         // Act
-        var trust = policy.Evaluate(WrittenBy("work.example"), AddressOf("user@work.example"));
+        var trust = Judge(policy, WrittenBy("work.example"), "user@work.example");
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
         Assert.Equal(SenderTrustSource.OwnAccountDomain, trust.GrantedBy);
+        Assert.Equal(TrustedAuthorEvidence.Authentication, trust.AuthorEvidence);
     }
 
     /// <summary>Mail from the owner to themselves is recognized with nothing configured but the address they hold.</summary>
@@ -37,13 +40,27 @@ public sealed class SenderTrustPolicyTests
     public void Evaluate_AuthenticatedAuthorWritingAsAnOwnAddress_IsRecognizedAsOwnAddress()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create([AddressOf("me@shared.example")], [], [], []);
+        var policy = SenderTrustPolicy.Create([AddressOf("me@shared.example")], []);
 
         // Act
-        var trust = policy.Evaluate(WrittenBy("shared.example"), AddressOf("me@shared.example"));
+        var trust = Judge(policy, WrittenBy("shared.example"), "me@shared.example");
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
+        Assert.Equal(SenderTrustSource.OwnAccountAddress, trust.GrantedBy);
+    }
+
+    /// <summary>An address is one mailbox however its letters were cased, so a differently cased <c>From</c> is still the owner.</summary>
+    [Fact]
+    public void Evaluate_OwnAddressDisplayedInAnotherCase_IsRecognizedAsOwnAddress()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([AddressOf("Me@Shared.example")], []);
+
+        // Act
+        var trust = Judge(policy, WrittenBy("shared.example"), "ME@SHARED.EXAMPLE");
+
+        // Assert
         Assert.Equal(SenderTrustSource.OwnAccountAddress, trust.GrantedBy);
     }
 
@@ -54,13 +71,11 @@ public sealed class SenderTrustPolicyTests
     public void Evaluate_OwnAddressDisplayedButNotAuthenticated_LeavesTheMessageUnknown(DmarcOutcome dmarc)
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create([AddressOf("me@shared.example")], [], [], []);
+        var policy = SenderTrustPolicy.Create([AddressOf("me@shared.example")], []);
 
         // Act
-        var notEstablished = policy.Evaluate(SenderAuthentication.NotEstablished(), AddressOf("me@shared.example"));
-        var failed = policy.Evaluate(
-            SenderAuthentication.Failed(DomainOf("shared.example"), dmarc),
-            AddressOf("me@shared.example"));
+        var notEstablished = Judge(policy, SenderAuthentication.NotEstablished(), "me@shared.example");
+        var failed = Judge(policy, SenderAuthentication.Failed(DomainOf("shared.example"), dmarc), "me@shared.example");
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, notEstablished.Level);
@@ -72,55 +87,10 @@ public sealed class SenderTrustPolicyTests
     public void Evaluate_AnotherAddressAtAnOwnAddressesDomain_LeavesTheMessageUnknown()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create([AddressOf("me@shared.example")], [], [], []);
+        var policy = SenderTrustPolicy.Create([AddressOf("me@shared.example")], []);
 
         // Act
-        var trust = policy.Evaluate(WrittenBy("shared.example"), AddressOf("stranger@shared.example"));
-
-        // Assert
-        Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
-        Assert.Equal(SenderTrustSource.None, trust.GrantedBy);
-    }
-
-    /// <summary>Where the owner's domains count as well, the owner writing as themselves is named by the narrower claim.</summary>
-    [Fact]
-    public void Evaluate_OwnAddressWhoseDomainAlsoCounts_ReportsTheAddress()
-    {
-        // Arrange
-        var policy = SenderTrustPolicy.Create([AddressOf("me@work.example")], [DomainOf("work.example")], [], []);
-
-        // Act
-        var trust = policy.Evaluate(WrittenBy("work.example"), AddressOf("me@work.example"));
-
-        // Assert
-        Assert.Equal(SenderTrustSource.OwnAccountAddress, trust.GrantedBy);
-    }
-
-    /// <summary>Adding an address the owner holds changes what the policy recognizes, so it names another revision.</summary>
-    [Fact]
-    public void Revision_OwnAddressAdded_IsAnotherRevision()
-    {
-        // Act
-        var without = SenderTrustPolicy.Create([], [], [], []).Revision;
-        var with = SenderTrustPolicy.Create([AddressOf("me@shared.example")], [], [], []).Revision;
-
-        // Assert
-        Assert.NotEqual(without, with);
-    }
-
-    /// <summary>A deployment whose accounts share a provider with everybody says so by supplying no own domains.</summary>
-    [Fact]
-    public void Evaluate_OwnDomainsWithheld_LeavesTheSameAuthorUnknown()
-    {
-        // Arrange
-        var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            ownAccountDomains: [],
-            configuredTrustedSenders: [],
-            storedTrustedSenders: []);
-
-        // Act
-        var trust = policy.Evaluate(WrittenBy("work.example"), AddressOf("user@work.example"));
+        var trust = Judge(policy, WrittenBy("shared.example"), "stranger@shared.example");
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
@@ -132,163 +102,126 @@ public sealed class SenderTrustPolicyTests
     public void Evaluate_SubdomainOfAnOwnDomain_IsNotRecognizedAsOwn()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create([], [DomainOf("work.example")], [], []);
+        var policy = SenderTrustPolicy.Create([], [DomainOf("work.example")]);
 
         // Act
-        var trust = policy.Evaluate(WrittenBy("mail.work.example"), displayedSender: null);
+        var trust = Judge(policy, WrittenBy("mail.work.example"), "user@mail.work.example");
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
     }
 
-    /// <summary>An entry in either half recognizes, and the half that did is what the verdict reports.</summary>
+    /// <summary>A domain written in one encoding of an internationalized name recognizes the other one a message carried.</summary>
+    [Fact]
+    public void Evaluate_InternationalizedOwnDomainAndAsciiVerdict_RecognizesOneName()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([], [DomainOf("bücher.example")]);
+
+        // Act
+        var trust = Judge(policy, WrittenBy("xn--bcher-kva.example"), "anna@xn--bcher-kva.example");
+
+        // Assert
+        Assert.Equal(SenderTrustSource.OwnAccountDomain, trust.GrantedBy);
+    }
+
+    /// <summary>Each source is asked only where every source above it recognized nobody, so the highest that did is reported.</summary>
     [Theory]
-    [InlineData(true, false, SenderTrustSource.ConfiguredTrustedSender)]
-    [InlineData(false, true, SenderTrustSource.StoredTrustedSender)]
-    [InlineData(true, true, SenderTrustSource.ConfiguredTrustedSender)]
-    public void Evaluate_EntryInEitherHalf_RecognizesAndNamesTheHalf(
-        bool configured,
-        bool stored,
+    [InlineData(true, true, true, true, SenderTrustSource.OrganizationContact)]
+    [InlineData(false, true, true, true, SenderTrustSource.OwnAccountAddress)]
+    [InlineData(false, false, true, true, SenderTrustSource.OwnAccountDomain)]
+    [InlineData(false, false, false, true, SenderTrustSource.PersonalContact)]
+    [InlineData(false, false, false, false, SenderTrustSource.None)]
+    public void Evaluate_SeveralSourcesRecognizeTheAuthor_ReportsTheHighest(
+        bool organizationContact,
+        bool ownAddress,
+        bool ownDomain,
+        bool personalContact,
         SenderTrustSource expected)
     {
         // Arrange
-        var entry = DomainEntry("partner.example", includeSubdomains: false);
         var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            ownAccountDomains: [],
-            configured ? [entry] : [],
-            stored ? [entry] : []);
+            ownAddress ? [AddressOf("me@work.example")] : [],
+            ownDomain ? [DomainOf("work.example")] : []);
+        var contacts = new RecognizingContacts(
+            organizationContact ? OrganizationContact : null,
+            personalContact ? PersonalContact : null);
 
         // Act
-        var trust = policy.Evaluate(WrittenBy("partner.example"), displayedSender: null);
+        var trust = Judge(policy, WrittenBy("work.example"), "me@work.example", contacts);
 
         // Assert
-        Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
         Assert.Equal(expected, trust.GrantedBy);
     }
 
-    /// <summary>A displayed author nothing established is never held against the list, however the list names them.</summary>
-    /// <remarks>
-    /// This is the forgery the whole design is arranged against: anybody can write a trusted correspondent's address
-    /// into <c>From</c>, so an entry naming that correspondent must recognize nothing until something other than the
-    /// header says the message really came from them.
-    /// </remarks>
+    /// <summary>A contact's verdict records which contact recognized the author, which is what removing that contact resets.</summary>
     [Theory]
-    [InlineData(DmarcOutcome.Fail)]
-    [InlineData(DmarcOutcome.NotReported)]
-    public void Evaluate_TrustedAuthorDisplayedButAuthenticationFailed_LeavesTheMessageUnknown(DmarcOutcome dmarc)
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Evaluate_AuthorAContactHolds_RecordsTheContact(bool inOrganizationBook)
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            ownAccountDomains: [],
-            [DomainEntry("partner.example", includeSubdomains: false)],
-            storedTrustedSenders: []);
+        var contacts = inOrganizationBook
+            ? new RecognizingContacts(OrganizationContact, null)
+            : new RecognizingContacts(null, PersonalContact);
 
         // Act
-        var trust = policy.Evaluate(
-            SenderAuthentication.Failed(DomainOf("partner.example"), dmarc),
-            AddressOf("alice@partner.example"));
+        var trust = Judge(SenderTrustPolicy.RecognizingNobody, WrittenBy("partner.example"), "alice@partner.example", contacts);
 
         // Assert
-        Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
-        Assert.Equal(SenderTrustSource.None, trust.GrantedBy);
-    }
-
-    /// <summary>A recognized signer cannot vouch for an author it is not, which is what an allow-listed relay would be.</summary>
-    /// <remarks>
-    /// The message really was signed by a domain the account named, and the domain it displays as its author is not
-    /// that one. Anything reading the authenticated identity here would recognize every message the signer ever relays,
-    /// whoever it says wrote them.
-    /// </remarks>
-    [Theory]
-    [InlineData(DmarcOutcome.Fail)]
-    [InlineData(DmarcOutcome.NotReported)]
-    public void Evaluate_TrustedThirdPartySignatureOverAnotherAuthor_LeavesTheMessageUnknown(DmarcOutcome dmarc)
-    {
-        // Arrange
-        var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            ownAccountDomains: [],
-            [DomainEntry("relay.example", includeSubdomains: false)],
-            storedTrustedSenders: []);
-
-        // Act
-        var trust = policy.Evaluate(
-            SenderAuthentication.Authenticated(
-                [DomainOf("relay.example")],
-                spfDomains: [],
-                DomainOf("bank.example"),
-                dmarc,
-                DmarcRecordLookup.NotPublished),
-            AddressOf("security@bank.example"));
-
-        // Assert
-        Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
-        Assert.Equal(SenderTrustSource.None, trust.GrantedBy);
+        Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
+        Assert.Equal(inOrganizationBook ? OrganizationContact : PersonalContact, trust.RecognizingContactId);
+        Assert.Equal(TrustedAuthorEvidence.Authentication, trust.AuthorEvidence);
     }
 
     /// <summary>The receiving server's own DMARC result establishes the displayed author whatever signed the message.</summary>
     [Fact]
-    public void Evaluate_TrustedAuthorEstablishedByDmarcAlone_RecognizesTheAuthor()
+    public void Evaluate_ContactEstablishedByDmarcAlone_RecognizesTheAuthor()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            ownAccountDomains: [],
-            [DomainEntry("partner.example", includeSubdomains: false)],
-            storedTrustedSenders: []);
+        var authentication = SenderAuthentication.Authenticated(
+            [DomainOf("provider.example")],
+            spfDomains: [],
+            DomainOf("partner.example"),
+            DmarcOutcome.Pass,
+            DmarcRecordLookup.NotPublished);
 
         // Act
-        var trust = policy.Evaluate(
-            SenderAuthentication.Authenticated(
-                [DomainOf("provider.example")],
-                spfDomains: [],
-                DomainOf("partner.example"),
-                DmarcOutcome.Pass,
-                DmarcRecordLookup.NotPublished),
-            AddressOf("alice@partner.example"));
+        var trust = Judge(SenderTrustPolicy.RecognizingNobody, authentication, "alice@partner.example", ByPersonalContact);
 
         // Assert
-        Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
+        Assert.Equal(SenderTrustSource.PersonalContact, trust.GrantedBy);
     }
 
     /// <summary>Without DMARC, a DKIM signature aligned with the displayed author establishes them all the same.</summary>
     [Fact]
-    public void Evaluate_AlignedDkimWithoutDmarc_RecognizesTheAuthor()
+    public void Evaluate_ContactEstablishedByAlignedDkimWithoutDmarc_RecognizesTheAuthor()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            ownAccountDomains: [],
-            [DomainEntry("partner.example", includeSubdomains: false)],
-            storedTrustedSenders: []);
+        var authentication = SenderAuthentication.Authenticated(
+            [DomainOf("partner.example")],
+            spfDomains: [],
+            DomainOf("partner.example"),
+            DmarcOutcome.NotReported,
+            DmarcRecordLookup.NotPublished);
 
         // Act
-        var trust = policy.Evaluate(
-            SenderAuthentication.Authenticated(
-                [DomainOf("partner.example")],
-                spfDomains: [],
-                DomainOf("partner.example"),
-                DmarcOutcome.NotReported,
-                DmarcRecordLookup.NotPublished),
-            AddressOf("alice@partner.example"));
+        var trust = Judge(SenderTrustPolicy.RecognizingNobody, authentication, "alice@partner.example", ByPersonalContact);
 
         // Assert
-        Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
-        Assert.Equal(SenderTrustSource.ConfiguredTrustedSender, trust.GrantedBy);
+        Assert.Equal(AuthorAuthenticationRoute.AlignedDkim, authentication.AuthorAuthenticationRoute);
+        Assert.Equal(SenderTrustSource.PersonalContact, trust.GrantedBy);
     }
 
-    /// <summary>An author aligned only through SPF is authenticated, and still recognized by no list.</summary>
+    /// <summary>
+    /// SPF proves only which server handed the message over, so an author aligned through it alone is recognized by no
+    /// source, the owner's own included.
+    /// </summary>
     [Fact]
     public void Evaluate_AuthorAlignedOnlyThroughSpf_LeavesTheMessageUnknown()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create(
-            [AddressOf("alice@partner.example")],
-            [DomainOf("partner.example")],
-            [DomainEntry("partner.example", includeSubdomains: false)],
-            storedTrustedSenders: []);
+        var policy = SenderTrustPolicy.Create([AddressOf("alice@partner.example")], [DomainOf("partner.example")]);
         var authentication = SenderAuthentication.Authenticated(
             [DomainOf("relay.example")],
             [DomainOf("partner.example")],
@@ -297,7 +230,7 @@ public sealed class SenderTrustPolicyTests
             DmarcRecordLookup.NotPublished);
 
         // Act
-        var trust = policy.Evaluate(authentication, AddressOf("alice@partner.example"));
+        var trust = Judge(policy, authentication, "alice@partner.example", new RecognizingContacts(OrganizationContact, PersonalContact));
 
         // Assert
         Assert.Equal(AuthorAuthenticationRoute.AlignedSpf, authentication.AuthorAuthenticationRoute);
@@ -305,123 +238,127 @@ public sealed class SenderTrustPolicyTests
         Assert.Equal(SenderTrustSource.None, trust.GrantedBy);
     }
 
-    /// <summary>A message whose author was authenticated and whom nobody named is the ordinary answer.</summary>
-    [Fact]
-    public void Evaluate_AuthenticatedAuthorNobodyNamed_LeavesTheMessageUnknown()
+    /// <summary>A signature by a domain other than the author's ties the message to nobody a contact holds.</summary>
+    [Theory]
+    [InlineData(DmarcOutcome.Fail)]
+    [InlineData(DmarcOutcome.NotReported)]
+    public void Evaluate_ThirdPartySignatureOverAContactsAddress_LeavesTheMessageUnknown(DmarcOutcome dmarc)
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            [DomainOf("work.example")],
-            [DomainEntry("partner.example", includeSubdomains: false)],
-            storedTrustedSenders: []);
+        var authentication = SenderAuthentication.Authenticated(
+            [DomainOf("relay.example")],
+            spfDomains: [],
+            DomainOf("bank.example"),
+            dmarc,
+            DmarcRecordLookup.NotPublished);
 
         // Act
-        var trust = policy.Evaluate(WrittenBy("stranger.example"), AddressOf("someone@stranger.example"));
+        var trust = Judge(SenderTrustPolicy.RecognizingNobody, authentication, "security@bank.example", ByPersonalContact);
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
-        Assert.Equal(SenderTrustSource.None, trust.GrantedBy);
     }
 
-    /// <summary>A message nothing was established about is judged against no list at all.</summary>
+    /// <summary>
+    /// A verified signature naming the author ties the message to the address even where the receiving server reported
+    /// DMARC <c>fail</c>, because a forward that broke the domain's checks leaves the author's own signature intact.
+    /// </summary>
     [Fact]
-    public void Evaluate_NothingEstablished_LeavesTheMessageUnknown()
+    public void Evaluate_VerifiedAuthorSignatureAfterDmarcFail_RecognizesTheContactOnTheSignature()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create([], [DomainOf("work.example")], [], []);
+        var authentication = SenderAuthentication.Failed(DomainOf("partner.example"), DmarcOutcome.Fail);
+
+        // Act
+        var trust = Judge(
+            SenderTrustPolicy.RecognizingNobody,
+            authentication,
+            "alice@partner.example",
+            ByPersonalContact,
+            VerifiedSignature(signerMatchesAuthor: true));
+
+        // Assert
+        Assert.Equal(SenderTrustSource.PersonalContact, trust.GrantedBy);
+        Assert.Equal(TrustedAuthorEvidence.AuthorSignature, trust.AuthorEvidence);
+    }
+
+    /// <summary>Where authentication already tied the message, the verdict records that rather than the signature beside it.</summary>
+    [Fact]
+    public void Evaluate_AuthenticatedAndSigned_RecordsAuthenticationAsTheEvidence()
+    {
+        // Act
+        var trust = Judge(
+            SenderTrustPolicy.RecognizingNobody,
+            WrittenBy("partner.example"),
+            "alice@partner.example",
+            ByPersonalContact,
+            VerifiedSignature(signerMatchesAuthor: true));
+
+        // Assert
+        Assert.Equal(TrustedAuthorEvidence.Authentication, trust.AuthorEvidence);
+    }
+
+    /// <summary>A verified signature by somebody other than the author ties the message to nobody.</summary>
+    [Fact]
+    public void Evaluate_VerifiedSignatureOfAnotherSigner_LeavesTheMessageUnknown()
+    {
+        // Act
+        var trust = Judge(
+            SenderTrustPolicy.RecognizingNobody,
+            SenderAuthentication.NotEstablished(),
+            "alice@partner.example",
+            ByPersonalContact,
+            VerifiedSignature(signerMatchesAuthor: false));
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
+    }
+
+    /// <summary>A message whose <c>From</c> named no usable mailbox has no address any source could hold.</summary>
+    [Fact]
+    public void Evaluate_NoDisplayedSender_LeavesTheMessageUnknown()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([], [DomainOf("work.example")]);
 
         // Act
         var trust = policy.Evaluate(
-            SenderAuthentication.NotEstablished(DomainOf("work.example")),
-            AddressOf("user@work.example"));
-
-        // Assert
-        Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
-        Assert.Equal(SenderTrustSource.None, trust.GrantedBy);
-    }
-
-    /// <summary>A message displaying no usable author has nobody to recognize, whatever else authenticated.</summary>
-    [Fact]
-    public void Evaluate_NoDisplayedAuthorDomain_LeavesTheMessageUnknown()
-    {
-        // Arrange
-        var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            ownAccountDomains: [],
-            [DomainEntry("partner.example", includeSubdomains: false)],
-            storedTrustedSenders: []);
-
-        // Act
-        var trust = policy.Evaluate(
-            SenderAuthentication.Authenticated(
-                [DomainOf("partner.example")],
-                spfDomains: [],
-                fromDomain: null,
-                DmarcOutcome.Pass,
-                DmarcRecordLookup.NotPublished),
-            displayedSender: null);
+            WrittenBy("work.example"),
+            EmailSignature.NotSigned,
+            displayedSender: null,
+            new RecognizingContacts(OrganizationContact, PersonalContact));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
     }
 
-    /// <summary>An entry written in one encoding of an internationalized name recognizes the other one a message carried.</summary>
+    /// <summary>Adding an address the owner holds changes what the policy recognizes, so it names another revision.</summary>
     [Fact]
-    public void Evaluate_InternationalizedEntryAndAsciiVerdict_RecognizesOneName()
+    public void Revision_OwnAddressAdded_IsAnotherRevision()
     {
-        // Arrange
-        var policy = SenderTrustPolicy.Create(
-            ownAccountAddresses: [],
-            ownAccountDomains: [],
-            [DomainEntry("bücher.example", includeSubdomains: false)],
-            storedTrustedSenders: []);
-
         // Act
-        var trust = policy.Evaluate(WrittenBy("xn--bcher-kva.example"), displayedSender: null);
+        var without = SenderTrustPolicy.Create([], []).Revision;
+        var with = SenderTrustPolicy.Create([AddressOf("me@shared.example")], []).Revision;
 
         // Assert
-        Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
+        Assert.NotEqual(without, with);
     }
 
-    /// <summary>Every verdict carries the list it was reached under, so a later change to that list is legible.</summary>
+    /// <summary>Reordering what the configuration states is not a change to it, and adding to it is.</summary>
     [Fact]
-    public void Evaluate_AnyMessage_CarriesTheRevisionOfThePolicyThatJudgedIt()
+    public void Revision_StatementsThatSayTheSameThing_AreOneRevision()
     {
-        // Arrange
-        var policy = SenderTrustPolicy.Create([], [DomainOf("work.example")], [], []);
-
         // Act
-        var recognized = policy.Evaluate(WrittenBy("work.example"), displayedSender: null);
-        var unrecognized = policy.Evaluate(WrittenBy("stranger.example"), displayedSender: null);
-
-        // Assert
-        Assert.True(policy.Revision.NamesAPolicy);
-        Assert.Equal(policy.Revision, recognized.PolicyRevision);
-        Assert.Equal(policy.Revision, unrecognized.PolicyRevision);
-    }
-
-    /// <summary>Reordering a list is not a change to it, and adding to either half is.</summary>
-    [Fact]
-    public void Revision_ListsThatSayTheSameThing_AreOneRevision()
-    {
-        // Arrange
-        var first = DomainEntry("a.example", includeSubdomains: false);
-        var second = DomainEntry("b.example", includeSubdomains: true);
-
-        // Act
-        var written = SenderTrustPolicy.Create([], [], [first, second], []).Revision;
-        var reordered = SenderTrustPolicy.Create([], [], [second, first], []).Revision;
-        var moved = SenderTrustPolicy.Create([], [], [first], [second]).Revision;
-        var extended = SenderTrustPolicy.Create([], [], [first, second], [DomainEntry("c.example", false)]).Revision;
+        var written = SenderTrustPolicy.Create([AddressOf("a@one.example"), AddressOf("b@one.example")], [DomainOf("one.example")]).Revision;
+        var reordered = SenderTrustPolicy.Create([AddressOf("b@one.example"), AddressOf("a@one.example")], [DomainOf("one.example")]).Revision;
+        var extended = SenderTrustPolicy.Create([AddressOf("a@one.example"), AddressOf("b@one.example")], [DomainOf("one.example"), DomainOf("two.example")]).Revision;
 
         // Assert
         Assert.Equal(written, reordered);
-        Assert.NotEqual(written, moved);
         Assert.NotEqual(written, extended);
     }
 
-    /// <summary>A deployment that recognizes nobody names no policy, so its verdicts read as judged by nothing.</summary>
+    /// <summary>A deployment that states nothing names no policy, so its verdicts read as judged by nothing it configured.</summary>
     [Fact]
     public void Revision_PolicyWithNothingToSay_NamesNoPolicy()
     {
@@ -433,54 +370,40 @@ public sealed class SenderTrustPolicyTests
         Assert.Equal(SenderTrustPolicyRevision.None, revision);
     }
 
-    /// <summary>An account this deployment no longer serves recognizes nobody rather than failing.</summary>
+    /// <summary>Every verdict carries the configuration it was reached under, so a later change to it is legible.</summary>
     [Fact]
-    public void Evaluate_PolicyRecognizingNobody_LeavesEveryAuthorUnknown()
+    public void Evaluate_AnyMessage_CarriesTheRevisionOfThePolicyThatJudgedIt()
     {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([], [DomainOf("work.example")]);
+
         // Act
-        var trust = SenderTrustPolicy.RecognizingNobody.Evaluate(
-            WrittenBy("partner.example"),
-            AddressOf("alice@partner.example"));
+        var recognized = Judge(policy, WrittenBy("work.example"), "user@work.example");
+        var unrecognized = Judge(policy, WrittenBy("stranger.example"), "user@stranger.example");
 
         // Assert
-        Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
-        Assert.False(trust.PolicyRevision.NamesAPolicy);
+        Assert.True(policy.Revision.NamesAPolicy);
+        Assert.Equal(policy.Revision, recognized.PolicyRevision);
+        Assert.Equal(policy.Revision, unrecognized.PolicyRevision);
     }
 
     /// <summary>An organization's signature proves the address itself, so it trusts a colleague no domain check established.</summary>
     [Fact]
     public void Evaluate_MemberOfTheReceivingOrganizationWithNoAuthenticatedDomain_IsTrustedAsAMember()
     {
-        // Arrange
-        var policy = SenderTrustPolicy.Create([], [], [], []);
-
         // Act
-        var trust = policy.Evaluate(
+        var trust = SenderTrustPolicy.RecognizingNobody.Evaluate(
             SenderAuthentication.NotEstablished(),
+            EmailSignature.NotSigned,
             AddressOf("anna@org.example"),
+            new RecognizingContacts(OrganizationContact, null),
             new OrganizationSenderVerification(Organization, SenderIsMember: true));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
         Assert.Equal(SenderTrustSource.OrganizationMember, trust.GrantedBy);
         Assert.Equal(Organization, trust.RecognizingOrganizationId);
-    }
-
-    /// <summary>Membership ranks first, so a colleague on the organization's own domain is named as a member rather than by it.</summary>
-    [Fact]
-    public void Evaluate_MemberWhoseDomainIsAlsoAnOwnAccountDomain_ReportsTheOrganization()
-    {
-        // Arrange
-        var policy = SenderTrustPolicy.Create([], [DomainOf("org.example")], [], []);
-
-        // Act
-        var trust = policy.Evaluate(
-            WrittenBy("org.example"),
-            AddressOf("anna@org.example"),
-            new OrganizationSenderVerification(Organization, SenderIsMember: true));
-
-        // Assert
-        Assert.Equal(SenderTrustSource.OrganizationMember, trust.GrantedBy);
+        Assert.Null(trust.RecognizingContactId);
     }
 
     /// <summary>A signature that proved nothing leaves the message judged by the other sources, exactly as without one.</summary>
@@ -488,12 +411,14 @@ public sealed class SenderTrustPolicyTests
     public void Evaluate_OrganizationVerifiedNoMember_JudgesByTheOtherSources()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create([], [DomainOf("org.example")], [], []);
+        var policy = SenderTrustPolicy.Create([], [DomainOf("org.example")]);
 
         // Act
         var trust = policy.Evaluate(
             WrittenBy("org.example"),
+            EmailSignature.NotSigned,
             AddressOf("anna@org.example"),
+            RecognizingContacts.None,
             new OrganizationSenderVerification(Organization, SenderIsMember: false));
 
         // Assert
@@ -506,17 +431,22 @@ public sealed class SenderTrustPolicyTests
     public void Evaluate_ReceivingAccountInAnOrganization_NamesTheOrganizationInTheRevision()
     {
         // Arrange
-        var policy = SenderTrustPolicy.Create([], [DomainOf("org.example")], [], []);
+        var policy = SenderTrustPolicy.Create([], [DomainOf("org.example")]);
+        var sender = AddressOf("anna@org.example");
 
         // Act
-        var withoutOrganization = policy.Evaluate(WrittenBy("org.example"), displayedSender: null);
+        var withoutOrganization = policy.Evaluate(WrittenBy("org.example"), EmailSignature.NotSigned, sender, RecognizingContacts.None);
         var underOrganization = policy.Evaluate(
             WrittenBy("org.example"),
-            displayedSender: null,
+            EmailSignature.NotSigned,
+            sender,
+            RecognizingContacts.None,
             new OrganizationSenderVerification(Organization, SenderIsMember: false));
         var underAnother = policy.Evaluate(
             WrittenBy("org.example"),
-            displayedSender: null,
+            EmailSignature.NotSigned,
+            sender,
+            RecognizingContacts.None,
             new OrganizationSenderVerification(Guid.Parse("0199f000-0000-7000-8000-000000000002"), SenderIsMember: false));
 
         // Assert
@@ -524,6 +454,20 @@ public sealed class SenderTrustPolicyTests
         Assert.NotEqual(policy.Revision, underOrganization.PolicyRevision);
         Assert.NotEqual(underOrganization.PolicyRevision, underAnother.PolicyRevision);
     }
+
+    private static RecognizingContacts ByPersonalContact => new(null, PersonalContact);
+
+    private static SenderTrust Judge(
+        SenderTrustPolicy policy,
+        SenderAuthentication authentication,
+        string sender,
+        RecognizingContacts? contacts = null,
+        EmailSignature? signature = null) =>
+        policy.Evaluate(
+            authentication,
+            signature ?? EmailSignature.NotSigned,
+            AddressOf(sender),
+            contacts ?? RecognizingContacts.None);
 
     /// <summary>Builds the verdict of a message whose displayed author the receiving server established.</summary>
     private static SenderAuthentication WrittenBy(string domain) =>
@@ -534,13 +478,15 @@ public sealed class SenderTrustPolicyTests
             DmarcOutcome.Pass,
             DmarcRecordLookup.NotPublished);
 
-    private static TrustedSenderEntry DomainEntry(string domain, bool includeSubdomains)
-    {
-        Assert.True(TrustedSenderEntry.TryCreateForDomain(domain, includeSubdomains, out var entry));
-        Assert.NotNull(entry);
-
-        return entry;
-    }
+    private static EmailSignature VerifiedSignature(bool signerMatchesAuthor) =>
+        new()
+        {
+            ContentCheck = SignatureCheckResult.Passed,
+            AuthorityCheck = SignatureCheckResult.Passed,
+            ValidityCheck = SignatureCheckResult.Passed,
+            RevocationCheck = SignatureCheckResult.Passed,
+            SignerCheck = signerMatchesAuthor ? SignatureCheckResult.Passed : SignatureCheckResult.Failed,
+        };
 
     private static SenderDomain DomainOf(string written)
     {

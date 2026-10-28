@@ -229,10 +229,11 @@ internal sealed class TransportAuthorizedPrincipalSource : IAuthorizedPrincipalS
 
         return TransportCallerIdentity.NameOf(context.User) is { } identity
             ? this.AdmittedCallerOn(
-                identity,
-                TransportGrant.PermissionsCarriedBy(context.User),
-                TransportCallerUser.CarriedBy(context.User),
-                userGrant)
+                    identity,
+                    TransportGrant.PermissionsCarriedBy(context.User),
+                    TransportCallerUser.CarriedBy(context.User),
+                    userGrant)
+                .AdmittedByCredential(TransportCallerCredential.CarriedBy(context.User))
             : this.UnnarrowedCallerOn(path, userGrant);
     }
 
@@ -300,16 +301,16 @@ internal sealed class TransportAuthorizedPrincipalSource : IAuthorizedPrincipalS
         }
 
         var authenticated = TransportCallerIdentity.NameOf(context.User) is not null;
+        var credential = authenticated ? TransportCallerCredential.CarriedBy(context.User) : null;
 
         return AuthorizedPrincipal.Caller(
-            TransportCallerIdentity.OfAdministrator(
-                administrator,
-                authenticated ? TransportCallerCredential.CarriedBy(context.User) : null),
-            HeldOnTheAdministrativeSurface(
-                userGrant,
-                authenticated
-                    ? TransportGrant.PermissionsCarriedBy(context.User)
-                    : MailFathomPermission.All));
+                TransportCallerIdentity.OfAdministrator(administrator, credential),
+                HeldOnTheAdministrativeSurface(
+                    userGrant,
+                    authenticated
+                        ? TransportGrant.PermissionsCarriedBy(context.User)
+                        : MailFathomPermission.All))
+            .AdmittedByCredential(credential);
     }
 
     /// <summary>Reports whether a surface answers one person about their own mail rather than answering for the deployment.</summary>

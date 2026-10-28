@@ -203,34 +203,6 @@ public sealed class ContactBook
         return held.Count > 0;
     }
 
-    /// <summary>Names the contact of one organization's book holding an address, if any does.</summary>
-    /// <param name="organization">The organization whose book is asked about.</param>
-    /// <param name="address">The address to look for, matched on its comparison form, which ignores case in the local part and the domain.</param>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The contact holding the address, or <see langword="null" /> where no contact of that book holds it.</returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="organization" /> is the empty UUID.</exception>
-    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the read was reached by anything but MailFathom's own identity.</exception>
-    /// <remarks>
-    /// The read the sender trust step asks for every arriving message on an account of the organization. It is one
-    /// indexed seek on the book and the address, because an address belongs to at most one contact of a book and the
-    /// unique index over that pair answers it, and it hands back the identity alone: the verdict names the contact that
-    /// recognized the sender rather than copying anything the contact says. It admits the process identity alone, for
-    /// the reason <see cref="HoldsAddressAsync" /> does.
-    /// </remarks>
-    public async Task<ContactId?> FindOrganizationHolderAsync(
-        Guid organization,
-        EmailAddress address,
-        CancellationToken cancellationToken)
-    {
-        var book = ContactBookHolder.OfOrganization(organization);
-
-        this.authorization.RequireProcessIdentity();
-
-        var held = await this.directory.FindHoldersOfAsync(book, [address], cancellationToken);
-
-        return held.Count == 0 ? null : held.Values.First();
-    }
-
     /// <summary>Records a person collection inferred from arriving mail, in the book of the account it arrived on.</summary>
     /// <param name="account">The account being synchronized, whose book the record goes into.</param>
     /// <param name="newContact">The person to record, which collection states under its own origin.</param>
@@ -268,15 +240,20 @@ public sealed class ContactBook
                 nameof(newContact));
         }
 
-        return this.WriteNewContactAsync(ContactBookHolder.Of(account), newContact, cancellationToken);
+        return this.WriteNewContactAsync(
+            ContactBookHolder.Of(account),
+            newContact,
+            ContactAddressWriter.Unrecorded,
+            cancellationToken);
     }
 
     /// <summary>Records a person one user's own book does not yet hold.</summary>
     /// <param name="user">The user whose book the person is written into.</param>
     /// <param name="newContact">The person to record and the origin the writer acts under.</param>
+    /// <param name="statedBy">Who is writing the addresses down, which decides whether they can make their senders trusted.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The record as written, or the contact that already holds one of its addresses.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="newContact" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="newContact" /> or <paramref name="statedBy" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when the supplied addresses do not form a contact the domain admits.</exception>
     /// <exception cref="PersistenceConcurrencyConflictException">Thrown when every allowed attempt lost the race.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the write was reached by anything but a caller granted <see cref="MailFathomPermission.AdminOperate" />.</exception>
@@ -287,9 +264,11 @@ public sealed class ContactBook
     public async Task<ContactWriteResult> RecordAsync(
         UserId user,
         NewContact newContact,
+        ContactAddressWriter statedBy,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(newContact);
+        ArgumentNullException.ThrowIfNull(statedBy);
 
         var book = ContactBookHolder.Of(user);
 
@@ -298,12 +277,13 @@ public sealed class ContactBook
             return ContactWriteResult.NotFound();
         }
 
-        return await this.WriteNewContactAsync(book, newContact, cancellationToken);
+        return await this.WriteNewContactAsync(book, newContact, statedBy, cancellationToken);
     }
 
     /// <summary>Records a person one organization's book does not yet hold, for every member to read.</summary>
     /// <param name="organization">The organization whose book the person is written into.</param>
     /// <param name="newContact">The person to record, which an administrator states under the asserted origin.</param>
+    /// <param name="statedBy">The administrator writing the addresses down.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The record as written, the contact of that book that already holds one of its addresses, or not found where the caller's scope does not cover the organization.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="newContact" /> is <see langword="null" />.</exception>
@@ -319,9 +299,11 @@ public sealed class ContactBook
     public async Task<ContactWriteResult> RecordInOrganizationAsync(
         Guid organization,
         NewContact newContact,
+        ContactAddressWriter statedBy,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(newContact);
+        ArgumentNullException.ThrowIfNull(statedBy);
 
         var book = ContactBookHolder.OfOrganization(organization);
 
@@ -337,12 +319,13 @@ public sealed class ContactBook
             return ContactWriteResult.NotFound();
         }
 
-        return await this.WriteNewContactAsync(book, newContact, cancellationToken);
+        return await this.WriteNewContactAsync(book, newContact, statedBy, cancellationToken);
     }
 
     /// <summary>Amends a contact of the caller's own book to the record they state, if its origin admits that writer.</summary>
     /// <param name="scope">The books the caller reads, whose own book the amendment may reach.</param>
     /// <param name="amendment">The record the contact is to have, and the origin the writer acts under.</param>
+    /// <param name="statedBy">Who is writing, which an address the amendment adds records; an address it keeps keeps its own.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The amended record, or the refusal naming what stopped it.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> or <paramref name="amendment" /> is <see langword="null" />.</exception>
@@ -364,10 +347,12 @@ public sealed class ContactBook
     public async Task<ContactWriteResult> AmendAsync(
         ContactBookScope scope,
         ContactAmendment amendment,
+        ContactAddressWriter statedBy,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentNullException.ThrowIfNull(amendment);
+        ArgumentNullException.ThrowIfNull(statedBy);
 
         if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminOperate, scope.OwnBook, cancellationToken))
         {
@@ -404,7 +389,7 @@ public sealed class ContactBook
                     return ContactWriteResult.AddressHeldBy(addressHolder);
                 }
 
-                return await this.store.ReplaceAsync(session, holder, amended, token)
+                return await this.store.ReplaceAsync(session, holder, amended, statedBy, token)
                     ? ContactWriteResult.Written(amended)
                     : ContactWriteResult.NotFound();
             },
@@ -415,6 +400,7 @@ public sealed class ContactBook
     /// <param name="scope">The books the caller reads, whose own book the copy is written into.</param>
     /// <param name="contactId">The contact to promote.</param>
     /// <param name="writer">The origin the writer acts under.</param>
+    /// <param name="statedBy">Who is promoting, which every address of the copy records.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The promoted record, or the refusal naming what stopped it.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> is <see langword="null" />.</exception>
@@ -455,9 +441,11 @@ public sealed class ContactBook
         ContactBookScope scope,
         ContactId contactId,
         ContactOrigin writer,
+        ContactAddressWriter statedBy,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(scope);
+        ArgumentNullException.ThrowIfNull(statedBy);
 
         if (!await this.AdmitsWriterOfAsync(MailFathomPermission.AdminOperate, scope.OwnBook, cancellationToken))
         {
@@ -497,6 +485,7 @@ public sealed class ContactBook
                         Note = held.Note,
                         Origin = ContactOrigin.Asserted,
                     },
+                    statedBy,
                     token);
             },
             cancellationToken);
@@ -710,9 +699,10 @@ public sealed class ContactBook
     private Task<ContactWriteResult> WriteNewContactAsync(
         ContactBookHolder holder,
         NewContact newContact,
+        ContactAddressWriter statedBy,
         CancellationToken cancellationToken) =>
         this.commitPolicy.CommitAsync(
-            (session, token) => this.StageNewContactAsync(session, holder, newContact, token),
+            (session, token) => this.StageNewContactAsync(session, holder, newContact, statedBy, token),
             cancellationToken);
 
     /// <summary>Stages one new record into one book, inside a commit somebody else opened.</summary>
@@ -726,6 +716,7 @@ public sealed class ContactBook
         IPersistenceSession session,
         ContactBookHolder holder,
         NewContact newContact,
+        ContactAddressWriter statedBy,
         CancellationToken cancellationToken)
     {
         var recordedAt = this.timeProvider.GetUtcNow();
@@ -745,7 +736,7 @@ public sealed class ContactBook
             return ContactWriteResult.AddressHeldBy(addressHolder);
         }
 
-        await this.store.AddAsync(session, holder, contact, cancellationToken);
+        await this.store.AddAsync(session, holder, contact, statedBy, cancellationToken);
 
         return ContactWriteResult.Written(contact);
     }

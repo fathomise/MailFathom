@@ -75,6 +75,7 @@ public sealed class ContactEndpointsTests
 
         // Act
         var result = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             User,
             new ContactRecordRequest("Anna Kowalska", ["anna@example.test"], "anna@example.test", Note: null),
             this.Book(),
@@ -91,6 +92,7 @@ public sealed class ContactEndpointsTests
             Arg.Any<IPersistenceSession>(),
             Arg.Any<ContactBookHolder>(),
             Arg.Is<Contact>(contact => contact != null && contact.Origin == ContactOrigin.Asserted),
+            Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Administrator),
             Arg.Any<CancellationToken>());
     }
 
@@ -103,6 +105,7 @@ public sealed class ContactEndpointsTests
 
         // Act
         var result = await ContactEndpoints.AmendAsync(
+            new DefaultHttpContext(),
             Identity,
             User,
             new ContactRecordRequest("Anna Nowak", ["anna@example.test"], "anna@example.test", Note: null),
@@ -120,6 +123,7 @@ public sealed class ContactEndpointsTests
             Arg.Any<IPersistenceSession>(),
             Arg.Any<ContactBookHolder>(),
             Arg.Any<Contact>(),
+            Arg.Any<ContactAddressWriter>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -137,6 +141,7 @@ public sealed class ContactEndpointsTests
 
         // Act
         var result = await ContactEndpoints.AmendAsync(
+            new DefaultHttpContext(),
             Identity,
             User,
             new ContactRecordRequest("Anna Nowak", ["anna@example.test"], "anna@example.test", Note: null),
@@ -161,6 +166,7 @@ public sealed class ContactEndpointsTests
 
         // Act
         var result = await ContactEndpoints.PromoteAsync(
+            new DefaultHttpContext(),
             Identity,
             User,
             this.Book(),
@@ -201,6 +207,7 @@ public sealed class ContactEndpointsTests
 
         // Act
         var result = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             User,
             new ContactRecordRequest(
                 displayName,
@@ -225,6 +232,7 @@ public sealed class ContactEndpointsTests
 
         // Act
         var longName = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             User,
             new ContactRecordRequest(
                 new string('A', ContactDisplayName.MaximumLength + 1),
@@ -237,6 +245,7 @@ public sealed class ContactEndpointsTests
             TestContext.Current.CancellationToken);
 
         var longNote = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             User,
             new ContactRecordRequest(
                 "Anna Kowalska",
@@ -259,6 +268,7 @@ public sealed class ContactEndpointsTests
     {
         // Act
         var result = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             User,
             request: null,
             book: this.Book(),
@@ -284,6 +294,7 @@ public sealed class ContactEndpointsTests
 
         // Act
         var result = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             User,
             new ContactRecordRequest("Anna Kowalska", addresses, addresses[0], Note: null),
             this.Book(),
@@ -537,6 +548,7 @@ public sealed class ContactEndpointsTests
 
         // Act
         var result = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             SyntheticUser.Another.Value,
             new ContactRecordRequest("Anna Kowalska", ["anna@example.test"], "anna@example.test", Note: null),
             this.Book(),
@@ -567,6 +579,7 @@ public sealed class ContactEndpointsTests
 
         // Act
         var result = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
             User,
             new ContactRecordRequest("Anna Kowalska", ["anna@example.test"], "anna@example.test", Note: null),
             this.Book(),
@@ -612,6 +625,7 @@ public sealed class ContactEndpointsTests
             TestContext.Current.CancellationToken);
 
         var promotion = await ContactEndpoints.PromoteAsync(
+            new DefaultHttpContext(),
             Identity,
             stranger,
             this.Book(),
@@ -621,6 +635,7 @@ public sealed class ContactEndpointsTests
             TestContext.Current.CancellationToken);
 
         var amendment = await ContactEndpoints.AmendAsync(
+            new DefaultHttpContext(),
             Identity,
             stranger,
             new ContactRecordRequest("Anna Nowak", ["anna@example.test"], "anna@example.test", Note: null),
@@ -646,6 +661,7 @@ public sealed class ContactEndpointsTests
             Arg.Any<IPersistenceSession>(),
             Arg.Any<ContactBookHolder>(),
             Arg.Any<Contact>(),
+            Arg.Any<ContactAddressWriter>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -955,6 +971,7 @@ public sealed class ContactEndpointsTests
             Arg.Any<IPersistenceSession>(),
             Arg.Any<ContactBookHolder>(),
             Arg.Any<Contact>(),
+            Arg.Any<ContactAddressWriter>(),
             Arg.Any<CancellationToken>());
     }
 

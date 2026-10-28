@@ -216,7 +216,7 @@ internal sealed class MailboxCustodianComposition
     /// <summary>Gets what copies a stored message locally, which a test about copying states itself.</summary>
     internal LocalMailCopier Copier
     {
-        get => field ??= new(this.Emails, this.Contents, this.MimeReader, this.LocalFolders);
+        get => field ??= new(this.Emails, this.Contents, this.MimeReader, SenderTrustJudges.Over(), this.LocalFolders);
         init => field = value;
     }
 

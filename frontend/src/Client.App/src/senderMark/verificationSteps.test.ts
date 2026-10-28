@@ -195,7 +195,7 @@ describe('senderVerificationOf', () => {
     });
 
     it('says what recognized a trusted author, and never which entry matched, since that is not recorded', () => {
-        const trusted = message({ ...authenticated, deploymentTrust: 'Trusted', trustSource: 'StoredTrustedSender' });
+        const trusted = message({ ...authenticated, deploymentTrust: 'Trusted', trustSource: 'PersonalContact' });
 
         expect(senderVerificationOf(trusted, asSent).why).toEqual({
             key: 'senderMark.why.trustedSender',
@@ -324,7 +324,7 @@ describe('senderVerificationOf', () => {
 
     it('warns about a signature that does not match its content, even from a trusted sender', () => {
         const forged = message(
-            { ...authenticated, deploymentTrust: 'Trusted', trustSource: 'ConfiguredTrustedSender' },
+            { ...authenticated, deploymentTrust: 'Trusted', trustSource: 'OrganizationContact' },
             { ...signedByAuthor, outcome: 'Failed', steps: { ...signedByAuthor.steps, content: 'Failed' } },
         );
 

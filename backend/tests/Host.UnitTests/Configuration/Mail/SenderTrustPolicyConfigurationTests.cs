@@ -6,6 +6,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.UserSettings;
 using MailFathom.Host.UnitTests.TestDoubles;
@@ -16,7 +17,7 @@ using Xunit;
 
 namespace MailFathom.Host.UnitTests.Configuration.Mail;
 
-/// <summary>Covers which authors configuration says an account recognizes, and what an unusable entry costs.</summary>
+/// <summary>Covers which authors configuration says an account recognizes as its owner.</summary>
 public sealed class SenderTrustPolicyConfigurationTests
 {
     /// <summary>Mail from one of the owner's accounts to another is theirs, and is recognized with nothing configured.</summary>
@@ -31,7 +32,7 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
-            .Evaluate(WrittenBy("work.example"), AddressOf("user@work.example"));
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("user@work.example"), RecognizingContacts.None);
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
@@ -50,7 +51,7 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("work.example"), AddressOf("user@work.example"));
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("user@work.example"), RecognizingContacts.None);
 
         // Assert
         Assert.Equal(SenderTrustSource.OwnAccountAddress, trust.GrantedBy);
@@ -68,7 +69,7 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
-            .Evaluate(WrittenBy("work.example"), AddressOf("colleague@work.example"));
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("colleague@work.example"), RecognizingContacts.None);
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
@@ -86,10 +87,10 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var onPersonal = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
-            .Evaluate(WrittenBy("work.example"), AddressOf("colleague@work.example"));
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("colleague@work.example"), RecognizingContacts.None);
         var onWork = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("work.example"), AddressOf("colleague@work.example"));
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("colleague@work.example"), RecognizingContacts.None);
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, onPersonal.Level);
@@ -109,55 +110,10 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("work.example"), AddressOf("user@work.example"));
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("user@work.example"), RecognizingContacts.None);
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
-    }
-
-    /// <summary>The list is per account, so recognizing a counterparty on one mailbox recognizes them on that one alone.</summary>
-    [Fact]
-    public void GetTrustPolicy_AnEntryOnOneAccount_DoesNotReachAnother()
-    {
-        // Arrange
-        var work = AccountAt("work", "user@work.example");
-        work.TrustedSenders = [new TrustedSenderOptions { Domain = "partner.example" }];
-        var options = OptionsFor(work, AccountAt("personal", "user@personal.example"));
-
-        // Act
-        var onWork = options
-            .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("partner.example"), displayedSender: null);
-        var onPersonal = options
-            .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
-            .Evaluate(WrittenBy("partner.example"), displayedSender: null);
-
-        // Assert
-        Assert.Equal(SenderTrustLevel.Trusted, onWork.Level);
-        Assert.Equal(SenderTrustSource.ConfiguredTrustedSender, onWork.GrantedBy);
-        Assert.Equal(SenderTrustLevel.Unknown, onPersonal.Level);
-    }
-
-    /// <summary>Reaching under a domain is asked for per entry, so an entry that did not ask does not reach.</summary>
-    [Theory]
-    [InlineData(false, SenderTrustLevel.Unknown)]
-    [InlineData(true, SenderTrustLevel.Trusted)]
-    public void GetTrustPolicy_SubdomainOfAConfiguredDomain_FollowsWhatTheEntryAskedFor(
-        bool includeSubdomains,
-        SenderTrustLevel expected)
-    {
-        // Arrange
-        var account = AccountAt("work", "user@work.example");
-        account.TrustedSenders =
-            [new TrustedSenderOptions { Domain = "partner.example", IncludeSubdomains = includeSubdomains }];
-
-        // Act
-        var trust = OptionsFor(account)
-            .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("mail.partner.example"), displayedSender: null);
-
-        // Assert
-        Assert.Equal(expected, trust.Level);
     }
 
     /// <summary>An extraction may run over an account a reload removed, and recognizing nobody is the answer.</summary>
@@ -170,76 +126,6 @@ public sealed class SenderTrustPolicyConfigurationTests
 
         // Assert
         Assert.Same(SenderTrustPolicy.RecognizingNobody, policy);
-    }
-
-    /// <summary>An entry nothing could read fails startup, because it is indistinguishable from a list nobody wrote.</summary>
-    [Theory]
-    [InlineData(null, null, false)]
-    [InlineData("partner.example", "alice@partner.example", false)]
-    [InlineData("part ner.example", null, false)]
-    [InlineData(null, "not-an-address", false)]
-    [InlineData(null, "alice@partner.example", true)]
-    public void ValidateForSynchronization_TrustedSenderEntry_IsRefusedWhenItDoesNotNameExactlyOneSender(
-        string? domain,
-        string? address,
-        bool includeSubdomains)
-    {
-        // Arrange
-        var account = AccountAt("work", "user@work.example");
-        account.TrustedSenders =
-            [new TrustedSenderOptions { Domain = domain, Address = address, IncludeSubdomains = includeSubdomains }];
-
-        // Act
-        var messages = ConfiguredMailAccounts.Validate(OptionsFor(account))
-            .Select(result => result.ErrorMessage)
-            .ToArray();
-
-        // Assert
-        Assert.Contains(messages, message => message!.Contains("trusted sender 0", StringComparison.Ordinal));
-    }
-
-    /// <summary>The refusal names the account and the entry's position, never the domain or the address it holds.</summary>
-    [Fact]
-    public void ValidateForSynchronization_UnusableTrustedSender_DoesNotEchoTheValue()
-    {
-        // Arrange
-        var account = AccountAt("work", "user@work.example");
-        account.TrustedSenders =
-        [
-            new TrustedSenderOptions { Domain = "partner.example" },
-            new TrustedSenderOptions { Domain = "secret partner.example" },
-        ];
-
-        // Act
-        var refusal = Assert.Single(
-            ConfiguredMailAccounts.Validate(OptionsFor(account)).Select(result => result.ErrorMessage),
-            message => message!.Contains("trusted sender", StringComparison.Ordinal));
-
-        // Assert
-        Assert.Contains("trusted sender 1", refusal, StringComparison.Ordinal);
-        Assert.Contains("work", refusal, StringComparison.Ordinal);
-        Assert.DoesNotContain("partner.example", refusal, StringComparison.Ordinal);
-    }
-
-    /// <summary>A usable list is not a mistake, so it produces no startup refusal.</summary>
-    [Fact]
-    public void ValidateForSynchronization_UsableTrustedSenders_AreAccepted()
-    {
-        // Arrange
-        var account = AccountAt("work", "user@work.example");
-        account.TrustedSenders =
-        [
-            new TrustedSenderOptions { Domain = "partner.example", IncludeSubdomains = true },
-            new TrustedSenderOptions { Address = "alice@elsewhere.example" },
-        ];
-
-        // Act
-        var messages = ConfiguredMailAccounts.Validate(OptionsFor(account))
-            .Select(result => result.ErrorMessage)
-            .ToArray();
-
-        // Assert
-        Assert.DoesNotContain(messages, message => message!.Contains("trusted sender", StringComparison.Ordinal));
     }
 
     /// <summary>Two served users are two people, so one person's address and domain are not correspondence the other recognizes.</summary>
@@ -258,7 +144,7 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("elsewhere.example"), AddressOf("other@elsewhere.example"));
+            .Evaluate(WrittenBy("elsewhere.example"), EmailSignature.NotSigned, AddressOf("other@elsewhere.example"), RecognizingContacts.None);
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);

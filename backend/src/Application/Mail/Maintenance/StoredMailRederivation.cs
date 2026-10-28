@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
+using MailFathom.Application.Emails.Trust;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Emails;
 
@@ -73,6 +74,7 @@ public sealed class StoredMailRederivation
     private readonly IStoredMailRederivationRunStore runStore;
     private readonly IEmailContentStore contentStore;
     private readonly IEmailMimeReader mimeReader;
+    private readonly SenderTrustJudge senderTrust;
     private readonly OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy;
     private readonly TimeProvider timeProvider;
     private readonly AccessAuthorization authorization;
@@ -82,6 +84,7 @@ public sealed class StoredMailRederivation
     /// <param name="runStore">Holds the run this walk is advancing, which each batch adds what it read to.</param>
     /// <param name="contentStore">Reads back the raw MIME an earlier run stored.</param>
     /// <param name="mimeReader">Turns that raw MIME into normalized metadata.</param>
+    /// <param name="senderTrust">Judges each re-read message's author inside the batch's transaction.</param>
     /// <param name="concurrencyRetryPolicy">Commits a batch, retrying a conflict with a competing writer.</param>
     /// <param name="timeProvider">Stamps the instant the walk reached the end of its scope.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -91,6 +94,7 @@ public sealed class StoredMailRederivation
         IStoredMailRederivationRunStore runStore,
         IEmailContentStore contentStore,
         IEmailMimeReader mimeReader,
+        SenderTrustJudge senderTrust,
         OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy,
         TimeProvider timeProvider,
         AccessAuthorization authorization)
@@ -99,6 +103,7 @@ public sealed class StoredMailRederivation
         ArgumentNullException.ThrowIfNull(runStore);
         ArgumentNullException.ThrowIfNull(contentStore);
         ArgumentNullException.ThrowIfNull(mimeReader);
+        ArgumentNullException.ThrowIfNull(senderTrust);
         ArgumentNullException.ThrowIfNull(concurrencyRetryPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(authorization);
@@ -107,6 +112,7 @@ public sealed class StoredMailRederivation
         this.runStore = runStore;
         this.contentStore = contentStore;
         this.mimeReader = mimeReader;
+        this.senderTrust = senderTrust;
         this.concurrencyRetryPolicy = concurrencyRetryPolicy;
         this.timeProvider = timeProvider;
         this.authorization = authorization;
@@ -329,12 +335,17 @@ public sealed class StoredMailRederivation
                     return false;
                 }
 
-                foreach (var rederivation in outcome.Rederivations)
+                var judged = await this.senderTrust.JudgeAsync(
+                    persistenceSession,
+                    [.. outcome.Rederivations.Select(static rederivation => rederivation.Metadata)],
+                    attemptCancellationToken);
+
+                foreach (var (rederivation, metadata) in outcome.Rederivations.Zip(judged))
                 {
                     await this.rederivationStore.ApplyRederivedMetadataAsync(
                         persistenceSession,
                         rederivation.StoredEmailId,
-                        rederivation.Metadata,
+                        metadata,
                         attemptCancellationToken);
                 }
 
