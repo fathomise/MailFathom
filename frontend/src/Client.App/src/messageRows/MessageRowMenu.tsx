@@ -19,6 +19,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { useReadMarking, type ReadMarking } from '../readMarking/useReadMarking';
 import { useAgentHandOver } from '../routing/agentHandOver';
 import { spamMenuDetail } from '../spamMarking/spamWords';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { useSpamRefusal, type SpamRefused } from '../spamMarking/useSpamRefusal';
 import { correspondent } from './rowContents';
 import { senderMarksDrawn, type SenderMark } from '../senderMark/senderMarks';
@@ -101,6 +102,7 @@ export function MessageRowMenu({
     const composing = useComposing();
     const handToAgent = useAgentHandOver();
     const refuse = useSpamRefusal();
+    const writeRefused = useWriteRefusal();
     const thread = email.threadId;
     const spam = drawnSpam(acts, email);
     const marked = isSpam(spam);
@@ -138,6 +140,7 @@ export function MessageRowMenu({
                 onAsk,
                 onCheckReadings: marked ? undefined : onCheckReadings,
                 refusing: marked ? refuse : null,
+                writeRefused,
                 senderMark: senderMark ?? null,
                 onSenderDetails,
             })}
@@ -159,6 +162,7 @@ function rowItems({
     onAsk,
     onCheckReadings,
     refusing,
+    writeRefused,
     senderMark,
     onSenderDetails,
 }: {
@@ -175,6 +179,9 @@ function rowItems({
 
     /** Answers a press on what a message marked spam refuses, or `null` where the message is not spam. */
     readonly refusing: ((refused: SpamRefused) => void) | null;
+
+    /** Why a control that writes cannot be pressed now, by its name, or `null` while it can. */
+    readonly writeRefused: (control: string) => string | null;
     readonly senderMark: SenderMark | null;
     readonly onSenderDetails: (() => void) | undefined;
 }): readonly ContextMenuItem[] {
@@ -208,11 +215,13 @@ function rowItems({
     // The spam control, before *Move* as the design draws it. *Not spam* says it asks first where it would move the
     // message out of the Spam folder, and *Spam* always does, since it opens the chooser.
     const out = refusing !== null;
+    const spamLabel = translate(
+        out ? (acts.notSpamMoves(messages) ? 'spam.notSpamAsking' : 'spam.notSpam') : 'spam.spamAsking',
+    );
     const spamItem: ContextMenuItem = {
         icon: out ? 'report_off' : 'report',
-        label: translate(
-            out ? (acts.notSpamMoves(messages) ? 'spam.notSpamAsking' : 'spam.notSpam') : 'spam.spamAsking',
-        ),
+        label: spamLabel,
+        refused: writeRefused(spamLabel),
         choose: () => {
             acts.toggleSpam(messages);
         },
@@ -234,10 +243,20 @@ function rowItems({
                       ? flagActFor(acts, messages)
                       : slot,
             )
-            .filter((act) => acts.refusalOf(act, messages) === null && !underway(acts, act, messages))
+            // An act refused for want of a connection stays in the menu saying so, since it is a moment's refusal
+            // rather than one the folders or the grant make for good — every other refusal leaves the act out.
+            .filter((act) => {
+                const refusal = acts.refusalOf(act, messages);
+
+                return (refusal === null || refusal === 'noConnection') && !underway(acts, act, messages);
+            })
             .map((act) => ({
                 icon: actsDrawn[act].icon,
                 label: translate(actsSaidInAMenu[act]),
+                refused:
+                    acts.refusalOf(act, messages) === 'noConnection'
+                        ? translate('connection.writeRefused', { control: translate(actsSaidInAMenu[act]) })
+                        : null,
                 destroys: act === 'delete',
                 choose: () => {
                     if (act === 'delete' || act === 'move') {

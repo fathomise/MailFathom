@@ -62,6 +62,8 @@ export function probeLiveness(
     let lastAskedAt: number | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    const stillAsking = (): boolean => !stopped && !isLost;
+
     const dueAt = (): number | null => {
         // A probe that went unanswered is followed by the next one a fixed interval after it, whatever is in flight: the
         // link is in question now, and a server with nothing pending would otherwise never be asked a second time.
@@ -127,7 +129,9 @@ export function probeLiveness(
 
         asking = false;
 
-        if (stopped || isLost) {
+        // Asked through a function rather than read off the two flags, which the check above has already narrowed:
+        // what changes them is the frame stopping the schedule, or the server being lost, while the probe was out.
+        if (!stillAsking()) {
             return;
         }
 
