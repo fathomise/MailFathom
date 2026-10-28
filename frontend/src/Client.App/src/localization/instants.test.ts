@@ -299,6 +299,6 @@ describe('wordElapsed', () => {
     });
 
     it('words the count in the reader’s own language', () => {
-        expect(wordElapsed(began, began + 5 * 60_000, 'pl')).toBe('5 minut temu');
+        expect(wordElapsed(began, began + 5 * 3_600_000, 'pl')).toBe('5 godzin temu');
     });
 });
