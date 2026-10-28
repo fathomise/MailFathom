@@ -689,7 +689,8 @@ export function App({
 
     // The account's own state is the frame's to re-read, because what it moves is what the frame draws: how current
     // each account is, and the freshness line beside it. A refresh reads it again too, and quietly — one the deployment
-    // does not answer leaves the frame as it stands. Every other kind is a screen's, and each of them subscribes where
+    // does not answer leaves the frame as it stands — except the one the frame's own answer set off, which it has
+    // already read. Every other kind is a screen's, and each of them subscribes where
     // it decides what to ask for again.
     //
     // Through a ref because the way to ask is a new function on every render while the subscription is not: reading it
@@ -708,7 +709,7 @@ export function App({
                     connectionNow.current.reread();
                 }
 
-                if (signal.kind === 'refresh') {
+                if (signal.kind === 'refresh' && signal.frameAnswered !== true) {
                     connectionNow.current.refresh();
                 }
             }),

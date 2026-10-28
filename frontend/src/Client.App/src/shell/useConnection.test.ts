@@ -447,6 +447,43 @@ describe('useConnection', () => {
         expect(retriedByCaller.at(-1)).toBeUndefined();
     });
 
+    it('spends its attempts on accounts nobody answers beside a session that answers, and then stops', async () => {
+        vi.useFakeTimers();
+
+        let sessionReads = 0;
+        const accountsUnanswered: DeploymentTransport = () => (request) => {
+            if (!request.path.endsWith('/session')) {
+                return Promise.resolve({ status: 503, body: '', headers: {} });
+            }
+
+            sessionReads += 1;
+
+            return Promise.resolve(readsMail);
+        };
+
+        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, accountsUnanswered, nothingToDo));
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        for (let spent = 0; spent < mostReconnectionAttempts; spent += 1) {
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(60_000);
+            });
+        }
+
+        expect(result.current.attempts).toBe(mostReconnectionAttempts);
+
+        const readsSpent = sessionReads;
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(10 * 60_000);
+        });
+
+        expect(sessionReads).toBe(readsSpent);
+    });
+
     it('hands the next person a budget of their own rather than one the last one spent', async () => {
         vi.useFakeTimers();
 

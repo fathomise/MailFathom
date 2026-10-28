@@ -7,7 +7,7 @@ import { borderedControl } from '../controls/chrome';
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { wordElapsed } from '../localization/instants';
-import { useLocalization } from '../localization/useLocalization';
+import { useLocalization, type Translate } from '../localization/useLocalization';
 import { useConnectionStatus, type ConnectionLevel, type ConnectionStatus } from './connectionStatus';
 import { mostReconnectionAttempts } from './useConnection';
 
@@ -88,44 +88,50 @@ interface Block {
     readonly since: number;
 }
 
+/**
+ * What the details say for a status: each thing not working, in the words a person reads.
+ *
+ * @param count How a number is spelled in the reader's language.
+ */
+function detailsOf(status: ConnectionStatus, translate: Translate, count: (value: number) => string): readonly Block[] {
+    if (status.level === 'delayed') {
+        return status.delays.map((delay) => ({
+            key: delay.kind === 'channel' ? 'channel' : `mailServer:${delay.account}`,
+            lines: [
+                delay.kind === 'channel'
+                    ? translate('connectionStatus.channel')
+                    : translate('connectionStatus.mailServer', { account: delay.account }),
+            ],
+            since: delay.since,
+        }));
+    }
+
+    if (status.level !== 'disconnected') {
+        return [];
+    }
+
+    if (status.cause === 'offline') {
+        return [{ key: status.cause, lines: [translate('connection.offline')], since: status.since }];
+    }
+
+    // The attempt line belongs to the session read; a ticket nothing answered is retried on the stream's own schedule.
+    const total = count(mostReconnectionAttempts);
+    const attempt =
+        status.attempts === null
+            ? []
+            : [
+                  status.attempts < mostReconnectionAttempts
+                      ? translate('connectionStatus.attempt', { attempt: count(status.attempts + 1), total })
+                      : translate('connectionStatus.attemptsSpent', { total }),
+              ];
+
+    return [{ key: status.cause, lines: [translate('connectionStatus.unanswered'), ...attempt], since: status.since }];
+}
+
 function Details({ status, place }: { readonly status: ConnectionStatus; readonly place: ConnectionStatusPlace }) {
     const { locale, translate } = useLocalization();
     const now = useClock();
-    const count = (value: number): string => new Intl.NumberFormat(locale).format(value);
-    const total = count(mostReconnectionAttempts);
-    const blocks: readonly Block[] =
-        status.level === 'disconnected'
-            ? [
-                  {
-                      key: status.cause,
-                      lines:
-                          status.cause === 'offline'
-                              ? [translate('connection.offline')]
-                              : status.attempts === null
-                                ? [translate('connectionStatus.unanswered')]
-                                : [
-                                      translate('connectionStatus.unanswered'),
-                                      status.attempts < mostReconnectionAttempts
-                                          ? translate('connectionStatus.attempt', {
-                                                attempt: count(status.attempts + 1),
-                                                total,
-                                            })
-                                          : translate('connectionStatus.attemptsSpent', { total }),
-                                  ],
-                      since: status.since,
-                  },
-              ]
-            : status.level === 'delayed'
-              ? status.delays.map((delay) => ({
-                    key: delay.kind === 'channel' ? 'channel' : `mailServer:${delay.account}`,
-                    lines: [
-                        delay.kind === 'channel'
-                            ? translate('connectionStatus.channel')
-                            : translate('connectionStatus.mailServer', { account: delay.account }),
-                    ],
-                    since: delay.since,
-                }))
-              : [];
+    const blocks = detailsOf(status, translate, (value) => new Intl.NumberFormat(locale).format(value));
 
     return (
         <div

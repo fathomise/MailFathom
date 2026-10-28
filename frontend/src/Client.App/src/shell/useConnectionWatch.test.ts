@@ -49,15 +49,19 @@ function connected(change: Partial<Connection> = {}, accounts: readonly MailAcco
     };
 }
 
-function changes(): SignalledChanges & { readonly refreshed: () => number } {
-    let refreshed = 0;
+function changes(): SignalledChanges & {
+    readonly refreshed: () => number;
+    readonly asked: () => readonly ({ readonly frameAnswered: true } | undefined)[];
+} {
+    const asked: ({ readonly frameAnswered: true } | undefined)[] = [];
 
     return {
         listen: () => () => undefined,
-        refresh: () => {
-            refreshed += 1;
+        refresh: (refresh) => {
+            asked.push(refresh);
         },
-        refreshed: () => refreshed,
+        refreshed: () => asked.length,
+        asked: () => asked,
     };
 }
 
@@ -148,6 +152,29 @@ describe('useConnectionWatch', () => {
         expect(view.result.current.status.level).toBe('online');
     });
 
+    it('lists each cause of a delay as its own grace period ends, one after the other', () => {
+        const view = renderHook(() =>
+            useConnectionWatch(signedIn, connected({}, [account('Unreachable')]), true, changes()),
+        );
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+        act(() => {
+            view.result.current.channelStood('dropped');
+        });
+        pass(10_000);
+
+        expect(view.result.current.status).toMatchObject({ level: 'delayed', delays: [{ kind: 'channel' }] });
+
+        pass(50_000);
+
+        expect(view.result.current.status).toMatchObject({
+            level: 'delayed',
+            delays: [{ kind: 'channel' }, { kind: 'mailServer', account: 'Work' }],
+        });
+    });
+
     it('measures an unreachable mail server from when this client first read it so', () => {
         const watched = changes();
         const view = renderHook(({ connection }) => useConnectionWatch(signedIn, connection, false, watched), {
@@ -186,7 +213,28 @@ describe('useConnectionWatch', () => {
         view.rerender({ connection: connected() });
 
         expect(view.result.current.status.level).toBe('online');
-        expect(watched.refreshed()).toBe(1);
+        expect(watched.asked()).toStrictEqual([{ frameAnswered: true }]);
+    });
+
+    it('reads the frame again too once a server whose ticket alone went unanswered answers', () => {
+        const watched = changes();
+        const view = renderHook(() => useConnectionWatch(signedIn, connected(), true, watched));
+
+        act(() => {
+            view.result.current.channelStood('opening');
+        });
+        act(() => {
+            view.result.current.channelStood('unanswered');
+        });
+
+        expect(view.result.current.status.level).toBe('disconnected');
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+
+        expect(view.result.current.status.level).toBe('online');
+        expect(watched.asked()).toStrictEqual([undefined]);
     });
 
     it('closes the details on Retry and reads everything again', () => {

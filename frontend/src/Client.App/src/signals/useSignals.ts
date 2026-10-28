@@ -11,7 +11,7 @@ import {
     type SignalStanding,
     type SignalStreamSchedule,
 } from '@mailfathom/client-backend';
-import type { SignalledChange, SignalledChanges, SignalListener } from './signalledChanges';
+import type { Refresh, SignalledChange, SignalledChanges, SignalListener } from './signalledChanges';
 
 /**
  * A step of keeping the channel open as the connection status hears it: the stream's own report, or `opening` when a
@@ -66,7 +66,7 @@ export function useSignals(
 
     // What a refresh does, written by the effect that holds the interval a refresh starts over, and `null` whenever
     // that effect holds nothing — which is when there is nothing a refresh could read over.
-    const refreshing = useRef<(() => void) | null>(null);
+    const refreshing = useRef<((change: Refresh) => void) | null>(null);
 
     // The session a connection last stood for. One standing again for the same session is a reopening whatever closed
     // the last — a drop, or the network going, which closes the stream and opens a new one for the same session — and
@@ -93,15 +93,17 @@ export function useSignals(
             // Without a channel there is no interval to start over, but the screens are still read again: a
             // credential that hears nothing over one, and a client whose server stopped answering, are refreshed by
             // hand like any other.
-            refresh: () => {
+            refresh: (asked) => {
+                const change: Refresh = asked === undefined ? { kind: 'refresh' } : { kind: 'refresh', ...asked };
+
                 if (refreshing.current !== null) {
-                    refreshing.current();
+                    refreshing.current(change);
 
                     return;
                 }
 
                 for (const listener of [...listeners.current]) {
-                    listener({ kind: 'refresh' });
+                    listener(change);
                 }
             },
         }),
@@ -124,9 +126,9 @@ export function useSignals(
         let waiting = 0;
         let due = false;
 
-        function refresh(): void {
+        function refresh(change: Refresh = { kind: 'refresh' }): void {
             countFromNow();
-            tell({ kind: 'refresh' });
+            tell(change);
         }
 
         function countFromNow(): void {

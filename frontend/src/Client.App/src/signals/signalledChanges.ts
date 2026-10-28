@@ -22,7 +22,17 @@ import type { ClientSignal } from '@mailfathom/client-backend';
  * what the rail's refresh control asks for, and what the client asks for itself once its connection stands again after
  * a gap and on an interval while its window is visible — one act, whoever asked for it.
  */
-export type SignalledChange = ClientSignal | { readonly kind: 'refresh' };
+export type SignalledChange = ClientSignal | Refresh;
+
+/**
+ * A refresh, saying whether the frame's own read is the one that has just answered. A server that answers again after
+ * going unanswered is read again on every screen, and the frame's read is how that was learned — so the frame has
+ * nothing to read twice.
+ */
+export interface Refresh {
+    readonly kind: 'refresh';
+    readonly frameAnswered?: true;
+}
 
 /** What a screen does with one statement. */
 export type SignalListener = (change: SignalledChange) => void;
@@ -40,7 +50,7 @@ export interface SignalledChanges {
      * Tells every screen to read again what it draws, and starts the interval over from now. Nothing happens where
      * nobody who may read mail is signed in or the machine has no network, which is when there is nothing to read over.
      */
-    readonly refresh: () => void;
+    readonly refresh: (asked?: { readonly frameAnswered: true }) => void;
 }
 
 /** What a tree with no channel above it hears, which is every client whose deployment serves no hub. */

@@ -273,6 +273,12 @@ export function useConnection(
             );
         };
 
+        // The budget is spent until the whole attempt has answered: a session read answering while the accounts beside
+        // it go unanswered is the same silence, and starting the count over there would reach for it without end.
+        const answeredWhole = (): void => {
+            setReaching({ made: 0, presentedAt: baseAddress, presenting });
+        };
+
         // Abandoning is what says an answer is nobody's to render any more, and it is one mechanism rather than two:
         // the signal already has to travel to the transport, so a second flag beside it would be a second thing to
         // keep true.
@@ -338,8 +344,6 @@ export function useConnection(
                 return;
             }
 
-            setReaching({ made: 0, presentedAt: baseAddress, presenting });
-
             const readsMail = offers(session.value, 'readMail');
 
             // On the screen as soon as it is known rather than once the accounts beside it are: what it decides — the
@@ -360,6 +364,7 @@ export function useConnection(
             // and it would arrive as a failure on a screen, where what is true is that the client is not offering
             // something rather than that something went wrong.
             if (!readsMail) {
+                answeredWhole();
                 heard(null);
 
                 return;
@@ -379,6 +384,10 @@ export function useConnection(
             }
 
             heard(accounts.outcome === 'failed' ? accounts.failure : null);
+
+            if (accounts.outcome === 'read' || !wentUnanswered(accounts.failure)) {
+                answeredWhole();
+            }
 
             // The accounts the previous attempt answered with already stand, above, so a refresh that could not read
             // them again leaves them there. Where none had been read, the failure is what there is to say.

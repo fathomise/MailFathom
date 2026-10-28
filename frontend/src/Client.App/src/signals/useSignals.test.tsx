@@ -412,4 +412,20 @@ describe('useSignals catching up', () => {
 
         expect(refreshes()).toBe(1);
     });
+
+    it('tells every screen a refresh the frame has already answered as one', async () => {
+        const deployment = channelHoldingOneConnection();
+        const told: SignalledChange[] = [];
+        const view = renderHook(() => useSignals(session, mintsTickets, deployment.channel, neverReopens));
+
+        await settled();
+        act(() => {
+            view.result.current.listen((change) => told.push(change));
+        });
+        act(() => {
+            view.result.current.refresh({ frameAnswered: true });
+        });
+
+        expect(told).toStrictEqual([{ kind: 'refresh', frameAnswered: true }]);
+    });
 });

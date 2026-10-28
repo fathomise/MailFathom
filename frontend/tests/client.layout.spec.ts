@@ -121,12 +121,10 @@ test('moves a keyboard through a narrow window in the order the window shows', a
     // The narrow composition draws the navigation at the bottom of the screen, and the keyboard follows the document
     // rather than the layout — so a document that put the navigation first would hand a reader the bottom bar before
     // the space at the top of the window. Only a browser answers this: jsdom has no sequential focus navigation.
-    // The freshness line is the first thing the space holds, and with every account current it is a sentence with
-    // nothing behind it — so it takes no focus, and a keyboard passes it for the controls beneath it.
     //
-    // Waited for before the first key rather than after it: the frame is not settled until the accounts have answered,
+    // Waited for before the first key rather than after it: the frame is not settled until the session has answered,
     // and every assertion after a key pressed earlier would be reading a tab order the window was not yet showing.
-    await expect(page.getByText('Every account is up to date.')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'What this credential may not do here' })).toBeVisible();
 
     // Before the space, the strip saying what this credential may not do. It is a scroller, having a ceiling rather
     // than growing out of the frame, and a scroller with nothing focusable in it is a stop of its own — which is what

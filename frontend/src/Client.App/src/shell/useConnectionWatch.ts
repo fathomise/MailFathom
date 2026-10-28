@@ -103,11 +103,19 @@ export function useConnectionWatch(
     const unanswered = unansweredSince !== null;
 
     // Whether this is the change from not answering to answering again is kept beside it, since that is the moment
-    // every screen is read again.
-    const [quiet, setQuiet] = useState({ what: unanswered, answeredAgain: false });
+    // every screen is read again — and whether the frame's own read went unanswered in the silence, since its answer is
+    // then what ended it and the frame has nothing to read twice.
+    const frameQuiet = connection.unansweredSince !== null;
+    const [quiet, setQuiet] = useState({ what: unanswered, answeredAgain: false, frameWasQuiet: frameQuiet });
 
     if (quiet.what !== unanswered) {
-        setQuiet({ what: unanswered, answeredAgain: !unanswered });
+        setQuiet({
+            what: unanswered,
+            answeredAgain: !unanswered,
+            frameWasQuiet: unanswered ? frameQuiet : quiet.frameWasQuiet,
+        });
+    } else if (unanswered && frameQuiet && !quiet.frameWasQuiet) {
+        setQuiet({ ...quiet, frameWasQuiet: true });
     }
 
     const accounts = connection.accounts?.outcome === 'read' ? connection.accounts.value.accounts : [];
@@ -145,7 +153,8 @@ export function useConnectionWatch(
     };
 
     // The clock moves at the instant a grace period ends, so amber arrives when it is due rather than at the next
-    // unrelated render. The wait is measured against the real clock here, where reading it is what an effect is for.
+    // unrelated render. The wait is measured against the real clock here, where reading it is what an effect is for,
+    // and is measured again each time the clock moves, since a second grace period may still be running.
     const evidenceNamed = JSON.stringify(evidence);
 
     useEffect(() => {
@@ -162,14 +171,14 @@ export function useConnectionWatch(
         return () => {
             window.clearTimeout(waiting);
         };
-    }, [evidenceNamed]);
+    }, [evidenceNamed, clock]);
 
     // The read made once a lost server answers again, which is every screen rather than the frame alone: what each of
     // them drew may have moved while nothing could say so. It waits on the server answering, never on the channel, so a
     // server that carries no channel at all is read again as readily as one that does.
     useEffect(() => {
         if (quiet.answeredAgain) {
-            changes.refresh();
+            changes.refresh(quiet.frameWasQuiet ? { frameAnswered: true } : undefined);
         }
     }, [quiet, changes]);
 

@@ -2,10 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, render, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { useState, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import type { Space } from '../routing/spaces';
+import { ConnectionStatusContext, type ConnectionReading } from './connectionStatus';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from './screenLayers';
 import { SpaceOverflow } from './SpaceOverflow';
 
@@ -18,22 +20,44 @@ const handedTheAccount = 'The account control this sheet was handed.';
 const handedTheRefresh = 'The refresh this sheet was handed.';
 const handedTheDeveloper = 'The developer control this sheet was handed.';
 
+/** The connection status as the frame hands it, holding its details open or shut the way the frame does. */
+function Status({ reading, children }: { readonly reading: ConnectionReading; readonly children: ReactNode }) {
+    const [detailsOpen, showDetails] = useState(false);
+
+    return (
+        <ConnectionStatusContext
+            value={{
+                ...reading,
+                attempts: 0,
+                retry: () => undefined,
+                detailsOpen: detailsOpen && reading.level === 'disconnected',
+                showDetails,
+            }}
+        >
+            {children}
+        </ConnectionStatusContext>
+    );
+}
+
 function renderOverflow(
     spaces: readonly Space[] = ['tasks', 'calendar'],
     current: Space | null = null,
+    connection: ConnectionReading = { level: 'online' },
 ): { readonly current: ScreenLayers } {
     const { result } = renderHook(() => useScreenLayerStack());
 
     render(
         <LocalizationProvider>
             <ScreenLayersContext value={result.current}>
-                <SpaceOverflow
-                    spaces={spaces}
-                    current={current}
-                    account={<button>{handedTheAccount}</button>}
-                    refresh={<button>{handedTheRefresh}</button>}
-                    developer={<button>{handedTheDeveloper}</button>}
-                />
+                <Status reading={connection}>
+                    <SpaceOverflow
+                        spaces={spaces}
+                        current={current}
+                        account={<button>{handedTheAccount}</button>}
+                        refresh={<button>{handedTheRefresh}</button>}
+                        developer={<button>{handedTheDeveloper}</button>}
+                    />
+                </Status>
             </ScreenLayersContext>
         </LocalizationProvider>,
     );
@@ -148,5 +172,28 @@ describe('SpaceOverflow', () => {
         });
 
         expect(hidden).toHaveBeenCalled();
+    });
+
+    it('names the tile and leads the sheet with the alarm while the server is out of reach, opening onto Retry', () => {
+        renderOverflow(['tasks'], null, { level: 'disconnected', cause: 'unanswered', since: 0 });
+
+        expect(screen.getByRole('button', { name: 'More - not connected to the server' })).toBeDefined();
+
+        const row = screen.getByRole('button', { name: 'Not connected to the server.', hidden: true });
+
+        expect(row.getAttribute('aria-expanded')).toBe('false');
+
+        fireEvent.click(row);
+
+        expect(row.getAttribute('aria-expanded')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Retry', hidden: true })).toBeDefined();
+    });
+
+    it('names the tile plainly and offers nothing to open while connected', () => {
+        renderOverflow(['tasks'], null, { level: 'online' });
+
+        expect(screen.getByRole('button', { name: 'More' })).toBeDefined();
+        expect(screen.getByText('Connected to the server.')).toBeDefined();
+        expect(screen.queryByRole('button', { name: /connected to the server/u, hidden: true })).toBeNull();
     });
 });
