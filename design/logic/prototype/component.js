@@ -2487,6 +2487,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     connMountedAt = Date.now();
 
+    /* While the status is offline every control that writes says so before it is pressed rather than failing after:
+       drawn as a control that cannot act (aria-disabled, at 60%), its name bubble - a tap under a finger - naming the
+       control and *no connection to the MailFathom server*. Reading, opening and composing stay as they are. */
+    static WRITE_ACTS = ["archive", "delete", "flag", "mark_email_unread", "drive_file_move", "report", "report_off", "send", "save"];
+    noop = () => {};
+    writeRefused(act) {
+      return this.connNow().status === "offline" && Component.WRITE_ACTS.indexOf(act) >= 0;
+    }
+    writeRefusedTitle(act, label) {
+      return this.writeRefused(act) ? label + " - no connection to the MailFathom server." : label;
+    }
+    writeRefusedStyle(act) {
+      return this.writeRefused(act) ? ";opacity:0.6;cursor:not-allowed" : "";
+    }
+
     /* A 15 s tick keeps "Started … ago" live, and it is started from the cycle's clock so every fourth tick lands on a
        60 s step. */
     connTickFrom = () => {
@@ -4869,17 +4884,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         discoverPlaceholder: isMobile ? "Ask your mail…" : "What do you want to ask your mail?",
         /* The composer's foot under a finger: one 44 row, Send filled, Attach a symbol alone on the phone,
            and Save draft a text action whose target is the row's height rather than its words. */
-        composeSendStyle: touch
+        composeSendRefused: this.writeRefused("send"),
+        composeSendTitle: this.writeRefusedTitle("send", "Send"),
+        composeSaveTitle: this.writeRefusedTitle("save", "Save draft"),
+        askSendNow: this.writeRefused("send") ? this.noop : askSend,
+        composeSendStyle: (touch
           ? "display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;box-sizing:border-box;font-size:14px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px"
-          : "font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 18px",
+          : "font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 18px") + this.writeRefusedStyle("send"),
         composeAttachStyle: touch
           ? "display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 " + (isMobile ? 0 : 14) + "px;box-sizing:border-box;font-size:14px;color:var(--text2);border:1px solid var(--border2);border-radius:8px"
           : "font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:9px 13px",
         composeAttachIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 18) + "px;line-height:1" + (touch ? "" : ";vertical-align:-3px;margin-right:6px"),
         composeAttachLabel: !isMobile,
-        composeSaveStyle: touch
+        composeSaveStyle: (touch
           ? "display:inline-flex;align-items:center;min-height:44px;padding:0 6px;font-size:13px;color:var(--muted)"
-          : "font-size:12px;color:var(--muted)",
+          : "font-size:12px;color:var(--muted)") + this.writeRefusedStyle("save"),
         composeAiPlaceholder: isMobile ? "Write what this is about…" : "Write what this is about - e.g. “we accept the 2 h SLA but ask for a 5% CPI cap”",
         /* Both drafting fields take an instruction, a draft of the message, or both, so they grow with what is
            written: one line empty, wrapping rather than scrolling sideways, up to six lines, and a scrollbar past
@@ -5896,8 +5915,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: st.stateBarOff ? "fullscreen_exit" : "fullscreen", label: st.stateBarOff ? "Show thread panels" : "Hide panels - correspondence only", iconOnly: true, key: 1 },
         /* The Outbox takes no mail act, so its toolbar keeps the folder toggle and *New message* and nothing else. */
         ].filter(() => !outboxOn).map(a => ({
-           icon: a.icon, title: a.label, label: (tbFull && !a.iconOnly && !a.glyphOnly) ? a.label : "", run: mailAct[a.icon],
-           style: ((tbFull && !a.iconOnly && !a.glyphOnly) ? tbBtn : tbIcon + ";flex:0 0 auto") +
+           icon: a.icon, title: this.writeRefusedTitle(a.icon, a.label), label: (tbFull && !a.iconOnly && !a.glyphOnly) ? a.label : "", run: this.writeRefused(a.icon) ? this.noop : mailAct[a.icon],
+           refused: this.writeRefused(a.icon),
+           style: ((tbFull && !a.iconOnly && !a.glyphOnly) ? tbBtn : tbIcon + ";flex:0 0 auto") + this.writeRefusedStyle(a.icon) +
              (a.icon === "flag" && flagOn ? ";color:var(--warn);background:var(--warn-soft)" : "") +
              (a.icon === "report" ? ";color:var(--err-text)" : "") +
              (a.icon === "fullscreen_exit" ? ";color:var(--accent-d);background:var(--accent-soft)" : "") +
@@ -5913,7 +5933,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* *Not spam* only while every selected message is spam; a mix reads *Spam* and is refused when pressed. */
           sel.length && sel.every(id => this.spamOf(id).spam) ? { icon: "report_off", label: "Not spam" } : { icon: "report", label: "Spam" },
           { icon: "drive_file_move", label: "Move" },
-        ].map(a => ({ icon: a.icon, title: a.label, label: tbFull ? a.label : "", run: mailAct[a.icon], style: tbFull ? selBtn : tbIcon + ";flex:0 0 auto;color:var(--accent-d)" })),
+        ].map(a => ({ icon: a.icon, title: this.writeRefusedTitle(a.icon, a.label), label: tbFull ? a.label : "", run: this.writeRefused(a.icon) ? this.noop : mailAct[a.icon], refused: this.writeRefused(a.icon), style: (tbFull ? selBtn : tbIcon + ";flex:0 0 auto;color:var(--accent-d)") + this.writeRefusedStyle(a.icon) })),
         aiSumOpen: !!aiSumThread,
         aiSumSubject: aiSumThread ? aiSumThread.subject : "",
         /* Wide: a reading and its passage side by side, one hairline between readings and no cards
@@ -6511,6 +6531,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         keepEditing: () => this.setState({ closeAsk: false, sendAsk: null }),
         discardCompose: () => { finishCompose(); this.notify("Draft discarded", false); },
         saveDraftAndClose: () => { finishCompose(); this.notify("The message is waiting in Drafts.", { kind: "success", title: "Draft saved" }); },
+        saveDraftNow: this.writeRefused("save") ? this.noop : () => { finishCompose(); this.notify("The message is waiting in Drafts.", { kind: "success", title: "Draft saved" }); },
         closeAskOpen: !!st.closeAsk,
         composeKeyDown: (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); askSend(); } },
         askSend: askSend,
