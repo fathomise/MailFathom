@@ -105,19 +105,12 @@ export function useConnectionWatch(
     const unanswered = unansweredSince !== null;
 
     // Whether this is the change from not answering to answering again is kept beside it, since that is the moment
-    // every screen is read again — and whether the frame's own read went unanswered in the silence, since its answer is
-    // then what ended it and the frame has nothing to read twice.
-    const frameQuiet = connection.unansweredSince !== null;
-    const [quiet, setQuiet] = useState({ what: unanswered, answeredAgain: false, frameWasQuiet: frameQuiet });
+    // every screen is read again. The frame's own read is the one thing that says the server is lost, so its answer
+    // is always what ended the silence, and the frame has nothing to read twice.
+    const [quiet, setQuiet] = useState({ what: unanswered, answeredAgain: false });
 
     if (quiet.what !== unanswered) {
-        setQuiet({
-            what: unanswered,
-            answeredAgain: !unanswered,
-            frameWasQuiet: unanswered ? frameQuiet : quiet.frameWasQuiet,
-        });
-    } else if (unanswered && frameQuiet && !quiet.frameWasQuiet) {
-        setQuiet({ ...quiet, frameWasQuiet: true });
+        setQuiet({ what: unanswered, answeredAgain: !unanswered });
     }
 
     const accounts = connection.accounts?.outcome === 'read' ? connection.accounts.value.accounts : [];
@@ -180,7 +173,7 @@ export function useConnectionWatch(
     // server that carries no channel at all is read again as readily as one that does.
     useEffect(() => {
         if (quiet.answeredAgain) {
-            changes.refresh(quiet.frameWasQuiet ? { frameAnswered: true } : undefined);
+            changes.refresh({ frameAnswered: true });
         }
     }, [quiet, changes]);
 

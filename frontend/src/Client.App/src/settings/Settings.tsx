@@ -827,11 +827,11 @@ function Profile({
                         placeholder={translate('settings.name')}
                         className="w-full max-w-110 rounded-md border border-line-strong bg-sunken px-2.5 py-1.75 text-md text-text outline-none read-only:text-muted focus:border-accent"
                         onBlur={(event) => {
-                            correct(profile, event.target.value);
+                            correct(profile, event.target.value, withdrawn);
                         }}
                         onKeyDown={(event) => {
                             if (event.key === 'Enter') {
-                                correct(profile, event.currentTarget.value);
+                                correct(profile, event.currentTarget.value, withdrawn);
                             }
                         }}
                     />
@@ -1089,9 +1089,11 @@ function Telemetry({
 }
 
 // A correction is sent where it says something different from what the deployment holds. Anything else would be a
-// write per field somebody tabbed through, and the deployment would answer the name it already had.
-function correct(profile: OwnProfileInForce, typed: string): void {
-    if (profile.changeable && typed.trim() !== (profile.displayName ?? '')) {
+// write per field somebody tabbed through, and the deployment would answer the name it already had. Nothing is sent
+// while the profile is withdrawn — a name typed before the server went quiet and left by a blur or an Enter after is a
+// write the screen already says it refuses, and the field stands read-only with the reason beside it.
+function correct(profile: OwnProfileInForce, typed: string, withdrawn: MessageKey | null): void {
+    if (withdrawn === null && profile.changeable && typed.trim() !== (profile.displayName ?? '')) {
         profile.correctName(typed);
     }
 }

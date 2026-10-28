@@ -286,6 +286,20 @@ describe('Settings', () => {
         expect(correctName).toHaveBeenCalledWith('Grace Hopper');
     });
 
+    // A name typed before the server went quiet is still in the field once it does, and leaving the field or pressing
+    // Enter there would send a write the screen already says it refuses.
+    it('sends no corrected name while the server is out of reach, however the field is left', () => {
+        const correctName = vi.fn();
+        renderSettings({ profile: { ...named, correctName }, lostServer: true });
+
+        const field = screen.getByRole('textbox', { name: 'Full name' });
+        fireEvent.change(field, { target: { value: 'Grace Hopper' } });
+        fireEvent.keyDown(field, { key: 'Enter' });
+        fireEvent.blur(field);
+
+        expect(correctName).not.toHaveBeenCalled();
+    });
+
     it('draws the zone this deployment reads the person’s days in', () => {
         renderSettings();
 
