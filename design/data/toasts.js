@@ -15,7 +15,7 @@ MailFathomDesign.data.toastsSamples = [
     desc: "A write that got no answer - the connection was lost under it, or a gateway answered 502, 503 or 504. Never “nothing was saved”, which a client that heard nothing cannot know, and no Try again that could record it twice." },
   { kind: "neutral", name: "Neutral - still sending", title: "Still sending…", body: "The server has not answered yet.", lasting: true,
     desc: "A write with no answer after 10 s. Quiet: no colour and no timer bar - it stands until the write is answered or ends as unknown. Its close control only closes it." },
-  { kind: "info", name: "Information - what the server holds", title: "The screen now shows what the server holds", body: "Some changes made as the connection went did not reach it.",
+  { kind: "info", name: "Information - what the server holds", title: "The screen now shows what the server holds", body: "Changes made as the connection went are shown as the server holds them now.",
     desc: "Raised once, when the read made after the server answers again changes what an unknown write had drawn. A read that confirms every such write says nothing." },
   { kind: "warning", name: "Warning - a draft out of step", title: "Draft out of step with your server", body: "“Q4 supplier review - agenda” is kept in MailFathom, but your mail server's copy may be missing or out of date.", opens: true,
     desc: "Nothing is lost - MailFathom keeps the draft - but another mail app may not show it as it stands here." },

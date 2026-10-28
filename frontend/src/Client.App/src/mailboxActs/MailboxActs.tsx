@@ -418,11 +418,13 @@ export function MailboxActsProvider({
     // reach its deployment, rather than accepted and then reported as a write whose outcome is unknown. That is left to
     // the few seconds before a lost connection is noticed.
     function refusalOf(act: MailboxAct, messages: readonly ActedMessage[]): ActRefusal | null {
-        if (lostServer && messages.length > 0) {
-            return 'noConnection';
-        }
+        // A refusal the grant or the folders make stands whatever the connection: an act that is not there is not
+        // drawn back in by the server going quiet, and its reason is not replaced by a passing one. Folders nobody
+        // could read are the exception, since what stands in the way of reading them is the connection itself.
+        const refusal = refusalFor(act, messages, held.directory, { flags, moves, deletes });
+        const passing = refusal === null || refusal === 'foldersUnknown';
 
-        return refusalFor(act, messages, held.directory, { flags, moves, deletes });
+        return passing && lostServer && messages.length > 0 ? 'noConnection' : refusal;
     }
 
     /** Whether asking to delete these messages destroys them, which is true where every one is already in the trash. */
@@ -612,6 +614,10 @@ export function MailboxActsProvider({
      * the way to ask again on it. Both ways out are the producer's, because only it knows what performing its act afresh,
      * or no longer claiming it, means — and neither is taken unless the credential it was performed under is still the
      * one signed in.
+     *
+     * @param askedIn The folder the act was asked in for each message, which an unknown outcome is settled against. It
+     * is the message's own folder for every act but the way back, whose messages carry the folder they are returning to
+     * and were asked out of the folder the act filed them in.
      */
     function handOver(
         asking: ClientSession,
@@ -619,6 +625,7 @@ export function MailboxActsProvider({
         answered: readonly Submitted[],
         askAgain: (messages: readonly ActedMessage[]) => void,
         letGo: (storedEmailIds: readonly string[]) => void,
+        askedIn: (message: ActedMessage) => string = (message) => message.folder,
     ): void {
         function submission(
             batches: readonly Submitted[],
@@ -632,7 +639,7 @@ export function MailboxActsProvider({
                 asked: carried.map((message) => message.storedEmailId),
                 results,
                 failure,
-                askedIn: new Map(carried.map((message) => [message.storedEmailId, message.folder])),
+                askedIn: new Map(carried.map((message) => [message.storedEmailId, askedIn(message)])),
                 askAgain: (storedEmailIds) => {
                     const named = new Set(storedEmailIds);
 
@@ -798,6 +805,7 @@ export function MailboxActsProvider({
                     takeBack(act, again, filedIn);
                 },
                 stillFiled,
+                (message) => filedIn.get(message.storedEmailId) ?? message.folder,
             );
         });
     }

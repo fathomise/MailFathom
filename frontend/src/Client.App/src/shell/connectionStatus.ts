@@ -130,8 +130,9 @@ export function nextChangeIn(evidence: ConnectionEvidence, now: number): number 
 /** The status as every surface reads it. */
 export type ConnectionStatus = ConnectionReading & {
     /**
-     * How many automatic attempts at the session read have been made since the server last answered it, or `null` where
-     * the session read is not what went unanswered — a ticket nothing answered is retried on the stream's own schedule.
+     * How many automatic attempts at the session read have been made since the server last answered it, or `null` while
+     * it answers. The session read is the one thing that says the server is lost — a ticket nothing answered asks the
+     * liveness probe, whose reads are those attempts, rather than saying so itself.
      */
     readonly attempts: number | null;
 

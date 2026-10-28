@@ -1161,8 +1161,9 @@ glyph, the colour and the bar. What is worth reading in the source rather than i
   it (`lasting`) — until the write is answered or ends as unknown. Its close control only closes it.
 - **What the re-read turned up is said once** (*Information - what the server holds*). When the read made once the
   server answers again changes what an unknown write had drawn — a message an act took away comes back, a flag it set
-  goes — one `info` toast says *The screen now shows what the server holds* over *Some changes made as the connection
-  went did not reach it.* A read that confirms every such write says nothing.
+  goes — one `info` toast says *The screen now shows what the server holds* over *Changes made as the connection went
+  are shown as the server holds them now.* It claims nothing about whether they arrived: a change the mail server has
+  not taken yet reads the same as one that never reached MailFathom. A read that confirms every such write says nothing.
 - The stack is newest-first and capped at `maxStack` (4 by default); past it the oldest is dropped.
 - Resting opacity is 0.8 and 1.0 under the pointer, so the content beneath stays readable.
 - The **blocking overlay** is a separate thing from a toast: determinate (a percentage) or

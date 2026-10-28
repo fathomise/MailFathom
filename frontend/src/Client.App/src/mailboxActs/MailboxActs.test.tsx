@@ -15,6 +15,7 @@ import type {
 import { LocalizationProvider } from '../localization/Localization';
 import { PendingChangeLines } from '../pendingChanges/PendingChangeLines';
 import { ReadMarkingContext, nothingMarkedRead, type ReadMarking } from '../readMarking/useReadMarking';
+import { ListedMailContext, nothingListed, type DrawnMail, type ListedMail } from '../messageList/useListedMail';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { PendingChangesProvider } from '../pendingChanges/PendingChanges';
 import { followedChangeInterval } from '../pendingChanges/usePendingChanges';
@@ -298,6 +299,7 @@ function acting(
         telemetry = noTelemetry,
         marking = nothingMarkedRead,
         status = 'online',
+        listed = nothingListed,
     }: {
         flags?: boolean;
         moves?: boolean;
@@ -306,6 +308,7 @@ function acting(
         telemetry?: ClientTelemetry;
         marking?: ReadMarking;
         status?: 'online' | 'disconnected';
+        listed?: ListedMail;
     } = {},
 ): { readonly held: () => MailboxActs; readonly signIn: (next: ClientSession) => void } {
     let signedIn = session;
@@ -317,20 +320,22 @@ function acting(
                     <ReadMarkingContext value={marking}>
                         <ToastsProvider>
                             <ConnectionStatusContext value={statusAt(status)}>
-                                <PendingChangesProvider session={signedIn} transport={deployment.transport}>
-                                    <PendingChangeLines />
-                                    <MailboxActsProvider
-                                        session={signedIn}
-                                        transport={deployment.transport}
-                                        online
-                                        flags={flags}
-                                        moves={moves}
-                                        deletes={deletes}
-                                        composes={composes}
-                                    >
-                                        {children}
-                                    </MailboxActsProvider>
-                                </PendingChangesProvider>
+                                <ListedMailContext value={listed}>
+                                    <PendingChangesProvider session={signedIn} transport={deployment.transport}>
+                                        <PendingChangeLines />
+                                        <MailboxActsProvider
+                                            session={signedIn}
+                                            transport={deployment.transport}
+                                            online
+                                            flags={flags}
+                                            moves={moves}
+                                            deletes={deletes}
+                                            composes={composes}
+                                        >
+                                            {children}
+                                        </MailboxActsProvider>
+                                    </PendingChangesProvider>
+                                </ListedMailContext>
                             </ConnectionStatusContext>
                         </ToastsProvider>
                     </ReadMarkingContext>
@@ -714,6 +719,65 @@ describe('MailboxActsProvider', () => {
         });
     });
 
+    // A way back nobody answered is settled against the folder it was asked out of, which is the one the archive filed
+    // the message in: the message listed back in the inbox is the way back having landed, and nothing is said.
+    it.each([
+        { listedIn: 'work-inbox', said: false, claim: 'move' },
+        { listedIn: 'work-archive', said: true, claim: 'archive' },
+    ])(
+        'settles a way back nobody answered from a page listing the message in $listedIn',
+        async ({ listedIn, said, claim }) => {
+            const observers: ((emails: readonly DrawnMail[], askedAt: number) => void)[] = [];
+            const listed: ListedMail = {
+                ...nothingListed,
+                observe: (observer) => {
+                    observers.push(observer);
+
+                    return () => undefined;
+                },
+            };
+            const archived = deploymentAnswering();
+            const unanswered = deploymentAnswering({}, 504);
+            const deployment: Deployment = {
+                requests: archived.requests,
+                transport: (request) =>
+                    (request.body ?? '').includes('work-inbox')
+                        ? unanswered.transport(request)
+                        : archived.transport(request),
+            };
+            const { held } = acting(deployment, { listed });
+
+            await waitFor(() => {
+                expect(held().refusalOf('archive', [invoice])).toBeNull();
+            });
+
+            perform(held, 'archive', [invoice]);
+            fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+            await screen.findByText('Not known whether this reached the server');
+
+            act(() => {
+                for (const observer of observers) {
+                    observer(
+                        [
+                            {
+                                id: 'message-1',
+                                account: 'work',
+                                folder: listedIn,
+                                unread: false,
+                                flagged: false,
+                                spam: null,
+                            },
+                        ],
+                        Date.now() + 1,
+                    );
+                }
+            });
+
+            expect(screen.queryByText('The screen now shows what the server holds') !== null).toBe(said);
+            expect(held().asked.get('message-1')?.act).toBe(claim);
+        },
+    );
+
     // The mailbox may have moved on between the act and the press, so the way back is read per message exactly as the
     // act is: a row whose reverse move was not written down is still on its way to where the act put it.
     it('counts only the messages the way back was written down for, and goes on claiming the rest', async () => {
@@ -976,6 +1040,17 @@ describe('MailboxActsProvider', () => {
 
         expect(held().asked.get('message-1')?.act).toBe('flag');
         expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
+    // The grant's refusal is for good and the connection's is for now, so the first is what is said: an act this
+    // credential may never take is not drawn back in, worded as a passing loss of the server.
+    it('keeps the grant’s own refusal while the server is out of reach', async () => {
+        const { held } = acting(deploymentAnswering(), { status: 'disconnected', moves: false, deletes: false });
+
+        await waitFor(() => {
+            expect(held().refusalOf('archive', [invoice])).toBe('notOffered');
+        });
+        expect(held().refusalOf('flag', [invoice])).toBe('noConnection');
     });
 
     it('refuses every act before it is pressed while the server is out of reach', async () => {

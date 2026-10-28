@@ -14,6 +14,7 @@ import type { OwnProfileInForce } from '../profile/useOwnProfile';
 import { Settings } from '../settings/Settings';
 import { accountInScope, scopeOfAccount } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
+import { useFocusKeptWhenWithdrawn } from '../controls/useFocusKeptWhenWithdrawn';
 import { ConnectionStatusLine } from './ConnectionStatusLine';
 import { disconnected, useConnectionStatus } from './connectionStatus';
 import { TabModeSwitch, ThemeSegments } from './Preferences';
@@ -80,6 +81,7 @@ export function AccountMenu({
     const { translate } = useLocalization();
     const wide = useWideWorkspace();
     const preferencesRefused = disconnected(useConnectionStatus()) ? translate('preferences.noConnection') : null;
+    const refusalSaid = useFocusKeptWhenWithdrawn<HTMLParagraphElement>(preferencesRefused !== null);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [standing, setStanding] = useState(false);
     const menu = useRef<HTMLDivElement>(null);
@@ -176,7 +178,12 @@ export function AccountMenu({
                         />
 
                         {preferencesRefused === null ? null : (
-                            <p role="status" className="px-3.25 pb-2 text-xs text-muted">
+                            <p
+                                ref={refusalSaid}
+                                role="status"
+                                tabIndex={-1}
+                                className="px-3.25 pb-2 text-xs text-muted outline-none"
+                            >
                                 {preferencesRefused}
                             </p>
                         )}

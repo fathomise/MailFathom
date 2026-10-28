@@ -48,6 +48,9 @@ export interface RequestHandling {
      * requests a probe asks about.
      */
     readonly probes?: boolean;
+
+    /** Whether it writes nothing whatever its method — see `ClientRequest.changesNothing`. */
+    readonly changesNothing?: boolean;
 }
 
 /**
@@ -185,7 +188,8 @@ export function deploymentFetchOver(
         // abandoned through the same signal its caller holds — a wait before a retry included, so no retry is put on a
         // dead link a second after the probe gave up on it.
         const bound = probes ? bounding(livenessBound) : null;
-        const entered = probes ? null : entering.enter(method.toUpperCase() !== 'GET', init.body instanceof Blob);
+        const writes = method.toUpperCase() !== 'GET' && handling.changesNothing !== true;
+        const entered = probes ? null : entering.enter(writes, init.body instanceof Blob);
         const signal = eitherOf(init.signal, bound?.signal ?? entered?.signal);
         const sending: RequestInit = { ...init, signal };
         const moved = (): void => {

@@ -97,9 +97,11 @@ export function useConnectionWatch(
         };
     }, []);
 
-    // The server not answering, whichever read said so: the session read, or a ticket nothing answered.
-    const ticketUnanswered = heldFor !== null && channel.standing === 'unanswered' ? channel.since : null;
-    const unansweredSince = connection.unansweredSince ?? ticketUnanswered;
+    // The server not answering, as the session read says it — the liveness probe among its reads. A ticket nothing
+    // answered is not enough on its own: the mint is bounded, a link saturated by an upload can hold one past its bound
+    // on a server that is alive, and one silence is exactly what the probe refuses to call a lost server. So a ticket
+    // nobody answered asks the probe at once, below, and the probe's two misses are what say the server is lost.
+    const unansweredSince = connection.unansweredSince;
     const unanswered = unansweredSince !== null;
 
     // Whether this is the change from not answering to answering again is kept beside it, since that is the moment
@@ -221,8 +223,9 @@ export function useConnectionWatch(
         }
 
         // SignalR's keep-alive dropped a connection that heard nothing for thirty seconds, which is the first sign of a
-        // link that died without the browser noticing: the server is asked at once whether it is still there.
-        if (step === 'dropped') {
+        // link that died without the browser noticing, and a ticket nobody answered is the same question asked from
+        // the other end: either way the server is asked at once whether it is still there.
+        if (step === 'dropped' || step === 'unanswered') {
             frame.channelDropped();
         }
     }, []);

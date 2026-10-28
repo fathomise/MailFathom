@@ -46,6 +46,13 @@ export interface ClientRequest {
      * stretch it past the bound that makes it a question rather than a wait. It implies `retriedByCaller`.
      */
     readonly probes?: true;
+
+    /**
+     * The request is a `POST` that only asks something — a reply drafted, a phrase read, a day laid out — and writes
+     * nothing, so its waiting is not a write still being sent. A route that asks with a body has nowhere else to put
+     * one, and its method alone would otherwise have it said as *Still sending…* for the minutes an AI provider takes.
+     */
+    readonly changesNothing?: true;
 }
 
 /** What came back, reduced to the three things this package reads. */

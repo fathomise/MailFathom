@@ -18,6 +18,7 @@ import { VersionLine } from '../controls/VersionLine';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
 import { pressVersionLine } from '../developerInformation/developerAccess';
 import type { MessageKey } from '../localization/en';
+import { useFocusKeptWhenWithdrawn } from '../controls/useFocusKeptWhenWithdrawn';
 import { useLocalization } from '../localization/useLocalization';
 import { disconnected, useConnectionStatus } from '../shell/connectionStatus';
 import { useScreenLayer } from '../shell/screenLayers';
@@ -491,6 +492,7 @@ function Application({
     readonly withdrawn: MessageKey | null;
 }) {
     const { translate } = useLocalization();
+    const reason = useFocusKeptWhenWithdrawn<HTMLParagraphElement>(withdrawn !== null);
 
     return (
         <>
@@ -499,7 +501,11 @@ function Application({
 
             <Divider />
 
-            {withdrawn === null ? null : <p className="text-base text-muted">{translate(withdrawn)}</p>}
+            {withdrawn === null ? null : (
+                <p ref={reason} tabIndex={-1} className="text-base text-muted outline-none">
+                    {translate(withdrawn)}
+                </p>
+            )}
 
             <fieldset disabled={withdrawn !== null} className={followingThePerson}>
                 <SectionName>{translate('settings.messageView')}</SectionName>
@@ -534,12 +540,17 @@ function Notifications({
     readonly withdrawn: MessageKey | null;
 }) {
     const { translate } = useLocalization();
+    const reason = useFocusKeptWhenWithdrawn<HTMLParagraphElement>(withdrawn !== null);
 
     return (
         <>
             <SystemNotifications />
 
-            {withdrawn === null ? null : <p className="text-base text-muted">{translate(withdrawn)}</p>}
+            {withdrawn === null ? null : (
+                <p ref={reason} tabIndex={-1} className="text-base text-muted outline-none">
+                    {translate(withdrawn)}
+                </p>
+            )}
 
             <fieldset disabled={withdrawn !== null} className={followingThePerson}>
                 <NotificationDuration preferences={preferences} />
@@ -771,6 +782,7 @@ function Profile({
     readonly withdrawn: MessageKey | null;
 }) {
     const { translate } = useLocalization();
+    const reason = useFocusKeptWhenWithdrawn<HTMLParagraphElement>(withdrawn !== null);
 
     // What a file the person picked was refused for, which belongs to the control they picked it with rather than to
     // the profile: it is decided here and never sent, so nothing outside this surface has anything to do about it.
@@ -879,7 +891,9 @@ function Profile({
             {/* Two reasons a name is shown rather than offered, and each has its own sentence: the credential may
                 change nothing here, or it may and somebody else keeps the name. */}
             {withdrawn !== null ? (
-                <p className="text-base text-muted">{translate(withdrawn)}</p>
+                <p ref={reason} tabIndex={-1} className="text-base text-muted outline-none">
+                    {translate(withdrawn)}
+                </p>
             ) : profile.changeable ? null : (
                 <p className="text-base text-muted">{translate('settings.nameNotYours')}</p>
             )}

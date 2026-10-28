@@ -516,6 +516,9 @@ export function useConnection(
         return () => {
             probe.stop();
             liveness.current = null;
+
+            // A server given up on for one sign-in is nothing to abandon the next one's requests over.
+            abandoning.current = false;
         };
     }, [baseAddress, presenting, online, inFlight]);
 

@@ -1928,7 +1928,7 @@ export const en = {
     'pendingChange.refused': 'The server refused this change.',
     'pendingChange.refusedBody': 'Nothing was written down, so your mailbox is unchanged: {reason}.',
     'pendingChange.reread': 'The screen now shows what the server holds',
-    'pendingChange.rereadBody': 'Some changes made as the connection went did not reach it.',
+    'pendingChange.rereadBody': 'Changes made as the connection went are shown as the server holds them now.',
     'pendingChange.retry': 'Try again',
     'pendingChange.stoppedFollowing': 'This client stopped checking where your changes have got to.',
     'pendingChange.stoppedFollowingBody':

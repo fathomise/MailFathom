@@ -1958,7 +1958,8 @@ export const pl: Catalogue = {
     'pendingChange.refused': 'Serwer odrzucił tę zmianę.',
     'pendingChange.refusedBody': 'Nic nie zostało zapisane, więc skrzynka pozostaje bez zmian: {reason}.',
     'pendingChange.reread': 'Ekran pokazuje teraz to, co zapisał serwer',
-    'pendingChange.rereadBody': 'Część zmian wprowadzonych w chwili zerwania połączenia do niego nie dotarła.',
+    'pendingChange.rereadBody':
+        'Zmiany wprowadzone w chwili zerwania połączenia są pokazane tak, jak zapisał je serwer.',
     'pendingChange.retry': 'Spróbuj ponownie',
     'pendingChange.stoppedFollowing': 'Ten klient przestał sprawdzać, dokąd doszły Twoje zmiany.',
     'pendingChange.stoppedFollowingBody':

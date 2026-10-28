@@ -4939,19 +4939,20 @@ seconds while any request has waited that long, which covers a deployment servin
 Two probes in a row that nothing answered turn the client's connection status to *Not connected to the server*, and
 every request still waiting is abandoned except one whose body is visibly moving — a download whose bytes arrived within
 the last fifteen seconds, or an upload whose answer has not begun. A dead link is therefore said within about a minute
-whatever the operator configured, and a long request on a live connection is never cut. While the status says so,
-every control that writes is refused before it is pressed. Minting a signal ticket and opening the hub connection carry
-the same fifteen-second bound, so a channel reopening over a link that died cannot wait on either for as long as the
-browser does.
+whatever the operator configured, and a long request on a live connection is never cut. While the status says so, every
+control that writes is refused before it is pressed. Minting a signal ticket and opening the hub connection carry the
+same fifteen-second bound, so a channel reopening over a link that died cannot wait on either for as long as the browser
+does.
 
 **A write nobody answered is reported as outcome unknown, never as nothing having been saved.** That covers a write the
 probe abandoned, one the network failed in transit, and one answered `502`, `503`, or `504`, since a gateway may have
-handed it on before it gave up. None of them is sent again — no write route takes an idempotency key yet — and the
-client offers no way to send it again either. It reads everything again once the deployment answers and draws what that
-read shows; for a change to a mailbox it goes on drawing the change until then, and says so once where the read showed
-the change had not landed. A write the client has had no answer to for
-ten seconds says *Still sending…* until it is answered or ends unknown. A refusal the deployment stated, a `4xx` or a
-`429` carrying a problem document, is an answer and keeps its own handling.
+handed it on before it gave up. None of them is sent again — no write route takes an idempotency key yet — and no notice
+about one offers to send it again: a change to a mailbox is drawn as asked, and a message whose send went unanswered is
+said not to be known to have left, with the Outbox as the place to look before sending it a second time. It reads
+everything again once the deployment answers and draws what that read shows; for a change to a mailbox it goes on
+drawing the change until then, and says so once where that read drew something other than the change. A write the client
+has had no answer to for ten seconds says *Still sending…* until it is answered or ends unknown. A refusal the
+deployment stated, a `4xx` or a `429` carrying a problem document, is an answer and keeps its own handling.
 
 **Both are attached to this surface's routes rather than applied as the process's default policy**, which is what keeps
 the health probes answering while the client endpoint is refusing. A default limiter would count a readiness probe

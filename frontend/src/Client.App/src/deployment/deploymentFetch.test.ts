@@ -437,6 +437,32 @@ describe('deploymentFetchOver', () => {
         expect(inFlight.oldest()).toBeNull();
     });
 
+    it('enters a POST that only asks something as a read, so its waiting is never said as a write', async () => {
+        const inFlight = requestsInFlightOver(() => 3);
+        const writesSeen: (number | null)[] = [];
+        const fetchFromDeployment = deploymentFetchOver(
+            wireAnswering(answered).fetching,
+            waitsRecorded().pausing,
+            () => 0.5,
+            6,
+            () => unwatched,
+            inFlight,
+        );
+
+        await fetchFromDeployment(
+            '/mail/replies/draft',
+            { method: 'POST' },
+            () => {
+                writesSeen.push(inFlight.oldestWrite());
+
+                return Promise.resolve(200);
+            },
+            { changesNothing: true },
+        );
+
+        expect(writesSeen).toEqual([null]);
+    });
+
     it('ends a request a probe abandoned while it waited out a retry, with no attempt after it', async () => {
         const inFlight = requestsInFlightOver(() => 0);
         const wire = wireAnswering(unavailable, answered);

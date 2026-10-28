@@ -355,6 +355,7 @@ export function layOutToday(
     return spanned(`POST ${todayLayoutRoute}`, async () => {
         const response = await send(transport, {
             method: 'POST',
+            changesNothing: true,
             path: routeFor(session, todayLayoutRoute),
             headers: { ...headersFor(session), 'Content-Type': 'application/json' },
             body: JSON.stringify({ from: day.from, until: day.until }),
