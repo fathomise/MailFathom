@@ -395,6 +395,52 @@ public sealed class ContactBookWriterTests
         Assert.Equal(new ContactAddressWriter(surface, User, Credential), book.Writers[result.Contact!.Id]);
     }
 
+    /// <summary>An amendment hands the store the caller's surface as the writer of whatever address it adds.</summary>
+    [Theory]
+    [InlineData(ContactAddressWriterKind.Person)]
+    [InlineData(ContactAddressWriterKind.Administrator)]
+    [InlineData(ContactAddressWriterKind.Agent)]
+    public async Task AmendAsync_ThroughASurface_StatesTheCallerAsTheWriter(ContactAddressWriterKind surface)
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var held = ContactOf("Anna Kowalska", "anna@example.test", ContactOrigin.Asserted);
+        book.Hold(held);
+
+        var writer = WriterOver(book);
+
+        // Act
+        await writer.AmendAsync(
+            held.Id,
+            DraftOf("Anna Kowalska", "anna@personal.test"),
+            surface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new ContactAddressWriter(surface, User, Credential), book.Writers[held.Id]);
+    }
+
+    /// <summary>A promotion records whoever promoted as the writer of the copy's addresses.</summary>
+    [Theory]
+    [InlineData(ContactAddressWriterKind.Person)]
+    [InlineData(ContactAddressWriterKind.Administrator)]
+    [InlineData(ContactAddressWriterKind.Agent)]
+    public async Task PromoteAsync_ThroughASurface_RecordsTheCallerAsTheWriter(ContactAddressWriterKind surface)
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var collected = ContactOf("Anna Kowalska", "anna@example.test", ContactOrigin.Collected);
+        book.Hold(Account, collected);
+
+        var writer = WriterOver(book);
+
+        // Act
+        var promoted = await writer.PromoteAsync(collected.Id, surface, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new ContactAddressWriter(surface, User, Credential), book.Writers[promoted.Contact!.Id]);
+    }
+
     private static ContactBookWriter WriterOver(
         InMemoryContactBookStore book,
         params IEnumerable<MailFathomPermission> permissions)

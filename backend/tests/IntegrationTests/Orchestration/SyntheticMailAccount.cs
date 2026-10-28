@@ -102,6 +102,7 @@ internal sealed class SyntheticMailAccount(
         "authored-delete",
         "authored-delete-reads",
         "concurrent-idempotency",
+        "contact-trust",
         "content-inventory",
         "content-inventory-uid-space",
         "content-read",

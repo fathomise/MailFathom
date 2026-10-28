@@ -157,6 +157,61 @@ public sealed class ContactEndpointsTests
         Assert.Null(amended.Value.AddressHolder);
     }
 
+    /// <summary>An amendment through the administrative surface records an administrator as the writer of what it adds.</summary>
+    [Fact]
+    public async Task AmendAsync_AnAssertedContact_RecordsAnAdministratorAsTheWriter()
+    {
+        // Arrange
+        this.Holds(Asserted("Anna Kowalska", "anna@example.test"));
+
+        // Act
+        await ContactEndpoints.AmendAsync(
+            new DefaultHttpContext(),
+            Identity,
+            User,
+            new ContactRecordRequest("Anna Nowak", ["anna@example.test"], "anna@example.test", Note: null),
+            this.Book(),
+            this.Scopes(),
+            this.Roster(),
+            AdministrativeGrant.WholeSurface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.store.Received(1).ReplaceAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<ContactBookHolder>(),
+            Arg.Any<Contact>(),
+            Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Administrator),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A promotion through the administrative surface records an administrator as the writer of the copy.</summary>
+    [Fact]
+    public async Task PromoteAsync_ACollectedContact_RecordsAnAdministratorAsTheWriter()
+    {
+        // Arrange
+        this.Holds(Collected("Anna Kowalska", "anna@example.test"));
+
+        // Act
+        await ContactEndpoints.PromoteAsync(
+            new DefaultHttpContext(),
+            Identity,
+            User,
+            this.Book(),
+            this.Scopes(),
+            this.Roster(),
+            AdministrativeGrant.WholeSurface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.store.Received(1).AddAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<ContactBookHolder>(),
+            Arg.Any<Contact>(),
+            Arg.Is<ContactAddressWriter>(writer => writer.Kind == ContactAddressWriterKind.Administrator),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>A promotion of somebody already asserted wrote nothing either, so it echoes nothing back.</summary>
     [Fact]
     public async Task PromoteAsync_AContactAlreadyAsserted_AnswersWithTheOutcomeAndNoRecord()

@@ -245,9 +245,13 @@ the surface its write came through, the user, the credential the write was admit
 An agent may write somebody down for a user, and that record is read like any other; what it never does is make that
 person's mail trusted, so an instruction an agent followed from a message cannot vouch for the message's own sender. The
 MCP tools that write say so in their descriptions. An amendment keeps the writer each kept address already has and gives
-an address it adds its own writer, so restating a record through MCP does not take away trust a person granted, and
-cannot add any. A promotion records whoever promoted. An address recorded as `Unrecorded` grants nothing until a person
-or an administrator states it again.
+an address it adds its own writer, whoever amends. So restating a record through MCP does not take away trust a person
+granted, and cannot add any — and a person saving the record in the client, which states every address it holds, does
+not vouch for an address an agent added only because it was there. A promotion records whoever promoted.
+
+An address an agent wrote, or one recorded as `Unrecorded`, therefore grants nothing until a person or an administrator
+writes it down themselves: by removing it from the contact and adding it again in a later amendment, or by recording the
+contact afresh. Amending a contact while keeping the address leaves its writer as it was.
 
 **A trusted verdict names the contact that granted it, and removing that contact takes the trust away.** Erasing a
 contact, erasing the user whose book holds it, and deleting the organization whose book holds it each reset every
