@@ -404,11 +404,11 @@ describe('FolderTree', () => {
         expect(screen.getByText('Reading mailboxes and folders…')).toBeDefined();
     });
 
-    it('says it is reading again when the network comes back, rather than swapping the tree in silence', async () => {
+    it('keeps the tree it drew standing through a lost network, and while it reads again once it is back', async () => {
         let reads = 0;
 
         // One transport across all three renders, so what starts the second read is the network coming back rather
-        // than a changed dependency, and that read never answers — which is the wait the note has to report.
+        // than a changed dependency, and that read never answers — which the tree it already drew stands through.
         const transport: MailFathomTransport = () => {
             reads += 1;
 
@@ -421,10 +421,16 @@ describe('FolderTree', () => {
 
         await drawn();
         view.rerender(treeUnder(transport, false));
+
+        expect(screen.getByRole('tree')).toBeDefined();
+
+        const readsOffline = reads;
+
         view.rerender(treeUnder(transport, true));
 
-        expect(screen.getByText('Reading mailboxes and folders…')).toBeDefined();
-        expect(screen.queryByRole('tree')).toBeNull();
+        expect(screen.getByRole('tree')).toBeDefined();
+        expect(screen.queryByText('Reading mailboxes and folders…')).toBeNull();
+        expect(reads).toBeGreaterThan(readsOffline);
     });
 
     it('draws the mailboxes and their folders as one tree', async () => {
@@ -1047,8 +1053,8 @@ describe('FolderTree', () => {
         expect(screen.getByText(/none is declared yet\./)).toBeDefined();
     });
 
-    it('says a deployment that did not answer did not answer, and offers the one way out of it', async () => {
-        const transport = vi.fn(answering('', 503));
+    it('names an answer it could not use, and offers the one way out of it', async () => {
+        const transport = vi.fn(answering('', 500));
 
         renderTree(transport);
 
@@ -1059,6 +1065,20 @@ describe('FolderTree', () => {
         expect(transport).toHaveBeenCalledTimes(2);
     });
 
+    it('keeps reading rather than reporting a failure where the server did not answer, that being the connection’s to say', async () => {
+        const transport = vi.fn(answering('', 503));
+
+        renderTree(transport);
+
+        await waitFor(() => {
+            expect(transport).toHaveBeenCalled();
+        });
+
+        expect(screen.getByText('Reading mailboxes and folders…')).toBeDefined();
+        expect(screen.queryByText(/could not be read/u)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
     it('offers no second attempt at a failure a second attempt would repeat', async () => {
         renderTree(answering('', 403));
 
@@ -1066,12 +1086,13 @@ describe('FolderTree', () => {
         expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     });
 
-    it('reads nothing without a network, and says so rather than waiting in silence', () => {
+    it('reads nothing without a network, and keeps saying it is reading rather than putting a sentence where the tree goes', () => {
         const transport = vi.fn(answering(JSON.stringify(tree)));
 
         renderTree(transport, false);
 
-        expect(screen.getByText(/This machine is offline\./)).toBeDefined();
+        expect(screen.getByText('Reading mailboxes and folders…')).toBeDefined();
+        expect(screen.queryByText(/offline/u)).toBeNull();
         expect(transport).not.toHaveBeenCalled();
     });
 });

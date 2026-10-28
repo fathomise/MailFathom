@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { failed, failureReasonForStatus, read } from './failure';
+import { failed, failureReasonForStatus, read, wentUnanswered } from './failure';
 
 describe('failureReasonForStatus', () => {
     // The reasons exist because a screen acts differently on each, so the mapping is asserted status by status rather
@@ -21,6 +21,27 @@ describe('failureReasonForStatus', () => {
         [503, 'unavailable'],
     ])('reads %i as %s', (status, reason) => {
         expect(failureReasonForStatus(status)).toBe(reason);
+    });
+});
+
+describe('wentUnanswered', () => {
+    it.each([
+        ['nothing at all', null],
+        ['a bad gateway', 502],
+        ['a gateway with nobody behind it', 503],
+        ['a gateway that timed out', 504],
+    ])('reads %s as the server not answering', (_, status) => {
+        expect(wentUnanswered({ reason: 'unavailable', status })).toBe(true);
+    });
+
+    it.each([
+        ['a route the server does not serve', 'unavailable', 404],
+        ['a failure the server itself reported', 'unavailable', 500],
+        ['a refused credential', 'unauthenticated', 401],
+        ['a missing grant', 'unauthorized', 403],
+        ['an answer this client could not read', 'unreadable', 200],
+    ] as const)('reads %s as an answer', (_, reason, status) => {
+        expect(wentUnanswered({ reason, status })).toBe(false);
     });
 });
 

@@ -18,9 +18,6 @@ import { DiscoverSpace } from './DiscoverSpace';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
-// Not catalogue entries: each stands for whatever the frame composed and handed this space.
-const theConnection = 'The connection the frame handed this space.';
-
 // Nothing is read again on the follower's own interval, so what each case drives is the read on mount and whatever a
 // press causes.
 const neverPolls: RunFollowingSchedule = { wait: () => new Promise<void>(() => undefined) };
@@ -65,7 +62,6 @@ function screenOf(
                         transport={transport}
                         accounts={[]}
                         asking={asking}
-                        status={<p>{theConnection}</p>}
                         schedule={neverPolls}
                         onOpenMessage={onOpenMessage}
                     />
@@ -102,14 +98,6 @@ describe('DiscoverSpace', () => {
 
         expect(within(screen.getByRole('list')).getAllByRole('button').length).toBeGreaterThan(0);
         expect(asked).toHaveLength(0);
-    });
-
-    it('carries the connection the frame handed it', () => {
-        const { transport } = deploymentAnswering();
-
-        screenOf(transport);
-
-        expect(screen.getByText(theConnection)).toBeDefined();
     });
 
     it('draws its own question field only while it is the space in front', () => {

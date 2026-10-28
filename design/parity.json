@@ -16,7 +16,8 @@
     "mail-list": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -29,7 +30,8 @@
     "mail-outbox": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -62,7 +64,8 @@
     "mail-spam": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -93,7 +96,8 @@
     "mail-spam-phishing": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -134,7 +138,8 @@
     "mail-thread": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -152,7 +157,8 @@
     "settings-profile": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -175,7 +181,8 @@
     "settings-application": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -203,7 +210,8 @@
     "notifications": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -221,7 +229,8 @@
     "mail-outbox-refused": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -259,7 +268,8 @@
     "mail-change-notice": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -282,7 +292,8 @@
     "composer-held-draft": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -305,7 +316,8 @@
     "mail-drafts": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -338,7 +350,8 @@
     "account-menu": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -361,7 +374,8 @@
     "full-html": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -394,7 +408,8 @@
     "full-html-ask": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -422,7 +437,8 @@
     "message-source-menu": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -450,7 +466,8 @@
     "message-source": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -483,7 +500,8 @@
     "message-source-toolbar": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -516,7 +534,8 @@
     "mail-link-ask": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -545,7 +564,8 @@
       "file": "prototype.dc.html",
       "properties": {
         "theme": null,
-        "space": "calendar"
+        "space": "calendar",
+        "connection": "online"
       },
       "steps": [
         {
@@ -559,7 +579,8 @@
       "file": "prototype.dc.html",
       "properties": {
         "theme": null,
-        "space": "people"
+        "space": "people",
+        "connection": "online"
       },
       "steps": [
         {
@@ -573,7 +594,8 @@
       "file": "prototype.dc.html",
       "properties": {
         "theme": null,
-        "space": "people"
+        "space": "people",
+        "connection": "online"
       },
       "steps": [
         {
@@ -592,7 +614,8 @@
       "file": "prototype.dc.html",
       "properties": {
         "theme": null,
-        "space": "people"
+        "space": "people",
+        "connection": "online"
       },
       "steps": [
         {
@@ -611,7 +634,8 @@
       "file": "prototype.dc.html",
       "properties": {
         "theme": null,
-        "space": "tasks"
+        "space": "tasks",
+        "connection": "online"
       },
       "steps": [
         {
@@ -624,7 +648,8 @@
     "composer": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -649,7 +674,8 @@
     "mail-sender-details": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -677,7 +703,8 @@
     "mail-sender-organization": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -705,7 +732,8 @@
     "mail-sender-organization-deleted": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -733,7 +761,8 @@
     "mail-sender-badge": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -761,7 +790,8 @@
     "message-source-failed": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {
@@ -794,7 +824,8 @@
     "message-source-loading": {
       "file": "prototype.dc.html",
       "properties": {
-        "theme": null
+        "theme": null,
+        "connection": "online"
       },
       "steps": [
         {

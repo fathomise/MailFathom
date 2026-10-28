@@ -22,6 +22,7 @@ export const en = {
     'shell.account': 'Account and preferences',
     'shell.accountMenu': 'Account',
     'shell.more': 'More',
+    'shell.moreDisconnected': 'More - not connected to the server',
     'shell.spaceWithCounts': '{space} - {counts}',
     'shell.mailboxes': 'Mailboxes',
     'shell.tabMode': 'Tab mode',
@@ -995,8 +996,8 @@ export const en = {
     'compose.pastRecall': 'It has gone out, so it cannot be taken back.',
     'compose.noSuchSend': 'The server no longer holds that send.',
     'compose.sendNotRead': 'That send could not be read: {reason}.',
-    'compose.offline':
-        'This machine is offline. What you write is kept here, and it can be filed or sent once the network is back.',
+    'compose.disconnected':
+        'No connection to the server. What you write is not saved on the server, and closing this tab or window loses it. It can be saved or sent once the connection is back.',
     'compose.refusedSendingNotEnabled': 'This server does not send mail. Your administrator can turn sending on.',
     'compose.refusedRecipient':
         'The server refused one of the addresses. Your administrator decides which addresses mail may go to.',
@@ -1302,6 +1303,23 @@ export const en = {
     'connection.lost': 'The server has not answered after {total} attempts.',
     'connection.unreadable': 'The server answered, but this client could not act on the answer: {reason}.',
     'connection.offline': 'This machine is offline. The client reconnects on its own when the network comes back.',
+    'connection.unknown': 'Mailbox status unknown: no connection to the MailFathom server.',
+    'connectionStatus.connecting': 'Connecting to the server…',
+    'connectionStatus.online': 'Connected to the server.',
+    'connectionStatus.delayed': 'Connected, with a delay.',
+    'connectionStatus.disconnected': 'Not connected to the server.',
+    'connectionStatus.alarm': 'Not connected to the server',
+    'connectionStatus.unanswered': 'The server did not answer.',
+    'connectionStatus.attempt': 'Trying again - attempt {attempt} of {total}.',
+    'connectionStatus.attemptsSpent': 'No answer after {total} attempts.',
+    'connectionStatus.channel':
+        'Live updates from the server are not arriving, so what you see is current to the last refresh.',
+    'connectionStatus.mailServer':
+        '{account} cannot reach its mail server. Its changes are kept in MailFathom and reach the mail server once it is back.',
+    'connectionStatus.since': 'Started {time}.',
+    'connectionStatus.retryHint':
+        'Retry asks again now. Otherwise the client keeps asking on its own, at the latest at its next refresh within five minutes.',
+    'connectionStatus.retry': 'Retry',
 
     'containment.failed': 'This part of MailFathom stopped working. Everything around it is unaffected.',
     'containment.failedAgain': 'This part of MailFathom stopped working again. Everything around it is unaffected.',

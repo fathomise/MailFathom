@@ -8,15 +8,22 @@ import { folder, holdTheClock, messageRegion, openSignedIn, openWithTheChannel, 
 import type { FakeDeployment } from './fakeDeployment';
 
 // The client losing its way to the deployment and finding it again: the machine going offline, and the deployment
-// itself going quiet. Each is read off every screen it reaches — the frame's line about the connection, the list, the
+// itself going quiet. Each is read off every screen it reaches — the rail's alarm, the freshness line, the list, the
 // open message, and a search — and off the requests the page issued, because what the client promises about both is
 // that nothing already on the screen is thrown away and that it comes back by itself.
 
-/** The frame's own line saying the machine is offline, which stands whatever each screen below it holds. */
-function offlineLine(page: Page) {
+/**
+ * What a signed-in frame says once the server is out of reach: the rail's alarm, and the freshness line saying it no
+ * longer knows how current the mailboxes are. Either standing is the frame saying so, whatever each screen holds.
+ */
+function outOfReach(page: Page) {
+    return page.getByRole('button', { name: 'Not connected to the server', exact: true });
+}
+
+function mailboxesUnknown(page: Page) {
     return page
         .getByRole('status')
-        .filter({ hasText: 'This machine is offline. The client reconnects on its own when the network comes back.' });
+        .filter({ hasText: 'Mailbox status unknown: no connection to the MailFathom server.' });
 }
 
 /** The longest wait before each automatic attempt: `reconnectionDelay` in `Client.Backend`'s `reconnection.ts`. */
@@ -31,7 +38,7 @@ function sessionReads(deployment: FakeDeployment): number {
     return deployment.requests('GET', '/session').length;
 }
 
-test('says it is offline while keeping the list and the open message, and reads both again once the network is back', async ({
+test('says the server is out of reach while keeping the list and the open message, and reads both again once the network is back', async ({
     page,
     context,
     deployment,
@@ -45,7 +52,8 @@ test('says it is offline while keeping the list and the open message, and reads 
 
     await context.setOffline(true);
 
-    await expect(offlineLine(page)).toBeVisible();
+    await expect(outOfReach(page)).toBeVisible();
+    await expect(mailboxesUnknown(page)).toBeVisible();
     await expect(row(page, 'Message 0')).toBeVisible();
     await expect(row(page, 'Message 7')).toBeVisible();
     await expect(message).toBeVisible();
@@ -56,7 +64,8 @@ test('says it is offline while keeping the list and the open message, and reads 
 
     await context.setOffline(false);
 
-    await expect(offlineLine(page)).toHaveCount(0);
+    await expect(outOfReach(page)).toHaveCount(0);
+    await expect(mailboxesUnknown(page)).toHaveCount(0);
     await expect.poll(() => deployment.channelsOpen()).toBe(1);
     await expect.poll(() => deployment.requests('GET', '/emails').length).toBeGreaterThan(listReads);
     await expect.poll(() => deployment.requests('GET', '/messages/message-7').length).toBeGreaterThan(messageReads);
@@ -80,14 +89,14 @@ test('keeps what a search found while offline, and asks it again once the networ
 
     await context.setOffline(true);
 
-    await expect(offlineLine(page)).toBeVisible();
+    await expect(outOfReach(page)).toBeVisible();
     await expect(found.getByRole('option')).toHaveCount(3);
 
     const searches = deployment.requests('GET', '/emails/search').length;
 
     await context.setOffline(false);
 
-    await expect(offlineLine(page)).toHaveCount(0);
+    await expect(outOfReach(page)).toHaveCount(0);
     await expect.poll(() => deployment.requests('GET', '/emails/search').length).toBeGreaterThan(searches);
     await expect(found.getByRole('option')).toHaveCount(3);
     await expect(search).toHaveValue('renewal');

@@ -4520,7 +4520,9 @@ arrivals stay two statements.
 **A client with no channel behaves exactly as one that never had it.** Every screen re-reads over the routes above, and
 the channel only decides when. So a deployment behind a reverse proxy that does not pass the WebSocket upgrade, or one
 whose client could not connect for any other reason, serves the same client with the same data on the client's own
-interval; the client says nothing about a channel that is merely down. It reconnects on a jittered backoff that stops
+interval. What the client does say is that what it shows may lag: its connection status, the first row of the user
+menu, reads *Connected, with a delay* once a channel has not stood for ten seconds, and a channel back within them is
+never mentioned. It reconnects on a jittered backoff that stops
 growing at thirty seconds and never stops while somebody is signed in, and it tries at once when its window comes back
 to the front or the browser reports its network back.
 

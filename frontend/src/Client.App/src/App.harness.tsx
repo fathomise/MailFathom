@@ -782,10 +782,11 @@ export function telemetryRecording(): {
     };
 }
 
-// The frame is on the screen once the summary above the space has an answer to state, which is what every test that
-// acts on the frame waits for rather than for a timer.
+// The frame is on the screen once the accounts have answered, which the user menu draws as the mailboxes it reads for
+// the person whichever space is in front — and which is what every test that acts on the frame waits for rather than
+// for a timer.
 export async function framed(): Promise<void> {
-    await screen.findByText('Every account is up to date.');
+    await screen.findByRole('list', { name: 'Mailboxes', hidden: true });
 }
 
 export function typeAddress(entry: string): void {

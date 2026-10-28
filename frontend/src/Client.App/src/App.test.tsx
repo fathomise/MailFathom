@@ -96,6 +96,8 @@ describe('App', () => {
                 ? Promise.resolve(complete(accepted))
                 : new Promise<ClientResponse>(() => undefined);
 
+        // Said at the foot of Mail's folder column, which is the one place the freshness line stands.
+        openingAt('#/mail');
         renderApp(servedFrom, heldSession, send);
 
         expect(await screen.findByText('Reading accounts…')).toBeDefined();
@@ -560,6 +562,7 @@ describe('App', () => {
     });
 
     it('says the deployment is not refreshing these accounts when it is not, as its setting rather than a grant', async () => {
+        openingAt('#/mail');
         renderApp(servedFrom, heldSession, deploymentAnswering(directory(false, [workAccount])));
 
         expect(
@@ -570,16 +573,20 @@ describe('App', () => {
     });
 
     it('reports why the accounts could not be read instead of saying nothing about them', async () => {
+        openingAt('#/mail');
         renderApp(servedFrom, heldSession, deploymentAnswering({ status: 403, body: '' }));
 
         expect(await screen.findByText('The accounts could not be read: unauthorized.')).toBeDefined();
     });
 
+    // An answer the client could not use, rather than none at all: a server that did not answer is the connection
+    // status's to say, and the line offers nothing of its own then.
     it('reads the accounts again when the person asks it to, rather than only on a reload', async () => {
-        let accounts: Answer = { status: 503, body: '' };
+        let accounts: Answer = { status: 500, body: '' };
         const deployment: DeploymentTransport = () => (request) =>
             Promise.resolve(complete(request.path.endsWith('/session') ? accepted : accounts));
 
+        openingAt('#/mail');
         renderApp(servedFrom, heldSession, deployment);
         const retry = await screen.findByRole('button', { name: 'Try again' });
 

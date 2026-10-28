@@ -12,7 +12,7 @@ import type {
     SignalStreamSchedule,
 } from '@mailfathom/client-backend';
 import type { SignalledChange, SignalledChanges } from './signalledChanges';
-import { refreshInterval, useSignals } from './useSignals';
+import { refreshInterval, useSignals, type ChannelStep } from './useSignals';
 
 // What is proven here is the connection's lifetime and the fan-out, because those are what this hook owns: the package
 // decides what a payload has to be and when to open again, and the channel itself is the composition root's. So the
@@ -121,6 +121,25 @@ describe('useSignals', () => {
 
         expect(deployment.opened).toHaveLength(1);
         expect(deployment.opened[0]?.url).toContain('/api/client/signals');
+    });
+
+    it('tells the connection status that the channel is opening and how each opening stood', async () => {
+        const deployment = channelHoldingOneConnection();
+        const steps: ChannelStep[] = [];
+        const unanswered: MailFathomTransport = () => Promise.resolve({ status: 503, headers: {}, body: '' });
+
+        renderHook(() =>
+            useSignals(session, mintsTickets, deployment.channel, neverReopens, (step) => steps.push(step)),
+        );
+        await settled();
+
+        expect(steps).toStrictEqual(['opening', 'opened']);
+
+        steps.length = 0;
+        renderHook(() => useSignals(session, unanswered, deployment.channel, neverReopens, (step) => steps.push(step)));
+        await settled();
+
+        expect(steps).toStrictEqual(['opening', 'unanswered']);
     });
 
     it('opens nothing where nobody is signed in', async () => {
@@ -376,18 +395,37 @@ describe('useSignals catching up', () => {
         expect(refreshes()).toBe(2);
     });
 
-    it('refreshes nothing, on the interval or when asked, where nobody is signed in', async () => {
+    it('refreshes nothing on the interval where no channel is held, and every screen once when asked', async () => {
         vi.useFakeTimers();
         windowIs('visible');
         const deployment = channelHoldingOneConnection();
         const view = renderHook(() => useSignals(null, mintsTickets, deployment.channel, neverReopens));
         const refreshes = listening(view.result.current);
 
-        act(() => {
-            view.result.current.refresh();
-        });
         await pass(refreshInterval * 2);
 
         expect(refreshes()).toBe(0);
+
+        act(() => {
+            view.result.current.refresh();
+        });
+
+        expect(refreshes()).toBe(1);
+    });
+
+    it('tells every screen a refresh the frame has already answered as one', async () => {
+        const deployment = channelHoldingOneConnection();
+        const told: SignalledChange[] = [];
+        const view = renderHook(() => useSignals(session, mintsTickets, deployment.channel, neverReopens));
+
+        await settled();
+        act(() => {
+            view.result.current.listen((change) => told.push(change));
+        });
+        act(() => {
+            view.result.current.refresh({ frameAnswered: true });
+        });
+
+        expect(told).toStrictEqual([{ kind: 'refresh', frameAnswered: true }]);
     });
 });

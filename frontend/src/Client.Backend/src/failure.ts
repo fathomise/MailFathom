@@ -54,3 +54,17 @@ export function failureReasonForStatus(status: number): ClientFailureReason {
             return 'unavailable';
     }
 }
+
+/**
+ * Whether nothing answered for the server: no response at all, or a gateway saying the server behind it did not.
+ *
+ * It is the one question the client's connection status asks of a failure. A refusal, an answer this package could not
+ * read, and a route the server does not serve are each an answer, so they say the server is there; only silence, and
+ * the three statuses a proxy writes in the server's place, say it is not.
+ */
+export function wentUnanswered(failure: ClientFailure): boolean {
+    return (
+        failure.reason === 'unavailable' &&
+        (failure.status === null || failure.status === 502 || failure.status === 503 || failure.status === 504)
+    );
+}

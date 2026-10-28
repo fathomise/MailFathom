@@ -51,8 +51,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        m_more      2.2a thread paging at its end: Read more · reading more · “That is the whole of this conversation.”
        m_partial   2.2b partial failure in place of the missing messages; head notes (more people, more messages).
        m_pane      2.2c whole pane: failed, offline, nothing you are allowed to see - “Nothing open” layout.
-       m_folders   2.3a folder column: skeleton (text kept for screen readers), failed, offline (dimmed last tree),
-                        no account.
+       m_folders   2.3a folder column: skeleton (text kept for screen readers), failed, without a connection (the tree
+                        stands, the freshness line says the mailboxes are unknown), no account.
        m_list      2.3b list: empty folder, nothing matches (+ Clear filters), partial failure strip, empty while failing.
        m_kind      2.4a New folder with “Kind of folder” first; a role hides name + inside and shows the hint.
        m_roles     2.4b tree roles Flagged (flag), Important (label_important), All mail (all_inbox); the Outbox (outbox) as a
@@ -61,7 +61,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                         “Reading what you wrote…”, words-only placeholder.
        m_pending   2.6  pending changes in the connection summary: indicator states, panel (sheet on phone) with
                         needs-decision, failed, did not reach deployment, pending count; tracking stopped; late toast.
-       m_sync      2.7  how current the accounts are: green with nothing to open, or amber opening onto name + state.
+       m_sync      2.7  how current the accounts are: green with nothing to open, amber opening onto name + state, or
+                        grey and unknown without a connection to MailFathom.
      TASKS · CALENDAR · PEOPLE
        c_edit      3.1  event edited in place: All day, Starts / Ends, Save disabled with reason.
        t_layout    3.2  Lay out today: waiting, offer (Add to calendar / Leave it), nothing left, allowance spent,
@@ -646,6 +647,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Its own timer: Discover's run() clears `timers`, and the background run must still end. */
       this.bgRunT = setTimeout(this.finishBackgroundRuns, 40000);
       if (this.props.raise && this.props.raise !== "none") this.timers.push(setTimeout(() => this.raiseFailure(this.props.raise), 1200));
+      this.connTickFrom();
     }
 
     toggleSelect = (id) => {
@@ -2406,11 +2408,110 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     markUnread = (id) => this.setState(s => ({ unread: Object.assign({}, s.unread || DEFAULT_UNREAD, { [id]: true }) }));
 
+    /* This client's connection to its server, one status in four: connecting (grey, start-up only), online, delayed,
+       offline. Delayed has two causes — the live channel, and a mail account that cannot reach its mail server for 60 s
+       (`delayedMailServer`) — and red outranks both. The `connection` property pins one; `cycle` (the default) starts
+       online and moves online → delayed (channel) → delayed (mail server) → offline → online every 60 s, so every one
+       can be watched. `connCycleAt` is when the cycle's clock started, and Retry — or Refresh while offline — resets it
+       to online. A pinned status is dated by a sample offset, so its details read the inventory's sample sentence. */
+    connNow() {
+      const pinned = this.props.connection && this.props.connection !== "cycle" ? this.props.connection : null;
+      const now = Date.now();
+      if (this.state.connBack) return { status: "online", since: this.state.connBack };
+      const offset = { delayed: 120000, delayedMailServer: 180000, offline: 40000 }[pinned] || 0;
+      if (pinned) return { status: pinned === "delayedMailServer" ? "delayed" : pinned, cause: pinned, since: this.connMountedAt - offset };
+      const start = this.state.connCycleAt || this.connMountedAt;
+      const step = Math.floor((now - start) / 60000);
+      const cause = ["online", "delayed", "delayedMailServer", "offline"][step % 4];
+      return { status: cause === "delayedMailServer" ? "delayed" : cause, cause, since: start + step * 60000 };
+    }
+
+    connMountedAt = Date.now();
+
+    /* A 15 s tick keeps "Started … ago" live, and it is started from the cycle's clock so every fourth tick lands on a
+       60 s step. */
+    connTickFrom = () => {
+      clearInterval(this.connTick);
+      this.connTick = setInterval(() => this.setState({ connTickAt: Date.now() }), 15000);
+    };
+
+    connRetry = () => {
+      const pinned = this.props.connection && this.props.connection !== "cycle";
+      this.setState(pinned ? { connBack: Date.now(), connDetails: false } : { connCycleAt: Date.now(), connDetails: false });
+      this.connTickFrom();
+    };
+
+    connVals(st, touch, isMobile) {
+      const { status, cause, since } = this.connNow();
+      const offline = status === "offline";
+      const delayed = status === "delayed";
+      const ago = Math.max(0, Math.round((Date.now() - since) / 1000));
+      const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always" });
+      const sinceText = "Started " + (ago < 60 ? rtf.format(-Math.max(1, ago), "second") : rtf.format(-Math.round(ago / 60), "minute")) + ".";
+      /* One block per cause that holds, red alone when offline. */
+      const blocks = offline
+        ? [{ text: "The server did not answer.", attempt: "Trying again - attempt 2 of 5.", since: sinceText }]
+        : cause === "delayedMailServer"
+          ? [{ text: MAIL_ACCOUNTS[2].name + " cannot reach its mail server. Its changes are kept in MailFathom and reach the mail server once it is back.", attempt: "", since: sinceText }]
+          : delayed
+            ? [{ text: "Live updates from the server are not arriving, so what you see is current to the last refresh.", attempt: "", since: sinceText }]
+            : [];
+      const dot = { connecting: "var(--faint)", online: "var(--ok)", delayed: "var(--warn)", offline: "var(--err)" }[status];
+      const sentence = {
+        connecting: "Connecting to the server…",
+        online: "Connected to the server.",
+        delayed: "Connected, with a delay.",
+        offline: "Not connected to the server.",
+      }[status];
+      const open = (delayed || offline) && !!st.connDetails;
+      const toggle = () => { if (delayed || offline) this.setState(s => ({ connDetails: !s.connDetails })); };
+      return {
+        connStatus: status,
+        connOffline: offline,
+        connSentence: sentence,
+        connDotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + dot,
+        connDisclosable: delayed || offline,
+        connDetailsOpen: open,
+        toggleConnDetails: toggle,
+        connChevronStyle: "margin-left:auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted);transition:transform 160ms ease;" + (open ? "transform:rotate(180deg)" : ""),
+        connRowStyle: "display:flex;align-items:center;gap:8px;padding:10px 13px;font-size:13px;color:var(--text2);border-bottom:1px solid var(--line2)" + ((delayed || offline) ? ";cursor:pointer" : ""),
+        connCause: cause,
+        connBlocks: blocks,
+        connRetryShown: offline,
+        connHint: "Retry asks again now. Otherwise the client keeps asking on its own, at the latest at its next refresh within five minutes.",
+        connRetry: this.connRetry,
+        connRetryStyle: "align-self:flex-start;font-size:13px;font-weight:600;color:var(--text2);border:1px solid var(--border2);border-radius:8px;box-sizing:border-box;" +
+          (touch ? "min-height:44px;display:inline-flex;align-items:center;padding:0 16px" : "padding:7px 14px"),
+        /* The rail's alarm: only while offline, directly above Refresh, larger than it and filled. It opens the user menu
+           with the details already open. */
+        connAlarmShown: offline && !isMobile,
+        connAlarmStyle: "flex:0 0 auto;width:" + (touch ? 44 : 40) + "px;height:" + (touch ? 44 : 40) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:var(--err);color:var(--onaccent);box-shadow:0 1px 2px var(--sh-1)",
+        openConnAlarm: () => this.setState({ userMenu: true, connDetails: true }),
+        /* The phone has no rail: the same row stands first in the More sheet's lower group, drawn as the alarm while
+           offline, and the More tile carries the still status dot. */
+        moreConnStyle: "display:flex;align-items:center;gap:16px;box-sizing:border-box;min-height:52px;padding:0 14px;border-radius:12px;font-size:15px;" +
+          (offline ? "background:var(--err-soft);color:var(--err-text)" : "color:var(--text)"),
+        moreConnGlyphShown: offline,
+        moreConnDotShown: !offline,
+        moreTileDotShown: offline,
+        moreTileLabel: offline ? "More - not connected to the server" : "More",
+        /* The freshness line at the foot of Mail's folder column: without the server it does not know, so it says so. */
+        freshUnknown: offline,
+        freshDotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + (offline ? "var(--faint)" : "var(--ok)"),
+        freshText: offline ? "Mailbox status unknown: no connection to the MailFathom server." : "Every account is up to date.",
+        /* The composer stops promising the words are safe while offline: they are kept in this tab alone. */
+        composeRefused: offline,
+        composeRefusedNote: "No connection to the server. What you write is not saved on the server, and closing this tab or window loses it. It can be saved or sent once the connection is back.",
+      };
+    }
+
     /* The global refresh — re-reads the mail in front of the reader and the notification centre.
        Waiting is a pulse, never a spinner. What a re-read turns up in the prototype is the staged
-       batch: a message that arrived, one that changed, one that is no longer where it was. */
+       batch: a message that arrived, one that changed, one that is no longer where it was.
+       While offline it does what Retry does as well: it asks the server again. */
     refreshAll = () => {
       if (this.state.refreshBusy) return;
+      if (this.connNow().status === "offline") this.connRetry();
       const step = (this._demoStep = (this._demoStep || 0));
       this._demoStep = step + 1;
       const b = DEMO_BATCHES[step % DEMO_BATCHES.length];
@@ -3266,6 +3367,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers.forEach(clearTimeout);
       clearTimeout(this.bgRunT);
       clearTimeout(this.peekT);
+      clearInterval(this.connTick);
       if (this.measure) window.removeEventListener("resize", this.measure);
       if (this.ro) this.ro.disconnect();
     }
@@ -4065,6 +4167,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const readPad = (min) => "max(" + min + "px, calc((100% - 880px) / 2))";
 
       const vals = {
+        ...this.connVals(st, touch, isMobile),
         mo,
         moDialog: isMobile ? "sheet" : "pop",
         moSettings: singlePane ? "sheet" : "pop",

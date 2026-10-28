@@ -316,6 +316,7 @@ describe('App session', () => {
     it('names each account and what its last attempt did, behind the line that summarizes them', async () => {
         const failing = { ...workAccount, id: 'news', displayName: 'Newsletters', synchronizationState: 'Unreachable' };
 
+        openingAt('#/mail');
         renderApp(servedFrom, heldSession, deploymentAnswering(directory(true, [workAccount, failing])));
 
         // The one gesture the design asks for: the reading is closed when the frame is drawn, and this is what a
@@ -333,15 +334,18 @@ describe('App session', () => {
     });
 
     it('tells a user holding no account what would fill it, rather than showing a failure', async () => {
+        openingAt('#/mail');
         renderApp(servedFrom, heldSession, deploymentAnswering(directory(true, [])));
 
-        // Read inside the space the client opens on, because the Mail space standing behind it says the same thing in
-        // its folder tree — one sentence about the deployment, drawn wherever a reader would look for the mailboxes.
-        const opened = await screen.findByRole('main', { name: 'Discover' });
+        // Read inside Mail, where both the folder tree and the freshness line at its foot say it — one sentence about
+        // the deployment, drawn wherever a reader would look for the mailboxes.
+        const opened = await screen.findByRole('main', { name: 'Mail' });
 
-        expect(await within(opened).findByText(/No mail account is configured for this user yet\./)).toBeDefined();
         expect(
-            within(opened).getByText(/Your administrator declares which mailboxes the server reads for you/),
-        ).toBeDefined();
+            (await within(opened).findAllByText(/No mail account is configured for this user yet\./)).length,
+        ).toBeGreaterThan(0);
+        expect(
+            within(opened).getAllByText(/Your administrator declares which mailboxes the server reads for you/).length,
+        ).toBeGreaterThan(0);
     });
 });

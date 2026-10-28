@@ -25,6 +25,7 @@ import type { MessageKey } from '../localization/en';
 import type { Locale } from '../localization/locale';
 import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
+import { disconnected, useConnectionStatus } from '../shell/connectionStatus';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useToasts, type Toast } from '../toasts/useToasts';
 import { showOutboxEntry } from '../outbox/showOutboxEntry';
@@ -1194,11 +1195,24 @@ function AttachedFiles({
 // says it: it stands over whatever they turned to next rather than at the foot of a window they are finished
 // with. A refusal is the one the toast and this line both carry, and deliberately — the toast is what reaches somebody
 // who has looked away, and the line is what is still there when they come back to the words the deployment refused.
+//
+// **Without a connection the words are not safe, and the line says so.** What is being written is held in this tab's
+// session store alone, so closing the tab or the window loses it; that is said whenever the server is out of reach —
+// no network, or a server not answering — rather than only when this machine is offline.
 function WhatIsHappening({ standing, online }: { readonly standing: DraftStanding; readonly online: boolean }) {
     const { locale, translate } = useLocalization();
+    const status = useConnectionStatus();
 
-    if (!online) {
-        return <Said text={translate('compose.offline')} warning />;
+    if (!online || disconnected(status)) {
+        return (
+            <p
+                role="status"
+                className="flex shrink-0 items-start gap-2 border-t border-line bg-warning-soft px-3.75 py-2.25 text-base/normal text-pretty text-warning-text"
+            >
+                <Icon name="cloud_off" className="size-icon-md shrink-0" />
+                <span>{translate('compose.disconnected')}</span>
+            </p>
+        );
     }
 
     switch (standing.kind) {

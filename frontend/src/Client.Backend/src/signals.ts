@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
+import { failed, failureReasonForStatus, read, wentUnanswered, type ClientResult } from './failure';
 import { asRecord } from './json';
 import { mostReconnectionAttempts, reconnectionDelay } from './reconnection';
 import { headersFor, routeFor, type ClientSession } from './session';
@@ -149,6 +149,16 @@ export interface SignalStreamSchedule {
     readonly draw: () => number;
 }
 
+/**
+ * How the channel stands after one step of keeping it open, which is what the client's connection status reads.
+ *
+ * Four rather than two, because two of them say different things about the server itself. `refused` is a server that
+ * answered — it minted a ticket, or it refused to — while the socket never stood, which is a proxy that will not pass
+ * the upgrade or a hub that is restarting. `unanswered` is a mint nothing answered, which says the server is not there
+ * at all. `dropped` is a connection that stood and ended, which says neither until somebody asks.
+ */
+export type SignalStanding = 'opened' | 'dropped' | 'refused' | 'unanswered';
+
 /** An open subscription to what a deployment says changed. */
 export interface SignalStream {
     /** Stops it, closing whatever is open and reopening nothing. */
@@ -239,10 +249,13 @@ export function parseClientSignal(payload: unknown): ClientSignal | null {
  * the level a deployment keeps by default; that is where a proxy silently refusing every upgrade becomes visible as
  * something other than a client that feels slow.
  *
+ * What the stream does say is how the channel stands, to the caller rather than to the person: the client's connection
+ * status is one sentence about whether the server is there, and the channel is half of what it reads.
+ *
  * @param told Called once per statement, after the payload has been read as one of the eight.
- * @param opened Called each time a connection has opened and stands. Whatever was said while none stood was said to
- * nobody, so this is the moment a caller reads again what it draws — except after the first opening, which only the
- * caller can tell apart, since only it knows whether anything was drawn before it.
+ * @param stood Called after every step of keeping the channel open, with how it then stands. `opened` is the moment a
+ * caller reads again what it draws, since whatever was said while none stood was said to nobody — except after the
+ * first opening, which only the caller can tell apart, since only it knows whether anything was drawn before it.
  * @returns The subscription, which the caller closes when the person signs out or the deployment changes.
  */
 export function openSignalStream(
@@ -250,7 +263,7 @@ export function openSignalStream(
     transport: MailFathomTransport,
     channel: MailFathomSignalChannel,
     told: (signal: ClientSignal) => void,
-    opened: () => void,
+    stood: (standing: SignalStanding) => void,
     schedule: SignalStreamSchedule,
 ): SignalStream {
     let open: SignalChannelHandle | null = null;
@@ -277,7 +290,9 @@ export function openSignalStream(
             // schedule caps it at its longest.
             refusals = outcome === 'opened' ? 0 : refusals + 1;
 
-            if (outcome === 'refused') {
+            if (outcome !== 'opened') {
+                stood(outcome);
+
                 // The attempt is on the record rather than in the sentence, so an operator reads how long this has been
                 // going on without one record per attempt being a different sentence to group. Crossing the budget is
                 // said once and at a level an operator sees: past it nothing changes about what the client does, which
@@ -293,10 +308,14 @@ export function openSignalStream(
         }
     };
 
-    const openOnce = async (): Promise<'opened' | 'refused'> => {
+    const openOnce = async (): Promise<'opened' | 'refused' | 'unanswered'> => {
         const minted = await readSignalTicket(session, transport);
 
-        if (minted.outcome === 'failed' || hasClosed()) {
+        if (minted.outcome === 'failed') {
+            return wentUnanswered(minted.failure) ? 'unanswered' : 'refused';
+        }
+
+        if (hasClosed()) {
             return 'refused';
         }
 
@@ -339,11 +358,16 @@ export function openSignalStream(
             return 'opened';
         }
 
-        opened();
+        stood('opened');
         writeClientEvent({ event: 'signals_opened' });
         await ended.reached;
         open = null;
         writeClientEvent({ event: 'signals_dropped' });
+
+        // A connection the caller closed did not drop: nobody is left to tell.
+        if (!hasClosed()) {
+            stood('dropped');
+        }
 
         return 'opened';
     };

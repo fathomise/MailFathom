@@ -105,8 +105,13 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="{{ railLabelStyle }}">{{ railLabelPeople }}</div>
     </div>
     <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
-      <div onClick="{{ toggleMore }}" style="{{ railMoreStyle }}" style-hover="background:var(--hover);cursor:pointer">
-        <div style="{{ railIconStyle }}">more_horiz</div>
+      <div role="button" tabindex="0" aria-label="{{ moreTileLabel }}" onClick="{{ toggleMore }}" style="{{ railMoreStyle }}" style-hover="background:var(--hover);cursor:pointer">
+        <div style="{{ railIconWrapStyle }}">
+          <div style="{{ railIconStyle }}">more_horiz</div>
+          <sc-if value="{{ moreTileDotShown }}" hint-placeholder-val="{{ false }}">
+            <span aria-hidden="true" data-rail-dot="dot" style="{{ railDotStyle }}"></span>
+          </sc-if>
+        </div>
         <div style="{{ railLabelStyle }}">More</div>
       </div>
     </sc-if>
@@ -116,6 +121,26 @@ Project repository: https://github.com/fathomise/MailFathom
         <sc-if value="{{ railCaptionShown }}" hint-placeholder-val="{{ true }}"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);text-align:center;line-height:1.4;font-weight:600">Prototype</div></sc-if>
         <sc-if value="{{ userMenuOpen }}" hint-placeholder-val="{{ false }}">
           <div data-motion="pop" data-phase="{{ mo.userMenu }}" style="position:fixed;bottom:18px;left:106px;width:216px;z-index:60;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 10px 24px var(--sh-2),0 2px 6px var(--sh-2);overflow:hidden">
+            <div role="status" aria-expanded="{{ connDetailsOpen }}" onClick="{{ toggleConnDetails }}" style="{{ connRowStyle }}" style-hover="background:var(--hover)">
+              <span aria-hidden="true" style="{{ connDotStyle }}"></span>
+              <span style="flex:1;min-width:0;text-wrap:pretty">{{ connSentence }}</span>
+              <sc-if value="{{ connDisclosable }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ connChevronStyle }}">expand_more</span></sc-if>
+            </div>
+            <sc-if value="{{ connDetailsOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:6px;padding:10px 13px 12px 28px;border-bottom:1px solid var(--line2);font-size:12px;line-height:1.5;color:var(--text2);text-wrap:pretty">
+                <sc-for list="{{ connBlocks }}" as="cb" hint-placeholder-count="1">
+                  <div style="display:flex;flex-direction:column;gap:2px">
+                    <div>{{ cb.text }}</div>
+                    <sc-if value="{{ cb.attempt }}" hint-placeholder-val="{{ false }}"><div>{{ cb.attempt }}</div></sc-if>
+                    <div style="color:var(--faint)">{{ cb.since }}</div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ connRetryShown }}" hint-placeholder-val="{{ false }}">
+                  <div style="color:var(--muted)">{{ connHint }}</div>
+                  <div role="button" tabindex="0" onClick="{{ connRetry }}" style="{{ connRetryStyle }}" style-hover="cursor:pointer;background:var(--hover)">Retry</div>
+                </sc-if>
+              </div>
+            </sc-if>
             <div style="display:flex;flex-direction:column;gap:1px;padding:11px 13px 9px 13px;border-bottom:1px solid var(--line2)">
               <div style="font-size:13px;font-weight:600">{{ meName }}</div>
               <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);padding-top:6px;font-weight:600">Mailboxes</div>
@@ -148,6 +173,11 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;font-size:13px;color:var(--muted);border-top:1px solid var(--line2)" style-hover="cursor:pointer;background:var(--hover)">
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;width:22px;text-align:center">logout</span>Sign out
             </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ connAlarmShown }}" hint-placeholder-val="{{ false }}">
+          <div role="button" tabindex="0" onClick="{{ openConnAlarm }}" title="Not connected to the server" style="{{ connAlarmStyle }}" style-hover="cursor:pointer;opacity:0.9">
+            <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1">cloud_off</span>
           </div>
         </sc-if>
         <div onClick="{{ refreshAll }}" title="Refresh" style="{{ refreshBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">
@@ -275,7 +305,6 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="screen" style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
       <div style="{{ headerStyle }}">
         <div style="{{ screenTitleStyle }}">Discover</div>
-        <div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div>
         <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
           <sc-if value="{{ hasRun }}" hint-placeholder-val="{{ false }}">
             <div style="display:flex;gap:9px;align-items:center">
@@ -811,7 +840,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-for>
           </div>
           <sc-if value="{{ sideExpanded }}" hint-placeholder-val="{{ true }}">
-            <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 14px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
+            <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 14px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);text-wrap:pretty"><span aria-hidden="true" style="{{ freshDotStyle }}"></span>{{ freshText }}</div></div>
           </sc-if>
         </div>
       </sc-if>
@@ -1513,6 +1542,9 @@ Project repository: https://github.com/fathomise/MailFathom
               </sc-if>
               <div contentEditable="true" suppressContentEditableWarning="{{ true }}" ref="{{ bodyRef }}" onKeyDown="{{ composeKeyDown }}" style="{{ composeEditorStyle }}"></div>
               </div>
+              <sc-if value="{{ composeRefused }}" hint-placeholder-val="{{ false }}">
+                <div role="status" style="display:flex;align-items:flex-start;gap:8px;padding:9px 15px;border-top:1px solid var(--line);background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:20px;flex-shrink:0">cloud_off</span><span>{{ composeRefusedNote }}</span></div>
+              </sc-if>
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 15px;border-top:1px solid var(--line);background:var(--sub)">
                 <div onClick="{{ askSend }}" style="{{ composeSendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send</div>
                 <div title="Attach" style="{{ composeAttachStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ composeAttachIconStyle }}">attach_file</span><sc-if value="{{ composeAttachLabel }}" hint-placeholder-val="{{ true }}">Attach</sc-if></div>
@@ -2147,6 +2179,27 @@ Project repository: https://github.com/fathomise/MailFathom
           </div>
         </sc-for>
         <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;padding-top:6px;border-top:1px solid var(--line2)">
+          <div role="status" aria-expanded="{{ connDetailsOpen }}" onClick="{{ toggleConnDetails }}" style="{{ moreConnStyle }}" style-hover="background:var(--hover)">
+            <sc-if value="{{ moreConnGlyphShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1;width:26px;text-align:center">cloud_off</span></sc-if>
+            <sc-if value="{{ moreConnDotShown }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="width:26px;display:flex;justify-content:center"><span style="{{ connDotStyle }}"></span></span></sc-if>
+            <span style="flex:1;min-width:0;font-size:15px">{{ connSentence }}</span>
+            <sc-if value="{{ connDisclosable }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ connChevronStyle }}">expand_more</span></sc-if>
+          </div>
+          <sc-if value="{{ connDetailsOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:8px;padding:4px 14px 12px 56px;font-size:14px;line-height:1.5;color:var(--text2);text-wrap:pretty">
+              <sc-for list="{{ connBlocks }}" as="cb" hint-placeholder-count="1">
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div>{{ cb.text }}</div>
+                  <sc-if value="{{ cb.attempt }}" hint-placeholder-val="{{ false }}"><div>{{ cb.attempt }}</div></sc-if>
+                  <div style="color:var(--faint)">{{ cb.since }}</div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ connRetryShown }}" hint-placeholder-val="{{ false }}">
+                <div style="color:var(--muted)">{{ connHint }}</div>
+                <div role="button" tabindex="0" onClick="{{ connRetry }}" style="{{ connRetryStyle }}" style-hover="cursor:pointer;background:var(--hover)">Retry</div>
+              </sc-if>
+            </div>
+          </sc-if>
           <div onClick="{{ moreRefresh }}" style="{{ moreRowStyle }}" style-hover="background:var(--hover)">
             <span style="{{ refreshIconStyle }};width:26px;text-align:center;font-size:22px">refresh</span>
             <span style="font-size:15px">Refresh</span>
@@ -3390,7 +3443,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="pop" data-phase="{{ mo.agentReturn }}" role="button" tabIndex="0" aria-label="Back to the agent conversation you came from" onClick="{{ backToConv }}" onKeyDown="{{ backToConvKey }}" style="{{ convReturnStyle }}" style-hover="cursor:pointer;opacity:0.92" style-focus="outline:2px solid var(--accent);outline-offset:3px"><span style="{{ convReturnIconStyle }}">arrow_back</span>{{ convReturnLabel }}</div>
   </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;connecting&quot;,&quot;online&quot;,&quot;delayed&quot;,&quot;delayedMailServer&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
 const Component = MailFathomDesign.artboards.prototype(DCLogic, React);
 </script>
 </body>

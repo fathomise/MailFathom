@@ -132,16 +132,10 @@ describe('Space', () => {
         expect(within(agent).queryByText(handedTheStatus)).toBeNull();
     });
 
-    // The other space the design draws the connection in: it stands in this screen's own head above the question
-    // field, so the space is handed the connection where it is built rather than given it here as well.
-    it('stands no connection beneath Discover, which is handed it instead', () => {
-        render(inStrictMode('discover'));
-
-        expect(screen.queryByText(handedTheStatus)).toBeNull();
-    });
-
-    it('carries the connection into Mail and into none of the spaces composing their own columns', () => {
-        for (const space of ['tasks', 'people', 'calendar'] as const) {
+    // The freshness line stands at the foot of Mail's folder column and nowhere else: whether the server can be reached
+    // is the user menu's to say, so no other space carries a line about it.
+    it('carries the connection into Mail and into no other space', () => {
+        for (const space of ['discover', 'tasks', 'people', 'calendar'] as const) {
             const { unmount } = render(inStrictMode(space));
 
             expect(screen.queryByText(handedTheStatus)).toBeNull();

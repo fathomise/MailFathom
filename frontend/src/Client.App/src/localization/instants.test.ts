@@ -3,7 +3,15 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { wordCalendarDay, wordDueDay, wordInstant, wordInstantRange, wordLasting, wordRecentInstant } from './instants';
+import {
+    wordCalendarDay,
+    wordDueDay,
+    wordElapsed,
+    wordInstant,
+    wordInstantRange,
+    wordLasting,
+    wordRecentInstant,
+} from './instants';
 
 // The zone is pinned rather than compared against a formatter built the same way, which is the whole point of this
 // file: an assertion written as `expect(shown).toBe(new Intl.DateTimeFormat(locale, options).format(at))` passes for a
@@ -278,5 +286,19 @@ describe('wordLasting', () => {
 
     it('words days in the reader’s own language', () => {
         expect(wordLasting({ unit: 'day', count: 3 }, 'pl', 'long')).toBe('3 dni');
+    });
+});
+
+describe('wordElapsed', () => {
+    const began = Date.parse('2026-09-21T10:00:00Z');
+
+    it('counts seconds under a minute, minutes under an hour, and hours beyond', () => {
+        expect(wordElapsed(began, began + 40_000, 'en')).toBe('40 seconds ago');
+        expect(wordElapsed(began, began + 3 * 60_000 + 20_000, 'en')).toBe('3 minutes ago');
+        expect(wordElapsed(began, began + 2 * 3_600_000, 'en')).toBe('2 hours ago');
+    });
+
+    it('words the count in the reader’s own language', () => {
+        expect(wordElapsed(began, began + 5 * 3_600_000, 'pl')).toBe('5 godzin temu');
     });
 });

@@ -14,6 +14,7 @@ import type { OwnProfileInForce } from '../profile/useOwnProfile';
 import { Settings } from '../settings/Settings';
 import { accountInScope, scopeOfAccount } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
+import { ConnectionStatusLine } from './ConnectionStatusLine';
 import { TabModeSwitch, ThemeSegments } from './Preferences';
 import { useScreenLayer } from './screenLayers';
 import { useWideWorkspace } from './useWideWorkspace';
@@ -141,6 +142,8 @@ export function AccountMenu({
                 aria-label={translate('shell.accountMenu')}
                 className="surface-pop inset-x-4 top-auto bottom-22 m-0 overflow-hidden rounded-lg border border-line bg-panel p-0 text-base text-text shadow-overlay workspace:inset-x-auto workspace:bottom-4.5 workspace:left-26.5 workspace:w-54"
             >
+                <ConnectionStatusLine place="menu" />
+
                 <div className="flex flex-col gap-0.5 border-b border-line-soft px-3.25 py-2.75">
                     {profile.displayName === null ? null : (
                         <p className="truncate font-semibold">{profile.displayName}</p>

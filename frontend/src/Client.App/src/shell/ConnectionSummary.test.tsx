@@ -13,6 +13,7 @@ import type {
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { PendingChangesContext, nothingPending, type PendingChanges } from '../pendingChanges/usePendingChanges';
+import { ConnectionStatusContext, type ConnectionStatus } from './connectionStatus';
 import { ConnectionSummary } from './ConnectionSummary';
 import { mostReconnectionAttempts, type Connection } from './useConnection';
 
@@ -58,21 +59,45 @@ function failing(reason: ClientFailureReason, status: number | null = 503): Clie
     return { outcome: 'failed', failure: { reason, status } };
 }
 
-function renderSummary(connection: Partial<Connection>, pending: PendingChanges = nothingPending): void {
+const disconnectedStatus: ConnectionStatus = {
+    level: 'disconnected',
+    cause: 'unanswered',
+    since: 0,
+    attempts: 1,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+};
+
+function renderSummary(
+    connection: Partial<Connection>,
+    pending: PendingChanges = nothingPending,
+    status: ConnectionStatus | null = null,
+): void {
+    const summary = (
+        <ConnectionSummary
+            connection={{
+                session: reading,
+                accounts: null,
+                online: true,
+                attempts: 0,
+                unansweredSince: null,
+                accountsReadAt: null,
+                reread: () => undefined,
+                refresh: () => undefined,
+                ...connection,
+            }}
+        />
+    );
+
     render(
         <LocalizationProvider>
             <PendingChangesContext value={pending}>
-                <ConnectionSummary
-                    connection={{
-                        session: reading,
-                        accounts: null,
-                        online: true,
-                        attempts: 0,
-                        reread: () => undefined,
-                        refresh: () => undefined,
-                        ...connection,
-                    }}
-                />
+                {status === null ? (
+                    summary
+                ) : (
+                    <ConnectionStatusContext value={status}>{summary}</ConnectionStatusContext>
+                )}
             </PendingChangesContext>
         </LocalizationProvider>,
     );
@@ -104,6 +129,27 @@ describe('ConnectionSummary', () => {
         expect(
             screen.getByText('This machine is offline. The client reconnects on its own when the network comes back.'),
         ).toBeDefined();
+    });
+
+    it('says only that the mailboxes are unknown once a session stands and the server is out of reach', () => {
+        renderSummary({ ...showing(directory(true, [workAccount])), online: false }, nothingPending, {
+            ...disconnectedStatus,
+            cause: 'offline',
+        });
+
+        expect(screen.getByText('Mailbox status unknown: no connection to the MailFathom server.')).toBeDefined();
+        expect(screen.queryByText(/offline/u)).toBeNull();
+        expect(screen.queryByText('Every account is up to date.')).toBeNull();
+    });
+
+    it('says the mailboxes are unknown while a session that stands went unanswered on its quiet refresh', () => {
+        renderSummary(
+            { ...showing(directory(true, [workAccount])), unansweredSince: 0 },
+            nothingPending,
+            disconnectedStatus,
+        );
+
+        expect(screen.getByText('Mailbox status unknown: no connection to the MailFathom server.')).toBeDefined();
     });
 
     it('says which attempt it is on while it reaches for a deployment that did not answer', () => {
