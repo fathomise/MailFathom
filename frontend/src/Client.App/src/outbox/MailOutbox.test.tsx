@@ -17,6 +17,7 @@ import { WorkspaceProvider } from '../workspace/Workspace';
 import { MailOutboxProvider } from './MailOutbox';
 import type { OutboxDecisionAsked } from './useMailOutbox';
 import { OutboxList } from './OutboxList';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { OutboxPane } from './OutboxPane';
 
 // The Outbox as the frame draws it: one reader of the page, the list in the list's place and the preview in the pane's,
@@ -203,6 +204,23 @@ function Surfaces({
     );
 }
 
+const sharedStatus = {
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+};
+
+const connected: ConnectionStatus = { level: 'online', ...sharedStatus, disconnectedNow: () => false };
+
+const lost: ConnectionStatus = {
+    level: 'disconnected',
+    cause: 'unanswered',
+    since: 0,
+    ...sharedStatus,
+    disconnectedNow: () => true,
+};
+
 function drawing(
     transport: MailFathomTransport,
     {
@@ -210,11 +228,13 @@ function drawing(
         online = true,
         openedOn = sent,
         asked = null,
+        status = null,
     }: {
         entry?: string | null;
         online?: boolean;
         openedOn?: typeof sent | typeof inbox;
         asked?: OutboxDecisionAsked | null;
+        status?: ConnectionStatus | null;
     } = {},
 ) {
     const listeners: SignalListener[] = [];
@@ -236,9 +256,16 @@ function drawing(
                 >
                     <WorkspaceProvider>
                         <ComposingContext value={composing}>
-                            <MailOutboxProvider session={session} transport={transport} online={online} asked={asked}>
-                                <Surfaces transport={transport} entry={entry} openedOn={openedOn} />
-                            </MailOutboxProvider>
+                            <ConnectionStatusContext value={status ?? connected}>
+                                <MailOutboxProvider
+                                    session={session}
+                                    transport={transport}
+                                    online={online}
+                                    asked={asked}
+                                >
+                                    <Surfaces transport={transport} entry={entry} openedOn={openedOn} />
+                                </MailOutboxProvider>
+                            </ConnectionStatusContext>
                         </ComposingContext>
                     </WorkspaceProvider>
                 </SignalledChangesContext>
@@ -458,10 +485,10 @@ describe('the Outbox preview', () => {
         ).toBeDefined();
     });
 
-    it('says why a decision could not be done where the deployment did not answer it', async () => {
+    it('says why a decision could not be done where the deployment answered it with a failure', async () => {
         const held = deployment();
 
-        held.answerDecisionsWith({ status: 503 });
+        held.answerDecisionsWith({ status: 500 });
         drawing(held.transport, { entry: outbox.waitingSend.outgoingEmail });
 
         fireEvent.click(await screen.findByRole('button', { name: 'Cancel sending' }));
@@ -682,5 +709,38 @@ describe('the Outbox preview', () => {
 
         expect(await screen.findByText('Nothing open')).toBeDefined();
         expect(await listed()).toBeDefined();
+    });
+
+    // Every decision in the Outbox writes, so with no route to the server each says why before it is pressed rather
+    // than being taken and then reported as a write whose outcome is unknown.
+    it('refuses every decision before it is pressed while the server is out of reach, and asks nothing', async () => {
+        const held = deployment();
+
+        drawing(held.transport, { entry: outbox.refusedOutgoingSend.outgoingEmail, status: lost });
+
+        const sendAgain = await screen.findByRole('button', {
+            name: 'Send again',
+            description: 'Send again - no connection to the MailFathom server.',
+        });
+
+        expect(sendAgain.getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Dismiss' }).getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(sendAgain);
+
+        expect(held.requests.filter((request) => request.method === 'POST')).toStrictEqual([]);
+    });
+
+    // Nothing answered the decision, so it may have been taken: saying nothing changed would be a guess.
+    it('says it is not known whether a decision nobody answered was taken', async () => {
+        const held = deployment();
+
+        held.answerDecisionsWith({ status: 504 });
+        drawing(held.transport, { entry: outbox.waitingSend.outgoingEmail });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Cancel sending' }));
+
+        expect(await screen.findByText('Not known whether that was done')).toBeDefined();
+        expect(screen.queryByText('Nothing changed')).toBeNull();
     });
 });

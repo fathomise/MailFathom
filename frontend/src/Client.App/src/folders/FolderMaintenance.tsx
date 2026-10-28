@@ -7,6 +7,7 @@ import {
     deleteManagedMailFolder,
     moveManagedMailFolder,
     renameManagedMailFolder,
+    wentUnanswered,
     type ClientFailureReason,
     type ClientResult,
     type ClientSession,
@@ -176,6 +177,14 @@ export function FolderMaintenanceProvider({
         settle: OperationSettled,
         about: Readonly<Record<string, string>>,
     ): void {
+        // Nothing answered, so the folder may have been changed: what is said is that it is not known, and the folders
+        // are drawn as the server holds them once it answers again.
+        if (answer.outcome === 'failed' && wentUnanswered(answer.failure)) {
+            settle({ kind: 'warning', title: translate('folders.actUnknown') });
+
+            return;
+        }
+
         if (answer.outcome === 'failed') {
             settle({
                 kind: 'error',
@@ -336,6 +345,12 @@ export function FolderMaintenanceProvider({
             // count has caught up the tree still subtracts these and undercounts mail that arrives unread afterwards.
             // Following the records through `pendingChanges/` and forgetting each as it converges is the upgrade.
             recordMarked(outcome.markedRead);
+
+            if (outcome.unknown.length > 0) {
+                settle({ kind: 'warning', title: translate('folders.markReadUnknown', { folder: said }) });
+
+                return;
+            }
 
             if (outcome.failure !== null) {
                 settle({

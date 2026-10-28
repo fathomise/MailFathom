@@ -67,12 +67,14 @@ export const en = {
     'agent.notDeleted.unauthenticated':
         'The session ended before the conversation was deleted. Sign in again and delete it.',
     'agent.notDeleted.unauthorized': 'This account is not allowed to delete conversations with the agent.',
-    'agent.notDeleted.unavailable': 'The server could not be reached, so the conversation was not deleted. Try again.',
+    'agent.notDeleted.unavailable':
+        'The server did not answer, so it is not known whether the conversation was deleted. The history shows where it stands once the server answers again.',
     'agent.notDeleted.unreadable':
         'The server answered in a way this client cannot read, so it is not known whether the conversation was deleted.',
     'agent.notArchived.unauthenticated': 'The session ended before the archive changed. Sign in again and try again.',
     'agent.notArchived.unauthorized': 'This account is not allowed to change what is archived with the agent.',
-    'agent.notArchived.unavailable': 'The server could not be reached, so the archive did not change. Try again.',
+    'agent.notArchived.unavailable':
+        'The server did not answer, so it is not known whether the archive changed. The history shows where it stands once the server answers again.',
     'agent.notArchived.unreadable':
         'The server answered in a way this client cannot read, so it is not known whether the archive changed.',
     'agent.tabs': 'Open conversations',
@@ -137,7 +139,7 @@ export const en = {
     'agent.notSent.unauthenticated': 'The session ended before this was sent. Sign in again and send it.',
     'agent.notSent.unauthorized': 'This account is not allowed to talk to the agent.',
     'agent.notSent.unavailable':
-        'This was not sent - the server could not be reached, or the answer it was meant for has just ended. Send it again.',
+        'It is not known whether this was sent - the server did not answer, or the answer it was meant for has just ended. It is kept here, and the conversation shows whether it arrived once the server answers again.',
     'agent.notSent.unreadable':
         'The server accepted this in a way this client cannot read. Open the conversation from the history to see whether it arrived.',
     'agent.notSent.missing': 'This conversation is no longer there, so nothing was sent. Start a new one.',
@@ -411,7 +413,8 @@ export const en = {
     'proposal.refused.unauthenticated':
         'The session ended before this was answered. Sign in again and answer it again.',
     'proposal.refused.unauthorized': 'This account is not allowed to answer what the agent proposes.',
-    'proposal.refused.unavailable': 'The server did not answer, so nothing was done. Try again when it is back.',
+    'proposal.refused.unavailable':
+        'The server did not answer, so it is not known whether this was done. The conversation shows where it stands once the server answers again.',
     'proposal.refused.unreadable':
         'The server’s answer could not be read, so what became of this is not known here. Report it as a defect.',
     'proposal.refused.missing': 'This proposal was already answered, or it is no longer there.',
@@ -575,6 +578,8 @@ export const en = {
         'Both settings are read from the arguments MailFathom was started with, from its environment, and from client.conf beside its own configuration, in that order.',
 
     'preferences.notStated': 'That change was not saved to the server.',
+    'preferences.noConnection': 'There is no connection to the MailFathom server, so these cannot be changed until it is back.',
+    'preferences.stateUnknown': 'The server did not answer, so it is not known whether that change was saved.',
 
     'settings.title': 'Settings',
     'settings.close': 'Close settings',
@@ -595,17 +600,23 @@ export const en = {
         'Your name is managed by your administrator, so it is shown here rather than offered for you to change.',
     'settings.profileNotYours':
         'This sign-in may read what the server holds about you and may not change it, so your name, your picture, and your time zone are shown here rather than offered for you to change.',
+    'settings.preferencesNoConnection':
+        'There is no connection to the MailFathom server, so the settings that follow you between machines are shown here as they stand until it is back. The language and what this machine does are still yours to set.',
+    'settings.profileNoConnection':
+        'There is no connection to the MailFathom server, so your name, your picture, and your time zone are shown here rather than offered for you to change until it is back.',
     'settings.preferencesNotYours':
         'This sign-in may not change the settings that follow you between machines, so they are shown here as they stand. The language and what this machine does are still yours to set.',
     'settings.nameNotAcceptable':
         'That name was not accepted. It cannot be blank or longer than 128 characters, and it cannot be one somebody else on this server already goes by.',
     'settings.nameNotStored': 'That name was not saved to the server, so it still holds you under the old one.',
+    'settings.nameStateUnknown': 'The server did not answer, so it is not known whether that name was saved.',
     'settings.choosePicture': 'Picture',
     'settings.removePicture': 'Remove',
     'settings.pictureBounds': 'JPG/PNG, up to 1 MB',
     'settings.pictureNotAnImageKind': 'That file is neither a JPEG nor a PNG, so it was not sent.',
     'settings.pictureTooLarge': 'That picture is larger than 1 MB, so it was not sent.',
     'settings.pictureNotStored': 'That picture was not saved to the server, so you are still drawn as you were.',
+    'settings.pictureStateUnknown': 'The server did not answer, so it is not known whether that picture was saved.',
     'settings.profileHeld':
         'Your name and picture are held by the server you signed in to, so they follow you between machines. Neither is sent to your mail server.',
     'settings.timeZone': 'Time zone',
@@ -613,6 +624,7 @@ export const en = {
         'Every date you are shown is written in this zone, and it is what “this week” and “since Tuesday” mean when you ask about your mail.',
     'settings.timeZoneNotAcceptable':
         'That time zone was not accepted, so your dates are still written in the old one.',
+    'settings.timeZoneStateUnknown': 'The server did not answer, so it is not known whether that time zone was saved.',
     'settings.timeZoneNotStored':
         'That time zone was not saved to the server, so your dates are still written in the old one.',
     'settings.messageView': 'Message view',
@@ -710,6 +722,8 @@ export const en = {
     'folders.crossesDraftsOrSentTree':
         'A folder cannot be moved into Drafts or Sent from elsewhere, or out of either except into the trash.',
     'folders.actFailed': 'The folder could not be changed: {reason}.',
+    'folders.actUnknown':
+        'Not known whether the folder was changed: the server did not answer. The folders show as the server holds them once it answers again.',
     'folders.actRefused': 'The change was refused. {reason}',
     'folders.actStopped': 'The change is already on its way and closing this does not take it back.',
 
@@ -752,6 +766,8 @@ export const en = {
     'folders.nothingUnread': 'Nothing was unread in {folder}.',
     'folders.markingReadStopped': 'The messages already marked read stay marked read.',
     'folders.markReadFailed': 'Not everything could be marked read in {folder}: {reason}.',
+    'folders.markReadUnknown':
+        'Not known whether everything in {folder} was marked read: the server did not answer. The folder shows as the server holds it once it answers again.',
     'folders.markedReadInPart.one':
         'The first {count} unread message in {folder} was marked read. Ask again for the rest.',
     'folders.markedReadInPart.few':
@@ -1027,6 +1043,11 @@ export const en = {
         'This client is no longer signed in. Sign in again - what you wrote is still here.',
     'compose.failedUnauthorized': 'This credential may not do that on this server. Your administrator can grant that.',
     'compose.failedUnavailable': 'The server did not answer. What you wrote is kept here; try again.',
+    'compose.saveUnknown':
+        'The server did not answer, so it is not known whether this was saved. What you wrote is kept here.',
+    'compose.sendUnknownTitle': 'Not known whether this was sent',
+    'compose.sendUnknown':
+        'The server did not answer the send. If it reached the server it is in the Outbox, so look there before sending it again.',
     'compose.failedUnreadable':
         'The server answered, but this client could not act on the answer. That is a defect worth reporting.',
     'compose.failedMissing':
@@ -1142,6 +1163,10 @@ export const en = {
     'outbox.notDoneTitle': 'Nothing changed',
     'outbox.movedOn': 'It moved on since this was shown, so nothing was changed. The Outbox now says where it stands.',
     'outbox.decisionFailed': 'That could not be done: {reason}.',
+    'outbox.unknownTitle': 'Not known whether that was done',
+    'outbox.decisionUnknown':
+        'The server did not answer, so it may have been done. The Outbox shows where the message stands once the server answers again.',
+    'outbox.noConnection': 'No connection to the MailFathom server, so nothing here can be decided until it is back.',
 
     'list.label': 'Messages',
     'list.reading': 'Reading your mail…',
@@ -2115,6 +2140,8 @@ export const en = {
     'notifications.kind.system': 'System',
 
     'toast.surface': 'Notices',
+    'toast.stillSending': 'Still sending…',
+    'toast.stillSendingBody': 'The server has not answered yet.',
     'toast.close': 'Close',
     'toast.neutral': 'Confirmation',
     'toast.success': 'Success',
@@ -2188,7 +2215,8 @@ export const en = {
     'people.addressHeld': 'Another contact already holds that address.',
     'people.originRefuses': 'That contact is not yours to change.',
     'people.alreadyAsserted': 'That contact is already one of your own.',
-    'people.writeFailed': 'The server did not answer, so nothing was changed.',
+    'people.writeFailed': 'The server did not take that, so nothing was changed.',
+    'people.writeUnknown': 'The server did not answer, so it is not known whether that was changed.',
 
     'person.relationship': 'Relationship state',
     'person.authored': 'AI',
@@ -2282,7 +2310,8 @@ export const en = {
     'calendar.writeNotFound': 'That event is no longer on the calendar.',
     'calendar.writeRefused': 'The server would not take that event. Check the title and the times.',
     'calendar.alreadyOnTheCalendar': 'That date is already on the calendar.',
-    'calendar.writeFailed': 'The server did not answer, so nothing was changed.',
+    'calendar.writeFailed': 'The server did not take that, so nothing was changed.',
+    'calendar.writeUnknown': 'The server did not answer, so it is not known whether that was changed.',
     // The Tasks screen: the grouped list, what a row and its menu carry, the day beside it, and what each write says
     // afterwards. What the design draws and no route answers — a reminder on a task, an estimate of how long it takes,
     // finding it in mail, and exporting the list — is named by no key here, because it is drawn by nothing.
@@ -2341,6 +2370,7 @@ export const en = {
     'tasks.nothingToSchedule': 'Nothing here names a day, so there is nothing to put in the calendar.',
     'tasks.writeFailed': 'The server did not accept that. Nothing was changed.',
     'tasks.writeFailedBecause': 'The server did not accept that: {reason}. Nothing was changed.',
+    'tasks.writeUnknown': 'The server did not answer, so it is not known whether that was changed.',
     'tasks.someRefused.one': 'The server refused one of these. The rest went through.',
     'tasks.someRefused.few': 'The server refused {count} of these. The rest went through.',
     'tasks.someRefused.many': 'The server refused {count} of these. The rest went through.',
@@ -2530,6 +2560,9 @@ export const en = {
     'spam.spamAsking': 'Spam…',
     'spam.notSpamAsking': 'Not spam…',
     'spam.nothingMarked': 'Nothing was marked',
+    'spam.unknownTitle': 'Not known whether this was marked',
+    'spam.unknown':
+        'The server did not answer. It stays shown as you marked it until the server answers again, and then as the server holds it.',
     'spam.notAllMarked': 'Not every message was marked',
     'spam.mixed': 'The selection mixes spam with other mail. Select only one of the two.',
     'spam.chooserTitle.one': 'Mark 1 message as spam',

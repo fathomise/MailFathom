@@ -289,7 +289,7 @@ describe('useSpamMarks', () => {
         const deployment = deploymentAnswering((storedEmailIds) => {
             asked += 1;
 
-            return asked === 1 ? answeredWith('applied')(storedEmailIds) : { status: 503, body: '', headers: {} };
+            return asked === 1 ? answeredWith('applied')(storedEmailIds) : { status: 403, body: '', headers: {} };
         });
 
         drawn([invoice], deployment);
@@ -299,6 +299,20 @@ describe('useSpamMarks', () => {
         await screen.findByText('Nothing was marked');
         expect(await screen.findByRole('button', { name: 'Not spam' })).toBeDefined();
         expect(deployment.requests).toHaveLength(2);
+    });
+
+    // Nothing answered, so the mark may well have been written: it stays drawn as pressed rather than being put back, and
+    // what is said is that it is not known rather than that nothing was marked.
+    it('keeps a mark nobody answered drawn as pressed, and says it is not known whether it was written', async () => {
+        drawn(
+            [invoice],
+            deploymentAnswering(() => ({ status: 504, body: '', headers: {} })),
+        );
+        await markedSpam(/^Phishing/u);
+
+        await screen.findByText('Not known whether this was marked');
+        expect(screen.queryByText('Nothing was marked')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Not spam' })).toBeDefined();
     });
 
     it('says a spam mark moved the message, and draws it leaving its folder, where the deployment moved it', async () => {
@@ -368,7 +382,7 @@ describe('useSpamMarks', () => {
     });
 
     it.each([
-        ['refused', { status: 503, body: '', headers: {} }, 'Nothing was marked'],
+        ['refused', { status: 403, body: '', headers: {} }, 'Nothing was marked'],
         ['written', answeredWith('applied')([invoice.storedEmailId]), 'Marked as spam - 1 messages'],
     ] as const)(
         'keeps the newer mark where an older press is %s after it',

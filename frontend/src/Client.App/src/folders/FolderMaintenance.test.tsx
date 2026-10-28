@@ -10,6 +10,7 @@ import { flagsRecorded } from '../../../../tests/fixtures/changes';
 import { workAccount } from '../../../../tests/fixtures/deployment';
 import { emptyFolderPage, mailboxSize, rowsPerPage, timelinePage } from '../../../../tests/fixtures/mail';
 import { LocalizationProvider } from '../localization/Localization';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { ToastsProvider } from '../toasts/Toasts';
 import { FolderMaintenanceProvider } from './FolderMaintenance';
 import { mostPagesMarkedRead } from './markingEverythingRead';
@@ -115,22 +116,41 @@ function recording(request: ClientRequest): unknown {
     };
 }
 
+/** The connection status at one level, as the frame hands it. */
+function statusAt(level: 'online' | 'disconnected'): ConnectionStatus {
+    const shared = {
+        attempts: null,
+        retry: () => undefined,
+        detailsOpen: false,
+        showDetails: () => undefined,
+        disconnectedNow: () => level === 'disconnected',
+    };
+
+    return level === 'online' ? { level, ...shared } : { level, cause: 'unanswered', since: 0, ...shared };
+}
+
 function maintaining(
     transport: MailFathomTransport,
-    { offered = true, marksRead = true }: { offered?: boolean; marksRead?: boolean } = {},
+    {
+        offered = true,
+        marksRead = true,
+        status = 'online',
+    }: { offered?: boolean; marksRead?: boolean; status?: 'online' | 'disconnected' } = {},
 ): { held: () => FolderMaintenance } {
     function Surrounded({ children }: { readonly children: ReactNode }) {
         return (
             <LocalizationProvider>
                 <ToastsProvider>
-                    <FolderMaintenanceProvider
-                        session={session}
-                        transport={transport}
-                        offered={offered}
-                        marksRead={marksRead}
-                    >
-                        {children}
-                    </FolderMaintenanceProvider>
+                    <ConnectionStatusContext value={statusAt(status)}>
+                        <FolderMaintenanceProvider
+                            session={session}
+                            transport={transport}
+                            offered={offered}
+                            marksRead={marksRead}
+                        >
+                            {children}
+                        </FolderMaintenanceProvider>
+                    </ConnectionStatusContext>
                 </ToastsProvider>
             </LocalizationProvider>
         );
@@ -175,6 +195,24 @@ describe('FolderMaintenanceProvider', () => {
 
         expect(screen.getByRole('heading', { name: 'New folder' })).toBeDefined();
         expect(screen.getByText('Work')).toBeDefined();
+    });
+
+    // A dialog standing when the server stops answering would otherwise take a save that has no route to it.
+    it('refuses a save with no route to the server, saying why where a refusal is said', () => {
+        const answering = deployment();
+        const { held } = maintaining(answering.transport, { status: 'disconnected' });
+
+        act(() => {
+            held().declare(work, null);
+        });
+
+        typed(/Folder name/, 'Projects');
+
+        expect(screen.getByText('Create folder - no connection to the MailFathom server.').getAttribute('role')).toBe(
+            'alert',
+        );
+        expect(screen.getByRole('button', { name: 'Create folder' }).hasAttribute('disabled')).toBe(true);
+        expect(asked(answering.requests)).toEqual([]);
     });
 
     it('makes the folder where somebody named one, and says what was made', async () => {
@@ -469,7 +507,8 @@ describe('FolderMaintenanceProvider', () => {
         ).toBeDefined();
     });
 
-    it('reports a deployment that did not answer as a failure, which is a different sentence', async () => {
+    // Nothing answered, so the folder may have been deleted: saying it could not be changed would be a guess.
+    it('reports a deployment that did not answer as of unknown outcome, which is a different sentence', async () => {
         const { held } = maintaining(() => Promise.reject(new Error('no route to host')));
 
         act(() => {
@@ -478,7 +517,20 @@ describe('FolderMaintenanceProvider', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Delete folder' }));
 
-        expect(await screen.findByText(/The folder could not be changed/)).toBeDefined();
+        expect(await screen.findByText(/Not known whether the folder was changed/)).toBeDefined();
+        expect(screen.queryByText(/The folder could not be changed/)).toBeNull();
+    });
+
+    it('reports a deployment that answered with a failure as one, naming why', async () => {
+        const { held } = maintaining(() => Promise.resolve({ status: 500, body: '', headers: {} }));
+
+        act(() => {
+            held().remove(work, { id: 'CONTRACTS', name: 'Contracts', holdsNested: false });
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Delete folder' }));
+
+        expect(await screen.findByText('The folder could not be changed: unavailable.')).toBeDefined();
     });
 
     it('says nothing under a name nobody has typed, and draws the create button flat instead', () => {

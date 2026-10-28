@@ -7,6 +7,7 @@ import {
     markMailRead,
     mostMessagesPerMutation,
     readMailTimeline,
+    wentUnanswered,
     type ClientFailureReason,
     type ClientSession,
     type MailFathomTransport,
@@ -41,6 +42,13 @@ export interface MarkedEverythingRead {
 
     /** Why it stopped, or `null` where nothing failed. */
     readonly failure: ClientFailureReason | null;
+
+    /**
+     * The messages of every batch nobody answered, whose marking may have landed and may not. They are not among
+     * `markedRead`, because a count taken down for them would stay taken down whatever the server holds; what is owed
+     * instead is saying it is not known, and the folder drawing what the server holds once it answers again.
+     */
+    readonly unknown: readonly MessageMarkedRead[];
 }
 
 /**
@@ -112,6 +120,7 @@ async function submit(
     const batches: Promise<{
         readonly markedRead: readonly MessageMarkedRead[];
         readonly failure: ClientFailureReason | null;
+        readonly unknown: readonly MessageMarkedRead[];
     }>[] = [];
 
     for (let from = 0; from < messages.length; from += mostMessagesPerMutation) {
@@ -123,8 +132,12 @@ async function submit(
                 transport,
                 batch.map(({ storedEmailId }) => storedEmailId),
             ).then((answer) => {
+                if (answer.outcome === 'failed' && wentUnanswered(answer.failure)) {
+                    return { markedRead: [], failure: null, unknown: batch };
+                }
+
                 if (answer.outcome === 'failed') {
-                    return { markedRead: [], failure: answer.failure.reason };
+                    return { markedRead: [], failure: answer.failure.reason, unknown: [] };
                 }
 
                 // The route answers each message on its own, so one moved or deleted since the list was read is refused
@@ -135,7 +148,11 @@ async function submit(
                         .map(({ storedEmailId }) => storedEmailId),
                 );
 
-                return { markedRead: batch.filter(({ storedEmailId }) => taken.has(storedEmailId)), failure: null };
+                return {
+                    markedRead: batch.filter(({ storedEmailId }) => taken.has(storedEmailId)),
+                    failure: null,
+                    unknown: [],
+                };
             }),
         );
     }
@@ -146,5 +163,6 @@ async function submit(
         markedRead: answered.flatMap(({ markedRead }) => markedRead),
         leftBehind: false,
         failure: answered.find(({ failure }) => failure !== null)?.failure ?? null,
+        unknown: answered.flatMap(({ unknown }) => unknown),
     };
 }

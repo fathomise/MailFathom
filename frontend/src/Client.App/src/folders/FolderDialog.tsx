@@ -10,6 +10,7 @@ import { Icon } from '../controls/Icon';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { useTopLayerSurface } from '../shell/screenLayers';
 import {
     admissibleParents,
@@ -104,7 +105,9 @@ export function FolderDialog({
 
     // A save with nothing to ask for is refused for the same reason an empty name is: two requests that would change
     // nothing, and a success toast about a folder nobody touched.
-    const savable = draft !== null && refusal === null && !unchanged(draft);
+    const writeRefused = useWriteRefusal();
+    const unreachable = writeRefused(translate(editing ? 'folders.save' : 'folders.create'));
+    const savable = draft !== null && refusal === null && !unchanged(draft) && unreachable === null;
     const choices = draft === null ? [] : admissibleParents(draft, folders);
     const roles = editing ? [] : creatableRoles;
 
@@ -128,7 +131,13 @@ export function FolderDialog({
                 // engine clears it on the next `showModal`: an answer read twice would make the folder again.
                 dialog.returnValue = '';
 
-                if (answer === 'save' && draft !== null && refusalOf(draft, folders) === null && !unchanged(draft)) {
+                if (
+                    answer === 'save' &&
+                    draft !== null &&
+                    refusalOf(draft, folders) === null &&
+                    !unchanged(draft) &&
+                    unreachable === null
+                ) {
                     onSave(draft);
                 }
             }}
@@ -268,6 +277,14 @@ export function FolderDialog({
                         {refusal === null || refusal === 'nameEmpty' ? null : (
                             <p role="alert" className="text-sm text-warning-text">
                                 {translate(refusalSaid[refusal])}
+                            </p>
+                        )}
+
+                        {/* A dialog opened while the server answered can still be standing when it stops, and its save
+                            would then have no route: it says so where the reason a save is refused is said. */}
+                        {unreachable === null ? null : (
+                            <p role="alert" className="text-sm text-warning-text">
+                                {unreachable}
                             </p>
                         )}
                     </div>

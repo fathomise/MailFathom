@@ -112,7 +112,7 @@ describe('markEverythingRead', () => {
         const { asked, transport } = answering([nothingUnread]);
         const outcome = await markEverythingRead(session, transport, { account: 'work', folder: 'INBOX' });
 
-        expect(outcome).toEqual({ markedRead: [], leftBehind: false, failure: null });
+        expect(outcome).toEqual({ markedRead: [], leftBehind: false, failure: null, unknown: [] });
         expect(asked).toHaveLength(1);
     });
 
@@ -142,6 +142,7 @@ describe('markEverythingRead', () => {
             markedRead: inTheInbox(['one', 'two', 'three']),
             leftBehind: false,
             failure: null,
+            unknown: [],
         });
 
         const written = JSON.parse(asked[2]?.body ?? '{}') as { changes: readonly { storedEmailId: string }[] };
@@ -171,17 +172,23 @@ describe('markEverythingRead', () => {
         const { transport } = answering([page(['one'], 'next'), null, recorded]);
         const outcome = await markEverythingRead(session, transport, { account: 'work', folder: 'INBOX' });
 
-        expect(outcome).toEqual({ markedRead: inTheInbox(['one']), leftBehind: false, failure: 'unavailable' });
+        expect(outcome).toEqual({
+            markedRead: inTheInbox(['one']),
+            leftBehind: false,
+            failure: 'unavailable',
+            unknown: [],
+        });
     });
 
-    it('counts nothing as marked read where the deployment could not be reached to mark it', async () => {
+    // Nothing answered the marking, so it may have landed: it is counted as neither marked nor failed, but as unknown.
+    it('counts nothing as marked read where nothing answered the marking, and says its outcome is unknown', async () => {
         const { transport } = answering([page(['one'], null), null]);
         const outcome = await markEverythingRead(session, transport, { account: 'work', folder: 'INBOX' });
 
-        expect(outcome).toEqual({ markedRead: [], leftBehind: false, failure: 'unavailable' });
+        expect(outcome).toEqual({ markedRead: [], leftBehind: false, failure: null, unknown: inTheInbox(['one']) });
     });
 
-    it('draws read only the batches the deployment took where one of several could not be written', async () => {
+    it('draws read only the batches the deployment took where one of several went unanswered', async () => {
         const ids = numbered(mostMessagesPerMutation + 1);
         const { transport } = answering([
             page(ids.slice(0, 100), 'next'),
@@ -195,7 +202,8 @@ describe('markEverythingRead', () => {
         expect(outcome).toEqual({
             markedRead: inTheInbox(ids.slice(0, mostMessagesPerMutation)),
             leftBehind: false,
-            failure: 'unavailable',
+            failure: null,
+            unknown: inTheInbox(ids.slice(mostMessagesPerMutation)),
         });
     });
 
@@ -206,6 +214,11 @@ describe('markEverythingRead', () => {
         ]);
         const outcome = await markEverythingRead(session, transport, { account: 'work', folder: 'INBOX' });
 
-        expect(outcome).toEqual({ markedRead: inTheInbox(['one', 'three']), leftBehind: false, failure: null });
+        expect(outcome).toEqual({
+            markedRead: inTheInbox(['one', 'three']),
+            leftBehind: false,
+            failure: null,
+            unknown: [],
+        });
     });
 });

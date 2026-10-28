@@ -5,6 +5,7 @@
 import { type RefObject } from 'react';
 import { Confirmation } from '../confirmation/Confirmation';
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { whatWouldBeMissing, type Composition, type SendCaution } from './composition';
@@ -33,6 +34,7 @@ export function SendConfirmation({
     composition,
     draftUnaccepted,
     disabled,
+    refused = null,
     onSend,
 }: {
     /**
@@ -57,9 +59,16 @@ export function SendConfirmation({
     /** Whether the message is already on its way, which is what keeps one press from queueing two. */
     readonly disabled: boolean;
 
+    /**
+     * Why sending cannot be asked for now, where it cannot — no connection to the server. The control stays focusable
+     * and says so on a hover, a focus, or a tap, rather than being a button that does nothing and says nothing.
+     */
+    readonly refused?: string | null;
+
     readonly onSend: () => void;
 }) {
     const { locale, translate } = useLocalization();
+    const refusal = useTip({ says: refused ?? translate('compose.send'), describes: true, onPress: () => undefined });
     const missing = whatWouldBeMissing(composition);
 
     const cautions = [
@@ -81,16 +90,22 @@ export function SendConfirmation({
     return (
         <>
             <button
+                {...(refused === null
+                    ? {
+                          onClick: () => {
+                              asked.current?.showModal();
+                          },
+                      }
+                    : refusal.anchor)}
                 type="button"
-                disabled={disabled}
-                className="flex items-center gap-1.75 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60 pointer-coarse:px-5 pointer-coarse:text-md"
-                onClick={() => {
-                    asked.current?.showModal();
-                }}
+                disabled={disabled && refused === null}
+                aria-disabled={refused === null ? undefined : true}
+                className="flex items-center gap-1.75 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:px-5 pointer-coarse:text-md"
             >
                 <Icon name="send" className="size-icon-md" />
                 {translate('compose.send')}
             </button>
+            {refused === null ? null : refusal.tip}
 
             <Confirmation
                 asked={asked}

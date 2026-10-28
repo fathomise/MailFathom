@@ -8,7 +8,9 @@ import {
     offerOutgoingMailAgain,
     readMailOutbox,
     reopenOutgoingMailAsDraft,
+    wentUnanswered,
     withdrawOutgoingMail,
+    type ClientFailure,
     type ClientFailureReason,
     type ClientResult,
     type ClientSession,
@@ -228,17 +230,23 @@ export function MailOutboxProvider({
         );
     }
 
+    // A decision nobody answered is not known to have been refused: it may have been taken, so what is said is that it is
+    // not known, and the Outbox — read again here — is what shows where the send stands once the server answers.
+    function failedDecision(failure: ClientFailure): Toast {
+        return wentUnanswered(failure)
+            ? { kind: 'warning', title: translate('outbox.unknownTitle'), body: translate('outbox.decisionUnknown') }
+            : {
+                  kind: 'error',
+                  title: translate('outbox.notDoneTitle'),
+                  body: translate('outbox.decisionFailed', { reason: translate(failureLabels[failure.reason]) }),
+              };
+    }
+
     function decided(result: ClientResult<MailOutboxDecision>, taken: Toast): void {
         readAgain();
 
         if (result.outcome === 'failed') {
-            toasts.raise({
-                kind: 'error',
-                title: translate('outbox.notDoneTitle'),
-                body: translate('outbox.decisionFailed', {
-                    reason: translate(failureLabels[result.failure.reason]),
-                }),
-            });
+            toasts.raise(failedDecision(result.failure));
 
             return;
         }
@@ -375,13 +383,7 @@ export function MailOutboxProvider({
             readAgain();
 
             if (result.outcome === 'failed') {
-                toasts.raise({
-                    kind: 'error',
-                    title: translate('outbox.notDoneTitle'),
-                    body: translate('outbox.decisionFailed', {
-                        reason: translate(failureLabels[result.failure.reason]),
-                    }),
-                });
+                toasts.raise(failedDecision(result.failure));
 
                 return;
             }

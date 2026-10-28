@@ -2311,3 +2311,75 @@ describe('Composer, the context it drafts from', () => {
         expect(screen.queryByRole('button', { name: /^Remove .+ from the context$/ })).toBeNull();
     });
 });
+
+// A composer with no route to its server takes no save and no send: both controls say why before they are pressed, and
+// a send that went out and was never answered is not said to have failed, since it may already be on its way.
+describe('Composer, while the connection is in question', () => {
+    const lost: ConnectionStatus = {
+        level: 'disconnected',
+        cause: 'unanswered',
+        since: 0,
+        attempts: null,
+        retry: () => undefined,
+        detailsOpen: false,
+        showDetails: () => undefined,
+        disconnectedNow: () => true,
+    };
+
+    function drawnWhileLost(): { asked: ClientRequest[] } {
+        return drawComposer(
+            { kind: 'new' },
+            {},
+            [work],
+            true,
+            uploadsOneFile,
+            false,
+            noTelemetry,
+            takesNothing,
+            false,
+            lost,
+        );
+    }
+
+    it('refuses sending before it is pressed while the server is out of reach, saying why', () => {
+        drawnWhileLost();
+        address('ada@example.invalid');
+
+        const send = screen.getByRole('button', {
+            name: 'Send',
+            description: 'Send - no connection to the MailFathom server.',
+        });
+
+        expect(send.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(send);
+
+        expect(screen.queryByRole('dialog', { name: 'Send this message?' })).toBeNull();
+    });
+
+    it('refuses saving a draft before it is pressed while the server is out of reach, and asks nothing', () => {
+        const { asked } = drawnWhileLost();
+
+        const save = screen.getByRole('button', {
+            name: 'Save draft',
+            description: 'Save draft - no connection to the MailFathom server.',
+        });
+
+        expect(save.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(save);
+
+        expect(asked.filter((request) => request.method !== 'GET')).toStrictEqual([]);
+    });
+
+    it('says it is not known whether a message was sent when nothing answered the send, and offers no second send', async () => {
+        drawComposer({ kind: 'new' }, { send: { status: 504, body: '' } });
+
+        address('ada@example.invalid');
+        confirmSend();
+
+        expect(await screen.findByText('Not known whether this was sent')).toBeDefined();
+        expect(screen.queryByText('Message not sent')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+});
