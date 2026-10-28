@@ -80,6 +80,11 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
             .HasMaxLength(64)
             .HasDefaultValue(DmarcOutcome.NotReported)
             .IsRequired();
+        entity.Property(email => email.DmarcPolicy)
+            .HasConversion<string>()
+            .HasMaxLength(64)
+            .HasDefaultValue(DmarcPolicyReading.NotEstablished)
+            .IsRequired();
         entity.Property(email => email.AuthorAuthenticationOutcome)
             .HasConversion<string>()
             .HasMaxLength(64)

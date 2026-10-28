@@ -74,6 +74,41 @@ public sealed class SenderTrustTests
         Assert.Equal("authorEvidence", refusal.ParamName);
     }
 
+    /// <summary>
+    /// A known verdict is named by a contact or the owner's own address or domain, never by the organization signature,
+    /// which proves the address itself, and a contact source names its contact while an own source names none.
+    /// </summary>
+    [Theory]
+    [InlineData(SenderTrustSource.None, false)]
+    [InlineData(SenderTrustSource.OrganizationMember, false)]
+    [InlineData(SenderTrustSource.PersonalContact, false)]
+    [InlineData(SenderTrustSource.OwnAccountAddress, true)]
+    public void Known_NamingASourceItCannotCarry_IsRefused(SenderTrustSource source, bool withContact)
+    {
+        // Act
+        var refusal = Assert.Throws<ArgumentException>(() => SenderTrust.Known(
+            source,
+            withContact ? Contact : null,
+            SenderTrustPolicyRevision.None));
+
+        // Assert
+        Assert.Equal("grantedBy", refusal.ParamName);
+    }
+
+    /// <summary>A known verdict records the source and the contact, carries no evidence, and never reads as trusted.</summary>
+    [Fact]
+    public void Known_ByAContact_RecordsTheContactAndIsNotTrusted()
+    {
+        // Act
+        var trust = SenderTrust.Known(SenderTrustSource.OrganizationContact, Contact, SenderTrustPolicyRevision.None);
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Known, trust.Level);
+        Assert.Equal(Contact, trust.RecognizingContactId);
+        Assert.Equal(TrustedAuthorEvidence.None, trust.AuthorEvidence);
+        Assert.False(trust.IsTrusted);
+    }
+
     /// <summary>A verdict a contact reached keeps the contact and the evidence, which is what an operator audits it by.</summary>
     [Fact]
     public void TrustedByContact_WithEvidence_RecordsTheContactAndTheEvidence()

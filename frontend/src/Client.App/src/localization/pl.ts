@@ -1558,11 +1558,13 @@ export const pl: Catalogue = {
     'senderMark.name.signatureMismatch': 'Podejrzana – podpis się nie zgadza',
     'senderMark.name.trusted': 'Zaufany nadawca',
     'senderMark.name.verified': 'Zweryfikowany podpis',
+    'senderMark.name.known': 'Znany nadawca',
     'senderMark.name.authenticationFailed': 'Podejrzana – uwierzytelnienie nadawcy nie powiodło się',
     'senderMark.name.neutral': 'Nierozpoznany nadawca',
     'senderMark.word.suspicious': 'Podejrzana',
     'senderMark.word.trusted': 'Zaufany',
     'senderMark.word.verified': 'Zweryfikowany',
+    'senderMark.word.known': 'Znany',
     'senderMark.details': 'Szczegóły nadawcy',
     'senderMark.rowDetail': '{sender} – {mark}',
     'senderMark.close': 'Zamknij',
@@ -1591,6 +1593,22 @@ export const pl: Catalogue = {
     'senderMark.why.authenticatedUnrecognized':
         '{authenticated} uwierzytelniła tę wiadomość, ale to konto nie rozpoznaje nadawcy.',
     'senderMark.why.nothingEstablished': 'Nic nie ustaliło, kto wysłał tę wiadomość.',
+    'senderMark.why.knownContact':
+        '{address} jest w Twoich kontaktach, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownOrganizationContact':
+        '{address} jest w kontaktach Twojej organizacji, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownOwnAddress':
+        '{address} to jeden z Twoich własnych adresów, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownOwnDomain':
+        '{address} należy do {domain}, domeny Twoich własnych kont, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownContactMonitoringOnly':
+        '{address} jest w Twoich kontaktach, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownOrganizationContactMonitoringOnly':
+        '{address} jest w kontaktach Twojej organizacji, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownOwnAddressMonitoringOnly':
+        '{address} to jeden z Twoich własnych adresów, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownOwnDomainMonitoringOnly':
+        '{address} należy do {domain}, domeny Twoich własnych kont, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
     'senderMark.group.authentication': 'Uwierzytelnienie nadawcy',
     'senderMark.group.trust': 'Zaufanie',
     'senderMark.group.signature': 'Podpis',
@@ -1604,6 +1622,7 @@ export const pl: Catalogue = {
     'senderMark.step.dmarc': 'DMARC',
     'senderMark.step.authorDomain': 'Domena autora',
     'senderMark.step.trustedSender': 'Zaufany nadawca',
+    'senderMark.step.knownSender': 'Znany nadawca',
     'senderMark.step.signed': 'Podpisana',
     'senderMark.step.content': 'Treść niezmieniona',
     'senderMark.step.authority': 'Urząd certyfikacji',
@@ -1628,6 +1647,8 @@ export const pl: Catalogue = {
     'senderMark.dmarc.locally': 'Nie zgłoszono: własne sprawdzenie MailFathom nie ocenia DMARC.',
     'senderMark.dmarc.pass': '{domain} publikuje politykę DMARC, a wiadomość ją spełnia.',
     'senderMark.dmarc.fail': 'Wiadomość nie spełnia polityki DMARC, którą publikuje {domain}.',
+    'senderMark.dmarc.failMonitoringOnly':
+        'Wiadomość nie spełnia polityki DMARC, którą publikuje {domain}, a ta polityka tylko monitoruje (p=none).',
     'senderMark.dmarc.noPolicy': 'Brak polityki: {domain} nie publikuje polityki DMARC, więc nie było czego oceniać.',
     'senderMark.dmarc.temporaryError':
         'Błąd tymczasowy: polityki domeny {domain} nie udało się odczytać, gdy wiadomość dotarła.',
@@ -1641,6 +1662,14 @@ export const pl: Catalogue = {
         '{domain} nie jest ustalona jako autor. Żadna domena nie uwierzytelniła wiadomości.',
     'senderMark.author.notEstablished': 'Nieustalone: nic nie powiązało domeny {domain} z wiadomością.',
     'senderMark.trust.skipped': 'Pominięte, bo autor nie został uwierzytelniony.',
+    'senderMark.trust.skippedKnown': 'Pominięte, bo nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.known.contact': '{address} jest w Twoich kontaktach. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.organizationContact':
+        '{address} jest w kontaktach Twojej organizacji. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.ownAddress':
+        '{address} to jeden z Twoich własnych adresów. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.ownDomain':
+        '{address} należy do {domain}, domeny Twoich własnych kont. Nadawca jest znany tylko z tego adresu.',
     'senderMark.trust.ownAddress': '{address} to jeden z Twoich własnych adresów.',
     'senderMark.trust.ownDomain': '{domain} to domena Twoich własnych kont.',
     'senderMark.trust.trustedSenders': 'Nadawca jest na liście zaufanych nadawców tego konta.',

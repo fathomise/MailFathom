@@ -606,7 +606,9 @@ Six parts of it are worth reading before a caller writes against them:
   message's own DKIM signatures — `authenticated`, `failed`, or `notEstablished`, and `deploymentTrust` is
   whether this deployment recognizes that author — the owner's own addresses, the owner's own domains on an account
   that turns `TrustOwnAccountDomains` on, a contact a person or an administrator wrote down, or the receiving
-  organization's signature — `trusted` or `unknown`. Neither is
+  organization's signature — `trusted`, `known`, or `unknown`. **`known` is weaker than `trusted` and is never a reason
+  to treat the sender as trusted**: the address the email displays is one of those sources while nothing established
+  that its domain sent the email, which a relaxed account (the default) still marks and a strict one never does. Neither is
   derived from the other and no field merges them, because **`authenticated` beside `unknown` is the ordinary state of
   legitimate mail from a correspondent nobody has named** and must not read as a finding against the message. `unknown`
   is also what an email whose author failed carries, which is why the pair is read together. Both values are read from

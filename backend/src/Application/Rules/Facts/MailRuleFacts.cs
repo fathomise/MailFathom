@@ -212,6 +212,7 @@ public sealed class MailRuleFacts
     {
         SenderTrustLevel.Unknown => "unknown",
         SenderTrustLevel.Trusted => "trusted",
+        SenderTrustLevel.Known => "known",
         _ => throw new ArgumentOutOfRangeException(
             nameof(level),
             level,

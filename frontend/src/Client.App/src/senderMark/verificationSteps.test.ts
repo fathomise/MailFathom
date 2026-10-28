@@ -235,6 +235,69 @@ describe('senderVerificationOf', () => {
         });
     });
 
+    const notEstablished: MailSenderVerdict = {
+        ...authenticated,
+        authorAuthentication: 'NotEstablished',
+        authenticatedDomain: null,
+        dkimDomain: 'INVOICING.EXAMPLE',
+        dmarc: 'NotReported',
+    };
+
+    it.each([
+        ['PersonalContact', 'senderMark.why.knownContact', 'senderMark.known.contact'],
+        ['OrganizationContact', 'senderMark.why.knownOrganizationContact', 'senderMark.known.organizationContact'],
+        ['OwnAccountAddress', 'senderMark.why.knownOwnAddress', 'senderMark.known.ownAddress'],
+        ['OwnAccountDomain', 'senderMark.why.knownOwnDomain', 'senderMark.known.ownDomain'],
+    ] as const)(
+        'says a %s knew the sender by address alone, and that nothing confirmed the domain',
+        (source, why, known) => {
+            const read = message({ ...notEstablished, deploymentTrust: 'Known', trustSource: source });
+            const named = { address: 'a.kowalska@contoso.example', domain: 'contoso.example' };
+
+            expect(senderVerificationOf(read, asSent)).toMatchObject({
+                mark: 'known',
+                why: { key: why, values: named },
+            });
+            expect(senderVerificationOf(read, asSent).groups[1]?.steps).toEqual([
+                {
+                    name: 'senderMark.step.trustedSender',
+                    result: 'Skipped',
+                    detail: { key: 'senderMark.trust.skippedKnown', values: { domain: 'contoso.example' } },
+                    facts: null,
+                },
+                {
+                    name: 'senderMark.step.knownSender',
+                    result: 'Passed',
+                    detail: { key: known, values: named },
+                    facts: null,
+                },
+            ]);
+        },
+    );
+
+    it('adds that the domain only monitors where a known sender failed its DMARC checks', () => {
+        const monitored = message({
+            ...notEstablished,
+            authorAuthentication: 'Failed',
+            dmarc: 'Fail',
+            deploymentTrust: 'Known',
+            trustSource: 'OrganizationContact',
+        });
+
+        expect(senderVerificationOf(monitored, asSent).why.key).toBe(
+            'senderMark.why.knownOrganizationContactMonitoringOnly',
+        );
+        expect(stepNamed(monitored, 'senderMark.step.dmarc')).toMatchObject({
+            result: 'Failed',
+            detail: { key: 'senderMark.dmarc.failMonitoringOnly', values: { domain: 'contoso.example' } },
+        });
+        expect(stepNamed(monitored, 'senderMark.step.authorDomain')).toMatchObject({ result: 'Failed' });
+    });
+
+    it('adds no known step for a sender nothing knew', () => {
+        expect(stepNamed(message(notEstablished), 'senderMark.step.knownSender')).toBeUndefined();
+    });
+
     // The organization's signature proves the address rather than a domain, so it holds where no author was established.
     it('passes the trust step for a member of the reader’s organization, naming it, whatever sender authentication found', () => {
         const member = message({

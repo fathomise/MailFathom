@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails.Signatures;
 
 namespace MailFathom.Domain.Emails.Authentication;
@@ -22,9 +23,14 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// on a large shared provider every stranger writes from the owner's domain.
 /// </para>
 /// <para>
+/// <b>An account that is not strict also recognizes a sender by address alone</b>, as <see cref="SenderTrustLevel.Known" />
+/// rather than trusted, wherever nothing tied the message to that address. Every account is relaxed unless it asks to
+/// be strict, because the domains of most real correspondents never authenticate in a way this deployment can see.
+/// </para>
+/// <para>
 /// Contacts are looked up per message rather than held here, so the revision digests what configuration states — the
-/// owner's addresses and domains, and the receiving organization — and the contact that recognized an author is named
-/// by the verdict instead.
+/// owner's addresses and domains, whether the account is strict, and the receiving organization — and the contact that
+/// recognized an author is named by the verdict instead.
 /// </para>
 /// </remarks>
 public sealed class SenderTrustPolicy
@@ -33,26 +39,34 @@ public sealed class SenderTrustPolicy
     private readonly HashSet<SenderDomain> ownAccountDomains;
     private readonly string[] statements;
 
-    private SenderTrustPolicy(HashSet<EmailAddress> ownAccountAddresses, HashSet<SenderDomain> ownAccountDomains)
+    private SenderTrustPolicy(
+        HashSet<EmailAddress> ownAccountAddresses,
+        HashSet<SenderDomain> ownAccountDomains,
+        bool isStrict)
     {
         this.ownAccountAddresses = ownAccountAddresses;
         this.ownAccountDomains = ownAccountDomains;
+        this.IsStrict = isStrict;
 
         this.statements =
         [
             .. ownAccountAddresses.Select(static address => $"own:{address.NormalizedAddress}"),
             .. ownAccountDomains.Select(static domain => $"account:{domain.NormalizedValue}"),
+            .. isStrict ? ["strict"] : Array.Empty<string>(),
         ];
         this.Revision = SenderTrustPolicyRevision.Of(this.statements);
     }
 
     /// <summary>Gets the policy that knows nothing of its own, which is what an account this deployment no longer serves has.</summary>
     /// <remarks>
-    /// It carries <see cref="SenderTrustPolicyRevision.None" /> and states no address and no domain. The contacts a
-    /// caller looked up still count under it, because they are the people who wrote them down rather than this
-    /// account's configuration.
+    /// It carries <see cref="SenderTrustPolicyRevision.None" />, states no address and no domain, and is relaxed as every
+    /// account is by default. The contacts a caller looked up still count under it, because they are the people who
+    /// wrote them down rather than this account's configuration.
     /// </remarks>
-    public static SenderTrustPolicy RecognizingNobody { get; } = new([], []);
+    public static SenderTrustPolicy RecognizingNobody { get; } = new([], [], isStrict: false);
+
+    /// <summary>Gets whether the account recognizes only authors something tied to the address, and so never produces <see cref="SenderTrustLevel.Known" />.</summary>
+    public bool IsStrict { get; }
 
     /// <summary>Gets the revision that names this policy, which a verdict reached without an organization verification is stored with.</summary>
     /// <remarks>A verdict reached for an account of an organization carries a revision that also names that organization, so it differs from this one.</remarks>
@@ -61,16 +75,18 @@ public sealed class SenderTrustPolicy
     /// <summary>Builds the policy one account judges its mail by.</summary>
     /// <param name="ownAccountAddresses">The addresses the receiving account's owner holds across all of their accounts.</param>
     /// <param name="ownAccountDomains">The domains of the owner's accounts where the receiving account opted into them, or none where it did not.</param>
+    /// <param name="isStrict">Whether the account recognizes only authors something tied to the address, which an account asks for and none has by default.</param>
     /// <returns>The policy.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     public static SenderTrustPolicy Create(
         IEnumerable<EmailAddress> ownAccountAddresses,
-        IEnumerable<SenderDomain> ownAccountDomains)
+        IEnumerable<SenderDomain> ownAccountDomains,
+        bool isStrict = false)
     {
         ArgumentNullException.ThrowIfNull(ownAccountAddresses);
         ArgumentNullException.ThrowIfNull(ownAccountDomains);
 
-        return new SenderTrustPolicy([.. ownAccountAddresses], [.. ownAccountDomains]);
+        return new SenderTrustPolicy([.. ownAccountAddresses], [.. ownAccountDomains], isStrict);
     }
 
     /// <summary>Decides what this deployment makes of one message's author.</summary>
@@ -102,7 +118,12 @@ public sealed class SenderTrustPolicy
     /// by whoever sent the message. Two things tie it, asked in this order: the author authenticated by the receiving
     /// server's DMARC <c>pass</c> or by an aligned DKIM signature, never by SPF alone; or the message's own signature
     /// verified and names the author, which holds even where the receiving server reported DMARC <c>fail</c>, because a
-    /// forward or a list that broke the domain's checks leaves it intact. Where neither holds, no source is consulted.
+    /// forward or a list that broke the domain's checks leaves it intact.
+    /// </para>
+    /// <para>
+    /// <b>Where neither holds, a relaxed account still asks the same sources of the address alone</b>, in the same order,
+    /// and a match is <see cref="SenderTrustLevel.Known" />. A server's DMARC <c>fail</c> stops that unless the domain's
+    /// record asks only to be monitored, and a strict account never asks.
     /// </para>
     /// </remarks>
     public SenderTrust Evaluate(
@@ -133,33 +154,60 @@ public sealed class SenderTrustPolicy
 
         var evidence = EvidenceTying(authentication, signature, senderDomain);
 
-        if (evidence == TrustedAuthorEvidence.None)
+        if (this.Recognize(sender, senderDomain, contacts) is not { } recognized)
         {
             return SenderTrust.Unknown(revision);
         }
 
+        var (source, contact) = recognized;
+
+        if (evidence != TrustedAuthorEvidence.None)
+        {
+            return contact is { } contactId
+                ? SenderTrust.TrustedByContact(source, contactId, evidence, revision)
+                : SenderTrust.TrustedAsOwn(source, evidence, revision);
+        }
+
+        return this.KnowsByAddressAlone(authentication)
+            ? SenderTrust.Known(source, contact, revision)
+            : SenderTrust.Unknown(revision);
+    }
+
+    /// <summary>Answers whether an author nothing tied to the address may still be recognized by it.</summary>
+    /// <remarks>
+    /// A server's DMARC <c>fail</c> is the domain's own refusal and stays one, except where the domain publishes a
+    /// policy that asks only to be monitored: its owner then admits that some of their legitimate mail fails, which is
+    /// exactly the mail a relaxed account accepts.
+    /// </remarks>
+    private bool KnowsByAddressAlone(SenderAuthentication authentication) =>
+        !this.IsStrict
+        && (authentication.AuthorAuthentication != AuthorAuthenticationOutcome.Failed
+            || authentication.DmarcPolicy == DmarcPolicyReading.MonitoringOnly);
+
+    /// <summary>Names the highest source that holds the displayed address, and the contact where that source is one.</summary>
+    private (SenderTrustSource Source, ContactId? Contact)? Recognize(
+        EmailAddress sender,
+        SenderDomain senderDomain,
+        RecognizingContacts contacts)
+    {
         if (contacts.OrganizationContact is { } organizationContact)
         {
-            return SenderTrust.TrustedByContact(
-                SenderTrustSource.OrganizationContact,
-                organizationContact,
-                evidence,
-                revision);
+            return (SenderTrustSource.OrganizationContact, organizationContact);
         }
 
         if (this.ownAccountAddresses.Contains(sender))
         {
-            return SenderTrust.TrustedAsOwn(SenderTrustSource.OwnAccountAddress, evidence, revision);
+            return (SenderTrustSource.OwnAccountAddress, null);
         }
 
         if (this.ownAccountDomains.Contains(senderDomain))
         {
-            return SenderTrust.TrustedAsOwn(SenderTrustSource.OwnAccountDomain, evidence, revision);
+            return (SenderTrustSource.OwnAccountDomain, null);
         }
 
         return contacts.PersonalContact is { } personalContact
-            ? SenderTrust.TrustedByContact(SenderTrustSource.PersonalContact, personalContact, evidence, revision)
-            : SenderTrust.Unknown(revision);
+            ? (SenderTrustSource.PersonalContact, personalContact)
+            : null;
     }
 
     /// <summary>Names what ties the message to the address its <c>From</c> displays, or nothing where nothing does.</summary>

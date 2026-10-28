@@ -110,7 +110,7 @@ export function senderVerificationOf(message: MailMessage, wordAt: WordInstant):
         why: whyOf(mark, message.sender, message.signature, named),
         groups: [
             { name: 'senderMark.group.authentication', steps: authenticationSteps(message.sender, named.domain) },
-            { name: 'senderMark.group.trust', steps: [trustStep(message.sender, named)] },
+            { name: 'senderMark.group.trust', steps: trustSteps(message.sender, named) },
             { name: 'senderMark.group.signature', steps: signatureSteps(message.signature, named.address, wordAt) },
         ],
         keyDetails: message.signature.format === 'OpenPgpMime',
@@ -132,6 +132,8 @@ function whyOf(mark: SenderMark, sender: MailSenderVerdict, signature: MailSigna
             return { key: 'senderMark.why.authenticationFailed', values: { domain: named.domain } };
         case 'trusted':
             return trustedWhy(sender, authenticated, named);
+        case 'known':
+            return knownWhy(sender, named);
         case 'verified':
             return {
                 key:
@@ -213,7 +215,9 @@ function authenticationSteps(sender: MailSenderVerdict, domain: string): readonl
               : step('senderMark.step.spf', 'Passed', 'senderMark.spf.passed', { domain: spoken(sender.spfDomain) }),
         locally
             ? step('senderMark.step.dmarc', 'NotChecked', 'senderMark.dmarc.locally')
-            : step('senderMark.step.dmarc', dmarcResult, dmarcKey, { domain }),
+            : monitoringOnlyFailure(sender)
+              ? step('senderMark.step.dmarc', 'Failed', 'senderMark.dmarc.failMonitoringOnly', { domain })
+              : step('senderMark.step.dmarc', dmarcResult, dmarcKey, { domain }),
         authorStep(sender, domain),
     ];
 }
@@ -256,6 +260,76 @@ function organizationMemberWhy(organization: string | null): Said {
     return organization === null
         ? { key: 'senderMark.why.trustedOrganizationMemberDeleted' }
         : { key: 'senderMark.why.trustedOrganizationMember', values: { organization } };
+}
+
+// A sender is known only where authentication did not hold, and under a DMARC failure only because the domain's policy
+// does no more than monitor, so a known sender beside a failure is that exception and needs no fact of its own.
+function monitoringOnlyFailure(sender: MailSenderVerdict): boolean {
+    return sender.deploymentTrust === 'Known' && sender.authorAuthentication === 'Failed';
+}
+
+type KnownSource = 'contact' | 'organizationContact' | 'ownAddress' | 'ownDomain';
+
+function knownSourceOf(sender: MailSenderVerdict): KnownSource {
+    switch (sender.trustSource) {
+        case 'OrganizationContact':
+            return 'organizationContact';
+        case 'OwnAccountAddress':
+            return 'ownAddress';
+        case 'OwnAccountDomain':
+            return 'ownDomain';
+        default:
+            return 'contact';
+    }
+}
+
+const knownWhySaid: Readonly<Record<KnownSource, { readonly plain: MessageKey; readonly monitoringOnly: MessageKey }>> =
+    {
+        contact: { plain: 'senderMark.why.knownContact', monitoringOnly: 'senderMark.why.knownContactMonitoringOnly' },
+        organizationContact: {
+            plain: 'senderMark.why.knownOrganizationContact',
+            monitoringOnly: 'senderMark.why.knownOrganizationContactMonitoringOnly',
+        },
+        ownAddress: {
+            plain: 'senderMark.why.knownOwnAddress',
+            monitoringOnly: 'senderMark.why.knownOwnAddressMonitoringOnly',
+        },
+        ownDomain: {
+            plain: 'senderMark.why.knownOwnDomain',
+            monitoringOnly: 'senderMark.why.knownOwnDomainMonitoringOnly',
+        },
+    };
+
+const knownStepSaid: Readonly<Record<KnownSource, MessageKey>> = {
+    contact: 'senderMark.known.contact',
+    organizationContact: 'senderMark.known.organizationContact',
+    ownAddress: 'senderMark.known.ownAddress',
+    ownDomain: 'senderMark.known.ownDomain',
+};
+
+function knownWhy(sender: MailSenderVerdict, named: Named): Said {
+    const said = knownWhySaid[knownSourceOf(sender)];
+
+    return {
+        key: monitoringOnlyFailure(sender) ? said.monitoringOnly : said.plain,
+        values: { address: named.address, domain: named.domain },
+    };
+}
+
+// A known sender is not a trusted one, so the trust step is skipped for the reason that keeps it from being one, and a
+// step of its own says where the address was found.
+function trustSteps(sender: MailSenderVerdict, named: Named): readonly VerificationStep[] {
+    if (sender.deploymentTrust !== 'Known') {
+        return [trustStep(sender, named)];
+    }
+
+    return [
+        step('senderMark.step.trustedSender', 'Skipped', 'senderMark.trust.skippedKnown', { domain: named.domain }),
+        step('senderMark.step.knownSender', 'Passed', knownStepSaid[knownSourceOf(sender)], {
+            address: named.address,
+            domain: named.domain,
+        }),
+    ];
 }
 
 function trustStep(sender: MailSenderVerdict, named: Named): VerificationStep {

@@ -340,6 +340,21 @@ describe('readMailTimeline', () => {
         expect(result.outcome === 'read' && result.value.emails[0]?.sender).toStrictEqual(sender);
     });
 
+    it('reads a row whose sender is known by their address alone', async () => {
+        const sender = {
+            authorAuthentication: 'NotEstablished',
+            deploymentTrust: 'Known',
+            signatureOutcome: 'NotSigned',
+            signerMatchesAuthor: false,
+        };
+
+        const transport = answering({ status: 200, body: bodyOf([{ ...message, sender }]) });
+
+        const result = await readMailTimeline(session, transport, leadingPage);
+
+        expect(result.outcome === 'read' && result.value.emails[0]?.sender).toStrictEqual(sender);
+    });
+
     it('reads a message no derivation has reached as carrying none', async () => {
         const transport = answering({ status: 200, body: bodyOf([{ ...message, enrichment: null }]) });
 

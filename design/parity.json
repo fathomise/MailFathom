@@ -787,6 +787,35 @@
         }
       ]
     },
+    "mail-sender-known": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Legal opinion - indexation cap"
+          }
+        },
+        {
+          "click": {
+            "text": "Known"
+          }
+        },
+        {
+          "expect": {
+            "text": "Sender authentication"
+          }
+        }
+      ]
+    },
     "message-source-failed": {
       "file": "prototype.dc.html",
       "properties": {

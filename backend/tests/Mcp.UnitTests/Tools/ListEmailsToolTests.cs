@@ -568,6 +568,29 @@ public sealed class ListEmailsToolTests
         Assert.Equal(DeploymentTrustState.Unknown, published.SenderVerification.DeploymentTrust);
     }
 
+    /// <summary>A sender known by address alone is published as known, a value of its own and never as trusted.</summary>
+    [Fact]
+    public async Task ListEmailsAsync_SenderKnownByAddressAlone_PublishesKnown()
+    {
+        // Arrange
+        var summary = SummaryReceivedAt(new DateTimeOffset(2026, 3, 1, 8, 0, 0, TimeSpan.Zero)) with
+        {
+            SenderVerification = new SenderVerification
+            {
+                AuthorAuthentication = AuthorAuthenticationOutcome.NotEstablished,
+                DeploymentTrust = SenderTrustLevel.Known,
+            },
+        };
+        var tool = ToolOver(new StubStoredEmailTimelineReader(summary));
+
+        // Act
+        var result = await tool.ListEmailsAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        var published = Assert.Single(result.Emails);
+        Assert.Equal(DeploymentTrustState.Known, published.SenderVerification.DeploymentTrust);
+    }
+
     /// <summary>The authorship reading is published beside the verdict, which is the whole point of storing it.</summary>
     [Fact]
     public async Task ListEmailsAsync_AnAssessedEmail_PublishesTheAuthorshipReadingBesideTheVerdict()

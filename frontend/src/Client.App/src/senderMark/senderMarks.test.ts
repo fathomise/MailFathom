@@ -12,11 +12,11 @@ import type {
 import { marksSender, senderMarkOf } from './senderMarks';
 
 const authentications: readonly MailAuthorAuthentication[] = ['NotEstablished', 'Failed', 'Authenticated'];
-const trusts: readonly MailDeploymentTrust[] = ['Unknown', 'Trusted'];
+const trusts: readonly MailDeploymentTrust[] = ['Unknown', 'Trusted', 'Known'];
 const outcomes: readonly MailSignatureOutcome[] = ['NotSigned', 'Verified', 'Failed', 'NotVerifiable'];
 
-// Every combination of the four facts a row can carry: three authentications, two trusts, four outcomes, and whether
-// the signer is the author — forty-eight senders, each of which the rule has to place somewhere.
+// Every combination of the four facts a row can carry: three authentications, three trusts, four outcomes, and whether
+// the signer is the author — seventy-two senders, each of which the rule has to place somewhere.
 const everySender: readonly MailListedSender[] = authentications.flatMap((authorAuthentication) =>
     trusts.flatMap((deploymentTrust) =>
         outcomes.flatMap((signatureOutcome) =>
@@ -42,7 +42,13 @@ const trusted = everySender.filter(
 );
 const verified = everySender.filter(
     (sender) =>
-        sender.deploymentTrust === 'Unknown' && sender.signatureOutcome === 'Verified' && sender.signerMatchesAuthor,
+        sender.deploymentTrust !== 'Trusted' && sender.signatureOutcome === 'Verified' && sender.signerMatchesAuthor,
+);
+const known = everySender.filter(
+    (sender) =>
+        sender.deploymentTrust === 'Known' &&
+        sender.signatureOutcome !== 'Failed' &&
+        !(sender.signatureOutcome === 'Verified' && sender.signerMatchesAuthor),
 );
 const failed = everySender.filter(
     (sender) =>
@@ -53,12 +59,12 @@ const failed = everySender.filter(
 );
 
 describe('senderMarkOf', () => {
-    it('places every one of the forty-eight senders in exactly one of the five marks', () => {
-        const placed = [forged, trusted, verified, failed].flat();
+    it('places every one of the seventy-two senders in exactly one of the six marks', () => {
+        const placed = [forged, trusted, verified, known, failed].flat();
         const neutral = everySender.filter((sender) => !placed.includes(sender));
 
-        expect(everySender).toHaveLength(48);
-        expect(placed.length + neutral.length).toBe(48);
+        expect(everySender).toHaveLength(72);
+        expect(new Set(placed).size).toBe(placed.length);
         expect(neutral.map(senderMarkOf).every((mark) => mark === 'neutral')).toBe(true);
     });
 
@@ -80,6 +86,13 @@ describe('senderMarkOf', () => {
         'marks a signature the author made that verified as verified, beside failed authentication too: %s',
         (_, sender) => {
             expect(senderMarkOf(sender)).toBe('verified');
+        },
+    );
+
+    it.each(known.map((sender) => [named(sender), sender] as const))(
+        'marks a sender known by their address alone as known, above failed authentication: %s',
+        (_, sender) => {
+            expect(senderMarkOf(sender)).toBe('known');
         },
     );
 

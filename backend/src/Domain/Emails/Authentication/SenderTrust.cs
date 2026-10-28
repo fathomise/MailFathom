@@ -71,7 +71,7 @@ public sealed record SenderTrust
     /// <remarks>
     /// A reference rather than a copy, so the verdict leads back to the contact and to who wrote its address. Unlike the
     /// organization's reference it is never cleared on its own: every act that removes a contact resets each verdict
-    /// naming it to <see cref="NotEvaluated" /> in its own transaction, so no trusted mark is left naming nothing.
+    /// naming it to <see cref="NotEvaluated" /> in its own transaction, so no trusted or known mark is left naming nothing.
     /// </remarks>
     public ContactId? RecognizingContactId { get; }
 
@@ -149,6 +149,37 @@ public sealed record SenderTrust
             grantedBy,
             policyRevision,
             RequireEvidence(authorEvidence),
+            recognizingContactId: contactId);
+    }
+
+    /// <summary>Records that a source recognizes the address the message displays, while nothing tied the message to it.</summary>
+    /// <param name="grantedBy">Any source but <see cref="SenderTrustSource.OrganizationMember" />, which proves the address itself and is never this weaker claim.</param>
+    /// <param name="contactId">The contact that recognized the address, present exactly when <paramref name="grantedBy" /> is a contact source.</param>
+    /// <param name="policyRevision">The policy that was applied.</param>
+    /// <returns>The verdict, carrying no evidence because none tied the message to the address.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when no source or the organization signature is named, or when a contact is named for a source that is not
+    /// a contact or missing for one that is.
+    /// </exception>
+    public static SenderTrust Known(
+        SenderTrustSource grantedBy,
+        ContactId? contactId,
+        SenderTrustPolicyRevision policyRevision)
+    {
+        var namesAContact = grantedBy is SenderTrustSource.OrganizationContact or SenderTrustSource.PersonalContact;
+
+        if (grantedBy is SenderTrustSource.None or SenderTrustSource.OrganizationMember
+            || namesAContact != contactId.HasValue)
+        {
+            throw new ArgumentException(
+                "A known sender is named by a contact, the owner's address, or the owner's domain, and a contact source names its contact.",
+                nameof(grantedBy));
+        }
+
+        return new SenderTrust(
+            SenderTrustLevel.Known,
+            grantedBy,
+            policyRevision,
             recognizingContactId: contactId);
     }
 

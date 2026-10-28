@@ -16,4 +16,8 @@ internal enum DeploymentTrustState
 
     /// <summary>The email's authenticated author is one this deployment recognizes.</summary>
     Trusted = 1,
+
+    /// <summary>The address the email displays is one this deployment recognizes, while nothing established that its domain sent it.</summary>
+    /// <remarks>A header anybody can write, so it is never a reason to treat the sender as trusted.</remarks>
+    Known = 2,
 }

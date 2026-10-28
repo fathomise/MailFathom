@@ -20,10 +20,16 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// </remarks>
 public sealed record DmarcRecordLookup
 {
-    private DmarcRecordLookup(DmarcRecord? record, bool isReadable)
+    private DmarcRecordLookup(DmarcRecord? record, bool isReadable, bool publishedAtFromDomain = false)
     {
         this.Record = record;
         this.IsReadable = isReadable;
+        this.Policy = record switch
+        {
+            null => DmarcPolicyReading.NotEstablished,
+            _ when publishedAtFromDomain => record.PolicyAtDomain,
+            _ => record.PolicyBelowDomain,
+        };
     }
 
     /// <summary>Gets the answer that the domain and every parent the walk asked for publish no record.</summary>
@@ -38,11 +44,29 @@ public sealed record DmarcRecordLookup
     /// <summary>Gets a value indicating whether the walk reached an answer, a record or the absence of one.</summary>
     public bool IsReadable { get; }
 
-    /// <summary>Records the record the walk found.</summary>
-    /// <param name="record">The one DMARC record published at the first name that held one.</param>
+    /// <summary>Gets what the record asks for the displayed domain's failing mail, under the tags that apply where it was found.</summary>
+    /// <remarks>
+    /// <see cref="DmarcPolicyReading.NotEstablished" /> wherever no record was found, because a domain that publishes
+    /// none cannot be read as one that asks only to be monitored.
+    /// </remarks>
+    public DmarcPolicyReading Policy { get; }
+
+    /// <summary>Records the record the walk found at the displayed domain itself.</summary>
+    /// <param name="record">The one DMARC record published at the displayed domain.</param>
     /// <returns>The answer.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="record" /> is <see langword="null" />.</exception>
     public static DmarcRecordLookup Found(DmarcRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        return new DmarcRecordLookup(record, isReadable: true, publishedAtFromDomain: true);
+    }
+
+    /// <summary>Records the record the walk found at a parent of the displayed domain.</summary>
+    /// <param name="record">The one DMARC record published at the first parent that held one.</param>
+    /// <returns>The answer, whose <see cref="Policy" /> reads the tags a record applies beneath its own domain.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="record" /> is <see langword="null" />.</exception>
+    public static DmarcRecordLookup FoundAtParent(DmarcRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
 

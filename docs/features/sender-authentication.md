@@ -186,21 +186,27 @@ contradictions, and both stay visible because the identity and the author are re
 ### Reading the displayed domain's DMARC record
 
 Whether a DKIM signature aligns depends on what the displayed domain asks for, so where nothing else settles it
-MailFathom reads the domain's DMARC record itself — for the `adkim` tag alone. It evaluates no policy and computes no
-DMARC result from it.
+MailFathom reads the domain's DMARC record itself — for the `adkim` tag, and on an account that is not strict for the
+policy a server's `fail` was reached under. It evaluates no policy and computes no DMARC result from it.
 
 - **When it is read.** Where a trusted server reported no DMARC result that counts, or only `temperror`, and a
-  signature it verified lies on the displayed domain's branch; and on [the local path](#where-no-server-said-anything-the-signature-still-does)
-  wherever a verified signature does. A server's `pass` or `fail` settles the author without it, and its `none` or
-  `permerror` says it already found no usable record, so DKIM aligns by the relation there with no lookup. A signature
-  on another branch could not align under any record and buys no lookup either.
+  signature it verified lies on the displayed domain's branch; on [the local path](#where-no-server-said-anything-the-signature-still-does)
+  wherever a verified signature does; and where a trusted server reported a `fail` that counts on an account that is
+  not [`Strict`](#known-by-address-alone-on-an-account-that-is-not-strict). A server's `pass` settles the author
+  without it, its `fail` settles the author too and is read only for its policy, and its `none` or `permerror` says it
+  already found no usable record, so DKIM aligns by the relation there with no lookup. A signature on another branch
+  could not align under any record and buys no lookup either.
 - **How it is found.** By RFC 9989's DNS tree walk, which needs no public suffix list. `_dmarc.<domain>` is asked
   first; a name holding no TXT string that begins with `v=DMARC1`, or more than one, holds no record. Otherwise the
   walk asks each parent in turn, down to and including the single-label name, after shortening a name of eight or
   more labels to its last seven — at most eight queries for any domain. `NXDOMAIN` and an empty answer mean *keep
   walking*; the first record found ends the walk.
 - **What it decides.** `adkim=s` aligns only a signature for exactly the displayed domain. `adkim=r`, no `adkim` tag,
-  and a domain publishing no record at all keep the relation, so an aligned signature is enough there.
+  and a domain publishing no record at all keep the relation, so an aligned signature is enough there. For a `fail`,
+  the policy that applies to the displayed domain is `p` where the record was found at that domain, and `sp` if present
+  and otherwise `p` where it was found above it, with `np` as well where present. It is **monitoring only** where every
+  one of those reads `none`, and is stored with the verdict as `MonitoringOnly`; any other value, a missing `p`, no
+  record, and a record that could not be read are not, and keep the failure a failure.
 - **A record that could not be read aligns nothing.** A timeout, `SERVFAIL`, or any other error ends the walk, and no
   signature aligns: the author stays not established, which says nothing against the sender. On the trusted path an
   SPF identity may still establish the author through `AlignedSpf`.
@@ -312,8 +318,8 @@ configuration](../operations/configuration-mail.md#mailsynchronization) states w
 ## Whether the author is one this deployment recognizes
 
 An author who authenticated is still a stranger until something says otherwise, so a third answer is recorded beside
-the two above: **trusted** or **unknown**. The rule is deliberately narrow, and its sources are asked in this order,
-each only where every one above it recognized nobody:
+the two above: **trusted**, **known**, or **unknown**. The rule is deliberately narrow, and its sources are asked in
+this order, each only where every one above it recognized nobody:
 
 1. [a signature of the receiving account's organization](#a-colleague-in-the-receiving-accounts-organization) proves
    the author a member of it — *organization member*;
@@ -334,7 +340,7 @@ question and is reached by other means entirely.
 This and the author conclusion are independent axes and are read together. **Author authenticated and unknown** is the
 ordinary state of almost every message in a mailbox and says nothing against it, while **author failed and unknown** is
 a message whose displayed author was checked and did not hold. Which of them applies stays where it was recorded, on
-the authentication verdict above; nothing is folded into the trust value, which has exactly two values.
+the authentication verdict above; nothing is folded into the trust value, which has exactly three values.
 
 ### What ties a message to the address it displays
 
@@ -355,14 +361,42 @@ Two things tie a message to its address, asked in this order, and the verdict re
   its signer is the displayed author. This holds even where the receiving server reported DMARC `fail`, because a
   forward or a list that broke the domain's checks leaves the author's own signature intact.
 
-Where neither holds, no source below membership is consulted and the message is unknown, whichever of *not
-established*, *aligned only through SPF*, or *failed* it was — that stays where it was recorded, on the author verdict
-and the route beside it. What is established about a domain is never a mailbox, so what the first of the two claims is
+Where neither holds, the message is never trusted, whichever of *not established*, *aligned only through SPF*, or
+*failed* it was — that stays where it was recorded, on the author verdict and the route beside it. A strict account
+leaves it unknown; [a relaxed one](#known-by-address-alone-on-an-account-that-is-not-strict) may still mark it known.
+What is established about a domain is never a mailbox, so what the first of the two claims is
 *this domain wrote the message and presents it as coming from this mailbox of its own*: worth something, because a
 domain answerable for its own `From` is answerable for the whole address in it, and worth less than a signature by the
 person, because a domain that can authenticate can display any local part it likes.
 [Organization membership](#a-colleague-in-the-receiving-accounts-organization) is the one source that needs neither,
 because what it proves is the author's address rather than a domain.
+
+### Known by address alone, on an account that is not strict
+
+**Every account is relaxed unless it sets [`Strict`](../operations/configuration-mail.md#one-account--a-mailbox-in-a-users-record)**,
+and a relaxed account recognizes one more thing: a message nothing tied to its address, whose first `From` mailbox
+matches an organization contact, one of the owner's own addresses, one of the owner's domains where the account opted
+in, or a personal contact, is **known**. The sources are asked in the same order and compared the same way, without
+regard to case, and only an address a person or an administrator wrote counts — a collected contact, an address an
+agent wrote, and one recorded before writers were never do. The verdict names the source and, for a contact, the
+contact, exactly as a trusted one does. The organization signature is never known: it proves the address, so it is
+trusted or nothing.
+
+It is on by default because the marks are otherwise empty for most real correspondents: a company on a hosted suite
+that never configured DKIM for its own domain, mail sent through an invoicing tool or a CRM signing with its own name,
+and a provider rewriting links or appending a banner after delivery — which breaks a signature verified locally — all
+leave the author unestablished. **What it costs is stated plainly: known rests on a header anybody can write**, so a
+forged `From` showing a contact's address is known too. That is why known is a level of its own, drawn with its own
+mark and never as trusted, why a rule reads it as its own value of `senderTrust`, why an AI operation is never told a
+known sender is trusted, and why a mailbox that must show only verified marks sets `Strict`.
+
+**A receiving server's DMARC `fail` stays a failure, with one exception that exists only on a relaxed account.**
+Where the displayed domain's [record](#reading-the-displayed-domains-dmarc-record) asks only to be monitored — its
+owner admitting that some of their legitimate mail does not pass — the `fail` is read as checks that did not hold, and
+the message can be known. Under `quarantine` or `reject`, or a record that could not be read, it is never known and the
+warning stands. Either way the recorded author verdict still says failed. Because a local evaluation never records a
+failure, the same message can be known on an account verifying locally and failed on one believing its server. On a
+strict account no message is ever known, every failure stays one, and no record is read for a failure's policy.
 
 ### A colleague in the receiving account's organization
 
@@ -496,7 +530,7 @@ Drafts or Sent is stored without a trust verdict, because nobody but the owner w
 The answer is stored on the message rather than decided when the message is read, so a reader and a rule can ask
 whether an author is trusted without re-evaluating anything that may since have changed. What makes that legible is
 the **policy revision** recorded beside it: a digest of what configuration states — the owner's addresses, the owner's
-domains where the account opted in, and the receiving account's organization — so two verdicts carrying different
+domains where the account opted in, whether the account is strict, and the receiving account's organization — so two verdicts carrying different
 revisions were reached under different configuration, and one carrying none was never put to a policy at all.
 Reordering is not a change and produces the same revision; an address or a domain added, or the account joining or
 leaving an organization, produces a different one. The contacts are not in the digest: a contact's verdict names the
@@ -517,7 +551,7 @@ Every read tool publishes the verdict, because a caller that cannot see it canno
 tools were built for is an agent, which reads a listing row as fact. What reaches a caller is **two published values and
 never one**: `authorAuthentication`, which is [the conclusion about the displayed
 author](#whether-the-displayed-author-authenticated) with its three values intact, and `deploymentTrust`, which is
-[whether this deployment recognizes them](#whether-the-author-is-one-this-deployment-recognizes) with its two. Neither
+[whether this deployment recognizes them](#whether-the-author-is-one-this-deployment-recognizes) with its three. Neither
 is derived from the other and no published field merges them, because a single value would lose the distinction the two
 conclusions exist to make. A third value travels beside them and belongs to neither: `machineAuthorship` is about how a
 message's text was *written* rather than about who sent it, and [machine authorship](machine-authorship.md) is where it
@@ -575,7 +609,8 @@ of them characterizes the message or the sender's intent. A failed authenticatio
 The AI operations that carry provenance — answering, the Agent's `search_mail` and `read_thread`, enrichment, a
 conversation's state, and Discover — write the conclusion beside each message they quote as the service's own
 `sender-authentication` attribute, with
-`sender-trusted="true"` where this deployment recognizes the author, and asks the model to qualify a claim resting on
+`sender-trusted="true"` where this deployment trusts the author — never for a known one, since a model must not be told
+a header anybody can write is trusted — and asks the model to qualify a claim resting on
 an author nobody established. Reply drafting, contact relationships, calendar-event extraction, and body cleanup quote
 mail without it so far. The evidence never travels there. [Mail
 answering](mail-answering.md#where-a-message-came-from) holds the attributes, the two qualifications written beside
@@ -585,7 +620,8 @@ why a claim was qualified.
 ## What MailFathom does not do
 
 - It evaluates no SPF policy and no DMARC policy, ever, whichever reading produced the verdict, and computes no DMARC
-  result of its own. It reads a domain's DMARC record for its `adkim` tag alone. It computes no organizational domain
+  result of its own. It reads a domain's DMARC record for its `adkim` tag, and on a relaxed account for whether the
+  policy behind a server's `fail` is monitoring only, and for nothing else. It computes no organizational domain
   and consults no public suffix list, so it never reconstructs DMARC's relaxed alignment for itself: two names under
   one parent stay unrelated here, which is the case relaxed alignment exists to accept. What it does accept is one name
   within the other at a label boundary, which is a delegation readable from the two names alone rather than a policy.

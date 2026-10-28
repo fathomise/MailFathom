@@ -105,6 +105,32 @@ public sealed class RetrievedMailContextFormatterTests
         Assert.Null(message.Attribute(AgentTurnDocument.FirstContactAttributeName));
     }
 
+    /// <summary>A sender known only by the address they display is a header anybody can write, so a model is never told they are trusted.</summary>
+    [Fact]
+    public void Format_APassageFromASenderKnownByAddressAlone_WritesNoTrustedFlag()
+    {
+        // Arrange
+        var passage = KnowledgePassages.Create(
+            "the invoice is attached",
+            subject: "Invoice 41",
+            provenance: KnowledgePassages.KnownCorrespondent with
+            {
+                Sender = new SenderVerification
+                {
+                    AuthorAuthentication = AuthorAuthenticationOutcome.NotEstablished,
+                    DeploymentTrust = SenderTrustLevel.Known,
+                },
+            });
+
+        // Act
+        var envelope = RetrievedMailContextFormatter.Format([passage], EmailSearchRetrievalMode.Hybrid, retrievalLimitReached: false);
+
+        // Assert
+        var message = Assert.Single(MessagesIn(envelope));
+
+        Assert.Null(message.Attribute(AgentTurnDocument.SenderTrustedAttributeName));
+    }
+
     /// <summary>The authorship reading is published to the caller and never to a model, so the envelope does not carry it.</summary>
     /// <remarks>
     /// A number describing how a message was written is exactly the sort of thing an injected extract would argue about if

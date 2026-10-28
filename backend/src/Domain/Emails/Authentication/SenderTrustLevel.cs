@@ -27,4 +27,12 @@ public enum SenderTrustLevel
 
     /// <summary>The authenticated author is one this deployment recognizes, and the verdict says what named them.</summary>
     Trusted = 1,
+
+    /// <summary>The <c>From</c> address is one this deployment recognizes, while nothing established that its domain sent the message.</summary>
+    /// <remarks>
+    /// A weaker claim than <see cref="Trusted" /> and never to be read as one: the address is a header anybody can write,
+    /// so a forged <c>From</c> showing a contact's address reaches this level too. Only an account that is not strict
+    /// produces it, and never under a server's DMARC <c>fail</c> unless the domain publishes a monitoring-only policy.
+    /// </remarks>
+    Known = 2,
 }

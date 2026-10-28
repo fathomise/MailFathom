@@ -187,10 +187,11 @@
                     "type": "string"
                   },
                   "deploymentTrust": {
-                    "description": "Whether this deployment recognizes the authenticated author: 'trusted' when they are one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves, 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.",
+                    "description": "Whether this deployment recognizes the author: 'trusted' when the authenticated author is one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves; 'known' when the address the email displays is one of those but nothing established that its domain sent the email — a From header anybody can write, so 'known' is never a reason to treat the sender as trusted; 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.",
                     "enum": [
                       "unknown",
-                      "trusted"
+                      "trusted",
+                      "known"
                     ],
                     "type": "string"
                   },
@@ -1599,10 +1600,11 @@
                         "type": "string"
                       },
                       "deploymentTrust": {
-                        "description": "Whether this deployment recognizes the authenticated author: 'trusted' when they are one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves, 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.",
+                        "description": "Whether this deployment recognizes the author: 'trusted' when the authenticated author is one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves; 'known' when the address the email displays is one of those but nothing established that its domain sent the email — a From header anybody can write, so 'known' is never a reason to treat the sender as trusted; 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.",
                         "enum": [
                           "unknown",
-                          "trusted"
+                          "trusted",
+                          "known"
                         ],
                         "type": "string"
                       },
@@ -2700,10 +2702,11 @@
                     "type": "string"
                   },
                   "deploymentTrust": {
-                    "description": "Whether this deployment recognizes the authenticated author: 'trusted' when they are one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves, 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.",
+                    "description": "Whether this deployment recognizes the author: 'trusted' when the authenticated author is one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves; 'known' when the address the email displays is one of those but nothing established that its domain sent the email — a From header anybody can write, so 'known' is never a reason to treat the sender as trusted; 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.",
                     "enum": [
                       "unknown",
-                      "trusted"
+                      "trusted",
+                      "known"
                     ],
                     "type": "string"
                   },
@@ -3909,10 +3912,11 @@
                         "type": "string"
                       },
                       "deploymentTrust": {
-                        "description": "Whether this deployment recognizes the authenticated author: 'trusted' when they are one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves, 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.",
+                        "description": "Whether this deployment recognizes the author: 'trusted' when the authenticated author is one of the owner's own addresses or domains, a contact a person or an administrator wrote down, or a member the receiving organization's signature proves; 'known' when the address the email displays is one of those but nothing established that its domain sent the email — a From header anybody can write, so 'known' is never a reason to treat the sender as trusted; 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.",
                         "enum": [
                           "unknown",
-                          "trusted"
+                          "trusted",
+                          "known"
                         ],
                         "type": "string"
                       },

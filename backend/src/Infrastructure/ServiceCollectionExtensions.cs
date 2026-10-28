@@ -1051,7 +1051,8 @@ public static class ServiceCollectionExtensions
                     new OrganizationSignatureVerifier(
                         new PersistedOrganizationSenderDirectory(
                             new Lazy<MailFathomDbContext>(provider.GetRequiredService<MailFathomDbContext>)),
-                        provider.GetRequiredService<ISenderIdentityDirectory>())),
+                        provider.GetRequiredService<ISenderIdentityDirectory>()),
+                    provider.GetRequiredService<ISenderTrustPolicyReader>()),
                 provider.GetRequiredService<MachineAuthorshipProfile>());
 
             // Wrapped whatever the postures say today, because they change while a scope is open: a record committed

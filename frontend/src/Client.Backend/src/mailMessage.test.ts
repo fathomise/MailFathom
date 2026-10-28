@@ -234,6 +234,21 @@ describe('readMailMessage', () => {
         expect(message?.sender.trustSource).toBeNull();
     });
 
+    it('reads a sender known by their address alone, under the source that knew them', async () => {
+        const message = await readingOf(
+            described({
+                sender: {
+                    ...verdict,
+                    authorAuthentication: 'Failed',
+                    deploymentTrust: 'Known',
+                    trustSource: 'PersonalContact',
+                },
+            }),
+        );
+
+        expect(message?.sender).toMatchObject({ deploymentTrust: 'Known', trustSource: 'PersonalContact' });
+    });
+
     it.each(['OwnAccountDomain', 'OrganizationMember', 'OwnAccountAddress', 'OrganizationContact', 'PersonalContact'])(
         'reads a sender %s recognized',
         async (trustSource) => {

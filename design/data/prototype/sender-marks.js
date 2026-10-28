@@ -9,7 +9,10 @@
 // whether the domain in From was established as the author and `authDomain` the domain that actually authenticated
 // it; `trust` says why this account recognizes the author - on its trusted senders (`list`), one of the owner's own
 // addresses (`ownAddress`), a domain of the owner's own accounts on an account that opted into them (`own`), or a member of the account's organization proven by the organization's signature (`org`, naming the
-// organization's display name, null where that organization has since been deleted); `sig` is the S/MIME or OpenPGP
+// organization's display name, null where that organization has since been deleted); `known` says where an author whose
+// authentication did not hold was found by their From address alone on a relaxed account - in a contact (`contact`), the
+// organization's contacts (`orgContact`), the owner's own addresses (`ownAddress`) or domains (`own`) - and beside a
+// DMARC fail it means the domain publishes a monitoring-only policy; `sig` is the S/MIME or OpenPGP
 // signature, null where the message carries none. A thread missing here is an authenticated sender the account does not recognize.
 MailFathomDesign.data.senderMarks = {
   ownDomains: { acc1: "nordwind.example", acc2: "mail.example" },
@@ -75,8 +78,8 @@ MailFathomDesign.data.senderMarks = {
       },
     },
     jacek: {
-      from: "j.wrona@lawoffice.example", checker: "server", dkim: "lawoffice.example", spf: "lawoffice.example", dmarc: "none",
-      author: "authenticated", authDomain: "lawoffice.example", trust: null, sig: null,
+      from: "j.wrona@lawoffice.example", checker: "server", dkim: "invoicing-app.example", spf: "invoicing-app.example", dmarc: "fail",
+      author: "failed", authDomain: "invoicing-app.example", trust: null, known: { source: "orgContact" }, sig: null,
     },
     prawnik2: {
       from: "j.wrona@lawoffice.example", checker: "server", dkim: "lawoffice.example", spf: "lawoffice.example", dmarc: "none",
@@ -107,7 +110,7 @@ MailFathomDesign.data.senderMarks = {
     },
     north1: {
       from: "r.lis@northwind.example", checker: "server", dkim: "northwind.example", spf: null, dmarc: "temperror",
-      author: "notEstablished", authDomain: null, trust: null,
+      author: "notEstablished", authDomain: null, trust: null, known: { source: "contact" },
       sig: {
         format: "pgp", signedAt: "27.08.2026 07:10", content: "pass", signer: "r.lis@northwind.example",
         key: "known", keyValidity: "expired", keyExpired: "30.06.2026", revocation: { result: "pass" },

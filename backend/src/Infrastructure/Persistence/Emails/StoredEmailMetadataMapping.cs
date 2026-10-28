@@ -93,6 +93,7 @@ internal static class StoredEmailMetadataMapping
         entity.SpfMailFromDomain = authentication.SpfDomain?.NormalizedValue;
         entity.DisplayedAuthorDomain = authentication.FromDomain?.NormalizedValue;
         entity.DmarcOutcome = authentication.Dmarc;
+        entity.DmarcPolicy = authentication.DmarcPolicy;
         entity.AuthorAuthenticationOutcome = authentication.AuthorAuthentication;
         entity.AuthorAuthenticationRoute = authentication.AuthorAuthenticationRoute;
         entity.AuthenticatedAuthorDomain = authentication.AuthenticatedAuthorDomain?.NormalizedValue;

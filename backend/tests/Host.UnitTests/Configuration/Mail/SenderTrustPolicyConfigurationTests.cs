@@ -116,6 +116,30 @@ public sealed class SenderTrustPolicyConfigurationTests
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
     }
 
+    /// <summary>Every account is relaxed unless it sets <c>Strict</c>, and setting it on one account leaves the owner's others as they were.</summary>
+    [Fact]
+    public void GetTrustPolicy_OneAccountSetStrict_IsStrictThereAndNowhereElse()
+    {
+        // Arrange
+        var work = AccountAt("work", "user@work.example");
+        work.Strict = true;
+        var options = OptionsFor(work, AccountAt("personal", "user@personal.example"));
+        var unauthenticated = SenderAuthentication.NotEstablished();
+
+        // Act
+        var onWork = options
+            .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
+            .Evaluate(unauthenticated, EmailSignature.NotSigned, AddressOf("user@personal.example"), RecognizingContacts.None);
+        var onPersonal = options
+            .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
+            .Evaluate(unauthenticated, EmailSignature.NotSigned, AddressOf("user@work.example"), RecognizingContacts.None);
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Unknown, onWork.Level);
+        Assert.Equal(SenderTrustLevel.Known, onPersonal.Level);
+        Assert.Equal(SenderTrustSource.OwnAccountAddress, onPersonal.GrantedBy);
+    }
+
     /// <summary>An extraction may run over an account a reload removed, and recognizing nobody is the answer.</summary>
     [Fact]
     public void GetTrustPolicy_AccountThisSnapshotNoLongerNames_RecognizesNobody()

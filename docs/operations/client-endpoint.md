@@ -928,7 +928,7 @@ row's sender without a request per row. `authorAuthentication` and `deploymentTr
 | Field | Values |
 | --- | --- |
 | `authorAuthentication` | `NotEstablished`, `Failed`, `Authenticated` |
-| `deploymentTrust` | `Unknown`, `Trusted` |
+| `deploymentTrust` | `Unknown`, `Trusted`, `Known` |
 | `signatureOutcome` | `NotSigned`, `Verified`, `Failed`, `NotVerifiable` |
 | `signerMatchesAuthor` | `true` where the message's own signer is the author it displays |
 
@@ -1575,6 +1575,13 @@ legitimate mail and carries the same trust value as one whose authentication fai
 were stored; nothing on this path re-reads a header, resolves DNS, or evaluates a policy, so what a reader is shown is
 what was concluded about the authenticated author rather than a reading of the `From` header.
 
+`deploymentTrust` is `Trusted`, `Known`, or `Unknown`. **`Known` is the weaker of the two recognitions and is drawn
+as its own mark**: on an account that is not [`Strict`](configuration-mail.md#one-account--a-mailbox-in-a-users-record),
+the address the message displays is a contact, one of the owner's addresses, or at one of the owner's domains, while
+nothing established that its domain sent it. `trustSource` names which, exactly as it does for `Trusted`, and is never
+`OrganizationMember`. `Known` beside `authorAuthentication: "Failed"` is the one case a failure is recognized at all:
+the receiving server reported DMARC `fail` and the domain's own record asks only to be monitored.
+
 **`authenticatedDomain` is who the authentication was established for**, which is the fact a reader needs when the
 name a message displays is not it. It is the domain that check authenticated and nothing wider: it is
 `null` for a message nothing authenticated a sender for, and it is published beside the two states rather than
@@ -2098,7 +2105,7 @@ message route describes it.
 
 **`provenance` is what the model was told about the message**, read from what the deployment recorded rather than
 from the message: `authorAuthentication` is `Authenticated`, `NotEstablished`, or `Failed`, `deploymentTrust` is
-`Trusted` or `Unknown`, and `inJunkFolder` and `firstContact` say whether the message sits in its account's junk folder
+`Trusted`, `Known`, or `Unknown`, and `inJunkFolder` and `firstContact` say whether the message sits in its account's junk folder
 and whether nothing the mailbox held before it was written by or to its sender. A run qualifies a claim resting on a
 message that is not authenticated, is junk, or is a first contact, and these four values are what let a client show the
 person why. [Mail answering](../features/mail-answering.md#where-a-message-came-from) holds what each one means. A

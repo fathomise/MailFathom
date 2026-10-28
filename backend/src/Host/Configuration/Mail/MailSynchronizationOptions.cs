@@ -942,6 +942,23 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// </remarks>
     public bool TrustOwnAccountDomains { get; set; }
 
+    /// <summary>Gets or sets whether this account marks only senders something established, and never one known by address alone.</summary>
+    /// <remarks>
+    /// <para>
+    /// Off by default, which makes the account relaxed: a message nothing tied to its <c>From</c> address is still marked
+    /// <em>known</em> where that address is a contact, one of the owner's addresses, or at one of the owner's domains
+    /// this account opted into. That is a header anybody can write, so a forged <c>From</c> showing a contact's address
+    /// is marked known too, which is why the mark is its own and never reads as trusted.
+    /// </para>
+    /// <para>
+    /// It is off by default because the domains of most real correspondents never authenticate in a way this deployment
+    /// can see, and a mailbox whose marks are empty for them is one nobody keeps contacts for. Turning it on makes every
+    /// verdict on this account what it would be without the known mark, a DMARC failure under a monitoring-only policy
+    /// included.
+    /// </para>
+    /// </remarks>
+    public bool Strict { get; set; }
+
     /// <summary>Gets or sets whether this account records the people it corresponds with, and under what bounds.</summary>
     /// <remarks>
     /// Per account rather than deployment-wide, because what it produces is a record about third parties and the

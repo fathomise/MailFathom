@@ -6,12 +6,12 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace MailFathom.Domain.Emails.Authentication;
 
-/// <summary>What a domain's published DMARC record says about how a DKIM signature aligns with it.</summary>
+/// <summary>What a domain's published DMARC record says about how a DKIM signature aligns with it, and whether it only monitors.</summary>
 /// <remarks>
 /// <para>
-/// MailFathom reads a DMARC record to learn the alignment mode and nothing else: it evaluates no policy and computes no
-/// DMARC result. Every other tag is passed over, an unknown one included, because RFC 9989 has a reader ignore what it
-/// does not understand.
+/// MailFathom reads a DMARC record to learn two things: the alignment mode, and whether the policy that applies to the
+/// displayed domain is monitoring only. It evaluates no policy and computes no DMARC result. Every other tag is passed
+/// over, an unknown one included, because RFC 9989 has a reader ignore what it does not understand.
 /// </para>
 /// <para>
 /// The record is found by RFC 9989's DNS tree walk, which <see cref="DiscoveryNames" /> states, and which needs no public
@@ -27,6 +27,17 @@ public sealed record DmarcRecord(DkimAlignmentMode DkimAlignment)
 
     /// <summary>The longest label count the walk starts its parents from, which RFC 9989 fixes at seven.</summary>
     private const int LongestWalkedName = 7;
+
+    /// <summary>Gets what the record asks for mail failing at the domain it is published for, read from <c>p</c>.</summary>
+    public DmarcPolicyReading PolicyAtDomain { get; init; } = DmarcPolicyReading.Enforcing;
+
+    /// <summary>Gets what the record asks for mail failing at a name beneath the domain it is published for.</summary>
+    /// <remarks>
+    /// Read from <c>sp</c> where present and otherwise from <c>p</c>, and from <c>np</c> as well where present, because
+    /// MailFathom does not ask whether the displayed name exists. It is monitoring only where every one of those reads
+    /// <c>none</c>.
+    /// </remarks>
+    public DmarcPolicyReading PolicyBelowDomain { get; init; } = DmarcPolicyReading.Enforcing;
 
     /// <summary>Reads one TXT string as a DMARC record.</summary>
     /// <param name="text">One TXT string a <c>_dmarc</c> name holds, already joined from its parts.</param>
@@ -87,13 +98,30 @@ public sealed record DmarcRecord(DkimAlignmentMode DkimAlignment)
             return null;
         }
 
-        var strict = tags
-            .Where(static tag => tag.Name.Equals("adkim", StringComparison.OrdinalIgnoreCase))
-            .Select(static tag => string.Equals(tag.Value, "s", StringComparison.OrdinalIgnoreCase))
+        var strict = string.Equals(TagValue(tags, "adkim"), "s", StringComparison.OrdinalIgnoreCase);
+        var domainPolicy = TagValue(tags, "p");
+        var subdomainPolicy = TagValue(tags, "sp") ?? domainPolicy;
+        var nonexistentDomainPolicy = TagValue(tags, "np");
+
+        return new DmarcRecord(strict ? DkimAlignmentMode.Strict : DkimAlignmentMode.Relaxed)
+        {
+            PolicyAtDomain = PolicyReadingOf(IsNone(domainPolicy)),
+            PolicyBelowDomain = PolicyReadingOf(
+                IsNone(subdomainPolicy) && (nonexistentDomainPolicy is null || IsNone(nonexistentDomainPolicy))),
+        };
+    }
+
+    /// <summary>Reads the first value a tag was given, or nothing where the record does not carry it.</summary>
+    private static string? TagValue((string Name, string? Value)[] tags, string name) =>
+        tags.Where(tag => tag.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            .Select(static tag => tag.Value)
             .FirstOrDefault();
 
-        return new DmarcRecord(strict ? DkimAlignmentMode.Strict : DkimAlignmentMode.Relaxed);
-    }
+    /// <summary>Answers whether a policy value is <c>none</c>; a missing or unrecognized one is not, so it keeps a failure a failure.</summary>
+    private static bool IsNone(string? policy) => string.Equals(policy, "none", StringComparison.OrdinalIgnoreCase);
+
+    private static DmarcPolicyReading PolicyReadingOf(bool monitoringOnly) =>
+        monitoringOnly ? DmarcPolicyReading.MonitoringOnly : DmarcPolicyReading.Enforcing;
 
     private static SenderDomain DomainOf(string[] labels) =>
         SenderDomain.TryCreate(string.Join('.', labels), out var domain)

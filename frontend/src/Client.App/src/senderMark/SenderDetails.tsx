@@ -274,7 +274,8 @@ function Verification({
     const timeZone = useReadingZone();
     const verification = senderVerificationOf(message, (instant) => wordInstant(instant, locale, 'full', timeZone));
     const drawn = senderMarksDrawn[verification.mark];
-    const plain = drawn.tone === 'plain';
+    // A known sender is drawn in the neutral tone, so its title reads as plainly as an unrecognized one's.
+    const plain = drawn.tone === 'plain' || drawn.tone === 'known';
 
     return (
         <>
