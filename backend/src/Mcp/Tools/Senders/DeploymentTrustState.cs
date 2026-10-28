@@ -4,7 +4,7 @@
 
 namespace MailFathom.Mcp.Tools.Senders;
 
-/// <summary>Reports whether this deployment recognizes an email's authenticated author, as the protocol spells it.</summary>
+/// <summary>Reports whether this deployment recognizes an email's author, and whether anything tied the email to them, as the protocol spells it.</summary>
 /// <remarks>
 /// It is this deployment's own classification rather than the result of any check, which is why it is published beside
 /// <see cref="AuthorAuthenticationState" /> and never folded into it.

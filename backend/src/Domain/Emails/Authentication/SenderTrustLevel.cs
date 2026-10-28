@@ -4,14 +4,15 @@
 
 namespace MailFathom.Domain.Emails.Authentication;
 
-/// <summary>Whether this deployment counts a message's authenticated author as somebody it knows.</summary>
+/// <summary>Whether this deployment recognizes a message's author, and how much the recognition rests on.</summary>
 /// <remarks>
 /// <para>
-/// This is a decision about a list an operator and a reader write to, and it is deliberately independent of what the
-/// receiving server established: <see cref="SenderAuthentication" /> answers whether an identity held, and this answers
-/// whether the identity that held is one this deployment recognizes. Reading the two together is what makes a message
-/// legible — an authenticated author nobody has named reads very differently from an author whose authentication failed,
-/// and both are <see cref="Unknown" /> here.
+/// This is a decision about the addresses people and administrators wrote down, read beside what the receiving server
+/// established: <see cref="SenderAuthentication" /> answers whether an identity held, and this answers whether the
+/// author is one this deployment recognizes and whether anything tied the message to them. An authenticated author
+/// somebody named is <see cref="Trusted" />; a recognized <c>From</c> address that nothing tied the message to is
+/// <see cref="Known" /> on an account that is not strict; and an author nobody named is <see cref="Unknown" />, whether
+/// their authentication held or failed.
 /// </para>
 /// <para>
 /// <see cref="Unknown" /> is therefore the ordinary answer rather than a negative one. Most legitimate mail arrives from
@@ -22,7 +23,7 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// </remarks>
 public enum SenderTrustLevel
 {
-    /// <summary>This deployment recognizes nobody in the message, whether or not an author was authenticated.</summary>
+    /// <summary>This deployment recognizes nobody in the message, or recognizes the address on a strict account where nothing tied the message to it.</summary>
     Unknown = 0,
 
     /// <summary>The authenticated author is one this deployment recognizes, and the verdict says what named them.</summary>

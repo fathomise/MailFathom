@@ -6,14 +6,15 @@ using MailFathom.Domain.Contacts;
 
 namespace MailFathom.Domain.Emails.Authentication;
 
-/// <summary>What this deployment decided about the author one message authenticated as.</summary>
+/// <summary>What this deployment decided about a message's author.</summary>
 /// <remarks>
 /// <para>
 /// It is the second of a message's two sender verdicts and reads the first. <see cref="SenderAuthentication" /> says
 /// what the receiving server established about the message, which is a fact about the message; this says whether the
 /// author is one this deployment recognizes, which is a decision about the contacts people and administrators wrote
-/// down. Keeping them apart is what lets a contact change without the facts changing under it, and it is why this
-/// carries no value for <em>the author was not authenticated</em> — that is the other verdict's to state.
+/// down, and whether that recognition rests on an authenticated author or on the <c>From</c> address alone. Keeping
+/// them apart is what lets a contact change without the facts changing under it: how the authentication failed stays
+/// the other verdict's to state, and this records only what the deployment concluded from it.
 /// </para>
 /// <para>
 /// It is stored rather than computed on read, so a message keeps the answer it was judged with. What makes that
@@ -83,7 +84,7 @@ public sealed record SenderTrust
     /// </remarks>
     public TrustedAuthorEvidence AuthorEvidence { get; }
 
-    /// <summary>Gets whether this deployment recognized the message's author.</summary>
+    /// <summary>Gets whether this deployment recognized the message's author and something tied the message to them, which <see cref="SenderTrustLevel.Trusted" /> alone is; a <see cref="SenderTrustLevel.Known" /> verdict is not.</summary>
     public bool IsTrusted => this.Level == SenderTrustLevel.Trusted;
 
     /// <summary>Records that this deployment recognizes nobody in the message.</summary>

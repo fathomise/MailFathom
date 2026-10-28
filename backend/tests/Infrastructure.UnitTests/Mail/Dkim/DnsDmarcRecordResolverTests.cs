@@ -55,11 +55,14 @@ public sealed class DnsDmarcRecordResolverTests
 
         // Act
         var below = await resolver.ResolveAsync(DomainOf("bank.example.test"), CancellationToken.None);
+        var belowFromTheCache = await resolver.ResolveAsync(DomainOf("bank.example.test"), CancellationToken.None);
         var atTheParent = await resolver.ResolveAsync(DomainOf("example.test"), CancellationToken.None);
 
         // Assert
         Assert.Equal(DmarcPolicyReading.Enforcing, below.Policy);
+        Assert.Equal(DmarcPolicyReading.Enforcing, belowFromTheCache.Policy);
         Assert.Equal(DmarcPolicyReading.MonitoringOnly, atTheParent.Policy);
+        Assert.Equal(["_dmarc.bank.example.test", "_dmarc.example.test"], QueriedNames(lookup));
     }
 
     /// <summary>A name with no record, or with no answer at all, is passed over for its parent.</summary>

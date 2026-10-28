@@ -95,9 +95,9 @@ is read for its alignment mode alone.
 
 `DmarcPolicy` qualifies `DmarcOutcome` and is set only where that is `Fail`: what the displayed domain's record asks
 for failing mail, read when the message was stored on an account that is not strict — `MonitoringOnly` where every
-policy tag that applies reads `none`, `Enforcing` otherwise, and `NotEstablished` where nothing was read. It is what
-lets a later judgment of the message decide whether its sender can be [known](../features/sender-authentication.md#known-by-address-alone-on-an-account-that-is-not-strict)
-without asking DNS again.
+policy tag that applies reads `none`, `Enforcing` otherwise, and `NotEstablished` where nothing was read. It records
+the reading the judgment at extraction made of whether the sender can be [known](../features/sender-authentication.md#known-by-address-alone-on-an-account-that-is-not-strict),
+and nothing reads it back yet.
 
 Four of them — `AuthorAuthenticationOutcome`, `AuthorAuthenticationRoute`, `AuthenticatedAuthorDomain`, and
 `DisplayedAuthorDomain` — are about the

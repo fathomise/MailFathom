@@ -158,9 +158,8 @@ internal sealed class StoredEmailEntity
 
     /// <summary>Gets or sets what the displayed domain's DMARC record asks for failing mail, read where the server reported <c>fail</c>.</summary>
     /// <remarks>
-    /// Stored beside the result it qualifies, so judging the message again after a contact changes reads the policy
-    /// extraction read rather than asking DNS, and so a message stored before its sender became a contact can still be
-    /// recognized by address where the domain only monitors.
+    /// Stored beside the result it qualifies, as the reading extraction made, and read back by nothing yet: judging a
+    /// stored message again after a contact changes is #2783's, and it is the reader this column is recorded for.
     /// </remarks>
     public DmarcPolicyReading DmarcPolicy { get; set; }
 
