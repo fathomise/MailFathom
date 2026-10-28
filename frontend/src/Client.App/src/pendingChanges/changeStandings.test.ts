@@ -18,6 +18,8 @@ function answered(results: readonly MailMutationResult[]): ChangeSubmission {
         act: 'markRead',
         asked: results.map((result) => result.storedEmailId),
         results,
+        failure: null,
+        askedIn: new Map(),
         askAgain: () => undefined,
         letGo: () => undefined,
     };

@@ -337,7 +337,7 @@ export function ToastCard({
             </button>
             {closerName.tip}
 
-            {running ? null : (
+            {running || toast.lasting === true ? null : (
                 // The lifetime, drawn. Its duration is the one the toast is actually held for rather than a second
                 // copy of that number written into the stylesheet, which is why it arrives here as a value.
                 <span

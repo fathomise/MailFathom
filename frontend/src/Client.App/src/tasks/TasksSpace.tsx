@@ -13,6 +13,7 @@ import {
     recordTask,
     reviseTask,
     setTaskCompletion,
+    wentUnanswered,
     type CalendarEventWrite,
     type ClientFailureReason,
     type ClientResult,
@@ -103,12 +104,18 @@ const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
 interface TaskWrite {
     readonly failed: boolean;
     readonly reason: ClientFailureReason | null;
+
+    /**
+     * Whether nothing answered the write — or a gateway answered for the server, which proves nothing about whether it
+     * was handed on. Such a write may well have landed, so it is never said to have changed nothing.
+     */
+    readonly unanswered: boolean;
 }
 
 function wrote(answer: ClientResult<PersonalTask | PersonalTaskErasure>): TaskWrite {
     return answer.outcome === 'failed'
-        ? { failed: true, reason: answer.failure.reason }
-        : { failed: false, reason: null };
+        ? { failed: true, reason: answer.failure.reason, unanswered: wentUnanswered(answer.failure) }
+        : { failed: false, reason: null, unanswered: false };
 }
 
 // A calendar write refuses in two different ways, and only one of them names something a person can act on: the
@@ -116,8 +123,8 @@ function wrote(answer: ClientResult<PersonalTask | PersonalTaskErasure>): TaskWr
 // row this screen must not draw as scheduled.
 function wroteToTheCalendar(answer: ClientResult<CalendarEventWrite>): TaskWrite {
     return answer.outcome === 'failed'
-        ? { failed: true, reason: answer.failure.reason }
-        : { failed: answer.value.outcome !== 'Written', reason: null };
+        ? { failed: true, reason: answer.failure.reason, unanswered: wentUnanswered(answer.failure) }
+        : { failed: answer.value.outcome !== 'Written', reason: null, unanswered: false };
 }
 
 // The one reason a whole batch was refused for, or `null` where there is none to give: a batch refused two different
@@ -247,6 +254,12 @@ export function TasksSpace({
     function saidAbout(refused: readonly TaskWrite[], asked: number, done: MessageKey): WriteSaid {
         if (refused.length === 0) {
             return { said: done };
+        }
+
+        // A write nobody answered is not known to have failed, and the list read again after it is what says where it
+        // stands — so the sentence says that much and claims nothing either way, however the rest of the batch went.
+        if (refused.some((answer) => answer.unanswered)) {
+            return { said: 'tasks.writeUnknown' };
         }
 
         if (refused.length < asked) {
@@ -392,7 +405,7 @@ export function TasksSpace({
                 const start = startOfDay(task.dueOn ?? '');
 
                 return start === null
-                    ? Promise.resolve({ failed: true, reason: null, id: task.id })
+                    ? Promise.resolve({ failed: true, reason: null, unanswered: false, id: task.id })
                     : recordCalendarEvent(session, transport, {
                           title: task.title,
                           start,
@@ -452,7 +465,7 @@ export function TasksSpace({
                 const task = reading.tasks.find((held) => held.id === placement.taskId);
 
                 return task === undefined || end === null
-                    ? Promise.resolve({ failed: true, reason: null, id: placement.taskId })
+                    ? Promise.resolve({ failed: true, reason: null, unanswered: false, id: placement.taskId })
                     : recordCalendarEvent(session, transport, {
                           title: task.title,
                           start: placement.startAt,

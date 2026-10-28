@@ -406,6 +406,7 @@ export function draftCalendarEvent(
     return spanned(`POST ${calendarEventDraftRoute}`, async () => {
         const response = await send(transport, {
             method: 'POST',
+            changesNothing: true,
             path: routeFor(session, calendarEventDraftRoute),
             headers: { ...headersFor(session), 'Content-Type': 'application/json' },
             body: JSON.stringify(described),

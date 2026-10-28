@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from 'react';
 import {
     mostReconnectionAttempts,
     readDeploymentSession,
@@ -16,8 +16,10 @@ import {
     type MailAccountDirectory,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
+import { requestsInFlight, type RequestsInFlight } from '../deployment/requestsInFlight';
 import type { DeploymentTransport } from '../deployment/sendToDeployment';
 import { offers } from './capabilities';
+import { probeLiveness, type LivenessProbe, type ProbeOutcome } from './livenessProbe';
 
 // What the client knows about the deployment it is signed in to: what the credential may do there, how current each of
 // the user's accounts is, and whether the deployment is answering at all. It is one thing rather than three because it
@@ -60,6 +62,25 @@ export interface Connection {
 
     /** Reads everything again, from a person asking rather than from the client trying on its own. */
     readonly reread: () => void;
+
+    /**
+     * The signal channel dropped, which is SignalR saying the link carried nothing for thirty seconds — so the server
+     * is asked at once whether it is still there, through the liveness probe this hook holds.
+     */
+    readonly channelDropped: () => void;
+
+    /**
+     * Whether a signal channel stands. Without one the liveness probe asks the server on its interval even while
+     * nothing waits, so a server that went quiet is said to be lost rather than merely delayed.
+     */
+    readonly channelStands: (stands: boolean) => void;
+
+    /**
+     * Whether the frame's own read is on its way now, asked at the moment rather than read off a render. Something
+     * else answering — a ticket minted beside it — is then no reason to read the frame a second time: the read
+     * already out is what will say the server is back.
+     */
+    readonly readUnderWay: () => boolean;
 
     /**
      * Reads everything again on the client's own account — a refresh — leaving what stands on the screen where the
@@ -199,6 +220,7 @@ function isOnline(): boolean {
  * @param onCredentialRefused What to do about a credential the deployment has stopped accepting, which is the one
  * answer this hook reports rather than renders: it is acted on once, by whatever owns signing in, instead of producing
  * the same refusal on every later read.
+ * @param inFlight The requests the liveness probe asks about, and abandons once the server is lost.
  * @returns Everything a screen needs to say what it is looking at and how current it is.
  */
 export function useConnection(
@@ -206,6 +228,7 @@ export function useConnection(
     signedIn: SignedInCaller | null,
     send: DeploymentTransport,
     onCredentialRefused: () => void,
+    inFlight: RequestsInFlight = requestsInFlight,
 ): Connection {
     const online = useSyncExternalStore(subscribeToConnectivity, isOnline);
 
@@ -228,6 +251,10 @@ export function useConnection(
     const [answered, setAnswered] = useState<Answered>(nothingRead);
     const [standingUnanswered, setStandingUnanswered] = useState<Unanswered | null>(null);
     const [accountsReadAt, setAccountsReadAt] = useState<number | null>(null);
+
+    // How many of the frame's own reads are on their way, which `readUnderWay` answers. A ref because nothing is drawn
+    // from it: it is asked when something else answered, never during a render.
+    const reading = useRef(0);
 
     // Worked out during a render for the same reason the answer is: a budget spent against one identity is nothing to
     // the next one, so signing in as somebody else starts at nothing without an effect having to clear it.
@@ -286,10 +313,11 @@ export function useConnection(
         const onTheWire = send(attempted.signal);
 
         // The first read after an answer is retried by the transport like every other, so a deployment that blinks is
-        // never reported lost. Once it has been, the schedule below is what reaches for it, and each of its attempts goes
-        // on the wire once rather than being retried a second time underneath.
+        // never reported lost. Once it has been, the schedule below is what reaches for it, and each of its attempts is
+        // a liveness probe: on the wire once rather than retried a second time underneath, ahead of the requests a dead
+        // link left hanging, and given up after its bound rather than waiting on a dead connection for minutes.
         const transport: MailFathomTransport = retriedByCaller
-            ? (request) => onTheWire({ ...request, retriedByCaller: true })
+            ? (request) => onTheWire({ ...request, retriedByCaller: true, probes: true })
             : onTheWire;
 
         // Read per request rather than once per effect, so a renewal landing between the two reads below presents the
@@ -312,6 +340,8 @@ export function useConnection(
 
             setRead((token) => token + 1);
         };
+
+        reading.current += 1;
 
         void (async () => {
             const presentedToRead = credential();
@@ -400,7 +430,9 @@ export function useConnection(
             if (accounts.outcome === 'read') {
                 setAccountsReadAt(Date.now());
             }
-        })();
+        })().finally(() => {
+            reading.current -= 1;
+        });
 
         return () => {
             attempted.abort();
@@ -449,6 +481,83 @@ export function useConnection(
         };
     }, [lost, attempts, baseAddress, presenting]);
 
+    // The abandoning itself waits for the status to have said the server is lost, so what each abandoned request fails
+    // into is a client whose status already says it — which is what lets the failure leave the saying to the status.
+    const abandoning = useRef(false);
+
+    // The liveness probe is this same session read, asked quietly and as a probe: one attempt, ahead of any queue, and
+    // bounded. Any answer at all says the server is there — a refusal from its limiter or a gateway's `503` included —
+    // so a server refusing the probe under load is never called lost. Only silence is a probe nobody answered.
+    const askWhetherThere = useEffectEvent(async (): Promise<ProbeOutcome> => {
+        if (baseAddress === null || presenting === null) {
+            return 'answered';
+        }
+
+        const onTheWire = send(new AbortController().signal);
+        const session = await readDeploymentSession({ baseAddress, authorization: carried.current ?? '' }, (request) =>
+            onTheWire({ ...request, probes: true }),
+        );
+
+        return session.outcome === 'read' || session.failure.status !== null ? 'answered' : 'missed';
+    });
+
+    // Two probes in a row nobody answered: the server is lost from the first of them, and every request still waiting
+    // on it is abandoned — a read ends as the failure it is, and a write as one whose outcome is not known — except one
+    // whose body is still visibly moving, which ends on its own terms.
+    const gaveUpOnServer = useEffectEvent((since: number) => {
+        if (baseAddress === null || presenting === null) {
+            return;
+        }
+
+        setStandingUnanswered((previous) =>
+            previous?.presentedAt === baseAddress && previous.presenting === presenting
+                ? previous
+                : { presentedAt: baseAddress, presenting, since },
+        );
+        abandoning.current = true;
+    });
+
+    const liveness = useRef<LivenessProbe | null>(null);
+
+    // Whether a channel stands, as the connection status last said, handed to a probe started after it was said.
+    const channelStanding = useRef(true);
+
+    useEffect(() => {
+        if (baseAddress === null || presenting === null || !online) {
+            return;
+        }
+
+        const probe = probeLiveness(
+            inFlight,
+            () => askWhetherThere(),
+            (since) => {
+                gaveUpOnServer(since);
+            },
+        );
+
+        liveness.current = probe;
+        probe.channelStands(channelStanding.current);
+
+        return () => {
+            probe.stop();
+            liveness.current = null;
+
+            // A server given up on for one sign-in is nothing to abandon the next one's requests over.
+            abandoning.current = false;
+        };
+    }, [baseAddress, presenting, online, inFlight]);
+
+    // While the server is lost the probe asks nothing: reaching for it again is the schedule above, whose reads are
+    // probes already, and a second schedule for the same question is what `reconnection.ts` exists to rule out.
+    useEffect(() => {
+        liveness.current?.lost(lost);
+
+        if (lost && abandoning.current) {
+            abandoning.current = false;
+            inFlight.abandonStill();
+        }
+    }, [lost, baseAddress, presenting, online, inFlight]);
+
     return {
         session: connection.session,
         accounts: connection.accounts,
@@ -456,6 +565,14 @@ export function useConnection(
         attempts,
         unansweredSince,
         accountsReadAt: current ? accountsReadAt : null,
+        channelDropped: () => {
+            liveness.current?.channelDropped();
+        },
+        readUnderWay: () => reading.current > 0,
+        channelStands: (stands) => {
+            channelStanding.current = stands;
+            liveness.current?.channelStands(stands);
+        },
         reread: () => {
             quietly.current = false;
             setReaching(noneMade);

@@ -8,6 +8,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import { wordInstantRange } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { inTimeOrder } from './calendarSpan';
 
 // The dates the reader's mail named that are not on their calendar yet, which the design draws down the side
@@ -36,6 +37,10 @@ export function ProposedDates({
     readonly onDismiss: (proposal: CalendarEvent) => void;
 }) {
     const { locale, translate } = useLocalization();
+
+    // Answering a proposal writes it into the calendar or out of it, so while the server is out of reach both answers
+    // are drawn as controls that cannot act, and one line over the proposals says why.
+    const refused = useWriteRefusal()(translate('calendar.acceptProposal'));
     const timeZone = useReadingZone();
 
     return (
@@ -51,6 +56,12 @@ export function ProposedDates({
             </h3>
 
             <p className="text-sm text-muted text-pretty">{translate('calendar.proposedExplained')}</p>
+
+            {proposals.length === 0 || refused === null ? null : (
+                <p role="status" className="text-sm text-muted text-pretty">
+                    {refused}
+                </p>
+            )}
 
             {proposals.length === 0 ? (
                 <p className="text-sm text-faint text-pretty">{translate('calendar.nothingProposed')}</p>
@@ -79,6 +90,7 @@ export function ProposedDates({
                                 <SecondaryButton
                                     label={translate('calendar.acceptProposal')}
                                     shape="compact"
+                                    held={refused !== null}
                                     onActivate={() => {
                                         onAccept(proposal);
                                     }}
@@ -87,6 +99,7 @@ export function ProposedDates({
                                 <SecondaryButton
                                     label={translate('calendar.dismissProposal')}
                                     shape="compact"
+                                    held={refused !== null}
                                     onActivate={() => {
                                         onDismiss(proposal);
                                     }}

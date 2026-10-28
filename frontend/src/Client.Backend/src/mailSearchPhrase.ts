@@ -144,6 +144,7 @@ export function readMailSearchPhrase(
     return spanned(`POST ${mailSearchPhrasingRoute}`, async () => {
         const response = await send(transport, {
             method: 'POST',
+            changesNothing: true,
             path: routeFor(session, mailSearchPhrasingRoute),
             headers: { ...headersFor(session), 'Content-Type': 'application/json' },
             body: JSON.stringify({ phrase }),

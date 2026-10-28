@@ -12,6 +12,7 @@ import { useTip } from '../controls/useTip';
 import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { wordNotificationAge } from './notificationAge';
 import type { FailureDecision } from './failures';
 import { failureDecisionShapes, notificationKindLabels, toneOf } from './notificationKinds';
@@ -49,6 +50,9 @@ export interface RowDecision {
 
     /** Whether it is already being taken, which draws it as unavailable until it is. */
     readonly underWay?: boolean;
+
+    /** Why it cannot be taken now, where it writes and the server is out of reach, or `null` while it can. */
+    readonly refused?: string | null;
 }
 
 // The pill a row's own acts are drawn as, which is the design's Summarize shape for every one of them.
@@ -105,7 +109,18 @@ export function NotificationRow({
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const press = useRowPress(onPress);
-    const swipe = useRowSwipe(press, { leftward: onToggleRead, rightward: onToggleRead });
+    const writeRefused = useWriteRefusal();
+    const markLabel = translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead');
+
+    // Marking a row writes its read state, so while the server is out of reach the control says so before it is
+    // pressed and a swipe does nothing, rather than either drawing a change that then fails.
+    const readRefused = writeRefused(markLabel);
+    const toggleRead = (): void => {
+        if (readRefused === null) {
+            onToggleRead();
+        }
+    };
+    const swipe = useRowSwipe(press, { leftward: toggleRead, rightward: toggleRead });
     const primary = useRef<HTMLButtonElement>(null);
     const tone = toneOf(notification);
     const tucked = onSummarize === null && decisions.length === 0;
@@ -116,8 +131,9 @@ export function NotificationRow({
     // a tap on the row already opens what it is about.
     const instantSaid = useTip({ says: at ?? '', tapReveals: false });
     const markName = useTip({
-        says: translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead'),
-        onPress: onToggleRead,
+        says: readRefused ?? markLabel,
+        describes: readRefused !== null,
+        onPress: readRefused === null ? onToggleRead : undefined,
     });
     const summarizeName = translate('notifications.summarize');
 
@@ -278,24 +294,14 @@ export function NotificationRow({
                         >
                             {/* A decision takes its pills away, so focus goes to the row's own control first rather than
                             falling to the document with the pill that held it. */}
-                            {decisions.map(({ decision, take, underWay }) => (
-                                <button
-                                    key={decision}
-                                    type="button"
-                                    aria-disabled={underWay === true ? true : undefined}
-                                    onClick={() => {
-                                        if (underWay === true) {
-                                            return;
-                                        }
-
+                            {decisions.map((decided) => (
+                                <DecisionPill
+                                    key={decided.decision}
+                                    decided={decided}
+                                    onTaking={() => {
                                         primary.current?.focus();
-                                        take();
                                     }}
-                                    className={pill}
-                                >
-                                    <Icon name={failureDecisionShapes[decision].icon} className="size-icon-md" />
-                                    {translate(failureDecisionShapes[decision].label)}
-                                </button>
+                                />
                             ))}
                         </span>
                     )}
@@ -309,10 +315,9 @@ export function NotificationRow({
                     <button
                         {...markName.anchor}
                         type="button"
-                        aria-label={translate(
-                            notification.read ? 'notifications.markUnread' : 'notifications.markRead',
-                        )}
-                        className={`flex size-8 cursor-pointer items-center justify-center rounded-lg border transition ${
+                        aria-label={markLabel}
+                        aria-disabled={readRefused === null ? undefined : true}
+                        className={`flex size-8 cursor-pointer items-center justify-center rounded-lg border transition aria-disabled:cursor-not-allowed aria-disabled:opacity-60 ${
                             notification.read
                                 ? 'border-line bg-panel text-muted'
                                 : 'border-accent-line bg-accent-soft text-accent-deep'
@@ -327,5 +332,46 @@ export function NotificationRow({
                 </span>
             </div>
         </li>
+    );
+}
+
+/**
+ * One decision about the failure a row reports, drawn as a pill. One that is under way, or that writes while the
+ * server is out of reach, cannot be taken; the second says why on a hover, a focus, or a tap.
+ */
+function DecisionPill({ decided, onTaking }: { readonly decided: RowDecision; readonly onTaking: () => void }) {
+    const { translate } = useLocalization();
+    const label = translate(failureDecisionShapes[decided.decision].label);
+    const refused = decided.refused ?? null;
+    const said = useTip({ says: refused ?? label, describes: true });
+    const held = decided.underWay === true || refused !== null;
+
+    return (
+        <>
+            <button
+                {...(refused === null ? {} : said.anchor)}
+                type="button"
+                aria-disabled={held ? true : undefined}
+                onClick={(event) => {
+                    if (refused !== null) {
+                        said.anchor.onClick(event);
+
+                        return;
+                    }
+
+                    if (held) {
+                        return;
+                    }
+
+                    onTaking();
+                    decided.take();
+                }}
+                className={`${pill} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
+            >
+                <Icon name={failureDecisionShapes[decided.decision].icon} className="size-icon-md" />
+                {label}
+            </button>
+            {refused === null ? null : said.tip}
+        </>
     );
 }

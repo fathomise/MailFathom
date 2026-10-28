@@ -376,6 +376,7 @@ export function MessageList({
         };
 
         let listening = true;
+        const askedAt = Date.now();
 
         void readMailTimeline(session, transport, queryFor(scope, listing, asked.cursor, asked.direction)).then(
             (result) => {
@@ -393,7 +394,7 @@ export function MessageList({
                     // Where each message belongs, written down as the page arrives, because the surfaces that act on a
                     // selection are outside this column and the identities the workspace holds say neither which
                     // account a message is in nor which folder it would be leaving.
-                    listed.drew(result.value.emails);
+                    listed.drew(result.value.emails, askedAt);
                     setHeld((current) => answered(current, result.value, asked));
 
                     // What this page's arrival amounts to, read against what the reader has already been shown: the

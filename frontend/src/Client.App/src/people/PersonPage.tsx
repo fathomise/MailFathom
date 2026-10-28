@@ -11,6 +11,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { PersonCorrespondence } from './PersonCorrespondence';
 import { RelationshipReading } from './RelationshipReading';
 import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
@@ -78,6 +79,13 @@ export function PersonPage({
     const { translate } = useLocalization();
     const composing = useComposing();
     const collected = contact.origin === 'Collected';
+
+    // Deleting and taking somebody on write to the book, so while the server is out of reach both are drawn as
+    // controls that cannot act; the one with no room for a name of its own says why on the line under the person.
+    // Editing opens a form whose own *Save* says the same.
+    const writeRefused = useWriteRefusal();
+    const deleteRefused = writeRefused(translate('people.deleteContact'));
+    const promoteRefused = writeRefused(translate('people.promote'));
 
     const opened = useRef<HTMLDivElement>(null);
     // Starting at nobody rather than at whoever this mounted with, unlike the reading pane: that pane is mounted by
@@ -147,6 +155,7 @@ export function PersonPage({
                             label={translate('people.deleteContact')}
                             icon="delete"
                             shape="symbol"
+                            {...(deleteRefused === null ? {} : { held: true, hint: deleteRefused })}
                             onPress={onAskErasure}
                         />
                     ) : null}
@@ -155,6 +164,7 @@ export function PersonPage({
                         <SecondaryButton
                             label={translate(promoting ? 'people.promoting' : 'people.promote')}
                             shape="form"
+                            held={promoteRefused !== null}
                             onActivate={onPromote}
                         />
                     ) : null}
@@ -174,6 +184,12 @@ export function PersonPage({
                 {recordSaid === null ? null : (
                     <p role="status" className="basis-full text-sm text-muted text-pretty">
                         {translate(recordSaid)}
+                    </p>
+                )}
+
+                {!collected || !writable || promoteRefused === null ? null : (
+                    <p role="status" className="basis-full text-sm text-muted text-pretty">
+                        {promoteRefused}
                     </p>
                 )}
             </div>

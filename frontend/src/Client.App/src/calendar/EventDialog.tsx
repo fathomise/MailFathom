@@ -14,6 +14,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
 import { useReadingZone } from '../localization/useReadingZone';
 import { ReminderPanel } from '../reminders/ReminderPanel';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { wordReminderCount } from '../reminders/reminderWords';
 import { EventFields } from './EventFields';
 import { draftOf, recordOf, type EventDraft } from './eventDraft';
@@ -83,6 +84,13 @@ export function EventDialog({
 
     const record = recordOf(draft);
 
+    // Every act here that writes — saving an amendment, deleting, and the reminders, which are written as they are
+    // answered — waits for the server, so while it is out of reach each is drawn as one that cannot act and one line
+    // says why, where a finger reads it as well as a mouse. Opening the form stays, so nothing is lost by looking.
+    const writeRefused = useWriteRefusal();
+    const refused = writeRefused(translate(amending ? 'calendar.saveEvent' : 'calendar.deleteEvent'));
+    const remindersRefused = writeRefused(wordReminderCount(draft.reminders.length, locale, translate));
+
     // Opening the panel is an imperative call on an element, which is the one thing an effect is for here. It runs on
     // arrival because the menu item that asked for it is what mounted this dialog.
     useEffect(() => {
@@ -92,6 +100,10 @@ export function EventDialog({
     }, [remindersAsked]);
 
     function stateReminders(reminders: readonly number[]): void {
+        if (remindersRefused !== null) {
+            return;
+        }
+
         const changed = { ...draft, reminders };
         setDraft(changed);
 
@@ -155,9 +167,13 @@ export function EventDialog({
 
                         <button
                             type="button"
-                            className="flex items-center gap-1.75 self-start rounded-md px-2.75 py-1.5 text-sm text-text-soft hover:underline"
+                            aria-disabled={remindersRefused === null ? undefined : true}
+                            aria-label={remindersRefused ?? undefined}
+                            className="flex items-center gap-1.75 self-start rounded-md px-2.75 py-1.5 text-sm text-text-soft hover:underline aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:hover:no-underline"
                             onClick={() => {
-                                panel.current?.showModal();
+                                if (remindersRefused === null) {
+                                    panel.current?.showModal();
+                                }
                             }}
                         >
                             <Icon name="notifications" className="size-icon-sm" />
@@ -189,6 +205,12 @@ export function EventDialog({
                         {translate(said)}
                     </p>
                 )}
+
+                {refused === null ? null : (
+                    <p role="status" className="text-sm text-muted text-pretty">
+                        {refused}
+                    </p>
+                )}
             </div>
 
             <div className="flex flex-wrap justify-end gap-2.25 px-4.5 pb-4.5">
@@ -206,9 +228,10 @@ export function EventDialog({
                         <button
                             type="button"
                             disabled={record === null}
-                            className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100`}
+                            aria-disabled={refused === null ? undefined : true}
+                            className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
                             onClick={() => {
-                                if (record !== null) {
+                                if (record !== null && refused === null) {
                                     setAmending(false);
                                     onAmend(record);
                                 }
@@ -222,6 +245,7 @@ export function EventDialog({
                         <SecondaryButton
                             label={translate('calendar.deleteEvent')}
                             shape="form"
+                            held={refused !== null}
                             onActivate={onAskDeletion}
                         />
 

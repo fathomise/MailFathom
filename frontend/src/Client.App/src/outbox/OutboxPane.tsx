@@ -36,6 +36,7 @@ import {
     type OutboxStanding,
     type OutboxWording,
 } from './outboxStanding';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { useMailOutbox, type OutboxDecisionUnderWay } from './useMailOutbox';
 
 // One send of an Outbox read whole, in the pane's place: what it is about, where it stands and what may be decided
@@ -341,7 +342,12 @@ function StateBox({
     const tone = toneBox[shape.tone];
     const send = decidedAbout(preview, row);
     const asking = underWay.find((held) => held.outgoingEmailId === send.outgoingEmailId)?.decision ?? null;
-    const held = asking !== null;
+
+    // Every decision here writes, so while the server is out of reach each is drawn as one that cannot act, and the line
+    // under them says why before any is pressed.
+    const writeRefused = useWriteRefusal();
+    const refused = writeRefused(translate('outbox.sendAgain'));
+    const held = asking !== null || refused !== null;
     const said: OutgoingMailPreview =
         row === undefined
             ? preview
@@ -375,6 +381,7 @@ function StateBox({
                             label={translate('outbox.sendAgain')}
                             shape="primary"
                             held={held}
+                            {...(refused === null ? {} : { hint: refused })}
                             onPress={() => {
                                 sendAgain(send);
                             }}
@@ -386,6 +393,9 @@ function StateBox({
                                 icon="edit"
                                 shape="outlined"
                                 held={held}
+                                {...(refused === null
+                                    ? {}
+                                    : { hint: writeRefused(translate('outbox.edit')) ?? refused })}
                                 onPress={() => {
                                     edit(send);
                                 }}
@@ -414,6 +424,9 @@ function StateBox({
                 ) : null}
 
                 {asking === null ? null : <p className="text-base text-muted">{translate(askingSaid[asking])}</p>}
+                {refused === null || shape.decisions === null ? null : (
+                    <p className="text-base text-muted">{translate('outbox.noConnection')}</p>
+                )}
             </div>
         </div>
     );

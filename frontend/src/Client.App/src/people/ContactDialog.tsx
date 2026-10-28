@@ -10,6 +10,7 @@ import { Icon } from '../controls/Icon';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // Writing somebody down, and correcting somebody already written down, which are the two ways this client states a
 // person in the book and one form: a name and an address. What it records is asserted by the person typing it, which
@@ -68,6 +69,11 @@ export function ContactDialog({
     const changed = draft.displayName.trim() !== amending?.displayName || draft.address.trim() !== amending.address;
     const savable = named && addressed && usable && changed;
 
+    // Saving writes the person into the book, so while the server is out of reach it says why it cannot act — over the
+    // buttons, where a finger reads it as well as a mouse — and the dialog keeps everything typed into it.
+    const saying = translate(amending === null ? 'people.saveContact' : 'people.saveChanges');
+    const refused = useWriteRefusal()(saying);
+
     return (
         <dialog
             onToggle={closesOnBack}
@@ -82,7 +88,12 @@ export function ContactDialog({
                 // engine clears it on the next `showModal`: an answer read twice would record the person again.
                 dialog.returnValue = '';
 
-                if (answer === 'save' && draft.displayName.trim() !== '' && looksLikeAnAddress(draft.address.trim())) {
+                if (
+                    answer === 'save' &&
+                    refused === null &&
+                    draft.displayName.trim() !== '' &&
+                    looksLikeAnAddress(draft.address.trim())
+                ) {
                     onSave({ displayName: draft.displayName.trim(), address: draft.address.trim() });
                 }
 
@@ -99,7 +110,7 @@ export function ContactDialog({
                     // made from the keyboard.
                     submitting.preventDefault();
 
-                    if (savable) {
+                    if (savable && refused === null) {
                         asked.current?.close('save');
                     }
                 }}
@@ -170,6 +181,12 @@ export function ContactDialog({
                     ) : null}
                 </div>
 
+                {refused === null ? null : (
+                    <p role="status" className="px-4.5 pb-2.25 text-sm text-muted text-pretty">
+                        {refused}
+                    </p>
+                )}
+
                 <div className="flex flex-wrap justify-end gap-2.25 px-4.5 pb-4.5">
                     <button
                         type="button"
@@ -184,9 +201,10 @@ export function ContactDialog({
                     <button
                         type="submit"
                         disabled={!savable}
-                        className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100`}
+                        aria-disabled={refused === null ? undefined : true}
+                        className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
                     >
-                        {translate(amending === null ? 'people.saveContact' : 'people.saveChanges')}
+                        {saying}
                     </button>
                 </div>
             </form>

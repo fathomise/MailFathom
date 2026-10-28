@@ -230,6 +230,7 @@ async function askForResolutions(
 
     const response = await send(transport, {
         method: 'POST',
+        changesNothing: true,
         path: routeFor(session, citedPassagesRoute),
         headers: { ...headersFor(session), 'Content-Type': 'application/json' },
         body: JSON.stringify({ citations }),

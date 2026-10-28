@@ -14,7 +14,9 @@ import type { OwnProfileInForce } from '../profile/useOwnProfile';
 import { Settings } from '../settings/Settings';
 import { accountInScope, scopeOfAccount } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
+import { useFocusKeptWhenWithdrawn } from '../controls/useFocusKeptWhenWithdrawn';
 import { ConnectionStatusLine } from './ConnectionStatusLine';
+import { disconnected, useConnectionStatus } from './connectionStatus';
 import { TabModeSwitch, ThemeSegments } from './Preferences';
 import { useScreenLayer } from './screenLayers';
 import { useWideWorkspace } from './useWideWorkspace';
@@ -36,6 +38,11 @@ import { Departing } from './Departing';
 // The way out of a deployment somebody named themselves is not here either, and that one is not a design decision:
 // pointing the client elsewhere ends the session anyway, so the sign-in screen the frame falls back to is where it is
 // offered and where it still works when a kept password has stopped being accepted.
+
+/** What a withdrawn choice does when something still reaches it, which is nothing. */
+function nothingChosen(): void {
+    // A disabled fieldset already keeps a press away; this is what holds where something reaches the input anyway.
+}
 
 export function AccountMenu({
     accounts,
@@ -73,6 +80,8 @@ export function AccountMenu({
 }) {
     const { translate } = useLocalization();
     const wide = useWideWorkspace();
+    const preferencesRefused = disconnected(useConnectionStatus()) ? translate('preferences.noConnection') : null;
+    const refusalSaid = useFocusKeptWhenWithdrawn<HTMLParagraphElement>(preferencesRefused !== null);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [standing, setStanding] = useState(false);
     const menu = useRef<HTMLDivElement>(null);
@@ -152,13 +161,34 @@ export function AccountMenu({
                     <Mailboxes accounts={accounts} />
                 </div>
 
-                <TabModeSwitch on={preferences.openMailInTabs} onChange={preferences.chooseTabMode} />
+                {/* Both rows write what follows the person, so while the server is out of reach they are withdrawn
+                    together — a fieldset being the platform's own way of withdrawing every control in it — and one
+                    line under them says why, rather than a choice that would be taken and then not reach anybody. */}
+                <fieldset disabled={preferencesRefused !== null} className="contents [&:disabled>*]:opacity-60">
+                    <TabModeSwitch
+                        on={preferences.openMailInTabs}
+                        onChange={preferencesRefused === null ? preferences.chooseTabMode : nothingChosen}
+                    />
 
-                {/* One rule under the theme block and none above it, which is where the design draws the
-                    menu's second divider: the tab row and the theme row read as one group of settings. */}
-                <div className="border-b border-line-soft">
-                    <ThemeSegments onChoose={preferences.chooseTheme} />
-                </div>
+                    {/* One rule under the theme block and none above it, which is where the design draws the
+                        menu's second divider: the tab row and the theme row read as one group of settings. */}
+                    <div className="border-b border-line-soft">
+                        <ThemeSegments
+                            onChoose={preferencesRefused === null ? preferences.chooseTheme : nothingChosen}
+                        />
+
+                        {preferencesRefused === null ? null : (
+                            <p
+                                ref={refusalSaid}
+                                role="status"
+                                tabIndex={-1}
+                                className="px-3.25 pb-2 text-xs text-muted outline-none"
+                            >
+                                {preferencesRefused}
+                            </p>
+                        )}
+                    </div>
+                </fieldset>
 
                 <button
                     ref={settingsRow}
@@ -170,9 +200,9 @@ export function AccountMenu({
                     {translate('settings.title')}
                 </button>
 
-                {preferences.notStated ? (
+                {preferences.notStated || preferences.stateUnknown ? (
                     <p className="border-t border-line-soft px-3.25 py-2 text-xs text-warning-text">
-                        {translate('preferences.notStated')}
+                        {translate(preferences.stateUnknown ? 'preferences.stateUnknown' : 'preferences.notStated')}
                     </p>
                 ) : null}
 

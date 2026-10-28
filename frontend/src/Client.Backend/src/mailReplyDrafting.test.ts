@@ -126,6 +126,7 @@ describe('draftMailReply', () => {
             request({ selection: 'the 2 h SLA', instruction: 'Ask for a 5% cap.' }),
         );
 
+        expect(requests[0]?.changesNothing).toBe(true);
         expect(requests[0]?.method).toBe('POST');
         expect(requests[0]?.path).toBe(`${session.baseAddress}/api/client${mailReplyDraftingRoute}`);
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({

@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { browserSchedule } from './signalChannel';
+import { browserSchedule, startedWithin } from './signalChannel';
 
 // The wait between two connections, which ends early on the browser's two reasons to think the deployment is reachable
 // again. The connection itself is SignalR's and is proven by the deployment it reaches, not here.
@@ -70,5 +70,53 @@ describe('browserSchedule', () => {
         await vi.advanceTimersByTimeAsync(0);
 
         expect(over()).toBe(false);
+    });
+});
+
+describe('startedWithin', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('stops a start that hangs past its bound, and refuses it', async () => {
+        let stopped = 0;
+        const starting = startedWithin(
+            () => new Promise<void>(() => undefined),
+            () => {
+                stopped += 1;
+
+                return Promise.resolve();
+            },
+            15_000,
+        );
+        const refused = expect(starting).rejects.toMatchObject({ name: 'TimeoutError' });
+
+        await vi.advanceTimersByTimeAsync(14_999);
+        expect(stopped).toBe(0);
+
+        await vi.advanceTimersByTimeAsync(1);
+        await refused;
+        expect(stopped).toBe(1);
+    });
+
+    it('leaves a start that finished within its bound alone', async () => {
+        let stopped = 0;
+
+        await startedWithin(
+            () => Promise.resolve(),
+            () => {
+                stopped += 1;
+
+                return Promise.resolve();
+            },
+            15_000,
+        );
+        await vi.advanceTimersByTimeAsync(20_000);
+
+        expect(stopped).toBe(0);
     });
 });

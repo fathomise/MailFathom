@@ -9,11 +9,12 @@ import {
     readOwnDisplayName,
     readOwnTimeZone,
     reportedTimeZone,
+    wentUnanswered,
     type ClientSession,
     type MailFathomTransport,
     type PortraitImageType,
 } from '@mailfathom/client-backend';
-import type { PortraitExchange } from '../deployment/portraitExchange';
+import type { PortraitExchange, PortraitWrite } from '../deployment/portraitExchange';
 
 // Who the signed-in person is, as far as the client can draw them: the name this deployment records them under, the
 // picture they chose, and whether this deployment would take a correction of the name. It is held here rather than in
@@ -39,11 +40,20 @@ export interface OwnProfileInForce {
     /** Whether the deployment refused the name last stated, which is a sentence about what was typed. */
     readonly nameNotAcceptable: boolean;
 
-    /** Whether the last change of the name did not reach the deployment at all. */
+    /** Whether the last change of the name failed for a reason the deployment stated. */
     readonly nameNotStated: boolean;
 
-    /** Whether the last change of the picture did not reach the deployment at all. */
+    /**
+     * Whether nothing answered the last change of the name — or a gateway answered for the server, which proves nothing
+     * about whether it was handed on. It may well have been saved, so it is never said not to have been.
+     */
+    readonly nameStateUnknown: boolean;
+
+    /** Whether the last change of the picture failed for a reason the deployment stated. */
     readonly pictureNotStated: boolean;
+
+    /** Whether nothing answered the last change of the picture, for the reason the name's own flag gives. */
+    readonly pictureStateUnknown: boolean;
 
     /**
      * The zone this deployment reads their days in, or `null` while nothing has answered.
@@ -57,8 +67,11 @@ export interface OwnProfileInForce {
     /** Whether the deployment refused the zone last stated, which is a sentence about what was chosen. */
     readonly timeZoneNotAcceptable: boolean;
 
-    /** Whether the last change of the zone did not reach the deployment at all. */
+    /** Whether the last change of the zone failed for a reason the deployment stated. */
     readonly timeZoneNotStated: boolean;
+
+    /** Whether nothing answered the last change of the zone, for the reason the name's own flag gives. */
+    readonly timeZoneStateUnknown: boolean;
 
     readonly correctName: (displayName: string) => void;
     readonly chooseTimeZone: (timeZone: string) => void;
@@ -75,10 +88,13 @@ interface HeldProfile {
     readonly picture: string | null;
     readonly nameNotAcceptable: boolean;
     readonly nameNotStated: boolean;
+    readonly nameStateUnknown: boolean;
     readonly pictureNotStated: boolean;
+    readonly pictureStateUnknown: boolean;
     readonly timeZone: string | null;
     readonly timeZoneNotAcceptable: boolean;
     readonly timeZoneNotStated: boolean;
+    readonly timeZoneStateUnknown: boolean;
 }
 
 const heldForNobody: HeldProfile = {
@@ -88,10 +104,13 @@ const heldForNobody: HeldProfile = {
     picture: null,
     nameNotAcceptable: false,
     nameNotStated: false,
+    nameStateUnknown: false,
     pictureNotStated: false,
+    pictureStateUnknown: false,
     timeZone: null,
     timeZoneNotAcceptable: false,
     timeZoneNotStated: false,
+    timeZoneStateUnknown: false,
 };
 
 /**
@@ -256,10 +275,13 @@ export function useOwnProfile(
         picture: inForce.picture,
         nameNotAcceptable: inForce.nameNotAcceptable,
         nameNotStated: inForce.nameNotStated,
+        nameStateUnknown: inForce.nameStateUnknown,
         pictureNotStated: inForce.pictureNotStated,
+        pictureStateUnknown: inForce.pictureStateUnknown,
         timeZone: inForce.timeZone,
         timeZoneNotAcceptable: inForce.timeZoneNotAcceptable,
         timeZoneNotStated: inForce.timeZoneNotStated,
+        timeZoneStateUnknown: inForce.timeZoneStateUnknown,
 
         // What is on the screen changes because a person pressed something, so it changes in the handler rather than
         // in an effect watching what the handler set.
@@ -287,7 +309,8 @@ export function useOwnProfile(
                         ...current,
                         displayName: answer.outcome === 'recorded' ? answer.displayName : current.displayName,
                         nameNotAcceptable: answer.outcome === 'notAcceptable',
-                        nameNotStated: answer.outcome === 'failed',
+                        nameNotStated: answer.outcome === 'failed' && !wentUnanswered(answer.failure),
+                        nameStateUnknown: answer.outcome === 'failed' && wentUnanswered(answer.failure),
                     };
                 });
             });
@@ -315,7 +338,8 @@ export function useOwnProfile(
                               ...current,
                               timeZone: answer.outcome === 'recorded' ? answer.timeZone : current.timeZone,
                               timeZoneNotAcceptable: answer.outcome === 'notAcceptable',
-                              timeZoneNotStated: answer.outcome === 'failed',
+                              timeZoneNotStated: answer.outcome === 'failed' && !wentUnanswered(answer.failure),
+                              timeZoneStateUnknown: answer.outcome === 'failed' && wentUnanswered(answer.failure),
                           }
                         : current,
                 );
@@ -330,7 +354,11 @@ export function useOwnProfile(
             void portraits.replace(session, picture, type).then((answer) => {
                 setHeld((current) =>
                     current.session === session
-                        ? { ...current, pictureNotStated: answer.outcome !== 'stored' }
+                        ? {
+                              ...current,
+                              pictureNotStated: answer.outcome !== 'stored' && !pictureUnanswered(answer),
+                              pictureStateUnknown: pictureUnanswered(answer),
+                          }
                         : current,
                 );
 
@@ -356,12 +384,22 @@ export function useOwnProfile(
                     return {
                         ...current,
                         picture: answer.outcome === 'stored' ? null : current.picture,
-                        pictureNotStated: answer.outcome !== 'stored',
+                        pictureNotStated: answer.outcome !== 'stored' && !pictureUnanswered(answer),
+                        pictureStateUnknown: pictureUnanswered(answer),
                     };
                 });
             });
         },
     };
+}
+
+/**
+ * Whether a write of the picture went unanswered. The exchange reads a request nothing answered and a status nobody
+ * named alike, as `unavailable`, and neither says the picture was not stored — so both are read as an outcome nobody
+ * knows, never as a refusal.
+ */
+function pictureUnanswered(answer: PortraitWrite): boolean {
+    return answer.outcome === 'refused' && answer.reason === 'unavailable';
 }
 
 /** What an answer is folded into: what is held where it belongs to this session, and nothing where it does not. */

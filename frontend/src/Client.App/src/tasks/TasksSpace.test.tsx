@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { TasksSpace } from './TasksSpace';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
@@ -77,6 +78,7 @@ function deployment({
     layout = { arranged: false, placements: [], notToday: [] },
     layoutStatus = 200,
     refuses = [],
+    leavesUnanswered = [],
     holdsCalendarWrites = false,
 }: {
     committed?: readonly unknown[];
@@ -88,6 +90,9 @@ function deployment({
 
     /** Which writes this deployment will not perform, which is how a batch is made to half succeed. */
     refuses?: readonly string[];
+
+    /** Which writes a gateway answers for the server, which says nothing about whether they were handed on. */
+    leavesUnanswered?: readonly string[];
 
     /** Whether a write to the calendar is left outstanding, which is how a second press is caught in flight. */
     holdsCalendarWrites?: boolean;
@@ -135,13 +140,15 @@ function deployment({
                               }),
                           }
                         : { ...answered, body: JSON.stringify({ events }) };
+            } else if (method !== 'GET' && leavesUnanswered.some((task) => path.includes(`/tasks/${task}`))) {
+                answer = { status: 504, headers: {}, body: '' };
             } else if (method === 'DELETE') {
                 answer = refuses.some((task) => path.endsWith(`/tasks/${task}`))
-                    ? { status: 503, headers: {}, body: '' }
+                    ? { status: 403, headers: {}, body: '' }
                     : { ...answered, body: JSON.stringify({ id: 'a', erased: true }) };
             } else if (method === 'POST' || method === 'PUT') {
                 answer = refuses.some((task) => path.includes(`/tasks/${task}`))
-                    ? { status: 503, headers: {}, body: '' }
+                    ? { status: 403, headers: {}, body: '' }
                     : { ...answered, body: JSON.stringify(taskCalled('a', 'Answer the tender')) };
             } else if (path.includes('/tasks/proposed')) {
                 served += 1;
@@ -163,27 +170,53 @@ function drawSpace(
         writesCalendar = true,
         readsMail = true,
         onOpenMessage = vi.fn(),
+        lostServer = false,
     }: {
         asksDeployment?: boolean;
         readsCalendar?: boolean;
         writesCalendar?: boolean;
         readsMail?: boolean;
         onOpenMessage?: (id: string) => void;
+
+        /** Whether the connection status says the server is out of reach, which refuses every write before use. */
+        lostServer?: boolean;
     } = {},
 ): void {
     render(
         <LocalizationProvider>
-            <TasksSpace
-                session={session}
-                transport={transport}
-                asksDeployment={asksDeployment}
-                readsCalendar={readsCalendar}
-                writesCalendar={writesCalendar}
-                onOpenMessage={readsMail ? onOpenMessage : undefined}
-            />
+            <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
+                <TasksSpace
+                    session={session}
+                    transport={transport}
+                    asksDeployment={asksDeployment}
+                    readsCalendar={readsCalendar}
+                    writesCalendar={writesCalendar}
+                    onOpenMessage={readsMail ? onOpenMessage : undefined}
+                />
+            </ConnectionStatusContext>
         </LocalizationProvider>,
     );
 }
+
+const serverAnswering: ConnectionStatus = {
+    level: 'online',
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => false,
+};
+
+const serverLost: ConnectionStatus = {
+    level: 'disconnected',
+    cause: 'unanswered',
+    since: 0,
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => true,
+};
 
 function pathsSent(sent: readonly ClientRequest[], method: string): string[] {
     return sent.filter((request) => request.method === method).map((request) => request.path);
@@ -421,9 +454,49 @@ describe('TasksSpace', () => {
 
         await waitFor(() => {
             expect(screen.getByRole('status').textContent).toBe(
-                'The server did not accept that: unavailable. Nothing was changed.',
+                'The server did not accept that: unauthorized. Nothing was changed.',
             );
         });
+    });
+
+    // A gateway answering for the server may have handed the write on first, so what became of it is not known — and
+    // the list read again after it is what says where it stands.
+    it('says it is not known whether a write nobody answered was made, never that nothing was', async () => {
+        const { transport } = deployment({ leavesUnanswered: ['a'] });
+
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('checkbox', { name: 'Mark Answer the tender as done' }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe(
+                'The server did not answer, so it is not known whether that was changed.',
+            );
+        });
+    });
+
+    it('refuses every write on a row before it is pressed while the server is out of reach, and says why', async () => {
+        const { transport, sent } = deployment();
+
+        drawSpace(transport, { lostServer: true });
+
+        const box = await screen.findByRole('checkbox', {
+            name: 'Mark Answer the tender as done - no connection to the MailFathom server.',
+        });
+
+        expect(box.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(box);
+        fireEvent.keyDown(screen.getByRole('listitem'), { key: 'ContextMenu' });
+
+        const done = screen.getByRole('menuitem', { name: 'Mark as done - no connection to the MailFathom server.' });
+
+        expect(done.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(done);
+
+        expect(pathsSent(sent(), 'PUT')).toStrictEqual([]);
+        expect(pathsSent(sent(), 'POST')).toStrictEqual([]);
     });
 
     it('says there is nothing to put in the calendar where nothing picked out names a day', async () => {

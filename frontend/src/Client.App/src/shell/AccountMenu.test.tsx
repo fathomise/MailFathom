@@ -14,6 +14,7 @@ import { WorkspaceProvider } from '../workspace/Workspace';
 import type { MailScope } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { AccountMenu } from './AccountMenu';
+import { ConnectionStatusContext, type ConnectionStatus } from './connectionStatus';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from './screenLayers';
 
 function mailbox(id: string, displayName: string): MailAccount {
@@ -37,6 +38,7 @@ const settings: ClientPreferencesInForce = {
     notificationSeconds: 5,
     trustedLinkDomains: [],
     notStated: false,
+    stateUnknown: false,
     chooseTheme: () => undefined,
     chooseTabMode: () => undefined,
     chooseTelemetry: () => undefined,
@@ -52,10 +54,13 @@ const nobody: OwnProfileInForce = {
     picture: null,
     nameNotAcceptable: false,
     nameNotStated: false,
+    nameStateUnknown: false,
     pictureNotStated: false,
+    pictureStateUnknown: false,
     timeZone: null,
     timeZoneNotAcceptable: false,
     timeZoneNotStated: false,
+    timeZoneStateUnknown: false,
     correctName: () => undefined,
     chooseTimeZone: () => undefined,
     choosePicture: () => undefined,
@@ -115,6 +120,26 @@ function scopeInForce(): MailScope {
     return JSON.parse(screen.getByRole('status').textContent) as MailScope;
 }
 
+const serverAnswering: ConnectionStatus = {
+    level: 'online',
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => false,
+};
+
+const serverLost: ConnectionStatus = {
+    level: 'disconnected',
+    cause: 'unanswered',
+    since: 0,
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => true,
+};
+
 function renderMenu({
     accounts = [],
     deploymentVersion = '0.9.0',
@@ -123,6 +148,7 @@ function renderMenu({
     profile = nobody,
     onSignOut = () => undefined,
     scope = null,
+    lostServer = false,
 }: {
     readonly accounts?: readonly MailAccount[];
     readonly deploymentVersion?: string | null;
@@ -131,6 +157,9 @@ function renderMenu({
     readonly profile?: OwnProfileInForce;
     readonly onSignOut?: () => void;
     readonly scope?: MailScope | null;
+
+    /** Whether the connection status says the server is out of reach, which refuses every write before use. */
+    readonly lostServer?: boolean;
 } = {}): { readonly current: ScreenLayers } {
     // The shell around it, because the menu records itself as standing over the screen while it is open. Its three
     // functions are the same ones for the life of the stack, so the value handed to the provider stays current
@@ -142,15 +171,17 @@ function renderMenu({
             <ThemeProvider>
                 <WorkspaceProvider>
                     <ScreenLayersContext value={result.current}>
-                        <AccountMenu
-                            accounts={accounts}
-                            deploymentVersion={deploymentVersion}
-                            telemetryForwarding={telemetryForwarding}
-                            writesProfile
-                            preferences={preferences}
-                            profile={profile}
-                            onSignOut={onSignOut}
-                        />
+                        <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
+                            <AccountMenu
+                                accounts={accounts}
+                                deploymentVersion={deploymentVersion}
+                                telemetryForwarding={telemetryForwarding}
+                                writesProfile
+                                preferences={preferences}
+                                profile={profile}
+                                onSignOut={onSignOut}
+                            />
+                        </ConnectionStatusContext>
                     </ScreenLayersContext>
                     <ScopeProbe />
                     {scope === null ? null : <ScopeAs scope={scope} />}
@@ -406,6 +437,35 @@ describe('AccountMenu', () => {
         renderMenu({ preferences: { ...settings, notStated: true } });
 
         expect(screen.getByText(/was not saved to the server/u)).toBeDefined();
+    });
+
+    it('says it is not known whether a change nobody answered was saved, never that it was not', () => {
+        renderMenu({ preferences: { ...settings, stateUnknown: true } });
+
+        expect(
+            screen.getByText('The server did not answer, so it is not known whether that change was saved.'),
+        ).toBeDefined();
+        expect(screen.queryByText(/was not saved to the server/u)).toBeNull();
+    });
+
+    // The theme and the tab mode follow the person, so a choice made while the server is out of reach would have no
+    // route to it: both are withdrawn before they are used, and one line says why.
+    it('withdraws the theme and the tab mode while the server is out of reach, and says why', () => {
+        const chooseTheme = vi.fn();
+        renderMenu({ preferences: { ...settings, chooseTheme }, lostServer: true });
+
+        const dark = screen.getByRole<HTMLInputElement>('radio', { name: 'Dark', hidden: true });
+
+        expect(dark.matches(':disabled')).toBe(true);
+        expect(
+            screen.getByText(
+                'There is no connection to the MailFathom server, so these cannot be changed until it is back.',
+            ),
+        ).toBeDefined();
+
+        fireEvent.click(dark);
+
+        expect(chooseTheme).not.toHaveBeenCalled();
     });
 
     it('draws the tab mode from what is in force and hands a change to what holds it', () => {

@@ -62,6 +62,7 @@ function deployment(held: {
     notifications: readonly unknown[];
     refuseMarking?: boolean;
     refuseDeleting?: boolean;
+    leaveMarkingUnanswered?: boolean;
 }): {
     transport: MailFathomTransport;
     requests: ClientRequest[];
@@ -104,6 +105,10 @@ function deployment(held: {
                 held.unreadCount = held.notifications.filter((row) => !(row as { read: boolean }).read).length;
 
                 return answer(JSON.stringify({ deleted: going.length, unreadCount: held.unreadCount }));
+            }
+
+            if (request.path.endsWith('/read-state') && held.leaveMarkingUnanswered === true) {
+                return Promise.reject(new TypeError('Failed to fetch'));
             }
 
             if (request.path.endsWith('/read-state')) {
@@ -688,6 +693,27 @@ describe('useNotificationCentre', () => {
 
         expect(result.current.notifications[0]?.read).toBe(false);
         expect(screen.getByText('That notification could not be marked. It stands as it did.')).toBeDefined();
+    });
+
+    // Nothing answered, so whether the marking landed is not known — and it most likely did. Taking it back would draw
+    // a guess as fact; it stays as asked until the centre's next read says where it stands.
+    it('keeps a marking nobody answered and says it is not known whether it reached the server', async () => {
+        const { transport } = deployment({ unreadCount: 1, notifications: [mail], leaveMarkingUnanswered: true });
+        const { result } = centreOf(transport);
+
+        act(() => {
+            result.current.show();
+        });
+        await settled();
+
+        act(() => {
+            result.current.markRead(['n-mail'], true);
+        });
+        await settled();
+
+        expect(result.current.notifications[0]?.read).toBe(true);
+        expect(screen.getByText('Not known whether this reached the server')).toBeDefined();
+        expect(screen.queryByText('That notification could not be marked. It stands as it did.')).toBeNull();
     });
 
     it('marks everything read in one request rather than one per row', async () => {

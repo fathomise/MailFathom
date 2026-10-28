@@ -53,10 +53,11 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
       const t = {
         id: id, kind: o.kind || "neutral", title: o.title, body: o.body || "",
         actionLabel: o.action || "", opens: !!o.opens, ms: o.ms || this.ms(),
-        sticky: o.kind === "loading", cancelText: o.cancelText || "",
+        sticky: o.kind === "loading", lasting: !!o.lasting, cancelText: o.cancelText || "",
       };
       this.setState(s => ({ toasts: [t].concat(s.toasts || []).slice(0, this.maxStack()) }));
-      if (!t.sticky) this.arm(id, t.ms);
+      /* A lasting toast - *Still sending…* - stands until what it is about ends, so nothing runs out for it. */
+      if (!t.sticky && !t.lasting) this.arm(id, t.ms);
       return id;
     };
 
@@ -157,7 +158,7 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
         bodyStyle: "color:var(--text2);text-wrap:pretty;" + (slim ? "font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden" : "font-size:14px;line-height:1.45"),
         textStyle: "flex:1;min-width:0;display:flex;flex-direction:column;" + (slim ? "gap:1px;padding:2px 0" : "gap:4px;padding-top:2px"),
         actionStyle: "display:flex;align-items:center;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;" + (slim ? "flex:0 0 auto;align-self:center;min-height:36px;padding:0 12px" : "align-self:flex-start;min-height:32px;margin-top:5px;padding:0 13px"),
-        hasBar: !t.sticky && !t.out,
+        hasBar: !t.sticky && !t.lasting && !t.out,
         barStyle: "position:absolute;left:0;right:0;bottom:0;height:2px;transform-origin:left;opacity:0.55;background:" + K.bar +
           (live ? ";animation:mftbar " + (t.ms || this.ms()) + "ms linear both" : ";transform:scaleX(0.62)"),
         iconWrapStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:" + K.soft + ";" + (slim ? "width:28px;height:28px;border-radius:8px" : "width:34px;height:34px;border-radius:12px"),
@@ -235,7 +236,7 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
 
         samples: SAMPLES.map(s => {
           const K = KINDS[s.kind];
-          const demoT = { kind: s.kind, sticky: s.kind === "loading", ms: this.ms() };
+          const demoT = { kind: s.kind, sticky: s.kind === "loading", lasting: !!s.lasting, ms: this.ms() };
           const v = this.vis(demoT, false);
           return {
             name: s.name, kind: s.kind, desc: s.desc, title: s.title, body: s.body,
@@ -246,7 +247,9 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
               if (s.kind === "loading") {
                 this.task({ title: s.title, body: s.body, cancelText: TASKS.archive.cancelText, doneTitle: TASKS.archive.doneTitle, doneBody: TASKS.archive.doneBody, ms: TASKS.archive.ms });
               } else {
-                this.notify({ kind: s.kind, title: s.title, body: s.body, action: s.action, opens: s.opens });
+                const id = this.notify({ kind: s.kind, title: s.title, body: s.body, action: s.action, opens: s.opens, lasting: s.lasting });
+                /* The sample write is answered 6 s later, which is what takes *Still sending…* away. */
+                if (s.lasting) setTimeout(() => this.dismiss(id), 6000);
               }
             },
           };
@@ -287,6 +290,7 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
           { k: "Close button", v: "Always present. For a running operation it means abort and asks for confirmation." },
           { k: "Drag aside", v: "Any toast, dragged left or right, follows the pointer and fades; let go past 96 px it leaves, short of that it springs back. A running operation's asks first, as its close button does." },
           { k: "Pressed", v: "A toast raised for a notification draws no button: the whole card opens what the notification opens. Its close button only closes." },
+          { k: "Lasting", v: "Still sending… has no bar and does not close on its own: it stands while a write waits more than 10 s for its answer, and goes once the write is answered or ends as unknown." },
         ],
 
         startBlocking: () => this.startBlock(true),

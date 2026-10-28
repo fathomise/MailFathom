@@ -37,6 +37,7 @@ function Holding({
         retry,
         detailsOpen: detailsOpen && (reading.level === 'delayed' || reading.level === 'disconnected'),
         showDetails,
+        disconnectedNow: () => reading.level === 'disconnected',
     };
 
     return (

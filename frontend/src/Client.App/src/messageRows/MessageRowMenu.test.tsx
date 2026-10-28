@@ -137,6 +137,17 @@ describe('MessageRowMenu', () => {
 
     // Folded to a strip, the row is an avatar whose sender a mouse reads by resting on it; a finger holding it reads
     // the sender here instead.
+    // While the server is out of reach the acts stay where they are and say why they cannot act, rather than leaving
+    // the menu short of five acts with nothing to say they were ever there.
+    it('keeps every mailbox act in place saying there is no connection, while the server is out of reach', () => {
+        menuUnder({ acts: actsWhere(() => 'noConnection') });
+
+        const archive = screen.getByRole('menuitem', { name: 'Archive - no connection to the MailFathom server.' });
+
+        expect(archive.getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByRole('menuitem', { name: /^Delete - no connection/u })).toBeTruthy();
+    });
+
     it('names who the message is from under its subject', () => {
         menuUnder();
 

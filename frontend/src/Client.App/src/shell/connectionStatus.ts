@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { createContext, useContext } from 'react';
-import type { SignalStanding } from '@mailfathom/client-backend';
+import type { ClientFailureReason, SignalStanding } from '@mailfathom/client-backend';
 
 // Whether this client is talking to its server, said once for the whole client rather than by every screen in its own
 // words. It is one value derived from four kinds of evidence — the network, the session read, the signal channel, and
@@ -130,8 +130,9 @@ export function nextChangeIn(evidence: ConnectionEvidence, now: number): number 
 /** The status as every surface reads it. */
 export type ConnectionStatus = ConnectionReading & {
     /**
-     * How many automatic attempts at the session read have been made since the server last answered it, or `null` where
-     * the session read is not what went unanswered — a ticket nothing answered is retried on the stream's own schedule.
+     * How many automatic attempts at the session read have been made since the server last answered it, or `null` while
+     * it answers. The session read is the one thing that says the server is lost — a ticket nothing answered asks the
+     * liveness probe, whose reads are those attempts, rather than saying so itself.
      */
     readonly attempts: number | null;
 
@@ -146,6 +147,17 @@ export type ConnectionStatus = ConnectionReading & {
 
     /** Opens or closes the details. */
     readonly showDetails: (open: boolean) => void;
+
+    /**
+     * Whether the server is out of reach at this moment, asked when a failure arrives rather than read off the status a
+     * screen rendered with.
+     *
+     * A request abandoned because the server went quiet fails in the instant after the status turned red, inside a
+     * callback that closed over the status as it stood when the request went out — green. Asked here instead, it
+     * answers what is true now, which is what decides that the failure is the status's to say and raises no toast of
+     * its own.
+     */
+    readonly disconnectedNow: () => boolean;
 };
 
 /** What a surface reads where nothing has said otherwise, which is a client that has not yet heard anything. */
@@ -155,6 +167,7 @@ const notYetHeard: ConnectionStatus = {
     retry: () => undefined,
     detailsOpen: false,
     showDetails: () => undefined,
+    disconnectedNow: () => false,
 };
 
 export const ConnectionStatusContext = createContext<ConnectionStatus>(notYetHeard);
@@ -167,4 +180,13 @@ export function useConnectionStatus(): ConnectionStatus {
 /** Whether the server is out of reach, which is what the surfaces that say *no connection* ask. */
 export function disconnected(status: ConnectionReading): boolean {
     return status.level === 'disconnected';
+}
+
+/**
+ * Whether a failure is one the status already says, so it raises nothing of its own: an unavailable read or write while
+ * the server is out of reach. A screen still draws its own state in place; what it does not do is add a second voice
+ * to the one the status already is.
+ */
+export function saidByTheStatus(disconnectedNow: () => boolean, reason: ClientFailureReason): boolean {
+    return reason === 'unavailable' && disconnectedNow();
 }

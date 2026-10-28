@@ -237,6 +237,7 @@ describe('MailboxActControls', () => {
         ['severalAccounts', 'Archive - messages from several accounts cannot be filed into one folder.'],
         ['noOtherFolder', 'Archive - this account has no other folder to file into.'],
         ['foldersUnknown', 'Archive - MailFathom has not read your folders, so it cannot say where this would go.'],
+        ['noConnection', 'Archive - no connection to the MailFathom server.'],
     ] as [ActRefusal, string][])(
         'says %s in the control’s own name rather than refusing after the press',
         (refusal, said) => {

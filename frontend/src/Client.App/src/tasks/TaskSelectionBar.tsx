@@ -7,6 +7,7 @@ import { Control } from '../controls/Control';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // What stands where the toolbar stands while tasks are picked out, which is the design's own bar: how many are
 // selected, the three acts over the whole of them, and the way out.
@@ -58,6 +59,17 @@ export function TaskSelectionBar({
 }) {
     const { locale, translate } = useLocalization();
     const wide = useWideWorkspace();
+    const writeRefused = useWriteRefusal();
+
+    // Every act on this bar writes, so while the server is out of reach each says why it cannot act rather than acting.
+    const markDone = translate('tasks.markDone');
+    const schedule = translate('tasks.scheduleInCalendar');
+    const erase = translate('tasks.deleteTasks');
+    const refusedAs = (label: string): { readonly held?: true; readonly hint?: string } => {
+        const why = writeRefused(label);
+
+        return why === null ? {} : { held: true, hint: why };
+    };
 
     // Words beside the symbols where the composition has room for them, and the symbols alone where it has not, which
     // is how the design draws this bar on a phone. The name is on the control either way.
@@ -81,18 +93,19 @@ export function TaskSelectionBar({
 
             <span aria-hidden="true" className="mx-0.5 w-px self-stretch bg-accent-line" />
 
-            <Control label={translate('tasks.markDone')} icon="check_circle" shape={shape} onPress={onComplete} />
+            <Control label={markDone} icon="check_circle" shape={shape} {...refusedAs(markDone)} onPress={onComplete} />
 
             {onSchedule === undefined ? null : (
                 <Control
-                    label={translate('tasks.scheduleInCalendar')}
+                    label={schedule}
                     icon="calendar_month"
                     shape={shape}
+                    {...refusedAs(schedule)}
                     onPress={onSchedule}
                 />
             )}
 
-            <Control label={translate('tasks.deleteTasks')} icon="delete" shape={shape} onPress={onAskErasure} />
+            <Control label={erase} icon="delete" shape={shape} {...refusedAs(erase)} onPress={onAskErasure} />
         </div>
     );
 }

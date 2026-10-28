@@ -67,6 +67,7 @@ const disconnectedStatus: ConnectionStatus = {
     retry: () => undefined,
     detailsOpen: false,
     showDetails: () => undefined,
+    disconnectedNow: () => false,
 };
 
 function renderSummary(
@@ -84,6 +85,9 @@ function renderSummary(
                 unansweredSince: null,
                 accountsReadAt: null,
                 reread: () => undefined,
+                channelDropped: () => undefined,
+                readUnderWay: () => false,
+                channelStands: () => undefined,
                 refresh: () => undefined,
                 ...connection,
             }}

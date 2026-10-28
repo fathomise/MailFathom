@@ -18,7 +18,9 @@ import { VersionLine } from '../controls/VersionLine';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
 import { pressVersionLine } from '../developerInformation/developerAccess';
 import type { MessageKey } from '../localization/en';
+import { useFocusKeptWhenWithdrawn } from '../controls/useFocusKeptWhenWithdrawn';
 import { useLocalization } from '../localization/useLocalization';
+import { disconnected, useConnectionStatus } from '../shell/connectionStatus';
 import { useScreenLayer } from '../shell/screenLayers';
 import type { ClientPreferencesInForce } from '../preferences/useClientPreferences';
 import type { OwnProfileInForce } from '../profile/useOwnProfile';
@@ -126,6 +128,23 @@ export function Settings({
     const sectionSwipe = useTabSwipe(sections, open, setOpen);
     const twoPanes = useTwoPanes();
 
+    // What the deployment keeps is withdrawn for one of two reasons, each with its own sentence: this credential may
+    // not change it, or the server is out of reach right now — when a change would have no route to it and is refused
+    // before it is made rather than reported after. The grant's reason is said first, being for good where the
+    // connection's is for now: somebody who may never change these is not told to wait for the server. What this
+    // machine keeps for itself stays offered either way.
+    const lostServer = disconnected(useConnectionStatus());
+    const preferencesWithdrawn: MessageKey | null = !writesProfile
+        ? 'settings.preferencesNotYours'
+        : lostServer
+          ? 'settings.preferencesNoConnection'
+          : null;
+    const profileWithdrawn: MessageKey | null = !writesProfile
+        ? 'settings.profileNotYours'
+        : lostServer
+          ? 'settings.profileNoConnection'
+          : null;
+
     // The one imperative browser API this surface synchronizes with, which is the whole of what an effect is for. It
     // runs once, because the element is in the document exactly as long as the surface is open.
     useEffect(() => {
@@ -147,11 +166,15 @@ export function Settings({
 
     const body =
         open === 'profile' ? (
-            <Profile profile={profile} writable={writesProfile} />
+            <Profile profile={profile} withdrawn={profileWithdrawn} />
         ) : open === 'notifications' ? (
-            <Notifications preferences={preferences} writable={writesProfile} />
+            <Notifications preferences={preferences} withdrawn={preferencesWithdrawn} />
         ) : (
-            <Application preferences={preferences} telemetryForwarding={telemetryForwarding} writable={writesProfile} />
+            <Application
+                preferences={preferences}
+                telemetryForwarding={telemetryForwarding}
+                withdrawn={preferencesWithdrawn}
+            />
         );
 
     return (
@@ -461,13 +484,16 @@ function SectionName({ children }: { readonly children: string }) {
 function Application({
     preferences,
     telemetryForwarding,
-    writable,
+    withdrawn,
 }: {
     readonly preferences: ClientPreferencesInForce;
     readonly telemetryForwarding: TelemetryForwarding;
-    readonly writable: boolean;
+
+    /** Why the rows the deployment keeps are shown rather than offered, or `null` where they are offered. */
+    readonly withdrawn: MessageKey | null;
 }) {
     const { translate } = useLocalization();
+    const reason = useFocusKeptWhenWithdrawn<HTMLParagraphElement>(withdrawn !== null);
 
     return (
         <>
@@ -476,9 +502,13 @@ function Application({
 
             <Divider />
 
-            {writable ? null : <p className="text-base text-muted">{translate('settings.preferencesNotYours')}</p>}
+            {withdrawn === null ? null : (
+                <p ref={reason} tabIndex={-1} className="text-base text-muted outline-none">
+                    {translate(withdrawn)}
+                </p>
+            )}
 
-            <fieldset disabled={!writable} className={followingThePerson}>
+            <fieldset disabled={withdrawn !== null} className={followingThePerson}>
                 <SectionName>{translate('settings.messageView')}</SectionName>
                 <MessageView preferences={preferences} />
                 <ThreadExpansion preferences={preferences} />
@@ -503,20 +533,27 @@ function Application({
 // drawn only where a head can raise one; the second follows the person, so it sits in a group the deployment keeps.
 function Notifications({
     preferences,
-    writable,
+    withdrawn,
 }: {
     readonly preferences: ClientPreferencesInForce;
-    readonly writable: boolean;
+
+    /** Why the rows the deployment keeps are shown rather than offered, or `null` where they are offered. */
+    readonly withdrawn: MessageKey | null;
 }) {
     const { translate } = useLocalization();
+    const reason = useFocusKeptWhenWithdrawn<HTMLParagraphElement>(withdrawn !== null);
 
     return (
         <>
             <SystemNotifications />
 
-            {writable ? null : <p className="text-base text-muted">{translate('settings.preferencesNotYours')}</p>}
+            {withdrawn === null ? null : (
+                <p ref={reason} tabIndex={-1} className="text-base text-muted outline-none">
+                    {translate(withdrawn)}
+                </p>
+            )}
 
-            <fieldset disabled={!writable} className={followingThePerson}>
+            <fieldset disabled={withdrawn !== null} className={followingThePerson}>
                 <NotificationDuration preferences={preferences} />
             </fieldset>
         </>
@@ -736,8 +773,17 @@ function AiFiltersSection({ preferences }: { readonly preferences: ClientPrefere
 // What the deployment records the person as, and the picture they are drawn by. The name is corrected in place rather
 // than through a form with a button: there is one field, and a person who has typed their name and moved on has said
 // what they mean as plainly as one who pressed Save.
-function Profile({ profile, writable }: { readonly profile: OwnProfileInForce; readonly writable: boolean }) {
+function Profile({
+    profile,
+    withdrawn,
+}: {
+    readonly profile: OwnProfileInForce;
+
+    /** Why what the deployment holds about the person is shown rather than offered, or `null` where it is offered. */
+    readonly withdrawn: MessageKey | null;
+}) {
     const { translate } = useLocalization();
+    const reason = useFocusKeptWhenWithdrawn<HTMLParagraphElement>(withdrawn !== null);
 
     // What a file the person picked was refused for, which belongs to the control they picked it with rather than to
     // the profile: it is decided here and never sent, so nothing outside this surface has anything to do about it.
@@ -777,24 +823,24 @@ function Profile({ profile, writable }: { readonly profile: OwnProfileInForce; r
                         id={named}
                         type="text"
                         defaultValue={profile.displayName ?? ''}
-                        readOnly={!profile.changeable}
+                        readOnly={!profile.changeable || withdrawn !== null}
                         placeholder={translate('settings.name')}
                         className="w-full max-w-110 rounded-md border border-line-strong bg-sunken px-2.5 py-1.75 text-md text-text outline-none read-only:text-muted focus:border-accent"
                         onBlur={(event) => {
-                            correct(profile, event.target.value);
+                            correct(profile, event.target.value, withdrawn);
                         }}
                         onKeyDown={(event) => {
                             if (event.key === 'Enter') {
-                                correct(profile, event.currentTarget.value);
+                                correct(profile, event.currentTarget.value, withdrawn);
                             }
                         }}
                     />
 
                     {/* Drawn whatever the field beside them is doing. `changeable` says whether *the name* would be
                         taken, which a settings policy may hold apart from everything else here; the portrait routes
-                        ask only for the grant to change a profile, so that grant alone decides whether these are
-                        offered. */}
-                    {!writable ? null : (
+                        ask only for the grant to change a profile, so that grant — and a server there to take the
+                        change — alone decides whether these are offered. */}
+                    {withdrawn !== null ? null : (
                         <div className="flex flex-wrap items-center gap-1.25">
                             <label className="flex cursor-pointer items-center gap-1.25 rounded-md border border-line-strong px-2.25 py-1 text-base text-text-soft transition hover:bg-hover has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
                                 <Icon name="add_a_photo" className="size-icon-sm" />
@@ -839,14 +885,16 @@ function Profile({ profile, writable }: { readonly profile: OwnProfileInForce; r
                 </div>
             </div>
 
-            <TimeZone profile={profile} writable={writable} />
+            <TimeZone profile={profile} writable={withdrawn === null} />
 
             <p className="text-base text-muted">{translate('settings.profileHeld')}</p>
 
             {/* Two reasons a name is shown rather than offered, and each has its own sentence: the credential may
                 change nothing here, or it may and somebody else keeps the name. */}
-            {!writable ? (
-                <p className="text-base text-muted">{translate('settings.profileNotYours')}</p>
+            {withdrawn !== null ? (
+                <p ref={reason} tabIndex={-1} className="text-base text-muted outline-none">
+                    {translate(withdrawn)}
+                </p>
             ) : profile.changeable ? null : (
                 <p className="text-base text-muted">{translate('settings.nameNotYours')}</p>
             )}
@@ -855,8 +903,10 @@ function Profile({ profile, writable }: { readonly profile: OwnProfileInForce; r
                 <p className="text-sm text-warning">{translate('settings.nameNotAcceptable')}</p>
             ) : null}
 
-            {profile.nameNotStated ? (
-                <p className="text-sm text-warning">{translate('settings.nameNotStored')}</p>
+            {profile.nameNotStated || profile.nameStateUnknown ? (
+                <p className="text-sm text-warning">
+                    {translate(profile.nameStateUnknown ? 'settings.nameStateUnknown' : 'settings.nameNotStored')}
+                </p>
             ) : null}
         </>
     );
@@ -920,8 +970,12 @@ function TimeZone({ profile, writable }: { readonly profile: OwnProfileInForce; 
                 <p className="text-sm text-warning">{translate('settings.timeZoneNotAcceptable')}</p>
             ) : null}
 
-            {profile.timeZoneNotStated ? (
-                <p className="text-sm text-warning">{translate('settings.timeZoneNotStored')}</p>
+            {profile.timeZoneNotStated || profile.timeZoneStateUnknown ? (
+                <p className="text-sm text-warning">
+                    {translate(
+                        profile.timeZoneStateUnknown ? 'settings.timeZoneStateUnknown' : 'settings.timeZoneNotStored',
+                    )}
+                </p>
             ) : null}
         </>
     );
@@ -958,8 +1012,10 @@ function PictureNotice({
         );
     }
 
-    return profile.pictureNotStated ? (
-        <p className="text-sm text-warning">{translate('settings.pictureNotStored')}</p>
+    return profile.pictureNotStated || profile.pictureStateUnknown ? (
+        <p className="text-sm text-warning">
+            {translate(profile.pictureStateUnknown ? 'settings.pictureStateUnknown' : 'settings.pictureNotStored')}
+        </p>
     ) : null;
 }
 
@@ -1033,9 +1089,11 @@ function Telemetry({
 }
 
 // A correction is sent where it says something different from what the deployment holds. Anything else would be a
-// write per field somebody tabbed through, and the deployment would answer the name it already had.
-function correct(profile: OwnProfileInForce, typed: string): void {
-    if (profile.changeable && typed.trim() !== (profile.displayName ?? '')) {
+// write per field somebody tabbed through, and the deployment would answer the name it already had. Nothing is sent
+// while the profile is withdrawn — a name typed before the server went quiet and left by a blur or an Enter after is a
+// write the screen already says it refuses, and the field stands read-only with the reason beside it.
+function correct(profile: OwnProfileInForce, typed: string, withdrawn: MessageKey | null): void {
+    if (withdrawn === null && profile.changeable && typed.trim() !== (profile.displayName ?? '')) {
         profile.correctName(typed);
     }
 }

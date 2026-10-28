@@ -9,6 +9,7 @@ import {
     readNotifications,
     readUnreadNotificationCount,
     setNotificationRead,
+    wentUnanswered,
     type ClientFailureReason,
     type ClientNotification,
     type ClientSession,
@@ -16,9 +17,11 @@ import {
     type MailFathomTransport,
     type NotificationTarget,
 } from '@mailfathom/client-backend';
+import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { chooseSystemNotifications, systemNotificationsChosen } from '../preferences/systemNotifications';
 import { useSystemNotifier } from '../shellOperations/systemNotifier';
+import { saidByTheStatus } from '../shell/connectionStatus';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { arrivalCounts } from './arrivalCounts';
 import { failureOf } from './failures';
@@ -148,6 +151,8 @@ interface Risen {
  * @param onFollow Where a notification leads, which is the frame's answer rather than this hook's.
  * @param accounts The person's mail accounts, which is what a failure's toast names its account by.
  * @param followedHere Whether this tab already follows a change, which is what silences its durable row's toast.
+ * @param disconnectedNow Whether the server is out of reach at this moment, which is when a failure is the connection
+ * status's to say rather than a toast's. The frame hands it in because it holds this hook above the status it states.
  */
 export function useNotificationCentre(
     session: ClientSession | null,
@@ -156,6 +161,7 @@ export function useNotificationCentre(
     onFollow: (target: NotificationTarget) => void,
     accounts: readonly MailAccount[] = noAccounts,
     followedHere: FollowedHere = followsNothing,
+    disconnectedNow: () => boolean = connectedAlways,
 ): NotificationCentre {
     const { locale, translate } = useLocalization();
     const toasts = useToasts();
@@ -523,6 +529,24 @@ export function useNotificationCentre(
         };
     }, [session, transport, online, shown, asked]);
 
+    // A write nobody answered — or a gateway did, which proves nothing about whether it was handed on — may well have
+    // landed, so what it drew stays drawn rather than being taken back on a guess, and nothing offers to send it again.
+    // The centre's next read, which a server answering again asks for at once, draws what the deployment holds.
+    function outcomeUnknown(): void {
+        toasts.raise({
+            kind: 'warning',
+            title: translate('pendingChange.outcomeUnknown'),
+            body: translate('pendingChange.outcomeUnknownBody'),
+        });
+    }
+
+    // A refusal the deployment stated is said, unless it is the server being out of reach, which the status says.
+    function refusedUnlessSaid(reason: ClientFailureReason, said: MessageKey): void {
+        if (!saidByTheStatus(disconnectedNow, reason)) {
+            toasts.raise({ kind: 'error', title: translate(said) });
+        }
+    }
+
     function markRead(ids: readonly string[], read: boolean): void {
         if (session === null || ids.length === 0) {
             return;
@@ -550,13 +574,20 @@ export function useNotificationCentre(
                     return;
                 }
 
-                // Taken back rather than left on the screen as something that happened: the deployment still holds the
-                // state it held, and a row drawn against a write that failed is the one thing worse than the failure.
+                if (wentUnanswered(answer.failure)) {
+                    outcomeUnknown();
+
+                    return;
+                }
+
+                // Taken back rather than left on the screen as something that happened: the deployment answered, and
+                // still holds the state it held, and a row drawn against a write it refused is the one thing worse than
+                // the refusal.
                 setNotifications((held) =>
                     held.map((held2) => (held2.id === row.id ? { ...held2, read: row.read } : held2)),
                 );
                 setUnreadCount((standing) => Math.max(0, standing + (read ? 1 : -1)));
-                toasts.raise({ kind: 'error', title: translate('notifications.readStateNotChanged') });
+                refusedUnlessSaid(answer.failure.reason, 'notifications.readStateNotChanged');
             });
         }
     }
@@ -583,9 +614,15 @@ export function useNotificationCentre(
                 return;
             }
 
+            if (wentUnanswered(answer.failure)) {
+                outcomeUnknown();
+
+                return;
+            }
+
             setNotifications(held);
             setUnreadCount(held.filter((row) => !row.read).length);
-            toasts.raise({ kind: 'error', title: translate('notifications.notAllMarkedRead') });
+            refusedUnlessSaid(answer.failure.reason, 'notifications.notAllMarkedRead');
         });
     }
 
@@ -626,9 +663,15 @@ export function useNotificationCentre(
                 return;
             }
 
+            if (wentUnanswered(answer.failure)) {
+                outcomeUnknown();
+
+                return;
+            }
+
             setNotifications(held);
             setUnreadCount((standing) => standing + goingUnread);
-            toasts.raise({ kind: 'error', title: translate('notifications.notDeleted') });
+            refusedUnlessSaid(answer.failure.reason, 'notifications.notDeleted');
         });
     }
 
@@ -672,5 +715,9 @@ export function useNotificationCentre(
 const noAccounts: readonly MailAccount[] = [];
 
 function followsNothing(): boolean {
+    return false;
+}
+
+function connectedAlways(): boolean {
     return false;
 }

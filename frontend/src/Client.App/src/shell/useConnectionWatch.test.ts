@@ -44,6 +44,9 @@ function connected(change: Partial<Connection> = {}, accounts: readonly MailAcco
         unansweredSince: null,
         accountsReadAt: Date.now(),
         reread: () => undefined,
+        channelDropped: () => undefined,
+        readUnderWay: () => false,
+        channelStands: () => undefined,
         refresh: () => undefined,
         ...change,
     };
@@ -95,6 +98,44 @@ describe('useConnectionWatch', () => {
         expect(view.result.current.status.level).toBe('delayed');
     });
 
+    it('asks the server whether it is still there the moment the channel drops', () => {
+        const channelDropped = vi.fn();
+        const view = renderHook(() => useConnectionWatch(signedIn, connected({ channelDropped }), true, changes()));
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+        expect(channelDropped).not.toHaveBeenCalled();
+
+        act(() => {
+            view.result.current.channelStood('dropped');
+        });
+        expect(channelDropped).toHaveBeenCalledTimes(1);
+    });
+
+    // Without a standing channel nothing else would notice a server that went quiet while nobody asked it anything, so
+    // the probe is told to ask on its interval — and told to stop once a channel stands, whose keep-alive is that watch.
+    it('tells the probe to ask on its interval while the channel does not stand, and to stop once it does', () => {
+        const channelStands = vi.fn();
+        const view = renderHook(() => useConnectionWatch(signedIn, connected({ channelStands }), true, changes()));
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+        expect(channelStands).toHaveBeenLastCalledWith(true);
+
+        act(() => {
+            view.result.current.channelStood('dropped');
+        });
+        pass(10_000);
+        expect(channelStands).toHaveBeenLastCalledWith(false);
+
+        act(() => {
+            view.result.current.channelStood('opened');
+        });
+        expect(channelStands).toHaveBeenLastCalledWith(true);
+    });
+
     it('is online as soon as the first channel opening stands', () => {
         const view = renderHook(() => useConnectionWatch(signedIn, connected(), true, changes()));
 
@@ -105,8 +146,11 @@ describe('useConnectionWatch', () => {
         expect(view.result.current.status.level).toBe('online');
     });
 
-    it('is not connected while a ticket goes unanswered, counting no session-read attempts for it', () => {
-        const view = renderHook(() => useConnectionWatch(signedIn, connected({ attempts: 3 }), true, changes()));
+    // One ticket nobody answered is one silence, which a link saturated by an upload can produce on a server that is
+    // alive: the probe is asked at once, and the server is lost only once the probe has missed twice.
+    it('asks the server at once when a ticket goes unanswered, and is not lost on that alone', () => {
+        const channelDropped = vi.fn();
+        const view = renderHook(() => useConnectionWatch(signedIn, connected({ channelDropped }), true, changes()));
 
         act(() => {
             view.result.current.channelStood('opening');
@@ -115,11 +159,8 @@ describe('useConnectionWatch', () => {
             view.result.current.channelStood('unanswered');
         });
 
-        expect(view.result.current.status).toMatchObject({
-            level: 'disconnected',
-            cause: 'unanswered',
-            attempts: null,
-        });
+        expect(channelDropped).toHaveBeenCalledOnce();
+        expect(view.result.current.status.level).not.toBe('disconnected');
     });
 
     it('reads the frame again once a ticket is answered after its session read went unanswered', () => {
@@ -214,27 +255,6 @@ describe('useConnectionWatch', () => {
 
         expect(view.result.current.status.level).toBe('online');
         expect(watched.asked()).toStrictEqual([{ frameAnswered: true }]);
-    });
-
-    it('reads the frame again too once a server whose ticket alone went unanswered answers', () => {
-        const watched = changes();
-        const view = renderHook(() => useConnectionWatch(signedIn, connected(), true, watched));
-
-        act(() => {
-            view.result.current.channelStood('opening');
-        });
-        act(() => {
-            view.result.current.channelStood('unanswered');
-        });
-
-        expect(view.result.current.status.level).toBe('disconnected');
-
-        act(() => {
-            view.result.current.channelStood('opened');
-        });
-
-        expect(view.result.current.status.level).toBe('online');
-        expect(watched.asked()).toStrictEqual([undefined]);
     });
 
     it('closes the details on Retry and reads everything again', () => {

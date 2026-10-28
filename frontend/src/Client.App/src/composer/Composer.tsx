@@ -25,7 +25,8 @@ import type { MessageKey } from '../localization/en';
 import type { Locale } from '../localization/locale';
 import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
-import { disconnected, useConnectionStatus } from '../shell/connectionStatus';
+import { disconnected, saidByTheStatus, useConnectionStatus } from '../shell/connectionStatus';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useToasts, type Toast } from '../toasts/useToasts';
 import { showOutboxEntry } from '../outbox/showOutboxEntry';
@@ -194,6 +195,8 @@ export function Composer({
     const { locale, translate } = useLocalization();
     const wide = useWideWorkspace();
     const toasts = useToasts();
+    const writeRefused = useWriteRefusal();
+    const { disconnectedNow } = useConnectionStatus();
     const draft = useDraftAtDeployment(session, transport);
 
     // Who the message is for, joined the way the active language joins a list rather than with a comma written here.
@@ -476,6 +479,11 @@ export function Composer({
 
             const read = draftingRead(answer);
 
+            // A drafting nobody answered while the server is out of reach is the status's to say, not a second voice.
+            if (answer.outcome === 'failed' && saidByTheStatus(disconnectedNow, answer.failure.reason)) {
+                return;
+            }
+
             if (!read.drafted) {
                 toasts.raise({
                     kind: read.kind,
@@ -607,13 +615,17 @@ export function Composer({
 
             const deploymentHasIt = outcome.kind === 'queued' || outcome.kind === 'withdrawn';
 
+            // A send nobody answered may be queued already, so its words are not handed back to the tab to be sent a
+            // second time: the deployment holds them either way, as the draft that was saved first or as the send.
+            const deploymentMayHaveIt = deploymentHasIt || outcome.kind === 'sendUnknown';
+
             // Only while this composer is still the one on the screen: closed in flight, it has already gone, and
             // closing again would close whatever the person opened in its place.
             if (present.current) {
                 if (deploymentHasIt) {
                     close(focusIsHere());
                 }
-            } else if (!deploymentHasIt && rememberedComposition() === null) {
+            } else if (!deploymentMayHaveIt && rememberedComposition() === null) {
                 rememberComposition(written);
             }
         });
@@ -688,7 +700,15 @@ export function Composer({
                 return {
                     kind: 'error',
                     title: translate('compose.notSentTitle'),
-                    body: translate(failureSaid[outcome.reason]),
+                    body: translate(outcome.unanswered ? 'compose.saveUnknown' : failureSaid[outcome.reason]),
+                };
+            case 'sendUnknown':
+                // The send went out and nothing answered, so it is not said to have failed and nothing offers it again:
+                // the Outbox is what knows whether it is on its way.
+                return {
+                    kind: 'warning',
+                    title: translate('compose.sendUnknownTitle'),
+                    body: translate('compose.sendUnknown'),
                 };
             default:
                 return { kind: 'error', title: translate('compose.notSentTitle') };
@@ -696,15 +716,31 @@ export function Composer({
     }
 
     // Whether the message is still being written rather than on its way, read by every control that changes it. Two
-    // presses would queue the same message twice — while the first is still in flight, and equally once it is
-    // queued — and a save or an attach after that would say what is happening over the queued state and take the way
-    // to withdraw off the screen with it.
-    const stillBeingWritten = draft.standing.kind !== 'sending' && draft.standing.kind !== 'queued';
+    // presses would queue the same message twice — while the first is still in flight, once it is queued, and equally
+    // once a send went unanswered and may be queued already — and a save or an attach after that would say what is
+    // happening over the queued state and take the way to withdraw off the screen with it.
+    const stillBeingWritten =
+        draft.standing.kind !== 'sending' && draft.standing.kind !== 'queued' && draft.standing.kind !== 'sendUnknown';
 
     // Whether it may be filed, which is the same question and a deployment that answers. Attaching does not ask it:
     // a chosen file is held here until the message is saved or sent, so it costs nothing and is offered offline.
     // Nor while a draft carried on is still bringing its files over: what went out then would leave the rest behind.
     const sendable = online && stillBeingWritten && draft.standing.kind !== 'carrying';
+
+    // While the server is out of reach the two controls that write say so before they are pressed, rather than taking a
+    // save or a send that has no route to the deployment. The words stay here, and the line above the controls says
+    // they are not safe until the connection is back.
+    const sendRefused = writeRefused(translate('compose.send'));
+    const saveRefused = writeRefused(translate('compose.saveDraft'));
+    const saveName = useTip({
+        says: saveRefused ?? translate('compose.saveDraft'),
+        describes: true,
+        onPress: () => {
+            if (sendable && saveRefused === null && composition !== null) {
+                void draft.save(sentAs(composition, copiesShown));
+            }
+        },
+    });
 
     const title = translate(titles[opening.kind === 'answer' ? opening.answers : opening.kind]);
 
@@ -960,7 +996,7 @@ export function Composer({
                             revise({ words });
                         }}
                         onSendAsked={() => {
-                            if (sendable) {
+                            if (sendable && sendRefused === null) {
                                 asked.current?.showModal();
                             }
                         }}
@@ -999,6 +1035,7 @@ export function Composer({
                             composition={sentAs(composition, copiesShown)}
                             draftUnaccepted={beforeDrafting !== null}
                             disabled={!sendable}
+                            refused={sendRefused}
                             onSend={() => {
                                 sendAndReport(sentAs(composition, copiesShown), composition);
                             }}
@@ -1036,15 +1073,21 @@ export function Composer({
                         />
 
                         <button
+                            {...(saveRefused === null
+                                ? {
+                                      onClick: () => {
+                                          void draft.save(sentAs(composition, copiesShown));
+                                      },
+                                  }
+                                : saveName.anchor)}
                             type="button"
-                            disabled={!sendable}
-                            className="rounded-md px-2 py-2 text-sm text-muted transition hover:bg-hover hover:text-text disabled:opacity-60 pointer-coarse:text-base"
-                            onClick={() => {
-                                void draft.save(sentAs(composition, copiesShown));
-                            }}
+                            disabled={!sendable && saveRefused === null}
+                            aria-disabled={saveRefused === null ? undefined : true}
+                            className="rounded-md px-2 py-2 text-sm text-muted transition hover:bg-hover hover:text-text disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:text-base"
                         >
                             {translate('compose.saveDraft')}
                         </button>
+                        {saveRefused === null ? null : saveName.tip}
 
                         <p className="ms-auto text-xs text-faint pointer-coarse:hidden">
                             {translate('compose.shortcutSends')}
@@ -1248,7 +1291,14 @@ function WhatIsHappening({ standing, online }: { readonly standing: DraftStandin
         case 'refusedSave':
             return <Said text={translate(saveRefusalSaid[standing.refusal])} warning />;
         case 'failed':
-            return <Said text={translate(failureSaid[standing.reason])} warning />;
+            return (
+                <Said
+                    text={translate(standing.unanswered ? 'compose.saveUnknown' : failureSaid[standing.reason])}
+                    warning
+                />
+            );
+        case 'sendUnknown':
+            return <Said text={translate('compose.sendUnknown')} warning />;
     }
 }
 

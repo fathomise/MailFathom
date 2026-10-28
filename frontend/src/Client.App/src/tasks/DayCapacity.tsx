@@ -8,6 +8,7 @@ import { Control } from '../controls/Control';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // How spoken-for the day is, and the offer to arrange what is left of it — the design's second sidebar panel.
 //
@@ -98,6 +99,15 @@ export function DayCapacity({
     readonly onPutDown: () => void;
 }) {
     const { locale, translate } = useLocalization();
+    const writeRefused = useWriteRefusal();
+
+    // Laying out the day asks the server and adding the offer writes to the calendar, so while the server is out of
+    // reach both are drawn as controls that cannot act, named by why, rather than pressed and failing after.
+    const refusedAs = (label: string): { readonly held?: true; readonly hint?: string } => {
+        const why = writeRefused(label);
+
+        return why === null ? {} : { held: true, hint: why };
+    };
 
     // The control that asks for an arrangement is removed while the deployment composes one, and it is the control
     // that was pressed — so focus would fall to the document body and somebody reading with a keyboard or a screen
@@ -178,6 +188,7 @@ export function DayCapacity({
                         <Control
                             label={translate(applying ? 'tasks.addingToCalendar' : 'tasks.addToCalendar')}
                             shape="primary"
+                            {...refusedAs(translate('tasks.addToCalendar'))}
                             onPress={onApply}
                         />
                         <SecondaryButton label={translate('tasks.putTheOfferDown')} onActivate={onPutDown} />
@@ -190,6 +201,7 @@ export function DayCapacity({
                     label={translate('tasks.layOutToday')}
                     shape="primary"
                     className="self-start"
+                    {...refusedAs(translate('tasks.layOutToday'))}
                     onPress={onArrange}
                 />
             )}

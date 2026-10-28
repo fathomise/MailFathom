@@ -7,6 +7,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import type { IconName } from '../controls/icons';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import type { FolderAct } from './folderActs';
 
 // What a row of the folder column answers a press with. It is this row's items and nothing else: where the menu
@@ -59,10 +60,15 @@ export function FolderRowMenu({
     readonly onClose: () => void;
 }) {
     const { translate } = useLocalization();
+    const writeRefused = useWriteRefusal();
 
+    // Every act a folder row offers writes — a folder made, changed, or deleted, or its mail marked read — so with no
+    // route to the server each stays in the menu saying why it cannot act, rather than opening a dialog whose answer
+    // could not be carried.
     const items: readonly ContextMenuItem[] = acts.map((act) => ({
         icon: actIcons[act],
         label: translate(actLabels[act]),
+        refused: writeRefused(translate(actLabels[act])),
         destroys: act === 'deleteFolder',
         choose: () => {
             onAct(act);

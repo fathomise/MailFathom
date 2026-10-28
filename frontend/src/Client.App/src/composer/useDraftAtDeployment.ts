@@ -11,7 +11,9 @@ import {
     stageMailDraftAttachment,
     unstageMailDraftAttachment,
     withdrawOutgoingMail,
+    wentUnanswered,
     writeMailDraft,
+    type ClientFailure,
     type ClientFailureReason,
     type ClientResult,
     type ClientSession,
@@ -54,7 +56,19 @@ export type DraftStanding =
     | { readonly kind: 'withdrawn'; readonly withdrawal: MailSendWithdrawal }
     | { readonly kind: 'refused'; readonly refusal: MailSendRefusal }
     | { readonly kind: 'refusedSave'; readonly refusal: MailSendRefusal }
-    | { readonly kind: 'failed'; readonly reason: ClientFailureReason };
+
+    /**
+     * An act that failed, and whether it failed because nothing answered — silence, or a gateway's `502`, `503`, or
+     * `504` — which leaves what it did unknown rather than undone: a save may have been written, a file staged.
+     */
+    | { readonly kind: 'failed'; readonly reason: ClientFailureReason; readonly unanswered: boolean }
+
+    /**
+     * The send itself went out and nothing answered it, so whether the message is on its way is not known. It is the one
+     * failure of a send that may already have queued the message, which is why it is not `failed`: asking again would
+     * send it twice where the first one landed, so what is said instead points at the Outbox, which knows.
+     */
+    | { readonly kind: 'sendUnknown' };
 
 /**
  * One file the message carries, as the composer draws it.
@@ -258,7 +272,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
                 : await reviseMailDraft(session, transport, draft, wire);
 
         if (answer.outcome === 'failed') {
-            hold({ kind: 'failed', reason: answer.failure.reason });
+            hold(failedOn(answer.failure));
 
             return null;
         }
@@ -319,7 +333,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
             uploading.current = null;
 
             if (answer.outcome === 'failed') {
-                hold({ kind: 'failed', reason: answer.failure.reason });
+                hold(failedOn(answer.failure));
 
                 return false;
             }
@@ -339,7 +353,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
                 const removed = await unstageMailDraftAttachment(session, transport, draft, answer.value.attachmentId);
 
                 if (removed.outcome === 'failed') {
-                    hold({ kind: 'failed', reason: removed.failure.reason });
+                    hold(failedOn(removed.failure));
 
                     return false;
                 }
@@ -350,9 +364,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
     // Every act ends by saying what happened, and a failure says which of the five it was rather than that something
     // went wrong. Stated once here because five acts would otherwise each carry their own copy of the same three lines.
     function settled<TValue>(answer: ClientResult<TValue>, whenRead: (value: TValue) => DraftStanding): DraftStanding {
-        return hold(
-            answer.outcome === 'failed' ? { kind: 'failed', reason: answer.failure.reason } : whenRead(answer.value),
-        );
+        return hold(answer.outcome === 'failed' ? failedOn(answer.failure) : whenRead(answer.value));
     }
 
     async function send(composition: Composition): Promise<DraftStanding> {
@@ -379,15 +391,22 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
 
         hold({ kind: 'sending' });
 
-        const outcome = settled(await sendMailDraft(session, transport, draft), (sent) => {
-            if (!sent.queued) {
-                return { kind: 'refused', refusal: sent.refusal };
-            }
+        const posted = await sendMailDraft(session, transport, draft);
 
-            queued.current = sent.outgoingEmailId;
+        // Nothing answered the send itself, so the message may be queued already: it is not said to have failed, and
+        // nothing here offers to send it again.
+        const outcome =
+            posted.outcome === 'failed' && wentUnanswered(posted.failure)
+                ? hold({ kind: 'sendUnknown' })
+                : settled(posted, (sent) => {
+                      if (!sent.queued) {
+                          return { kind: 'refused', refusal: sent.refusal };
+                      }
 
-            return { kind: 'queued', outgoingEmailId: sent.outgoingEmailId };
-        });
+                      queued.current = sent.outgoingEmailId;
+
+                      return { kind: 'queued', outgoingEmailId: sent.outgoingEmailId };
+                  });
 
         // A stop belongs to the send it was asked about, so it is read once here and cleared whatever became of that
         // send. Left standing over a send that was refused or failed, it would take back the *next* message somebody
@@ -581,7 +600,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
             if (answer.outcome === 'failed') {
                 // Said rather than swallowed: closing on a refused delete would tell somebody their words are gone
                 // while the deployment is still holding them, with nothing on this screen to go back to.
-                hold({ kind: 'failed', reason: answer.failure.reason });
+                hold(failedOn(answer.failure));
 
                 return false;
             }
@@ -591,4 +610,9 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
             return true;
         },
     };
+}
+
+/** A failure as a standing, saying whether nothing answered, which leaves the act's outcome unknown. */
+function failedOn(failure: ClientFailure): DraftStanding {
+    return { kind: 'failed', reason: failure.reason, unanswered: wentUnanswered(failure) };
 }

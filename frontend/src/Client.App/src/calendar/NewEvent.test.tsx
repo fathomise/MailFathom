@@ -13,6 +13,7 @@ import type {
     MailFathomTransport,
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { NewEvent } from './NewEvent';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
@@ -94,13 +95,15 @@ function Asking({
 
 function drawDialog(
     transport: MailFathomTransport,
-    { readsDescriptions = true }: { readsDescriptions?: boolean } = {},
+    { readsDescriptions = true, lostServer = false }: { readsDescriptions?: boolean; lostServer?: boolean } = {},
 ): { readonly onSave: ReturnType<typeof vi.fn> } {
     const onSave = vi.fn();
 
     render(
         <LocalizationProvider>
-            <Asking transport={transport} readsDescriptions={readsDescriptions} onSave={onSave} />
+            <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
+                <Asking transport={transport} readsDescriptions={readsDescriptions} onSave={onSave} />
+            </ConnectionStatusContext>
         </LocalizationProvider>,
     );
 
@@ -108,6 +111,26 @@ function drawDialog(
 
     return { onSave };
 }
+
+const serverAnswering: ConnectionStatus = {
+    level: 'online',
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => false,
+};
+
+const serverLost: ConnectionStatus = {
+    level: 'disconnected',
+    cause: 'unanswered',
+    since: 0,
+    attempts: null,
+    retry: () => undefined,
+    detailsOpen: false,
+    showDetails: () => undefined,
+    disconnectedNow: () => true,
+};
 
 /** The description field, found by the part of its label that is words rather than the mark beside them. */
 function describedIn(): HTMLElement {
@@ -143,6 +166,27 @@ describe('NewEvent', () => {
             notes: null,
             sourceMessage: null,
         });
+    });
+
+    // Saving writes the event, which has no route while the server is out of reach: it says so before it is pressed and
+    // writes nothing, and what was typed stays in the dialog.
+    it('refuses saving before it is pressed while the server is out of reach, says why, and keeps what was typed', () => {
+        const { onSave } = drawDialog(deployment(drafted({ drafted: false, spent: false })).transport, {
+            lostServer: true,
+        });
+
+        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Lunch with Anna' } });
+        fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '13:00' } });
+
+        const saving = screen.getByRole('button', { name: 'Save' });
+
+        expect(saving.getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByText('Save - no connection to the MailFathom server.')).toBeDefined();
+
+        fireEvent.click(saving);
+
+        expect(onSave).not.toHaveBeenCalled();
+        expect(screen.getByLabelText<HTMLInputElement>('Title').value).toBe('Lunch with Anna');
     });
 
     it('writes down what the event is about beside its title', () => {

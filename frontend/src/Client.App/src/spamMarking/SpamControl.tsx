@@ -8,6 +8,7 @@ import { PlannedControl } from '../controls/PlannedControl';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { allDrawnSpam, useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // The one spam control, as a strip, the toolbar, and a message's head draw it. It reads *Not spam* while every message
 // under it is drawn spam and the other way otherwise, so a mix reads as the way in and is refused with nothing sent when
@@ -29,6 +30,7 @@ export function SpamControl({
 }) {
     const { translate } = useLocalization();
     const acts = useMailboxActs();
+    const writeRefused = useWriteRefusal();
     const out = allDrawnSpam(acts, messages);
     const label = translate(out ? 'spam.notSpam' : wording === 'strip' ? 'spam.spam' : 'spam.markSpam');
     const icon = out ? 'report_off' : 'report';
@@ -44,6 +46,14 @@ export function SpamControl({
 
     if (refusal !== null) {
         return <PlannedControl label={label} icon={icon} shape={shape} why={translate(refusal, { control: label })} />;
+    }
+
+    // A mark is a write, so with no route to the server it says so before it is pressed rather than opening a chooser
+    // whose answer could not be carried.
+    const unreachable = writeRefused(label);
+
+    if (unreachable !== null) {
+        return <PlannedControl label={label} icon={icon} shape={shape} why={unreachable} />;
     }
 
     return (

@@ -7,6 +7,7 @@ import { Control } from '../controls/Control';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // What stands where the toolbar stands while events are picked out, which is the design's own bar: how many
 // are selected, the acts over the whole of them, and the way out.
@@ -48,6 +49,10 @@ export function EventSelectionBar({
     const { locale, translate } = useLocalization();
     const wide = useWideWorkspace();
 
+    // Deleting writes, so while the server is out of reach it is drawn as a control that cannot act, named by why.
+    const deleting = translate('calendar.deleteEvents');
+    const refused = useWriteRefusal()(deleting);
+
     return (
         <div
             role="toolbar"
@@ -72,9 +77,10 @@ export function EventSelectionBar({
             <span aria-hidden="true" className="mx-0.5 w-px self-stretch bg-accent-line" />
 
             <Control
-                label={translate('calendar.deleteEvents')}
+                label={deleting}
                 icon="delete"
                 shape={wide ? 'selected' : 'selectedSymbol'}
+                {...(refused === null ? {} : { held: true, hint: refused })}
                 onPress={onAskDeletion}
             />
         </div>

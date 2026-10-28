@@ -66,14 +66,14 @@ export const pl: Catalogue = {
     'agent.notDeleted.unauthenticated': 'Sesja wygasła przed usunięciem rozmowy. Zaloguj się ponownie i usuń ją.',
     'agent.notDeleted.unauthorized': 'To konto nie ma uprawnień do usuwania rozmów z agentem.',
     'agent.notDeleted.unavailable':
-        'Nie udało się połączyć z serwerem, więc rozmowa nie została usunięta. Spróbuj ponownie.',
+        'Serwer nie odpowiedział, więc nie wiadomo, czy rozmowa została usunięta. Historia pokaże, jak jest, gdy serwer znów odpowie.',
     'agent.notDeleted.unreadable':
         'Serwer odpowiedział w sposób, którego ten klient nie potrafi odczytać, więc nie wiadomo, czy rozmowa została usunięta.',
     'agent.notArchived.unauthenticated':
         'Sesja wygasła, zanim archiwum się zmieniło. Zaloguj się ponownie i spróbuj jeszcze raz.',
     'agent.notArchived.unauthorized': 'To konto nie ma uprawnień do zmieniania archiwum rozmów z agentem.',
     'agent.notArchived.unavailable':
-        'Nie udało się połączyć z serwerem, więc archiwum się nie zmieniło. Spróbuj ponownie.',
+        'Serwer nie odpowiedział, więc nie wiadomo, czy archiwum się zmieniło. Historia pokaże, jak jest, gdy serwer znów odpowie.',
     'agent.notArchived.unreadable':
         'Serwer odpowiedział w sposób, którego ten klient nie potrafi odczytać, więc nie wiadomo, czy archiwum się zmieniło.',
     'agent.tabs': 'Otwarte rozmowy',
@@ -138,7 +138,7 @@ export const pl: Catalogue = {
     'agent.notSent.unauthenticated': 'Sesja wygasła przed wysłaniem. Zaloguj się ponownie i wyślij to jeszcze raz.',
     'agent.notSent.unauthorized': 'To konto nie ma uprawnień do rozmowy z agentem.',
     'agent.notSent.unavailable':
-        'Nie wysłano – nie udało się połączyć z serwerem albo odpowiedź, do której to było, właśnie się zakończyła. Wyślij ponownie.',
+        'Nie wiadomo, czy to zostało wysłane – serwer nie odpowiedział albo odpowiedź, do której to było, właśnie się zakończyła. Zostaje tutaj, a rozmowa pokaże, czy dotarło, gdy serwer znów odpowie.',
     'agent.notSent.unreadable':
         'Serwer przyjął to w sposób, którego ten klient nie potrafi odczytać. Otwórz rozmowę z historii, aby sprawdzić, czy dotarło.',
     'agent.notSent.missing': 'Tej rozmowy już nie ma, więc nic nie zostało wysłane. Zacznij nową.',
@@ -420,7 +420,7 @@ export const pl: Catalogue = {
         'Sesja wygasła, zanim to zostało rozstrzygnięte. Zaloguj się ponownie i odpowiedz jeszcze raz.',
     'proposal.refused.unauthorized': 'To konto nie może odpowiadać na propozycje agenta.',
     'proposal.refused.unavailable':
-        'Serwer nie odpowiedział, więc nic nie zostało zrobione. Spróbuj ponownie, gdy wróci.',
+        'Serwer nie odpowiedział, więc nie wiadomo, czy to zostało zrobione. Rozmowa pokaże, jak jest, gdy serwer znów odpowie.',
     'proposal.refused.unreadable':
         'Nie udało się odczytać odpowiedzi serwera, więc nie wiadomo tutaj, co się z tym stało. Zgłoś to jako błąd.',
     'proposal.refused.missing': 'Na tę propozycję już odpowiedziano albo już jej nie ma.',
@@ -585,6 +585,9 @@ export const pl: Catalogue = {
         'Oba ustawienia są odczytywane z argumentów uruchomienia MailFathom, z jego środowiska oraz z pliku client.conf obok jego własnej konfiguracji – w tej kolejności.',
 
     'preferences.notStated': 'Ta zmiana nie została zapisana na serwerze.',
+    'preferences.noConnection':
+        'Brak połączenia z serwerem MailFathom, więc nie można ich zmienić, dopóki połączenie nie wróci.',
+    'preferences.stateUnknown': 'Serwer nie odpowiedział, więc nie wiadomo, czy ta zmiana została zapisana.',
 
     'settings.title': 'Ustawienia',
     'settings.close': 'Zamknij ustawienia',
@@ -606,10 +609,15 @@ export const pl: Catalogue = {
         'Twoim imieniem i nazwiskiem zarządza administrator, więc jest tu pokazane, a nie oddane do zmiany.',
     'settings.profileNotYours':
         'To logowanie może odczytać to, co serwer przechowuje o Tobie, ale nie może tego zmienić, więc imię i nazwisko, zdjęcie i strefa czasowa są tu pokazane, a nie oddane do zmiany.',
+    'settings.preferencesNoConnection':
+        'Brak połączenia z serwerem MailFathom, więc ustawienia, które idą za Tobą między maszynami, są tu pokazane w obecnym stanie, dopóki połączenie nie wróci. Język i to, co robi ta maszyna, nadal ustawiasz samodzielnie.',
+    'settings.profileNoConnection':
+        'Brak połączenia z serwerem MailFathom, więc imię i nazwisko, zdjęcie i strefa czasowa są tu pokazane, a nie oddane do zmiany, dopóki połączenie nie wróci.',
     'settings.preferencesNotYours':
         'To logowanie nie może zmieniać ustawień, które idą za Tobą między maszynami, więc są tu pokazane w obecnym stanie. Język i to, co robi ta maszyna, nadal ustawiasz samodzielnie.',
     'settings.nameNotAcceptable':
         'To imię i nazwisko nie zostało przyjęte. Nie może być puste ani dłuższe niż 128 znaków i nie może być takie, jakim posługuje się już ktoś inny na tym serwerze.',
+    'settings.nameStateUnknown': 'Serwer nie odpowiedział, więc nie wiadomo, czy to imię i nazwisko zostało zapisane.',
     'settings.nameNotStored':
         'To imię i nazwisko nie zostało zapisane na serwerze, więc serwer nadal zna Cię pod poprzednim.',
     'settings.choosePicture': 'Zdjęcie',
@@ -617,6 +625,7 @@ export const pl: Catalogue = {
     'settings.pictureBounds': 'JPG/PNG, maks. 1 MB',
     'settings.pictureNotAnImageKind': 'Ten plik nie jest ani plikiem JPEG, ani PNG, więc nie został wysłany.',
     'settings.pictureTooLarge': 'To zdjęcie jest większe niż 1 MB, więc nie zostało wysłane.',
+    'settings.pictureStateUnknown': 'Serwer nie odpowiedział, więc nie wiadomo, czy to zdjęcie zostało zapisane.',
     'settings.pictureNotStored':
         'To zdjęcie nie zostało zapisane na serwerze, więc nadal jesteś rysowany tak jak wcześniej.',
     'settings.profileHeld':
@@ -626,6 +635,8 @@ export const pl: Catalogue = {
         'W tej strefie zapisywana jest każda pokazywana Ci data i to ona rozstrzyga, co znaczy „w tym tygodniu” i „od wtorku”, gdy pytasz o swoją pocztę.',
     'settings.timeZoneNotAcceptable':
         'Ta strefa czasowa nie została przyjęta, więc Twoje daty są nadal zapisywane w poprzedniej.',
+    'settings.timeZoneStateUnknown':
+        'Serwer nie odpowiedział, więc nie wiadomo, czy ta strefa czasowa została zapisana.',
     'settings.timeZoneNotStored':
         'Ta strefa czasowa nie została zapisana na serwerze, więc Twoje daty są nadal zapisywane w poprzedniej.',
     'settings.messageView': 'Widok wiadomości',
@@ -723,6 +734,8 @@ export const pl: Catalogue = {
     'folders.crossesDraftsOrSentTree':
         'Folderu nie można przenieść do szkiców ani wysłanych z innego miejsca ani wynieść z nich – chyba że do kosza.',
     'folders.actFailed': 'Nie udało się zmienić folderu: {reason}.',
+    'folders.actUnknown':
+        'Nie wiadomo, czy folder został zmieniony: serwer nie odpowiedział. Foldery pokażą to, co zapisał serwer, gdy znów odpowie.',
     'folders.actRefused': 'Zmiana została odrzucona. {reason}',
     'folders.actStopped': 'Zmiana jest już w drodze i zamknięcie tego jej nie cofnie.',
 
@@ -768,6 +781,8 @@ export const pl: Catalogue = {
     'folders.nothingUnread': 'W folderze {folder} nie było nic nieprzeczytanego.',
     'folders.markingReadStopped': 'Wiadomości już oznaczone jako przeczytane pozostaną oznaczone.',
     'folders.markReadFailed': 'Nie udało się oznaczyć wszystkiego jako przeczytane w folderze {folder}: {reason}.',
+    'folders.markReadUnknown':
+        'Nie wiadomo, czy wszystko w folderze {folder} zostało oznaczone jako przeczytane: serwer nie odpowiedział. Folder pokaże to, co zapisał serwer, gdy znów odpowie.',
     'folders.markedReadInPart.one':
         'Oznaczono jako przeczytaną pierwszą {count} nieprzeczytaną wiadomość w folderze {folder}. Poproś ponownie o resztę.',
     'folders.markedReadInPart.few':
@@ -1042,6 +1057,11 @@ export const pl: Catalogue = {
     'compose.failedUnauthorized':
         'To poświadczenie nie może tego zrobić na tym serwerze. Administrator może nadać takie uprawnienie.',
     'compose.failedUnavailable': 'Serwer nie odpowiedział. To, co zostało napisane, zostaje tutaj; spróbuj ponownie.',
+    'compose.saveUnknown':
+        'Serwer nie odpowiedział, więc nie wiadomo, czy to zostało zapisane. To, co zostało napisane, zostaje tutaj.',
+    'compose.sendUnknownTitle': 'Nie wiadomo, czy to zostało wysłane',
+    'compose.sendUnknown':
+        'Serwer nie odpowiedział na wysyłkę. Jeśli do niego dotarła, wiadomość jest w Nadawczej, więc zajrzyj tam, zanim wyślesz ją ponownie.',
     'compose.failedUnreadable':
         'Serwer odpowiedział, ale klient nie potrafił nic z tą odpowiedzią zrobić. To usterka warta zgłoszenia.',
     'compose.failedMissing':
@@ -1163,6 +1183,11 @@ export const pl: Catalogue = {
     'outbox.movedOn':
         'Od chwili, gdy to było widoczne, wysyłka poszła dalej, więc nic nie zostało zmienione. Nadawcza pokazuje teraz, na jakim jest etapie.',
     'outbox.decisionFailed': 'Nie udało się tego zrobić: {reason}.',
+    'outbox.unknownTitle': 'Nie wiadomo, czy to zostało zrobione',
+    'outbox.decisionUnknown':
+        'Serwer nie odpowiedział, więc mogło to zostać zrobione. Nadawcza pokaże, co dzieje się z wiadomością, gdy serwer znów odpowie.',
+    'outbox.noConnection':
+        'Brak połączenia z serwerem MailFathom, więc niczego tu nie można zdecydować, dopóki nie wróci.',
 
     'list.label': 'Wiadomości',
     'list.reading': 'Wczytywanie poczty…',
@@ -1324,6 +1349,7 @@ export const pl: Catalogue = {
     'connection.lost': 'Serwer nie odpowiedział po {total} próbach.',
     'connection.unreadable': 'Serwer odpowiedział, ale klient nie mógł wykorzystać tej odpowiedzi: {reason}.',
     'connection.offline': 'Ta maszyna nie ma połączenia z siecią. Klient połączy się ponownie sam, gdy sieć wróci.',
+    'connection.writeRefused': '{control} – brak połączenia z serwerem MailFathom.',
     'connection.unknown': 'Stan skrzynek nieznany: brak połączenia z serwerem MailFathom.',
     'connectionStatus.connecting': 'Łączenie z serwerem…',
     'connectionStatus.online': 'Połączono z serwerem.',
@@ -1926,8 +1952,14 @@ export const pl: Catalogue = {
     'pendingChange.changeNotUsable': 'Wskazanej zmiany nie da się wyrazić w jednym żądaniu – zgłoś to jako usterkę.',
     'pendingChange.destinationNotAllowed':
         'Ten folder jej nie przyjmie: wersje robocze zostają w folderze wersji roboczych albo w folderze utworzonym przez Ciebie, a nic innego tam nie trafia.',
-    'pendingChange.notDelivered': 'Ta zmiana nie dotarła do serwera.',
-    'pendingChange.notDeliveredBody': 'Nic nie zostało zapisane, więc skrzynka pozostaje bez zmian.',
+    'pendingChange.outcomeUnknown': 'Nie wiadomo, czy to dotarło do serwera',
+    'pendingChange.outcomeUnknownBody':
+        'Połączenie zerwało się w chwili tej zmiany. Pozostaje pokazana tak, jak o nią poproszono, dopóki serwer znów nie odpowie, a potem tak, jak zapisał ją serwer.',
+    'pendingChange.refused': 'Serwer odrzucił tę zmianę.',
+    'pendingChange.refusedBody': 'Nic nie zostało zapisane, więc skrzynka pozostaje bez zmian: {reason}.',
+    'pendingChange.reread': 'Ekran pokazuje teraz to, co zapisał serwer',
+    'pendingChange.rereadBody':
+        'Zmiany wprowadzone w chwili zerwania połączenia są pokazane tak, jak zapisał je serwer.',
     'pendingChange.retry': 'Spróbuj ponownie',
     'pendingChange.stoppedFollowing': 'Ten klient przestał sprawdzać, dokąd doszły Twoje zmiany.',
     'pendingChange.stoppedFollowingBody':
@@ -2141,6 +2173,8 @@ export const pl: Catalogue = {
     'notifications.kind.system': 'System',
 
     'toast.surface': 'Komunikaty',
+    'toast.stillSending': 'Nadal wysyłam…',
+    'toast.stillSendingBody': 'Serwer jeszcze nie odpowiedział.',
     'toast.close': 'Zamknij',
     'toast.neutral': 'Potwierdzenie',
     'toast.success': 'Sukces',
@@ -2215,7 +2249,8 @@ export const pl: Catalogue = {
     'people.addressHeld': 'Ten adres należy już do innego kontaktu.',
     'people.originRefuses': 'Tego kontaktu nie możesz zmieniać.',
     'people.alreadyAsserted': 'Ten kontakt jest już jednym z Twoich.',
-    'people.writeFailed': 'Serwer nie odpowiedział, więc nic nie zostało zmienione.',
+    'people.writeFailed': 'Serwer tego nie przyjął, więc nic nie zostało zmienione.',
+    'people.writeUnknown': 'Serwer nie odpowiedział, więc nie wiadomo, czy to zostało zmienione.',
 
     'person.relationship': 'Stan relacji',
     'person.authored': 'AI',
@@ -2309,7 +2344,8 @@ export const pl: Catalogue = {
     'calendar.writeNotFound': 'Tego wydarzenia nie ma już w kalendarzu.',
     'calendar.writeRefused': 'Serwer nie przyjął tego wydarzenia. Sprawdź tytuł i godziny.',
     'calendar.alreadyOnTheCalendar': 'Ten termin jest już w kalendarzu.',
-    'calendar.writeFailed': 'Serwer nie odpowiedział, więc nic nie zostało zmienione.',
+    'calendar.writeFailed': 'Serwer tego nie przyjął, więc nic nie zostało zmienione.',
+    'calendar.writeUnknown': 'Serwer nie odpowiedział, więc nie wiadomo, czy to zostało zmienione.',
     'tasks.newTask': 'Nowe zadanie',
     'tasks.showDone': 'Pokaż zrobione',
     'tasks.groupToday': 'Dziś',
@@ -2366,6 +2402,7 @@ export const pl: Catalogue = {
     'tasks.nothingToSchedule': 'Nic tutaj nie wskazuje dnia, więc nie ma czego wpisać do kalendarza.',
     'tasks.writeFailed': 'Serwer tego nie przyjął. Nic nie zostało zmienione.',
     'tasks.writeFailedBecause': 'Serwer tego nie przyjął: {reason}. Nic nie zostało zmienione.',
+    'tasks.writeUnknown': 'Serwer nie odpowiedział, więc nie wiadomo, czy to zostało zmienione.',
     'tasks.someRefused.one': 'Serwer odrzucił jedno z nich. Reszta przeszła.',
     'tasks.someRefused.few': 'Serwer odrzucił {count} z nich. Reszta przeszła.',
     'tasks.someRefused.many': 'Serwer odrzucił {count} z nich. Reszta przeszła.',
@@ -2555,6 +2592,9 @@ export const pl: Catalogue = {
     'spam.spamAsking': 'Spam…',
     'spam.notSpamAsking': 'To nie spam…',
     'spam.nothingMarked': 'Niczego nie oznaczono',
+    'spam.unknownTitle': 'Nie wiadomo, czy to zostało oznaczone',
+    'spam.unknown':
+        'Serwer nie odpowiedział. Pozostaje pokazane tak, jak to oznaczono, dopóki serwer znów nie odpowie, a potem tak, jak zapisał to serwer.',
     'spam.notAllMarked': 'Nie wszystkie wiadomości oznaczono',
     'spam.mixed': 'Zaznaczenie łączy spam z inną pocztą. Zaznacz tylko jedno z dwojga.',
     'spam.chooserTitle.one': 'Oznacz 1 wiadomość jako spam',

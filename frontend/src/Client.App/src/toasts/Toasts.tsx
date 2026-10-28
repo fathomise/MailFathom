@@ -3,8 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { requestsInFlight, type RequestsInFlight } from '../deployment/requestsInFlight';
 import { useLocalization } from '../localization/useLocalization';
 import { ToastCard } from './ToastCard';
+import { useStillSending } from './useStillSending';
 import {
     mostToastsShown,
     toastLeaving,
@@ -35,9 +37,26 @@ interface HeldToasts extends ToastsRaised {
     readonly dismiss: (id: number) => void;
 }
 
-export function ToastsProvider({ children }: { readonly children: ReactNode }) {
+export function ToastsProvider({
+    inFlight = requestsInFlight,
+    children,
+}: {
+    /** The requests whose writes *Still sending…* is said about. */
+    readonly inFlight?: RequestsInFlight;
+    readonly children: ReactNode;
+}) {
     const { translate } = useLocalization();
     const [standing, setStanding] = useState<readonly StandingToast[]>([]);
+
+    // *Still sending…* is the surface's own rather than any screen's: a write is waited on in the transport, below every
+    // screen that asked for one, and the sentence is the same whichever of them did. It stands while a write waits, and
+    // a person closing it closes it until the next wait rather than for good.
+    const stillSending = useStillSending(inFlight);
+    const [waitClosed, setWaitClosed] = useState(false);
+
+    if (!stillSending && waitClosed) {
+        setWaitClosed(false);
+    }
 
     // What is waiting to happen to each toast: the lifetime that dismisses it, and then the moment its leaving
     // animation is over. One timer each, because the two never overlap — dismissing cancels the lifetime by definition.
@@ -251,6 +270,27 @@ export function ToastsProvider({ children }: { readonly children: ReactNode }) {
                 aria-live="polite"
                 className="pointer-events-none fixed inset-x-2 top-2 z-60 mt-safe-top flex flex-col gap-1.5 workspace:inset-x-auto workspace:left-1/2 workspace:w-110 workspace:-translate-x-1/2 wide:left-auto wide:top-4.5 wide:right-4.5 wide:w-87.5 wide:translate-x-0 wide:gap-2.5"
             >
+                {stillSending && !waitClosed ? (
+                    <li key="still-sending">
+                        <ToastCard
+                            toast={{
+                                id: 0,
+                                title: translate('toast.stillSending'),
+                                body: translate('toast.stillSendingBody'),
+                                action: undefined,
+                                opens: undefined,
+                                leaving: false,
+                                stands: { kind: 'neutral' },
+                                standFor: 0,
+                                lasting: true,
+                            }}
+                            onDismiss={() => {
+                                setWaitClosed(true);
+                            }}
+                            onStop={() => undefined}
+                        />
+                    </li>
+                ) : null}
                 {standing.map((toast) => (
                     <li key={toast.id}>
                         <ToastCard

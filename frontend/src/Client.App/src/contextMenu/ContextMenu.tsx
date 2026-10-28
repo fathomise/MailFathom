@@ -35,6 +35,13 @@ export interface ContextMenuItem {
     /** Whether this is the act that cannot be taken back, which the design draws apart from the others. */
     readonly destroys?: boolean;
 
+    /**
+     * Why the item cannot act now, where it cannot — a write while the server is out of reach. It stays in the menu,
+     * drawn as an item that cannot act and saying why in place of its name, so the reason is read before it is pressed
+     * rather than the act failing after; choosing it does nothing and leaves the menu open.
+     */
+    readonly refused?: string | null;
+
     readonly choose: () => void;
 }
 
@@ -240,8 +247,13 @@ export function ContextMenu({
                                 // Focus is moved by the arrow keys rather than by Tab, which is what a menu is: one
                                 // stop on the way in, and the items reached from there.
                                 tabIndex={-1}
-                                className={`${menuItem} ${item.destroys ? 'text-error-text' : ''}`}
+                                aria-disabled={refusedItem(item) ? true : undefined}
+                                className={`${menuItem} ${item.destroys ? 'text-error-text' : ''} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
                                 onClick={() => {
+                                    if (refusedItem(item)) {
+                                        return;
+                                    }
+
                                     onClose();
                                     item.choose();
                                 }}
@@ -252,7 +264,11 @@ export function ContextMenu({
                                     <Icon name={item.icon} className="size-icon-lg" />
                                 </span>
 
-                                <span className="truncate">{item.label}</span>
+                                {refusedItem(item) ? (
+                                    <span className="py-1.5">{item.refused}</span>
+                                ) : (
+                                    <span className="truncate">{item.label}</span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -260,6 +276,11 @@ export function ContextMenu({
             </div>
         </>
     );
+}
+
+/** Whether the item says why it cannot act rather than acting. */
+function refusedItem(item: ContextMenuItem): boolean {
+    return item.refused !== undefined && item.refused !== null;
 }
 
 /** The items as the keyboard reaches them, read out of the document so nothing here holds a second list of them. */

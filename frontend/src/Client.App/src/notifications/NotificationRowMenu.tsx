@@ -8,6 +8,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { failureDecisionShapes } from './notificationKinds';
 import type { RowDecision } from './NotificationRow';
 import { wordNotification } from './notificationWords';
@@ -66,12 +67,18 @@ export function NotificationRowMenu({
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
+    const writeRefused = useWriteRefusal();
+    const marking = translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead');
+    const deleting = translate('notifications.delete');
 
+    // Marking, deciding, and deleting each write, so while the server is out of reach they say so in place rather
+    // than being chosen and failing; picking out, opening, and summarizing write nothing and stay as they are.
     const items: readonly ContextMenuItem[] = [
         { icon: 'check_box', label: translate('notifications.select'), choose: onSelect },
         {
             icon: notification.read ? 'mark_email_unread' : 'mark_email_read',
-            label: translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead'),
+            label: marking,
+            refused: writeRefused(marking),
             choose: onToggleRead,
         },
         ...(notification.target.kind === 'Nothing'
@@ -80,12 +87,13 @@ export function NotificationRowMenu({
         ...(onSummarize === null
             ? []
             : [{ icon: 'auto_awesome' as const, label: translate('notifications.summarize'), choose: onSummarize }]),
-        ...decisions.map(({ decision, take }) => ({
+        ...decisions.map(({ decision, take, refused }) => ({
             icon: failureDecisionShapes[decision].icon,
             label: translate(failureDecisionShapes[decision].label),
+            refused: refused ?? null,
             choose: take,
         })),
-        { icon: 'delete', label: translate('notifications.delete'), destroys: true, choose: onDelete },
+        { icon: 'delete', label: deleting, destroys: true, refused: writeRefused(deleting), choose: onDelete },
     ];
 
     // The row shows how long ago it happened; the instant itself stands here for a finger, which has no hover to ask.

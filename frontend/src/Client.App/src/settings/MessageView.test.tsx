@@ -20,6 +20,7 @@ function inForce(
 ): ClientPreferencesInForce {
     return {
         notStated: false,
+        stateUnknown: false,
         telemetryEnabled: true,
         openMailInTabs: false,
         markReadOnOpen: true,

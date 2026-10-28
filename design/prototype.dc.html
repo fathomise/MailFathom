@@ -568,7 +568,7 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="width:1px;align-self:stretch;background:var(--line);margin:0 2px"></div>
         </sc-if>
         <sc-for list="{{ toolbarActions }}" as="a" hint-placeholder-count="6">
-          <div onClick="{{ a.run }}" title="{{ a.title }}" style="{{ a.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;width:20px;text-align:center">{{ a.icon }}</span>{{ a.label }}</div>
+          <div onClick="{{ a.run }}" title="{{ a.title }}" aria-disabled="{{ a.refused }}" style="{{ a.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;width:20px;text-align:center">{{ a.icon }}</span>{{ a.label }}</div>
         </sc-for>
       </div>
     </sc-if>
@@ -766,7 +766,7 @@ Project repository: https://github.com/fathomise/MailFathom
         <div onClick="{{ clearSelection }}" style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--accent-d)" style-hover="cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span> <span>{{ selectionCount }}</span></div>
         <div style="width:1px;align-self:stretch;background:var(--accent-line);margin:0 2px"></div>
         <sc-for list="{{ selectionActions }}" as="a" hint-placeholder-count="4">
-          <div onClick="{{ a.run }}" title="{{ a.title }}" style="{{ a.style }}" style-hover="cursor:pointer;background:var(--panel)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;width:20px;text-align:center">{{ a.icon }}</span>{{ a.label }}</div>
+          <div onClick="{{ a.run }}" title="{{ a.title }}" aria-disabled="{{ a.refused }}" style="{{ a.style }}" style-hover="cursor:pointer;background:var(--panel)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;width:20px;text-align:center">{{ a.icon }}</span>{{ a.label }}</div>
         </sc-for>
         <div onClick="{{ selectAllThreads }}" style="margin-left:auto;font-size:12px;color:var(--accent-d)" style-hover="cursor:pointer;text-decoration:underline">Select all</div>
       </div>
@@ -1546,9 +1546,9 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div role="status" style="display:flex;align-items:flex-start;gap:8px;padding:9px 15px;border-top:1px solid var(--line);background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:20px;flex-shrink:0">cloud_off</span><span>{{ composeRefusedNote }}</span></div>
               </sc-if>
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 15px;border-top:1px solid var(--line);background:var(--sub)">
-                <div onClick="{{ askSend }}" style="{{ composeSendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send</div>
+                <div onClick="{{ askSendNow }}" title="{{ composeSendTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send</div>
                 <div title="Attach" style="{{ composeAttachStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ composeAttachIconStyle }}">attach_file</span><sc-if value="{{ composeAttachLabel }}" hint-placeholder-val="{{ true }}">Attach</sc-if></div>
-                <div onClick="{{ saveDraftAndClose }}" style="{{ composeSaveStyle }}" style-hover="cursor:pointer;color:var(--text)">Save draft</div>
+                <div onClick="{{ saveDraftNow }}" title="{{ composeSaveTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSaveStyle }}" style-hover="cursor:pointer;color:var(--text)">Save draft</div>
                 <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div style="margin-left:auto;font-size:11px;color:var(--faint)">Ctrl+Enter sends</div></sc-if>
               </div>
             </div>

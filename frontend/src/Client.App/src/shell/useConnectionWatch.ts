@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { SignalledChanges } from '../signals/signalledChanges';
 import type { ChannelStep } from '../signals/useSignals';
 import { nextChangeIn, readConnection, type ConnectionEvidence, type ConnectionStatus } from './connectionStatus';
@@ -97,25 +97,20 @@ export function useConnectionWatch(
         };
     }, []);
 
-    // The server not answering, whichever read said so: the session read, or a ticket nothing answered.
-    const ticketUnanswered = heldFor !== null && channel.standing === 'unanswered' ? channel.since : null;
-    const unansweredSince = connection.unansweredSince ?? ticketUnanswered;
+    // The server not answering, as the session read says it — the liveness probe among its reads. A ticket nothing
+    // answered is not enough on its own: the mint is bounded, a link saturated by an upload can hold one past its bound
+    // on a server that is alive, and one silence is exactly what the probe refuses to call a lost server. So a ticket
+    // nobody answered asks the probe at once, below, and the probe's two misses are what say the server is lost.
+    const unansweredSince = connection.unansweredSince;
     const unanswered = unansweredSince !== null;
 
     // Whether this is the change from not answering to answering again is kept beside it, since that is the moment
-    // every screen is read again — and whether the frame's own read went unanswered in the silence, since its answer is
-    // then what ended it and the frame has nothing to read twice.
-    const frameQuiet = connection.unansweredSince !== null;
-    const [quiet, setQuiet] = useState({ what: unanswered, answeredAgain: false, frameWasQuiet: frameQuiet });
+    // every screen is read again. The frame's own read is the one thing that says the server is lost, so its answer
+    // is always what ended the silence, and the frame has nothing to read twice.
+    const [quiet, setQuiet] = useState({ what: unanswered, answeredAgain: false });
 
     if (quiet.what !== unanswered) {
-        setQuiet({
-            what: unanswered,
-            answeredAgain: !unanswered,
-            frameWasQuiet: unanswered ? frameQuiet : quiet.frameWasQuiet,
-        });
-    } else if (unanswered && frameQuiet && !quiet.frameWasQuiet) {
-        setQuiet({ ...quiet, frameWasQuiet: true });
+        setQuiet({ what: unanswered, answeredAgain: !unanswered });
     }
 
     const accounts = connection.accounts?.outcome === 'read' ? connection.accounts.value.accounts : [];
@@ -178,16 +173,28 @@ export function useConnectionWatch(
     // server that carries no channel at all is read again as readily as one that does.
     useEffect(() => {
         if (quiet.answeredAgain) {
-            changes.refresh(quiet.frameWasQuiet ? { frameAnswered: true } : undefined);
+            changes.refresh({ frameAnswered: true });
         }
     }, [quiet, changes]);
 
     // Read when the stream reports rather than captured, so the callback stays one function for the stream's life.
-    const { refresh: refreshFrame } = connection;
-    const frameUnanswered = useRef({ unanswered: connection.unansweredSince !== null, refreshFrame });
+    const { refresh: refreshFrame, channelDropped, readUnderWay, channelStands } = connection;
+    const frameUnanswered = useRef({
+        unanswered: connection.unansweredSince !== null,
+        refreshFrame,
+        channelDropped,
+        readUnderWay,
+        channelStands,
+    });
 
     useEffect(() => {
-        frameUnanswered.current = { unanswered: connection.unansweredSince !== null, refreshFrame };
+        frameUnanswered.current = {
+            unanswered: connection.unansweredSince !== null,
+            refreshFrame,
+            channelDropped,
+            readUnderWay,
+            channelStands,
+        };
     });
 
     const channelStood = useCallback((step: ChannelStep) => {
@@ -213,17 +220,49 @@ export function useConnectionWatch(
         });
 
         // A ticket was answered, so a server whose last read went unanswered is there again: the frame is read, and
-        // its answering is what reads every other screen.
+        // its answering is what reads every other screen — unless the frame's own read is already on its way, whose
+        // answer says the same thing a moment later. A mint is a probe, so it overtakes the reads queued behind the
+        // frame's and would otherwise ask for that answer twice.
         const frame = frameUnanswered.current;
 
-        if (frame.unanswered && (step === 'opened' || step === 'refused')) {
+        if (frame.unanswered && !frame.readUnderWay() && (step === 'opened' || step === 'refused')) {
             frame.refreshFrame();
+        }
+
+        // SignalR's keep-alive dropped a connection that heard nothing for thirty seconds, which is the first sign of a
+        // link that died without the browser noticing, and a ticket nobody answered is the same question asked from
+        // the other end: either way the server is asked at once whether it is still there.
+        if (step === 'dropped' || step === 'unanswered') {
+            frame.channelDropped();
         }
     }, []);
 
     // The details are about a delay or a lost server, so they are open only while there is one to say.
     const [detailsAsked, setDetailsAsked] = useState(false);
     const reading = readConnection(evidence, clock);
+
+    // Whether the status is resting on a channel that does not stand — one past its grace, or none held at all. The
+    // liveness probe then asks the server on its interval whatever is waiting, so a server that went quiet while
+    // nobody asked it anything is said to be lost rather than left *delayed*; a standing channel's keep-alive is that
+    // watch otherwise.
+    const channelDown =
+        (reading.level === 'delayed' && reading.delays.some((delay) => delay.kind === 'channel')) ||
+        (heldFor === null && reading.level !== 'connecting');
+
+    useEffect(() => {
+        frameUnanswered.current.channelStands(!channelDown);
+    }, [channelDown]);
+
+    // What `disconnectedNow` answers, written as the status commits and before any effect runs — so a request the
+    // probe abandons in an effect fails into a client whose status already says the server is lost.
+    const disconnectedAtCommit = useRef(false);
+    const lostNow = reading.level === 'disconnected';
+
+    useLayoutEffect(() => {
+        disconnectedAtCommit.current = lostNow;
+    }, [lostNow]);
+
+    const disconnectedNow = useCallback(() => disconnectedAtCommit.current, []);
     const status: ConnectionStatus = {
         ...reading,
         attempts: connection.unansweredSince === null ? null : connection.attempts,
@@ -233,6 +272,7 @@ export function useConnectionWatch(
         },
         detailsOpen: detailsAsked && (reading.level === 'delayed' || reading.level === 'disconnected'),
         showDetails: setDetailsAsked,
+        disconnectedNow,
     };
 
     return { status, channelStood };

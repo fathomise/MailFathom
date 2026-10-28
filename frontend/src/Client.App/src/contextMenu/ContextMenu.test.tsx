@@ -17,7 +17,10 @@ const items: readonly ContextMenuItem[] = [
     { icon: 'delete', label: 'Delete', destroys: true, choose: vi.fn() },
 ];
 
-function menuOver(closed: () => void = vi.fn()): { readonly current: ScreenLayers } {
+function menuOver(
+    closed: () => void = vi.fn(),
+    offered: readonly ContextMenuItem[] = items,
+): { readonly current: ScreenLayers } {
     // The shell around it, because the menu records itself as standing over the screen for as long as it is drawn.
     // Its three functions are the same ones for the life of the stack, so the value handed to the provider stays
     // current however the count moves.
@@ -29,7 +32,7 @@ function menuOver(closed: () => void = vi.fn()): { readonly current: ScreenLayer
                 <ContextMenu
                     header="Contract annex — signatures"
                     at={{ x: 40, y: 60 }}
-                    items={items}
+                    items={offered}
                     onClose={closed}
                 />
             </ScreenLayersContext>
@@ -172,6 +175,31 @@ describe('ContextMenu', () => {
 
         expect(archiving).toHaveBeenCalledOnce();
         expect(closed).toHaveBeenCalledOnce();
+    });
+
+    // A write while the server is out of reach is refused before it is pressed: the item stays, says why in place of
+    // its name, and choosing it does nothing — the menu stays open, so the reader is not left wondering what happened.
+    it('says why an item cannot act in its place, and does nothing when it is chosen', () => {
+        const closed = vi.fn();
+        const refusedArchive = vi.fn();
+
+        menuOver(closed, [
+            {
+                icon: 'archive',
+                label: 'Archive',
+                refused: 'Archive - no connection to the MailFathom server.',
+                choose: refusedArchive,
+            },
+        ]);
+
+        const item = screen.getByRole('menuitem', { name: 'Archive - no connection to the MailFathom server.' });
+
+        expect(item.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(item);
+
+        expect(refusedArchive).not.toHaveBeenCalled();
+        expect(closed).not.toHaveBeenCalled();
     });
 
     // It stands over whatever it was opened on, so the back gesture closes it before it navigates and a change of

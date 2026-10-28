@@ -2,7 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { MailMutationOutcome, MailMutationRecord, MailMutationResult } from '@mailfathom/client-backend';
+import type {
+    ClientFailure,
+    MailMutationOutcome,
+    MailMutationRecord,
+    MailMutationResult,
+} from '@mailfathom/client-backend';
 
 // What a change this client asked for is, and the rule deciding which of them converge on their own and which are
 // somebody's to settle. It is stated here, as functions over values, rather than inside the provider that applies it,
@@ -84,8 +89,23 @@ export interface ChangeSubmission {
     /** The messages the submission named, which is what an answer that never arrived is measured against. */
     readonly asked: readonly string[];
 
-    /** What the deployment answered per message, or `null` where the submission never reached it. */
+    /** What the deployment answered per message, or `null` where it answered nothing this client could read as one. */
     readonly results: readonly MailMutationResult[] | null;
+
+    /**
+     * Why there are no results: the refusal the server stated, or `null` where nothing answered at all.
+     *
+     * The two are different sentences. A refusal is an answer, so nothing was written down and the way back is to ask
+     * again. Silence — and a gateway's `502`, `503`, or `504`, which may come after the request was handed on — leaves
+     * the change's outcome unknown: it most likely landed, and asking again could record it twice.
+     */
+    readonly failure: ClientFailure | null;
+
+    /**
+     * The folder each message was in when the act was asked, by the message, which is what the read made once the
+     * server answers again is held against: a message an act filed elsewhere that is still listed there did not move.
+     */
+    readonly askedIn: ReadonlyMap<string, string>;
 
     /** Asks for the same change afresh over the messages named, which is what a retry and a resolution both do. */
     readonly askAgain: (storedEmailIds: readonly string[]) => void;
@@ -130,4 +150,38 @@ export function readSubmission(submission: ChangeSubmission): SubmissionReading 
     }
 
     return { followed, refused };
+}
+
+/** One message as a page drew it, reduced to what says whether an act on it landed. */
+export interface DrawnState {
+    readonly folder: string;
+    readonly unread: boolean;
+    readonly flagged: boolean;
+}
+
+/**
+ * Whether a message as the server now lists it shows the act as having landed.
+ *
+ * A flag act landed where the flag stands as asked. An act that files the message elsewhere landed where the message is
+ * no longer listed in the folder it was asked in — and a message seen anywhere else, the folder it was filed into among
+ * them, is that.
+ *
+ * @param askedIn The folder the act was asked in, or `null` where it is not known, which only a flag act can afford.
+ */
+export function landedAs(act: ChangeAct, askedIn: string | null, drawn: DrawnState): boolean {
+    switch (act) {
+        case 'markRead':
+            return !drawn.unread;
+        case 'markUnread':
+            return drawn.unread;
+        case 'flag':
+            return drawn.flagged;
+        case 'unflag':
+            return !drawn.flagged;
+        case 'archive':
+        case 'delete':
+        case 'move':
+        case 'putBack':
+            return askedIn === null || drawn.folder !== askedIn;
+    }
 }

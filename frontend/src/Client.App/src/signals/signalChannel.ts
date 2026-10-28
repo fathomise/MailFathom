@@ -3,7 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { HttpTransportType, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
-import { signalMethod, type MailFathomSignalChannel, type SignalStreamSchedule } from '@mailfathom/client-backend';
+import {
+    livenessBound,
+    signalMethod,
+    type MailFathomSignalChannel,
+    type SignalStreamSchedule,
+} from '@mailfathom/client-backend';
 
 // The socket `Client.Backend` asks its caller for. That package declares no DOM, so the SignalR client is named in this
 // directory and nowhere else — the same boundary `deployment/sendToDeployment.ts` holds for `fetch`, and for the same
@@ -24,6 +29,12 @@ import { signalMethod, type MailFathomSignalChannel, type SignalStreamSchedule }
  *
  * Logging is off because the deployment already records what it refused, and a client that logged its own connection
  * attempts would write the address it presented a ticket to into a browser console.
+ *
+ * **Opening is bounded; an open connection needs no bound of its own.** SignalR's keep-alive closes a connection that
+ * has heard nothing for thirty seconds, with the defaults both this client and the hub keep. Opening one has no such
+ * end, so a socket handshake on a link that died would wait for as long as the browser does — and could still be
+ * waiting after the network came back, on a connection nothing will ever answer. So a start not done within
+ * `livenessBound` is stopped, and refused like any connection that did not open.
  */
 export const openSignalChannel: MailFathomSignalChannel = async (opening) => {
     const connection = new HubConnectionBuilder()
@@ -39,10 +50,49 @@ export const openSignalChannel: MailFathomSignalChannel = async (opening) => {
         opening.dropped();
     });
 
-    await connection.start();
+    await startedWithin(
+        () => connection.start(),
+        () => connection.stop(),
+        livenessBound,
+    );
 
     return { close: () => connection.stop() };
 };
+
+/**
+ * Starts something and gives up on it if it has not started within the bound, stopping it as it does.
+ *
+ * @param start What is started.
+ * @param stop What abandons a start still under way.
+ * @param milliseconds How long the start may take.
+ * @throws What the start threw, or a `TimeoutError` once the bound passed — after which whatever the start does is let
+ * go of, since nobody is waiting on it any more.
+ */
+export async function startedWithin(
+    start: () => Promise<void>,
+    stop: () => Promise<void>,
+    milliseconds: number,
+): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const overstayed = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+            void stop().catch(() => undefined);
+            reject(new DOMException('The connection did not open within its bound.', 'TimeoutError'));
+        }, milliseconds);
+    });
+
+    const starting = start();
+
+    // A start that settles after the bound has nobody to tell, so its own outcome is caught rather than left unhandled.
+    starting.catch(() => undefined);
+
+    try {
+        await Promise.race([starting, overstayed]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 /**
  * How the stream waits, which is the browser's own timer and the browser's own source of a spread.

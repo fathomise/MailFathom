@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
     markMailRead,
     mostMessagesPerMutation,
+    wentUnanswered,
     type ClientSession,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
@@ -163,6 +164,10 @@ export function ReadMarkingProvider({
                 act: 'markRead',
                 asked: batch,
                 results: answer.outcome === 'read' ? answer.value : null,
+                failure: answer.outcome === 'failed' && !wentUnanswered(answer.failure) ? answer.failure : null,
+
+                // Marking read writes a flag, which lands wherever the message is; no folder is part of it.
+                askedIn: new Map(),
                 askAgain: (storedEmailIds) => {
                     // The question outlives the answer that raised it — a toast stands on the screen for seconds and
                     // knows nothing about who is signed in — so who is asking is read at the moment somebody answers

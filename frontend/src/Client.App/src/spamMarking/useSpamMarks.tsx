@@ -7,6 +7,7 @@ import {
     isSpam,
     markMailSpam,
     mostMessagesPerMutation,
+    wentUnanswered,
     type ClientFailureReason,
     type ClientResult,
     type ClientSession,
@@ -278,8 +279,19 @@ export function useSpamMarks({
                 ),
             );
 
+            // A batch nobody answered is not known to have been refused — it most likely was written — so its messages
+            // go on being drawn with the mark as pressed rather than put back, and are said apart from a refusal.
+            const unknown = new Set(
+                answered.flatMap(({ messages: batch, answer }) =>
+                    answer.outcome === 'failed' && wentUnanswered(answer.failure)
+                        ? batch.map((message) => message.storedEmailId)
+                        : [],
+                ),
+            );
             const written = messages.filter((message) => results.has(message.storedEmailId));
-            const notWritten = messages.filter((message) => !results.has(message.storedEmailId));
+            const notWritten = messages.filter(
+                (message) => !results.has(message.storedEmailId) && !unknown.has(message.storedEmailId),
+            );
             const moved = written.filter((message) => results.get(message.storedEmailId)?.moved === true);
 
             settle(
@@ -295,16 +307,28 @@ export function useSpamMarks({
                         [
                             message.storedEmailId,
                             drawnAtPress,
-                            result === undefined
-                                ? before.get(message.storedEmailId)
-                                : { verdict, from: message.folder, leaves: result.moved },
+                            result !== undefined
+                                ? { verdict, from: message.folder, leaves: result.moved }
+                                : unknown.has(message.storedEmailId)
+                                  ? drawnAtPress
+                                  : before.get(message.storedEmailId),
                         ] as const,
                     ];
                 }),
             );
 
+            if (unknown.size > 0) {
+                toasts.raise({
+                    kind: 'warning',
+                    title: translate('spam.unknownTitle'),
+                    body: translate('spam.unknown'),
+                });
+            }
+
             if (notWritten.length > 0) {
-                const failure = answered.find(({ answer }) => answer.outcome === 'failed')?.answer;
+                const failure = answered.find(
+                    ({ answer }) => answer.outcome === 'failed' && !wentUnanswered(answer.failure),
+                )?.answer;
 
                 toasts.raise({
                     kind: 'error',

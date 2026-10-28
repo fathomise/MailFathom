@@ -443,7 +443,7 @@ describe('useClientPreferences', () => {
     });
 
     it('says a change the deployment refused was not stated', async () => {
-        const { transport } = recording('', 503);
+        const { transport } = recording('', 403);
         const { result } = reading(transport);
 
         act(() => {
@@ -453,6 +453,23 @@ describe('useClientPreferences', () => {
         await waitFor(() => {
             expect(result.current.preferences.notStated).toBe(true);
         });
+        expect(result.current.preferences.stateUnknown).toBe(false);
+    });
+
+    // A gateway answering for the server may have handed the write on first, so the change may well have been saved:
+    // it is said to be unknown, and never not to have been stated.
+    it('says it is not known whether a change nobody answered was stated', async () => {
+        const { transport } = recording('', 503);
+        const { result } = reading(transport);
+
+        act(() => {
+            result.current.preferences.chooseTabMode(true);
+        });
+
+        await waitFor(() => {
+            expect(result.current.preferences.stateUnknown).toBe(true);
+        });
+        expect(result.current.preferences.notStated).toBe(false);
     });
 
     // A settings policy may hold the telemetry switch, and the route then refuses a document stating the other answer.
@@ -558,6 +575,7 @@ describe('useClientPreferences', () => {
         const transport: MailFathomTransport = (request) => {
             requests.push(request);
 
+            // The read answers, the write is refused, and the read after it is never answered.
             return Promise.resolve(
                 requests.length === 1
                     ? {
@@ -565,7 +583,7 @@ describe('useClientPreferences', () => {
                           body: stored({ telemetryEnabled: true, theme: 'light', openMailInTabs: false }),
                           headers: {},
                       }
-                    : { status: 503, body: '', headers: {} },
+                    : { status: requests.length === 2 ? 403 : 503, body: '', headers: {} },
             );
         };
         const { result } = reading(transport);

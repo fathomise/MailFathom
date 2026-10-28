@@ -32,6 +32,7 @@ function Status({ reading, children }: { readonly reading: ConnectionReading; re
                 retry: () => undefined,
                 detailsOpen: detailsOpen && reading.level === 'disconnected',
                 showDetails,
+                disconnectedNow: () => reading.level === 'disconnected',
             }}
         >
             {children}

@@ -8,6 +8,7 @@ import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // What a new conversation offers to start with. The design's prototype opens a seeded conversation from each;
 // a client has none to open, so each asks its question exactly as typing it would.
@@ -59,6 +60,12 @@ export function AgentComposer({
     const [writtenFor, setWrittenFor] = useState(conversation);
     const [sentInto, setSentInto] = useState<string | null>(null);
     const input = useRef<HTMLInputElement>(null);
+    const writeRefused = useWriteRefusal();
+
+    // Sending, steering, and cancelling each ask the server to do something, so while it is out of reach each says so
+    // before it is pressed rather than failing after. The field stays open: what is typed waits for the connection.
+    const sendRefused = writeRefused(translate('agent.send'));
+    const cancelRefused = running ? writeRefused(translate('agent.cancel')) : null;
     const clearName = useTip({
         says: translate('agent.clearContext'),
         onPress: () => {
@@ -66,12 +73,18 @@ export function AgentComposer({
             input.current?.focus();
         },
     });
-    // The send button's press is the form's own; the hold that reads its name hands nothing to do.
-    const sendName = useTip({ says: translate('agent.send'), onPress: () => undefined });
+    // The send button's press is the form's own; the hold that reads its name hands nothing to do. Refused, it does
+    // nothing at all, so a tap is what says why.
+    const sendName = useTip({
+        says: sendRefused ?? translate('agent.send'),
+        describes: sendRefused !== null,
+        onPress: sendRefused === null ? () => undefined : undefined,
+    });
     // Idle, the cancel control does nothing, so a tap is what says why — as it does for every control that cannot act.
+    const cancels = running && cancelRefused === null;
     const cancelName = useTip({
-        says: translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle'),
-        onPress: running ? onCancel : undefined,
+        says: cancelRefused ?? translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle'),
+        onPress: cancels ? onCancel : undefined,
     });
 
     // Adjusted while rendering rather than in an effect, so the old draft is never drawn under the new conversation.
@@ -92,7 +105,7 @@ export function AgentComposer({
     async function send(written: string): Promise<void> {
         const question = written.trim();
 
-        if (question.length === 0 || sending) {
+        if (question.length === 0 || sending || sendRefused !== null) {
             return;
         }
 
@@ -132,16 +145,13 @@ export function AgentComposer({
                     <ul aria-label={translate('agent.starters')} className="flex flex-wrap gap-2">
                         {starters.map((starter) => (
                             <li key={starter}>
-                                <button
-                                    type="button"
-                                    aria-label={translate('agent.askStarter', { question: translate(starter) })}
-                                    className="rounded-xl border border-line-strong bg-panel px-3.25 py-1.75 text-base text-text-soft transition hover:border-accent hover:text-accent-deep"
-                                    onClick={() => {
+                                <Starter
+                                    question={translate(starter)}
+                                    refused={sendRefused}
+                                    onAsk={() => {
                                         void send(translate(starter));
                                     }}
-                                >
-                                    {translate(starter)}
-                                </button>
+                                />
                             </li>
                         ))}
                     </ul>
@@ -173,11 +183,12 @@ export function AgentComposer({
                     {/* The phone draws both buttons as their symbols, so the field keeps the width its prompt needs; and no
                     button names a key where a finger drives the client, since there is no keyboard to press it on. */}
                     <button
-                        {...(wide ? {} : sendName.anchor)}
-                        type="submit"
+                        {...(wide && sendRefused === null ? {} : sendName.anchor)}
+                        type={sendRefused === null ? 'submit' : 'button'}
                         disabled={sending}
+                        aria-disabled={sendRefused === null ? undefined : true}
                         aria-label={wide ? undefined : translate('agent.send')}
-                        className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 workspace:size-auto workspace:px-4.5 workspace:py-2 desktop:px-4"
+                        className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 workspace:size-auto workspace:px-4.5 workspace:py-2 desktop:px-4"
                     >
                         {wide ? (
                             <>
@@ -190,21 +201,21 @@ export function AgentComposer({
                             <Icon name="send" className="size-icon-xl" />
                         )}
                     </button>
-                    {wide ? null : sendName.tip}
+                    {wide && sendRefused === null ? null : sendName.tip}
 
                     <button
                         type="button"
-                        aria-disabled={!running}
-                        {...(wide && running ? {} : cancelName.anchor)}
+                        aria-disabled={!cancels}
+                        {...(wide && cancels ? {} : cancelName.anchor)}
                         aria-label={translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
                         tabIndex={running ? 0 : -1}
                         className={`flex size-11 shrink-0 items-center justify-center rounded-md border text-base whitespace-nowrap transition workspace:size-auto workspace:px-4 workspace:py-2 desktop:px-3.5 ${
                             running
-                                ? 'border-error bg-error font-semibold text-on-accent hover:opacity-90'
+                                ? 'border-error bg-error font-semibold text-on-accent hover:opacity-90 aria-disabled:cursor-not-allowed aria-disabled:opacity-60'
                                 : 'cursor-default border-line text-faint'
                         }`}
                         onClick={(event) => {
-                            if (wide && running) {
+                            if (wide && cancels) {
                                 onCancel();
                             } else {
                                 cancelName.anchor.onClick(event);
@@ -213,7 +224,7 @@ export function AgentComposer({
                     >
                         {wide ? translate('agent.cancel') : <Icon name="cancel" className="size-icon-xl" />}
                     </button>
-                    {wide && running ? null : cancelName.tip}
+                    {wide && cancels ? null : cancelName.tip}
                 </form>
 
                 {notSent === null ? null : (
@@ -226,5 +237,37 @@ export function AgentComposer({
                 <p className="text-xs text-faint">{translate('agent.footer')}</p>
             </div>
         </div>
+    );
+}
+
+/**
+ * One starter question, which sends itself when pressed — and while the server is out of reach says why it cannot,
+ * which is a sentence a tap brings up rather than a press that silently does nothing.
+ */
+function Starter({
+    question,
+    refused,
+    onAsk,
+}: {
+    readonly question: string;
+    readonly refused: string | null;
+    readonly onAsk: () => void;
+}) {
+    const { translate } = useLocalization();
+    const said = useTip({ says: refused ?? question, describes: true });
+
+    return (
+        <>
+            <button
+                {...(refused === null ? { onClick: onAsk } : said.anchor)}
+                type="button"
+                aria-disabled={refused === null ? undefined : true}
+                aria-label={translate('agent.askStarter', { question })}
+                className="rounded-xl border border-line-strong bg-panel px-3.25 py-1.75 text-base text-text-soft transition hover:border-accent hover:text-accent-deep aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+            >
+                {question}
+            </button>
+            {refused === null ? null : said.tip}
+        </>
     );
 }

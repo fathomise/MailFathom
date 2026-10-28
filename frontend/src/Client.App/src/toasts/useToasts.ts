@@ -120,6 +120,12 @@ export interface StandingToast {
      * own should stand for; a toast it raises in answer to one that is standing takes that one's.
      */
     readonly standFor: number;
+
+    /**
+     * Whether it stands until what it is about ends rather than for a lifetime, which is *Still sending…*: nothing is
+     * running out for it, so it draws no bar, and closing it only closes it.
+     */
+    readonly lasting?: true;
 }
 
 export interface ToastSurface {

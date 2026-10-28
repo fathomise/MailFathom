@@ -36,6 +36,23 @@ export interface ClientRequest {
      * `transientFailures.ts` exists to rule out.
      */
     readonly retriedByCaller?: true;
+
+    /**
+     * The request asks whether the server is still there, so the transport puts it on the wire at once, once, and gives
+     * up on it after `livenessBound`.
+     *
+     * At once, because a probe that queued behind the requests it is checking on could be held back by exactly the
+     * requests a dead link left hanging. Once, because a retry underneath it, or a `Retry-After` it honoured, would
+     * stretch it past the bound that makes it a question rather than a wait. It implies `retriedByCaller`.
+     */
+    readonly probes?: true;
+
+    /**
+     * The request is a `POST` that only asks something — a reply drafted, a phrase read, a day laid out — and writes
+     * nothing, so its waiting is not a write still being sent. A route that asks with a body has nowhere else to put
+     * one, and its method alone would otherwise have it said as *Still sending…* for the minutes an AI provider takes.
+     */
+    readonly changesNothing?: true;
 }
 
 /** What came back, reduced to the three things this package reads. */
