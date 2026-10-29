@@ -134,8 +134,10 @@ unfinished work instead when the client now shows something `design/` does not d
 `AGENTS.md` § *The design leads the client, never the other way round* puts that design half in this
 pull request.
 
-Leave the board's `Status` field to the project automation. Set a status by hand only for an issue
-created already closed, which the automation does not add.
+Preserve `Sprint`: publishing a pull request never assigns, changes, or clears the user's sprint.
+Leave review and merge statuses to the project automation. `Status: Needs decision` records an
+outstanding ADR, internal decision, or measurement; an unresolved one stops completion. Starting
+work may set `In progress` as the task flow specifies; retrospective closed issues take `Done`.
 
 Report:
 

@@ -167,12 +167,14 @@ them if that access were ever removed.
    the same pull request — an `Area` and a `Queue`
    value on the board, a milestone when the milestone rule assigns one, and the `Size` placeholder
    that page's one rule produces — a placeholder rather than an estimate, because the value the board
-   keeps is the one `$finish-change` measures off the diff. Decide each from the rules on that page rather than asking. `Queue: Next` is never
-   one of them: the owner chooses it, and `$finish-change` writes it once the pull request exists, so
-   a new issue takes `Later`, `Needs decision`, or `Parked`, and a parent takes one of those three by
-   the same rules as any other issue. What marks a parent instead is the `parent` label and the `[P] `
-   prefix every parent's title begins with, whatever `Queue` value it holds.
-   Verify the values landed, because the built-in workflows set `Status` and nothing else, an
+   keeps is the one `$finish-change` measures off the diff. Decide each from the rules on that page rather than asking.
+   A new issue takes `Queue: Parked` unless the owner has accepted it onto the roadmap or asked to
+   run it, which authorizes `Queue: Next`. A parent follows the same rule; its `parent` label and
+   `[P] ` title prefix identify the hierarchy. Waiting for an ADR, an internal decision, or a
+   measurement is `Status: Needs decision`, independent of `Queue`: record the awaited answer in
+   the issue, link a `Decision` issue where one exists, and do not begin implementation until it is
+   settled. Preserve any `Sprint` assignment; only the user assigns, changes, or clears it.
+   Verify the values landed, because the built-in workflows normally set `Status` and nothing else, an
    unplaced issue disappears from the views the owner reads, and GitHub drops a type it will not let
    this credential set without reporting an error.
 

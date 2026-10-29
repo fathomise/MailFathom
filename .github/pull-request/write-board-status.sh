@@ -18,8 +18,7 @@
 # of one question and a caller uses whichever one says what it means:
 #
 # - The preserved list is what a write refuses to overwrite. `Done` is the merge and the close and
-#   `Blocked` is the one status a hand writes, and neither is a statement a review gets to erase
-#   from either end of itself.
+#   `Blocked` and `Needs decision` are manual holds a review cannot settle.
 # - The required list is what a write may act on and nothing else. A rule that says *a change which
 #   had been ready stopped merging* is only true of an item that is currently `Ready to merge`, so it
 #   names the one status it is entitled to move and leaves every other item alone rather than

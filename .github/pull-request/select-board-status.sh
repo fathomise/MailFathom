@@ -126,7 +126,7 @@ pull_request_file="${1:?the pull request JSON file is required}"
 mergeable="$(jq -r '.mergeable // "UNKNOWN"' "$pull_request_file")"
 
 if [[ "$(jq -r '.inMergeQueue // false' "$pull_request_file")" == 'true' ]]; then
-  printf 'In merge\t\tDone,Blocked\n'
+  printf 'In merge\t\tDone,Blocked,Needs decision\n'
   exit 0
 fi
 
@@ -169,7 +169,7 @@ if [[ "$(jq -r '.isDraft // false' "$pull_request_file")" != 'true' ]]; then
   fi
 
   if (( failed > 0 )); then
-    printf 'Changes requested\t\tDone,Blocked\n'
+    printf 'Changes requested\t\tDone,Blocked,Needs decision\n'
     exit 0
   fi
 
@@ -201,22 +201,22 @@ if [[ "$(jq -r '.isDraft // false' "$pull_request_file")" != 'true' ]]; then
   )"
 
   if [[ "$verdict" == 'withheld' ]]; then
-    printf 'Changes requested\t\tDone,Blocked\n'
+    printf 'Changes requested\t\tDone,Blocked,Needs decision\n'
     exit 0
   fi
 
   if [[ "$verdict" == 'clean' && "$removed_after_verdict" == 'true' ]]; then
-    printf 'Changes requested\t\tDone,Blocked\n'
+    printf 'Changes requested\t\tDone,Blocked,Needs decision\n'
     exit 0
   fi
 
   if [[ "$verdict" == 'clean' && "$mergeable" == 'MERGEABLE' ]]; then
-    printf 'Ready to merge\t\tDone,Blocked\n'
+    printf 'Ready to merge\t\tDone,Blocked,Needs decision\n'
     exit 0
   fi
 
   if [[ "$verdict" == 'clean' && "$mergeable" == 'CONFLICTING' ]]; then
-    printf 'Changes requested\t\tDone,Blocked\n'
+    printf 'Changes requested\t\tDone,Blocked,Needs decision\n'
     exit 0
   fi
 fi
