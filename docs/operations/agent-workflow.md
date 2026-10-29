@@ -1080,7 +1080,7 @@ the first.
 Six rules live in `.github/pull-request/select-board-status.sh`, read top to bottom:
 
 - A pull request **in the merge queue** earns `In merge`, before anything else is asked of it
-  and over every status but `Done` and `Blocked`. It is waiting on the queue rather than on the
+  and over every status but `Done`, `Blocked`, and `Needs decision`. It is waiting on the queue rather than on the
   owner or the agent, and nothing on its head can say otherwise: the queue's checks run on the
   merge group's commit. The workflow also runs on the `enqueued` and `dequeued` events of a pull
   request for this reason alone, since no pipeline concluding on the head announces either.
@@ -2764,7 +2764,7 @@ statuses they may write it over. That authority is two arguments rather than one
 because it is one question asked in two directions: the statuses a write refuses
 to overwrite, and the statuses it may act on and no others. The announcement and
 the verdict rules — `In merge`, every route to `Changes requested` but the conflict
-rule's, and a clean head's `Ready to merge` — name the same preserved pair and no required
+rule's, and a clean head's `Ready to merge` — name the same three preserved statuses and no required
 list, because each describes whatever item it finds; the conflict rule for a draft
 or a head no review has answered names one required status and no preserved list,
 because it is only true of an item that had been ready. The closing issues come from `collect-closing-issues.sh`, the same
@@ -2772,12 +2772,12 @@ script the collection step and `Apply pull request rules` run, so which issues a
 merge closes is one answer GitHub gives rather than three derivations of it that
 drift.
 
-Two statuses are never written over, by the announcement or by any verdict.
+Three statuses are never written over, by the announcement or by any verdict.
 `Done` is the merge and the close, so a verdict arriving after one must not drag a
 finished item back into review, and a review starting on one must not either.
-`Blocked` is the one status a hand writes, and it says the issue waits on
-something outside the project — a question neither a verdict nor a review in
-flight answers, so neither gets to erase the answer.
+`Blocked` records an external impediment. `Needs decision` records an outstanding
+ADR, internal decision, or measurement. A review cannot settle either manual hold,
+so neither its announcement nor its verdict may erase one.
 
 The write is a job of its own for the credential. The workflow token is scoped
 to the repository and reaches no project, so writing a field on the board takes
@@ -2797,7 +2797,7 @@ so one that is missing has something wrong with it rather than nothing.
 
 `scripts/test-agent-workflow.sh` runs the step against a fake `gh` the way it
 runs the gate, the settle loop, and the submission: it asserts that the
-announcement writes `In review`, that it leaves `Done` and `Blocked` alone, and
+announcement writes `In review`, that it leaves `Done`, `Blocked`, and `Needs decision` alone, and
 that a run without the token writes nothing. That this workflow writes no verdict
 at all is asserted against the workflow itself, since it is the absence of a job
 rather than a branch inside a step.

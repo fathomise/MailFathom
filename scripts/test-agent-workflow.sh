@@ -4688,7 +4688,7 @@ run_fathom_review_announcement() {
   (
     export_fathom_review_board_environment "$board_token"
     export IN_REVIEW_STATUS='In review'
-    export PRESERVED_STATUSES='Done,Blocked'
+    export PRESERVED_STATUSES='Done,Blocked,Needs decision'
     bash "$step_script"
   ) > "$output_file" 2>&1
   board_status=$?
@@ -4735,14 +4735,12 @@ fathom_review_announces_a_started_review() {
   assert_contains 'Issue 12 moved from In progress to In review' "$output_file"
 }
 
-# The two statuses a review does not get to erase are the same at both ends of it. `Done` is the
-# merge and the close and `Blocked` is the one status a hand writes about something outside the
-# project, and a review starting is no more a statement about either than a verdict is.
-fathom_review_announces_nothing_over_a_finished_or_blocked_item() {
+# A review cannot settle a manual hold or reopen completed work.
+fathom_review_preserves_finished_blocked_and_decision_items() {
   local output_file
   local previous_status
 
-  for previous_status in Done Blocked; do
+  for previous_status in Done Blocked 'Needs decision'; do
     output_file="$test_directory/fathom-review-announce-over-${previous_status}-output"
 
     run_fathom_review_announcement '12' "$previous_status" "$output_file"
@@ -4826,7 +4824,7 @@ board_status_leaves_an_item_outside_the_required_statuses() {
   local output_file
   local current_status
 
-  for current_status in 'In progress' 'In merge' 'Blocked' 'Done' '' ; do
+  for current_status in 'In progress' 'In merge' 'Blocked' 'Needs decision' 'Done' '' ; do
     output_file="$test_directory/board-status-required-${current_status:-none}-output"
 
     run_board_status_write 'Changes requested' 'Ready to merge' "$current_status" "$output_file"
@@ -4932,7 +4930,7 @@ select_board_status_earns_in_merge_while_the_queue_holds_the_pull_request() {
 
   run_select_board_status 'CONFLICTING' "$output_file" 'current' "$checks" 'false' 'true'
 
-  assert_file_content $'In merge\t\tDone,Blocked' "$output_file"
+  assert_file_content $'In merge\t\tDone,Blocked,Needs decision' "$output_file"
 }
 
 # The queue letting go of a clean head is a change owed by the agent, and the green head would
@@ -4944,14 +4942,14 @@ select_board_status_earns_changes_requested_for_a_head_the_queue_removed() {
   run_select_board_status 'MERGEABLE' "$output_file" 'current' "$board_state_green_checks" 'false' 'false' \
     '2026-10-17T11:00:00Z'
 
-  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Changes requested\t\tDone,Blocked,Needs decision' "$output_file"
 
   output_file="$test_directory/select-board-status-removed-then-approved"
 
   run_select_board_status 'MERGEABLE' "$output_file" 'current' "$board_state_green_checks" 'false' 'false' \
     '2026-10-17T09:00:00Z'
 
-  assert_file_content $'Ready to merge\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Ready to merge\t\tDone,Blocked,Needs decision' "$output_file"
 }
 
 # A conflict nothing has a verdict about — no review on the head in front of us — says only that a
@@ -4973,7 +4971,7 @@ select_board_status_moves_a_conflicting_approved_head_from_any_column() {
 
   run_select_board_status 'CONFLICTING' "$output_file" 'current' "$board_state_green_checks"
 
-  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Changes requested\t\tDone,Blocked,Needs decision' "$output_file"
 }
 
 # A verdict is asked before whether the change still merges. Asked the other way round, a conflicting
@@ -4988,7 +4986,7 @@ select_board_status_earns_changes_requested_on_a_pull_request_that_stopped_mergi
 
   run_select_board_status 'CONFLICTING' "$output_file" 'commented' "$board_state_green_checks"
 
-  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Changes requested\t\tDone,Blocked,Needs decision' "$output_file"
 
   checks="$(jq -c '.[0].conclusion = "FAILURE"' <<< "$board_state_green_checks")"
 
@@ -4997,7 +4995,7 @@ select_board_status_earns_changes_requested_on_a_pull_request_that_stopped_mergi
 
     run_select_board_status 'CONFLICTING' "$output_file" "$approval" "$checks"
 
-    assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+    assert_file_content $'Changes requested\t\tDone,Blocked,Needs decision' "$output_file"
   done
 }
 
@@ -5032,7 +5030,7 @@ select_board_status_earns_ready_to_merge_when_the_review_and_the_checks_agree() 
 
   run_select_board_status 'MERGEABLE' "$output_file" 'current' "$board_state_green_checks"
 
-  assert_file_content $'Ready to merge\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Ready to merge\t\tDone,Blocked,Needs decision' "$output_file"
 }
 
 # An approval belongs to the commit it was written on. A push that carries one forward without a
@@ -5097,7 +5095,7 @@ select_board_status_earns_changes_requested_from_a_failed_check() {
 
     run_select_board_status 'MERGEABLE' "$output_file" 'current' "$checks"
 
-    assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+    assert_file_content $'Changes requested\t\tDone,Blocked,Needs decision' "$output_file"
   done
 }
 
@@ -5110,7 +5108,7 @@ select_board_status_earns_changes_requested_from_a_withheld_approval() {
 
   run_select_board_status 'MERGEABLE' "$output_file" 'commented' "$board_state_green_checks"
 
-  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Changes requested\t\tDone,Blocked,Needs decision' "$output_file"
 }
 
 # A clean pass on a change whose author is not a maintainer is published as a `COMMENT` under
@@ -5122,14 +5120,14 @@ select_board_status_reads_a_no_findings_comment_as_a_clean_verdict() {
   local output_file="$test_directory/select-board-status-no-findings"
 
   run_select_board_status 'MERGEABLE' "$output_file" 'no-findings' "$board_state_green_checks"
-  assert_file_content $'Ready to merge\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Ready to merge\t\tDone,Blocked,Needs decision' "$output_file"
 
   run_select_board_status 'CONFLICTING' "$output_file" 'no-findings' "$board_state_green_checks"
-  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Changes requested\t\tDone,Blocked,Needs decision' "$output_file"
 
   run_select_board_status 'MERGEABLE' "$output_file" 'no-findings' "$board_state_green_checks" 'false' 'false' \
     '2026-10-17T11:00:00Z'
-  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Changes requested\t\tDone,Blocked,Needs decision' "$output_file"
 }
 
 # A verdict belongs to the commit it was written on, and that holds for a withheld approval exactly
@@ -5171,14 +5169,14 @@ select_board_status_reads_only_the_checks_the_rules_require() {
 
   run_select_board_status 'MERGEABLE' "$output_file" 'current' "$checks"
 
-  assert_file_content $'Ready to merge\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Ready to merge\t\tDone,Blocked,Needs decision' "$output_file"
 
   output_file="$test_directory/select-board-status-unrequired-checks-removed"
 
   run_select_board_status 'MERGEABLE' "$output_file" 'current' "$checks" 'false' 'false' \
     '2026-10-17T11:00:00Z'
 
-  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+  assert_file_content $'Changes requested\t\tDone,Blocked,Needs decision' "$output_file"
 }
 
 # A required check reports on every pull request, or nothing could merge, so one missing from the
@@ -12360,7 +12358,7 @@ run_test fathom_review_refuses_findings_that_carry_a_credential
 run_test fathom_review_records_no_verdict_on_the_board
 run_test fathom_review_moves_nothing_for_a_pull_request_that_closes_no_issue
 run_test fathom_review_announces_a_started_review
-run_test fathom_review_announces_nothing_over_a_finished_or_blocked_item
+run_test fathom_review_preserves_finished_blocked_and_decision_items
 run_test fathom_review_announces_over_every_other_status
 run_test fathom_review_writes_no_status_without_the_board_token
 run_test board_status_moves_an_item_a_rule_is_entitled_to_move

@@ -206,9 +206,9 @@ gh api -X PATCH "repos/fathomise/MailFathom/milestones/<old>" -f state=closed
 ```
 
 The new issue is placed like any other, through the calls `docs/operations/issue-tracking.md` § *Board fields* holds:
-`Area: Release`, `Queue: Later` — it names a release nobody is cutting yet, and step 6 is what moves it to `Next` when
-its pull requests exist — and `Size: S`, which is what that page's rule gives anything that is not a `Feature`. The
-measured value the field otherwise carries does not reach this issue: this skill opens its own pull requests rather than
+`Area: Release`, `Queue: Next` — the next release is accepted roadmap work, independently of when it is cut —
+and `Size: S`, which is what that page's rule gives anything that is not a `Feature`. Preserve `Sprint`; only the
+user assigns it. The measured value the field otherwise carries does not reach this issue: this skill opens its own pull requests rather than
 going through `$finish-change`, so the placeholder is what stands. It is the right band anyway, both diffs together being
 a changelog section, three prose files, one property, and the lock files.
 

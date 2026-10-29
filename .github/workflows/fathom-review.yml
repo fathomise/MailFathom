@@ -759,9 +759,9 @@ jobs:
   # there for that whole time — most often `In progress`, which is the state the work was in before
   # the pull request existed at all.
   #
-  # It preserves two statuses, and for the reason a verdict preserves them: `Done` is the merge and
-  # the close, `Blocked` is the one status a hand writes about something outside the project, and a
-  # review that starts on either says nothing that entitles it to erase them. This is the only status
+  # It preserves `Done` and the manual holds `Blocked` and `Needs decision`: a review cannot reopen
+  # completed work or settle an external impediment, an internal decision, an ADR, or a measurement.
+  # This is the only status
   # this workflow writes, and what writes over it is `Apply pull request rules`, once every check the
   # branch rules require has concluded and the review has too — or sooner, where a required check
   # failed, since that is owed an answer whatever the review says. So the item
@@ -824,7 +824,7 @@ jobs:
           CLOSING_ISSUE_LIMIT: '5'
           BOARD_STATUS_SCRIPT: ${{ github.workspace }}/.github/pull-request/write-board-status.sh
           IN_REVIEW_STATUS: In review
-          PRESERVED_STATUSES: Done,Blocked
+          PRESERVED_STATUSES: Done,Blocked,Needs decision
         run: |
           set -euo pipefail
 
