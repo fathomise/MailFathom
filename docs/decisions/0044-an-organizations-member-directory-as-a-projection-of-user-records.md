@@ -271,7 +271,7 @@ Each is named in its implementing pull request with the operator's action, for t
 |---|---|---|
 | Client endpoint | Contact answers name their book, and a member's contact carries the member's user identifier. A write to an organization contact is refused as read-only, where it was answered as a contact the reader does not hold. `trustSource` gains `OrganizationDirectory` (issue 2789) | A client built against the old answers updates with the release |
 | MCP tools | The contact read tools return member contacts beside the reader's own and the organization's | An agent prompt that treats every contact as one the person wrote down tells the books apart |
-| Database | The user's row gains the type, the title, the department, and the manager. Verdicts gain a reference to a member and the new source. Nothing is backfilled but the type, `User` for every existing user | Mark every technical user `ServiceAccount` through `mfctl`, so that it leaves the directory |
+| Database | The user's row gains the type, the title, the department, and the manager as columns. The user's record gains the preferred address, the phone numbers, and the working hours (issue 2791), each empty until somebody states it. Verdicts gain a reference to a member and the new source. Nothing is backfilled but the type, `User` for every existing user | Mark every technical user `ServiceAccount` through `mfctl`, so that it leaves the directory |
 | Behaviour | Assignment, membership, type, and account changes re-judge the stored mail the directory step affects | None |
 
 ### Consequences
