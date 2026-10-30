@@ -58,6 +58,7 @@ reasons and answers the rest. It extends ADR 0043, which is unchanged except whe
   synchronization code.
 - A materialized view or a derived table, rebuilt from the user records on a schedule or by trigger.
 - No directory in the contact book: a separate *People in my organization* surface beside it.
+- A per-user switch hiding somebody from the directory, rather than a user type, for keeping technical accounts out.
 
 ## Decision Outcome
 
@@ -104,9 +105,9 @@ the reader's choice and the reader's alone.
 assigned to more than one user — the definition issue 2792 exposes — is never one person's address, so it is never one
 member's. It can still be written down as an organization contact, under its own name.
 
-- **One address names at most one member.** Where two members each hold an unshared account with the same address, the
-  address names neither of them in the directory's address lookup, exactly as a shared mailbox does. Their contacts
-  still appear, each without that address.
+- **One address names at most one member.** A mail account's address is unique across the deployment (ADR 0014,
+  *An account is named by a generated identifier and is unique by its address*), and an unshared account is assigned to
+  one user, so the address lookup never has two members to choose between.
 - **Addresses follow the assignments.** Mail accounts are created, assigned, and unassigned through the administrative
   endpoint and `mfctl` alone, under `mailfathom.admin.configuration.write`, and a mailbox is reached with its own
   credentials. That is why the directory's addresses are administrator-written for the purposes of ADR 0043, and why no
@@ -132,6 +133,10 @@ lookup by address, the recipient suggestions, and the photo resolution of issue 
   address is a second, hand-kept description, usually written before the directory existed, and it would otherwise
   hide the live record from every member.
 - **Both before the collected books**, because a mailbox collecting a colleague's address knows less than either.
+
+The precedence decides which record answers for an address that several books hold. It does not decide how a screen
+groups or orders the books it shows: the design draws the *Colleagues* segment and the recipient suggestions' groups in
+an order of its own, and that order is the design's to choose.
 
 The organization's book and the directory are read only by a member of that organization. The directory, like the
 organization's book, is never written through a user's scope.
@@ -190,13 +195,14 @@ default it, force it, or restrict who edits it.
 | Working hours | the user's record, new (issue 2791) | the member, and an administrator | an ordinary property: an organization states a default and may force one |
 | Organization | the organization's name | an administrator | not a record property |
 | Title | a column on the user's row, new | an administrator alone | governed by no policy |
+| Department | a column on the user's row, new | an administrator alone | governed by no policy |
 | Manager | a column on the user's row, new (issue 2790) | an administrator alone | governed by no policy |
 | Type | a column on the user's row, new | an administrator alone | governed by no policy |
 | Presence, status message, work mode | outside the record (issues 2793, 2794) | the member alone, or derived | governed by no policy |
 | Phone-app marker | derived from the member's sessions (issue 2795) | nobody | — |
 | Out of office | derived from the member's automatic reply (issue 2797) | the member, by setting the reply | — |
 
-- **Title, manager, and type are columns, written through the administrative endpoint and `mfctl` alone**, under
+- **Title, department, manager, and type are columns, written through the administrative endpoint and `mfctl` alone**, under
   `mailfathom.admin.configuration.write` at the organization's scope or the deployment's. They say where a person sits
   in the organization and whether they are a person at all, which is the organization's statement about them, like
   membership itself, and never something a person writes about themselves. They are columns because the directory reads
@@ -210,7 +216,7 @@ default it, force it, or restrict who edits it.
 
 A member contact shows other members of the same organization the fields of the table above, and nothing else:
 
-- name, the addresses with the preferred one, portrait, organization, title, and phone numbers;
+- name, the addresses with the preferred one, portrait, organization, title, department, and phone numbers;
 - local time and its offset from the reader's, read from the time zone, and nothing where the member states none;
 - working hours in the member's time and the reader's;
 - the manager chain upward and the direct reports;
@@ -226,14 +232,14 @@ do today; this record adds nothing to what an administrator reads.
 
 **MCP reads the directory as a contact book, and only as one.** An agent acting for a member reads member contacts
 through the contact tools exactly as it reads the organization's contacts: name, addresses, preferred address,
-organization, title, and phone numbers, which is what addressing mail and naming people needs. Presence, *Last seen*,
+organization, title, department, and phone numbers, which is what addressing mail and naming people needs. Presence, *Last seen*,
 the status message, the work mode, working hours, the manager chain, the phone-app marker, and out of office reach the
 client endpoint alone. They are monitoring of an employee kept for a colleague deciding when and how to reach somebody,
 no agent task needs them today, and a model reading mail an attacker wrote is the last reader to hand someone's
 whereabouts to. Revisit when a tool needs one, field by field.
 
 **Nothing about a member is logged.** No log line, metric dimension, or failure message carries a member's name,
-address, title, phone number, presence, status, or any other field of their entry. Identifiers may appear, as for
+address, title, department, phone number, presence, status, or any other field of their entry. Identifiers may appear, as for
 contacts.
 
 **Why this is proportionate.** Every field shown is one a colleague needs to reach the person or to know when not to
@@ -260,7 +266,7 @@ Each is named in its implementing pull request with the operator's action, for t
 |---|---|---|
 | Client endpoint | Contact answers name their book, and a member's contact carries the member's user identifier. A write to an organization contact is refused as read-only, where it was answered as a contact the reader does not hold. `trustSource` gains `OrganizationDirectory` (issue 2789) | A client built against the old answers updates with the release |
 | MCP tools | The contact read tools return member contacts beside the reader's own and the organization's | An agent prompt that treats every contact as one the person wrote down tells the books apart |
-| Database | The user's row gains the type, the title, and the manager. Verdicts gain a reference to a member and the new source. Nothing is backfilled but the type, `User` for every existing user | Mark every technical user `ServiceAccount` through `mfctl`, so that it leaves the directory |
+| Database | The user's row gains the type, the title, the department, and the manager. Verdicts gain a reference to a member and the new source. Nothing is backfilled but the type, `User` for every existing user | Mark every technical user `ServiceAccount` through `mfctl`, so that it leaves the directory |
 | Behaviour | Assignment, membership, type, and account changes re-judge the stored mail the directory step affects | None |
 
 ### Consequences
@@ -280,8 +286,6 @@ Each is named in its implementing pull request with the operator's action, for t
   judge new mail only.
 - Bad, because a functional mailbox assigned to one person reads as that person's address until an operator assigns it
   to a second user.
-- Bad, because an address two members both hold unshared names neither of them, which an operator resolves by sharing
-  the mailbox or removing the duplicate.
 
 ## Validation
 
@@ -289,7 +293,7 @@ Each is named in its implementing pull request with the operator's action, for t
 - Issues 2789, 2790, 2791, 2793, 2794, 2795, 2797, and 2804 are checked against it before work starts, and each pull
   request names the section it implements.
 - Unit tests in issue 2789 cover the projection's membership rules — organization, type, the reader left out — the
-  address rules including the shared mailbox and the duplicate, the preferred address, the precedence, the refusals,
+  address rules including the shared mailbox, the preferred address, the precedence, the refusals,
   and departure with nothing written. The trust tests cover the new step against every row ADR 0043's tables state for
   steps 2 to 5, and the re-judgment each act above enqueues.
 - `docs/features/contacts.md`, `docs/features/sender-authentication.md`, `docs/operations/client-endpoint.md`, and
@@ -330,13 +334,16 @@ Each is named in its implementing pull request with the operator's action, for t
 
 ### A per-user switch hiding somebody from the directory, rather than a type
 
-Considered for keeping technical accounts out. Rejected because the question is whether a user is a person, which a
-type answers once for every surface — the directory, recipient suggestions, the automatic reply's audience, and the
-portrait — while a switch answers it for the directory alone and leaves the rest to ask again.
+- Good, because it also hides a person who should not be listed, which a type cannot.
+- Bad, because the question is whether a user is a person, and a type answers it once for every surface that asks —
+  the directory, the recipient suggestions, and the portrait a colleague is served — while a switch answers it for the
+  directory alone and leaves the rest to ask again.
+- Bad, because a switch an administrator sets on a person makes a colleague invisible to their own organization, which
+  is a decision about that person nobody has asked for.
 
 ## More Information
 
-- Issue 2788 is this record's issue and issue 2785 the parent. Issue 2789 builds the directory, the type, the title,
+- Issue 2788 is this record's issue and issue 2785 the parent. Issue 2789 builds the directory, the type, the title, the department,
   the phone numbers, the preferred address, the refusals, and the trust step. Issue 2790 builds the manager, issue 2791
   working hours, issue 2793 presence with a record of its own, issue 2794 the status message and work mode, issue 2795
   the phone-app marker, issue 2797 out of office, issue 2792 the shared flag, and issue 2804 the photos. Issue 2809 draws
