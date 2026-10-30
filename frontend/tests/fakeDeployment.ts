@@ -533,7 +533,12 @@ export class FakeDeployment {
         this.permissions = [...this.permissions, ...permissions];
     }
 
-    /** Answers every read that depends on the day for the day `instant` falls on, however long the check runs. */
+    /**
+     * Answers the task list for the day `instant` falls on, however long the check runs.
+     *
+     * The task list is the one read the fake places against a day, and it settles that day on its first read, so this
+     * is called before anything asks for the list.
+     */
     holdTheDay(instant: Date): void {
         this.heldInstant = instant;
     }

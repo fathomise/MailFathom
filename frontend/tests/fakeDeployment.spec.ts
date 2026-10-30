@@ -723,6 +723,25 @@ test('keeps what each request carried, and names the ones it has no answer for',
     expect(deployment.unimplemented).toStrictEqual(['POST /calendar/import']);
 });
 
+test('places the task list against the day a check held rather than the day the machine is on', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const dueOn = (route: string) =>
+        Object.fromEntries(
+            (ask(deployment, 'GET', route) as { tasks: { id: string; dueOn: string | null }[] }).tasks.map(
+                ({ id, dueOn: due }) => [id, due],
+            ),
+        );
+
+    deployment.holdTheDay(new Date('2024-02-28T12:00:00.000Z'));
+
+    expect(dueOn('/tasks')).toMatchObject({
+        'task-tender': '2024-02-28',
+        'task-return': '2024-03-02',
+        'task-invoice': '2024-02-26',
+    });
+    expect(dueOn('/tasks/proposed')).toMatchObject({ 'task-signatures': '2024-02-29' });
+});
+
 test('places an event it was written in every window it falls in, where an amendment moves it, and nowhere once deleted', () => {
     const deployment = new FakeDeployment('0.0.0');
     const titles = (from: string, until: string) =>
