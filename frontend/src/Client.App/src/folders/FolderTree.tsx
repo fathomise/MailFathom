@@ -624,7 +624,7 @@ export function FolderTree({
                         folded={workspace.mailboxesFolded}
                         groupOrdinal={groupOrdinals.get(visibleRow.row.key) ?? null}
                         shared={
-                            visibleRow.row.folderId === null &&
+                            groupOrdinals.has(visibleRow.row.key) &&
                             visibleRow.row.accountId !== null &&
                             sharedAccounts.has(visibleRow.row.accountId)
                         }

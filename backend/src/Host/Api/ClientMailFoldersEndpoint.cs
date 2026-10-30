@@ -74,11 +74,8 @@ internal static class ClientMailFoldersEndpoint
         ArgumentNullException.ThrowIfNull(assignments);
 
         var directory = await reader.ReadAsync(cancellationToken);
-        var sharedAccounts = await assignments.ReadSharedAmongAsync(
-            directory.Accounts.Select(static account => account.Account.Account.Id),
-            cancellationToken);
 
-        return TypedResults.Ok(ClientMailFoldersResponse.For(directory, spamActions, sharedAccounts));
+        return TypedResults.Ok(await ClientMailFoldersResponse.ForAsync(directory, spamActions, assignments, cancellationToken));
     }
 }
 
@@ -94,6 +91,29 @@ internal sealed record ClientMailFoldersResponse(
     bool SynchronizationEnabled,
     IReadOnlyList<ClientMailFolderAccountResponse> Accounts)
 {
+    /// <summary>Describes the user's tree on the wire, reading which of its accounts are shared from the assignments.</summary>
+    /// <param name="directory">What the use case answered.</param>
+    /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
+    /// <param name="assignments">Reads which of the accounts more than one user is assigned.</param>
+    /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
+    internal static async Task<ClientMailFoldersResponse> ForAsync(
+        MailFolderDirectory directory,
+        ISpamActionSettingsReader spamActions,
+        IMailAccountAssignments assignments,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(directory);
+        ArgumentNullException.ThrowIfNull(assignments);
+
+        var sharedAccounts = await assignments.ReadSharedAmongAsync(
+            directory.Accounts.Select(static account => account.Account.Account.Id),
+            cancellationToken);
+
+        return For(directory, spamActions, sharedAccounts);
+    }
+
     /// <summary>Describes the user's tree on the wire.</summary>
     /// <param name="directory">What the use case answered.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>

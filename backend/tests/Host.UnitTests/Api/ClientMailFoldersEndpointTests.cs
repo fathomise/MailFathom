@@ -284,6 +284,43 @@ public sealed class ClientMailFoldersEndpointTests
         Assert.Equal(synchronizationEnabled, response.SynchronizationEnabled);
     }
 
+    /// <summary>Each account in the tree says whether it is shared, from the set it was handed, which is what the folder tree and the move dialog read.</summary>
+    [Fact]
+    public void For_OneOfTwoAccountsShared_PublishesItAsSharedAndTheOtherAsNot()
+    {
+        // Arrange
+        var directory = Directory(Account(Work), Account(Private));
+
+        // Act
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, new HashSet<MailAccountId> { Work.Id });
+
+        // Assert
+        Assert.Equal([true, false], response.Accounts.Select(account => account.Account.Shared));
+    }
+
+    /// <summary>Which accounts are shared is read from the assignments of the accounts the tree carries, one account at a time.</summary>
+    [Fact]
+    public async Task ForAsync_AnAccountSeveralUsersAreAssigned_PublishesItAsSharedAndAnAccountOfOneUserAsNot()
+    {
+        // Arrange
+        var directory = Directory(Account(Work), Account(Private));
+        var assignments = Substitute.For<IMailAccountAssignments>();
+        assignments.ReadUsersAssignedToAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
+            .Returns([SyntheticUser.Deployment]);
+        assignments.ReadUsersAssignedToAsync(Work.Id, Arg.Any<CancellationToken>())
+            .Returns([SyntheticUser.Deployment, SyntheticUser.Another]);
+
+        // Act
+        var response = await ClientMailFoldersResponse.ForAsync(
+            directory,
+            NoSpamActions,
+            assignments,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([true, false], response.Accounts.Select(account => account.Account.Shared));
+    }
+
     private static MailFolderDirectory Directory(params MailAccountFolders[] accounts) =>
         new(SynchronizationEnabled: true, accounts);
 

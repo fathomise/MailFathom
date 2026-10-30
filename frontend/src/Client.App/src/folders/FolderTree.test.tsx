@@ -447,14 +447,29 @@ describe('FolderTree', () => {
     });
 
     it('marks a shared mailbox as shared on its own row, and on no other', async () => {
+        // A folder nested under a level its server declares no folder at, so the tree draws a row for the level itself:
+        // that row belongs to the mailbox and is no heading of it.
+        const nested = {
+            id: 'PROJECTS/2026',
+            role: null,
+            path: ['Projects', '2026'],
+            storedEmailCount: 8,
+            unreadEmailCount: 0,
+            synchronizationState: 'Synchronized',
+            lastSynchronizedAt: '2026-08-30T21:00:00+00:00',
+            behind: false,
+        };
         const accounts = tree.accounts.map((entry) =>
-            entry.account.id === 'personal' ? { ...entry, account: { ...entry.account, shared: true } } : entry,
+            entry.account.id === 'personal'
+                ? { ...entry, account: { ...entry.account, shared: true }, folders: [...entry.folders, nested] }
+                : entry,
         );
         renderTree(answering(JSON.stringify({ ...tree, accounts })));
 
         await drawn();
 
         expect(row(/^Personal/).textContent).toContain('Shared');
+        expect(row(/^Projects/).textContent).not.toContain('Shared');
         expect(row(/^Work/).textContent).not.toContain('Shared');
         expect(row(/^Archiwum/).textContent).not.toContain('Shared');
     });

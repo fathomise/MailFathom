@@ -66,11 +66,8 @@ internal static class ClientMailAccountsEndpoint
         ArgumentNullException.ThrowIfNull(assignments);
 
         var accounts = await reader.ReadAsync(MailboxReaderKind.Person, cancellationToken);
-        var sharedAccounts = await assignments.ReadSharedAmongAsync(
-            accounts.Accounts.Select(static account => account.Account.Id),
-            cancellationToken);
 
-        return TypedResults.Ok(ClientMailAccountsResponse.For(accounts, spamActions, sharedAccounts));
+        return TypedResults.Ok(await ClientMailAccountsResponse.ForAsync(accounts, spamActions, assignments, cancellationToken));
     }
 }
 
@@ -86,6 +83,29 @@ internal sealed record ClientMailAccountsResponse(
     bool SynchronizationEnabled,
     IReadOnlyList<ClientMailAccountResponse> Accounts)
 {
+    /// <summary>Describes the user's accounts on the wire, reading which of them are shared from the assignments.</summary>
+    /// <param name="accounts">What the use case answered.</param>
+    /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
+    /// <param name="assignments">Reads which of the accounts more than one user is assigned.</param>
+    /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
+    internal static async Task<ClientMailAccountsResponse> ForAsync(
+        MailAccountFreshnessDirectory accounts,
+        ISpamActionSettingsReader spamActions,
+        IMailAccountAssignments assignments,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(accounts);
+        ArgumentNullException.ThrowIfNull(assignments);
+
+        var sharedAccounts = await assignments.ReadSharedAmongAsync(
+            accounts.Accounts.Select(static account => account.Account.Id),
+            cancellationToken);
+
+        return For(accounts, spamActions, sharedAccounts);
+    }
+
     /// <summary>Describes the user's accounts on the wire.</summary>
     /// <param name="accounts">What the use case answered.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>

@@ -212,6 +212,26 @@ public sealed class ClientMailAccountsEndpointTests
         Assert.Equal([true, false], response.Accounts.Select(account => account.Shared));
     }
 
+    /// <summary>Which accounts are shared is read from the assignments of the accounts the use case answered with, one account at a time.</summary>
+    [Fact]
+    public async Task ForAsync_AnAccountSeveralUsersAreAssigned_PublishesItAsSharedAndAnAccountOfOneUserAsNot()
+    {
+        // Arrange
+        var directory = Directory(
+            Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt),
+            Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
+
+        // Act
+        var response = await ClientMailAccountsResponse.ForAsync(
+            directory,
+            NoSpamActions,
+            AssignmentsSharing(Work),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([true, false], response.Accounts.Select(account => account.Shared));
+    }
+
     /// <summary>The deployment-wide switch is reported beside the accounts, because no per-account value carries it.</summary>
     [Theory]
     [InlineData(true)]
@@ -239,6 +259,17 @@ public sealed class ClientMailAccountsEndpointTests
         DateTimeOffset? lastSynchronizedAt,
         bool isBehind = false) =>
         new(account, state, lastSynchronizedAt, isBehind, []);
+
+    private static IMailAccountAssignments AssignmentsSharing(ServedMailAccount shared)
+    {
+        var assignments = Substitute.For<IMailAccountAssignments>();
+        assignments.ReadUsersAssignedToAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
+            .Returns([SyntheticUser.Deployment]);
+        assignments.ReadUsersAssignedToAsync(shared.Id, Arg.Any<CancellationToken>())
+            .Returns([SyntheticUser.Deployment, SyntheticUser.Another]);
+
+        return assignments;
+    }
 
     private static ISpamActionSettingsReader SpamActionsFor(ServedMailAccount? filingAccount)
     {
