@@ -4684,9 +4684,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                 selBy: Object.assign({}, s3.selBy || {}, { people: [] }),
               })),
             }), true),
-          ] : [
-            mk("delete", "Delete", () => this.askHide("people", ids, "Delete contacts?", ids.length + " contacts will disappear from your contacts."), true),
-          ]).map(st2);
+          ] : (() => {
+            // Only contacts the reader wrote down can go; the organization's, selected beside them, stay read-only.
+            const mine = ids.filter(id => ownContacts.some(c => c.id === id && c.kind !== "organization"));
+            const kept = ids.length - mine.length;
+            return mine.length ? [
+              mk("delete", "Delete", () => this.askHide("people", mine, "Delete contacts?", mine.length + " contacts will disappear from your contacts." +
+                (kept ? " " + kept + " kept by " + orgName + " stay, because they are read-only." : "")), true),
+            ] : [];
+          })()).map(st2);
           if (kind === "convs") return [
             mk("archive", "Archive", () => this.setState(s3 => ({ convs: (s3.convs || []).map(x => ids.indexOf(x.id) >= 0 ? Object.assign({}, x, { archived: true }) : x), selBy: Object.assign({}, s3.selBy || {}, { convs: [] }) }))),
             mk("delete", "Delete", () => this.askDel({ title: "Delete conversations?", text: ids.length + " conversations will be permanently deleted.", label: "Delete", run: () => this.setState(s3 => ({ convs: (s3.convs || []).filter(x => ids.indexOf(x.id) < 0), convId: ids.indexOf(s3.convId) >= 0 ? null : s3.convId, selBy: Object.assign({}, s3.selBy || {}, { convs: [] }) })) }), true),
