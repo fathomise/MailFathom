@@ -783,6 +783,10 @@ a contact of the reader's holds but they did not write down (`klient3`).
 | Context changed | `composeCtxChanged` | the context differs from its starting point as a set: another message clicked, several selected, a chip removed. Two marks, never colour alone: a 22 px disc on `--warn-soft` with a 1 px `--warn` ring holding `priority_high` in `--warn-text` at the end of the AI prompt field, arriving with `pop` and named *The context changed since you started* — and, under the context row with `disclose`, *This message started from “…” - the context has changed since. Check it before the AI drafts.* in `--warn-text`, naming the starting message (and *and N more* for a selection), beside *Restore* (`undo`, 44 px tall under `touch`), which puts the starting context back. Arriving back at the starting set by any route takes both marks away |
 | The composer's foot | `composeSendStyle`, `composeAttachStyle`, `composeSaveStyle` | always; under `touch` one 44 px row — *Send* filled, *Attach* bordered and on the phone the `attach_file` symbol alone (`composeAttachLabel` is `!isMobile`), *Save draft* a text action as tall as the row |
 | A focused field | `data-compose-fields` | a field with keyboard focus — the composer's rows are one sheet rather than boxes, so the ring every other borderless field takes is not drawn: a row holding the focused field turns its bottom edge `--accent`, and the editor turns a 2 px start edge, transparent until then, `--accent` |
+| Part of the message selected | `passageBarIsDraft` (`selBar.kind === "compose"`) | text selected in the editor of a new message, a reply or a forward, whoever wrote it — the Agent's rewrite bar (*Working on one part of an answer* below): *Shorter*, *More formal*, *Softer*, *Firmer* and a field for saying how, with no *Ask about this*, because the composer has no conversation to quote into. It floats over the passage on a fine pointer and docks on the composer's foot, across its width, on touch; scrolling the editor closes the floating one |
+| Being rewritten | `composeChangeBusy` | a preset or a said instruction — the whole sentences the selection touches pulse in the editor, the editor stops taking input (`composeEditable`), and the foot reads *Rewriting N passage(s)* with a turning glyph and no controls |
+| A rewrite to review | `composeHasChange` | the old sentences struck in the editor and the new ones beside them on `--accent-soft` with an accent underline; the foot holds *Keep the change*, *Try again* and *Undo* **in place of *Send*, *Attach* and *Save draft***, and Ctrl+Enter sends nothing while it waits. Under touch the three are 44 px |
+| A rewrite kept | `cChange` cleared | *Keep the change* — the new text stands as plain text and the editor takes input again; the toast carries *Undo* back to the message as it was. *Undo* in the foot leaves the message as it was, and *Try again* rewrites the same sentences under the next preset (*· another version*). Every sentence coming back the same is a toast, *The agent found nothing to change there*, and no diff |
 | Without a connection | `composeRefused` / `composeRefusedNote` | the status offline — a `--warn-soft` band with a `--line` rule directly above the composer's foot, the `cloud_off` glyph and *No connection to the server. What you write is not saved on the server, and closing this tab or window loses it. It can be saved or sent once the connection is back.* in `--warn-text`. It no longer promises the words are kept, because they are kept in this tab alone |
 | Send confirmation | `sendAskOpen` | pressing send with something to warn about |
 | Warnings in it | `sendHasWarn` | the warning list is not empty — an unaccepted AI draft is one |
@@ -1078,6 +1082,12 @@ asked about.
 rewrites every sentence the selection touches and says so in the bar. The prototype's versions are seeded per
 sentence of the seeded draft (`draftRewrites`); a typed instruction picks the preset whose words it uses, and falls
 back to *More formal*.
+
+**The composer takes the same rewrite.** A draft is not the Agent's alone: the same bar opens on text selected in
+the composer's editor — a new message, a reply, a forward, or a draft opened there from the Agent or Start — and
+the rewrite is reviewed in the editor itself, with the foot standing in for *Send* until it is kept or undone
+(*Composing*, under *Mail*). The composer's own drafts and the draft Start proposes are seeded in `draftRewrites` beside the
+Agent's; text the reader typed has no seeded version, so the prototype answers it with *nothing to change*.
 
 **Every read-only block can be asked about one item at a time.** The answer comes under the item it is about, not
 at the bottom of the conversation (`noteBk`, keyed `<block>#<item>` in `bkNote`), with a shimmer while it comes and
@@ -1524,6 +1534,8 @@ The Client States file still names this space *Discover*; its states are Start's
 
 This is the class the inventory exists for. Each is in the source, and none of them can be reached by
 clicking a preview.
+
+- **A composer selection rewrite** (`composeChangeBusy`, `composeHasChange`). Open a new message, reply or forward, select text in its editor, and choose a rewrite preset or enter an instruction.
 
 - **The application with no mailbox at all.** `const emptyApp = false;` is a constant, and
   every one of the six screen gates is `st.screen === "…" && !emptyApp`. Nothing anywhere draws the

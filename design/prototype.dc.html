@@ -1829,7 +1829,7 @@ Project repository: https://github.com/fathomise/MailFathom
                     <div onMouseDown="{{ fb.run }}" title="{{ fb.title }}" style="{{ fb.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ fb.label }}</div>
                   </sc-for>
                   <sc-if value="{{ fmtHintShown }}" hint-placeholder-val="{{ true }}">
-                    <div style="margin-left:auto;font-size:11px;color:var(--faint)">select a passage and use an AI action to rewrite it</div>
+                    <div style="margin-left:auto;font-size:11px;color:var(--faint)">select any part and the agent rewrites just that</div>
                   </sc-if>
                 </div>
               </sc-if>
@@ -1854,16 +1854,24 @@ Project repository: https://github.com/fathomise/MailFathom
                   <span onClick="{{ acceptDraft }}" style="font-size:12px;color:var(--muted)" style-hover="cursor:pointer;color:var(--text)">Accept</span>
                 </div>
               </sc-if>
-              <div contentEditable="true" suppressContentEditableWarning="{{ true }}" ref="{{ bodyRef }}" onKeyDown="{{ composeKeyDown }}" style="{{ composeEditorStyle }}"></div>
+              <div contentEditable="{{ composeEditable }}" suppressContentEditableWarning="{{ true }}" ref="{{ bodyRef }}" onKeyDown="{{ composeKeyDown }}" onScroll="{{ composeEditorScroll }}" aria-label="Message" style="{{ composeEditorStyle }}"></div>
               </div>
               <sc-if value="{{ composeRefused }}" hint-placeholder-val="{{ false }}">
                 <div role="status" style="display:flex;align-items:flex-start;gap:8px;padding:9px 15px;border-top:1px solid var(--line);background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:20px;flex-shrink:0">cloud_off</span><span>{{ composeRefusedNote }}</span></div>
               </sc-if>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 15px;border-top:1px solid var(--line);background:var(--sub)">
-                <div onClick="{{ askSendNow }}" title="{{ composeSendTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send</div>
-                <div title="Attach" style="{{ composeAttachStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ composeAttachIconStyle }}">attach_file</span><sc-if value="{{ composeAttachLabel }}" hint-placeholder-val="{{ true }}">Attach</sc-if></div>
-                <div onClick="{{ saveDraftNow }}" title="{{ composeSaveTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSaveStyle }}" style-hover="cursor:pointer;color:var(--text)">Save draft</div>
-                <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div style="margin-left:auto;font-size:11px;color:var(--faint)">Ctrl+Enter sends</div></sc-if>
+              <div ref="{{ composeFootRef }}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 15px;border-top:1px solid var(--line);background:var(--sub)">
+                <sc-if value="{{ composeIdle }}" hint-placeholder-val="{{ true }}">
+                  <div onClick="{{ askSendNow }}" title="{{ composeSendTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send</div>
+                  <div title="Attach" style="{{ composeAttachStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ composeAttachIconStyle }}">attach_file</span><sc-if value="{{ composeAttachLabel }}" hint-placeholder-val="{{ true }}">Attach</sc-if></div>
+                  <div onClick="{{ saveDraftNow }}" title="{{ composeSaveTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSaveStyle }}" style-hover="cursor:pointer;color:var(--text)">Save draft</div>
+                  <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div style="margin-left:auto;font-size:11px;color:var(--faint)">Ctrl+Enter sends</div></sc-if>
+                </sc-if>
+                <sc-if value="{{ composeHasChange }}" hint-placeholder-val="{{ false }}">
+                  <div role="status" aria-live="polite" style="{{ composeChangeNoteStyle }}"><span style="{{ composeChangeIconStyle }}">{{ composeChangeIcon }}</span><span style="min-width:0">{{ composeChangeNote }}</span></div>
+                  <sc-for list="{{ composeChangeActs }}" as="ca" hint-placeholder-count="3">
+                    <div role="button" tabIndex="0" aria-label="{{ ca.aria }}" onClick="{{ ca.run }}" onKeyDown="{{ ca.key }}" style="{{ ca.style }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ ca.label }}</div>
+                  </sc-for>
+                </sc-if>
               </div>
             </div>
           </sc-if>
