@@ -2,13 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-// Fathom: the button in the bottom-right corner of Start and the Agent, and what it offers.
+// Fathom: the button in the bottom-right corner of Start, the Agent and Mail, and what it offers.
 //
-// `menu` is what pressing it unfolds on Start and the Agent: the space's own actions first, then *Smart*, then the
-// Agent. `components` is what *Smart* finds under the pointer: an element
-// carrying `data-smart="<id>"` is one component, named and given its own actions. `itemActions` is what a press on
-// anything inside the catch-up offers, by the item's kind, and `selection` what selected text offers anywhere Fathom
-// reads it.
+// `menu` is what pressing it unfolds: the space's own actions first (Mail's come from the screen: *New message* and,
+// with a thread open, the reply), then *Smart* on Start and the Agent, then the Agent. `components` is what *Smart*
+// finds under the pointer: an element carrying `data-smart="<id>"` is one component, named and given its own actions.
+// `itemActions` is what a press on anything inside the catch-up offers, by the item's kind, and `selection` what
+// selected text offers anywhere Fathom reads it.
 //
 // An action's `do` says what it leads to: `answer` writes a short answer in the Fathom card, with *Continue with the
 // agent* under it; `agent` opens the Agent with the component as its context; `go` opens the space that owns it;

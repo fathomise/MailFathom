@@ -14,12 +14,8 @@ textarea::placeholder { text-overflow: ellipsis; }
 a { color: var(--accent); }
 a:hover { color: var(--accent-2); }
 input { font-family: inherit; }
-[data-smart-mode="on"] [data-smart-muted] { filter: brightness(0.9); }
-[data-smart-mode="on"] [data-rail] { filter: brightness(0.85); }
-[data-smart-mode="on"] [data-smart] {
-  outline: 1px solid color-mix(in oklch, var(--accent) 50%, transparent);
-  outline-offset: 3px;
-}
+/* Smart: what offers nothing fades well back, so the targets are what stands out; only the one pointed at is ringed. */
+[data-smart-mode="on"] [data-smart-muted] { opacity: 0.3; }
 [data-smart-mode="on"] [data-smart],
 [data-smart-mode="on"] [data-smart] * { cursor: pointer !important; }
 /* A field typed into with no edge of its own sits inside the box that reads as the field, so that box takes the ring.

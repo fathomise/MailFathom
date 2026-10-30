@@ -2231,7 +2231,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     goScreen = (id, patch) => {
-      if (id !== "start" && id !== "agent") this.setState({ fathomMenu: false, fathomSmart: false, fathomAnswer: null, selBar: null });
+      this.setState({ fathomMenu: false });
+      if (id !== "start" && id !== "agent") this.setState({ fathomSmart: false, fathomAnswer: null, selBar: null });
       /* The first entry into mail starts with an empty panel; after that the open message
          is remembered for the session (in-memory state - gone when the app closes). */
       const p = Object.assign({ screen: id, replyDock: null, replyChooser: null }, patch || {});
@@ -3370,7 +3371,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           onAsk: (e) => this.setState({ fieldAsk: e.target.value }),
           askKey: (e) => { if (e.key === "Enter") askSubmit(); if (e.key === "Escape") toggle(); },
           askSubmit, askSubmitKey: keyer(askSubmit),
-          catchupTryStyle: touch ? "min-height:44px;display:flex;align-items:center;" : "padding:4px 0;",
         askPlaceholder: isMobile ? (f.k === "When" ? "Or say when…" : "Or say it…") : f.k === "When" ? "Or say when - e.g. after lunch on Thursday" : "Or say it in your words",
           askRowStyle: "display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:" + (touch ? "4px 4px 4px 10px" : "4px 4px 4px 10px"),
           askInputStyle: "flex:1;min-width:0;border:none;outline:none;background:transparent;font-family:inherit;font-size:13.5px;color:var(--text);padding:" + (isMobile ? "6px 0" : "3px 0"),
@@ -5637,7 +5637,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         headerStyle: isMobile
           ? "display:flex;align-items:center;gap:8px;flex:0 0 auto;box-sizing:border-box;min-height:56px;padding:6px 12px 6px 16px;border-bottom:1px solid var(--line);background:var(--panel)"
           : "display:flex;align-items:center;gap:16px;padding:0 26px;height:56px;flex:0 0 56px;border-bottom:1px solid var(--line);background:var(--panel)",
-        catchupTryStyle: touch ? "min-height:44px;display:flex;align-items:center;" : "padding:4px 0;",
         askPlaceholder: isMobile ? "Ask or find…" : "Ask or find anything in your mail",
         /* The composer's foot under a finger: one 44 row, Send filled, Attach a symbol alone on the phone,
            and Save draft a text action whose target is the row's height rather than its words. */
@@ -6874,10 +6873,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         tbPrimaryShown: tbPriInBar,
         showFab: !st.compose && !st.doc && !selectionOn && (singlePane ? mailPane === "list" : tbFabForced),
         fabStyle: "position:absolute;right:16px;bottom:16px;z-index:30;width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
-        /* In multi-panel layouts the circle sits over the thread list, not the reading panel —
-           otherwise it would cover the reply composer. */
-        mailFabStyle: "position:absolute;right:16px;bottom:16px;z-index:30;" +
-          "width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
         selectionCount: sel.length + " selected",
         clearSelection: () => this.setState({ sel: [] }),
         selectAllThreads: () => this.setState({ sel: listedThreads.map(t => t.id) }),
@@ -7342,21 +7337,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (touch ? "top:-19px;right:-4px;width:32px;height:32px;font-size:18px;" : "top:-11px;right:-11px;width:26px;height:26px;font-size:16px;"),
         composerStyle: "position:absolute;z-index:16;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px var(--sh-3),0 2px 8px var(--sh-2);" +
           (singlePane ? "left:10px;right:10px;bottom:10px;padding:" + (touch ? "16px 8px 8px" : "8px") : "left:18px;right:18px;bottom:16px;padding:12px"),
-        /* The one AI entry point of a thread: a floating glyph pinned to the pane's bottom-right corner, over the
-           thread rather than in it, so it stays put however far the conversation scrolls. Pressing it unfolds two
-           choices above it, *Draft a reply* and *Ask*, and turns the glyph into a close; Escape, back, a press
-           outside or a choice folds them again. */
-        replyChooserOpen: !st.stateBarOff && !st.replyDock && !!st.replyChooser,
-        toggleReplyChooser: () => this.setState(s => ({ replyChooser: s.replyChooser ? null : true })),
-        closeReplyChooser: () => this.setState({ replyChooser: null }),
-        replyFabIcon: st.replyChooser ? "close" : "auto_awesome",
-        replyFabTitle: st.replyChooser ? "Close" : "Draft a reply or ask about this thread",
-        replyFabStyle: "position:absolute;z-index:16;display:flex;align-items:center;justify-content:center;color:var(--onaccent);background:var(--accent);box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);" +
-          (isMobile ? "right:16px;bottom:16px;width:56px;height:56px;border-radius:18px;" : "right:" + (singlePane ? 16 : 22) + "px;bottom:" + (singlePane ? 16 : 20) + "px;width:48px;height:48px;border-radius:14px;"),
-        replyChooserStyle: "position:absolute;z-index:17;display:flex;flex-direction:column;align-items:flex-end;gap:8px;" +
-          (isMobile ? "right:16px;bottom:84px;" : "right:" + (singlePane ? 16 : 22) + "px;bottom:" + (singlePane ? 72 : 76) + "px;"),
-        replyChoiceStyle: "display:flex;align-items:center;gap:10px;white-space:nowrap;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);font-weight:600;" +
-          (touch ? "min-height:48px;padding:0 18px 0 14px;font-size:15px;" : "height:40px;padding:0 16px 0 12px;font-size:14px;"),
+        /* What Fathom offers while a thread is open: *Draft a reply* and *Ask*. */
         chooseDraftReply: () => this.setState({ replyDock: true, replyChooser: null }),
         chooseAskThread: () => { this.setState({ replyChooser: null }); this.goAgentWith("thread “" + thread.subject + "”"); },
         /* A reading that predates the conversation's newest message: a message joined or left after
@@ -8160,7 +8141,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       /* What back calls for a surface whose own close does more than empty its key: asking before a draft is thrown
          away, and closing the tab the surface stands in. */
-      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, thread, person }));
+      /* In Mail, Fathom stands in the corner *New message* floated in, so it takes that button in as its first choice;
+         and it offers the reply only while a thread is open. */
+      const fathomCreate = st.screen === "mail" && vals.showFab ? { icon: "edit_square", label: "New message", run: vals.openCompose } : null;
+      const fathomReply = st.screen === "mail" && vals.showThreadPane && vals.replyFabShown ? [
+        { icon: "edit_note", label: "Draft a reply", run: vals.chooseDraftReply },
+        { icon: "forum", label: "Ask about this thread", run: vals.chooseAskThread },
+      ] : [];
+      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, thread, person, fathomCreate, fathomReply }));
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml };
       return vals;
     }

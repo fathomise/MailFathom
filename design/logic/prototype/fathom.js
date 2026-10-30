@@ -108,7 +108,7 @@ MailFathomDesign.fathomUi = (() => {
       const r = el.getBoundingClientRect();
       const root = self.rootRef.current && self.rootRef.current.getBoundingClientRect();
       const ox = root ? root.left : 0, oy = root ? root.top : 0;
-      return { x: r.left - ox, y: r.top - oy, w: r.width, h: r.height };
+      return { x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, r: getComputedStyle(el).borderTopLeftRadius };
     };
     const smartOf = (el) => {
       const id = el.getAttribute("data-smart");
@@ -259,10 +259,12 @@ MailFathomDesign.fathomUi = (() => {
     const barH = isMobile ? self.barH() : 0;
 
     /* ——— The Fathom button ——— */
+    /* It stands on Start, the Agent and Mail; Smart, which needs components to land on, only on Start and the Agent. */
     const supported = st.screen === "start" || st.screen === "agent";
-    const menuKey = st.screen === "agent" ? "agent" : "start";
+    const menuKey = st.screen;
     const where = st.screen === "agent" ? "the conversation" : "your day";
-    const fabShown = supported && !st.catchupOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings && !st.notifCenter;
+    const fabShown = (supported || st.screen === "mail") && !st.catchupOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings &&
+      !st.notifCenter && !st.replyDock && !(isMobile && (st.sel || []).length);
     const fabSize = isMobile ? 56 : 48;
     /* 24 px from both edges, 20 on a phone; in the Agent it stands level with the field it sits beside (`fathomDock`). */
     const fabEdge = isMobile ? 20 : 24;
@@ -286,30 +288,39 @@ MailFathomDesign.fathomUi = (() => {
       fathomFabStyle: "position:fixed;z-index:88;right:" + fabEdge + "px;bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
         "display:flex;align-items:center;justify-content:center;border-radius:" + (isMobile ? 18 : 14) + "px;color:var(--onaccent);background:var(--accent);box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2)",
       fathomFabGlyph: GLYPH + "font-size:22px;font-variation-settings:'wght' 400",
-      fathomMenuOpen: supported && !!st.fathomMenu,
+      fathomMenuOpen: fabShown && !!st.fathomMenu,
       closeFathomMenu: () => self.setState({ fathomMenu: false }),
-      fathomMenuItems: (F.menu[menuKey] || []).map(a => ({ icon: a.icon, label: a.label, run: menuRun(a), style: rowStyle })),
+      fathomMenuItems: [].concat(
+        c.fathomCreate ? [c.fathomCreate] : [],
+        (F.menu[menuKey] || []).map(a => Object.assign({}, a, { run: menuRun(a) })),
+        c.fathomReply || [],
+      ).map(a => ({ icon: a.icon, label: a.label, run: () => { self.setState({ fathomMenu: false }); a.run(); }, style: rowStyle })),
+      fathomSmartOffered: supported,
       fathomRowStyle: rowStyle,
       fathomMenuStyle: "position:fixed;z-index:89;right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + (isMobile ? 12 : 8)) + "px;display:flex;flex-direction:column;align-items:flex-end;gap:8px",
       startSmart: () => { document.activeElement?.blur(); self._smartKey = null; self.setState({ fathomMenu: false, fathomSmart: true, smartHover: null }); },
       openAgentFromFathom: () => { self.setState({ fathomMenu: false }); self.goScreen("agent"); },
-      smartHint: isMobile ? "Tap a highlighted item" : touch ? "Tap a highlighted item for its actions" : "Choose a highlighted item, or Tab to it",
+      smartHint: isMobile ? "Tap an item" : touch ? "Tap a highlighted item for its actions" : "Choose a highlighted item, or Tab to it",
       smartOn,
       smartMode: smartOn ? "on" : undefined,
-      smartBarStyle: "position:fixed;z-index:87;left:50%;transform:translateX(-50%);top:" + (isMobile ? 10 : 14) + "px;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);box-sizing:border-box;" +
+      /* Level with Fathom at the foot of the screen, so it covers no target at the top; on the phone it fills the width
+         beside the button. */
+      smartBarStyle: "position:fixed;z-index:87;bottom:" + (fabBottom + (fabSize - (touch ? 54 : 42)) / 2) + "px;" +
+        (isMobile ? "left:12px;right:" + (fabEdge + fabSize + 12) + "px;" : "left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);") + "display:flex;align-items:center;gap:10px;box-sizing:border-box;" +
         "background:var(--panel);border:1px solid var(--accent-line);border-radius:999px;box-shadow:0 10px 26px var(--sh-3);font-size:13px;color:var(--text2);" + (touch ? "padding:4px 4px 4px 14px;" : "padding:5px 5px 5px 14px;"),
       smartDoneStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-weight:600;color:var(--onaccent);background:var(--accent);white-space:nowrap;" + (touch ? "min-height:44px;min-width:64px;padding:0 18px;font-size:14px;" : "min-height:30px;padding:0 13px;font-size:13px;"),
       leaveSmart: () => { self._smartKey = null; self.setState({ fathomSmart: false, smartHover: null }); },
       smartHoverShown: smartOn && !!st.smartHover,
       smartBoxStyle: (() => {
         const h = st.smartHover || { x: 0, y: 0, w: 0, h: 0 };
-        return "position:fixed;z-index:86;pointer-events:none;left:" + (h.x - 4) + "px;top:" + (h.y - 4) + "px;width:" + (h.w + 8) + "px;height:" + (h.h + 8) + "px;box-sizing:border-box;" +
-          "border:2px solid var(--accent);border-radius:12px;background:color-mix(in oklch, var(--accent) 9%, transparent);transition:left 90ms ease,top 90ms ease,width 90ms ease,height 90ms ease";
+        return "position:fixed;z-index:86;pointer-events:none;left:" + h.x + "px;top:" + h.y + "px;width:" + h.w + "px;height:" + h.h + "px;box-sizing:border-box;" +
+          "border:2px solid var(--accent);border-radius:" + (parseFloat(h.r) > 0 ? h.r : "6px") + ";background:color-mix(in oklch, var(--accent) 7%, transparent);" +
+          "transition:left 90ms ease,top 90ms ease,width 90ms ease,height 90ms ease";
       })(),
       smartTagStyle: (() => {
         const h = st.smartHover || { x: 0, y: 0 };
         const above = h.y > 34;
-        return "position:fixed;z-index:86;pointer-events:none;left:" + Math.max(6, h.x - 4) + "px;top:" + (above ? h.y - 30 : h.y + 6) + "px;display:inline-flex;align-items:center;gap:6px;" +
+        return "position:fixed;z-index:86;pointer-events:none;left:" + Math.max(6, h.x) + "px;top:" + (above ? h.y - 28 : h.y + 6) + "px;display:inline-flex;align-items:center;gap:6px;" +
           "font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:7px;padding:4px 9px 4px 7px;white-space:nowrap;box-shadow:0 4px 12px var(--sh-2)";
       })(),
       smartTagText: st.smartHover ? st.smartHover.name + (st.smartHover.label ? " · " + st.smartHover.label : "") : "",

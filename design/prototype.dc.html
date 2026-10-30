@@ -183,6 +183,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1">cloud_off</span>
           </div>
         </sc-if>
+        <div role="button" tabIndex="0" onClick="{{ tryCatchup }}" title="Try the catch-up after an absence (prototype)" aria-label="Try the catch-up after an absence (prototype)" style="{{ tryBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text);border-color:var(--accent-line)">beach_access</div>
         <div onClick="{{ refreshAll }}" title="Refresh" style="{{ refreshBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">
           <span style="{{ refreshIconStyle }}">refresh</span>
         </div>
@@ -321,7 +322,6 @@ Project repository: https://github.com/fathomise/MailFathom
       </sc-if>
 
       <div style="{{ searchWrapStyle }}"><div style="{{ searchInnerStyle }}">
-        <div role="button" tabIndex="0" onClick="{{ tryCatchup }}" title="Try the catch-up after an absence (prototype)" style="align-self:flex-end;font-size:12px;color:var(--muted);{{ catchupTryStyle }}" style-hover="cursor:pointer;color:var(--text)">Try the catch-up · prototype</div>
         <div data-smart="start.ask" style="{{ searchBoxStyle }}">
           <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:4px 8px;font-weight:600">AI</div>
           <input aria-label="Ask or find" aria-expanded="{{ askSuggestOpen }}" aria-controls="ask-suggest" value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" onFocus="{{ onAskFocus }}" onBlur="{{ onAskBlur }}" placeholder="{{ askPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:16px;color:var(--text);background:transparent;text-overflow:ellipsis" />
@@ -1176,9 +1176,6 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </sc-if>
           <sc-if value="{{ listFull }}" hint-placeholder-val="{{ true }}">
-          <sc-if value="{{ showFab }}" hint-placeholder-val="{{ false }}">
-            <div role="button" tabIndex="0" onClick="{{ openCompose }}" title="New message" aria-label="New message" style="{{ mailFabStyle }}" style-hover="cursor:pointer;opacity:0.92"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;line-height:1">edit_square</span></div>
-          </sc-if>
           <div style="{{ listHeadStyle }}">
             <sc-if value="{{ showFolderBtn }}" hint-placeholder-val="{{ false }}">
               <div role="button" tabindex="0" onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ folderBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">menu</span></div>
@@ -1303,9 +1300,6 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           </sc-if>
           <sc-if value="{{ outboxListShown }}" hint-placeholder-val="{{ false }}">
-          <sc-if value="{{ showFab }}" hint-placeholder-val="{{ false }}">
-            <div onClick="{{ openCompose }}" title="New message" style="{{ mailFabStyle }}" style-hover="cursor:pointer;opacity:0.92"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;line-height:1">edit_square</span></div>
-          </sc-if>
           <div style="{{ outboxHeadStyle }}">
             <sc-if value="{{ showFolderBtn }}" hint-placeholder-val="{{ false }}">
               <div role="button" tabindex="0" onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ folderBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">menu</span></div>
@@ -1658,18 +1652,6 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </sc-if>
           </div>
-          <sc-if value="{{ replyChooserOpen }}" hint-placeholder-val="{{ false }}">
-            <div onClick="{{ closeReplyChooser }}" style="position:absolute;inset:0;z-index:15"></div>
-            <div data-motion="pop" data-phase="{{ mo.replyChooser }}" style="{{ replyChooserStyle }}">
-              <div role="button" tabIndex="0" onClick="{{ chooseDraftReply }}" style="{{ replyChoiceStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">edit_note</span>Draft a reply</div>
-              <div role="button" tabIndex="0" onClick="{{ chooseAskThread }}" style="{{ replyChoiceStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">forum</span>Ask</div>
-            </div>
-          </sc-if>
-          <sc-if value="{{ replyFabShown }}" hint-placeholder-val="{{ true }}">
-            <div data-motion="pop" role="button" tabIndex="0" aria-expanded="{{ replyChooserOpen }}" onClick="{{ toggleReplyChooser }}" title="{{ replyFabTitle }}" aria-label="{{ replyFabTitle }}" style="{{ replyFabStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">
-              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1">{{ replyFabIcon }}</span>
-            </div>
-          </sc-if>
           <sc-if value="{{ replyDockOpen }}" hint-placeholder-val="{{ false }}">
             <div data-motion="rise" data-phase="{{ mo.replyDock }}" style="{{ composerStyle }}">
               <div onClick="{{ closeReplyDock }}" title="Close the reply drafter" aria-label="Close the reply drafter" style="{{ replyDockCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
@@ -2634,6 +2616,10 @@ Project repository: https://github.com/fathomise/MailFathom
             <span style="{{ refreshIconStyle }};width:26px;text-align:center;font-size:22px">refresh</span>
             <span style="font-size:15px">Refresh</span>
           </div>
+          <div onClick="{{ tryCatchup }}" style="{{ moreRowStyle }}" style-hover="background:var(--hover)">
+            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;width:26px;text-align:center">beach_access</span>
+            <span style="font-size:15px">Try the catch-up <span style="color:var(--faint)">· prototype</span></span>
+          </div>
           <div onClick="{{ moreSettings }}" style="{{ moreRowStyle }}" style-hover="background:var(--hover)">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;width:26px;text-align:center">settings</span>
             <span style="font-size:15px">Settings</span>
@@ -2707,7 +2693,7 @@ Project repository: https://github.com/fathomise/MailFathom
   <sc-if value="{{ smartOn }}" hint-placeholder-val="{{ false }}">
     <div data-fathom-ui="1" role="status" aria-live="polite" style="{{ smartBarStyle }}">
       <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1;color:var(--accent-d)">ads_click</span>
-      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-weight:600;color:var(--text)">Smart</span> · {{ smartHint }}</span>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-weight:600;color:var(--text)">Smart</span> · {{ smartHint }}</span>
       <div role="button" tabIndex="0" onClick="{{ leaveSmart }}" style="{{ smartDoneStyle }}" style-hover="cursor:pointer;opacity:0.9">Done</div>
     </div>
   </sc-if>
@@ -2720,14 +2706,16 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-fathom-ui="1" onClick="{{ closeFathomMenu }}" style="position:fixed;inset:0;z-index:88"></div>
     <div data-fathom-ui="1" data-motion="pop" data-phase="{{ mo.fathomMenu }}" role="menu" aria-label="Fathom" style="{{ fathomMenuStyle }}">
       <sc-for list="{{ fathomMenuItems }}" as="fm" hint-placeholder-count="2">
-        <div role="menuitem" tabIndex="0" onClick="{{ fm.run }}" style="{{ fm.style }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">{{ fm.icon }}</span>{{ fm.label }}</div>
+        <div role="menuitem" tabIndex="0" onClick="{{ fm.run }}" style="{{ fm.style }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">{{ fm.icon }}</span>{{ fm.label }}</div>
       </sc-for>
-      <div role="menuitem" tabIndex="0" onClick="{{ startSmart }}" style="{{ fathomRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-        <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">ads_click</span>
-        Smart
-      </div>
+      <sc-if value="{{ fathomSmartOffered }}" hint-placeholder-val="{{ true }}">
+        <div role="menuitem" tabIndex="0" onClick="{{ startSmart }}" style="{{ fathomRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+          <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">ads_click</span>
+          Smart
+        </div>
+      </sc-if>
       <div role="menuitem" tabIndex="0" onClick="{{ openAgentFromFathom }}" style="{{ fathomRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-        <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">open_in_new</span>Open the Agent
+        <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">open_in_new</span>Open the Agent
       </div>
     </div>
   </sc-if>
