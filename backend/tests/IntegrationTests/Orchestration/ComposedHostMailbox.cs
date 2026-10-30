@@ -167,7 +167,8 @@ internal static class ComposedHostMailbox
     /// <remarks>
     /// By label rather than by being the only user, because the host is never the only writer of that table: its first
     /// start records a default administrator of its own, so a roster holding the suite's user holds that one beside
-    /// them. Labels are unique across a deployment, which is what makes the match single.
+    /// them. A label is not unique, so the match takes the first row carrying it: the suite records its user under that
+    /// label once, and nothing else in it does.
     /// </remarks>
     private static async Task<Guid> ReadOrRecordSuiteUserAsync(HttpClient client, CancellationToken cancellationToken)
     {

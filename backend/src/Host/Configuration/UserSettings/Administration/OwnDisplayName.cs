@@ -14,8 +14,8 @@ namespace MailFathom.Host.Configuration.UserSettings.Administration;
 /// <summary>Hands the signed-in person the name this deployment records them under, and takes back the one they correct it to.</summary>
 /// <remarks>
 /// <para>
-/// The name is the envelope rather than the document — the column an operator tells one user from another by, unique
-/// across the deployment and keyed by nothing — which is why this stands beside
+/// The name is the envelope rather than the document — the column an operator reads a user by, which another user
+/// may carry as well and nothing is keyed by — which is why this stands beside
 /// <see cref="UserRecordAdministration" /> instead of inside it. It does not share that service's grant either: what a
 /// person is called belongs to their profile, beside the time zone and the portrait, and is written under the
 /// profile's own grant.

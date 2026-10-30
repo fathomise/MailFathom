@@ -54,9 +54,9 @@ internal sealed class UserAccountEntity
     /// <summary>The label an operator reads this user by, which another user may carry as well.</summary>
     /// <remarks>
     /// A label rather than an identity: nothing resolves a user by it, and every reference to a user is the
-    /// identifier above. What the uniqueness buys is a list of users an administrator can read — two rows carrying
-    /// one label would leave them choosing between users with nothing to choose on — and it is exact rather than
-    /// case-folded, because a comparison rule is owed by a value something resolves by and nothing resolves by this.
+    /// identifier above. So any number of rows may carry one label, as people share a name, and it is exact rather
+    /// than case-folded, because a comparison rule is owed by a value something resolves by and nothing resolves by
+    /// this.
     /// </remarks>
     public required string DisplayName { get; set; }
 

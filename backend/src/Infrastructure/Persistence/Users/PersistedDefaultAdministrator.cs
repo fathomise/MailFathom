@@ -26,11 +26,8 @@ internal sealed class PersistedDefaultAdministrator(MailFathomDbContext dbContex
     /// </remarks>
     internal static readonly Guid AdministratorRoleId = Guid.Parse("01a11deb-3808-7000-8000-000000000003");
 
-    /// <summary>The label the default administrator is recorded under where no other user holds it.</summary>
+    /// <summary>The label the default administrator is recorded under, whoever else carries it.</summary>
     internal const string DisplayName = "admin";
-
-    /// <summary>The label it falls back to where somebody else is already called <see cref="DisplayName" />, since labels are unique.</summary>
-    internal const string FallbackDisplayName = "admin (default administrator)";
 
     /// <summary>The record the administrator starts with, which names their language and holds both mail endpoint switches off.</summary>
     /// <remarks>
@@ -156,10 +153,7 @@ internal sealed class PersistedDefaultAdministrator(MailFathomDbContext dbContex
              INSERT INTO settings_accounts
                  ("Id", "DisplayName", "Document", "McpEndpointEnabled", "ClientEndpointEnabled", "Version", "CreatedAt", "UpdatedAt")
              VALUES (
-                 {userId},
-                 CASE WHEN EXISTS (SELECT 1 FROM settings_accounts WHERE "DisplayName" = {DisplayName})
-                      THEN {FallbackDisplayName} ELSE {DisplayName} END,
-                 CAST({ProvisionedRecord} AS jsonb), FALSE, FALSE, 1, {recordedAt}, {recordedAt})
+                 {userId}, {DisplayName}, CAST({ProvisionedRecord} AS jsonb), FALSE, FALSE, 1, {recordedAt}, {recordedAt})
              """,
             cancellationToken);
 
