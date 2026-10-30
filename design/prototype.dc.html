@@ -2308,13 +2308,22 @@ Project repository: https://github.com/fathomise/MailFathom
         <sc-if value="{{ statusOnDuration }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;flex-direction:column;gap:7px;padding:4px 4px 6px;overflow:auto">
             <span style="{{ statusSectionLabel }}">Status</span>
-            <div style="position:relative;display:flex;align-items:center">
-              <span aria-hidden="true" style="{{ durPresenceFill }};position:absolute;left:12px;pointer-events:none"></span>
-              <select value="{{ durPresenceValue }}" onChange="{{ onDurPresence }}" aria-label="Status" style="{{ durSelectStyle }};padding-left:30px" style-focus="border-color:var(--accent)">
-                <sc-for list="{{ durPresenceOptions }}" as="dp" hint-placeholder-count="6"><option value="{{ dp.v }}">{{ dp.label }}</option></sc-for>
-              </select>
-              <span aria-hidden="true" style="position:absolute;right:9px;pointer-events:none;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">expand_more</span>
+            <div role="combobox" aria-haspopup="listbox" aria-expanded="{{ durPresenceOpen }}" aria-label="Status" tabindex="0" onClick="{{ toggleDurPresence }}" style="{{ durComboStyle }}" style-hover="cursor:pointer;border-color:var(--accent)">
+              <span aria-hidden="true" style="{{ durPresenceFill }}"></span>
+              <span style="flex:1;min-width:0">{{ durPresenceLabel }}</span>
+              <span aria-hidden="true" style="{{ durChevronStyle }}">expand_more</span>
             </div>
+            <sc-if value="{{ durPresenceOpen }}" hint-placeholder-val="{{ false }}">
+              <div role="listbox" aria-label="Status" style="display:flex;flex-direction:column;gap:1px;padding:4px;border:1px solid var(--line);border-radius:8px;background:var(--sub)">
+                <sc-for list="{{ durPresenceOptions }}" as="dp" hint-placeholder-count="6">
+                  <div role="option" aria-selected="{{ dp.current }}" onClick="{{ dp.pick }}" style="{{ dp.style }}" style-hover="cursor:pointer;background:var(--hover)">
+                    <span aria-hidden="true" style="{{ dp.fill }}"></span>
+                    <span style="flex:1">{{ dp.label }}</span>
+                    <sc-if value="{{ dp.current }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:17px;line-height:1;color:var(--accent)">check</span></sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
             <span style="{{ statusSectionLabel }};padding-top:6px">Reset status after</span>
             <div style="position:relative;display:flex;align-items:center">
               <select value="{{ durAfterValue }}" onChange="{{ onDurAfter }}" aria-label="Reset status after" style="{{ durSelectStyle }}" style-focus="border-color:var(--accent)">
