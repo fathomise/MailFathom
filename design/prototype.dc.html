@@ -772,7 +772,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <sc-if value="{{ selectionOn }}" hint-placeholder-val="{{ false }}">
       <div ref="{{ tbRef }}" style="{{ selBarStyle }}">
         <div onClick="{{ clearSelection }}" style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--accent-d)" style-hover="cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span> <span>{{ selectionCount }}</span></div>
-        <div style="width:1px;align-self:stretch;background:var(--accent-line);margin:0 2px"></div>
+        <div aria-hidden="true" style="width:1px;align-self:stretch;background:var(--accent-line);margin:0 6px"></div>
         <sc-for list="{{ selectionActions }}" as="a" hint-placeholder-count="4">
           <div onClick="{{ a.run }}" title="{{ a.title }}" aria-disabled="{{ a.refused }}" style="{{ a.style }}" style-hover="cursor:pointer;background:var(--panel)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;width:20px;text-align:center">{{ a.icon }}</span>{{ a.label }}</div>
         </sc-for>
@@ -1753,13 +1753,14 @@ Project repository: https://github.com/fathomise/MailFathom
           </div>
           <sc-if value="{{ selBarShown }}" hint-placeholder-val="{{ false }}">
             <div style="{{ selBarStyle }}">
-              <div style="font-size:13px;font-weight:600;white-space:nowrap">{{ selBarCount }}</div>
+              <div onClick="{{ selClear }}" role="button" title="Cancel selection" style="{{ selClearStyle }}" style-hover="cursor:pointer"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span><span>{{ selBarCount }}</span></div>
+              <div aria-hidden="true" style="width:1px;align-self:stretch;background:var(--accent-line);margin:0 6px"></div>
               <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                 <sc-for list="{{ selBarActions }}" as="sa" hint-placeholder-count="2">
                   <div onClick="{{ sa.run }}" title="{{ sa.label }}" style="{{ sa.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ sa.icon }}</span>{{ sa.shown }}</div>
                 </sc-for>
               </div>
-              <div onClick="{{ selClear }}" title="Cancel selection" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+              <div onClick="{{ selAll }}" role="button" style="{{ selAllStyle }}" style-hover="cursor:pointer;text-decoration:underline">Select all</div>
             </div>
           </sc-if>
           <div style="{{ historySearchStyle }}">
@@ -2127,13 +2128,14 @@ Project repository: https://github.com/fathomise/MailFathom
       </sc-if>
     <sc-if value="{{ selBarShown }}" hint-placeholder-val="{{ false }}">
       <div style="{{ selBarStyle }}">
-        <div style="font-size:13px;font-weight:600;white-space:nowrap">{{ selBarCount }}</div>
+        <div onClick="{{ selClear }}" role="button" title="Cancel selection" style="{{ selClearStyle }}" style-hover="cursor:pointer"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span><span>{{ selBarCount }}</span></div>
+        <div aria-hidden="true" style="width:1px;align-self:stretch;background:var(--accent-line);margin:0 6px"></div>
         <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <sc-for list="{{ selBarActions }}" as="sa" hint-placeholder-count="3">
             <div onClick="{{ sa.run }}" title="{{ sa.label }}" style="{{ sa.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ sa.icon }}</span>{{ sa.shown }}</div>
           </sc-for>
         </div>
-        <div onClick="{{ selClear }}" title="Cancel selection" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+        <div onClick="{{ selAll }}" role="button" style="{{ selAllStyle }}" style-hover="cursor:pointer;text-decoration:underline">Select all</div>
       </div>
     </sc-if>
       <div ref="{{ tbRef }}" style="{{ toolbarStyle }}">
@@ -2277,7 +2279,7 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </sc-for>
             <sc-if value="{{ statusForShown }}" hint-placeholder-val="{{ false }}">
-              <div role="menuitem" aria-haspopup="true" onClick="{{ openStatusFor }}" style="{{ statusRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+              <div role="menuitem" aria-haspopup="menu" aria-expanded="{{ statusForOpen }}" onClick="{{ openStatusFor }}" style="{{ statusForRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
                 <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;width:17px;color:var(--muted)">timer</span>
                 <span style="flex:0 0 auto">For</span>
                 <span style="flex:1;min-width:0;text-align:right;font-size:12px;color:var(--text2)">{{ statusForValue }}</span>
@@ -2303,16 +2305,6 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="display:flex;align-items:center;gap:6px;padding:6px 4px;margin:0 -5px 4px;border-bottom:1px solid var(--line2)">
             <div onClick="{{ statusBack }}" title="Back" aria-label="Back" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">arrow_back</span></div>
             <span style="font-size:13px;font-weight:600">{{ statusPageTitle }}</span>
-          </div>
-        </sc-if>
-        <sc-if value="{{ statusOnFor }}" hint-placeholder-val="{{ false }}">
-          <div role="group" aria-label="{{ statusPageTitle }}" style="display:flex;flex-direction:column;gap:1px;overflow:auto">
-            <sc-for list="{{ statusForRows }}" as="sf" hint-placeholder-count="6">
-              <div role="menuitemradio" aria-checked="{{ sf.current }}" onClick="{{ sf.pick }}" style="{{ sf.style }}" style-hover="cursor:pointer;background:var(--hover)">
-                <span style="flex:1">{{ sf.label }}</span>
-                <sc-if value="{{ sf.current }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:17px;line-height:1;color:var(--accent)">check</span></sc-if>
-              </div>
-            </sc-for>
           </div>
         </sc-if>
         <sc-if value="{{ statusOnWork }}" hint-placeholder-val="{{ false }}">
@@ -2341,6 +2333,22 @@ Project repository: https://github.com/fathomise/MailFathom
         </sc-if>
       </div>
     </div>
+    <sc-if value="{{ statusForOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-motion="{{ moStatusScrim }}" data-phase="{{ mo.statusFor }}" onClick="{{ closeStatusFor }}" style="{{ statusForScrimStyle }}">
+        <div data-motion="{{ moStatusCard }}" data-phase="{{ mo.statusFor }}" role="menu" aria-label="{{ statusForTitle }}" onClick="{{ stopProp }}" style="{{ statusForCardStyle }}">
+          <sc-if value="{{ statusGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
+          <div style="font-size:13px;font-weight:600;padding:10px 9px 8px;margin:0 -5px 4px;padding-left:14px;border-bottom:1px solid var(--line2)">{{ statusForTitle }}</div>
+          <div style="display:flex;flex-direction:column;gap:1px;overflow:auto">
+            <sc-for list="{{ statusForRows }}" as="sf" hint-placeholder-count="6">
+              <div role="menuitemradio" aria-checked="{{ sf.current }}" onClick="{{ sf.pick }}" style="{{ sf.style }}" style-hover="cursor:pointer;background:var(--hover)">
+                <span style="flex:1">{{ sf.label }}</span>
+                <sc-if value="{{ sf.current }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:17px;line-height:1;color:var(--accent)">check</span></sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
   </sc-if>
 
   <sc-if value="{{ newTaskOpen }}" hint-placeholder-val="{{ false }}">
@@ -2558,13 +2566,14 @@ Project repository: https://github.com/fathomise/MailFathom
       </sc-if>
     <sc-if value="{{ selBarShown }}" hint-placeholder-val="{{ false }}">
       <div style="{{ selBarStyle }}">
-        <div style="font-size:13px;font-weight:600;white-space:nowrap">{{ selBarCount }}</div>
+        <div onClick="{{ selClear }}" role="button" title="Cancel selection" style="{{ selClearStyle }}" style-hover="cursor:pointer"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span><span>{{ selBarCount }}</span></div>
+        <div aria-hidden="true" style="width:1px;align-self:stretch;background:var(--accent-line);margin:0 6px"></div>
         <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <sc-for list="{{ selBarActions }}" as="sa" hint-placeholder-count="3">
             <div onClick="{{ sa.run }}" title="{{ sa.label }}" style="{{ sa.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ sa.icon }}</span>{{ sa.shown }}</div>
           </sc-for>
         </div>
-        <div onClick="{{ selClear }}" title="Cancel selection" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+        <div onClick="{{ selAll }}" role="button" style="{{ selAllStyle }}" style-hover="cursor:pointer;text-decoration:underline">Select all</div>
       </div>
     </sc-if>
       <div ref="{{ tbRef }}" style="{{ toolbarStyle }}">
@@ -2761,13 +2770,14 @@ Project repository: https://github.com/fathomise/MailFathom
     </sc-if>
     <sc-if value="{{ selBarShown }}" hint-placeholder-val="{{ false }}">
       <div style="{{ selBarStyle }}">
-        <div style="font-size:13px;font-weight:600;white-space:nowrap">{{ selBarCount }}</div>
+        <div onClick="{{ selClear }}" role="button" title="Cancel selection" style="{{ selClearStyle }}" style-hover="cursor:pointer"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span><span>{{ selBarCount }}</span></div>
+        <div aria-hidden="true" style="width:1px;align-self:stretch;background:var(--accent-line);margin:0 6px"></div>
         <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <sc-for list="{{ selBarActions }}" as="sa" hint-placeholder-count="3">
             <div onClick="{{ sa.run }}" title="{{ sa.label }}" style="{{ sa.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ sa.icon }}</span>{{ sa.shown }}</div>
           </sc-for>
         </div>
-        <div onClick="{{ selClear }}" title="Cancel selection" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+        <div onClick="{{ selAll }}" role="button" style="{{ selAllStyle }}" style-hover="cursor:pointer;text-decoration:underline">Select all</div>
       </div>
     </sc-if>
     <div ref="{{ tbRef }}" style="{{ toolbarStyle }}">
@@ -2878,6 +2888,7 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div onClick="{{ addToOwn }}" title="Save to the address book" style="flex:0 0 auto;display:flex;align-items:center;gap:7px;font-size:13px;white-space:nowrap;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:9px 14px" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">person_add</span>{{ addToOwnLabel }}</div>
                 </sc-if>
                 <sc-if value="{{ personOwn }}" hint-placeholder-val="{{ true }}">
+                  <div onClick="{{ deleteContact }}" title="Delete contact" aria-label="Delete contact" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:38px;height:38px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1" style-hover="cursor:pointer;background:var(--hover);color:var(--err-text)">delete</div>
                   <div onClick="{{ editContact }}" title="Edit contact" aria-label="Edit contact" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:38px;height:38px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">edit_note</div>
                 </sc-if>
                 <sc-if value="{{ personMember }}" hint-placeholder-val="{{ false }}">
@@ -3216,7 +3227,18 @@ Project repository: https://github.com/fathomise/MailFathom
             <input ref="{{ ctPhotoRef }}" type="file" accept="image/png,image/jpeg" onChange="{{ onCtPhotoFile }}" style="display:none" />
           </div>
           <input ref="{{ ctNameRef }}" placeholder="Full name" style="{{ fieldStyle }}" />
-          <input ref="{{ ctMailRef }}" placeholder="Email address" style="{{ fieldStyle }}" />
+          <div role="radiogroup" aria-label="Email addresses" style="display:flex;flex-direction:column;gap:8px">
+            <span style="{{ ctFieldLabelStyle }}">Email addresses</span>
+            <sc-for list="{{ ctMailRows }}" as="em" hint-placeholder-count="1">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div onClick="{{ em.makeDefault }}" role="radio" aria-checked="{{ em.preferred }}" title="{{ em.defaultTitle }}" aria-label="{{ em.defaultTitle }}" style="{{ em.defaultStyle }}" style-hover="cursor:pointer;background:var(--hover)">{{ em.defaultIcon }}</div>
+                <input type="email" value="{{ em.mail }}" onChange="{{ em.onMail }}" placeholder="Email address" aria-label="Email address" style="{{ fieldStyle }}flex:1;min-width:0" />
+                <sc-if value="{{ em.preferred }}" hint-placeholder-val="{{ true }}"><span style="{{ ctDefaultChipStyle }}">Default</span></sc-if>
+                <sc-if value="{{ em.removable }}" hint-placeholder-val="{{ false }}"><div onClick="{{ em.remove }}" title="Remove address" aria-label="Remove address" style="{{ ctPhoneRemoveStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div></sc-if>
+              </div>
+            </sc-for>
+            <div onClick="{{ ctAddMail }}" role="button" style="{{ ctSmallBtnStyle }}align-self:flex-start" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1">add</span>Add an email address</div>
+          </div>
           <div style="display:flex;flex-direction:column;gap:8px">
             <span style="{{ ctFieldLabelStyle }}">Phone numbers</span>
             <sc-for list="{{ ctPhoneRows }}" as="ph" hint-placeholder-count="1">
@@ -3658,13 +3680,14 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
       <sc-if value="{{ selBarShown }}" hint-placeholder-val="{{ false }}">
         <div style="{{ selBarStyle }}">
-          <div style="font-size:13px;font-weight:600;white-space:nowrap">{{ selBarCount }}</div>
+          <div onClick="{{ selClear }}" role="button" title="Cancel selection" style="{{ selClearStyle }}" style-hover="cursor:pointer"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span><span>{{ selBarCount }}</span></div>
+          <div aria-hidden="true" style="width:1px;align-self:stretch;background:var(--accent-line);margin:0 6px"></div>
           <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <sc-for list="{{ selBarActions }}" as="sa" hint-placeholder-count="3">
               <div onClick="{{ sa.run }}" title="{{ sa.label }}" style="{{ sa.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ sa.icon }}</span>{{ sa.shown }}</div>
             </sc-for>
           </div>
-          <div onClick="{{ selClear }}" title="Cancel selection" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+          <div onClick="{{ selAll }}" role="button" style="{{ selAllStyle }}" style-hover="cursor:pointer;text-decoration:underline">Select all</div>
         </div>
       </sc-if>
       <div ref="{{ notifListRef }}" data-rail="1" style="{{ notifListStyle }}">

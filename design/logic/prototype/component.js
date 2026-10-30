@@ -1173,7 +1173,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        it last moved instead, read by `paneMotion`, so one pane at a time pushes forward and comes back.
        The held value is read by the whole render, so anything else gated on the same key (the FAB waits on
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
-    static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "statusMenu", "sideDrawer", "compose", "settings",
+    static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "statusMenu", "statusFor", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "linkAsk", "source"];
@@ -1224,7 +1224,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "source", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "statusMenu", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
+      "statusMenu", "statusFor", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1955,7 +1955,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     evEndTimeRef = React.createRef();
     evNotesRef = React.createRef();
     ctNameRef = React.createRef();
-    ctMailRef = React.createRef();
     ctPhotoRef = React.createRef();
     tkPromptRef = React.createRef();
     remNumTaskRef = React.createRef();
@@ -3952,12 +3951,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          book, and nothing that connects a contact to a user: no presence, no status, no structure, no hours. */
       const inOrg = (this.props.inOrganization ?? true) && !!ORGANIZATION;
       const orgName = (ORGANIZATION || {}).name || "";
-      const ownContacts = CONTACTS.filter(c => c.kind === "own" || (inOrg && c.kind === "organization")).concat(st.extraContacts || []);
+      const ownContacts = CONTACTS.filter(c => c.kind === "own" || (inOrg && c.kind === "organization")).concat(st.extraContacts || []).filter(c => !hid("people", c.id));
       const memberContacts = inOrg ? CONTACTS.filter(c => c.kind === "member") : [];
       const hiddenCollected = st.hiddenCollected || [];
       const collectedContacts = collectFromMail(CONTACTS.concat(st.extraContacts || []).map(c => c.name)).filter(c => hiddenCollected.indexOf(c.name) < 0);
       const allContacts = ownContacts.concat(memberContacts, collectedContacts);
-      const peopleTab = st.peopleTab === "members" && !inOrg ? "own" : (st.peopleTab || "own");
+      const peopleTab = st.peopleTab === "members" && !inOrg ? "own" : (st.peopleTab || (inOrg ? "members" : "own"));
       const shownContacts = peopleTab === "collected" ? collectedContacts : peopleTab === "members" ? memberContacts : ownContacts;
       const memberById = (id) => memberContacts.find(m => m.id === id) || null;
       const isMemberName = (name) => memberContacts.find(m => m.name === name) || null;
@@ -4051,7 +4050,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const convGroups = (rows) => ["Today", "Yesterday", "Earlier"]
         .map(d => ({ label: d, rows: rows.filter(r => r.day === d) }))
         .filter(g => g.rows.length);
-      const person = allContacts.find(c => c.id === st.personId) || allContacts[0];
+      const person = allContacts.find(c => c.id === st.personId) || shownContacts[0] || allContacts[0];
       const personAi = CONTACT_AI[person.id] || {};
       const personIsMember = person.kind === "member";
       const personIsOrg = person.kind === "organization";
@@ -4327,8 +4326,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeUserMenu: () => { if (st.userMenu) this.setState({ userMenu: false }); },
         /* The reader's own status, set from the menu under the account icon (from More on a phone). It is a menu, never
            the Settings screen, and it has no Done: every choice takes the moment it is made. A presence picked closes
-           the menu, the way any menu's item does; the three rows under it open a page of the same menu, where a
-           choice takes and returns to the first page, which then shows it. A member only. */
+           the menu, the way any menu's item does. *For* opens a popup of its own beside the menu, which stays open
+           under it; *Message* and *Working from* open a page of the same menu. A choice in either takes and comes back
+           to the first page, which then shows it. A member only. */
         ...(() => {
           const mine = PRESENCE[myPresence];
           const text = st.myStatusText || "";
@@ -4357,9 +4357,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             meStatusLine: text || "Set a status message",
             meStatusLineStyle: "font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:" + (text ? "var(--text2)" : "var(--faint)"),
             meRailDotStyle: presenceDot(myPresence, touch ? 14 : 13),
-            openStatusMenu: () => this.setState({ statusMenu: true, statusPage: null, statusDraft: null, userMenu: false, more: false }),
+            openStatusMenu: () => this.setState({ statusMenu: true, statusFor: false, statusPage: null, statusDraft: null, userMenu: false, more: false }),
             statusMenuOpen: inOrg && !!st.statusMenu,
-            closeStatusMenu: () => commit({ statusMenu: false, statusPage: null }),
+            closeStatusMenu: () => commit({ statusMenu: false, statusFor: false, statusPage: null }),
             statusScrimStyle: isMobile
               ? "position:fixed;inset:0;z-index:95;display:flex;flex-direction:column;justify-content:flex-end;background:var(--scrim)"
               : "position:fixed;inset:0;z-index:95",
@@ -4374,11 +4374,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             statusDotStyle: presenceDot(myPresence, isMobile ? 13 : 11),
             statusHeadLine: mine.label + (myPresence !== "active" && forOpt !== "Until changed" ? " · " + forOpt.toLowerCase() : ""),
             statusOnMain: !page,
-            statusOnFor: page === "for",
             statusOnMessage: page === "message",
             statusOnWork: page === "work",
             statusPageHead: !!page,
-            statusPageTitle: page === "for" ? "Show " + mine.label + " for" : page === "message" ? "Status message" : "Working from",
+            statusPageTitle: page === "message" ? "Status message" : "Working from",
             statusBack: () => commit({ statusPage: null }),
             statusPresenceRows: PRESENCE_ORDER.map(k => ({
               label: PRESENCE[k].label,
@@ -4386,13 +4385,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               hasNote: k === "hidden",
               fill: presenceFill(k, 10),
               current: k === myPresence,
-              pick: () => this.setState({ myPresence: k, myPresenceFor: "Until changed", statusMenu: false, statusPage: null }),
+              pick: () => this.setState({ myPresence: k, myPresenceFor: "Until changed", statusMenu: false, statusFor: false, statusPage: null }),
               style: row(k === myPresence),
             })),
             statusForShown: myPresence !== "active",
             statusForValue: forOpt,
-            openStatusFor: () => this.setState({ statusPage: "for" }),
-            statusForRows: pageRows(["30 minutes", "1 hour", "2 hours", "Today", "This week", "Until changed"], forOpt, o => ({ myPresenceFor: o })),
+            openStatusFor: () => this.setState(s2 => ({ statusFor: !s2.statusFor })),
+            statusForOpen: !!st.statusFor,
+            closeStatusFor: () => this.setState({ statusFor: false }),
+            statusForTitle: "Show " + mine.label + " for",
+            statusForRowStyle: row(!!st.statusFor),
+            statusForRows: pageRows(["30 minutes", "1 hour", "2 hours", "Today", "This week", "Until changed"], forOpt, o => ({ myPresenceFor: o, statusFor: false })),
+            // Beside the menu on two panes, at its foot so the For row it came from stays in sight; a second sheet on the phone.
+            statusForScrimStyle: isMobile
+              ? "position:fixed;inset:0;z-index:96;display:flex;flex-direction:column;justify-content:flex-end;background:var(--scrim)"
+              : "position:fixed;inset:0;z-index:96",
+            statusForCardStyle: isMobile
+              ? "display:flex;flex-direction:column;max-height:70dvh;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 30px var(--sh-3);padding:0 8px calc(8px + env(safe-area-inset-bottom))"
+              : "position:fixed;bottom:18px;left:396px;width:200px;max-height:calc(100dvh - 36px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 10px 24px var(--sh-2),0 2px 6px var(--sh-2);overflow:hidden;padding:0 5px 5px",
             statusMessageValue: text || "Set a status message",
             statusMessageValueStyle: "flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:" + (text ? "var(--text2)" : "var(--faint)"),
             openStatusMessage: () => this.setState({ statusPage: "message", statusDraft: text }),
@@ -4622,6 +4632,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         selBarShown: !!selBarIds.length,
         selClear: () => this.selClearKind(selBarKind),
         selBarCount: selBarIds.length + " selected",
+        // Laid out as Mail's: cancel with the count at the start, the actions, Select all at the end.
+        selClearStyle: "flex:0 0 auto;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;white-space:nowrap;color:var(--accent-d)" + (touch ? ";min-height:44px" : ""),
+        selAllStyle: "margin-left:auto;flex:0 0 auto;display:flex;align-items:center;font-size:12px;white-space:nowrap;color:var(--accent-d)" + (touch ? ";min-height:44px;padding:0 4px" : ""),
+        selAll: () => this.selSet(selBarKind, (selBarKind === "people" ? shownContacts.map(c => c.id)
+          : selBarKind === "tasks" ? allTasks.filter(t2 => st.showDone || (st.taskDone || []).indexOf(t2.id) < 0).map(t2 => t2.id)
+          : selBarKind === "notifs" ? notifAll.map(n => n.id)
+          : selBarKind === "convs" ? activeConvList.map(c => c.id)
+          : selBarKind === "events" ? calAllDays.reduce((a, d) => a.concat(d.ev.map(e => d.d + "|" + e.time + "|" + e.t)), [])
+          : [])),
         selBarStyle: "flex:0 0 auto;display:flex;align-items:center;gap:12px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);" +
           (isMobile ? "padding:9px 10px 9px 14px;" : "padding:8px 14px 8px 18px;"),
         selBarActions: (() => {
@@ -4642,11 +4661,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             mk("mark_email_unread", "Unread", () => this.setNotifsRead(ids, false)),
             mk("delete", "Delete", () => this.askHide("notifs", ids, "Delete notifications?", ids.length + " notifications will disappear from the centre."), true),
           ].map(st2);
+          // A colleague is read-only, so their tab offers no Delete; a collected one is removed from collected.
           if (kind === "people") return [
             mk("edit", "Write", () => { this.setState({ compose: true, composeMin: false, replyMode: null }); this.selClearKind(kind); }),
-            mk("download", "Export", () => { this.notifyTask({ title: "Exporting contacts\u2026", body: ids.length + " contacts", doneTitle: "Contacts exported", ms: 1800 }); this.selClearKind(kind); }),
-            mk("delete", "Delete", () => this.askHide("people", ids, "Delete contacts?", ids.length + " contacts will disappear from the list."), true),
-          ].map(st2);
+          ].concat(peopleTab === "members" ? [
+            mk("content_copy", "Copy addresses", () => { this.notify("Addresses copied", { kind: "success" }); this.selClearKind(kind); }),
+          ] : peopleTab === "collected" ? [
+            mk("delete", "Remove", () => this.askDel({
+              title: "Remove contacts from collected?",
+              text: ids.length + " contacts disappear from the collected list. They come back automatically if they write again.",
+              label: "Remove from collected",
+              run: () => this.setState(s3 => ({
+                hiddenCollected: (s3.hiddenCollected || []).concat(collectedContacts.filter(c => ids.indexOf(c.id) >= 0).map(c => c.name)),
+                selBy: Object.assign({}, s3.selBy || {}, { people: [] }),
+              })),
+            }), true),
+          ] : [
+            mk("delete", "Delete", () => this.askHide("people", ids, "Delete contacts?", ids.length + " contacts will disappear from your contacts."), true),
+          ]).map(st2);
           if (kind === "convs") return [
             mk("archive", "Archive", () => this.setState(s3 => ({ convs: (s3.convs || []).map(x => ids.indexOf(x.id) >= 0 ? Object.assign({}, x, { archived: true }) : x), selBy: Object.assign({}, s3.selBy || {}, { convs: [] }) }))),
             mk("delete", "Delete", () => this.askDel({ title: "Delete conversations?", text: ids.length + " conversations will be permanently deleted.", label: "Delete", run: () => this.setState(s3 => ({ convs: (s3.convs || []).filter(x => ids.indexOf(x.id) < 0), convId: ids.indexOf(s3.convId) >= 0 ? null : s3.convId, selBy: Object.assign({}, s3.selBy || {}, { convs: [] }) })) }), true),
@@ -5482,7 +5514,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "event", label: "Schedule a meeting" },
           { icon: "merge", label: "Merge duplicates" },
           { icon: "upload", label: "Import" },
-          { icon: "download", label: "Export" },
         ].map(a => ({ icon: a.icon, title: a.label, label: tbFull ? a.label : "", style: tbFull ? tbBtn : tbIcon + ";flex:0 0 auto" })),
         fieldStyle: "flex:1;min-width:0;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:10px 12px;outline:none",
         newEventOpen: !!st.newEvent,
@@ -5537,11 +5568,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.remFire(t, rem, "cal", "Calendar", { screen: "cal" });
         },
         newContactOpen: !!st.newContact,
-        openNewContact: () => this.setState({ newContact: true, ctEditing: false, ctPhones: [], ctPhoto: "", ctPhotoError: "" }),
+        openNewContact: () => this.setState({ newContact: true, ctEditing: false, ctMails: [{ mail: "", preferred: true }], ctPhones: [], ctPhoto: "", ctPhotoError: "" }),
         ctDialogTitle: st.ctEditing ? "Edit contact" : "New contact",
         ctSaveLabel: st.ctEditing ? "Save changes" : "Save contact",
         closeNewContact: () => this.setState({ newContact: false }),
-        ctNameRef: this.ctNameRef, ctMailRef: this.ctMailRef,
+        ctNameRef: this.ctNameRef,
         // A photo of the reader's choosing, removable; without one the initials stand in wherever the person is drawn.
         ctPhotoRef: this.ctPhotoRef,
         ctHasPhoto: !!st.ctPhoto, ctNoPhoto: !st.ctPhoto,
@@ -5559,6 +5590,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           r.onload = () => this.setState({ ctPhoto: String(r.result), ctPhotoError: "" });
           r.readAsDataURL(f);
         },
+        // Email addresses: one row each, exactly one of them the default a new message goes to.
+        ctMailRows: (st.ctMails || [{ mail: "", preferred: true }]).map((em, i, all) => ({
+          mail: em.mail || "",
+          preferred: !!em.preferred,
+          defaultIcon: em.preferred ? "radio_button_checked" : "radio_button_unchecked",
+          defaultTitle: em.preferred ? "Default address" : "Make this the default address",
+          defaultStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:" + (touch ? 44 : 32) + "px;height:" + (touch ? 44 : 32) + "px;border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:" + (em.preferred ? "var(--accent)" : "var(--muted)"),
+          removable: all.length > 1,
+          makeDefault: () => this.setState(s2 => ({ ctMails: (s2.ctMails || []).map((x, j) => Object.assign({}, x, { preferred: j === i })) })),
+          onMail: (e) => this.setState(s2 => ({ ctMails: (s2.ctMails || []).map((x, j) => j === i ? Object.assign({}, x, { mail: e.target.value }) : x) })),
+          // Removing the default hands it to the first address left.
+          remove: () => this.setState(s2 => {
+            const rest = (s2.ctMails || []).filter((x, j) => j !== i);
+            return { ctMails: rest.some(x => x.preferred) ? rest : rest.map((x, j) => Object.assign({}, x, { preferred: j === 0 })) };
+          }),
+        })),
+        ctAddMail: () => this.setState(s2 => ({ ctMails: (s2.ctMails || [{ mail: "", preferred: true }]).concat([{ mail: "", preferred: false }]) })),
+        ctDefaultChipStyle: "flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:10px;font-weight:600;color:var(--accent-d);background:var(--accent-soft);border-radius:4px;padding:2px 6px",
         // Phone numbers: one row each, a label of four and the number, added and removed one at a time.
         ctPhoneRows: (st.ctPhones || []).map((ph, i) => ({
           number: ph.number || "",
@@ -5576,11 +5625,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctSmallBtnStyle: "display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;white-space:nowrap;" + (touch ? "min-height:44px;padding:0 14px;" : "padding:7px 12px;"),
         saveContact: () => {
           const name = (this.ctNameRef.current || {}).value || "New contact";
-          const mail = (this.ctMailRef.current || {}).value || "";
+          const mails = (st.ctMails || []).filter(x => (x.mail || "").trim());
+          const mail = (mails.find(x => x.preferred) || mails[0] || { mail: "" }).mail;
           const phones = (st.ctPhones || []).filter(x => (x.number || "").trim());
           if (st.ctPhoto) AVATARS[name] = st.ctPhoto; else delete AVATARS[name];
           if (st.ctEditing) {
             person.phones = phones;
+            person.mails = mails.map(x => Object.assign({}, x, { preferred: x.mail === mail }));
+            person.mail = mail;
             this.setState({ newContact: false, ctEditing: false });
             this.notify("Contact saved", { kind: "success" });
             return;
@@ -5592,7 +5644,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             peopleTab: "own",
             peoplePane: "detail",
             extraContacts: (s2.extraContacts || []).concat([{
-              id, kind: "own", name, mail, phones, last: "no correspondence yet",
+              id, kind: "own", name, mail, mails: mails.map(x => Object.assign({}, x, { preferred: x.mail === mail })), phones, last: "no correspondence yet",
               owed: "-", note: "Contact added manually. After the first exchange of messages the relationship state appears here.",
               threads: [], docs: [],
             }]),
@@ -5868,10 +5920,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         personKindTitle: personIsMember ? "A member of " + orgName : "From " + orgName + "'s address book",
         // The same dialog as writing somebody down, opened on what the record holds.
         editContact: () => {
-          this.setState({ newContact: true, ctEditing: true, ctPhones: (person.phones || []).map(x => Object.assign({}, x)), ctPhoto: avatarOf(person.name), ctPhotoError: "" });
+          this.setState({ newContact: true, ctEditing: true, ctMails: (person.mails || [{ mail: person.mail, preferred: true }]).map(x => Object.assign({}, x)), ctPhones: (person.phones || []).map(x => Object.assign({}, x)), ctPhoto: avatarOf(person.name), ctPhotoError: "" });
           setTimeout(() => {
             if (this.ctNameRef.current) this.ctNameRef.current.value = person.name;
-            if (this.ctMailRef.current) this.ctMailRef.current.value = person.mail;
           }, 0);
         },
         addToOwnLabel: narrow || isMobile ? "Add" : "Add to my contacts",
@@ -5880,6 +5931,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : personIsOrg
           ? "Kept by " + orgName + " - read-only"
           : "Read-only - editable once added to your contacts",
+        deleteContact: () => this.askDel({
+          title: "Delete contact?",
+          text: person.name + " will disappear from your contacts. Mail with them stays where it is.",
+          label: "Delete",
+          run: () => this.setState(s2 => {
+            const at = ownContacts.findIndex(c => c.id === person.id);
+            const rest = ownContacts.filter(c => c.id !== person.id);
+            const nextOne = rest[Math.min(at, rest.length - 1)];
+            const map = Object.assign({}, s2.hidden || {});
+            map.people = (map.people || []).concat([person.id]);
+            return { hidden: map, personId: nextOne ? nextOne.id : null, peoplePane: isMobile ? "list" : s2.peoplePane };
+          }),
+        }),
         removeCollected: () => this.askDel({
           title: "Remove contact from collected?",
           text: person.name + " disappears from the collected list. They come back automatically if they write again.",

@@ -584,6 +584,11 @@
       },
       "steps": [
         {
+          "click": {
+            "text": "Own"
+          }
+        },
+        {
           "expect": {
             "text": "Collected"
           }
@@ -618,6 +623,11 @@
         "connection": "online"
       },
       "steps": [
+        {
+          "click": {
+            "text": "Own"
+          }
+        },
         {
           "click": {
             "text": "Anna Kowalska"
