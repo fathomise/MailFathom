@@ -238,6 +238,9 @@ export class FakeDeployment {
     private displayName = { ...deployment.ownDisplayName };
     private timeZone = { ...deployment.ownTimeZone };
 
+    /** The instant a check held the day to, or `null` where the day is the one the machine's clock is on. */
+    private heldInstant: Date | null = null;
+
     /** The folder each message was moved to, for a message that no longer sits where the corpus put it. */
     private readonly placed = new Map<string, string>();
 
@@ -528,6 +531,11 @@ export class FakeDeployment {
      */
     grant(...permissions: readonly string[]): void {
         this.permissions = [...this.permissions, ...permissions];
+    }
+
+    /** Answers every read that depends on the day for the day `instant` falls on, however long the check runs. */
+    holdTheDay(instant: Date): void {
+        this.heldInstant = instant;
     }
 
     /** Makes the next question put to Discover or to the Agent read as running once, and finished on the read after. */
@@ -986,7 +994,7 @@ export class FakeDeployment {
     /** The two halves of the task list, stated by the corpus for the day the deployment's own zone is on. */
     private tasks(): TaskLists {
         if (this.taskLists === null) {
-            const day = dayIn(this.timeZone.timeZone);
+            const day = dayIn(this.timeZone.timeZone, this.heldInstant ?? new Date());
 
             this.taskLists = {
                 committed: [...tasks.committedTasks(day).tasks],
@@ -2534,9 +2542,9 @@ function corpusFacts(storedEmailId: string): MessageFacts | null {
  * The deployment's zone rather than the machine's, because that is the zone the client reads the list in: a machine
  * standing on a different day from the deployment would otherwise file today's work under another heading.
  */
-function dayIn(timeZone: string): string {
+function dayIn(timeZone: string, instant: Date): string {
     return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
-        new Date(),
+        instant,
     );
 }
 

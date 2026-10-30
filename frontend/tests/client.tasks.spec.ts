@@ -4,7 +4,7 @@
 
 import { expect } from '@playwright/test';
 
-import { openSignedIn, test } from './client.harness';
+import { holdTheDay, openSignedIn, test } from './client.harness';
 
 // A task written down, finished, shown again among the finished, and deleted, with the list's headings and the day's
 // capacity beside them read after every act. The list reads itself again after a write rather than correcting what it
@@ -20,7 +20,7 @@ test('moves a task it wrote, finished, and deleted between the headings, and the
     page,
     deployment,
 }) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = (await holdTheDay(page, deployment)).toISOString().slice(0, 10);
 
     await openSignedIn(page, '/#/tasks');
 

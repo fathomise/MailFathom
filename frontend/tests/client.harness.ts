@@ -144,6 +144,24 @@ function pageTime(page: Page): Promise<number> {
     return page.evaluate(() => Date.now());
 }
 
+/**
+ * Keeps a check on one day however close to midnight it starts, and answers the instant that day is read from.
+ *
+ * The page, the deployment, and the check each read the day off a clock of their own, so a check started just before
+ * midnight could compose its expectation on one day, have the deployment file the work under the next, and see the
+ * screen draw either. Noon of the day the check began on is an instant all three read, with half a day either side
+ * before any of them reaches another one. Called before the page loads, because that is when the clock is installed.
+ */
+export async function holdTheDay(page: Page, deployment: FakeDeployment): Promise<Date> {
+    const noon = new Date();
+
+    noon.setUTCHours(12, 0, 0, 0);
+    deployment.holdTheDay(noon);
+    await page.clock.install({ time: noon });
+
+    return noon;
+}
+
 /** The client opened at an address and signed in, which is where every test about the frame starts. */
 export async function openSignedIn(page: Page, address = '/'): Promise<void> {
     await page.goto(address);
