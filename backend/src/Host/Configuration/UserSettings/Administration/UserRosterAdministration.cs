@@ -225,7 +225,7 @@ internal sealed partial class UserRosterAdministration(
             return UserProvisioningOutcome.Refused(
                 SettingsPolicyLayers.Read(governedBy, SettingsPolicySection.Users, out var unreadable) is null
                     ? $"{SettingsPolicyLayers.DescribeUnreadable(unreadable)} The user's label was recorded and their record was not, so remove them with 'mfctl user remove' and record them again once the policy reads."
-                    : "The user was recorded and then removed before their record could be written, so this deployment holds nobody under that label. Record them again.");
+                    : "The user was recorded and then removed before their record could be written, so this deployment holds no record of them. Record them again.");
         }
 
         // The committed record declares no mailbox, so the user it publishes holds none, classifies nothing, and reads

@@ -9,9 +9,8 @@ namespace MailFathom.Host.Configuration.UserSettings.Administration;
 /// <param name="RefusalMessage">The sentence naming what has to change first, or <see langword="null" /> where the row carries the label.</param>
 /// <remarks>
 /// The two facts are apart because a boundary answers them apart. A user this deployment does not hold is the same
-/// answer here as at every other user-scoped route — the deployment holds no such record — while a label somebody else
-/// carries is a refusal about the label rather than about the user, and reporting the first as the second would give a
-/// credential granted the write and not the read a way to ask which users exist.
+/// answer here as at every other user-scoped route — the deployment holds no such record — while an unusable label is a
+/// refusal about the label rather than about the user, judged before anybody is looked up.
 /// </remarks>
 internal readonly record struct UserRelabelOutcome(bool UserHeld, string? RefusalMessage)
 {
