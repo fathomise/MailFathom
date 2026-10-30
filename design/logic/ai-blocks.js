@@ -202,8 +202,19 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
         sla: tableCell(r, "SLA", r.sla, r.slaCite, r.slaVerdict),
         index: tableCell(r, "Indexation", r.index, r.indexCite, r.indexVerdict, true),
       }));
+      // A person is drawn with their photo where there is one and their initials otherwise, as everywhere else.
+      const photoOf = (name) => (MailFathomDesign.data.avatars || {})[name] || "";
+      const faceStyle = (name, size, font, ring) => "width:" + size + "px;height:" + size + "px;flex:0 0 " + size + "px;border-radius:50%;background:var(--accent-soft);color:var(--accent-d);display:flex;align-items:center;justify-content:center;font-size:" + font + "px;font-weight:600" +
+        (ring ? ";border:2px solid var(--panel);margin-right:-7px" : "") +
+        (photoOf(name) ? ";background-image:url(" + photoOf(name) + ");background-size:cover;background-position:center" : "");
       const peopleItems = (isPartial ? PEOPLE_FULL.slice(0, 2) : PEOPLE_FULL).map(p => Object.assign({}, p, {
         ariaLabel: "Person: " + p.name + ", " + p.role,
+        initials: photoOf(p.name) ? "" : p.initials,
+        faceStyle: faceStyle(p.name, 32, 12, false),
+      }));
+      const participantItems = PARTICIPANTS.map(pt => Object.assign({}, pt, {
+        initials: photoOf(pt.person) ? "" : pt.initials,
+        faceStyle: faceStyle(pt.person, 26, 11, true),
       }));
       const galleryItems = (isPartial ? GALLERY_FULL.slice(0, 2) : GALLERY_FULL).map(g => Object.assign({}, g, {
         ariaLabel: "Attachment: " + g.name + ", " + g.avail,
@@ -390,7 +401,7 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
         peopleErrorReason: "Duplicates of the same contact in two mailboxes.",
 
         threadMeta: "thread: " + THREAD.subject + " · " + THREAD.messageCount + " messages",
-        threadParticipants: PARTICIPANTS,
+        threadParticipants: participantItems,
         threadParticipantsLabel: "2 participants",
         threadColsStyle: isMobile || stacked ? "display:flex;flex-direction:column;gap:14px" : "display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start",
         threadAgreed, threadOpenQuestions, threadCommitments,
