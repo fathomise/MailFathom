@@ -26,9 +26,14 @@ name: AI evaluations
 # cached by prompt, model, parameters, and the name, description, and schema of every tool the model
 # was offered, and every verdict is kept so the report compares this run with the ones before it. The
 # store travels from one run to the next as the `ai-evaluations-store` artefact — restored from the
-# newest one that has not expired, uploaded again at the end — so an unchanged prompt costs nothing
-# however many runs follow. An artefact expires after 90 days, and each run renews it; a store lost to
-# a longer gap between runs costs one full run to rebuild and nothing else.
+# newest one that has not expired, uploaded again once a run's evaluation has started — so an unchanged
+# prompt costs nothing however many runs follow. It travels as one gzip-compressed tar archive rather
+# than as its own hundred thousand small files, which took minutes to upload and once failed doing it.
+# An artefact expires after 90 days, and each run renews it; a store lost to a longer gap between runs
+# costs one full run to rebuild and nothing else.
+#
+# A cancel stops the paid calls within seconds: the runner signals the evaluation step's shell alone,
+# and `scripts/run-ai-evaluations.sh` passes the signal on to the test host and waits for it.
 #
 # The key is computed by `Microsoft.Extensions.AI`, which does not promise it stays the same across its
 # releases, so a bump of that package can re-ask every case once. Anything else a run suspects the key
@@ -100,6 +105,7 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
       NUGET_XMLDOC_MODE: skip
+      EVALUATION_STORE_ARCHIVE: ai-evaluations-store.tar.gz
     steps:
       # The block's `Ref` is read here, before any of the repository exists to read it with, and by the key's name alone,
       # without regard to case, as the suite reads every other key. `actions/checkout` reads a ref as a branch or a tag
@@ -152,7 +158,8 @@ jobs:
       # ever gains entries keyed by what was asked, so one from another ref costs nothing here and
       # saves whatever it already answered. None at all is the first run, not a failure. A dispatch
       # asking for fresh answers keeps the results and drops the cache, so the report still compares
-      # this run with earlier ones and the store uploaded at the end holds only what this run paid for.
+      # this run with earlier ones and the store uploaded at the end holds only what this run paid for. An artefact
+      # uploaded before the store travelled as one archive holds the store's own files, and is used as it is.
       - name: Restore the evaluation store
         env:
           GH_TOKEN: ${{ github.token }}
@@ -174,6 +181,12 @@ jobs:
 
           gh api "repos/$REPOSITORY/actions/artifacts/$artifact/zip" > "$RUNNER_TEMP/store.zip"
           unzip -q "$RUNNER_TEMP/store.zip" -d "$store"
+
+          if [ -f "$store/$EVALUATION_STORE_ARCHIVE" ]; then
+            tar -xzf "$store/$EVALUATION_STORE_ARCHIVE" -C "$store"
+            rm "$store/$EVALUATION_STORE_ARCHIVE"
+          fi
+
           echo "Restored the store from artefact $artifact."
 
           if [ "$DISCARD_CACHED_ANSWERS" = true ]; then
@@ -250,16 +263,41 @@ jobs:
           # Empty unless the step above started a server, which is what leaves the PostgreSQL retrieval scenario skipped.
           MAILFATHOM_EVALUATION_DATABASE: ${{ steps.retrieval-database.outputs.connection }}
 
-      # Uploaded whether the run passed or not, because a failing run still paid for every answer it
-      # received. A run that wrote nothing uploads nothing, which leaves the previous store the newest.
+      # Kept whether the run passed, failed, or was cancelled, because a run still paid for every answer it received —
+      # but only once its evaluation started, which the script records by writing the test host's PID. A run stopped or
+      # failed before that changed nothing, so it uploads nothing and the newest earlier artefact stays the one the next
+      # run restores. The runner kills the script seconds after a cancel, possibly before the host it signalled has
+      # exited, so the store is packed only once that host is gone: waited for a minute, then killed, and never read
+      # while it is still writing.
+      - name: Pack the evaluation store
+        id: pack-store
+        if: always() && hashFiles('artifacts/ai-evaluations/test-host.pid') != ''
+        run: |
+          set -euo pipefail
+
+          test_host=$(cat artifacts/ai-evaluations/test-host.pid)
+
+          if [ -n "$test_host" ]; then
+            for _ in $(seq 1 60); do
+              kill -0 "$test_host" 2> /dev/null || break
+              sleep 1
+            done
+
+            kill -KILL "$test_host" 2> /dev/null || true
+          fi
+
+          tar -czf "$RUNNER_TEMP/$EVALUATION_STORE_ARCHIVE" -C artifacts/ai-evaluations/store .
+
+      # The archive is compressed already, so the artefact's own zip stores it as it is.
       - name: Keep the evaluation store
-        if: always()
+        if: always() && steps.pack-store.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: ai-evaluations-store
-          path: artifacts/ai-evaluations/store/
+          path: ${{ runner.temp }}/${{ env.EVALUATION_STORE_ARCHIVE }}
           retention-days: 90
-          if-no-files-found: ignore
+          compression-level: 0
+          if-no-files-found: error
 
       - name: Upload the report
         if: always()

@@ -68,19 +68,63 @@ export DOTNET_AIEVAL_SKIP_FIRST_TIME_EXPERIENCE=1
 # comparison can still be widened to without paying for any of it again.
 retained_executions=30
 
-mkdir -p "$MAILFATHOM_AI_EVALUATIONS_STORE"
-rm -rf "$output_directory/results" "$output_directory/report.html"
+# Written the moment the test host starts, holding its PID until the host is reaped and empty after, so
+# whoever keeps the store can tell a run that never reached a provider — no file — from one that did,
+# and wait for a host still writing the store after this shell was killed.
+test_host_file="$output_directory/test-host.pid"
+
+mkdir -p "$MAILFATHOM_AI_EVALUATIONS_STORE" "$output_directory"
+rm -rf "$output_directory/results" "$output_directory/report.html" "$test_host_file"
 
 dotnet tool restore
 dotnet restore "$evaluation_project" --locked-mode
 dotnet build "$evaluation_project" --configuration Release --no-restore
+evaluation_assembly="$(dotnet msbuild "$evaluation_project" -getProperty:TargetPath -p:Configuration=Release)"
 
-# Run rather than test, for the reason the integration suite gives: the project opts out of discovery
-# so a solution-wide run never starts it. The exit code is carried so the report is still rendered
-# for a run that failed, which is exactly when it is worth reading.
+# The test host is started directly rather than through `dotnet run`, and the project opts out of
+# discovery for the reason the integration suite gives, so a solution-wide run never starts it.
+#
+# A cancel reaches this shell alone: a GitHub runner signals the step's process and none of its
+# children, and `kill 0` would reach the runner too, which shares this shell's process group. So the
+# shell traps SIGINT and SIGTERM, passes each on to the host — Microsoft Testing Platform reads SIGINT
+# as a cancelled session, and SIGTERM ends the process — and waits for it. Job control is on while the
+# host starts because a non-interactive shell starts a background command with SIGINT ignored, and
+# .NET then never sees one.
+#
+# The exit code is carried so the report is still rendered for a run that failed, which is exactly
+# when it is worth reading.
+forwarded_signal=''
+test_host=''
+trap 'forwarded_signal=INT; kill -INT "$test_host" 2> /dev/null || true' INT
+trap 'forwarded_signal=TERM; kill -TERM "$test_host" 2> /dev/null || true' TERM
+
+set -m
+dotnet "$evaluation_assembly" --report-xunit-trx --results-directory "$output_directory/results" "$@" < /dev/null &
+test_host=$!
+set +m
+printf '%d\n' "$test_host" > "$test_host_file"
+
+# A signal that arrived while the host was being started had no host to reach yet.
+if [[ -n "$forwarded_signal" ]]; then
+  kill "-$forwarded_signal" "$test_host" 2> /dev/null || true
+fi
+
+# A trapped signal ends `wait` early, so the shell waits again for as long as the host lives.
 test_exit_code=0
-dotnet run --project "$evaluation_project" --configuration Release --no-build -- \
-  --report-xunit-trx --results-directory "$output_directory/results" "$@" || test_exit_code=$?
+wait "$test_host" || test_exit_code=$?
+while kill -0 "$test_host" 2> /dev/null; do
+  wait "$test_host" || test_exit_code=$?
+done
+
+trap - INT TERM
+: > "$test_host_file"
+
+# A stopped run renders nothing: the runner kills this shell seconds after its signal, and what the
+# host paid for is already in the store.
+if [[ -n "$forwarded_signal" ]]; then
+  printf 'Stopped by SIG%s once the test host had exited.\n' "$forwarded_signal" >&2
+  exit $((128 + $(kill -l "$forwarded_signal")))
+fi
 
 # Each half is tidied only once a run has written it: the tool fails on a directory that does not
 # exist yet, which is the state of a store no requested run has touched.
