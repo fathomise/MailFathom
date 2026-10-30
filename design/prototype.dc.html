@@ -2278,15 +2278,13 @@ Project repository: https://github.com/fathomise/MailFathom
                 <sc-if value="{{ sp.current }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:17px;line-height:1;color:var(--accent)">check</span></sc-if>
               </div>
             </sc-for>
-            <sc-if value="{{ statusForShown }}" hint-placeholder-val="{{ false }}">
-              <div role="menuitem" aria-haspopup="menu" aria-expanded="{{ statusForOpen }}" onClick="{{ openStatusFor }}" style="{{ statusForRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-                <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;width:17px;color:var(--muted)">timer</span>
-                <span style="flex:0 0 auto">For</span>
-                <span style="flex:1;min-width:0;text-align:right;font-size:12px;color:var(--text2)">{{ statusForValue }}</span>
-                <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;color:var(--faint)">chevron_right</span>
-              </div>
-            </sc-if>
             <div aria-hidden="true" style="height:1px;background:var(--line2);margin:4px 4px"></div>
+            <div role="menuitem" aria-haspopup="true" onClick="{{ openStatusDuration }}" style="{{ statusRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+              <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;width:17px;color:var(--muted)">timer</span>
+              <span style="flex:0 0 auto">Duration</span>
+              <span style="flex:1;min-width:0;text-align:right;font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ statusDurationValue }}</span>
+              <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;color:var(--faint)">chevron_right</span>
+            </div>
             <div role="menuitem" aria-haspopup="true" onClick="{{ openStatusMessage }}" style="{{ statusRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
               <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;width:17px;color:var(--muted)">chat_bubble</span>
               <span style="flex:0 0 auto">Message</span>
@@ -2305,6 +2303,26 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="display:flex;align-items:center;gap:6px;padding:6px 4px;margin:0 -5px 4px;border-bottom:1px solid var(--line2)">
             <div onClick="{{ statusBack }}" title="Back" aria-label="Back" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">arrow_back</span></div>
             <span style="font-size:13px;font-weight:600">{{ statusPageTitle }}</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ statusOnDuration }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:7px;padding:4px 4px 6px;overflow:auto">
+            <span style="{{ statusSectionLabel }}">Status</span>
+            <div style="position:relative;display:flex;align-items:center">
+              <span aria-hidden="true" style="{{ durPresenceFill }};position:absolute;left:12px;pointer-events:none"></span>
+              <select value="{{ durPresenceValue }}" onChange="{{ onDurPresence }}" aria-label="Status" style="{{ durSelectStyle }};padding-left:30px" style-focus="border-color:var(--accent)">
+                <sc-for list="{{ durPresenceOptions }}" as="dp" hint-placeholder-count="6"><option value="{{ dp.v }}">{{ dp.label }}</option></sc-for>
+              </select>
+              <span aria-hidden="true" style="position:absolute;right:9px;pointer-events:none;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">expand_more</span>
+            </div>
+            <span style="{{ statusSectionLabel }};padding-top:6px">Reset status after</span>
+            <div style="position:relative;display:flex;align-items:center">
+              <select value="{{ durAfterValue }}" onChange="{{ onDurAfter }}" aria-label="Reset status after" style="{{ durSelectStyle }}" style-focus="border-color:var(--accent)">
+                <sc-for list="{{ durAfterOptions }}" as="da" hint-placeholder-count="5"><option value="{{ da.v }}">{{ da.label }}</option></sc-for>
+              </select>
+              <span aria-hidden="true" style="position:absolute;right:9px;pointer-events:none;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">expand_more</span>
+            </div>
+            <div onClick="{{ durDone }}" role="button" style="{{ durDoneStyle }};margin-top:10px" style-hover="cursor:pointer;opacity:0.9">Done</div>
           </div>
         </sc-if>
         <sc-if value="{{ statusOnWork }}" hint-placeholder-val="{{ false }}">
@@ -2333,22 +2351,6 @@ Project repository: https://github.com/fathomise/MailFathom
         </sc-if>
       </div>
     </div>
-    <sc-if value="{{ statusForOpen }}" hint-placeholder-val="{{ false }}">
-      <div data-motion="{{ moStatusScrim }}" data-phase="{{ mo.statusFor }}" onClick="{{ closeStatusFor }}" style="{{ statusForScrimStyle }}">
-        <div data-motion="{{ moStatusCard }}" data-phase="{{ mo.statusFor }}" role="menu" aria-label="{{ statusForTitle }}" onClick="{{ stopProp }}" style="{{ statusForCardStyle }}">
-          <sc-if value="{{ statusGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
-          <div style="font-size:13px;font-weight:600;padding:10px 9px 8px;margin:0 -5px 4px;padding-left:14px;border-bottom:1px solid var(--line2)">{{ statusForTitle }}</div>
-          <div style="display:flex;flex-direction:column;gap:1px;overflow:auto">
-            <sc-for list="{{ statusForRows }}" as="sf" hint-placeholder-count="6">
-              <div role="menuitemradio" aria-checked="{{ sf.current }}" onClick="{{ sf.pick }}" style="{{ sf.style }}" style-hover="cursor:pointer;background:var(--hover)">
-                <span style="flex:1">{{ sf.label }}</span>
-                <sc-if value="{{ sf.current }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:17px;line-height:1;color:var(--accent)">check</span></sc-if>
-              </div>
-            </sc-for>
-          </div>
-        </div>
-      </div>
-    </sc-if>
   </sc-if>
 
   <sc-if value="{{ newTaskOpen }}" hint-placeholder-val="{{ false }}">

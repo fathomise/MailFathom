@@ -1173,7 +1173,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        it last moved instead, read by `paneMotion`, so one pane at a time pushes forward and comes back.
        The held value is read by the whole render, so anything else gated on the same key (the FAB waits on
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
-    static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "statusMenu", "statusFor", "sideDrawer", "compose", "settings",
+    static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "statusMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "linkAsk", "source"];
@@ -1224,7 +1224,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "source", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "statusMenu", "statusFor", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
+      "statusMenu", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -4326,9 +4326,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeUserMenu: () => { if (st.userMenu) this.setState({ userMenu: false }); },
         /* The reader's own status, set from the menu under the account icon (from More on a phone). It is a menu, never
            the Settings screen, and it has no Done: every choice takes the moment it is made. A presence picked closes
-           the menu, the way any menu's item does. *For* opens a popup of its own beside the menu, which stays open
-           under it; *Message* and *Working from* open a page of the same menu. A choice in either takes and comes back
-           to the first page, which then shows it. A member only. */
+           the menu, the way any menu's item does, and always ends a while set on *Duration*. The three rows under the
+           states open a page in place of the first one: *Duration* is a state and when to reset it, both taken
+           together by its *Done*; on *Working from* a choice takes and comes back; *Message* is kept on leaving it.
+           A member only. */
         ...(() => {
           const mine = PRESENCE[myPresence];
           const text = st.myStatusText || "";
@@ -4357,9 +4358,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             meStatusLine: text || "Set a status message",
             meStatusLineStyle: "font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:" + (text ? "var(--text2)" : "var(--faint)"),
             meRailDotStyle: presenceDot(myPresence, touch ? 14 : 13),
-            openStatusMenu: () => this.setState({ statusMenu: true, statusFor: false, statusPage: null, statusDraft: null, userMenu: false, more: false }),
+            openStatusMenu: () => this.setState({ statusMenu: true, statusPage: null, statusDraft: null, userMenu: false, more: false }),
             statusMenuOpen: inOrg && !!st.statusMenu,
-            closeStatusMenu: () => commit({ statusMenu: false, statusFor: false, statusPage: null }),
+            closeStatusMenu: () => commit({ statusMenu: false, statusPage: null }),
             statusScrimStyle: isMobile
               ? "position:fixed;inset:0;z-index:95;display:flex;flex-direction:column;justify-content:flex-end;background:var(--scrim)"
               : "position:fixed;inset:0;z-index:95",
@@ -4372,12 +4373,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             statusAvatarStyle: "position:relative;width:" + (isMobile ? 40 : 32) + "px;height:" + (isMobile ? 40 : 32) + "px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:" + (isMobile ? 14 : 12) + "px;background:var(--border2);color:var(--text2);" +
               (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : ""),
             statusDotStyle: presenceDot(myPresence, isMobile ? 13 : 11),
-            statusHeadLine: mine.label + (myPresence !== "active" && forOpt !== "Until changed" ? " · " + forOpt.toLowerCase() : ""),
+            statusHeadLine: mine.label + (forOpt !== "Until changed" ? " · " + forOpt.toLowerCase() : ""),
             statusOnMain: !page,
             statusOnMessage: page === "message",
             statusOnWork: page === "work",
             statusPageHead: !!page,
-            statusPageTitle: page === "message" ? "Status message" : "Working from",
+            statusPageTitle: page === "duration" ? "Duration" : page === "message" ? "Status message" : "Working from",
             statusBack: () => commit({ statusPage: null }),
             statusPresenceRows: PRESENCE_ORDER.map(k => ({
               label: PRESENCE[k].label,
@@ -4385,24 +4386,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               hasNote: k === "hidden",
               fill: presenceFill(k, 10),
               current: k === myPresence,
-              pick: () => this.setState({ myPresence: k, myPresenceFor: "Until changed", statusMenu: false, statusFor: false, statusPage: null }),
+              pick: () => this.setState({ myPresence: k, myPresenceFor: "Until changed", statusMenu: false, statusPage: null }),
               style: row(k === myPresence),
             })),
-            statusForShown: myPresence !== "active",
-            statusForValue: forOpt,
-            openStatusFor: () => this.setState(s2 => ({ statusFor: !s2.statusFor })),
-            statusForOpen: !!st.statusFor,
-            closeStatusFor: () => this.setState({ statusFor: false }),
-            statusForTitle: "Show " + mine.label + " for",
-            statusForRowStyle: row(!!st.statusFor),
-            statusForRows: pageRows(["30 minutes", "1 hour", "2 hours", "Today", "This week", "Until changed"], forOpt, o => ({ myPresenceFor: o, statusFor: false })),
-            // Beside the menu on two panes, at its foot so the For row it came from stays in sight; a second sheet on the phone.
-            statusForScrimStyle: isMobile
-              ? "position:fixed;inset:0;z-index:96;display:flex;flex-direction:column;justify-content:flex-end;background:var(--scrim)"
-              : "position:fixed;inset:0;z-index:96",
-            statusForCardStyle: isMobile
-              ? "display:flex;flex-direction:column;max-height:70dvh;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 30px var(--sh-3);padding:0 8px calc(8px + env(safe-area-inset-bottom))"
-              : "position:fixed;bottom:18px;left:396px;width:200px;max-height:calc(100dvh - 36px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 10px 24px var(--sh-2),0 2px 6px var(--sh-2);overflow:hidden;padding:0 5px 5px",
+            // Duration, as Teams has it: a state and when to reset it, chosen together and taken by Done.
+            statusDurationValue: forOpt === "Until changed" ? "Until changed" : mine.label + " · " + forOpt.toLowerCase(),
+            openStatusDuration: () => this.setState({ statusPage: "duration", durPresence: myPresence, durAfter: forOpt === "Until changed" ? "Today" : forOpt }),
+            statusOnDuration: page === "duration",
+            durPresenceValue: st.durPresence || myPresence,
+            durPresenceFill: presenceFill(st.durPresence || myPresence, 10),
+            durPresenceOptions: PRESENCE_ORDER.map(k => ({ v: k, label: PRESENCE[k].label })),
+            onDurPresence: (e) => this.setState({ durPresence: e.target.value }),
+            durAfterValue: st.durAfter || "Today",
+            durAfterOptions: ["30 minutes", "1 hour", "2 hours", "Today", "This week"].map(o => ({ v: o, label: o })),
+            onDurAfter: (e) => this.setState({ durAfter: e.target.value }),
+            durDone: () => this.setState(s2 => ({ myPresence: s2.durPresence || myPresence, myPresenceFor: s2.durAfter || "Today", statusMenu: false, statusPage: null })),
+            durSelectStyle: "width:100%;box-sizing:border-box;appearance:none;-webkit-appearance:none;font-family:inherit;font-size:" + (touch ? 15 : 13) + "px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;outline:none;padding:0 32px 0 12px;height:" + (touch ? 44 : 36) + "px",
+            durDoneStyle: "align-self:flex-end;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:0 18px;min-height:" + (touch ? 44 : 34) + "px",
             statusMessageValue: text || "Set a status message",
             statusMessageValueStyle: "flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:" + (text ? "var(--text2)" : "var(--faint)"),
             openStatusMessage: () => this.setState({ statusPage: "message", statusDraft: text }),
