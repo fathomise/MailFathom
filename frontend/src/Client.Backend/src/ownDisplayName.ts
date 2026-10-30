@@ -69,9 +69,9 @@ export function readOwnDisplayName(
  * What became of a correction somebody made to their own name.
  *
  * A refused name is separated from every other failure because it is the one a person acts on: what they typed is
- * blank, longer than the deployment stores, or a name somebody else there already carries, and the answer is to type
- * another one rather than to sign in again or to try later. The four reasons say nothing that reaches that, which is
- * why this is an outcome of its own rather than a fifth member added to them.
+ * blank or longer than the deployment stores, and the answer is to type another one rather than to sign in again or
+ * to try later. The four reasons say nothing that reaches that, which is why this is an outcome of its own rather than
+ * a fifth member added to them.
  */
 export type OwnDisplayNameChange =
     | { readonly outcome: 'recorded'; readonly displayName: string }

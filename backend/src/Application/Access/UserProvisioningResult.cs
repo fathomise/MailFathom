@@ -10,9 +10,6 @@ public enum UserProvisioningResult
     /// <summary>The deployment holds the user once the write has run.</summary>
     Provisioned = 0,
 
-    /// <summary>Another user carries the label, so this user has no row.</summary>
-    LabelTaken = 1,
-
     /// <summary>The organization the user was to be recorded into is not one this deployment holds, so this user has no row.</summary>
-    UnknownOrganization = 2,
+    UnknownOrganization = 1,
 }

@@ -15,12 +15,12 @@ using Xunit;
 
 namespace MailFathom.IntegrationTests.Persistence;
 
-/// <summary>Proves what one user's record is read as, and what the schema refuses to hold two of.</summary>
+/// <summary>Proves what one user's record is read as, and that the schema holds two users under one label.</summary>
 /// <remarks>
 /// Every claim here needs a real database. The read is one row reached by the key and carries the version a later
 /// write would be accepted against, and nothing in a substitute would report a projection that had quietly become a
-/// scan or dropped the version; the label refusal is a unique index rather than a decision in any write path, so the
-/// only thing that can demonstrate it is PostgreSQL declining the insert; and the ceiling is measured by the server
+/// scan or dropped the version; that a label carries no uniqueness is a fact about the schema rather than any write
+/// path, so the only thing that can demonstrate it is PostgreSQL accepting the second insert; and the ceiling is measured by the server
 /// over its own rendering of the column, so a substitute would be asserting the arithmetic of the test instead.
 /// </remarks>
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
@@ -150,7 +150,7 @@ public sealed class OrchestratedUserSettingsDocumentTests(MailFathomOrchestratio
         }
     }
 
-    /// <summary>Two users under one label is refused by the schema, so a list of users can be read.</summary>
+    /// <summary>Two users under one label are both held, because the label names nobody and people share a name.</summary>
     /// <remarks>
     /// The user this test provisions is erased in a <c>finally</c>, including on a failure, for the reason
     /// <c>OrchestratedForeignUser</c> states: a deployment whose accounts come from configuration holds exactly one
@@ -158,18 +158,14 @@ public sealed class OrchestratedUserSettingsDocumentTests(MailFathomOrchestratio
     /// this collection arranges. It is what keeps the first test in this class reading the provisioned user too.
     /// </remarks>
     [Fact]
-    public async Task Insert_ASecondUserUnderALabelAlreadyHeld_IsRefusedByTheDatabase()
+    public async Task Insert_ASecondUserUnderALabelAlreadyHeld_IsHeldBesideTheFirst()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
-        var contested = $"user-{Guid.NewGuid():N}";
+        var shared = $"user-{Guid.NewGuid():N}";
         var holder = Guid.NewGuid();
-
-        // The identifier the refused insert was given, held for the same reason the first one is: were the unique
-        // index ever missing — the regression this test exists to catch — that insert would commit, and a row nothing
-        // holds the identifier for is one nothing can erase.
-        var contender = Guid.NewGuid();
+        var namesake = Guid.NewGuid();
 
         try
         {
@@ -178,27 +174,35 @@ public sealed class OrchestratedUserSettingsDocumentTests(MailFathomOrchestratio
                 {
                     var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, token);
 
-                    context.UserAccounts.Add(NewUser(holder, contested));
+                    context.UserAccounts.Add(NewUser(holder, shared));
                 },
                 cancellationToken);
 
             // Act
-            var refused = await Record.ExceptionAsync(() => services.CommitAsync(
+            await services.CommitAsync(
                 async (_, session, token) =>
                 {
                     var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, token);
 
-                    context.UserAccounts.Add(NewUser(contender, contested));
+                    context.UserAccounts.Add(NewUser(namesake, shared));
                 },
-                cancellationToken));
+                cancellationToken);
 
             // Assert
-            Assert.IsType<DbUpdateException>(refused);
+            var carrying = await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<MailFathomDbContext>()
+                    .UserAccounts
+                    .AsNoTracking()
+                    .Where(user => user.DisplayName == shared)
+                    .Select(user => user.Id)
+                    .ToArrayAsync(token),
+                cancellationToken);
+            Assert.Equal(new[] { holder, namesake }.Order(), carrying.Order());
         }
         finally
         {
             await OrchestratedForeignUser.EraseAsync(services, holder);
-            await OrchestratedForeignUser.EraseAsync(services, contender);
+            await OrchestratedForeignUser.EraseAsync(services, namesake);
         }
     }
 

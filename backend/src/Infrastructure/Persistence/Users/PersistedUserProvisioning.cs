@@ -5,7 +5,6 @@
 using MailFathom.Application.Access;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
-using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -15,10 +14,9 @@ namespace MailFathom.Infrastructure.Persistence.Users;
 /// <remarks>
 /// <para>
 /// Both statements are single and conditional, which is what makes them safe against the race they actually meet: two
-/// administrators recording or relabelling users at the same moment. An insert guarded by <c>ON CONFLICT</c> — over
-/// every unique constraint the row has rather than over the key alone — leaves the loser having written nothing rather
-/// than raising, and an update guarded by the label's own index writes no row when the label is already theirs or is
-/// somebody else's.
+/// writers reaching one user at the same moment. An insert guarded by <c>ON CONFLICT</c> leaves the loser having written
+/// nothing rather than raising, and an update selecting the user's own row writes nothing where another writer erased
+/// them first.
 /// </para>
 /// <para>
 /// The document is provisioned as the empty object and is never written here. What a user's record holds is written by
@@ -49,13 +47,10 @@ internal sealed class PersistedUserProvisioning(MailFathomDbContext dbContext, T
 
         var provisionedAt = timeProvider.GetUtcNow();
 
-        // The conflict clause names no target, so it covers the label's unique index as well as the primary key. Two
-        // administrators recording one label at once each mint an identifier and reach this insert, and a clause
-        // guarding the key alone would leave the loser raising the server's own unique-violation sentence instead of
-        // an answer. The organization is selected rather than written as a value, so one whose deletion committed
-        // before this statement began inserts nothing, and the reads below turn that silence into an answer. A deletion
-        // still uncommitted is one the selection cannot see: the insert then waits on the foreign key and is refused
-        // once the deletion commits, which no conflict clause covers.
+        // The organization is selected rather than written as a value, so one whose deletion committed before this
+        // statement began inserts nothing, and the read below turns that silence into an answer. A deletion still
+        // uncommitted is one the selection cannot see: the insert then waits on the foreign key and is refused once the
+        // deletion commits, which no conflict clause covers.
         try
         {
             await dbContext.Database.ExecuteSqlAsync(
@@ -73,15 +68,9 @@ internal sealed class PersistedUserProvisioning(MailFathomDbContext dbContext, T
             return UserProvisioningResult.UnknownOrganization;
         }
 
-        if (await dbContext.UserAccounts.AsNoTracking().AnyAsync(record => record.Id == userId, cancellationToken))
-        {
-            return UserProvisioningResult.Provisioned;
-        }
-
-        return organizationId is { } organization
-            && !await dbContext.Organizations.AsNoTracking().AnyAsync(stored => stored.Id == organization, cancellationToken)
-                ? UserProvisioningResult.UnknownOrganization
-                : UserProvisioningResult.LabelTaken;
+        return await dbContext.UserAccounts.AsNoTracking().AnyAsync(record => record.Id == userId, cancellationToken)
+            ? UserProvisioningResult.Provisioned
+            : UserProvisioningResult.UnknownOrganization;
     }
 
     /// <inheritdoc />
@@ -90,40 +79,16 @@ internal sealed class PersistedUserProvisioning(MailFathomDbContext dbContext, T
         var userId = RequireNamed(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
 
-        // Guarded by the label's own index rather than by a read before it, for the reason the insert above is guarded
-        // by ON CONFLICT: a roster read a moment earlier says nothing about the row another writer is committing, and
-        // the alternative to a conditional statement is the server's unique-violation sentence reaching an operator.
         // The version is deliberately left where it is — it guards the document a writer composes over, and the label
         // is not part of that document, so stepping it here would refuse a write that had read the record correctly.
-        await RowsToRelabel(dbContext.UserAccounts, userId, displayName)
+        var relabelled = await dbContext.UserAccounts
+            .Where(record => record.Id == userId)
             .ExecuteUpdateAsync(
-                record => record.SetProperty(user => user.DisplayName, displayName),
+                record => record.SetProperty(held => held.DisplayName, displayName),
                 cancellationToken);
 
-        // What the row carries afterwards rather than whether this statement was the one that wrote it, so a caller
-        // relabelling to the label the row already had is told it holds it rather than that somebody else does.
-        return await dbContext.UserAccounts
-            .AsNoTracking()
-            .AnyAsync(record => record.Id == userId && record.DisplayName == displayName, cancellationToken);
+        return relabelled > 0;
     }
-
-    /// <summary>Composes the rows a relabel writes to: this user's, and only while no other user carries the label.</summary>
-    /// <param name="records">The user records to select from.</param>
-    /// <param name="userId">The user being relabelled.</param>
-    /// <param name="displayName">The label they would carry.</param>
-    /// <returns>The row to write, or nothing where the label is already theirs or is somebody else's.</returns>
-    /// <remarks>
-    /// Composed apart from the statement so that what it translates to is assertable without a server: the guard is a
-    /// correlated existence check, and a predicate the provider could not translate would first be met as an exception
-    /// out of a deployment's own rename.
-    /// </remarks>
-    internal static IQueryable<UserAccountEntity> RowsToRelabel(
-        IQueryable<UserAccountEntity> records,
-        Guid userId,
-        string displayName) =>
-        records.Where(record => record.Id == userId
-            && record.DisplayName != displayName
-            && !records.Any(held => held.Id != userId && held.DisplayName == displayName));
 
     private static Guid RequireNamed(UserId user) =>
         user.IsSpecified

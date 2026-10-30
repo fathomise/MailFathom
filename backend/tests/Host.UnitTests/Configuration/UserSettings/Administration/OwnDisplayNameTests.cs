@@ -182,9 +182,9 @@ public sealed class OwnDisplayNameTests
             .RelabelAsync(Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>The name is unique across the deployment, and the statement itself is what refuses one already taken.</summary>
+    /// <summary>A person erased between the read and the write is answered as one this deployment does not hold, never as a refused name.</summary>
     [Fact]
-    public async Task ChangeAsync_ANameSomebodyElseCarries_IsRefusedWithoutNamingWho()
+    public async Task ChangeAsync_APersonErasedBeforeTheWrite_AnswersThatThereIsNoRecord()
     {
         // Arrange
         var harness = new NameHarness(MailFathomPermission.ProfileWrite);
@@ -197,9 +197,8 @@ public sealed class OwnDisplayNameTests
         var change = await harness.Names.ChangeAsync("morgan", TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.True(change.UserHeld);
-        Assert.Null(change.Recorded);
-        Assert.DoesNotContain("morgan", change.RefusalMessage!, StringComparison.Ordinal);
+        Assert.False(change.UserHeld);
+        Assert.Null(change.RefusalMessage);
     }
 
     [Fact]

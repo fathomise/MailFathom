@@ -68,11 +68,11 @@ public sealed class UserAccountModelTests
     }
 
     /// <summary>
-    /// The label is a relational column with one row per value, because an administrator reading a list of users has
-    /// to be able to tell them apart — and because a label the database admits twice is one a person cannot.
+    /// The label is a required, bounded column and nothing more: no index holds it to one user, because two people may
+    /// carry one name and a refusal over it would tell whoever wrote the second that somebody they cannot see carries it.
     /// </summary>
     [Fact]
-    public void UserAccountModel_DisplayName_IsARequiredBoundedLabelHeldToOneUser()
+    public void UserAccountModel_DisplayName_IsARequiredBoundedLabelAnyNumberOfUsersMayCarry()
     {
         // Arrange
         using var context = CreateContext();
@@ -80,17 +80,14 @@ public sealed class UserAccountModelTests
 
         // Act
         var displayName = entityType.FindProperty("DisplayName");
-        var index = Assert.Single(
-            entityType.GetIndexes(),
-            candidate => candidate.Properties.Any(property => property.Name == "DisplayName"));
 
         // Assert
         Assert.NotNull(displayName);
         Assert.False(displayName.IsNullable);
         Assert.Equal(UserAccountEntity.MaximumDisplayNameLength, displayName.GetMaxLength());
-        Assert.Equal(["DisplayName"], index.Properties.Select(property => property.Name));
-        Assert.True(index.IsUnique);
-        Assert.Equal(PersistenceConstraintNames.UserAccountDisplayNameUniqueIndexName, index.GetDatabaseName());
+        Assert.DoesNotContain(
+            entityType.GetIndexes(),
+            index => index.Properties.Any(property => property.Name == "DisplayName"));
     }
 
     /// <summary>The user's configurable record is one document, and the schema says nothing about what is in it.</summary>

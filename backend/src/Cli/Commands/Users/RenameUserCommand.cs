@@ -35,7 +35,7 @@ internal static class RenameUserCommand
 
         Option<string> displayNameOption = new("--display-name")
         {
-            Description = "The label this user is told apart by from now on, unique across the deployment.",
+            Description = "The label this user is read by from now on; another user may carry the same one.",
             Required = true,
         };
 

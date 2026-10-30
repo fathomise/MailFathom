@@ -13,11 +13,13 @@ using Xunit;
 
 namespace MailFathom.IntegrationTests.Persistence;
 
-/// <summary>Proves that a user recorded into an organization enters it in the statement that records them.</summary>
+/// <summary>Proves that a user recorded into an organization enters it in the statement that records them, and that a relabel writes their row alone.</summary>
 /// <remarks>
 /// The organization is selected inside the insert rather than written as a value, so an organization the deployment
-/// does not hold leaves no row rather than raising its foreign key's violation, and the reads afterwards tell that
-/// apart from a label somebody else carries. Both halves are a raw statement only PostgreSQL can answer. Every user and
+/// does not hold leaves no row rather than raising its foreign key's violation. A relabel is an update selected by the
+/// user's identifier and guarded by nothing else, so what it must not do — reach a second row, or report a user the
+/// deployment does not hold as relabelled — is only visible against the table itself. Each is a statement only
+/// PostgreSQL can answer. Every user and
 /// organization arranged here is removed in a <c>finally</c>, because a second user row left behind breaks every later
 /// start in this collection rather than the test that wrote it.
 /// </remarks>
@@ -89,6 +91,95 @@ public sealed class OrchestratedUserProvisioningTests(MailFathomOrchestrationFix
             await OrchestratedForeignUser.EraseAsync(services, user);
         }
     }
+
+    /// <summary>A label another user carries is put on the user named, and the user carrying it keeps theirs.</summary>
+    [Fact]
+    public async Task RelabelAsync_ALabelAnotherUserCarries_RelabelsTheUserNamedAlone()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var relabelled = Guid.CreateVersion7();
+        var namesake = Guid.CreateVersion7();
+        var shared = $"shared-{namesake:N}";
+
+        try
+        {
+            Assert.Equal(
+                UserProvisioningResult.Provisioned,
+                await ProvisionAsync(services, relabelled, $"provisioned-{relabelled:N}", cancellationToken));
+            Assert.Equal(
+                UserProvisioningResult.Provisioned,
+                await ProvisionAsync(services, namesake, shared, cancellationToken));
+
+            // Act
+            var held = await RelabelAsync(services, relabelled, shared, cancellationToken);
+
+            // Assert
+            Assert.True(held);
+            Assert.Equal(shared, await ReadLabelOfAsync(services, relabelled, cancellationToken));
+            Assert.Equal(shared, await ReadLabelOfAsync(services, namesake, cancellationToken));
+        }
+        finally
+        {
+            await OrchestratedForeignUser.EraseAsync(services, relabelled);
+            await OrchestratedForeignUser.EraseAsync(services, namesake);
+        }
+    }
+
+    /// <summary>A relabel of an identifier no row carries writes nothing and says the deployment does not hold them.</summary>
+    [Fact]
+    public async Task RelabelAsync_AUserTheDeploymentDoesNotHold_ReportsThemUnheld()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var label = $"nobody-{Guid.CreateVersion7():N}";
+
+        // Act
+        var held = await RelabelAsync(services, Guid.CreateVersion7(), label, cancellationToken);
+
+        // Assert
+        Assert.False(held);
+        Assert.False(await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>()
+                .UserAccounts
+                .AsNoTracking()
+                .AnyAsync(record => record.DisplayName == label, token),
+            cancellationToken));
+    }
+
+    private static Task<UserProvisioningResult> ProvisionAsync(
+        OrchestratedMailFathomServices services,
+        Guid user,
+        string label,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IUserProvisioning>().ProvisionAsync(
+                UserId.Create(user),
+                label,
+                organizationId: null,
+                token),
+            cancellationToken);
+
+    private static Task<bool> RelabelAsync(
+        OrchestratedMailFathomServices services,
+        Guid user,
+        string label,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IUserProvisioning>().RelabelAsync(UserId.Create(user), label, token),
+            cancellationToken);
+
+    private static Task<string> ReadLabelOfAsync(
+        OrchestratedMailFathomServices services,
+        Guid user,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>()
+                .UserAccounts
+                .AsNoTracking()
+                .Where(record => record.Id == user)
+                .Select(record => record.DisplayName)
+                .SingleAsync(token),
+            cancellationToken);
 
     private static Task<UserProvisioningResult> ProvisionAsync(
         OrchestratedMailFathomServices services,

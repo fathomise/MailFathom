@@ -142,12 +142,13 @@ internal static class UserRecordEndpoints
 
     /// <summary>Records a user this deployment did not hold.</summary>
     /// <param name="roster">The roster administration.</param>
-    /// <param name="request">The label the user is told apart by.</param>
+    /// <param name="request">The label the user is read by.</param>
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
     /// <returns><c>200</c> with the identifier the user was minted under, or <c>400</c> naming what has to change first.</returns>
     /// <remarks>
-    /// A refusal is a request the administrator corrects — an endpoint to narrow, a label already taken, an organization
-    /// this deployment does not hold — so it names what to change rather than reporting that something failed. An
+    /// A refusal is a request the administrator corrects — an endpoint to narrow, an organization this deployment does
+    /// not hold — so it names what to change rather than reporting that something failed. A label another user carries
+    /// is accepted. An
     /// organization outside the caller's scope is refused exactly as one this deployment does not hold.
     /// </remarks>
     internal static async Task<Results<Ok<UserProvisionedResponse>, ProblemHttpResult>> ProvisionAsync(

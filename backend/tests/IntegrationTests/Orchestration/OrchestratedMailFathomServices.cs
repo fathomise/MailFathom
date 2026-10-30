@@ -655,13 +655,19 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
     /// <summary>The label the suite records its user under, which is the composed host's too, so both converge on one row.</summary>
     private const string SuiteUserDisplayName = "user";
 
+    /// <summary>
+    /// The identifier the suite records its user under, fixed so two starts racing to record them write one row: the
+    /// primary key absorbs the second insert, which nothing on the label does any more.
+    /// </summary>
+    private static readonly Guid SuiteUserId = new("5c17e000-0000-7000-8000-000000000001");
+
     /// <summary>Records the user this suite's mail belongs to, unless an earlier start over this database already did.</summary>
     /// <remarks>
     /// The suite's own arrangement rather than anything a deployment does: a fresh database holds nobody, and a user is
     /// recorded before anything is stored for them, through the port an administrator's <c>mfctl user add</c> reaches.
     /// Only while the table is empty, because the suite starts several hosts over one database and every row an earlier
-    /// start stored already names the user it recorded. Two starts racing here both insert under one label, and the
-    /// label's unique index keeps one.
+    /// start stored already names the user it recorded. Two starts racing here both insert under
+    /// <see cref="SuiteUserId" />, and the primary key keeps one row.
     /// </remarks>
     private static async Task RecordTheSuiteUserUnlessOneIsHeldAsync(IHost host, CancellationToken cancellationToken)
     {
@@ -674,7 +680,7 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
 
         await scope.ServiceProvider
             .GetRequiredService<IUserProvisioning>()
-            .ProvisionAsync(UserId.Create(Guid.NewGuid()), SuiteUserDisplayName, organizationId: null, cancellationToken);
+            .ProvisionAsync(UserId.Create(SuiteUserId), SuiteUserDisplayName, organizationId: null, cancellationToken);
     }
 
     /// <summary>Records the account this suite's mail belongs to and assigns it to the suite's user, unless an earlier start did.</summary>
@@ -740,7 +746,7 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
     /// the migrations have run and before any test reaches a scope, exactly where a deployment's own startup gate reads
     /// it. Sought by the label rather than as the only row, because a class proving something about two users holds a
     /// second one while it runs, and a start made during that stretch belongs to the suite's user exactly as any other
-    /// does; the label's unique index is what makes the read single.
+    /// does. The read is single because the suite records that label under <see cref="SuiteUserId" /> alone.
     /// </remarks>
     private static async Task<UserId> ReadSuiteUserAsync(IHost host, CancellationToken cancellationToken)
     {

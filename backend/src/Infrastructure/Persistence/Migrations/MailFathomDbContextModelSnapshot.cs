@@ -4449,10 +4449,6 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DisplayName")
-                        .IsUnique()
-                        .HasDatabaseName("ix_settings_accounts_display_name");
-
                     b.HasIndex("OrganizationId")
                         .HasDatabaseName("ix_settings_accounts_organization");
 

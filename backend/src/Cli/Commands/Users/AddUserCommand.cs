@@ -35,7 +35,7 @@ internal static class AddUserCommand
         Option<string> displayNameOption = new("--display-name")
         {
             Description =
-                "The label this user is told apart by, unique across the deployment. It may change later and is never the identity.",
+                "The label this user is read by; another user may carry the same one. It may change later and is never the identity.",
             Required = true,
         };
 
