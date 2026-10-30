@@ -26,6 +26,6 @@ MailFathomDesign.data.documentPreviews = {
   ],
   other: [
     { text: "Document preview opened in the app - no file downloaded to disk. The content comes from the message attachment and is indexed by MailFathom for citations." },
-    { text: "Passages cited in “Discover” results are highlighted where they came from." },
+    { text: "Passages cited in “Start” results are highlighted where they came from." },
   ],
 };

@@ -37,3 +37,19 @@ input { font-family: inherit; }
 @keyframes mfrowarc { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 28% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } }
 @keyframes mfrowmoved { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 14% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 62% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } }
 @keyframes mfrowedit { 0% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 55% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 40px transparent } }
+
+/* Fathom's button: a disc in the accent with the glyph in the ink that stands on it - the one blue thing in the corner,
+   so it is found at once on Start and the Agent - with the app's own floating shadow under it. */
+[data-fathom-fab] {
+  background: var(--accent);
+  border: 1px solid transparent;
+  box-shadow: 0 1px 0 color-mix(in oklch, white 22%, transparent) inset, 0 6px 18px var(--sh-2), 0 1px 3px var(--sh-1);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, bottom 120ms ease;
+}
+[data-fathom-fab]:hover { transform: translateY(-1px); background: color-mix(in oklch, var(--accent) 88%, black);
+  box-shadow: 0 1px 0 color-mix(in oklch, white 22%, transparent) inset, 0 10px 24px var(--sh-2), 0 1px 3px var(--sh-1); }
+[data-fathom-fab]:active { transform: scale(0.96); }
+/* Open, or Smart on: a ring in the accent stands off the disc, so the button reads as the way out. */
+[data-fathom-fab][aria-expanded="true"], [data-fathom-fab][data-smart-on="1"] { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent), 0 6px 18px var(--sh-2); }
+/* Focus stands outside that ring in the ink, so a keyboard still sees where it is while the menu is open or Smart is on. */
+[data-fathom-fab]:focus-visible { outline: 2px solid var(--text); outline-offset: 8px; }
