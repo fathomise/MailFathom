@@ -607,8 +607,7 @@ export const en = {
         'There is no connection to the MailFathom server, so your name, your picture, and your time zone are shown here rather than offered for you to change until it is back.',
     'settings.preferencesNotYours':
         'This sign-in may not change the settings that follow you between machines, so they are shown here as they stand. The language and what this machine does are still yours to set.',
-    'settings.nameNotAcceptable':
-        'That name was not accepted. It cannot be blank or longer than 128 characters, and it cannot be one somebody else on this server already goes by.',
+    'settings.nameNotAcceptable': 'That name was not accepted. It cannot be blank or longer than 128 characters.',
     'settings.nameNotStored': 'That name was not saved to the server, so it still holds you under the old one.',
     'settings.nameStateUnknown': 'The server did not answer, so it is not known whether that name was saved.',
     'settings.choosePicture': 'Picture',

@@ -30,7 +30,8 @@ namespace MailFathom.Host.UnitTests.Configuration.UserSettings.Administration;
 /// <summary>
 /// Covers what an administrator does to the roster itself: who this deployment holds, who joins it, and who leaves.
 /// The rules worth stating are the ones that stop a deployment from becoming one that serves the wrong person — the
-/// several-user refusal and the unique label — and the one act that disposes of everything recorded for somebody.
+/// several-user refusal and the organization a user joins — and the one act that disposes of everything recorded for
+/// somebody. A label is not among them: two users may carry one, so nothing here refuses a label another user carries.
 /// </summary>
 public sealed class UserRosterAdministrationTests
 {
@@ -197,15 +198,18 @@ public sealed class UserRosterAdministrationTests
 
     /// <summary>A refused provisioning recorded nobody, so no replica is asked to read anything again.</summary>
     [Fact]
-    public async Task ProvisionAsync_ALabelAnotherUserAlreadyCarries_AnnouncesNothing()
+    public async Task ProvisionAsync_IntoAnOrganizationTheInsertFindsNoLonger_AnnouncesNothing()
     {
         // Arrange
         var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
-        harness.LabelTaken();
+        harness.OrganizationGone();
         var heard = await RosterAnnouncementListener.ListenAsync(harness.Backplane, () => true);
 
         // Act
-        await harness.Roster.ProvisionAsync("alex", organizationId: null, TestContext.Current.CancellationToken);
+        await harness.Roster.ProvisionAsync(
+            "alex",
+            AccessAuthorizations.ScopedOrganization,
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(heard);
@@ -249,36 +253,39 @@ public sealed class UserRosterAdministrationTests
     }
 
     /// <summary>
-    /// A label is what an administrator selects a user by, so two users carrying one would leave nothing to select on.
-    /// The table's unique index is what refuses it, because no read ahead of the insert could have done so without
-    /// racing a concurrent write — and the label it is asked about is the one written, trimmed.
+    /// Two people may carry one name, so a label another user already carries records the user beside them, and the
+    /// label written is the one asked for, trimmed. Nothing here reads the roster for it: a refusal would tell an
+    /// administrator scoped to one organization that somebody outside it carries the label.
     /// </summary>
     [Fact]
-    public async Task ProvisionAsync_ALabelAnotherUserAlreadyCarries_IsRefusedNamingTheLabel()
+    public async Task ProvisionAsync_ALabelAnotherUserAlreadyCarries_RecordsTheUserUnderIt()
     {
         // Arrange
         var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
-        harness.LabelTaken();
+        harness.Holding(new UserRecord(SyntheticUser.Another, "alex"));
 
         // Act
         var outcome = await harness.Roster.ProvisionAsync("  alex  ", organizationId: null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.False(outcome.IsProvisioned);
-        Assert.Contains("already recorded as 'alex'", outcome.RefusalMessage!, StringComparison.Ordinal);
-        await harness.Provisioning.Received(1).ProvisionAsync(Arg.Any<UserId>(), "alex", Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
+        Assert.True(outcome.IsProvisioned);
+        Assert.NotEqual(SyntheticUser.Another, outcome.User);
+        await harness.Provisioning.Received(1).ProvisionAsync(outcome.User, "alex", null, Arg.Any<CancellationToken>());
     }
 
-    /// <summary>An insert the index refused recorded nobody, so no record is written for an identifier nothing holds and nothing is counted again.</summary>
+    /// <summary>An insert that found its organization gone recorded nobody, so no record is written for an identifier nothing holds and nothing is counted again.</summary>
     [Fact]
-    public async Task ProvisionAsync_ALabelTheInsertRefuses_WritesNoRecordAndCountsNothing()
+    public async Task ProvisionAsync_IntoAnOrganizationTheInsertFindsNoLonger_WritesNoRecordAndCountsNothing()
     {
         // Arrange
         var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
-        harness.LabelTaken();
+        harness.OrganizationGone();
 
         // Act
-        var outcome = await harness.Roster.ProvisionAsync("alex", organizationId: null, TestContext.Current.CancellationToken);
+        var outcome = await harness.Roster.ProvisionAsync(
+            "alex",
+            AccessAuthorizations.ScopedOrganization,
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.False(outcome.IsProvisioned);
@@ -567,9 +574,7 @@ public sealed class UserRosterAdministrationTests
     {
         // Arrange
         var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
-        harness.Provisioning
-            .ProvisionAsync(Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
-            .Returns(UserProvisioningResult.UnknownOrganization);
+        harness.OrganizationGone();
 
         // Act
         var outcome = await harness.Roster.ProvisionAsync(
@@ -968,12 +973,11 @@ public sealed class UserRosterAdministrationTests
     }
 
     /// <summary>
-    /// Two users carrying one label would leave an administrator nothing to select on, which the column's index refuses —
-    /// and the index is what decides it, because no reading of a snapshot could refuse a label taken while the write
-    /// was in flight.
+    /// A user erased between being read and the relabel reaching their row is reported as one this deployment does not
+    /// hold, which is what the statement writing no row means now that no label is ever refused.
     /// </summary>
     [Fact]
-    public async Task RelabelAsync_ALabelAnotherUserCarries_IsRefusedNamingTheLabel()
+    public async Task RelabelAsync_AUserErasedBeforeTheWrite_ReportsTheUserAsUnheld()
     {
         // Arrange
         var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
@@ -989,9 +993,7 @@ public sealed class UserRosterAdministrationTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.True(outcome.UserHeld);
-        Assert.NotNull(outcome.RefusalMessage);
-        Assert.Contains("'alex'", outcome.RefusalMessage, StringComparison.Ordinal);
+        Assert.Equal(UserRelabelOutcome.NoSuchUser, outcome);
     }
 
     /// <summary>A user this deployment does not hold is an absence to report rather than a label to refuse.</summary>
@@ -1218,11 +1220,11 @@ public sealed class UserRosterAdministrationTests
 
         internal void Serving(UserId user) => this.ServedUsers.Published(new ServedUser(user, "served", []), 1);
 
-        /// <summary>Has the table's unique index refuse whatever label is written, as it does a label another user carries.</summary>
-        internal void LabelTaken() =>
+        /// <summary>Has the insert find the organization it was to record the user into gone, as it does one deleted while the write was in flight.</summary>
+        internal void OrganizationGone() =>
             this.Provisioning
                 .ProvisionAsync(Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
-                .Returns(UserProvisioningResult.LabelTaken);
+                .Returns(UserProvisioningResult.UnknownOrganization);
 
         /// <summary>Counts how often the users this deployment holds were counted, which a provisioning or an erasure does once it commits.</summary>
         internal int CountsRead() =>

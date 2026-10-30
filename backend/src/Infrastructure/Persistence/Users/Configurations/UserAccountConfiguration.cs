@@ -27,14 +27,13 @@ internal sealed class UserAccountConfiguration : IEntityTypeConfiguration<UserAc
         // surface after it — so the model never mints one behind a caller that meant to state it.
         entity.Property(user => user.Id).ValueGeneratedNever();
 
-        // The label an administrator reads a list of users by, unique across the deployment and bounded, because a
-        // column nothing bounds is one an administrative surface could be handed a page of text for.
+        // The label an administrator reads a list of users by, bounded because a column nothing bounds is one an
+        // administrative surface could be handed a page of text for. It carries no index: nothing resolves a user by it,
+        // and two people may carry one name, so a uniqueness the deployment enforced would only tell an administrator,
+        // or a person renaming themselves, that somebody they cannot see already carries it.
         entity.Property(user => user.DisplayName)
             .HasMaxLength(UserAccountEntity.MaximumDisplayNameLength)
             .IsRequired();
-        entity.HasIndex(user => user.DisplayName)
-            .IsUnique()
-            .HasDatabaseName(PersistenceConstraintNames.UserAccountDisplayNameUniqueIndexName);
 
         // Restricted rather than cascaded, because deleting an organization is refused while it has members rather than
         // taking them with it; the index serves that count and the listing's member figure.

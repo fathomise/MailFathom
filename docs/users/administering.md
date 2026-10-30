@@ -800,7 +800,7 @@ reached serves this user now; other replicas pick up the change after their next
 
 Every command but `list` and `add` takes `--user` and does not need it while the deployment holds one person: it acts
 on the single user there is, and refuses rather than guessing where there are several. `mfctl user rename` replaces
-the label you tell somebody apart by; nothing is keyed by it, so it moves no mail and invalidates no identifier, and
+the label you read somebody by, which another person may carry too; nothing is keyed by it, so it moves no mail and invalidates no identifier, and
 the new label lasts — no start reads anybody's label out of a file any more, so there is nobody a rename is undone for.
 
 **Keeping somebody off one endpoint is `mfctl user endpoints`.** `--mcp false` stops any agent acting for a person who

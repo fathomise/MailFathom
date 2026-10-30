@@ -51,7 +51,7 @@ internal sealed class UserAccountEntity
     /// </remarks>
     public Guid Id { get; set; }
 
-    /// <summary>The label an operator tells this user apart by, which is unique across the deployment.</summary>
+    /// <summary>The label an operator reads this user by, which another user may carry as well.</summary>
     /// <remarks>
     /// A label rather than an identity: nothing resolves a user by it, and every reference to a user is the
     /// identifier above. What the uniqueness buys is a list of users an administrator can read — two rows carrying

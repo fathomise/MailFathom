@@ -616,7 +616,7 @@ export const pl: Catalogue = {
     'settings.preferencesNotYours':
         'To logowanie nie może zmieniać ustawień, które idą za Tobą między maszynami, więc są tu pokazane w obecnym stanie. Język i to, co robi ta maszyna, nadal ustawiasz samodzielnie.',
     'settings.nameNotAcceptable':
-        'To imię i nazwisko nie zostało przyjęte. Nie może być puste ani dłuższe niż 128 znaków i nie może być takie, jakim posługuje się już ktoś inny na tym serwerze.',
+        'To imię i nazwisko nie zostało przyjęte. Nie może być puste ani dłuższe niż 128 znaków.',
     'settings.nameStateUnknown': 'Serwer nie odpowiedział, więc nie wiadomo, czy to imię i nazwisko zostało zapisane.',
     'settings.nameNotStored':
         'To imię i nazwisko nie zostało zapisane na serwerze, więc serwer nadal zna Cię pod poprzednim.',

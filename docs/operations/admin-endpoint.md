@@ -509,11 +509,6 @@ organization's administrator lists that organization's people, mail accounts, gr
 else's, and a caller holding `mailfathom.admin.read` over one user alone lists that user, the mail accounts assigned to
 them alone, the assignments made to them at their own scope, and no organization and no group.
 
-**One refusal does reach past a scope: a label already taken.** A user's label is unique across the deployment rather
-than within an organization, so an organization's administrator recording or relabelling one of their own people with a
-label somebody outside that organization carries is refused with `400` saying another user is already recorded under it.
-That tells them such a label exists somewhere in the deployment and nothing else about who carries it.
-
 **The routes that read and keep roles, groups, and role assignments accept a grant held at any of the three as well**,
 under `mailfathom.admin.read` for a read and `mailfathom.admin.roles.write` for a write:
 
@@ -669,8 +664,8 @@ and a request with none is refused as any other.
 | `GET /api/admin/configuration/adoption` | `mailfathom.admin.read` | Reports what adopting a path would copy out of the deployment's files, naming the file behind each setting, and writes nothing. |
 | `POST /api/admin/configuration/adoption` | `mailfathom.admin.configuration.write` | Copies those values into the persisted document. **This is the one route that moves a decision out of a deployment's files and into its database.** |
 | `GET /api/admin/users` | `mailfathom.admin.read` | Reads [one page](#reading-the-users-mail-accounts-and-organizations-a-page-at-a-time) of [the users this deployment holds records for](#users-and-their-records), each with the label it tells them apart by, whether the running process serves them, and whether they are served on the MCP endpoint and on the client endpoint. It is what a user or credential command reads before it acts, so that a deployment serving one person needs no `--user`. |
-| `POST /api/admin/users` | `mailfathom.admin.configuration.write` | Records a user this deployment did not hold, from the display name the body carries, into the organization its `organizationId` names or into none where it names none, and answers with the identifier they were minted under. It refuses, naming what to change, a second user while a user-facing endpoint admits a caller who names nobody, a label another user already carries, and an organization this deployment does not hold. |
-| `PUT /api/admin/users/{userId}/display-name` | `mailfathom.admin.configuration.write` | Replaces the label the user is told apart by. It answers with no body — the label the request carried is the whole of what changed — refuses a label another user carries, naming what to change, and answers `404` for a user this deployment holds no record for, as every other user-scoped route does. |
+| `POST /api/admin/users` | `mailfathom.admin.configuration.write` | Records a user this deployment did not hold, from the display name the body carries, into the organization its `organizationId` names or into none where it names none, and answers with the identifier they were minted under. It refuses, naming what to change, a second user while a user-facing endpoint admits a caller who names nobody, and an organization this deployment does not hold. A label another user already carries is accepted. |
+| `PUT /api/admin/users/{userId}/display-name` | `mailfathom.admin.configuration.write` | Replaces the label the user is read by. It answers with no body — the label the request carried is the whole of what changed — accepts a label another user carries as well, and answers `404` for a user this deployment holds no record for, as every other user-scoped route does. |
 | `PUT /api/admin/users/{userId}/endpoint-access` | `mailfathom.admin.configuration.write` | Keeps the user off [the MCP endpoint, the client endpoint, or both](#users-and-their-records), or lets them back on, from `mcpEndpoint` and `clientEndpoint` in the body; a switch the body leaves out stays where it is and a body naming neither is refused. It writes them into the user's record, answers both switches as the record now states them, and answers `404` for a user this deployment holds no record for and `409` where another write moved the record first. |
 | `DELETE /api/admin/users/{userId}` | `mailfathom.admin.erase` | Erases the user and every message, folder, attachment, and derived index this deployment holds for them, once [the work bound to their own mailboxes has stopped](#users-and-their-records). **This is the one route here that destroys mail, and it cannot be undone.** A user this deployment does not hold is reported as nothing erased rather than as a refusal, and work that will not stop within its bound is answered `409` naming it, with nothing erased. So is a user who alone is assigned a mail account the caller's scope does not cover — one in no organization, which only the deployment scope covers, under a scope naming the user. |
 | `GET /api/admin/users/{userId}/record` | `mailfathom.admin.read` | Hands over one user's record as the redacted JSON an editing session opens, with the version it was read at. The record carries no mail accounts: [those are read on their own routes](#mail-accounts-and-who-they-are-assigned-to), under `/api/admin/mail-accounts`. |
@@ -1923,8 +1918,9 @@ identifier MailFathom mints under [ADR
 its leading bits are the moment it was recorded and the rest is random, and nothing in it is derived from a name or an
 address. An identifier appearing in a URL, a log line, or a support conversation therefore discloses when this
 deployment began serving somebody but never who they are, and it grants nothing to whoever holds it. The display name
-is what an administrator reads them by; it has to be unique across the deployment, so that two people are never told
-apart by an identifier alone.
+is what an administrator reads them by, and it is not unique: two people may carry the same name, within one
+organization or across several, so recording or relabelling somebody is never refused over a name and never tells an
+administrator or the person anything about who else carries it. The identifier is what tells them apart.
 
 **The label may change and the identifier may not.** `mfctl user rename` replaces one, and nothing is keyed by it — no mail
 account, stored message, or job hangs on a label — so the rename moves nothing and asks nothing before it commits:

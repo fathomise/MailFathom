@@ -670,7 +670,7 @@ This replica could not compare what it serves against the persisted configuratio
 - **A row edited in the database without raising its version.** The comparison reads `Version`, so an edit made behind MailFathom that leaves it where it was is never seen by a running replica.
 - **A setting classified restart-required**, and every setting [the persisted layer may not carry](#what-it-may-not-carry). A committed change republishes the layer, and what binds only at startup still binds only at startup.
 - **Which keys a ConfigMap holds**, as the section above states.
-- **A new label, on any replica.** Relabelling a user moves no record version, so every replica — the one that relabelled them included — serves the label it last bound that user's record under until the record next changes, or until that replica lets the user go and reads them again. The label is what an administrator selects a user by, and nothing a user is served changes with it.
+- **A new label, on any replica.** Relabelling a user moves no record version, so every replica — the one that relabelled them included — serves the label it last bound that user's record under until the record next changes, or until that replica lets the user go and reads them again. The label is what an administrator reads a user by, and nothing a user is served changes with it.
 
 ## Kubernetes
 

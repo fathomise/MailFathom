@@ -50,7 +50,7 @@ internal static class ComposedHostAdministration
 
     /// <summary>Records one user under the label they are told apart by, and reports the identifier minted for them.</summary>
     /// <param name="client">A client aimed at the administrative surface.</param>
-    /// <param name="displayName">The label, which is unique across the deployment.</param>
+    /// <param name="displayName">The label, which another user may carry as well.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The identifier the deployment generated.</returns>
     internal static async Task<Guid> RecordUserAsync(

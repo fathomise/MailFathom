@@ -76,9 +76,8 @@ internal sealed class OwnDisplayName(
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.ProfileWrite" />.</exception>
     /// <remarks>
     /// The version the record's writes state has no counterpart here, for the reason <c>RelabelAsync</c> gives: the
-    /// version guards the document a change is composed over and the name is not part of that document. The
-    /// uniqueness is guarded by the statement itself rather than by a roster read before it, so a name taken between
-    /// this read and that write is a refusal rather than the server's own unique-violation sentence.
+    /// version guards the document a change is composed over and the name is not part of that document. Another person
+    /// carrying the same name refuses nothing, so the change never tells the person anything about somebody else.
     /// </remarks>
     internal async Task<OwnDisplayNameChange> ChangeAsync(string? displayName, CancellationToken cancellationToken)
     {
@@ -108,7 +107,7 @@ internal sealed class OwnDisplayName(
 
         return await provisioning.RelabelAsync(user, name, cancellationToken)
             ? OwnDisplayNameChange.Recording(name)
-            : OwnDisplayNameChange.Refused(NameTaken);
+            : OwnDisplayNameChange.NoSuchUser;
     }
 
     /// <summary>Says which settings policy does not leave the name to the person to change, or nothing where every policy does.</summary>
@@ -139,7 +138,7 @@ internal sealed class OwnDisplayName(
     {
         if (string.IsNullOrWhiteSpace(displayName))
         {
-            return "Your name is what this deployment records you as, so a change of it states one. Write a name, unique across this deployment.";
+            return "Your name is what this deployment records you as, so a change of it states one. Write a name.";
         }
 
         var name = displayName.Trim();
@@ -150,9 +149,4 @@ internal sealed class OwnDisplayName(
                 $"The name is {name.Length} characters, past the {UserRecord.MaximumDisplayNameLength} this deployment stores. Shorten it.")
             : null;
     }
-
-    /// <summary>The sentence a name another person of this deployment already carries is refused with.</summary>
-    /// <remarks>It names no one: that the name is taken is what the person has to act on, and who took it is somebody else's record.</remarks>
-    private const string NameTaken =
-        "Somebody else on this deployment is already recorded under that name, and a name is unique across it. Choose another.";
 }

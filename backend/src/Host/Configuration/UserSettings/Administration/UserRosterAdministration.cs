@@ -114,7 +114,7 @@ internal sealed partial class UserRosterAdministration(
     }
 
     /// <summary>Records a user this deployment did not hold, under an identifier it mints.</summary>
-    /// <param name="displayName">The label the user is told apart by, which is unique across the deployment.</param>
+    /// <param name="displayName">The label the user is read by, which another user may carry as well.</param>
     /// <param name="organizationId">The organization the user is recorded into, or <see langword="null" /> to record them in none.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The identifier the user was minted under, or the sentence naming what has to change first.</returns>
@@ -183,16 +183,13 @@ internal sealed partial class UserRosterAdministration(
         Guid? organizationId,
         CancellationToken cancellationToken)
     {
-        // The label is unique in the table, so another user carrying it refuses the insert rather than anything read
-        // ahead of it, which no read could have done without racing a concurrent write. The organization is read by the
-        // insert for the same reason.
+        // The organization is read by the insert rather than ahead of it, which no read could have done without racing
+        // a concurrent deletion.
         var recorded = await provisioning.ProvisionAsync(user, label, organizationId, cancellationToken);
 
         if (recorded != UserProvisioningResult.Provisioned)
         {
-            return UserProvisioningOutcome.Refused(recorded == UserProvisioningResult.UnknownOrganization
-                ? NoSuchOrganization(organizationId.GetValueOrDefault())
-                : LabelTaken(label));
+            return UserProvisioningOutcome.Refused(NoSuchOrganization(organizationId.GetValueOrDefault()));
         }
 
         UserAccountOptions? provisioned = null;
@@ -269,9 +266,10 @@ internal sealed partial class UserRosterAdministration(
     /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller's grant omits <see cref="MailFathomPermission.AdminConfigurationWrite" /> at every scope.</exception>
     /// <remarks>
-    /// The label is what an administrator selects a user by and is keyed by nothing, so changing it moves no mail and
-    /// invalidates no identifier — which is why this is the configuration grant rather than the erasing one. A user
-    /// outside the caller's scope is answered as one this deployment does not hold.
+    /// The label is what an administrator reads a user by and is keyed by nothing, so changing it moves no mail and
+    /// invalidates no identifier — which is why this is the configuration grant rather than the erasing one. Another
+    /// user carrying the same label refuses nothing. A user outside the caller's scope is answered as one this
+    /// deployment does not hold.
     /// </remarks>
     internal async Task<UserRelabelOutcome> RelabelAsync(
         UserId user,
@@ -300,9 +298,7 @@ internal sealed partial class UserRosterAdministration(
 
         if (!await provisioning.RelabelAsync(user, label, cancellationToken))
         {
-            // The label is unique in the table, so another user carrying it refuses the statement rather than anything
-            // read ahead of it, which no read could have done without racing a concurrent write.
-            return UserRelabelOutcome.Refused(LabelTaken(label));
+            return UserRelabelOutcome.NoSuchUser;
         }
 
         this.LogUserRelabelled();
@@ -488,7 +484,7 @@ internal sealed partial class UserRosterAdministration(
     {
         if (string.IsNullOrWhiteSpace(displayName))
         {
-            return "A user is recorded with the label an administrator tells them apart by. Write one, unique across this deployment.";
+            return "A user is recorded with the label an administrator tells them apart by. Write one.";
         }
 
         var label = displayName.Trim();
@@ -502,17 +498,6 @@ internal sealed partial class UserRosterAdministration(
     /// <remarks>Also what an organization outside the caller's scope is answered with, so a refusal never tells a scoped administrator which organizations exist beyond their own.</remarks>
     private static string NoSuchOrganization(Guid organizationId) =>
         $"This deployment holds no organization '{organizationId}'. List the organizations to read the identifiers it does hold.";
-
-    /// <summary>Says that the label a user was to carry is one somebody else already does.</summary>
-    /// <remarks>
-    /// A label is unique across the deployment rather than within an organization, so this is the one answer here that
-    /// reaches past a caller's scope: an organization's administrator recording or relabelling one of their own people
-    /// learns from it that somebody, somewhere in the deployment, already carries that label — and nothing else about
-    /// them. Withholding it would need labels unique per organization, which is a change to the schema and to how a
-    /// user is selected by label rather than to this sentence.
-    /// </remarks>
-    private static string LabelTaken(string label) =>
-        $"Another user of this deployment is already recorded as '{label}'. A label is what an administrator selects a user by, so two users carrying one would leave nothing to select on: choose another.";
 
     /// <remarks>The label rather than the identifier, because it is the operator's own text and the identifier is a generated handle for a person.</remarks>
     [LoggerMessage(

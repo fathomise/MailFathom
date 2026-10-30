@@ -72,13 +72,13 @@ internal sealed record UserEndpointAccessRequest(bool? McpEndpoint, bool? Client
 internal sealed record UserEndpointAccessResponse(bool McpEndpoint, bool ClientEndpoint);
 
 /// <summary>The label a user is recorded under, and the organization they are recorded into.</summary>
-/// <param name="DisplayName">What an administrator tells this user apart by, unique across the deployment.</param>
+/// <param name="DisplayName">The label an administrator reads this user by, which another user may carry as well.</param>
 /// <param name="OrganizationId">The organization the user belongs to from the moment they are recorded, or <see langword="null" /> for none — which only the deployment's scope records.</param>
 /// <remarks>The identifier is not here and never is: this deployment mints one, so a caller supplying one would decide an identity it does not own.</remarks>
 internal sealed record UserProvisioningRequest(string? DisplayName, Guid? OrganizationId = null);
 
 /// <summary>The label a user is relabelled to.</summary>
-/// <param name="DisplayName">What an administrator tells this user apart by from now on, unique across the deployment.</param>
+/// <param name="DisplayName">The label an administrator reads this user by from now on, which another user may carry as well.</param>
 /// <remarks>Its own request type rather than the provisioning one, because the two carry the same field for different acts: a body that named a user would be a rename that recorded somebody, and a shared type is what would let one become the other.</remarks>
 internal sealed record UserRelabelRequest(string? DisplayName);
 

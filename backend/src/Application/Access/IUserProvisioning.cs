@@ -16,7 +16,7 @@ namespace MailFathom.Application.Access;
 /// <para>
 /// Both operations are idempotent, because two writers may reach one row at once and the one that lost has to be
 /// answered with what the deployment holds rather than with a failure. Provisioning a user the deployment already
-/// holds writes nothing, and relabelling one already carrying the label writes nothing.
+/// holds writes nothing, and relabelling one already carrying the label leaves them as they were.
 /// </para>
 /// </remarks>
 public interface IUserProvisioning
@@ -31,9 +31,9 @@ public interface IUserProvisioning
     /// <remarks>
     /// <para>
     /// The answer is what the deployment holds afterwards rather than whether this call was the one that wrote it, so
-    /// a replica that lost the race to an identical declaration is told the same thing as the one that won. The
-    /// refusals are the outcomes a caller has to act on: the label is unique across the deployment, and the organization
-    /// has to stand when the row is written.
+    /// a replica that lost the race to an identical declaration is told the same thing as the one that won. The one
+    /// refusal is the outcome a caller has to act on: the organization has to stand when the row is written. The label
+    /// is never a reason to refuse, because two people may carry one name and nothing resolves a user by it.
     /// </para>
     /// <para>
     /// The user enters the organization in the statement that records them rather than in a move afterwards, so an
@@ -51,7 +51,7 @@ public interface IUserProvisioning
     /// <param name="user">The user whose row is relabelled.</param>
     /// <param name="displayName">The label the user is now declared under.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns><see langword="true" /> when the row carries the label once the write has run, <see langword="false" /> when the label belongs to somebody else.</returns>
+    /// <returns><see langword="true" /> when the row carries the label once the write has run, <see langword="false" /> when this deployment holds nobody under that identifier.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody, or <paramref name="displayName" /> is <see langword="null" />, empty, or white space.</exception>
     /// <remarks>
     /// <para>
@@ -62,9 +62,8 @@ public interface IUserProvisioning
     /// under the old one.
     /// </para>
     /// <para>
-    /// The answer is read the way <see cref="ProvisionAsync" />'s is, and for the same race: a label taken between a
-    /// roster being read and this statement reaching the table is a refusal a caller states, never a unique-violation
-    /// sentence raised out of a start or returned to an operator as a failure.
+    /// The answer is read the way <see cref="ProvisionAsync" />'s is, and for the same race: a user erased between a
+    /// caller reading them and this statement reaching the table is reported as one the deployment does not hold.
     /// </para>
     /// </remarks>
     Task<bool> RelabelAsync(UserId user, string displayName, CancellationToken cancellationToken);

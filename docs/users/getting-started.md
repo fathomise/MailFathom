@@ -272,7 +272,7 @@ $ mfctl user add --display-name "Alex"
 $ mfctl account add --from-file mailbox.json
 ```
 
-The first records the person this deployment serves, under the label they are told apart by; `mfctl user rename`
+The first records the person this deployment serves, under the label they are read by; `mfctl user rename`
 changes it later. The second reads the file written in [step 2](#2-write-down-the-mailbox), creates that mail account,
 assigns it to them, and prints the identifier it was generated under. It names no user, because this deployment now holds exactly one: `--user` is how a deployment serving
 several says which of them — `mfctl user add` records each further person — and an invocation that omits it where there

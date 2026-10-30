@@ -2700,8 +2700,9 @@ the person is called, so the account menu and the Settings screen had an anonymo
 ```
 
 **The name is the envelope rather than the record.** It is the same label `mfctl user list` shows and
-[the record routes](#the-record-routes) do not serve: a column beside the document, unique across the deployment, that
-nothing resolves anybody by. A client reading the record alone would still have nothing to draw a person with, which is
+[the record routes](#the-record-routes) do not serve: a column beside the document that nothing resolves
+anybody by, and which somebody else on the deployment may carry as well — so a change of it is never refused because
+another person already has that name. A client reading the record alone would still have nothing to draw a person with, which is
 why this is a route of its own rather than a key in that document.
 
 **The read says whether the write would be accepted, so the client never has to find out by trying.** `changeable` is
@@ -2721,8 +2722,8 @@ forces a name.
 theirs — the deployment states their mailboxes and MailFathom keeps the row — so the name on it is the operator's to
 set. What comes back names whoever administers the deployment.
 
-**The name is bound exactly as the envelope binds it.** Blank is refused, so is anything past 128 characters, and so is
-a name somebody else on this deployment already carries — each naming what to correct. Surrounding white space is
+**The name is bound exactly as the envelope binds it.** Blank is refused and so is anything past 128 characters, each
+naming what to correct; a name somebody else on this deployment already carries is accepted. Surrounding white space is
 trimmed, and the answer carries the name as it was stored rather than as it was sent. The body is bounded like every
 other on this surface, and one past the bound is answered `413`.
 

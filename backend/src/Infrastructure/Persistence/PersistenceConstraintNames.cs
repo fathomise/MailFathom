@@ -693,13 +693,6 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string RootSettingsSingletonCheckConstraintName = "ck_settings_root_singleton";
 
-    /// <summary>The index that keeps one label to one user across the deployment.</summary>
-    /// <remarks>
-    /// Stated rather than left to convention because the label is what an administrator reads a list of users by, and
-    /// the refusal an insert of a second row under one label produces is worth naming the index it came from.
-    /// </remarks>
-    internal const string UserAccountDisplayNameUniqueIndexName = "ix_settings_accounts_display_name";
-
     /// <summary>The index that keeps one mailbox address to one mail account across the deployment.</summary>
     /// <remarks>Stated rather than left to convention because the store reads it: a write that violates it is an address another account holds, which is a refusal rather than a failure.</remarks>
     internal const string MailAccountRecordAddressUniqueIndexName = "ix_settings_mail_accounts_normalized_email_address";

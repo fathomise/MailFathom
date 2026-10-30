@@ -8,7 +8,7 @@ namespace MailFathom.Application.Access;
 
 /// <summary>The relational envelope of one user this deployment holds a record for.</summary>
 /// <param name="User">The identity every mail account and every stored message of theirs hangs on.</param>
-/// <param name="DisplayName">The label an operator tells this user apart by, which is unique across the deployment.</param>
+/// <param name="DisplayName">The label an operator reads this user by, which another user may carry as well.</param>
 /// <remarks>
 /// The document itself is deliberately absent. Who this deployment holds is decided from the envelope alone, so
 /// listing the users it holds never materializes one person's record, let alone everybody's.
