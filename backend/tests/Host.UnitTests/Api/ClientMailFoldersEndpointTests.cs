@@ -33,6 +33,8 @@ public sealed class ClientMailFoldersEndpointTests
 
     private static readonly ISpamActionSettingsReader NoSpamActions = SpamActionsFor(filingAccount: null);
 
+    private static readonly IReadOnlySet<MailAccountId> NoneShared = new HashSet<MailAccountId>();
+
     /// <summary>The path a client appends to the address it was configured with, pinned because the client composes it from a constant of its own.</summary>
     [Fact]
     public void MailFoldersRoute_IsThePathAClientComposes() =>
@@ -48,7 +50,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], storedEmailCount: 12, unreadEmailCount: 3)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         var folder = Assert.Single(Assert.Single(response.Accounts).Folders);
@@ -75,11 +77,11 @@ public sealed class ClientMailFoldersEndpointTests
             []);
 
         // Act
-        var response = ClientMailFoldersResponse.For(Directory(new MailAccountFolders(freshness, [])), NoSpamActions);
+        var response = ClientMailFoldersResponse.For(Directory(new MailAccountFolders(freshness, [])), NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(
-            ClientMailAccountResponse.For(freshness, NoSpamActions),
+            ClientMailAccountResponse.For(freshness, NoSpamActions, NoneShared),
             Assert.Single(response.Accounts).Account);
     }
 
@@ -96,7 +98,7 @@ public sealed class ClientMailFoldersEndpointTests
             Account(Work, Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 2, 2)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, SpamActionsFor(filingAccount: Work));
+        var response = ClientMailFoldersResponse.For(directory, SpamActionsFor(filingAccount: Work), NoneShared);
 
         // Assert
         Assert.Equal([false, true], response.Accounts.Select(account => account.Account.FilesJunk));
@@ -112,7 +114,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("2024", role: null, ["Archiwum", "2024"], storedEmailCount: 0, unreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Null(Assert.Single(Assert.Single(response.Accounts).Folders).Role);
@@ -131,7 +133,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("inbox", role, ["INBOX"], storedEmailCount: 0, unreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(role.ToString(), Assert.Single(Assert.Single(response.Accounts).Folders).Role);
@@ -157,7 +159,7 @@ public sealed class ClientMailFoldersEndpointTests
                 UnreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(
@@ -187,7 +189,7 @@ public sealed class ClientMailFoldersEndpointTests
                 UnreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(behind, Assert.Single(Assert.Single(response.Accounts).Folders).Behind);
@@ -203,7 +205,7 @@ public sealed class ClientMailFoldersEndpointTests
             new DescribedMailFolder(IdOf("projects"), Freshness: null, Role: null, ["Projects"], 4, 1)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         var folder = Assert.Single(Assert.Single(response.Accounts).Folders);
@@ -222,7 +224,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("inbox", MailFolderSpecialUse.Inbox, [], storedEmailCount: 0, unreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Empty(Assert.Single(Assert.Single(response.Accounts).Folders).Path);
@@ -241,7 +243,7 @@ public sealed class ClientMailFoldersEndpointTests
                 Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 2, 2)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal([Private.Id.Value, Work.Id.Value], response.Accounts.Select(account => account.Account.Id));
@@ -258,7 +260,7 @@ public sealed class ClientMailFoldersEndpointTests
         var directory = new MailFolderDirectory(SynchronizationEnabled: true, []);
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Empty(response.Accounts);
@@ -276,7 +278,7 @@ public sealed class ClientMailFoldersEndpointTests
             [Account(Work, Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 1, 0))]);
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(synchronizationEnabled, response.SynchronizationEnabled);

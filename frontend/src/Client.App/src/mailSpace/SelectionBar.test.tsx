@@ -23,6 +23,7 @@ const work: MoveDestinationGroup = {
     accountId: 'work',
     accountName: 'Northwind \u00b7 work',
     ordinal: 0,
+    shared: false,
     destinations: [clients],
 };
 

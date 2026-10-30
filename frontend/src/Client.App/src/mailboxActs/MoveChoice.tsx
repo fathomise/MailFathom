@@ -6,6 +6,7 @@ import { useId, type RefObject } from 'react';
 import { useFolderMaintenance } from '../folders/useFolderMaintenance';
 import { Icon } from '../controls/Icon';
 import { MailboxMark } from '../controls/MailboxMark';
+import { SharedMark } from '../controls/SharedMark';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
@@ -101,6 +102,7 @@ export function MoveChoice({
                         <p className="flex items-center gap-2 px-4 pt-2 pb-1 text-xs font-semibold text-muted">
                             <MailboxMark ordinal={group.ordinal} />
                             <span className="min-w-0 flex-1 truncate">{group.accountName}</span>
+                            {group.shared ? <SharedMark /> : null}
                         </p>
 
                         <ul className="flex flex-col">

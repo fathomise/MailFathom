@@ -43,6 +43,7 @@ function directoryOf(accounts: Record<string, readonly MailFolder[]>): MailFolde
                 lastSynchronizedAt: null,
                 behind: false,
                 filesJunk: false,
+                shared: false,
             },
             folders,
         })),

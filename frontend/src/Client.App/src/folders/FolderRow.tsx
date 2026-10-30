@@ -7,6 +7,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
 import { MailboxMark } from '../controls/MailboxMark';
+import { SharedMark } from '../controls/SharedMark';
 import { useTip } from '../controls/useTip';
 import { useLocalization } from '../localization/useLocalization';
 import { OutboxMark, OutboxStrip, type OutboxMarking } from '../outbox/OutboxMark';
@@ -89,6 +90,7 @@ export function FolderRow({
     focusable,
     folded,
     groupOrdinal,
+    shared,
     onSelect,
     onToggle,
     onPress,
@@ -109,6 +111,9 @@ export function FolderRow({
 
     /** Which group this row heads, counted from the whole workspace at zero, or `null` for a row under one. */
     readonly groupOrdinal: number | null;
+
+    /** Whether this row heads a shared mailbox, which carries the shared mark beside its name. */
+    readonly shared: boolean;
 
     readonly onSelect: () => void;
     readonly onToggle: () => void;
@@ -173,6 +178,7 @@ export function FolderRow({
             row={row}
             group={group}
             groupOrdinal={groupOrdinal}
+            shared={shared}
             folded={folded}
             selected={selected}
             expanded={expanded}
@@ -247,6 +253,7 @@ function RowLine({
     row,
     group,
     groupOrdinal,
+    shared,
     folded,
     selected,
     expanded,
@@ -257,6 +264,7 @@ function RowLine({
     readonly row: FolderTreeRow;
     readonly group: boolean;
     readonly groupOrdinal: number | null;
+    readonly shared: boolean;
     readonly folded: boolean;
     readonly selected: boolean;
     readonly expanded: boolean | null;
@@ -280,6 +288,7 @@ function RowLine({
             {/* Everything the rail has no room to draw, kept for the reader who hears the row rather than sees it. */}
             <span className={folded ? 'sr-only' : 'flex min-w-0 flex-1 items-center gap-2'}>
                 <span className="min-w-0 flex-1 truncate">{folderRowName(row, translate)}</span>
+                {shared ? <SharedMark /> : null}
 
                 <Unread count={row.role === 'Inbox' ? row.unreadEmailCount : null} />
             </span>

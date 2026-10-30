@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useRef } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FolderMaintenanceContext, noFolderMaintenance, type FolderMaintenance } from '../folders/useFolderMaintenance';
 import { LocalizationProvider } from '../localization/Localization';
@@ -17,6 +17,7 @@ const work: MoveDestinationGroup = {
     accountId: 'work',
     accountName: 'Northwind \u00b7 work',
     ordinal: 0,
+    shared: false,
     destinations: [archive, clients],
 };
 
@@ -25,7 +26,13 @@ const work: MoveDestinationGroup = {
 // rather than a sentence anybody reads.
 const opener = 'File somewhere';
 
-function Asking({ onChosen }: { readonly onChosen: (destination: MoveDestination) => void }) {
+function Asking({
+    onChosen,
+    groups,
+}: {
+    readonly onChosen: (destination: MoveDestination) => void;
+    readonly groups: readonly MoveDestinationGroup[];
+}) {
     const asked = useRef<HTMLDialogElement>(null);
 
     return (
@@ -39,7 +46,7 @@ function Asking({ onChosen }: { readonly onChosen: (destination: MoveDestination
                 {opener}
             </button>
 
-            <MoveChoice asked={asked} groups={[work]} onChosen={onChosen} />
+            <MoveChoice asked={asked} groups={groups} onChosen={onChosen} />
         </>
     );
 }
@@ -47,11 +54,12 @@ function Asking({ onChosen }: { readonly onChosen: (destination: MoveDestination
 function open(
     onChosen: (destination: MoveDestination) => void = () => undefined,
     maintenance: FolderMaintenance = noFolderMaintenance,
+    groups: readonly MoveDestinationGroup[] = [work],
 ): void {
     render(
         <LocalizationProvider>
             <FolderMaintenanceContext value={maintenance}>
-                <Asking onChosen={onChosen} />
+                <Asking onChosen={onChosen} groups={groups} />
             </FolderMaintenanceContext>
         </LocalizationProvider>,
     );
@@ -87,8 +95,16 @@ describe('MoveChoice', () => {
 
         const group = screen.getByRole('region', { name: work.accountName });
 
+        expect(within(group).queryByText('Shared')).toBeNull();
+
         expect(group).toBeDefined();
         expect(screen.getByRole('button', { name: 'Archive' }).closest('section')).toBe(group);
+    });
+
+    it('marks the group of a shared mailbox as shared beside its name', () => {
+        open(undefined, undefined, [{ ...work, shared: true }]);
+
+        expect(within(screen.getByRole('region', { name: work.accountName })).getByText('Shared')).toBeDefined();
     });
 
     it('answers with the folder that was picked, which is what the act is then performed with', () => {

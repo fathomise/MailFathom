@@ -434,7 +434,8 @@ It answers with the mail accounts the signed-in user owns, and how current the l
       "synchronizationState": "Synchronized",
       "lastSynchronizedAt": "2026-08-15T10:00:00+00:00",
       "behind": false,
-      "filesJunk": true
+      "filesJunk": true,
+      "shared": true
     },
     {
       "id": "8e3f1a6b-2c4d-4f7e-a915-7b2d0c6e1f38",
@@ -442,7 +443,8 @@ It answers with the mail accounts the signed-in user owns, and how current the l
       "synchronizationState": "Failing",
       "lastSynchronizedAt": "2026-08-14T21:12:00+00:00",
       "behind": true,
-      "filesJunk": false
+      "filesJunk": false,
+      "shared": false
     }
   ]
 }
@@ -492,6 +494,10 @@ moves a message into the junk folder and *not spam* moves one out of it to the i
 changes the verdict and leaves the message where it is. A client reads it before the press rather than after it,
 because whether a mark will move anything is what decides whether the client asks first.
 
+**`shared` says whether the account is assigned to more than one user**, so others read what arrives there. It is read
+from the assignments an administrator made rather than from the mail, counts only users this deployment serves, and
+names none of the others. A client marks a shared mailbox wherever it draws or offers one.
+
 **`synchronizationEnabled` is the deployment's switch rather than the user's**, and it is reported beside the accounts
 because no per-account value carries it: a copy that last moved a week ago means one thing where the deployment is still
 trying every few minutes and another where an operator switched synchronization off.
@@ -526,7 +532,8 @@ It answers with the user's mailboxes and every folder in them, which is the one 
         "synchronizationState": "Synchronized",
         "lastSynchronizedAt": "2026-08-15T10:00:00+00:00",
         "behind": false,
-        "filesJunk": true
+        "filesJunk": true,
+        "shared": true
       },
       "folders": [
         {

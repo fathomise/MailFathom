@@ -37,6 +37,7 @@ const work: MailAccount = {
     lastSynchronizedAt: null,
     behind: false,
     filesJunk: false,
+    shared: false,
 };
 
 const home: MailAccount = { ...work, id: 'home', displayName: 'Home' };

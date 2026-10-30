@@ -22,6 +22,7 @@ const directoryBody = JSON.stringify({
             lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
             behind: false,
             filesJunk: false,
+            shared: true,
         },
     ],
 });
@@ -78,6 +79,7 @@ describe('readMailAccounts', () => {
                         lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
                         behind: false,
                         filesJunk: false,
+                        shared: true,
                     },
                 ],
             },
@@ -94,6 +96,7 @@ describe('readMailAccounts', () => {
                     synchronizationState: 'NeverSynchronized',
                     behind: false,
                     filesJunk: false,
+                    shared: false,
                 },
             ],
         });
@@ -112,6 +115,7 @@ describe('readMailAccounts', () => {
                         lastSynchronizedAt: null,
                         behind: false,
                         filesJunk: false,
+                        shared: false,
                     },
                 ],
             },
@@ -160,6 +164,7 @@ describe('readMailAccounts', () => {
                         synchronizationState: 'Synchronized',
                         behind: 'maybe',
                         filesJunk: false,
+                        shared: false,
                     },
                 ],
             }),
@@ -182,6 +187,22 @@ describe('readMailAccounts', () => {
                         synchronizationState: 'Synchronized',
                         behind: false,
                         filesJunk: 'yes',
+                        shared: false,
+                    },
+                ],
+            }),
+        ],
+        [
+            'an account that does not say whether it is shared',
+            JSON.stringify({
+                synchronizationEnabled: true,
+                accounts: [
+                    {
+                        id: 'work',
+                        displayName: 'Work',
+                        synchronizationState: 'Synchronized',
+                        behind: false,
+                        filesJunk: false,
                     },
                 ],
             }),
@@ -197,6 +218,7 @@ describe('readMailAccounts', () => {
                         synchronizationState: 'Rebuilding',
                         behind: false,
                         filesJunk: false,
+                        shared: false,
                     },
                 ],
             }),
@@ -213,6 +235,7 @@ describe('readMailAccounts', () => {
                         lastSynchronizedAt: 1756633260,
                         behind: false,
                         filesJunk: false,
+                        shared: false,
                     },
                 ],
             }),
@@ -233,6 +256,7 @@ describe('readMailAccounts', () => {
                 lastSynchronizedAt: null,
                 behind: false,
                 filesJunk: false,
+                shared: false,
             })),
         });
 
@@ -251,6 +275,7 @@ describe('readMailAccounts', () => {
                 lastSynchronizedAt: null,
                 behind: false,
                 filesJunk: false,
+                shared: false,
             })),
         });
 

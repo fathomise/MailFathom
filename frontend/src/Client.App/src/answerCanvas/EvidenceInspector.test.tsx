@@ -55,6 +55,7 @@ const work: MailAccount = {
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
     filesJunk: false,
+    shared: false,
 };
 
 const passage = { fragmentId: 'f-4', ordinal: 3, text: 'Monthly remuneration is EUR 1,200 net' };

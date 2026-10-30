@@ -29,6 +29,8 @@ public sealed class ClientMailAccountsEndpointTests
 
     private static readonly ISpamActionSettingsReader NoSpamActions = SpamActionsFor(filingAccount: null);
 
+    private static readonly IReadOnlySet<MailAccountId> NoneShared = new HashSet<MailAccountId>();
+
     /// <summary>The path a client appends to the address it was configured with, pinned because the client composes it from a constant of its own.</summary>
     [Fact]
     public void MailAccountsRoute_IsThePathAClientComposes() =>
@@ -42,7 +44,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = Directory(Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.True(response.SynchronizationEnabled);
@@ -53,7 +55,8 @@ public sealed class ClientMailAccountsEndpointTests
                 nameof(MailSynchronizationState.Synchronized),
                 SynchronizedAt,
                 Behind: false,
-                FilesJunk: false),
+                FilesJunk: false,
+                Shared: false),
             Assert.Single(response.Accounts));
     }
 
@@ -69,7 +72,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = Directory(Freshness(Work, state, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(state.ToString(), Assert.Single(response.Accounts).SynchronizationState);
@@ -86,7 +89,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt, behind));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(behind, Assert.Single(response.Accounts).Behind);
@@ -101,7 +104,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.NeverSynchronized, lastSynchronizedAt: null));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Null(Assert.Single(response.Accounts).LastSynchronizedAt);
@@ -117,7 +120,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(
@@ -133,7 +136,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = new MailAccountFreshnessDirectory(SynchronizationEnabled: true, []);
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Empty(response.Accounts);
@@ -141,7 +144,7 @@ public sealed class ClientMailAccountsEndpointTests
 
     /// <summary>
     /// The folders the use case carries are the folder route's business, and the mailbox list stays the answer that
-    /// grows with nothing but the account count: an account whose folders are known reaches the wire as the same six
+    /// grows with nothing but the account count: an account whose folders are known reaches the wire as the same seven
     /// fields an account whose folders are not does.
     /// </summary>
     [Fact]
@@ -162,7 +165,7 @@ public sealed class ClientMailAccountsEndpointTests
             ]));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(
@@ -172,7 +175,8 @@ public sealed class ClientMailAccountsEndpointTests
                 nameof(MailSynchronizationState.Synchronized),
                 SynchronizedAt,
                 Behind: false,
-                FilesJunk: false),
+                FilesJunk: false,
+                Shared: false),
             Assert.Single(response.Accounts));
     }
 
@@ -186,10 +190,26 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, SpamActionsFor(filingAccount: Work));
+        var response = ClientMailAccountsResponse.For(directory, SpamActionsFor(filingAccount: Work), NoneShared);
 
         // Assert
         Assert.Equal([true, false], response.Accounts.Select(account => account.FilesJunk));
+    }
+
+    /// <summary>An account several users are assigned says it is shared and one assigned to its reader alone says it is not, which is what a client marks a shared mailbox by.</summary>
+    [Fact]
+    public void For_AnAccountSeveralUsersAreAssigned_SaysItIsSharedAndAnAccountOfOneUserSaysNot()
+    {
+        // Arrange
+        var directory = Directory(
+            Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt),
+            Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
+
+        // Act
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, new HashSet<MailAccountId> { Work.Id });
+
+        // Assert
+        Assert.Equal([true, false], response.Accounts.Select(account => account.Shared));
     }
 
     /// <summary>The deployment-wide switch is reported beside the accounts, because no per-account value carries it.</summary>
@@ -204,7 +224,7 @@ public sealed class ClientMailAccountsEndpointTests
             [Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt)]);
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
 
         // Assert
         Assert.Equal(synchronizationEnabled, response.SynchronizationEnabled);

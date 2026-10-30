@@ -252,7 +252,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const phoneBadge = (size) => "position:absolute;right:-3px;top:-3px;width:" + size + "px;height:" + size + "px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--panel);color:var(--muted);box-shadow:0 0 0 1px var(--line);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:" + Math.round(size * 0.74) + "px;line-height:1";
   const PHONE_LABELS = ["Mobile", "Work", "Home", "Other"];
   // A shared mailbox says so in words beside its name, wherever an account is drawn or chosen.
-  const SHARED_MARK = "flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;font-family:'Geist',system-ui,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.02em;color:var(--muted);border:1px solid var(--border2);border-radius:5px;padding:0 5px;line-height:15px";
+  const SHARED_MARK = "flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.02em;color:var(--muted);border:1px solid var(--border2);border-radius:4px;padding:0 5px;line-height:15px";
   const telHref = (n) => "tel:" + String(n || "").replace(/[^+\d]/g, "");
 
   const initialsOf = (n) => (n || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();

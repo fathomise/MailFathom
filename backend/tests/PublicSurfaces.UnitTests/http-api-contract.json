@@ -2094,6 +2094,9 @@
               "string"
             ]
           },
+          "shared": {
+            "type": "boolean"
+          },
           "synchronizationState": {
             "type": "string"
           }
@@ -2104,7 +2107,8 @@
           "synchronizationState",
           "lastSynchronizedAt",
           "behind",
-          "filesJunk"
+          "filesJunk",
+          "shared"
         ],
         "type": "object"
       },

@@ -25,6 +25,7 @@ export const en = {
     'shell.moreDisconnected': 'More - not connected to the server',
     'shell.spaceWithCounts': '{space} - {counts}',
     'shell.mailboxes': 'Mailboxes',
+    'shell.shared': 'Shared',
     'shell.tabMode': 'Tab mode',
     'shell.tabModeTooNarrow': 'available on a wider screen',
     'control.notBuiltYet': '{control} - not built yet',

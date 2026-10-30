@@ -19,6 +19,7 @@ const workAccount = {
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
     filesJunk: false,
+    shared: false,
 };
 
 const inbox = {
@@ -88,6 +89,7 @@ describe('readMailFolders', () => {
                             lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
                             behind: false,
                             filesJunk: false,
+                            shared: false,
                         },
                         folders: [
                             {
