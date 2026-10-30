@@ -57,7 +57,7 @@ Project repository: https://github.com/fathomise/MailFathom
 <link rel="stylesheet" href="styles/base.css" />
 <link rel="stylesheet" href="styles/prototype.css" />
 </helmet>
-<div ref="{{ rootRef }}" data-theme="{{ themeAttr }}" style="{{ rootStyle }}">
+<div ref="{{ rootRef }}" data-theme="{{ themeAttr }}" data-smart-mode="{{ smartMode }}" style="{{ rootStyle }}">
 
   <div ref="{{ railRef }}" onPointerDown="{{ railGestDown }}" onTouchStart="{{ railGestDown }}" onClickCapture="{{ railTapGuard }}" data-rail="1" style="{{ railStyle }}">
     <sc-if value="{{ railLogoShown }}" hint-placeholder-val="{{ true }}">
@@ -2712,8 +2712,8 @@ Project repository: https://github.com/fathomise/MailFathom
     </div>
   </sc-if>
   <sc-if value="{{ smartHoverShown }}" hint-placeholder-val="{{ false }}">
-    <div aria-hidden="true" style="{{ smartBoxStyle }}"></div>
-    <div aria-hidden="true" style="{{ smartTagStyle }}"><span style="{{ smartTagGlyph }}">auto_awesome</span>{{ smartTagText }}</div>
+    <div data-fathom-ui="1" aria-hidden="true" style="{{ smartBoxStyle }}"></div>
+    <div data-fathom-ui="1" aria-hidden="true" style="{{ smartTagStyle }}"><span style="{{ smartTagGlyph }}">auto_awesome</span>{{ smartTagText }}</div>
   </sc-if>
 
   <sc-if value="{{ fathomMenuOpen }}" hint-placeholder-val="{{ false }}">

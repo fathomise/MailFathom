@@ -14,6 +14,14 @@ textarea::placeholder { text-overflow: ellipsis; }
 a { color: var(--accent); }
 a:hover { color: var(--accent-2); }
 input { font-family: inherit; }
+[data-smart-mode="on"],
+[data-smart-mode="on"] :has([data-smart]):not([data-smart]):not([data-smart] *) {
+  background-color: color-mix(in oklch, var(--bg) 80%, var(--muted)) !important;
+  cursor: not-allowed;
+}
+[data-smart-mode="on"] [data-smart-disabled] { filter: grayscale(1); opacity: 0.38; z-index: 0 !important; }
+[data-smart-mode="on"] [data-smart],
+[data-smart-mode="on"] [data-smart] * { cursor: pointer !important; }
 /* A field typed into with no edge of its own sits inside the box that reads as the field, so that box takes the ring.
    Matched on the style the runtime writes out, which spells a `border:none` as its longhands.
    Inset, because several of those boxes are rows of a clipped pane. */

@@ -3982,6 +3982,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     componentDidUpdate(prevProps) {
+      this.syncSmartDisabled();
       /* `space` opens a space the way its rail item does, so a capture reaches it in one step at every
          composition - on a phone Tasks, Calendar and People sit behind More. */
       const space = this.props.space;

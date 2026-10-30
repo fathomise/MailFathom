@@ -115,13 +115,37 @@ MailFathomDesign.fathomUi = (() => {
       const comp = D().fathom.components[id];
       return comp ? { id: id, comp: comp, label: el.getAttribute("data-smart-label") || "", text: el.getAttribute("data-smart-text") || "", tid: el.getAttribute("data-smart-ref") || "" } : null;
     };
+    const disabledBySmart = new Set();
+    self.syncSmartDisabled = () => {
+      const next = new Set();
+      const root = self.rootRef.current;
+      const available = "[data-smart], [data-fathom-ui], [data-ctx-menu]";
+      const visit = (el) => {
+        if (el.matches(available)) return;
+        if (!el.querySelector(available)) { next.add(el); return; }
+        Array.from(el.children).forEach(visit);
+      };
+      if (self.state.fathomSmart && root) Array.from(root.children).forEach(visit);
+      disabledBySmart.forEach(el => {
+        if (next.has(el)) return;
+        el.inert = false;
+        el.removeAttribute("data-smart-disabled");
+        disabledBySmart.delete(el);
+      });
+      next.forEach(el => {
+        if (el.inert) return;
+        el.inert = true;
+        el.setAttribute("data-smart-disabled", "1");
+        disabledBySmart.add(el);
+      });
+    };
     self._smartPt = null;
     self._smartKey = null;
     /* Smart from the keyboard: Tab and Shift+Tab step through the components on screen in reading order, Enter or Space
        opens the one outlined, and its menu takes the focus. */
     const smartList = () => Array.from(document.querySelectorAll("[data-smart]")).filter(el => {
       const r = el.getBoundingClientRect();
-      return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight && !!smartOf(el);
+      return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight && getComputedStyle(el).visibility !== "hidden" && !!smartOf(el);
     });
     const smartOutline = (el) => {
       const s = smartOf(el);
@@ -174,8 +198,8 @@ MailFathomDesign.fathomUi = (() => {
     };
     self.onFathomKey = (e) => {
       const st = self.state;
-      if (st.fathomSmart && !st.ctxMenu && e.key === "Tab") { e.preventDefault(); smartStep(e.shiftKey); return; }
-      if (st.fathomSmart && !st.ctxMenu && (e.key === "Enter" || e.key === " ") && self._smartKey && document.contains(self._smartKey)) { e.preventDefault(); smartOpenKeyed(); return; }
+      if (st.fathomSmart && !st.ctxMenu && e.key === "Tab") { e.preventDefault(); e.stopPropagation(); smartStep(e.shiftKey); return; }
+      if (st.fathomSmart && !st.ctxMenu && (e.key === "Enter" || e.key === " ") && self._smartKey && document.contains(self._smartKey)) { e.preventDefault(); e.stopPropagation(); smartOpenKeyed(); return; }
       if (e.key === "Escape") {
         if (st.ctxMenu) return;
         if (st.fathomAnswer) self.setState({ fathomAnswer: null });
@@ -183,6 +207,10 @@ MailFathomDesign.fathomUi = (() => {
         else if (st.fathomMenu) self.setState({ fathomMenu: false });
         else if (st.catchupOpen) self.closeCatchup();
         return;
+      }
+      if (st.fathomSmart && !e.target.closest?.("[data-fathom-ui], [data-ctx-menu]")) {
+        if (e.key === "Enter" || e.key === " " || e.target.matches?.("input, textarea, [contenteditable]")) e.preventDefault();
+        e.stopPropagation();
       }
     };
     /* In the Agent, Fathom stands level with the field it sits beside: its centre on the field's centre, kept in step
@@ -240,10 +268,11 @@ MailFathomDesign.fathomUi = (() => {
       fathomMenuItems: (F.menu[menuKey] || []).map(a => ({ icon: a.icon, label: a.label, run: menuRun(a), style: rowStyle })),
       fathomRowStyle: rowStyle,
       fathomMenuStyle: "position:fixed;z-index:89;right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + (isMobile ? 12 : 8)) + "px;display:flex;flex-direction:column;align-items:flex-end;gap:8px",
-      startSmart: () => { self._smartKey = null; self.setState({ fathomMenu: false, fathomSmart: true, smartHover: null }); },
+      startSmart: () => { document.activeElement?.blur(); self._smartKey = null; self.setState({ fathomMenu: false, fathomSmart: true, smartHover: null }); },
       openAgentFromFathom: () => { self.setState({ fathomMenu: false }); self.goScreen("agent"); },
       smartHint: isMobile ? "Tap anything for its actions" : touch ? "Tap anything to see what Fathom can do with it" : "Point at anything, or Tab to it, to see what Fathom can do with it",
       smartOn,
+      smartMode: smartOn ? "on" : undefined,
       smartBarStyle: "position:fixed;z-index:87;left:50%;transform:translateX(-50%);top:" + (isMobile ? 10 : 14) + "px;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);box-sizing:border-box;" +
         "background:var(--panel);border:1px solid var(--accent-line);border-radius:999px;box-shadow:0 10px 26px var(--sh-3);font-size:13px;color:var(--text2);" + (touch ? "padding:4px 4px 4px 14px;" : "padding:5px 5px 5px 14px;"),
       smartDoneStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-weight:600;color:var(--onaccent);background:var(--accent);white-space:nowrap;" + (touch ? "min-height:44px;min-width:64px;padding:0 18px;font-size:14px;" : "min-height:30px;padding:0 13px;font-size:13px;"),
