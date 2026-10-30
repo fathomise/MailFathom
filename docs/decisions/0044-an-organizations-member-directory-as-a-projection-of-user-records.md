@@ -112,8 +112,13 @@ member's. It can still be written down as an organization contact, under its own
   endpoint and `mfctl` alone, under `mailfathom.admin.configuration.write`, and a mailbox is reached with its own
   credentials. That is why the directory's addresses are administrator-written for the purposes of ADR 0043, and why no
   person or agent can add an address to their own directory entry.
-- **The preferred address is the member's choice among them**, stored on their record: the first address when the
-  user is created, the member's choice afterwards, and the first remaining one when the account holding it is removed.
+- **The preferred address is resolved when the directory is read, from the member's current addresses.** The member's
+  choice is stored on their record. It answers while it is one of the addresses the rules above give the member now.
+  Otherwise the first of those addresses answers, in the order of their accounts' identifiers, which is the order
+  `ContactBookScope` already uses for accounts. A member with no address has no preferred address. So unassigning an
+  account, sharing it, changing its address, or moving it out of the organization needs nothing written to the
+  preference: the next read answers from the address set as it then stands. A choice that is out of the set stays
+  stored, and answers again if its address comes back.
 - **A functional mailbox assigned to one person is that person's address.** Assignment is the only signal this
   deployment has. An operator who wants `sales@` kept out of somebody's entry assigns it to a second user as well, a
   `ServiceAccount` serving that mailbox being the ordinary way.
