@@ -10,14 +10,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     threads: THREADS, earlierMessages, threadMailBodies, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO,
     accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
-    home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
+    home: HOME, watchedQuestions: WATCHED, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
     calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
     starterChips: STARTER_CHIPS, anotherTimeReply: ANOTHER_TIME, agentScheduledEvents: AGENT_SCHEDULED,
     plans: PLANS,
     calendarDays: CAL_DAYS, proposedEvents: CAL_PROPOSED, focusBlocks: CAL_FOCUS, weekdayDates: DOW_DAY, tasks: TASKS,
     timelineToday: BK_TIMELINE_TODAY, draftContoso: BK_DRAFT_CONTOSO, demoConversationId: DEMO_CONV_ID, demoScript: DEMO_SCRIPT,
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
-    agentDraftHtml: AGENT_DRAFT_HTML,
+    agentDraftHtml: AGENT_DRAFT_HTML, draftRewrites: DRAFT_REWRITES, rewritePresets: REWRITE_PRESETS, selectionReplies: SEL_REPLIES,
+    fieldAlternatives: FIELD_ALTS, peopleActions: PEOPLE_ACTS, moreDemos: MORE_DEMOS,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
     senderMarks: SENDER_MARKS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
   } = MailFathomDesign.data;
@@ -45,8 +46,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        ev_private  1.4c private source - lock badge + administrator remedy. A “not permitted” read failure renders this.
        ev_outdated 1.4d outdated stored copy - warning, then the quoted passage in a plain box; Open in mail stays.
        ev_kinds    1.4e whole-message citation · attachment file row · not openable from the client · text in an image.
-       d_asked     1.5  “Asked before” chips (question alone) under the field, idle only; “Forget these”.
-                        savedAnswers.a and .fresh are not drawn - recall re-asks instead of replaying.
+       d_watched   1.5  watched questions on the start screen: changed, no change, paused (allowance spent), could
+                        not refresh, and nothing watched yet; opening one runs it, × stops watching.
      MAIL
        m_more      2.2a thread paging at its end: Read more · reading more · “That is the whole of this conversation.”
        m_partial   2.2b partial failure in place of the missing messages; head notes (more people, more messages).
@@ -80,7 +81,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   /* Shared shimmer for every loading skeleton. */
   const SHIM = "border-radius:6px;background:linear-gradient(90deg,var(--line) 0%,var(--line2) 42%,var(--line) 78%);background-size:260% 100%;animation:mfshim 1.05s linear infinite;";
 
-  /* The AI block chrome, one family wherever a block stands — the Agent's (`bkView`) and Discover's result.
+  /* The AI block chrome, one family wherever a block stands — the Agent's (`bkView`) and Start's answer and steps.
      A card at radius 12, a header of icon tile + title + meta with the phase chip on the right, and a footer
      tray, flush with the card's edges, that holds the controls and the way out. `tone` is `settled`,
      `pending` (the accent edge, tile and tray) or `declined` (a dashed outline and nothing else).
@@ -600,7 +601,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   };
 
   class Component extends DCLogic {
-    state = { workMode: "classic", tabs: [{ key: "thread:contoso", kind: "thread", id: "contoso" }], activeTab: "thread:contoso", screen: "discover", phase: "idle", query: "", planKey: null, ready: {}, ev: null, threadId: "contoso", fromCite: null, cameFrom: false, mailAnswer: false, mailPane: "list", themeOverride: null, stateOpen: false, vw: typeof window !== "undefined" ? window.innerWidth : 1440, coarse: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches, listW: null, remMap: { t1: [15], t3: [1440, 60] }, remUnit: "min", convs: SEED_CONVS(), bkPhase: {}, bkState: {}, bkResult: {}, bkEdit: {} };
+    state = { workMode: "classic", tabs: [{ key: "thread:contoso", kind: "thread", id: "contoso" }], activeTab: "thread:contoso", screen: "start", phase: "idle", query: "", planKey: null, ready: {}, ev: null, threadId: "contoso", fromCite: null, cameFrom: false, mailAnswer: false, mailPane: "list", themeOverride: null, stateOpen: false, vw: typeof window !== "undefined" ? window.innerWidth : 1440, coarse: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches, listW: null, remMap: { t1: [15], t3: [1440, 60] }, remUnit: "min", convs: SEED_CONVS(), bkPhase: {}, bkState: {}, bkResult: {}, bkEdit: {}, revs: [], rev: 0, clarify: null, refineText: "", watched: WATCHED.map(w => Object.assign({}, w)), reported: {}, todayHidden: [], briefOn: false, briefOfferHidden: false, selBar: null, selAsk: "", bkText: {}, bkChange: {}, bkVals: {}, bkField: null, fieldAsk: "", agentQuote: null, bkPick: {}, bkNote: {}, bkExcl: {}, bkOpen: {} };
     timers = [];
     rootRef = React.createRef();
     agentScrollRef = React.createRef();
@@ -650,9 +651,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       document.addEventListener("keydown", this.onDocKey);
       window.addEventListener("message", this.onHtmlFrameMessage);
       window.addEventListener("popstate", this.onBackPressed);
+      document.addEventListener("selectionchange", this.onSelChange);
+      document.addEventListener("pointerdown", this.onSelPointer, true);
+      document.addEventListener("pointerup", this.onSelPointer, true);
       document.addEventListener("click", this.onLinkClick, true);
       document.addEventListener("auxclick", this.onLinkClick, true);
       this.backSync();
+      MailFathomDesign.fathomUi.install(this);
       this.measure = () => {
         const el = this.rootRef.current;
         const w = (el && el.clientWidth) || (typeof window !== "undefined" ? window.innerWidth : 1440);
@@ -1146,7 +1151,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
-      "newTask", "newEvent", "newContact", "filtersOpen",
+      "newTask", "newEvent", "newContact", "filtersOpen", "catchupOpen", "fathomMenu", "fathomAnswer",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "linkAsk", "source"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
@@ -1195,7 +1200,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "source", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
+      "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk", "catchupOpen", "fathomMenu", "fathomSmart", "fathomAnswer"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1917,6 +1922,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     cancelLongPress = () => { if (this.lpTimer) { clearTimeout(this.lpTimer); this.lpTimer = null; } };
 
     bodyRef = React.createRef();
+    composeFootRef = React.createRef();
     userMenuRef = React.createRef();
     evTitleRef = React.createRef();
     evPromptRef = React.createRef();
@@ -2140,7 +2146,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const wasActive = s.activeTab === key;
         const nextTab = wasActive ? (tabs.length ? tabs[tabs.length - 1] : null) : null;
         const patch = { tabs, activeTab: wasActive ? (nextTab ? nextTab.key : null) : s.activeTab };
-        if (key === "compose") Object.assign(patch, { compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null });
+        if (key === "compose") Object.assign(patch, { compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null, cChange: null, selBar: s.selBar && s.selBar.kind === "compose" ? null : s.selBar });
         if (key.indexOf("doc:") === 0) patch.doc = null;
         if (key.indexOf("html:") === 0) patch.htmlDoc = null;
         if (wasActive && nextTab) Object.assign(patch, this.tabPatch(nextTab));
@@ -2225,6 +2231,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     goScreen = (id, patch) => {
+      this.setState({ fathomMenu: false });
+      if (id !== "start" && id !== "agent") this.setState({ fathomSmart: false, fathomAnswer: null, selBar: null });
       /* The first entry into mail starts with an empty panel; after that the open message
          is remembered for the session (in-memory state - gone when the app closes). */
       const p = Object.assign({ screen: id, replyDock: null, replyChooser: null }, patch || {});
@@ -2728,23 +2736,26 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     demoSpeed = () => Math.max(0.3, Math.min(2, (this.props.streamDelay ?? 550) / 550));
 
-    playDemo = () => {
+    /* Every real example plays the same way; which one is playing is `this.demo`. */
+    playDemo = (demo) => {
+      const d = demo && demo.script ? demo : { id: DEMO_CONV_ID, title: "Real example - contract addendum", script: DEMO_SCRIPT };
+      this.demo = d;
       clearTimeout(this.demoT);
       this.demoAt = 0;
       this.setState(s2 => ({
-        convs: (s2.convs || []).filter(c => c.id !== DEMO_CONV_ID)
-          .concat([{ id: DEMO_CONV_ID, title: "Real example - contract addendum", when: "now", msgs: [] }]),
-        screen: "agent", convId: DEMO_CONV_ID, agentInput: "", agentThinking: false, agentStatus: "", demoRun: true,
+        convs: (s2.convs || []).filter(c => c.id !== d.id)
+          .concat([{ id: d.id, title: d.title, when: "now", msgs: [] }]),
+        screen: "agent", convId: d.id, agentInput: "", agentThinking: false, agentStatus: "", demoRun: true,
       }));
       this.startAgentPin();
       this.demoNext();
     };
 
     demoNext = () => {
-      const step = DEMO_SCRIPT[this.demoAt];
+      const step = (this.demo ? this.demo.script : DEMO_SCRIPT)[this.demoAt];
       if (!step) {
         this.stopAgentPin();
-        this.setState(s2 => ({ agentThinking: false, agentStatus: "", demoRun: false, convs: this.markUnreadAway(s2, DEMO_CONV_ID) }));
+        this.setState(s2 => ({ agentThinking: false, agentStatus: "", demoRun: false, convs: this.markUnreadAway(s2, this.demo ? this.demo.id : DEMO_CONV_ID) }));
         return;
       }
       this.demoT = setTimeout(() => {
@@ -2758,7 +2769,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     demoApply = (step, instant) => {
       this.setState(s2 => {
         const convs = (s2.convs || []).slice();
-        const i = convs.findIndex(c => c.id === DEMO_CONV_ID);
+        const i = convs.findIndex(c => c.id === (this.demo ? this.demo.id : DEMO_CONV_ID));
         if (i < 0) return null;
         const conv = Object.assign({}, convs[i]);
         const msgs = conv.msgs.slice();
@@ -2822,7 +2833,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.stopAgentPin();
       clearTimeout(this.demoT);
       clearTimeout(this._askT);
-      this.demoAt = DEMO_SCRIPT.length;
+      this.demoAt = Infinity;
       this.setState(s2 => Object.assign(
         { agentThinking: false, agentStatus: "", demoRun: false },
         this.pushMsg(s2, [{ role: "bot", anim: true, scope: "stopped by you", text: "Stopped. What arrived so far stays - tell me where to pick it up.", bullets: [], blocks: [] }])
@@ -2885,18 +2896,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this._agAway = el.scrollHeight - el.clientHeight - el.scrollTop > 40;
     };
 
+    /* A bar standing over a passage would be left behind by the scroll; one docked above the field is not. */
+    closeFloatingSelBar = () => { if (this.state.selBar && !this.state.selBar.answer && !this._passageDocked) { this.dropSelection(); this.setState({ selBar: null }); } };
+    onStartScroll = () => this.closeFloatingSelBar();
+    openWatched = (w) => { this.setState(s2 => ({ watched: (s2.watched || []).map(x => (x.id === w.id && x.state === "changed" ? Object.assign({}, x, { state: "same", note: "opened just now" }) : x)) })); this.run(w.q); };
     onAgentScroll = (e) => {
       const el = e.target;
+      this.closeFloatingSelBar();
       if (el.scrollHeight - el.clientHeight - el.scrollTop < 40) this._agAway = false;
     };
 
     agentAsk = (text) => {
       const q = (text || "").trim();
       if (!q) return;
+      const quote = this.state.agentQuote;
       this.demoStop();
       this.setState(s2 => Object.assign(
-        { screen: "agent", agentInput: "", agentThinking: true },
-        this.pushMsg(s2, [{ role: "user", anim: true, text: q }])
+        { screen: "agent", agentInput: "", agentThinking: true, agentQuote: null },
+        this.pushMsg(s2, [Object.assign({ role: "user", anim: true, text: q }, quote ? { quote: quote.text } : {})])
       ));
       this.startAgentPin();
       this._askT = setTimeout(() => {
@@ -2914,15 +2931,96 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers.push(this._askT);
     };
 
-    /* One block, drawn exactly as the Discover catalogue draws it — plus, for the three actionable
-       types, the controls and the pending / accepted / declined phase. */
-    bkView = (b, key, isMobile) => {
+    /* The bar a selection opens. It stands over the passage on a fine pointer and docks above the field on touch,
+       where the system's own selection menu already sits over the passage. */
+    selBarView = (st, touch, convMsgs) => {
+      const sb = st.selBar;
+      /* A step on Start keys its draft as `start#<step>`; the Agent's as `<conversation>#<message>#<block>`. */
+      const startDraft = !!sb && sb.kind === "draft" && sb.key.indexOf("start#") === 0;
+      const bar = sb && (sb.kind === "compose" ? st.compose && !st.composeMin : st.screen === (startDraft ? "start" : "agent")) ? sb : null;
+      this._passageDocked = touch;
+      if (!bar || !bar.rect) return { passageBarShown: false };
+      /* The composer's selection is a draft too, rewritten in the editor rather than in a block. */
+      const inCompose = bar.kind === "compose";
+      const isDraft = bar.kind === "draft" || inCompose;
+      const parts = bar.kind === "draft" ? bar.key.split("#") : [];
+      const msg = bar.kind === "draft" && !startDraft ? convMsgs[+parts[1]] : null;
+      const blk = startDraft ? HOME.steps[+parts[1]] : msg && (msg.blocks || [])[+parts[2]];
+      if (bar.kind === "draft" && !blk) return { passageBarShown: false };
+      const r = bar.rect, W = isDraft ? 440 : 400;
+      const above = r.top > 300;
+      const pos = touch
+        ? (r.inputWidth ? "left:" + Math.round(r.inputLeft) + "px;width:" + Math.round(r.inputWidth) + "px;" : "left:10px;right:10px;") + "bottom:" + Math.round(r.height - r.inputTop + 8) + "px;"
+        : "width:" + W + "px;left:" + Math.round(Math.max(12, Math.min(r.left, r.width - W - 12))) + "px;" + (above ? "top:" + Math.round(r.top - 10) + "px;transform:translateY(-100%);" : "top:" + Math.round(r.bottom + 10) + "px;");
+      const keyer = (run) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } };
+      const chip = "display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:999px;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:36px;padding:0 13px" : "padding:6px 11px");
+      const icon = (n) => "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)";
+      const act = (label, ic, run, aria) => ({ label, icon: ic, run, key: keyer(run), aria: aria || label, style: chip, iconStyle: icon() });
+      const ans = bar.answer || null;
+      const ask = () => (inCompose ? this.rewriteComposeAsk() : this.rewriteAsk(blk));
+      return {
+        passageBarShown: true,
+        passageBarIsDraft: isDraft,
+        passageBarIsText: !isDraft,
+        passageBarAria: inCompose ? "Rewrite the selected part of the message" : isDraft ? "Rewrite the selected part of the draft" : "Do something with the selected passage",
+        passageBarTitle: isDraft ? "Rewrite this part" : "Selected from " + bar.from,
+        passageBarIcon: isDraft ? "edit_note" : "format_quote",
+        passageBarQuote: "“" + (bar.text || "") + "”",
+        passageBarStyle: "position:fixed;z-index:90;" + pos + "box-sizing:border-box;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 12px 12px 14px;box-shadow:0 18px 44px var(--sh-3),0 1px 0 var(--inset) inset",
+        passageBarKeep: (e) => { if (e.target.tagName !== "INPUT") e.preventDefault(); },
+        passageBarKey: (e) => { if (e.key === "Escape") this.closeSelBar(); },
+        passageCloseBar: this.closeSelBar,
+        passagePresets: isDraft ? REWRITE_PRESETS.map(pr => act(pr.label, pr.icon, () => (inCompose ? this.rewriteCompose(pr.key, pr.label) : this.rewriteSel(blk, pr.key, pr.label)), "Rewrite the selection: " + pr.label.toLowerCase())) : [],
+        /* The composer and Start have no conversation to quote a passage into, so they offer the rewrite alone. */
+        passageQuoteShown: !inCompose && !startDraft,
+        passageAskValue: st.selAsk || "",
+        passageOnAsk: (e) => this.setState({ selAsk: e.target.value }),
+        passageAskKey: (e) => { if (e.key === "Enter") ask(); if (e.key === "Escape") this.closeSelBar(); },
+        passageAskRun: ask, passageAskRunKey: keyer(ask),
+        passageAskRowStyle: "display:flex;align-items:center;gap:8px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:" + (touch ? "4px 4px 4px 12px" : "4px 4px 4px 11px"),
+        passageAskPlaceholder: touch && r.width < 700 ? "Or say how…" : "Or say how - e.g. mention the 2023 addendum",
+        passageCloseSize: touch ? "width:44px;height:44px;margin:-10px -8px -10px 0;" : "width:28px;height:28px;",
+        passageAskBtnStyle: "font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:inline-flex;align-items:center;" + (touch ? "min-height:44px;padding:0 14px" : "padding:6px 12px"),
+        /* Alone on its row it is a button rather than a chip, so it takes the full touch target. */
+        passageQuoteAct: Object.assign(act("Ask about this", "format_quote", this.quoteSel, "Quote the selection in the field and ask about it"), { style: chip.replace("min-height:36px", "min-height:44px") }),
+        passageActs: isDraft ? [] : [
+          act("Ask about this", "format_quote", this.quoteSel, "Quote the passage in the field and ask about it"),
+          act("Explain", "lightbulb", () => this.answerSel("explain"), "Explain the passage here"),
+          act("Check against the sources", "fact_check", () => this.answerSel("check"), "Check the passage against the sources, here"),
+          act("Make it a task", "task_alt", this.selToTask, "Propose a task from the passage"),
+        ],
+        passageHasAnswer: !!ans,
+        passageAnswerBusy: !!(ans && ans.busy),
+        passageAnswerReady: !!(ans && !ans.busy),
+        passageAnswerLabel: ans ? SEL_REPLIES[ans.kind].label : "",
+        passageAnswerText: ans && ans.text ? ans.text : "",
+        passageAnswerStyle: "display:flex;flex-direction:column;gap:8px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:11px 12px",
+        passageSkel: [96, 82, 58].map(w => ({ style: SHIM + "height:9px;border-radius:5px;width:" + w + "%" })),
+        passageKeepAnswer: this.keepSelAnswer, passageKeepAnswerKey: keyer(this.keepSelAnswer),
+        passageAnswerBtnStyle: "align-self:flex-start;font-size:12.5px;color:var(--accent-d);border:1px solid var(--accent-line);border-radius:8px;box-sizing:border-box;display:inline-flex;align-items:center;" + (touch ? "min-height:44px;padding:0 12px" : "padding:5px 10px"),
+        passageRowStyle: "display:flex;gap:" + (touch ? 8 : 6) + "px;" + (touch && r.width < 700 ? "overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none" : "flex-wrap:wrap"),
+      };
+    };
+
+    /* One block, drawn exactly as the block catalogue draws it — plus, for the actionable types, the controls
+       and the pending / accepted / declined phase. */
+    bkView = (b, key, isMobile, surface, touch) => {
       const st = this.state;
+      /* Start takes one step and never sends: no *Another time*, which is a conversation, and a draft opens in the
+         composer instead of being sent from here. Its fields and a draft's sentences change exactly as the Agent's do. */
+      const onStart = surface === "start";
+      /* A field changed on its own is laid over the proposal, and accepting takes the changed values. */
+      const vals = (st.bkVals || {})[key] || {};
+      const FIELD_KEY = { When: "when", Duration: "duration", Due: "due", Reminder: "reminder" };
+      const bv = Object.keys(vals).length ? Object.assign({}, b, ...Object.keys(vals).map(k => ({ [FIELD_KEY[k]]: vals[k] })), vals.When ? { conflict: "" } : {}) : b;
+      const accept = () => (onStart ? this.acceptStartStep(key, bv) : this.acceptBk(key, bv));
+      const change = (st.bkChange || {})[key] || null;
+      const dParas = b.type === "draft" ? this.draftParas(key, b) : [];
       const phase = (st.bkPhase || {})[key] || b.phase || null;
       const bstate = (st.bkState || {})[key] || b.state || "ready";
       const editRaw = (st.bkEdit || {})[key];
       const editing = typeof editRaw === "string";
-      const LABEL = { answer: "Answer", timeline: "Timeline", evidence: "Evidence", threadstate: "Thread state", facttable: "Fact table", attachments: "Attachments", draft: "Draft", event: "Event proposal", task: "Task proposal", action: "Suggested action" };
+      const LABEL = { answer: "Answer", timeline: "Timeline", evidence: "Evidence", threadstate: "Thread state", facttable: "Fact table", attachments: "Attachments", people: "People", trace: "How I got here", draft: "Draft", event: "Event proposal", task: "Task proposal", action: "Suggested action" };
       const declined = phase === "declined";
       const accepted = phase === "accepted";
       const failed = accepted && !!b.failed;
@@ -2932,30 +3030,67 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const tone = declined ? "declined" : phase === "pending" ? "pending" : "settled";
       const kStyle = "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted);font-weight:500";
       const vStyle = "min-width:0;font-size:14px;color:var(--text);text-wrap:pretty";
-      const btn = (variant) => BLK.btn(isMobile, variant === "primary");
+      const btn = (variant) => BLK.btn(isMobile, variant === "primary") + (touch ? "min-height:44px;" : "");
       const iconTile = (bg, color) => "display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:" + bg + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:" + color;
       const keyer = (run) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } };
+      /* What the reader can ask of one item. Start's steps do not take these. */
+      const live = !onStart && ready;
+      const itemAct = (label, ic, run, aria) => ({ label, icon: ic, run, key: keyer(run), aria: aria || label,
+        style: "display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--accent-d);border-radius:7px;white-space:nowrap;" + (touch ? "min-height:44px;box-sizing:border-box;padding:0 10px" : "padding:3px 7px") + ";margin-left:" + (touch ? -10 : -7) + "px",
+        iconStyle: icon(15, "var(--accent-d)") });
+      const actsStyle = "display:flex;flex-wrap:wrap;gap:" + (isMobile ? "0 14px" : "0 12px") + ";margin-left:" + (isMobile ? 0 : 28) + "px";
+      const noteOf = (nkey, indent) => {
+        const n = (st.bkNote || {})[nkey];
+        const drop = () => this.dropNote(nkey);
+        return {
+          hasNote: !!n, noteBusy: !!(n && n.busy), noteReady: !!(n && !n.busy),
+          noteLabel: n ? "AI · " + n.label : "", noteText: (n && n.text) || "",
+          dropNote: drop, dropNoteKey: keyer(drop),
+          noteStyle: "display:flex;flex-direction:column;gap:7px;margin-left:" + (isMobile || !indent ? 0 : indent) + "px;background:var(--sub);border:1px solid var(--line2);border-left:2px solid var(--accent);border-radius:9px;padding:9px 11px;animation:mfblkin 0.4s cubic-bezier(0.22,0.61,0.36,1) both",
+          noteHeadStyle: "display:flex;align-items:center;gap:8px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--muted)",
+          noteTextStyle: "font-size:13.5px;line-height:1.55;color:var(--text);text-wrap:pretty",
+          dropStyle: "display:inline-flex;align-items:center;justify-content:center;" + (touch ? "width:44px;height:44px;margin:-14px -10px -14px 0;" : "") + "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)",
+          noteSkel: [94, 70].map(w => ({ style: SHIM + "height:9px;border-radius:5px;width:" + w + "%" })),
+        };
+      };
+      const pick = (st.bkPick || {})[key] || null;
+      /* The trace is how the answer was built, not the answer: it stays folded to its header until it is opened. */
+      const foldable = b.type === "trace";
+      const unfolded = foldable && !!(st.bkOpen || {})[key];
+      const toggleFold = () => this.setState(s2 => ({ bkOpen: Object.assign({}, s2.bkOpen, { [key]: !(s2.bkOpen || {})[key] }) }));
+      const excl = (st.bkExcl || {})[key] || [];
 
       /* Controls only exist while the proposal is live and the block actually came back. */
       let raw = [];
       if (phase === "pending" && ready) {
         if (b.type === "event") raw = [
-          { label: "Add to calendar", aria: "Add “" + b.title + "” to the calendar, " + (b.when || ""), primary: true, run: () => this.acceptBk(key, b) },
+          { label: "Add to calendar", aria: "Add “" + b.title + "” to the calendar, " + (b.when || ""), primary: true, run: accept },
+        ].concat(onStart ? [] : [
           { label: "Another time", aria: "Ask for another time for “" + b.title + "”", run: () => this.anotherTimeBk(key, b) },
+        ]).concat([
           { label: "Decline", aria: "Decline putting “" + b.title + "” in the calendar", run: () => this.declineBk(key) },
-        ];
+        ]);
         else if (b.type === "task") raw = [
-          { label: "Add", aria: "Add the task “" + b.title + "”, due " + (b.due || ""), primary: true, run: () => this.acceptBk(key, b) },
+          { label: "Add", aria: "Add the task “" + b.title + "”, due " + (b.due || ""), primary: true, run: accept },
           { label: "Decline", aria: "Decline the task “" + b.title + "”", run: () => this.declineBk(key) },
+        ];
+        else if (b.type === "draft" && change) raw = change.busy ? [] : [
+          { label: "Keep the change", aria: "Keep the rewritten text in the draft to " + b.to, primary: true, run: () => this.keepChange(key, b) },
+          { label: "Try again", aria: "Ask the agent for another version of the same sentences", run: () => this.retryChange(key, b) },
+          { label: "Undo", aria: "Leave the draft as it was", run: () => this.dropChange(key) },
+        ];
+        else if (b.type === "draft" && onStart) raw = [
+          { label: "Open in composer", aria: "Open the draft to " + b.to + " in the composer - nothing is sent from here", primary: true, run: accept },
+          { label: "Discard", aria: "Discard the draft to " + b.to, run: () => this.declineBk(key) },
         ];
         else if (b.type === "draft") raw = editing
           ? [{ label: "Send", aria: "Send the edited draft to " + b.to, primary: true, run: () => this.acceptBk(key, b) },
              { label: "Stop editing", aria: "Stop editing the draft to " + b.to, run: () => this.editBk(key, false) }]
           : [{ label: "Send", aria: "Send the draft to " + b.to, primary: true, run: () => this.acceptBk(key, b) },
-             { label: "Edit here", aria: "Edit the draft to " + b.to + " inside the conversation", run: () => this.editBk(key, true, (b.paras || []).join("\n\n")) },
+             { label: "Edit here", aria: "Edit the draft to " + b.to + " inside the conversation", run: () => this.editBk(key, true, dParas.join("\n\n")) },
              { label: "Discard", aria: "Discard the draft to " + b.to, run: () => this.declineBk(key) }];
         else if (b.type === "action") raw = [
-          { label: b.cta || "Do it", aria: b.title, primary: true, run: () => this.acceptBk(key, b) },
+          { label: b.cta || "Do it", aria: b.title, primary: true, run: accept },
           { label: "Decline", aria: "Decline: " + b.title, run: () => this.declineBk(key) },
         ];
       }
@@ -2967,7 +3102,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         label: n.label, icon: n.icon, aria: n.label + " - leaves the conversation, you can come straight back",
         run: () => this.goLook(n), key: keyer(() => this.goLook(n)),
         iconStyle: icon(16, "var(--muted)"),
-        style: BLK.link(isMobile),
+        style: BLK.link(isMobile) + (touch ? "min-height:44px;" : ""),
       }));
 
       const chip = phase === "pending" ? { icon: "help", label: "needs confirmation", kind: "pending" }
@@ -2976,10 +3111,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         : declined ? { icon: "block", label: "declined", kind: "declined" } : null;
 
       const fields = b.type === "event" ? [
-        { k: "When", v: b.when }, { k: "Duration", v: b.duration }, { k: "Attendees", v: b.attendees }, { k: "From", v: "thread “" + (b.from || "") + "”" },
+        { k: "When", v: bv.when }, { k: "Duration", v: bv.duration }, { k: "Attendees", v: b.attendees }, { k: "From", v: "thread “" + (b.from || "") + "”" },
       ] : b.type === "task" ? [
-        { k: "Due", v: b.due }, { k: "From", v: "message “" + (b.from || "") + "”" },
-      ].concat(b.reminder ? [{ k: "Reminder", v: b.reminder }] : []) : b.type === "draft" ? [
+        { k: "Due", v: bv.due }, { k: "From", v: "message “" + (b.from || "") + "”" },
+      ].concat(bv.reminder ? [{ k: "Reminder", v: bv.reminder }] : []) : b.type === "draft" ? [
         { k: "To", v: b.to }, { k: "Subject", v: b.subject },
       ] : [];
 
@@ -2996,11 +3131,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
       return {
         label: LABEL[b.type] || "Block",
-        meta: b.type === "answer" ? (b.cites || []).length + ((b.cites || []).length === 1 ? " citation" : " citations") : b.meta || "",
+        meta: b.type === "answer" ? (b.cites || []).length + ((b.cites || []).length === 1 ? " citation" : " citations")
+          : b.type === "draft" && (st.bkText || {})[key] ? "reply · rewritten with the agent"
+          : b.meta || "",
         /* The thread itself is flat, so the blocks carry the separation: they sit on panel with a
            visible edge instead of melting into the page. */
-        cardStyle: BLK.card(isMobile, tone) + (b.anim ? "animation:mfblkin 0.52s cubic-bezier(0.22,0.61,0.36,1) both;" : ""),
-        headStyle: BLK.head,
+        cardStyle: BLK.card(isMobile, tone) + (b.anim ? "animation:mfblkin 0.52s cubic-bezier(0.22,0.61,0.36,1) both;" : "") + (foldable && !unfolded ? "cursor:pointer;" : ""),
+        cardHover: foldable && !unfolded ? "border-color:var(--accent-line);background:var(--hover)" : "",
+        cardClick: foldable && !unfolded ? toggleFold : null,
+        isFoldable: foldable,
+        headRole: foldable ? "button" : null,
+        headTab: foldable ? 0 : null,
+        headExpanded: foldable ? unfolded : null,
+        headAria: foldable ? (unfolded ? "Fold how the answer was built" : "Show how the answer was built, " + (b.items || []).length + " steps") : null,
+        headClick: foldable && unfolded ? toggleFold : null,
+        headKey: foldable ? keyer(toggleFold) : null,
+        foldIcon: unfolded ? "expand_less" : "expand_more",
+        foldIconStyle: icon(20, "var(--muted)") + ";margin-left:auto",
+        headStyle: BLK.head + (foldable && touch ? ";min-height:44px;box-sizing:border-box" : ""),
         icon: BLK_ICON[b.type] || "widgets",
         tileStyle: BLK.tile(b.type === "answer" ? "accent" : tone),
         glyphStyle: BLK.glyph,
@@ -3013,7 +3161,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         chipStyle: BLK.chip(chip ? chip.kind : ""),
 
         isDeclined: declined,
-        showBody: !declined,
+        showBody: !declined && (!foldable || unfolded),
         declinedStyle: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)",
         declinedIconStyle: "display:none",
         strikeStyle: "text-decoration:line-through;min-width:0",
@@ -3071,38 +3219,111 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         isThreadState: b.type === "threadstate",
         isTable: b.type === "facttable",
         isFiles: b.type === "attachments",
+        isPeople: b.type === "people",
+        isTrace: b.type === "trace",
+        /* The tray a picked set or range opens, inside the block it was picked from. */
+        hasPeoplePick: Array.isArray(pick) && pick.length > 0,
+        peoplePickLabel: Array.isArray(pick) ? pick.length + " selected" : "",
+        peopleActs: Array.isArray(pick) && pick.length ? (() => {
+          const names = pick.map(i => b.items[i].name);
+          return [
+            itemAct("Draft to " + (names.length === 1 ? names[0].split(" ")[0] : "these"), "edit_note", () => this.draftToPeople(key, names), "Draft a message to " + this.namesList(names)),
+            itemAct("Invite to a meeting", "event", () => this.invitePeople(key, names), "Invite " + this.namesList(names) + " to a meeting"),
+            itemAct("Clear", "close", () => this.clearPick(key), "Clear the selection"),
+          ];
+        })() : [],
+        hasRange: b.type === "timeline" && !!pick && pick.from !== undefined,
+        rangeLabel: b.type === "timeline" && pick && pick.from !== undefined
+          ? (pick.to === undefined ? "From " + b.items[pick.from].date + " · press where the period ends" : b.items[pick.from].date + " - " + b.items[pick.to].date + " · " + (pick.to - pick.from + 1) + (pick.to === pick.from ? " item" : " items"))
+          : "",
+        rangeActs: b.type === "timeline" && pick && pick.from !== undefined ? (pick.to === undefined ? [] : [
+          itemAct("Summarise this period", "summarize", () => {
+            const its = b.items.slice(pick.from, pick.to + 1);
+            this.noteBk(key + "#range", "Summary of " + its[0].date + " - " + its[its.length - 1].date,
+              its.length + (its.length === 1 ? " item: " : " items: ") + its.map(x => x.title).join("; ") + ". " + (b.periodNote || "Read from the calendar alone - nothing in the mail moves any of them."));
+          }, "Summarise the selected period"),
+        ]).concat([itemAct("Clear", "close", () => this.clearPick(key), "Clear the period")]) : [],
+        trayStyle: "display:flex;align-items:center;gap:" + (isMobile ? "4px 14px" : "6px 14px") + ";flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:10px;padding:" + (isMobile ? "6px 12px" : "7px 12px"),
+        trayLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:600;color:var(--accent-d);margin-right:auto",
+        rangeNote: noteOf(key + "#range", 0),
+        peopleHint: live && b.type === "people" && !(Array.isArray(pick) && pick.length),
+        timelineHint: live && b.type === "timeline" && !(pick && pick.from !== undefined),
+        hintStyle: "display:flex;align-items:center;gap:7px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)",
+        hintIconStyle: icon(15, "var(--faint)"),
         isDraft: b.type === "draft",
         isProposal: b.type === "event" || b.type === "task" || b.type === "action",
 
         tlWrapStyle: isMobile ? "display:flex;flex-direction:column;gap:0;padding-top:2px" : "display:flex;gap:0;overflow-x:auto;padding-top:2px",
-        items: b.type === "timeline" ? (b.items || []).map((t, i, all) => ({
+        items: b.type === "timeline" ? (b.items || []).map((t, i, all) => {
+          const inRange = !!pick && pick.from !== undefined && i >= pick.from && i <= (pick.to === undefined ? pick.from : pick.to);
+          const press = () => this.pickBk(key, i, true);
+          return {
           date: t.date, title: t.title, detail: t.detail,
-          style: BLK.tlItem(isMobile, i === all.length - 1),
+          press: live ? press : null, pressKey: live ? keyer(press) : null, role: live ? "button" : null, tab: live ? 0 : null,
+          pressed: inRange, aria: t.date + " " + t.title + (inRange ? " - in the selected period" : " - press to start or end a period"),
+          style: BLK.tlItem(isMobile, i === all.length - 1) + (live ? ";cursor:pointer;border-radius:8px" : "") + (inRange ? ";background:var(--accent-soft)" : ""),
           lineStyle: BLK.tlLine(isMobile, i === all.length - 1),
-          dotStyle: BLK.tlDot(isMobile),
+          dotStyle: BLK.tlDot(isMobile) + (inRange ? ";background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)" : ""),
           dateStyle: BLK.tlDate,
           titleStyle: BLK.tlTitle,
           detailStyle: BLK.tlDetail,
-        })) : b.type === "evidence" ? (b.items || []).map((e, i) => ({
+        }; }) : b.type === "evidence" ? (b.items || []).map((e, i) => Object.assign({
           n: e.n, source: e.source, snippet: e.snippet, freshness: e.freshness,
           open: () => this.openAgentEv(e), openKey: keyer(() => this.openAgentEv(e)),
           openAria: "Citation " + e.n + ": " + e.source + " - opens the source",
           isPrivate: !!e.private, hasSnippet: !e.private && !!e.snippet,
-          badge: e.badge,
-          style: "display:flex;flex-direction:column;gap:7px;padding:" + (i ? 12 : 2) + "px 0 12px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+          badge: excl.indexOf(i) >= 0 ? "left out · answered again below" : e.badge,
+          excluded: excl.indexOf(i) >= 0,
+          hasActs: live && excl.indexOf(i) < 0,
+          acts: live && excl.indexOf(i) < 0 ? [
+            itemAct("Why this source", "help", () => this.noteBk(key + "#" + i, "Why this source", e.why || "It is the closest match to what the answer claims, and the most recent source that says it."), "Why the answer uses " + e.source),
+          ].concat((b.items || []).length - excl.length > 1 ? [
+            itemAct("Leave it out and answer again", "do_not_disturb_on", () => this.excludeSource(key, b, i), "Answer again without " + e.source),
+          ] : []) : [],
+          actsStyle,
+          style: "display:flex;flex-direction:column;gap:7px;padding:" + (i ? 12 : 2) + "px 0 12px 0;" + (i ? "border-top:1px solid var(--line2);" : "") + (excl.indexOf(i) >= 0 ? "opacity:0.55;" : ""),
           nStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:" + (isMobile ? 36 : 20) + "px;height:" + (isMobile ? 36 : 20) + "px;padding:0 5px;box-sizing:border-box;border-radius:6px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d);background:var(--accent-soft);cursor:pointer",
           badgeStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px;white-space:nowrap",
           /* The quote and its provenance line up under the source's name rather than under its number. */
           privStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-size:13px;line-height:1.5;color:var(--faint);font-style:italic;text-wrap:pretty",
           snipStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-size:13.5px;line-height:1.5;color:var(--text2);border-left:2px solid var(--accent-line);padding:1px 0 1px 11px;text-wrap:pretty",
           subStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)",
-        })) : b.type === "attachments" ? (b.items || []).map((f, i) => ({
+        }, noteOf(key + "#" + i, 28))) : b.type === "attachments" ? (b.items || []).map((f, i) => Object.assign({
           name: f.name, meta: f.meta, icon: f.icon,
-          style: "display:flex;align-items:center;gap:12px;padding:" + (i ? 10 : 2) + "px 0 10px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+          hasActs: live && !!(f.summary || f.changes),
+          acts: !live ? [] : [].concat(f.summary ? [itemAct("Summarise", "summarize", () => this.noteBk(key + "#" + i, "Summary of " + f.name, f.summary), "Summarise " + f.name)] : [])
+            .concat(f.changes ? [itemAct("What changed", "difference", () => this.noteBk(key + "#" + i, "What changed in " + f.name, f.changes), "What changed in " + f.name + " since the previous version")] : []),
+          actsStyle: "display:flex;flex-wrap:wrap;gap:" + (isMobile ? "0 14px" : "0 12px") + ";margin-left:" + (isMobile ? 0 : 44) + "px;margin-top:-4px",
+          wrapStyle: "display:flex;flex-direction:column;gap:8px;padding:" + (i ? 10 : 2) + "px 0 10px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+          style: "display:flex;align-items:center;gap:12px",
           iconStyle: iconTile("var(--sub)", "var(--text2)") + ";box-shadow:inset 0 0 0 1px var(--line2)",
           nameStyle: "font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
           metaStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)",
-        })) : [],
+        }, noteOf(key + "#" + i, 44))) : b.type === "people" ? (b.items || []).map((p, i) => {
+          const on = Array.isArray(pick) && pick.indexOf(i) >= 0;
+          const toggle = () => this.pickBk(key, i, false);
+          return {
+            initials: p.initials, name: p.name, role: p.role, last: p.last,
+            on, toggle: live ? toggle : null, toggleKey: live ? keyer(toggle) : null, role2: live ? "checkbox" : null, tab: live ? 0 : null,
+            aria: p.name + ", " + p.role,
+            style: "display:flex;align-items:center;gap:12px;padding:" + (isMobile ? "10px 8px" : "8px 8px") + ";margin:0 -8px;border-radius:9px;" + (live ? "cursor:pointer;" : "") + (on ? "background:var(--accent-soft);" : "") + (i ? "border-top:1px solid var(--line2);" : ""),
+            boxStyle: "display:" + (live ? "flex" : "none") + ";align-items:center;justify-content:center;width:18px;height:18px;flex:0 0 18px;border-radius:5px;border:1.5px solid " + (on ? "var(--accent)" : "var(--border2)") + ";background:" + (on ? "var(--accent)" : "transparent") + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 500;font-size:14px;line-height:1;color:var(--onaccent)",
+            check: on ? "check" : "",
+            avStyle: "display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 32px;border-radius:50%;background:var(--sub);box-shadow:inset 0 0 0 1px var(--line2);font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:600;color:var(--text2)",
+            nameStyle: "font-size:14px;font-weight:600;color:var(--text)",
+            roleStyle: "font-size:12.5px;color:var(--muted);text-wrap:pretty",
+            lastStyle: "margin-left:auto;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);white-space:nowrap",
+          };
+        }) : b.type === "trace" ? (b.items || []).map((t, i) => Object.assign({
+          n: String(i + 1), step: t.step, detail: t.detail,
+          hasActs: live && !!t.why,
+          acts: live && t.why ? [itemAct("Why this step", "help", () => this.noteBk(key + "#" + i, "Why this step", t.why), "Why the agent took step " + (i + 1))] : [],
+          actsStyle,
+          style: "display:flex;flex-direction:column;gap:6px;padding:" + (i ? 10 : 2) + "px 0 10px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+          nStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--text2);background:var(--sub);box-shadow:inset 0 0 0 1px var(--line2)",
+          stepStyle: "font-size:14px;color:var(--text);min-width:0",
+          detailStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);margin-left:" + (isMobile ? 0 : 28) + "px",
+        }, noteOf(key + "#" + i, 28))) : [],
 
         colsStyle: isMobile ? "display:flex;flex-direction:column;gap:16px" : "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px",
         stateCols: (b.cols || []).map(c => ({
@@ -3119,10 +3340,43 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         tableStyle: "display:grid;grid-template-columns:repeat(" + (cols || 1) + ",max-content);gap:0;min-width:min-content",
         cells: cells,
 
-        fields: fields.filter(f => !!f.v).map(f => ({
+        fields: fields.filter(f => !!f.v).map(f => {
+          const fieldAlts = (b.alts || FIELD_ALTS)[f.k];
+          const canChange = phase === "pending" && ready && !!fieldAlts;
+          const fid = key + "|" + f.k;
+          const open = canChange && st.bkField === fid;
+          const toggle = () => this.setState(s2 => ({ bkField: s2.bkField === fid ? null : fid, fieldAsk: "" }));
+          const askSubmit = () => { const v = (this.state.fieldAsk || "").trim(); if (v) this.setFieldVal(key, f.k, v); };
+          return {
           k: f.k, v: f.v, kStyle: kStyle, vStyle: vStyle,
+          canChange, fixed: !canChange, open,
+          changed: vals[f.k] !== undefined,
+          toggle, toggleKey: keyer(toggle),
+          changeAria: "Change " + f.k.toLowerCase() + ", now " + f.v + " - the agent suggests alternatives",
+          valBtnStyle: "display:inline-flex;align-items:center;gap:7px;align-self:flex-start;max-width:100%;font-size:14px;color:var(--text);border-radius:7px;box-sizing:border-box;padding:" + (touch ? "6px 8px;min-height:44px" : "2px 6px") + ";margin:" + (touch ? "-10px -8px" : "-2px -6px") + ";border:1px dashed " + (open ? "var(--accent)" : "transparent") + ";background:" + (open ? "var(--accent-soft)" : "transparent"),
+          editIcon: open ? "expand_less" : "edit",
+          editIconStyle: icon(15, "var(--faint)"),
+          tagStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d);background:var(--accent-soft);border-radius:999px;padding:1px 7px",
+          panelStyle: "display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:10px;background:var(--sub);border:1px solid var(--line2)",
+          panelLabelStyle: BLK.label,
+          alts: (fieldAlts || []).filter(a => a.v !== f.v).map(a => ({
+            v: a.v, why: a.why, hasWhy: !!a.why,
+            pick: () => this.setFieldVal(key, f.k, a.v), pickKey: keyer(() => this.setFieldVal(key, f.k, a.v)),
+            aria: "Set " + f.k.toLowerCase() + " to " + a.v + (a.why ? " - " + a.why : ""),
+            style: "display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;border-radius:8px;box-sizing:border-box;padding:" + (touch ? "13px 10px;min-height:44px" : "7px 9px") + ";background:var(--panel);border:1px solid var(--line)",
+            vStyle: "font-size:13.5px;font-weight:600;color:var(--text)",
+            whyStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)",
+          })),
+          askValue: open ? st.fieldAsk || "" : "",
+          onAsk: (e) => this.setState({ fieldAsk: e.target.value }),
+          askKey: (e) => { if (e.key === "Enter") askSubmit(); if (e.key === "Escape") toggle(); },
+          askSubmit, askSubmitKey: keyer(askSubmit),
+        askPlaceholder: isMobile ? (f.k === "When" ? "Or say when…" : "Or say it…") : f.k === "When" ? "Or say when - e.g. after lunch on Thursday" : "Or say it in your words",
+          askRowStyle: "display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:" + (touch ? "4px 4px 4px 10px" : "4px 4px 4px 10px"),
+          askInputStyle: "flex:1;min-width:0;border:none;outline:none;background:transparent;font-family:inherit;font-size:13.5px;color:var(--text);padding:" + (isMobile ? "6px 0" : "3px 0"),
+          askBtnStyle: btn("quiet") + "width:auto;flex:0 0 auto;",
           rowStyle: "display:grid;grid-template-columns:" + (isMobile ? 72 : 88) + "px minmax(0,1fr);gap:12px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line2)",
-        })),
+        }; }),
         hasFields: fields.some(f => !!f.v),
         fieldsStyle: "display:flex;flex-direction:column",
         propTitleStyle: "font-size:" + (isMobile ? 15 : 16) + "px;font-weight:600;line-height:1.35;letter-spacing:-0.01em;text-wrap:pretty",
@@ -3146,9 +3400,38 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The draft reads as a letter: its paragraphs sit in one well, and editing swaps the well for a field of the same shape. */
         letterStyle: "display:flex;flex-direction:column;gap:10px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
         textareaStyle: "width:100%;box-sizing:border-box;min-height:" + (isMobile ? 150 : 130) + "px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.6;color:var(--text);background:var(--sub);border:1px solid var(--accent-line);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
-        paras: (b.paras || []).map(p => ({ t: p, style: "font-size:14px;line-height:1.6;color:var(--text);text-wrap:pretty" })),
+        /* A pending draft is a selection scope of its own: what is selected there can be rewritten in place. A piece
+           being rewritten pulses; a rewritten one shows the old text struck beside the new until it is kept or undone. */
+        paras: dParas.map((t, pi) => {
+          const piece = change && change.pieces.find(x => x.pi === pi);
+          const plain = "";
+          const segs = !piece ? [{ t, style: plain }]
+            : [{ t: t.slice(0, piece.s), style: plain }]
+              .concat(change.busy
+                ? [{ t: piece.old, style: "background:var(--accent-soft);border-radius:4px;animation:mfpulse 1s ease-in-out infinite" }]
+                : [{ t: piece.old, style: "color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)" },
+                   { t: " ", style: plain },
+                   { t: piece.nw, style: "background:var(--accent-soft);color:var(--text);border-radius:4px;box-shadow:0 1.5px 0 var(--accent);padding:0 1px" }])
+              .concat([{ t: t.slice(piece.e), style: plain }]);
+          return {
+            t, segs: segs.filter(x => x.t),
+            sel: phase === "pending" && !editing && !change ? "draft|" + key + "|" + pi : onStart ? "" : "text|the draft",
+            style: "font-size:14px;line-height:1.6;color:var(--text);text-wrap:pretty",
+          };
+        }),
+        draftHint: phase === "pending" && ready && !editing && !change,
+        draftHintStyle: "display:flex;align-items:center;gap:7px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)",
+        draftHintIconStyle: icon(15, "var(--faint)"),
+        hasChange: !!change,
+        changeBusy: !!(change && change.busy),
+        changeNote: !change ? "" : change.busy
+          ? "Rewriting " + change.pieces.length + (change.pieces.length === 1 ? " passage" : " passages") + " · " + change.label
+          : change.label + " · the struck text stays until you keep the change",
+        changeIcon: change && change.busy ? "progress_activity" : "auto_awesome",
+        changeNoteStyle: "display:flex;align-items:center;gap:8px;min-width:0;flex:" + (isMobile ? "0 0 auto" : "1 1 220px") + ";font-size:13px;line-height:1.45;color:var(--accent-d);text-wrap:pretty",
+        changeIconStyle: icon(16, "var(--accent-d)") + (change && change.busy ? ";animation:mfspin 1.15s linear infinite" : ""),
 
-        hasFoot: controls.length > 0 || nav.length > 0 || (accepted && !declined),
+        hasFoot: controls.length > 0 || nav.length > 0 || (accepted && !declined) || !!change,
         footStyle: BLK.foot(isMobile, tone),
         hasControls: controls.length > 0,
         controls: controls,
@@ -3192,6 +3475,388 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     editBk = (key, on, text) => this.setState(s2 => ({
       bkEdit: Object.assign({}, s2.bkEdit, { [key]: on ? (typeof text === "string" ? text : ((s2.bkEdit || {})[key] || "")) : null }),
     }));
+
+    /* Selecting inside the conversation. The scope a selection sits in (`data-sel`) decides what it offers: a
+       passage of a pending draft can be rewritten in place, any other passage asked about, explained, checked or
+       turned into a task. A selection that crosses two scopes offers nothing. */
+    /* A touch selection is made by a long press and its handles, which end in no mouseup or touchend the
+       conversation hears, and a mouse drag may end outside it. So the bar also follows the document's selection:
+       a mouse opens it on release, anything else once the selection settles. That path only opens or updates the
+       bar - focusing its own field collapses the selection, so emptying it never closes the bar from here. */
+    onSelPointer = (e) => {
+      if (e.pointerType !== "mouse") return;
+      this._mouseHeld = e.type === "pointerdown";
+      if (!this._mouseHeld && (this.state.screen === "agent" || this.state.screen === "start" || this.state.compose)) this.onAgentSelect(null, true);
+    };
+    onSelChange = () => {
+      if (this._mouseHeld || (this.state.screen !== "agent" && this.state.screen !== "start" && !this.state.compose)) return;
+      this.onAgentSelect(null, true, 350);
+    };
+
+    onAgentSelect = (e, openOnly, wait) => {
+      clearTimeout(this._selT);
+      this._selT = setTimeout(() => {
+        const sel = window.getSelection ? window.getSelection() : null;
+        const text = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/g, " ").trim() : "";
+        const cur = this.state.selBar;
+        if (!text) { if (!openOnly && cur && !cur.answer) this.setState({ selBar: null }); return; }
+        if (this.composeSelect(sel, text, cur, openOnly)) return;
+        const scopeOf = (n) => { const el = n && (n.nodeType === 1 ? n : n.parentElement); return el && el.closest ? el.closest("[data-sel]") : null; };
+        const a = scopeOf(sel.anchorNode), f = scopeOf(sel.focusNode);
+        if (!a || !f || !a.getAttribute("data-sel") || !f.getAttribute("data-sel")) return;
+        const [kind, key, piA] = a.getAttribute("data-sel").split("|");
+        const fk = f.getAttribute("data-sel").split("|");
+        const range = sel.getRangeAt(0);
+        const rr = range.getBoundingClientRect(), root = this.rootRef.current.getBoundingClientRect();
+        const inp = this.agentInputRef.current;
+        const rect = { top: rr.top - root.top, bottom: rr.bottom - root.top, left: rr.left - root.left, width: root.width, height: root.height,
+          inputTop: inp ? inp.getBoundingClientRect().top - root.top : root.height - 90 };
+        /* Docked under touch, the bar spans the field it sits on, so it never covers the rail or the history. */
+        const box = inp && inp.parentElement ? inp.parentElement.getBoundingClientRect() : null;
+        if (box) { rect.inputTop = box.top - root.top; rect.inputLeft = box.left - root.left; rect.inputWidth = box.width; }
+        const short = text.length > 140 ? text.slice(0, 137) + "…" : text;
+        if (openOnly && cur && cur.text === short) return;
+        if (kind === "draft" && fk[0] === "draft" && fk[1] === key) {
+          /* Offsets are counted inside each paragraph, so the rewrite can be laid over the text the block holds. */
+          const offset = (el, node, off) => { const r = document.createRange(); r.setStart(el, 0); r.setEnd(node, off); return r.toString().length; };
+          const pa = +piA, pf = +fk[2];
+          const startFirst = pa < pf || (pa === pf && range.startContainer === sel.anchorNode && range.startOffset === sel.anchorOffset);
+          const [p1, e1] = startFirst ? [pa, a] : [pf, f];
+          const [p2, e2] = startFirst ? [pf, f] : [pa, a];
+          this.setState({ selBar: { kind: "draft", key, text: short, rect,
+            from: { pi: p1, at: offset(e1, range.startContainer, range.startOffset) },
+            to: { pi: p2, at: offset(e2, range.endContainer, range.endOffset) } }, selAsk: "" });
+          return;
+        }
+        if (kind !== "text" || fk[0] !== "text") return;
+        this.setState({ selBar: { kind: "text", text: short, full: text, from: key, rect }, selAsk: "" });
+      }, wait || 0);
+    };
+
+    /* Closing the bar lets go of the selection too, or the document's next selection event would open it again. */
+    dropSelection = () => { if (window.getSelection) window.getSelection().removeAllRanges(); };
+    closeSelBar = () => { this.dropSelection(); this.setState({ selBar: null, selAsk: "" }); };
+
+    /* The paragraphs a draft holds now: the agent's own, or the last version the reader kept. */
+    draftParas = (key, b) => (this.state.bkText || {})[key] || b.paras || [];
+
+    /* A rewrite widens the selection to the whole sentences it touches, so what comes back reads as a sentence
+       rather than as a splice, and every piece is shown struck and replaced before anything is kept. */
+    rewriteSel = (b, variant, label) => {
+      const bar = this.state.selBar;
+      if (!bar || bar.kind !== "draft") return;
+      const key = bar.key, paras = this.draftParas(key, b);
+      const SENT = /.+?(?:[.!?]+["”’)]*(?=\s|$)|$)\s*/g;
+      const spans = (t) => { const out = []; let m; SENT.lastIndex = 0; while ((m = SENT.exec(t))) { if (!m[0]) break; out.push({ s: m.index, e: m.index + m[0].trimEnd().length }); } return out; };
+      const pieces = [];
+      for (let pi = bar.from.pi; pi <= bar.to.pi; pi++) {
+        const t = paras[pi] || "";
+        const lo = pi === bar.from.pi ? bar.from.at : 0, hi = pi === bar.to.pi ? bar.to.at : t.length;
+        const hit = spans(t).filter(x => x.e > lo && x.s < hi);
+        if (!hit.length) continue;
+        const sS = hit[0].s, sE = hit[hit.length - 1].e;
+        pieces.push({ pi, s: sS, e: sE, old: t.slice(sS, sE), nw: null });
+      }
+      if (!pieces.length) return;
+      window.getSelection && window.getSelection().removeAllRanges();
+      this.setState(s2 => ({ selBar: null, selAsk: "", bkChange: Object.assign({}, s2.bkChange, { [key]: { busy: true, variant, label, pieces } }) }));
+      this.timers.push(setTimeout(() => {
+        const swap = (old) => old.split(/(?<=[.!?]["”’)]*)\s+/).map(x => ((DRAFT_REWRITES[x.trim()] || {})[variant]) || x).join(" ");
+        const done = pieces.map(p => Object.assign({}, p, { nw: swap(p.old) }));
+        if (done.every(p => p.nw === p.old)) {
+          this.setState(s2 => ({ bkChange: Object.assign({}, s2.bkChange, { [key]: null }) }));
+          this.notify("The agent found nothing to change there.", { title: label });
+          return;
+        }
+        this.setState(s2 => ({ bkChange: Object.assign({}, s2.bkChange, { [key]: { busy: false, variant, label, pieces: done } }) }));
+      }, Math.max(500, (this.props.streamDelay ?? 550) * 1.4)));
+    };
+
+    rewriteAsk = (b) => {
+      const words = (this.state.selAsk || "").trim();
+      if (!words) return;
+      const preset = REWRITE_PRESETS.find(p => p.words.test(words)) || REWRITE_PRESETS[1];
+      this.rewriteSel(b, preset.key, "“" + words + "”");
+    };
+
+    keepChange = (key, b) => {
+      const ch = (this.state.bkChange || {})[key];
+      if (!ch || ch.busy) return;
+      const before = this.draftParas(key, b);
+      const after = before.slice();
+      ch.pieces.slice().sort((x, y) => y.s - x.s).forEach(p => { after[p.pi] = after[p.pi].slice(0, p.s) + p.nw + after[p.pi].slice(p.e); });
+      this.setState(s2 => ({ bkText: Object.assign({}, s2.bkText, { [key]: after }), bkChange: Object.assign({}, s2.bkChange, { [key]: null }) }));
+      this.notify(ch.label + " · kept in the draft", { title: "Change kept", actionLabel: "Undo",
+        onAction: () => this.setState(s2 => ({ bkText: Object.assign({}, s2.bkText, { [key]: before }) })) });
+    };
+
+    dropChange = (key) => this.setState(s2 => ({ bkChange: Object.assign({}, s2.bkChange, { [key]: null }) }));
+
+    /* *Try again* asks for another version of the same sentences: the next preset round, under the same request. */
+    retryChange = (key, b) => {
+      const ch = (this.state.bkChange || {})[key];
+      if (!ch || ch.busy) return;
+      const order = REWRITE_PRESETS.map(p => p.key);
+      const next = order[(order.indexOf(ch.variant) + 1) % order.length];
+      const p0 = ch.pieces[0], pl = ch.pieces[ch.pieces.length - 1];
+      this.setState({ selBar: { kind: "draft", key, from: { pi: p0.pi, at: p0.s }, to: { pi: pl.pi, at: pl.e } } }, () => this.rewriteSel(b, next, ch.label.replace(/ · another version$/, "") + " · another version"));
+    };
+
+    /* The composer takes the same rewrite as the Agent's draft. Its body is the reader's own editor, so a paragraph
+       is any block in it that holds no other block, and offsets are counted inside each one. */
+    composeParas = () => {
+      const el = this.bodyRef.current;
+      if (!el) return [];
+      const leaves = Array.from(el.querySelectorAll("p, div, li, blockquote")).filter(n => !n.querySelector("p, div, li, blockquote"));
+      return leaves.length ? leaves : [el];
+    };
+
+    composeSelect = (sel, text, cur, openOnly) => {
+      const el = this.bodyRef.current;
+      if (!el || !el.contains(sel.anchorNode) || !el.contains(sel.focusNode)) return false;
+      if (this.state.cChange) return true;
+      const range = sel.getRangeAt(0);
+      const paras = this.composeParas();
+      const at = (node, off) => {
+        const pi = paras.findIndex(n => n === node || n.contains(node));
+        if (pi < 0) return null;
+        const r = document.createRange(); r.setStart(paras[pi], 0); r.setEnd(node, off);
+        return { pi, at: r.toString().length };
+      };
+      const from = at(range.startContainer, range.startOffset), to = at(range.endContainer, range.endOffset);
+      if (!from || !to) return true;
+      const short = text.length > 140 ? text.slice(0, 137) + "…" : text;
+      if (openOnly && cur && cur.kind === "compose" && cur.text === short) return true;
+      const rr = range.getBoundingClientRect(), root = this.rootRef.current.getBoundingClientRect();
+      const rect = { top: rr.top - root.top, bottom: rr.bottom - root.top, left: rr.left - root.left, width: root.width, height: root.height, inputTop: root.height - 90 };
+      /* Docked under touch, the bar sits on the composer's foot, across the composer's own width. */
+      const foot = this.composeFootRef.current;
+      if (foot) { const b = foot.getBoundingClientRect(); rect.inputTop = b.top - root.top; rect.inputLeft = b.left - root.left; rect.inputWidth = b.width; }
+      this.setState({ selBar: { kind: "compose", text: short, rect, from, to }, selAsk: "" });
+      return true;
+    };
+
+    /* The character range [s, e) of a paragraph as a DOM range, across whatever formatting it holds. */
+    paraRange = (para, s, e) => {
+      const r = document.createRange();
+      const walk = document.createTreeWalker(para, NodeFilter.SHOW_TEXT);
+      let n, pos = 0, started = false;
+      while ((n = walk.nextNode())) {
+        const len = n.nodeValue.length;
+        if (!started && s <= pos + len) { r.setStart(n, s - pos); started = true; }
+        if (started && e <= pos + len) { r.setEnd(n, e - pos); return r; }
+        pos += len;
+      }
+      return started ? (r.setEndAfter(para.lastChild), r) : null;
+    };
+
+    /* A rewrite in the composer marks the whole sentences the selection touches in place: they pulse while the
+       agent works, then show struck beside the new text, and the editor is held until the change is kept or undone. */
+    rewriteCompose = (variant, label, from, to) => {
+      const bar = this.state.selBar;
+      from = from || (bar && bar.kind === "compose" ? bar.from : null);
+      to = to || (bar && bar.kind === "compose" ? bar.to : null);
+      const el = this.bodyRef.current;
+      if (!from || !to || !el) return;
+      const before = this.state.cChange ? this.state.cChange.before : el.innerHTML;
+      if (this.state.cChange) el.innerHTML = before;
+      const paras = this.composeParas();
+      const SENT = /.+?(?:[.!?]+["”’)]*(?=\s|$)|$)\s*/g;
+      const pieces = [];
+      for (let pi = from.pi; pi <= to.pi; pi++) {
+        const t = paras[pi] ? paras[pi].textContent : "";
+        const lo = pi === from.pi ? from.at : 0, hi = pi === to.pi ? to.at : t.length;
+        const hit = []; let m; SENT.lastIndex = 0;
+        while ((m = SENT.exec(t))) { if (!m[0]) break; const x = { s: m.index, e: m.index + m[0].trimEnd().length }; if (x.e > lo && x.s < hi) hit.push(x); }
+        if (!hit.length) continue;
+        pieces.push({ pi, s: hit[0].s, e: hit[hit.length - 1].e, old: t.slice(hit[0].s, hit[hit.length - 1].e), nw: null });
+      }
+      if (!pieces.length) return;
+      this.dropSelection();
+      pieces.slice().reverse().forEach((pc, i) => {
+        const r = this.paraRange(paras[pc.pi], pc.s, pc.e);
+        if (!r) return;
+        const mark = document.createElement("span");
+        mark.setAttribute("data-rewrite", String(pieces.length - 1 - i));
+        mark.style.cssText = "background:var(--accent-soft);border-radius:4px;animation:mfpulse 1s ease-in-out infinite";
+        mark.appendChild(r.extractContents());
+        r.insertNode(mark);
+      });
+      const change = { busy: true, variant, label, pieces, before };
+      this.setState({ selBar: null, selAsk: "", cChange: change });
+      this.timers.push(setTimeout(() => {
+        const ch = this.state.cChange;
+        if (ch !== change || !this.bodyRef.current) return;
+        const swap = (old) => old.split(/(?<=[.!?]["”’)]*)\s+/).map(x => ((DRAFT_REWRITES[x.trim()] || {})[variant]) || x).join(" ");
+        const done = pieces.map(pc => Object.assign({}, pc, { nw: swap(pc.old) }));
+        if (done.every(pc => pc.nw === pc.old)) {
+          this.bodyRef.current.innerHTML = before;
+          this.setState({ cChange: null });
+          this.notify("The agent found nothing to change there.", { title: label });
+          return;
+        }
+        const esc = (x) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+        this.bodyRef.current.querySelectorAll("[data-rewrite]").forEach(mark => {
+          const pc = done[+mark.getAttribute("data-rewrite")];
+          mark.style.cssText = "";
+          if (pc.nw === pc.old) { mark.replaceWith(...mark.childNodes); return; }
+          mark.innerHTML = '<span style="color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)">' + esc(pc.old) + "</span> "
+            + '<span style="background:var(--accent-soft);color:var(--text);border-radius:4px;box-shadow:0 1.5px 0 var(--accent);padding:0 1px">' + esc(pc.nw) + "</span>";
+        });
+        this.setState({ cChange: Object.assign({}, ch, { busy: false, pieces: done }) });
+      }, Math.max(500, (this.props.streamDelay ?? 550) * 1.4)));
+    };
+
+    rewriteComposeAsk = () => {
+      const words = (this.state.selAsk || "").trim();
+      if (!words) return;
+      const preset = REWRITE_PRESETS.find(pr => pr.words.test(words)) || REWRITE_PRESETS[1];
+      this.rewriteCompose(preset.key, "“" + words + "”");
+    };
+
+    keepComposeChange = () => {
+      const ch = this.state.cChange, el = this.bodyRef.current;
+      if (!ch || ch.busy || !el) return;
+      el.querySelectorAll("[data-rewrite]").forEach(mark => { const pc = ch.pieces[+mark.getAttribute("data-rewrite")]; mark.replaceWith(document.createTextNode(pc.nw)); });
+      this.setState({ cChange: null });
+      this.notify(ch.label + " · kept in the message", { title: "Change kept", actionLabel: "Undo",
+        onAction: () => { if (this.bodyRef.current === el) el.innerHTML = ch.before; } });
+    };
+
+    dropComposeChange = () => {
+      const ch = this.state.cChange;
+      if (ch && this.bodyRef.current) this.bodyRef.current.innerHTML = ch.before;
+      this.setState({ cChange: null });
+    };
+
+    /* *Try again* puts the sentences back and asks for them under the next preset, as the Agent's does. */
+    retryComposeChange = () => {
+      const ch = this.state.cChange;
+      if (!ch || ch.busy) return;
+      const order = REWRITE_PRESETS.map(pr => pr.key);
+      const next = order[(order.indexOf(ch.variant) + 1) % order.length];
+      const p0 = ch.pieces[0], pl = ch.pieces[ch.pieces.length - 1];
+      this.rewriteCompose(next, ch.label.replace(/ · another version$/, "") + " · another version", { pi: p0.pi, at: p0.s }, { pi: pl.pi, at: pl.e });
+    };
+
+    /* A passage asked about is answered where it stands, in the bar over it, rather than at the bottom of the
+       conversation; *Keep in the conversation* is what writes it there. */
+    answerSel = (kind) => {
+      const bar = this.state.selBar;
+      if (!bar) return;
+      this.setState({ selBar: Object.assign({}, bar, { answer: { kind, busy: true } }) });
+      this.timers.push(setTimeout(() => {
+        const cur = this.state.selBar;
+        if (!cur || cur.text !== bar.text) return;
+        this.setState({ selBar: Object.assign({}, cur, { answer: { kind, busy: false, text: SEL_REPLIES[kind].text } }) });
+      }, Math.max(500, (this.props.streamDelay ?? 550) * 1.3)));
+    };
+
+    keepSelAnswer = () => {
+      const bar = this.state.selBar;
+      if (!bar || !bar.answer || bar.answer.busy) return;
+      const r = SEL_REPLIES[bar.answer.kind];
+      this.dropSelection();
+      this.setState(s2 => Object.assign({ selBar: null }, this.pushMsg(s2, [
+        { role: "user", anim: true, text: r.label, quote: bar.text },
+        { role: "bot", anim: true, scope: "1 passage · from " + bar.from, text: r.text, bullets: [], blocks: [] },
+      ])));
+      this.scrollAgentDown && this.scrollAgentDown();
+    };
+
+    quoteSel = () => {
+      const bar = this.state.selBar;
+      if (!bar) return;
+      this.dropSelection();
+      this.setState({ selBar: null, agentQuote: { text: bar.text, from: bar.kind === "draft" ? "the draft" : bar.from } }, () => {
+        const el = this.agentInputRef.current; if (el) el.focus();
+      });
+    };
+
+    /* One passage becomes one task proposal, still to be approved like any other. */
+    selToTask = () => {
+      const bar = this.state.selBar;
+      if (!bar) return;
+      const t = (bar.full || bar.text).replace(/^[“"]|[”"]$/g, "");
+      const title = t.length > 72 ? t.slice(0, 69).trimEnd() + "…" : t;
+      this.dropSelection();
+      this.setState(s2 => Object.assign({ selBar: null, agentThinking: true }, this.pushMsg(s2, [{ role: "user", anim: true, text: "Turn this into a task", quote: bar.text }])));
+      this.timers.push(setTimeout(() => this.setState(s2 => Object.assign({ agentThinking: false }, this.pushMsg(s2, [{
+        role: "bot", anim: true, scope: "tasks · from this conversation", text: "Here it is as a task. Nothing is added until you approve it.", bullets: [],
+        blocks: [{ type: "task", meta: "tasks", phase: "pending", title: title.charAt(0).toUpperCase() + title.slice(1), due: SEL_REPLIES.task.due, reminder: SEL_REPLIES.task.reminder, from: "this conversation", done: "Added to your task list" }],
+      }]))), Math.max(400, (this.props.streamDelay ?? 550))));
+    };
+
+    /* One field of a proposal changed on its own: the agent's alternatives come with their reason, and a typed
+       value is taken as said. The rest of the proposal stays as it was. */
+    setFieldVal = (key, k, v) => this.setState(s2 => ({
+      bkVals: Object.assign({}, s2.bkVals, { [key]: Object.assign({}, (s2.bkVals || {})[key], { [k]: v }) }),
+      bkField: null, fieldAsk: "",
+    }));
+
+    /* One turn the reader asked for by pressing rather than typing: their line, then the agent's answer. */
+    agentTurn = (userMsg, botMsg) => {
+      this.setState(s2 => Object.assign({ agentThinking: true }, this.pushMsg(s2, [Object.assign({ role: "user", anim: true }, userMsg)])));
+      this.scrollAgentDown();
+      this.timers.push(setTimeout(() => {
+        this.setState(s2 => Object.assign({ agentThinking: false }, this.pushMsg(s2, [Object.assign({ role: "bot", anim: true, bullets: [], blocks: [] }, botMsg)])));
+        this.scrollAgentDown();
+      }, Math.max(450, (this.props.streamDelay ?? 550) * 1.1)));
+    };
+
+    /* An answer about one item of a block is written under that item, not at the bottom of the conversation. */
+    noteBk = (nkey, label, text) => {
+      this.setState(s2 => ({ bkNote: Object.assign({}, s2.bkNote, { [nkey]: { label, busy: true } }) }));
+      this.timers.push(setTimeout(() => this.setState(s2 => ({ bkNote: Object.assign({}, s2.bkNote, { [nkey]: { label, busy: false, text } }) })),
+        Math.max(450, (this.props.streamDelay ?? 550) * 1.2)));
+    };
+
+    dropNote = (nkey) => this.setState(s2 => ({ bkNote: Object.assign({}, s2.bkNote, { [nkey]: null }) }));
+
+    /* People are picked as a set; a timeline is picked as a range - the first press opens it, the second closes it. */
+    pickBk = (key, i, range) => this.setState(s2 => {
+      const cur = (s2.bkPick || {})[key];
+      const next = range
+        ? (!cur || cur.to !== undefined ? { from: i } : { from: Math.min(cur.from, i), to: Math.max(cur.from, i) })
+        : ((cur || []).indexOf(i) >= 0 ? cur.filter(x => x !== i) : (cur || []).concat([i]).sort((x, y) => x - y));
+      return { bkPick: Object.assign({}, s2.bkPick, { [key]: next }), bkNote: Object.assign({}, s2.bkNote, { [key + "#range"]: null }) };
+    });
+
+    clearPick = (key) => this.setState(s2 => ({ bkPick: Object.assign({}, s2.bkPick, { [key]: null }), bkNote: Object.assign({}, s2.bkNote, { [key + "#range"]: null }) }));
+
+    namesList = (names) => names.length < 3 ? names.join(" and ") : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+
+    draftToPeople = (key, names) => {
+      this.clearPick(key);
+      this.agentTurn({ text: "Draft a message to " + this.namesList(names) }, {
+        scope: "draft · " + names.length + (names.length === 1 ? " person" : " people"),
+        text: "Here is a draft to " + (names.length === 1 ? names[0] : "all " + names.length) + ". Nothing goes out until you approve it.",
+        blocks: [{ type: "draft", phase: "pending", meta: "new message", to: this.namesList(names), subject: PEOPLE_ACTS.draft.subject, paras: PEOPLE_ACTS.draft.paras, done: "Sent" }],
+      });
+    };
+
+    invitePeople = (key, names) => {
+      this.clearPick(key);
+      const iv = PEOPLE_ACTS.invite;
+      this.agentTurn({ text: "Invite " + this.namesList(names) + " to a meeting" }, {
+        scope: "calendar · " + (names.length + 1) + " calendars",
+        text: "The first half-hour all of you have free is Thursday morning. Nothing is sent until you approve it.",
+        blocks: [{ type: "event", meta: "calendar · work", phase: "pending", title: iv.title, when: iv.when, duration: iv.duration, attendees: "You, " + names.join(", "), from: "Contract addendum - signatures", done: "Invitation sent", nav: [{ label: "Open the calendar", icon: "calendar_month", kind: "gocal" }] }],
+      });
+    };
+
+    /* Leaving one source out is a new answer, written as a new turn; the old one stays, marking what was left out. */
+    excludeSource = (key, b, i) => {
+      const excl = ((this.state.bkExcl || {})[key] || []).concat([i]);
+      const it = b.items[i];
+      const rest = b.items.filter((_, j) => excl.indexOf(j) < 0);
+      this.setState(s2 => ({ bkExcl: Object.assign({}, s2.bkExcl, { [key]: excl }) }));
+      this.agentTurn({ text: "Answer again without “" + it.source + "”" }, {
+        scope: "answered again · " + rest.length + (rest.length === 1 ? " source" : " sources"),
+        text: it.without || "The reading holds on the remaining sources, with one step less confidence.",
+        blocks: rest.length ? [Object.assign({}, b, { meta: rest.length + (rest.length === 1 ? " source" : " sources") + " · without " + it.source, items: rest })] : [],
+      });
+    };
 
     /* “Another time” is not a silent reshuffle — it says so in the conversation and comes back
        with the same proposal at a new hour, still needing approval. */
@@ -3317,6 +3982,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     componentDidUpdate(prevProps) {
+      this.syncSmartDisabled();
       /* `space` opens a space the way its rail item does, so a capture reaches it in one step at every
          composition - on a phone Tasks, Calendar and People sit behind More. */
       const space = this.props.space;
@@ -3434,6 +4100,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       document.removeEventListener("keydown", this.onDocKey);
       window.removeEventListener("message", this.onHtmlFrameMessage);
       window.removeEventListener("popstate", this.onBackPressed);
+      document.removeEventListener("selectionchange", this.onSelChange);
+      document.removeEventListener("pointerdown", this.onSelPointer, true);
+      document.removeEventListener("pointerup", this.onSelPointer, true);
       document.removeEventListener("click", this.onLinkClick, true);
       document.removeEventListener("auxclick", this.onLinkClick, true);
       this.htmlFrames.forEach(r => { if (r.timer) clearTimeout(r.timer); });
@@ -3457,8 +4126,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers.forEach(clearTimeout);
       this.timers = [];
       const key = this.planFor(q);
-      const blocks = PLANS[key].blocks;
       this.setState({ query: q, planKey: key, phase: "running", ready: {}, ev: null, cameFrom: false, mailAnswer: false });
+      /* Start answers short: the answer and the messages it came from. Anything longer is the Agent's. */
+      this.streamBlocks(["answer"]);
+    }
+
+    streamBlocks(blocks) {
       const step = Math.max(120, (this.props.streamDelay ?? 550));
       blocks.forEach((b, i) => {
         this.timers.push(setTimeout(() => {
@@ -3468,6 +4141,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers.push(setTimeout(() => this.setState({ phase: "done" }), step * (blocks.length + 1)));
     }
 
+    /* The plan behind the answer on screen. */
+    askPlan(st) {
+      return st.planKey ? PLANS[st.planKey] : null;
+    }
+
+    /* Start's one step is pressed and can be taken back: the toast carries the undo. */
+    acceptStartStep = (key, b) => {
+      if (b.type === "draft") {
+        this.setBk(key, { phase: "accepted", result: "Opened in the composer · " + this.hm() });
+        /* It lands as an AI draft still to be accepted there, exactly as one written in the composer would. */
+        this.pendingDraft = this.draftParas(key, b).map(t => "<p>" + t + "</p>").join("");
+        /* The same reply composer *Draft a reply* opens, so the thread stands as the draft's context. */
+        this.goScreen("mail", { composeSubjEdit: b.subject, closeAsk: false, sendAsk: null });
+        this.startReply("reply", ["contoso"]);
+        this.notify("Nothing is sent until you send it from there.", { kind: "success", title: "Draft opened in the composer" });
+        return;
+      }
+      this.acceptBk(key, b);
+      this.notify(b.title, { kind: "success", title: b.done || "Done", actionLabel: "Undo", onAction: () => { this.hideToast(); this.setBk(key, { phase: "pending" }); } });
+    };
+
     renderVals() {
       const { st, mo } = this.motionHold(this.state);
       const aiSumThread = st.aiSum ? THREADS.find(t => t.id === st.aiSum) : null;
@@ -3476,7 +4170,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const selMap = st.selBy || {};
       const isSel = (kind, id) => (selMap[kind] || []).indexOf(id) >= 0;
       const selMark = (kind, id) => (isSel(kind, id) ? "background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);" : "");
-      const plan = st.planKey ? PLANS[st.planKey] : null;
+      const plan = this.askPlan(st);
       const selBarKind = st.notifOpen ? "notifs"
         : st.screen === "tasks" ? "tasks"
         : st.screen === "cal" ? "events"
@@ -3503,6 +4197,37 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const tall = h >= 960;
       /* The framed previews are the three touch devices; anything else asks the pointer, as the client does. */
       const touch = FR ? true : mode === "desktop" ? false : !!st.coarse;
+      const startWide = !isMobile && w >= 1680;
+      const agentCorner = (isMobile ? 20 : 24) + (isMobile ? 56 : 48) + 12 - (isMobile ? 14 : 26);
+      /* Start's deck of steps: what is still to take, plus a step just taken or declined until the reader moves on. */
+      const stepSettled = (i) => ((st.bkPhase || {})["start#" + i] || "pending") !== "pending";
+      const stepDeck = HOME.steps.map((b, i) => i).filter(i => !(stepSettled(i) && (st.stepsGone || []).indexOf(i) >= 0));
+      const stepAt = Math.max(0, Math.min(stepDeck.length - 1, st.stepAt || 0));
+      const moveStep = (by) => this.setState(s2 => {
+        const gone = (s2.stepsGone || []).concat(stepDeck.filter(stepSettled));
+        const left = HOME.steps.map((b, i) => i).filter(i => !(stepSettled(i) && gone.indexOf(i) >= 0));
+        const pos = left.indexOf(stepDeck[stepAt]);
+        const before = stepDeck.slice(0, stepAt).filter(i => left.indexOf(i) >= 0).length;
+        const to = pos >= 0 ? pos + by : by > 0 ? before : before - 1;
+        return { stepsGone: gone, stepAt: Math.max(0, Math.min(left.length - 1, to)) };
+      });
+      /* Start's frame: the header and the day share one left and one right edge, so the field, the watched cards, the
+         columns and the cards in them all end on the same lines. The asides grow with the window within their bounds and
+         the main column takes the rest, so a large screen is filled rather than left dark on the right; only past
+         2400 px does the frame stop growing. The header's carousel and the day read the same widths, so they agree. */
+      const frameX = isMobile ? 14 : narrow ? 18 : 28;
+      const frameMax = 2400;
+      const asideX = compact ? "300px" : startWide ? "clamp(340px, 17%, 460px)" : "clamp(340px, 25%, 400px)";
+      const asideY = "clamp(400px, 21%, 560px)";
+      const framePad = (top, bottom) => (isMobile || narrow || compact)
+        ? "padding:" + top + "px " + frameX + "px " + bottom + "px;"
+        : "padding:" + top + "px max(" + frameX + "px, calc(100% - " + (frameMax + frameX) + "px)) " + bottom + "px " + frameX + "px;";
+      const watchPer = isMobile ? 1 : (narrow || compact) ? 2 : startWide ? 4 : 3;
+      const watchList = st.watched || [];
+      const watchPages = Math.max(1, Math.ceil(watchList.length / watchPer));
+      const watchAt = Math.max(0, Math.min(watchPages - 1, st.watchAt || 0));
+      const stepNav = (on) => "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:9px;border:1px solid var(--border2);color:" + (on ? "var(--text2)" : "var(--faint)") + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
+        (touch ? "width:44px;height:44px;font-size:22px;" : "width:30px;height:30px;font-size:19px;") + (on ? "" : "opacity:0.5;");
       const railW = compact ? 66 : 96;
       this._low = low;
       this._isMobile = isMobile;
@@ -3757,11 +4482,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "" };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", cChange: null, selBar: st.selBar && st.selBar.kind === "compose" ? null : st.selBar };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
       const askSend = () => {
+        if (this.state.cChange) return;
         const w = [];
         if (!curSubj.trim()) w.push("The message has no subject.");
         if (!bodyTxt()) w.push("The message body is empty.");
@@ -3983,7 +4709,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* What the rail's Agent tile reports: runs under way (a background run, the scripted example, a pending reply)
          and finished conversations nobody has read. Running pulses; unread alone is a still dot; neither draws nothing. */
       const agentRuns = convList.filter(c => c.running && !c.archived).map(c => ({ id: c.id, title: c.title, sub: c.running }));
-      const fgRunId = st.demoRun ? DEMO_CONV_ID : st.agentThinking ? st.convId : null;
+      const fgRunId = st.demoRun ? (this.demo ? this.demo.id : DEMO_CONV_ID) : st.agentThinking ? st.convId : null;
       const fgRun = fgRunId ? convList.find(c => c.id === fgRunId) : null;
       if (fgRun && !agentRuns.some(r => r.id === fgRun.id)) agentRuns.unshift({ id: fgRun.id, title: fgRun.title || "New conversation", sub: st.agentStatus || "Going through your mail" });
       const agentUnread = convList.filter(c => c.unread && !c.archived && !(st.screen === "agent" && c.id === st.convId) && !agentRuns.some(r => r.id === c.id));
@@ -4327,7 +5053,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         moreRefresh: () => { this.setState({ more: false }); this.refreshAll(); },
         moreSettings: () => this.setState({ more: false, settings: true }),
         moreRowStyle: "display:flex;align-items:center;gap:16px;box-sizing:border-box;min-height:52px;padding:0 14px;border-radius:12px;font-size:15px;color:var(--text)",
-        railLabelDiscover: "Discover",
+        railLabelStart: "Start",
         railLabelMail: "Mail",
         railLabelAgent: "Agent",
         railLabelTasks: "Tasks",
@@ -4348,6 +5074,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctxMenuItems: (st.ctxMenu ? st.ctxMenu.items : []).map(mi => ({
           icon: mi.icon, label: mi.label,
           run: () => { if (!this.ctxArmed()) return; this.setState({ ctxMenu: null }); if (mi.run) mi.run(); },
+          key: (e) => {
+            const items = Array.from(e.currentTarget.parentNode.querySelectorAll("[role=menuitem]"));
+            const at = items.indexOf(e.currentTarget);
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.setState({ ctxMenu: null }); if (mi.run) mi.run(); }
+            else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus(); }
+            else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); this.setState({ ctxMenu: null }); }
+          },
           style: "display:flex;align-items:center;gap:11px;border-radius:8px;padding:0 12px;color:" + (mi.danger ? "var(--err-text)" : "var(--text)") +
             (touch ? ";min-height:48px;font-size:15px" : ";min-height:36px;font-size:14px"),
         })),
@@ -4710,15 +5443,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         railPeekBeakStyle: peek
           ? "position:absolute;left:-6px;top:" + (peek.mid - peekTop - 6) + "px;width:11px;height:11px;background:var(--panel);border-left:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg);border-bottom-left-radius:2px"
           : "",
-        /* The hairline after Discover and Agent: the spaces that ask stand above it, the spaces that hold below. */
+        /* The hairline after Start and Agent: the spaces that look across everything stand above it, the spaces that hold below. */
         railSepStyle: "flex:0 0 auto;align-self:stretch;height:1px;margin:4px 16px;background:var(--line)",
         agentScrollStyle: isMobile
           ? "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:16px 14px"
           : "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:22px max(26px, calc((100% - 1290px) / 2))",
-        agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 8 : 12) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:10px 13px"),
+        /* The field and the line under it keep Fathom's corner free (its button, its edge and 12 px of air), so the button
+           never stands over Send or Cancel; the context, the quote and the suggestions above them run the full width. */
+        agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 8 : 12) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:10px 13px") + ";margin-right:" + agentCorner + "px",
+        agentHintStyle: "font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:" + agentCorner + "px",
         agentInputWrapStyle: isMobile
           ? "display:flex;flex-direction:column;gap:9px;background:var(--panel);border-top:1px solid var(--line);padding:12px 14px"
           : "display:flex;flex-direction:column;gap:10px;background:var(--panel);border-top:1px solid var(--line);padding:14px max(26px, calc((100% - 1290px) / 2)) 16px",
+        agentHint: isMobile ? "Nothing is sent without your approval." : "The agent proposes actions - nothing is sent without your approval.",
         agentThinking: !!st.agentThinking,
         agentScrollRef: this.agentScrollRef,
         onAgentScroll: this.onAgentScroll,
@@ -4735,7 +5472,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Under a finger the field's two buttons reach the 44 px floor, the phone draws them as glyphs so the field keeps
            the width its prompt needs, and no button names a key a touch screen has no keyboard to press. */
         notTouch: !touch,
-        agentPlaceholder: isMobile ? "Tell me what to do…" : "Tell me what to do - write, schedule, check",
         agentSendLabel: touch ? "Send" : "Send ⏎",
         agentBtnIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1;display:block",
         agentSendStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;justify-content:center;" +
@@ -4820,10 +5556,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           hasIcon: true, icon: "play_arrow",
           iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1",
           style: "display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:16px;padding:7px 13px 7px 11px;white-space:nowrap",
-          run: this.playDemo,
+          run: () => this.playDemo(),
           key: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.playDemo(); } },
-        }]),
+        }]).concat(MORE_DEMOS.map(dm => ({
+          label: dm.label,
+          aria: "Play the real example in real time: " + dm.title.replace(/^Real example - /, ""),
+          hasIcon: true, icon: "play_arrow",
+          iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1",
+          style: "display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:16px;padding:7px 13px 7px 11px;white-space:nowrap",
+          run: () => this.playDemo(dm),
+          key: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.playDemo(dm); } },
+        }))),
         agentInput: st.agentInput || "",
+        onAgentSelect: this.onAgentSelect,
+        onStartScroll: this.onStartScroll,
+        agentPlaceholder: st.agentQuote ? (isMobile ? "Ask about this…" : "Ask about the quoted passage") : isMobile ? "Tell me what to do…" : "Tell me what to do - write, schedule, check",
+        agentQuoteShown: !!st.agentQuote,
+        agentQuoteText: st.agentQuote ? st.agentQuote.text : "",
+        agentQuoteFrom: st.agentQuote ? "From " + st.agentQuote.from : "",
+        clearAgentQuote: () => this.setState({ agentQuote: null }),
+        agentQuoteX: touch ? "width:44px;height:44px;margin:-12px -10px -12px 0;" : "",
+        ...this.selBarView(st, touch, convMsgs),
         onAgentInput: (e) => this.setState({ agentInput: e.target.value }),
         onAgentKey: (e) => { if (e.key === "Enter") this.agentAsk(st.agentInput); },
         agentSend: () => this.agentAsk(st.agentInput),
@@ -4838,6 +5591,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         }]).map((m, mi) => ({
           isUser: m.role === "user",
           isBot: m.role === "bot",
+          hasQuote: !!m.quote,
+          quote: m.quote || "",
+          quoteStyle: "font-size:13px;line-height:1.45;color:var(--text2);border-left:2px solid var(--accent);padding:1px 0 1px 10px;margin-bottom:6px;text-wrap:pretty",
           time: formatMsgTime(m.ts),
           text: m.text,
           hasText: !!m.text,
@@ -4854,7 +5610,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           })),
           bullets: (m.bullets || []).map(t2 => ({ t: t2 })),
           hasBlocks: (m.blocks || []).length > 0,
-          blocks: (m.blocks || []).map((b, bi) => this.bkView(b, (activeConv ? activeConv.id : "new") + "#" + mi + "#" + bi, isMobile)),
+          blocks: (m.blocks || []).map((b, bi) => this.bkView(b, (activeConv ? activeConv.id : "new") + "#" + mi + "#" + bi, isMobile, undefined, touch)),
           blocksStyle: "display:flex;flex-direction:column;gap:" + (isMobile ? 10 : 11) + "px",
           rowStyle: "display:flex;justify-content:" + (m.role === "user" ? "flex-end" : "flex-start"),
           colStyle: "display:flex;flex-direction:column;gap:4px;min-width:0;align-items:" + (m.role === "user" ? "flex-end" : "flex-start") + (m.role === "user" ? "" : ";flex:1"),
@@ -4871,17 +5627,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         railCalStyle: (isMobile ? "display:none;" : railBase + (st.screen === "cal" ? activeStyle : idleColor)),
         railPeopleStyle: (isMobile ? "display:none;" : railBase + (st.screen === "people" ? activeStyle : idleColor)),
 
-        isDiscover: st.screen === "discover" && !emptyApp,
+        isStart: st.screen === "start" && !emptyApp,
         isMail: st.screen === "mail" && !emptyApp,
-        goDiscover: () => this.goScreen("discover"),
+        goStart: () => this.goScreen("start"),
         goMail: () => this.goScreen("mail", { cameFrom: false, mailPane: "list" }),
-        railDiscoverStyle: railBase + (st.screen === "discover" ? activeStyle : idleColor),
+        railStartStyle: railBase + (st.screen === "start" ? activeStyle : idleColor),
         railMailStyle: railBase + (st.screen === "mail" ? activeStyle : idleColor),
 
         headerStyle: isMobile
           ? "display:flex;align-items:center;gap:8px;flex:0 0 auto;box-sizing:border-box;min-height:56px;padding:6px 12px 6px 16px;border-bottom:1px solid var(--line);background:var(--panel)"
           : "display:flex;align-items:center;gap:16px;padding:0 26px;height:56px;flex:0 0 56px;border-bottom:1px solid var(--line);background:var(--panel)",
-        discoverPlaceholder: isMobile ? "Ask your mail…" : "What do you want to ask your mail?",
+        askPlaceholder: isMobile ? "Ask or find…" : "Ask or find anything in your mail",
         /* The composer's foot under a finger: one 44 row, Send filled, Attach a symbol alone on the phone,
            and Save draft a text action whose target is the row's height rather than its words. */
         composeSendRefused: this.writeRefused("send"),
@@ -4909,31 +5665,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         askLabel: touch ? "Ask" : "Ask ⏎",
         askBtnStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;" +
           (touch ? "min-height:44px;padding:0 18px" : "padding:8px 16px"),
-        searchBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 10 : 12) + "px;border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:11px 14px") + (isMobile ? "" : narrow ? "" : compact ? ";max-width:780px" : ";max-width:1520px"),
-        searchWrapStyle: isMobile
-          ? "flex:0 0 auto;display:flex;flex-direction:column;gap:9px;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line)"
-          : "flex:0 0 auto;display:flex;flex-direction:column;gap:10px;padding:18px 26px;background:var(--panel);border-bottom:1px solid var(--line)",
-        idleStyle: isMobile
-          ? "flex:1;display:flex;flex-direction:column;gap:22px;padding:20px 14px;overflow:auto;min-height:0"
+        searchBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 10 : 12) + "px;border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:11px 14px") + "",
+        /* Start's header: the field, its suggestions and what is watched stay put; the band under them (Up next and
+           one step each) scrolls with the day and shares their surface, so the header reads as one piece cut off from
+           the day below. */
+        searchWrapStyle: "flex:0 0 auto;position:relative;z-index:1;overflow:hidden;scrollbar-gutter:stable;background:var(--panel);border-bottom:1px solid var(--line);" + (st.phase === "idle" ? "box-shadow:0 6px 14px -12px var(--sh-3);" : ""),
+        searchInnerStyle: "display:flex;flex-direction:column;box-sizing:border-box;" + (isMobile ? "gap:10px;" + framePad(12, 12) : "gap:12px;" + framePad(16, 16)),
+        idleStyle: "flex:1;display:flex;flex-direction:column;overflow:auto;scrollbar-gutter:stable;min-height:0",
+        startBodyStyle: "box-sizing:border-box;" + (isMobile
+          ? "display:flex;flex-direction:column;gap:22px;" + framePad(20, 28)
           : narrow
-          ? "flex:1;display:flex;flex-direction:column;gap:22px;padding:24px 18px 32px 18px;overflow:auto;min-height:0"
-          : "flex:1;display:flex;gap:34px;padding:32px 30px 40px 30px;overflow:auto;min-height:0",
-        idleMainStyle: isMobile
-          ? "display:flex;flex-direction:column;gap:18px"
-          : narrow
-          ? "flex:1;display:flex;flex-direction:column;gap:20px;max-width:100%"
-          : compact
-          ? "flex:1;display:flex;flex-direction:column;gap:22px;max-width:780px"
-          : "flex:1;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px 22px;align-items:start;align-content:start;max-width:1520px",
+          ? "display:flex;flex-direction:column;gap:22px;" + framePad(24, 32)
+          : startWide
+          ? "display:grid;grid-template-columns:minmax(0,1fr) " + asideX + " " + asideY + ";gap:28px;align-items:start;" + framePad(26, 40)
+          : "display:flex;gap:28px;" + framePad(26, 40)),
         idleTitleStyle: isMobile
           ? "font-size:24px;font-weight:600;letter-spacing:-0.015em;text-wrap:pretty"
           : "font-size:28px;font-weight:600;letter-spacing:-0.015em",
-        sugRowStyle: isMobile
-          ? "display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px 14px"
-          : "display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px",
         accountsStyle: isMobile
           ? "display:flex;flex-direction:column;gap:10px"
           : "width:" + (compact ? 250 : 290) + "px;flex:0 0 " + (compact ? 250 : 290) + "px;display:flex;flex-direction:column;gap:10px",
+        citeHint: (touch ? "tap" : "click") + " a citation to see the evidence",
         answerHintStyle: isMobile
           ? "display:none"
           : "margin-left:auto;font-size:12px;color:var(--muted)",
@@ -4945,7 +5697,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:flex;flex-direction:column;gap:12px;padding:14px;min-width:0"
           : "flex:1;display:flex;flex-direction:column;gap:14px;padding:20px 24px;overflow:auto;min-width:0",
         timelineRowStyle: isMobile ? "display:flex;flex-direction:column;gap:0;padding-top:2px" : "display:flex;gap:0;overflow-x:auto;padding-top:2px",
-        /* Discover's result blocks wear the same chrome as the Agent's (`BLK`). */
+        /* Start's answer and steps wear the same chrome as the Agent's (`BLK`). */
         blk: {
           card: BLK.card(isMobile, "settled"),
           pendingCard: BLK.card(isMobile, "pending"),
@@ -4959,8 +5711,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           pendingChip: BLK.chip("pending"),
           chipGlyph: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1",
           pendingFoot: BLK.foot(isMobile, "pending"),
-          primaryBtn: BLK.btn(isMobile, true),
-          quietBtn: BLK.btn(isMobile, false),
+          primaryBtn: BLK.btn(isMobile, true) + (touch ? "min-height:44px;" : ""),
+          quietBtn: BLK.btn(isMobile, false) + (touch ? "min-height:44px;" : ""),
           propTitle: "font-size:" + (isMobile ? 15 : 16) + "px;font-weight:600;line-height:1.35;letter-spacing:-0.01em;text-wrap:pretty",
           answerText: "font-size:" + (isMobile ? 16 : 17) + "px;line-height:1.6;color:var(--text);text-wrap:pretty",
           tlDate: BLK.tlDate,
@@ -4986,13 +5738,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
         query: st.query,
         onQuery: (e) => this.setState({ query: e.target.value }),
-        onKey: (e) => { if (e.key === "Enter" && (st.query || "").trim()) this.run(st.query); },
+        onKey: (e) => { if (e.key === "Escape") this.setState({ askFocus: false }); else if (e.key === "Enter" && (st.query || "").trim()) this.run(st.query); },
+        /* The suggestions stand under the field only while it has focus and is empty: a labelled list, each question
+           with the reason it is suggested, instead of unlabelled chips that read as filters. */
+        onAskFocus: () => this.setState({ askFocus: true }),
+        onAskBlur: (e) => { const to = e && e.relatedTarget; if (to && to.closest && to.closest("[data-ask-suggest]")) return; this.setState({ askFocus: false }); },
+        askSuggestOpen: st.phase === "idle" && !!st.askFocus && !(st.query || "").trim(),
+        askSuggestNote: isMobile ? "tap one to ask it" : "read off what changed · nothing is asked until you pick one",
+        askSuggestStyle: "display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden",
+        askSuggestHeadStyle: "display:flex;align-items:baseline;gap:9px;padding:" + (isMobile ? "10px 12px 6px" : "10px 14px 6px"),
+        askSuggestRowStyle: "display:flex;align-items:center;gap:12px;box-sizing:border-box;border-top:1px solid var(--line2);" + (touch ? "min-height:56px;padding:9px 12px;" : "padding:9px 14px;"),
         submit: () => { if ((st.query || "").trim()) this.run(st.query); },
         continueInAgent: () => {
           const q = st.query || "";
+          /* The hand-off carries the answer on screen, not just the question. */
           this.setState(s2 => Object.assign({ convId: null }, this.pushMsg(Object.assign({}, s2, { convId: null }), [
             { role: "user", text: q },
-            { role: "bot", scope: "continuing a Discover result", text: "I have the context of that result: " + q + ". Here is the one step I would take next.", bullets: [], blocks: [{
+            { role: "bot", scope: "continuing from Start", text: "I have the context of that result: " + q + ". Here is the one step I would take next.", bullets: [], blocks: [{
               type: "action", meta: "one step", phase: "pending",
               title: "Draft a reply from this result",
               reason: "The result already carries the numbers and the sources the reply needs.",
@@ -5003,13 +5765,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.setState({ screen: "agent" });
         },
         reset: () => { this.timers.forEach(clearTimeout); this.setState({ phase: "idle", query: "", planKey: null, ready: {}, ev: null }); },
-        briefingWrapStyle: "display:flex;flex-direction:column;gap:12px;" + (isMobile || compact || narrow ? "" : "grid-column:1 / -1;"),
-        todoGridStyle: isMobile || !compact ? "display:flex;flex-direction:column;gap:10px" : "display:grid;grid-template-columns:repeat(3,1fr);gap:11px;align-items:start",
+        todoGridStyle: "display:flex;flex-direction:column;gap:10px",
         homeRowStyle: "display:flex;flex-direction:column;gap:12px",
         homeCardStyle: "flex:1;min-width:0;display:flex;flex-direction:column;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px",
-        todayItems: HOME.todayItems.slice(0, isMobile ? 2 : 3).map(t2 => ({
-          title: t2.title, due: t2.due, why: t2.why, src: t2.src,
+        todayItems: HOME.todayItems.filter(t2 => (st.todayHidden || []).indexOf(t2.id) < 0).slice(0, isMobile ? 2 : 3).map(t2 => ({
+          title: t2.title, due: t2.due, why: t2.why, src: t2.src, rule: t2.rule,
           open: () => this.setState({ screen: "mail", threadId: t2.tid, mailPane: "thread", threadOpen: true, cameFrom: false }),
+          /* Dismissing is a judgement about the item, so it is remembered and can be taken back. */
+          dismiss: (e) => {
+            if (e && e.stopPropagation) e.stopPropagation();
+            this.setState(s2 => ({ todayHidden: (s2.todayHidden || []).concat([t2.id]) }));
+            this.notify("“" + t2.title + "” will not be raised again today.", { title: "Marked not important", actionLabel: "Undo", onAction: () => { this.hideToast(); this.setState(s2 => ({ todayHidden: (s2.todayHidden || []).filter(x => x !== t2.id) })); } });
+          },
+          dismissAria: "Not important: " + t2.title,
+          ruleStyle: "display:inline-flex;align-items:center;gap:5px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px 2px 6px;white-space:nowrap",
           style: "display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid " + (t2.urgent ? "var(--hl-line)" : "var(--line)") + ";border-radius:12px;padding:13px 15px",
           dueStyle: "margin-left:auto;font-size:11px;white-space:nowrap;border-radius:12px;padding:3px 8px;" + (t2.urgent
             ? "background:var(--hl);color:var(--text);"
@@ -5041,14 +5810,256 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           countStyle: "flex:0 0 30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:14px;font-weight:600;background:" +
             (d.n > 3 ? "var(--accent-soft);color:var(--accent-d);" : "var(--rail);color:var(--text2);border:1px solid var(--line);"),
         })),
-        savedAnswers: SAVED_ANSWERS.map(x => ({
-          q: x.q, a: x.a, fresh: x.fresh,
-          run: () => this.run(x.q),
-          freshStyle: "font-size:11px;white-space:nowrap;border-radius:12px;padding:2px 8px;" + (x.fresh === "aktualne"
-            ? "color:var(--muted);background:var(--rail);border:1px solid var(--line);"
-            : "color:var(--accent-d);background:var(--accent-soft);"),
+        /* Start's day. Everything here is read off Mail, Calendar, Tasks and People by rules, and every item opens
+           where it lives; the model writes only what the reader asks it to - the briefing and a meeting's prep. */
+        dayCounts: HOME.dayCounts.map(c => {
+          const open = c.key === "cal" ? () => this.goScreen("cal")
+            : c.key === "tasks" ? () => this.goScreen("tasks")
+            : c.key === "waiting" ? () => this.goScreen("mail", { mailPane: "list", threadOpen: false, cameFrom: false })
+            : () => this.goScreen("mail", { mailPane: "list", cameFrom: false });
+          return { n: c.n, label: c.label, icon: c.icon, open, aria: c.n + " " + c.label + " - open",
+            style: "display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--line);border-radius:999px;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:36px;padding:0 13px 0 10px;" : "padding:5px 12px 5px 9px;") };
+        }),
+        dayCountsStyle: isMobile ? "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px" : "display:flex;gap:8px;flex-wrap:wrap",
+        /* From 1680 px Start takes a third column, so a large screen holds the people waiting and what needs the reader
+           beside the day instead of below it; under that the two stand in one aside. */
+        /* In one column the sections leave their columns and take one order, most actionable first: what could hurt,
+           the next meeting, what is due and owed, the proposed steps, then the day as a whole and the counts. */
+        dayMainStyle: isMobile || narrow
+          ? "display:contents"
+          : "flex:1;display:flex;flex-direction:column;gap:24px;min-width:0",
+        greetWrapStyle: isMobile || narrow ? "display:contents" : "display:flex;flex-direction:column;gap:14px",
+        asideColAStyle: isMobile || narrow ? "display:contents" : "display:flex;flex-direction:column;gap:22px;min-width:0",
+        asideColBStyle: isMobile || narrow ? "display:contents" : "display:flex;flex-direction:column;gap:22px;min-width:0",
+        ...Object.fromEntries(["Greet", "Cu", "Heads", "Next", "Needs", "Waiting", "Steps", "Day", "Today", "Since"].map((k, i) => ["ord" + k, isMobile || narrow ? "order:" + (i + 1) : ""])),
+        dayAsideStyle: isMobile || narrow
+          ? "display:contents"
+          : startWide
+          ? "display:contents"
+          : "width:" + asideX + ";flex:0 0 " + asideX + ";display:flex;flex-direction:column;gap:22px",
+        sectionHeadStyle: "display:flex;align-items:baseline;gap:9px",
+        sectionLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap",
+
+        /* Up next: the facts stand by default; the prep is written by the model only on request. */
+        nextUp: HOME.nextUp,
+        nextPeople: HOME.nextUp.people.map(pp => ({ initials: pp.initials, name: pp.name })),
+        nextFacts: HOME.nextUp.facts.map(f => ({ text: f })),
+        prepIdle: !st.startPrep,
+        prepBusy: st.startPrep === "busy",
+        prepReady: st.startPrep === "ready",
+        prepLines: HOME.nextUp.prep.map(t2 => ({ text: t2 })),
+        prepSkel: [92, 78, 64].map(w => ({ style: SHIM + "height:10px;border-radius:5px;width:" + w + "%" })),
+        runPrep: () => {
+          this.setState({ startPrep: "busy" });
+          this.timers.push(setTimeout(() => this.setState({ startPrep: "ready" }), Math.max(600, (this.props.streamDelay ?? 550) * 1.6)));
+        },
+        dropPrep: () => this.setState({ startPrep: null }),
+        openNextCal: () => this.goScreen("cal"),
+        openNextThread: () => this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: HOME.nextUp.tid, cameFrom: false }),
+        prepareWithAgent: () => this.goAgentWith("meeting “" + HOME.nextUp.title + "”"),
+        /* Up next and one step each: one segment, two columns of one height whose heads, card tops and card bottoms
+           meet on the same lines; under two panes' width they stack. */
+        pairStyle: (isMobile || narrow) ? "display:contents" : compact ? "display:flex;flex-direction:column;gap:22px;min-width:0" : "display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:stretch;min-width:0",
+        nextColStyle: "display:flex;flex-direction:column;gap:10px;min-width:0;" + (isMobile || narrow ? "order:4" : ""),
+        stepColStyle: "display:flex;flex-direction:column;gap:10px;min-width:0;" + (isMobile || narrow ? "order:7" : ""),
+        /* From 1680 px what arrived since the last look stands under *Needs you today*, so the three columns end
+           near one another instead of leaving the third one short. */
+        sinceInMain: !startWide,
+        sinceInAside: startWide,
+        pairHeadStyle: "display:flex;align-items:center;gap:9px;min-width:0;box-sizing:border-box;min-height:" + (touch ? 44 : 30) + "px",
+        nextCardStyle: "flex:1;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--accent-line);border-radius:14px;padding:" + (isMobile ? "14px" : "16px 18px") + ";box-shadow:0 1px 2px var(--sh-1),inset 0 1px 0 var(--inset)",
+        nextActsStyle: "margin-top:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line2);padding-top:12px",
+        nextBtn: BLK.btn(isMobile, false) + "width:auto;flex:0 0 auto;" + (touch ? "min-height:44px;" : ""),
+        nextBtnPrimary: BLK.btn(isMobile, true) + "width:auto;flex:0 0 auto;" + (touch ? "min-height:44px;" : ""),
+        avatarStyle: "display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;flex:0 0 26px;border-radius:50%;font-size:10.5px;font-weight:600;color:var(--text2);background:var(--rail);border:1px solid var(--line)",
+
+        /* The day as it runs: the calendar and the tasks on one line, with a mark for now. */
+        dayPlan: HOME.dayPlan.map(d => {
+          const isNow = d.kind === "now";
+          const booked = d.proposed && (st.bkPhase || {})["start#" + d.step] === "accepted";
+          const movedTo = ((st.bkVals || {})["start#" + d.step] || {}).When;
+          if (booked) d = Object.assign({}, d, { proposed: false, note: movedTo ? "booked from Start for " + movedTo : "booked from Start" });
+          const past = d.state === "past";
+          const dot = d.kind === "meeting" ? "var(--accent)" : d.kind === "focus" ? "transparent" : d.kind === "task" ? "var(--hl-line)" : "var(--accent)";
+          return {
+            time: d.time, title: d.title, sub: [d.end ? "until " + d.end : "", d.note || ""].filter(Boolean).join(" · "), isNow, isItem: !isNow,
+            open: d.go === "cal" ? () => this.goScreen("cal") : d.go === "tasks" ? () => this.goScreen("tasks") : null,
+            rowStyle: "display:flex;gap:12px;align-items:flex-start;border-radius:10px;padding:" + (touch ? "10px 10px" : "8px 10px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : "") +
+              (d.state === "next" ? "background:var(--accent-soft);" : "") + (past ? "opacity:0.55;" : ""),
+            timeStyle: "flex:0 0 46px;font-family:'Geist',system-ui,sans-serif;font-size:12px;font-variant-numeric:tabular-nums;color:" + (d.state === "next" ? "var(--accent-d)" : "var(--muted)") + ";padding-top:2px",
+            dotStyle: "width:9px;height:9px;flex:0 0 9px;margin-top:5px;border-radius:" + (d.kind === "task" ? "3px" : "50%") + ";background:" + dot + ";" + (d.proposed ? "border:1.5px dashed var(--accent);box-sizing:border-box;" : ""),
+            titleStyle: "font-size:14px;line-height:1.35;color:var(--text);text-wrap:pretty;" + (d.state === "next" ? "font-weight:600;" : "") + (past ? "text-decoration:line-through;text-decoration-color:var(--faint);" : "") + (d.proposed ? "font-style:italic;color:var(--text2);" : ""),
+          };
+        }),
+        dayNowStyle: "display:flex;align-items:center;gap:8px;padding:2px 10px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d)",
+        dayCardStyle: "display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px",
+
+        /* Who waits on the reader, led by what they asked for rather than by who they are: a ledger of debts, each with
+           how long it has waited (the meter) and a reply one press away, longest first. */
+        waiting: HOME.waiting.map(w => {
+          const old = w.days >= 2;
+          return {
+            ask: w.ask, who: w.name + " · " + w.org + (w.asked > 1 ? " · asked " + (w.asked === 2 ? "twice" : w.asked + " times") : ""),
+            since: (w.asked > 1 ? "last asked " : "asked ") + w.since, due: w.due, hasDue: !!w.due, name: w.name,
+            open: () => this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: w.tid, cameFrom: false }),
+            reply: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.goAgentWith("a reply to " + w.name + " · " + w.ask.toLowerCase()); },
+            replyAria: "Draft a reply to " + w.name,
+            rowStyle: "display:flex;flex-direction:column;gap:7px;border-radius:10px;padding:" + (touch ? "12px 10px" : "11px 10px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : ""),
+            meter: [0, 1, 2].map(k => ({ style: "width:14px;height:5px;border-radius:3px;background:" + (k <= w.days ? (old ? "var(--warn)" : "var(--accent)") : "var(--line)") })),
+            sinceStyle: "font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap;color:" + (old ? "var(--warn-text);font-weight:600" : "var(--muted)"),
+            dueStyle: "font-size:11px;font-weight:600;white-space:nowrap;border-radius:999px;padding:2px 8px;background:var(--warn-soft);color:var(--warn-text)",
+          };
+        }),
+        waitingCardStyle: "display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px",
+        waitingSepStyle: "height:1px;background:var(--line2);margin:0 10px",
+        waitReplyStyle: "display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--accent-d);white-space:nowrap;border-radius:8px;" + (touch ? "min-height:44px;padding:0 6px;" : "padding:3px 6px;"),
+
+        /* One step each: the Agent's proposal blocks with Start's controls - pressed, and undone from the toast. They
+           stand as a deck, one at a time: a step taken or declined stays where it is with its result and Undo, and
+           leaves the deck when the reader moves on. */
+        startSteps: stepDeck.map((i, k) => {
+          const v = this.bkView(HOME.steps[i], "start#" + i, isMobile, "start", touch);
+          const away = k !== stepAt;
+          return Object.assign({}, v, {
+            away: away ? "true" : undefined,
+            slotStyle: "grid-area:1 / 1;display:flex;flex-direction:column;min-width:0;" + (away ? "visibility:hidden;pointer-events:none;" : ""),
+            cardStyle: v.cardStyle + ";flex:1;box-sizing:border-box",
+            footStyle: (v.footStyle || "") + ";margin-top:auto",
+          });
+        }),
+        stepStackStyle: "flex:1;display:grid;min-width:0",
+        stepDeckAny: stepDeck.length > 0,
+        stepDeckEmpty: stepDeck.length === 0,
+        stepDeckCount: stepDeck.length ? (stepAt + 1) + " of " + stepDeck.length : "",
+        stepDeckNote: stepDeck.length ? (stepAt + 1) + " of " + stepDeck.length : "",
+        stepDeckMany: stepDeck.length > 1,
+        stepPrev: () => moveStep(-1),
+        stepNext: () => moveStep(1),
+        stepPrevStyle: stepNav(stepAt > 0),
+        stepNextStyle: stepNav(stepAt < stepDeck.length - 1),
+        stepDots: stepDeck.map((i, k) => ({ style: "height:4px;border-radius:2px;transition:width 160ms ease;background:" + (k === stepAt ? "var(--accent);width:14px" : "var(--border2);width:6px") })),
+
+        /* Under the answer, the messages it came from - the find half of *Ask or find*. */
+        foundRows: plan && plan.sources ? plan.sources.map(id => THREADS.find(t2 => t2.id === id)).filter(Boolean).map(t2 => ({
+          from: t2.from, subject: t2.subject, time: t2.time,
+          open: () => this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: t2.id, cameFrom: true, fromCite: null }),
+          rowStyle: "display:flex;align-items:center;gap:12px;border-top:1px solid var(--line2);padding:" + (touch ? "12px 2px" : "9px 2px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : ""),
+        })) : [],
+
+        /* The counters are counts; the written briefing is the model's and stays off until it is turned on. */
+        todayCounts: HOME.todayCounts,
+        todayEmpty: HOME.todayItems.every(t2 => (st.todayHidden || []).indexOf(t2.id) >= 0),
+        /* Today: the counts, and the written briefing as their extension. Folded, the card is the counts alone; unfolded,
+           the same counts head it and the briefing (or the offer to turn it on) reads on beneath them. */
+        todayOpen: !!st.todayOpen,
+        todayToggle: () => this.setState(s2 => ({ todayOpen: !s2.todayOpen })),
+        todayToggleLabel: st.todayOpen ? (isMobile ? "Less" : "Counts only") : st.briefOn ? (isMobile ? "Briefing" : "Read the briefing") : (isMobile ? "Briefing · off" : "Written briefing · off"),
+        todayToggleIcon: st.todayOpen ? "unfold_less" : "unfold_more",
+        todayCardStyle: (isMobile || narrow ? "order:9;" : "") + "display:flex;flex-direction:column;gap:12px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;" +
+          (st.todayOpen ? "box-shadow:inset 3px 0 0 var(--accent);" : "") + (isMobile ? "padding:12px 13px 13px 14px" : "padding:13px 16px 14px 17px"),
+        todayToggleStyle: "margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--accent-d);white-space:nowrap;border-radius:8px;" + (touch ? "min-height:44px;padding:0 8px;" : "padding:4px 8px;"),
+        briefOn: !!st.briefOn && !!st.todayOpen,
+        briefOffer: !st.briefOn && !!st.todayOpen,
+        briefOfferText: HOME.briefingOffer,
+        turnBriefOn: () => { this.setState({ briefOn: true, todayOpen: true }); this.notify("It appears here each morning, under the counts.", { kind: "success", title: "Written briefing on" }); },
+        hideBriefOffer: () => this.setState({ todayOpen: false }),
+        turnBriefOff: () => { this.setState({ briefOn: false, todayOpen: false }); this.notify("Unfold the counts to turn it back on.", { title: "Written briefing off" }); },
+        briefNotUseful: () => this.notify("Thanks - tomorrow's briefing weighs that.", { title: "Marked not useful" }),
+
+        hasWatched: (st.watched || []).length > 0,
+        /* Watching sits under the field it came from: one strip of the questions kept, each a card that says whether
+           its answer moved, scrolling sideways when there are more than fit. */
+        watchBandStyle: "display:flex;flex-direction:column;gap:8px;min-width:0;border-top:1px solid var(--line2);padding-top:" + (isMobile ? 10 : 12) + "px",
+        watchHeadStyle: "display:flex;align-items:center;gap:8px;min-width:0;min-height:" + (touch ? 44 : 30) + "px",
+        watchEyeStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;color:var(--accent-d)",
+        watchCount: String((st.watched || []).length),
+        watchCountStyle: "font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted);background:var(--sub);border-radius:999px;padding:1px 7px",
+        watchChangedAny: (st.watched || []).some(w => w.state === "changed"),
+        watchChangedText: (() => { const n = (st.watched || []).filter(w => w.state === "changed").length; return n === 1 ? "1 answer moved" : n + " answers moved"; })(),
+        watchChangedStyle: "display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--accent-d);white-space:nowrap",
+        /* Folded by default: the head alone, and what moved named in it, so news is seen without the strip being open. */
+        watchOpen: !!st.watchOpen && watchList.length > 0,
+        watchShut: !st.watchOpen && watchList.length > 0,
+        watchPaging: !!st.watchOpen && watchList.length > 0 && !isMobile,
+        watchPagingFoot: !!st.watchOpen && watchList.length > 0 && isMobile,
+        watchToggle: () => this.setState(s2 => ({ watchOpen: !s2.watchOpen })),
+        watchToggleLabel: st.watchOpen ? (isMobile ? "" : "Hide") : (isMobile ? "" : "Show all"),
+        watchToggleIcon: st.watchOpen ? "unfold_less" : "unfold_more",
+        watchToggleAria: st.watchOpen ? "Hide the watched questions" : "Show all watched questions",
+        watchToggleStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--accent-d);white-space:nowrap;border-radius:8px;box-sizing:border-box;" + (touch ? "min-height:44px;min-width:44px;padding:0 8px;" : "padding:4px 8px;"),
+        watchMoved: isMobile ? [] : watchList.filter(w => w.state === "changed").slice(0, startWide ? 3 : 2).map(w => ({ q: w.q, open: () => this.openWatched(w) })),
+        watchMovedRowStyle: "flex:1;min-width:0;display:flex;align-items:center;gap:8px;overflow:hidden",
+        watchMovedStyle: "flex:0 1 auto;min-width:0;max-width:340px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--text);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:999px;box-sizing:border-box;" + (touch ? "min-height:36px;padding:0 12px 0 10px;" : "padding:4px 11px 4px 9px;"),
+        watchMovedDotStyle: "width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--accent)",
+        watchQuiet: !isMobile && !watchList.some(w => w.state === "changed"),
+        watchQuietText: "nothing moved since you last looked",
+        watchHint: isMobile ? "" : "refreshed when new mail matches · each refresh counts against your allowance",
+        watchHintStyle: "flex:1;min-width:0;text-align:right;font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+        /* A carousel of fixed cards: the same count per page at each width, each card the same size whatever its question,
+           and the arrows in the head, so the strip never changes shape as questions come and go. On two panes the cards
+           take the day's columns - the two halves of the main one, then each aside - so their edges continue its lines. */
+        watchRowStyle: "display:grid;min-width:0;" + (isMobile ? "grid-template-columns:minmax(0,1fr)"
+          : narrow ? "grid-template-columns:repeat(2,minmax(0,1fr));gap:12px"
+          : compact ? "grid-template-columns:minmax(0,1fr) " + asideX + ";gap:28px"
+          : "grid-template-columns:minmax(0,1fr) minmax(0,1fr) " + asideX + (startWide ? " " + asideY : "") + ";gap:28px"),
+        watchPageText: watchList.length <= watchPer ? (watchList.length === 1 ? "1 question" : watchList.length + " questions")
+          : (watchAt * watchPer + 1) + (watchPer > 1 ? "–" + Math.min(watchList.length, (watchAt + 1) * watchPer) : "") + " of " + watchList.length,
+        watchPageStyle: "font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;margin-right:2px",
+        watchPrev: () => this.setState({ watchAt: Math.max(0, watchAt - 1) }),
+        watchNext: () => this.setState({ watchAt: Math.min(watchPages - 1, watchAt + 1) }),
+        watchPrevOff: watchAt === 0 ? "true" : undefined,
+        watchNextOff: watchAt >= watchPages - 1 ? "true" : undefined,
+        watchPrevStyle: stepNav(watchAt > 0),
+        watchNextStyle: stepNav(watchAt < watchPages - 1),
+        watchQStyle: "flex:1;min-width:0;font-size:13.5px;font-weight:500;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty",
+        watchStopStyle: "display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:8px;color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;" +
+          (touch ? "width:44px;height:44px;margin:-10px -8px 0 0;" : "width:28px;height:28px;margin:-4px -4px 0 0;"),
+        watchEmptyStyle: "font-size:13px;line-height:1.45;color:var(--muted);border:1px dashed var(--border2);border-radius:11px;padding:10px 13px;text-wrap:pretty",
+        noWatched: !(st.watched || []).length,
+        watchedPage: watchList.slice(watchAt * watchPer, (watchAt + 1) * watchPer).map(w => ({
+          q: w.q, note: w.note,
+          open: () => this.openWatched(w),
+          stop: (e) => {
+            if (e && e.stopPropagation) e.stopPropagation();
+            this.setState(s2 => ({ watched: (s2.watched || []).filter(x => x.id !== w.id) }));
+            this.notify("“" + w.q + "” no longer refreshes.", { title: "Stopped watching" });
+          },
+          stopAria: "Stop watching: " + w.q,
+          isChanged: w.state === "changed", isPaused: w.state === "paused", isFailed: w.state === "failed",
+          /* A card whose answer moved carries the accent edge, so it is found before it is read. */
+          rowStyle: "min-width:0;height:" + (touch ? 92 : 78) + "px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;box-sizing:border-box;background:var(--bg);border:1px solid " + (w.state === "changed" ? "var(--accent-line)" : "var(--line)") + ";border-radius:12px;padding:" + (touch ? "12px 12px 11px 14px" : "10px 10px 9px 13px") + (w.state === "changed" ? ";box-shadow:inset 3px 0 0 var(--accent)" : ""),
+          stateStyle: "display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;line-height:1.4;" + (w.state === "changed" ? "color:var(--accent-d);font-weight:600;"
+            : w.state === "paused" || w.state === "failed" ? "color:var(--warn-text);" : "color:var(--muted);"),
+          dotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + (w.state === "changed" ? "var(--accent)" : w.state === "paused" || w.state === "failed" ? "var(--warn)" : "var(--border2)"),
         })),
-        suggestions: SUGGESTED_QUESTIONS.map(x => ({ text: x.text, pick: () => this.run(x.text) })),
+        suggestions: SUGGESTED_QUESTIONS.map(x => ({ text: x.text, why: x.why, pick: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ askFocus: false }); this.run(x.text); },
+          pickKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.setState({ askFocus: false }); this.run(x.text); } else if (e.key === "Escape") this.setState({ askFocus: false }); } })),
+
+        isWatching: !!(st.watched || []).find(w => w.q === st.query),
+        watchLabel: (st.watched || []).find(w => w.q === st.query) ? "Watching" : "Watch",
+        watchIcon: (st.watched || []).find(w => w.q === st.query) ? "notifications_active" : "notification_add",
+        toggleWatch: () => {
+          const has = (st.watched || []).find(w => w.q === st.query);
+          if (has) { this.setState(s2 => ({ watched: (s2.watched || []).filter(w => w.q !== st.query) })); this.notify("It no longer refreshes on your start screen.", { title: "Stopped watching" }); return; }
+          this.setState(s2 => ({ watched: [{ id: "w" + Date.now(), q: st.query, state: "same", note: "watching from now" }].concat(s2.watched || []) }));
+          this.notify("It stays on your start screen and refreshes when new mail matches it. Each refresh counts against your allowance.", { kind: "success", title: "Watching this question" });
+        },
+        watchStyle: "display:inline-flex;align-items:center;gap:6px;font-size:13px;border-radius:999px;box-sizing:border-box;white-space:nowrap;" + (touch ? "min-height:44px;padding:0 14px 0 11px;" : "padding:5px 12px 5px 9px;") +
+          ((st.watched || []).find(w => w.q === st.query) ? "color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line);" : "color:var(--text2);background:transparent;border:1px solid var(--border2);"),
+
+
+        sourcesLabel: plan && plan.sources ? "Open Mail" : "",
+        openSources: () => { if (plan && plan.sources) this.goScreen("mail", { mailPane: "list", threadOpen: false, cameFrom: false }); },
+        answerFootStyle: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line2);padding-top:11px",
+        answerLinkStyle: BLK.link(isMobile) + (touch ? "min-height:44px;" : ""),
+
+        /* On a phone the two header actions shrink to a glyph and a word, so the title keeps its line. */
+        agentBtnLabel: isMobile ? "Agent" : "Continue with the agent",
+        newQLabel: isMobile ? "Today" : "Back to your day",
+        headBtnPad: touch ? "min-height:44px;box-sizing:border-box;padding:0 13px 0 11px;" : "padding:7px 14px 7px 11px;",
+        /* Touch lifts every control on these surfaces to the 44 px target, glyph-only ones included. */
+        tgt: touch ? "display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;box-sizing:border-box;" : "",
+        tgtX: touch ? "width:44px;height:44px;flex:0 0 44px;" : "",
 
         showIdle: st.phase === "idle",
         hasRun,
@@ -5068,28 +6079,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         })[plan.confidence] || "" : "",
         gapNote: plan && plan.gap ? plan.gap : false,
         answerReady: !!ready.answer,
-        answerParts: plan ? plan.parts.map(p => ({ text: p.text, cite: p.cite, open: openEv(p.cite) })) : [],
-        timelineReady: !!ready.timeline,
-        timeline: plan && plan.timeline ? plan.timeline.map((t, i, all) => ({
-          date: t.date, title: t.title, detail: t.detail, open: openEv(t.cite),
-          style: BLK.tlItem(isMobile, i === all.length - 1), lineStyle: BLK.tlLine(isMobile, i === all.length - 1), dotStyle: BLK.tlDot(isMobile),
-        })) : [],
-        tableReady: !!ready.table,
-        table: plan && plan.table ? plan.table.map(r => {
-          const cell = (value, cite, isLast) => ({
-            value, cite, hasCite: !!cite, open: cite ? openEv(cite) : null,
-            cellStyle: "font-size:14px;border-bottom:1px solid var(--line2);padding:10px " + (isLast ? "0" : "10px") + " 10px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap",
-          });
-          return { version: cell(r.version, r.versionCite), price: cell(r.price, r.priceCite), sla: cell(r.sla, r.slaCite), index: cell(r.index, r.indexCite, true) };
+        answerParts: plan ? plan.parts.map(p => {
+          const disputed = !!(st.reported || {})[p.cite];
+          return {
+            text: p.text, cite: p.cite, open: openEv(p.cite), disputed,
+            title: disputed ? "You reported this claim" : "Open source " + p.cite,
+            textStyle: disputed ? "text-decoration:underline wavy var(--warn);text-underline-offset:4px" : "",
+            supStyle: "font-size:11px;border-radius:4px;padding:2px 6px;margin-left:3px;" + (disputed ? "color:var(--warn-text);background:var(--warn-soft);" : "color:var(--accent-d);background:var(--accent-soft);"),
+          };
         }) : [],
-        galleryReady: !!ready.gallery,
-        gallery: plan && plan.gallery ? plan.gallery.map(g => ({ type: g.type, name: g.name, meta: g.meta, open: openEv(g.cite) })) : [],
-        peopleReady: !!ready.people,
-        people: plan && plan.people ? plan.people.map(p => ({ initials: p.initials, name: p.name, role: p.role, last: p.last, open: openEv(p.cite) })) : [],
-        actionReady: !!ready.action,
-        actionText: plan ? plan.action : "",
 
-        evidenceCount: plan ? plan.evidence.length + " sources · click to see the passage" : "",
+        evidenceCount: plan ? plan.evidence.length + " sources · " + (touch ? "tap" : "click") + " to see the passage" : "",
         evidence: plan && ready.evidence ? plan.evidence.map(e => { const sb = srcBadge(e); return { n: e.n, title: e.title, snippet: e.snippet, meta: e.meta, open: () => this.setState({ ev: e.n }), badgeStyle: SRC_BADGE_STYLE, badgeIconStyle: SRC_BADGE_ICON_STYLE, badgeIcon: sb.icon, badgeLabel: sb.label, badgeTitle: sb.title }; }) : [],
         inspectorOpen: !!evObj,
         inspectorClosed: !evObj,
@@ -5107,6 +6107,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         inspectorPost: evObj ? evObj.post : "",
         inspectorSupports: evObj ? evObj.supports : "",
         inspectorMail: evObj ? evObj.mail : "",
+        /* A report is about the one claim this fragment supports, and changes nothing else. */
+        inspectorReported: !!(evObj && (st.reported || {})[evObj.n]),
+        inspectorNotReported: !(evObj && (st.reported || {})[evObj.n]),
+        reportClaim: () => {
+          if (!evObj) return;
+          this.setState(s2 => ({ reported: Object.assign({}, s2.reported, { [evObj.n]: true }) }));
+          this.notify("The claim it supports is marked as disputed in this answer. Nothing else changed.", { title: "Reported" });
+        },
         openInMail: () => this.setState({ screen: "mail", threadId: "contoso", cameFrom: true, fromCite: st.ev, mailAnswer: false, mailPane: "thread", threadOpen: true }),
 
         /* The Agent's evidence inspector (`agentEvOpen`): beside the conversation as a 380 px column from 1180 px up
@@ -5865,10 +6873,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         tbPrimaryShown: tbPriInBar,
         showFab: !st.compose && !st.doc && !selectionOn && (singlePane ? mailPane === "list" : tbFabForced),
         fabStyle: "position:absolute;right:16px;bottom:16px;z-index:30;width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
-        /* In multi-panel layouts the circle sits over the thread list, not the reading panel —
-           otherwise it would cover the reply composer. */
-        mailFabStyle: "position:absolute;right:16px;bottom:16px;z-index:30;" +
-          "width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
         selectionCount: sel.length + " selected",
         clearSelection: () => this.setState({ sel: [] }),
         selectAllThreads: () => this.setState({ sel: listedThreads.map(t => t.id) }),
@@ -5883,7 +6887,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         tbTitleStyle: "flex:0 1 auto;min-width:0;margin-right:auto;padding-right:8px;font-size:20px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis",
         agentTitleStyle: isMobile
           ? "order:1;flex:1;min-width:0;font-size:20px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
-          : "font-size:16px;font-weight:600",
+          : "flex:1;min-width:0;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis",
         agentHistBtnStyle: "display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;box-sizing:border-box;" +
           (isMobile ? "width:44px;height:44px;justify-content:center;padding:0" : touch ? "min-height:44px;padding:0 14px" : "padding:7px 12px"),
         agentSearchBtnStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;box-sizing:border-box;" +
@@ -6333,21 +7337,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (touch ? "top:-19px;right:-4px;width:32px;height:32px;font-size:18px;" : "top:-11px;right:-11px;width:26px;height:26px;font-size:16px;"),
         composerStyle: "position:absolute;z-index:16;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px var(--sh-3),0 2px 8px var(--sh-2);" +
           (singlePane ? "left:10px;right:10px;bottom:10px;padding:" + (touch ? "16px 8px 8px" : "8px") : "left:18px;right:18px;bottom:16px;padding:12px"),
-        /* The one AI entry point of a thread: a floating glyph pinned to the pane's bottom-right corner, over the
-           thread rather than in it, so it stays put however far the conversation scrolls. Pressing it unfolds two
-           choices above it, *Draft a reply* and *Ask*, and turns the glyph into a close; Escape, back, a press
-           outside or a choice folds them again. */
-        replyChooserOpen: !st.stateBarOff && !st.replyDock && !!st.replyChooser,
-        toggleReplyChooser: () => this.setState(s => ({ replyChooser: s.replyChooser ? null : true })),
-        closeReplyChooser: () => this.setState({ replyChooser: null }),
-        replyFabIcon: st.replyChooser ? "close" : "auto_awesome",
-        replyFabTitle: st.replyChooser ? "Close" : "Draft a reply or ask about this thread",
-        replyFabStyle: "position:absolute;z-index:16;display:flex;align-items:center;justify-content:center;color:var(--onaccent);background:var(--accent);box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);" +
-          (isMobile ? "right:16px;bottom:16px;width:56px;height:56px;border-radius:18px;" : "right:" + (singlePane ? 16 : 22) + "px;bottom:" + (singlePane ? 16 : 20) + "px;width:48px;height:48px;border-radius:14px;"),
-        replyChooserStyle: "position:absolute;z-index:17;display:flex;flex-direction:column;align-items:flex-end;gap:8px;" +
-          (isMobile ? "right:16px;bottom:84px;" : "right:" + (singlePane ? 16 : 22) + "px;bottom:" + (singlePane ? 72 : 76) + "px;"),
-        replyChoiceStyle: "display:flex;align-items:center;gap:10px;white-space:nowrap;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);font-weight:600;" +
-          (touch ? "min-height:48px;padding:0 18px 0 14px;font-size:15px;" : "height:40px;padding:0 16px 0 12px;font-size:14px;"),
+        /* What Fathom offers while a thread is open: *Draft a reply* and *Ask*. */
         chooseDraftReply: () => this.setState({ replyDock: true, replyChooser: null }),
         chooseAskThread: () => { this.setState({ replyChooser: null }); this.goAgentWith("thread “" + thread.subject + "”"); },
         /* A reading that predates the conversation's newest message: a message joined or left after
@@ -6435,7 +7425,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
         cameFromResult: st.cameFrom,
         fromCitation: st.fromCite || "",
-        backToResult: () => this.setState({ screen: "discover", cameFrom: false }),
+        backToResult: () => this.setState({ screen: "start", cameFrom: false }),
         threads: listedThreads.map(t => withMark(t, spamRowOf(t, {
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
@@ -6534,6 +7524,28 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         saveDraftNow: this.writeRefused("save") ? this.noop : () => { finishCompose(); this.notify("The message is waiting in Drafts.", { kind: "success", title: "Draft saved" }); },
         closeAskOpen: !!st.closeAsk,
         composeKeyDown: (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); askSend(); } },
+        /* A rewrite waiting in the composer holds the editor and stands in the foot in place of *Send*. */
+        composeEditable: st.cChange ? "false" : "true",
+        composeFootRef: this.composeFootRef,
+        composeEditorScroll: () => { if (st.selBar && st.selBar.kind === "compose" && !this._passageDocked) this.closeSelBar(); },
+        composeIdle: !st.cChange,
+        composeHasChange: !!st.cChange,
+        composeChangeBusy: !!(st.cChange && st.cChange.busy),
+        composeChangeReady: !!(st.cChange && !st.cChange.busy),
+        composeChangeNote: !st.cChange ? "" : st.cChange.busy
+          ? "Rewriting " + st.cChange.pieces.length + (st.cChange.pieces.length === 1 ? " passage" : " passages") + " · " + st.cChange.label
+          : st.cChange.label + " · the struck text stays until you keep the change",
+        composeChangeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;flex:0 0 auto;color:var(--accent-d)" + (st.cChange && st.cChange.busy ? ";animation:mfspin 1.15s linear infinite" : ""),
+        composeChangeIcon: st.cChange && st.cChange.busy ? "progress_activity" : "auto_awesome",
+        composeChangeNoteStyle: "display:flex;align-items:center;gap:8px;min-width:0;flex:" + (isMobile ? "1 1 100%" : "1 1 220px") + ";font-size:13px;line-height:1.45;color:var(--accent-d);text-wrap:pretty",
+        composeChangeActs: !(st.cChange && !st.cChange.busy) ? [] : [
+          { label: "Keep the change", aria: "Keep the rewritten text in the message", primary: true, run: this.keepComposeChange },
+          { label: "Try again", aria: "Ask the agent for another version of the same sentences", run: this.retryComposeChange },
+          { label: "Undo", aria: "Leave the message as it was", run: this.dropComposeChange },
+        ].map(c => ({ label: c.label, aria: c.aria, run: c.run,
+          key: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); c.run(); } },
+          style: "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:44px;padding:0 16px;" : "padding:8px 14px;")
+            + (c.primary ? "font-weight:600;color:var(--onaccent);background:var(--accent);" : "color:var(--text2);border:1px solid var(--border2);") })),
         askSend: askSend,
         sendAskOpen: !!st.sendAsk,
         sendWarnings: ((st.sendAsk && st.sendAsk.warnings) || []).map(w => ({ text: w })),
@@ -7066,7 +8078,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeAllInfo: "Open tabs: " + (st.closeAllAsk ? st.closeAllAsk.count : 0) + ". An unsent draft will be discarded.",
         askCloseAll: () => this.setState({ closeAllAsk: { count: tabItems.length } }),
         cancelCloseAll: () => this.setState({ closeAllAsk: false }),
-        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null, closeAllAsk: false }),
+        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null, closeAllAsk: false, cChange: null, selBar: st.selBar && st.selBar.kind === "compose" ? null : st.selBar }),
         tabItems,
         workModeLabel: tabsMode ? "Mode: tabs" : "Mode: classic",
         toggleWorkMode: () => this.setState(s => ({
@@ -7129,6 +8141,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       /* What back calls for a surface whose own close does more than empty its key: asking before a draft is thrown
          away, and closing the tab the surface stands in. */
+      /* In Mail, Fathom stands in the corner *New message* floated in, so it takes that button in as its first choice;
+         and it offers the reply only while a thread is open. */
+      const fathomCreate = st.screen === "mail" && vals.showFab ? { icon: "edit_square", label: "New message", run: vals.openCompose } : null;
+      const fathomReply = st.screen === "mail" && vals.showThreadPane && vals.replyFabShown ? [
+        { icon: "edit_note", label: "Draft a reply", run: vals.chooseDraftReply },
+        { icon: "forum", label: "Ask about this thread", run: vals.chooseAskThread },
+      ] : [];
+      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, thread, person, fathomCreate, fathomReply }));
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml };
       return vals;
     }

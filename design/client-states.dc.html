@@ -429,11 +429,11 @@ Project repository: https://github.com/fathomise/MailFathom
   </div>
   </sc-if>
 
-  <sc-if value="{{ show.d_asked }}" hint-placeholder-val="{{ true }}">
+  <sc-if value="{{ show.d_watched }}" hint-placeholder-val="{{ true }}">
   <div id="1.5" style="display:flex;flex-direction:column;gap:18px">
     <div style="display:flex;flex-direction:column;gap:8px;width:980px">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:3px 8px">1.5</span><span style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Asked before</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:var(--muted);background:var(--sub);border:1px solid var(--line);border-radius:6px;padding:3px 8px">state="d_asked"</span></div>
-      <div style="font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty">Recall belongs in Discover, but only while the field is idle - once a run starts, the row leaves. Each chip carries the question alone; tapping one asks it again. Discover always asks about all mail, so no chip names a scope. The stored short answer and freshness are deliberately not shown: a remembered answer can be stale, and a fresh run is cheap. “Forget these” clears the row on this device, with no confirmation - nothing of value is lost.</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:3px 8px">1.5</span><span style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Watched questions</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:var(--muted);background:var(--sub);border:1px solid var(--line);border-radius:6px;padding:3px 8px">state="d_watched"</span></div>
+      <div style="font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty">A question stays on the start screen only when somebody pressed <b>Watch</b> on its answer. It refreshes when new mail matches it - not on a timer - and each refresh counts against the allowance, which is why nothing is watched by default. A row says whether the answer moved since it was last opened, never the answer itself, and no row names a scope, because Discover always asks about all mail: opening the row runs the question again. A refresh the allowance did not cover is a warning naming when it resumes, and one that failed is a warning with <b>Try again</b>; × stops watching with no confirmation. Under a finger both are 44 px targets, and the × keeps <i>Stop watching</i> as its name, shown by a hold. With nothing watched, the section says how to add one.</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:28px">
       <sc-for list="{{ R.discover }}" as="row" hint-placeholder-count="1"><div style="display:flex;gap:28px;align-items:flex-start">
@@ -444,16 +444,25 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="{{ f.head }}"><div style="font-size:16px;font-weight:600">Discover</div><div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok)"></span>{{ sample.discover.syncStatus }}</div></div>
           <div style="{{ f.searchWrap }}">
             <div style="{{ f.searchBox }}"><div style="font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:4px 8px;font-weight:600">AI</div><div style="flex:1;min-width:0;font-size:16px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">What do you want to ask your mail?</div><div style="font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 16px;white-space:nowrap">Ask ⏎</div></div>
-            <div style="display:flex;flex-direction:column;gap:8px;padding-top:4px">
-              <div style="display:flex;align-items:center;gap:10px"><div style="font-size:11px;color:var(--muted);font-weight:600">Asked before</div><div style="margin-left:auto;font-size:13px;color:var(--muted);padding:4px 6px;border-radius:6px" style-hover="cursor:pointer;color:var(--text);background:var(--hover)">Forget these</div></div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <sc-for list="{{ askedBefore }}" as="q" hint-placeholder-count="3">
-                  <div style="display:inline-flex;align-items:center;gap:8px;max-width:100%;box-sizing:border-box;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:5px 7px 5px 11px" style-hover="cursor:pointer;border-color:var(--accent)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">history</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ q.question }}</span></div>
-                </sc-for>
-              </div>
+          </div>
+          <div style="{{ f.main }}">
+            <div style="font-size:22px;font-weight:600;letter-spacing:-0.015em">{{ sample.discover.greeting }}</div>
+            <div style="display:flex;flex-direction:column;gap:10px;width:100%">
+              <div style="display:flex;align-items:baseline;gap:9px"><div style="font-size:11px;color:var(--muted);font-weight:600">Watching</div><div style="font-size:11px;color:var(--faint)">refreshed when new mail matches</div></div>
+              <sc-for list="{{ watchedRows }}" as="w" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 10px 12px 14px" style-hover="cursor:pointer;border-color:var(--accent)">
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                    <div style="font-size:15px;text-wrap:pretty">{{ w.question }}</div>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="{{ w.stateStyle }}"><span style="{{ w.dotStyle }}"></span>{{ w.note }}</span></div>
+                  </div>
+                  <sc-if value="{{ w.hasAction }}" hint-placeholder-val="{{ false }}"><div role="button" style="{{ f.watchAct }}">{{ w.action }}</div></sc-if>
+                  <span role="button" title="Stop watching" aria-label="Stop watching" style="{{ f.watchStop }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text2)">close</span>
+                </div>
+              </sc-for>
+              <div style="font-size:11px;color:var(--muted);font-weight:600;padding-top:6px">With nothing watched</div>
+              <div style="font-size:13px;line-height:1.45;color:var(--muted);border:1px dashed var(--border2);border-radius:12px;padding:12px 15px;text-wrap:pretty">Press <span style="font-weight:600;color:var(--text2)">Watch</span> on an answer to keep its question here.</div>
             </div>
           </div>
-          <div style="{{ f.main }}"><div style="font-size:22px;font-weight:600;letter-spacing:-0.015em">{{ sample.discover.greeting }}</div></div>
         </div>
       </div></div></sc-for>
       </div></sc-for>
@@ -1150,7 +1159,7 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;all&quot;,&quot;telefon&quot;,&quot;fold&quot;,&quot;tablet&quot;,&quot;desktop&quot;],&quot;default&quot;:&quot;all&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Composition&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;,&quot;both&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Composition&quot;},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;all&quot;,&quot;d_refusal&quot;,&quot;d_cancel&quot;,&quot;d_ended&quot;,&quot;d_finished&quot;,&quot;d_coming&quot;,&quot;d_empty&quot;,&quot;ev_opening&quot;,&quot;ev_failed&quot;,&quot;ev_private&quot;,&quot;ev_outdated&quot;,&quot;ev_kinds&quot;,&quot;d_asked&quot;,&quot;m_more&quot;,&quot;m_partial&quot;,&quot;m_pane&quot;,&quot;m_folders&quot;,&quot;m_list&quot;,&quot;m_kind&quot;,&quot;m_roles&quot;,&quot;m_search&quot;,&quot;m_pending&quot;,&quot;m_sync&quot;,&quot;c_edit&quot;,&quot;t_layout&quot;,&quot;t_proposed&quot;,&quot;t_states&quot;,&quot;p_none&quot;,&quot;p_states&quot;,&quot;a_steer&quot;,&quot;a_failed&quot;,&quot;a_read&quot;],&quot;default&quot;:&quot;all&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;State&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;all&quot;,&quot;telefon&quot;,&quot;fold&quot;,&quot;tablet&quot;,&quot;desktop&quot;],&quot;default&quot;:&quot;all&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Composition&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;,&quot;both&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Composition&quot;},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;all&quot;,&quot;d_refusal&quot;,&quot;d_cancel&quot;,&quot;d_ended&quot;,&quot;d_finished&quot;,&quot;d_coming&quot;,&quot;d_empty&quot;,&quot;ev_opening&quot;,&quot;ev_failed&quot;,&quot;ev_private&quot;,&quot;ev_outdated&quot;,&quot;ev_kinds&quot;,&quot;d_watched&quot;,&quot;m_more&quot;,&quot;m_partial&quot;,&quot;m_pane&quot;,&quot;m_folders&quot;,&quot;m_list&quot;,&quot;m_kind&quot;,&quot;m_roles&quot;,&quot;m_search&quot;,&quot;m_pending&quot;,&quot;m_sync&quot;,&quot;c_edit&quot;,&quot;t_layout&quot;,&quot;t_proposed&quot;,&quot;t_states&quot;,&quot;p_none&quot;,&quot;p_states&quot;,&quot;a_steer&quot;,&quot;a_failed&quot;,&quot;a_read&quot;],&quot;default&quot;:&quot;all&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;State&quot;}}">
 const Component = MailFathomDesign.artboards.clientStates(DCLogic, React);
 </script>
 </body>
