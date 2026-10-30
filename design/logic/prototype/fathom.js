@@ -218,9 +218,15 @@ MailFathomDesign.fathomUi = (() => {
       if (st.fathomSmart && !st.ctxMenu && e.key === "Tab") { e.preventDefault(); e.stopPropagation(); smartStep(e.shiftKey); return; }
       if (st.fathomSmart && !st.ctxMenu && (e.key === "Enter" || e.key === " ") && self._smartKey && document.contains(self._smartKey)) { e.preventDefault(); e.stopPropagation(); smartOpenKeyed(); return; }
       if (e.key === "Escape") {
+        if (st.fathomSmart) {
+          e.preventDefault();
+          e.stopPropagation();
+          self._smartKey = null;
+          self.setState({ fathomSmart: false, smartHover: null, ctxMenu: null });
+          return;
+        }
         if (st.ctxMenu) return;
         if (st.fathomAnswer) self.setState({ fathomAnswer: null });
-        else if (st.fathomSmart) { self._smartKey = null; self.setState({ fathomSmart: false, smartHover: null }); }
         else if (st.fathomMenu) self.setState({ fathomMenu: false });
         else if (st.catchupOpen) self.closeCatchup();
         return;
