@@ -12,6 +12,7 @@ import {
     type ClientFailure,
     type ClientSession,
     type Contact,
+    type ContactOrigin,
     type ContactWriteOutcome,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
@@ -23,7 +24,8 @@ import { Control } from '../controls/Control';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
-import { ContactDialog, type ContactDraft } from './ContactDialog';
+import { ContactDialog, type ContactStatement } from './ContactDialog';
+import { rowsOf } from './contactAddresses';
 import { PersonPage } from './PersonPage';
 import { useContactCorrespondence } from './useContactCorrespondence';
 import { paneArrival, usePaneMotion } from '../shell/paneMotion';
@@ -42,9 +44,9 @@ import { useScreenStep } from '../shell/screenLayers';
 // sentence saying what happened, beside the thing it happened to.
 //
 // **What the toolbar carries is one act, and that is the whole of what this deployment publishes a route for.** The
-// design draws five more beside it — importing a book, exporting one, merging two records, and two ways of filtering
-// what is listed — and `/api/client` answers none of them, so each is left out rather than drawn as a control that
-// would do nothing. That is a correction owed to the design rather than a toolbar to fill.
+// design draws three acts on the book beside it — scheduling a meeting, merging duplicates, and importing a book — and
+// `/api/client` answers none of them, so each is left out rather than drawn as a control that would do nothing. That
+// is a correction owed to the design rather than a toolbar to fill.
 
 // What one write to the book said, worded as what happened to the person rather than as an outcome name. Exhaustive by
 // its own type, so an outcome added to the surface does not compile until this says what a reader is told about it.
@@ -65,6 +67,69 @@ const writeSaid: Readonly<Record<ContactWriteOutcome, MessageKey>> = {
 function failedSaid(failure: ClientFailure): MessageKey {
     return wentUnanswered(failure) ? 'people.writeUnknown' : 'people.writeFailed';
 }
+
+// Who is opened once the person who was open has been taken out of the book: whoever the list draws in their place, or
+// the one before where they were the last — and nobody where the book is left empty.
+function nextAfter(contacts: readonly Contact[], leaving: string, erased: readonly string[]): Contact | null {
+    const at = contacts.findIndex((contact) => contact.id === leaving);
+    const rest = contacts.filter((contact) => !erased.includes(contact.id));
+
+    return rest[Math.min(Math.max(at, 0), rest.length - 1)] ?? null;
+}
+
+// What a question about taking several people out says will happen, in the forms a language has for the noun — one
+// table per book, because deleting somebody written down and removing somebody collected are different sentences.
+const erasingCounted: Readonly<Record<ContactOrigin, Readonly<Record<Intl.LDMLPluralRule, MessageKey>>>> = {
+    Asserted: {
+        zero: 'people.eraseManyWhat.other',
+        one: 'people.eraseManyWhat.one',
+        two: 'people.eraseManyWhat.other',
+        few: 'people.eraseManyWhat.few',
+        many: 'people.eraseManyWhat.many',
+        other: 'people.eraseManyWhat.other',
+    },
+    Collected: {
+        zero: 'people.removeManyWhat.other',
+        one: 'people.removeManyWhat.one',
+        two: 'people.removeManyWhat.other',
+        few: 'people.removeManyWhat.few',
+        many: 'people.removeManyWhat.many',
+        other: 'people.removeManyWhat.other',
+    },
+};
+
+// The rest of that question, per book: what it asks, what it says about one person, what follows, and what the act is
+// called.
+const erasingAsked: Readonly<
+    Record<
+        ContactOrigin,
+        {
+            readonly one: MessageKey;
+            readonly many: MessageKey;
+            readonly oneWhat: MessageKey;
+            readonly afterwards: MessageKey;
+            readonly act: MessageKey;
+            readonly done: MessageKey;
+        }
+    >
+> = {
+    Asserted: {
+        one: 'people.eraseOne',
+        many: 'people.eraseMany',
+        oneWhat: 'people.eraseOneWhat',
+        afterwards: 'people.erasePermanent',
+        act: 'people.eraseAct',
+        done: 'people.erased',
+    },
+    Collected: {
+        one: 'people.removeOne',
+        many: 'people.removeMany',
+        oneWhat: 'people.removeOneWhat',
+        afterwards: 'people.removeReturns',
+        act: 'people.removeFromCollected',
+        done: 'people.removed',
+    },
+};
 
 interface WriteSaid {
     readonly where: 'book' | 'person';
@@ -132,17 +197,12 @@ export function PeopleSpace({
     // book holds what each of them is, so a selection cannot outlive a read that no longer names one of them.
     const picked = reading.contacts.filter((contact) => selected.includes(contact.id));
 
-    function record(draft: ContactDraft): void {
+    function record(statement: ContactStatement): void {
         if (session === null) {
             return;
         }
 
-        void recordContact(session, transport, {
-            displayName: draft.displayName,
-            addresses: [draft.address],
-            preferredAddress: draft.address,
-            note: null,
-        }).then((answer) => {
+        void recordContact(session, transport, { ...statement, note: null }).then((answer) => {
             if (answer.outcome === 'failed') {
                 setSaid({ where: 'book', said: failedSaid(answer.failure) });
 
@@ -160,25 +220,14 @@ export function PeopleSpace({
         });
     }
 
-    // A correction states the name and the address the form holds, and keeps everything the form does not show: the
-    // other addresses the book holds for them and the note. The address typed becomes the preferred one, which is the
-    // one the form opened on.
-    function amend(contact: Contact, draft: ContactDraft): void {
+    // A correction states the name and every address the form holds, and keeps the one thing the form does not show:
+    // the note.
+    function amend(contact: Contact, statement: ContactStatement): void {
         if (session === null) {
             return;
         }
 
-        void amendContact(session, transport, contact.id, {
-            displayName: draft.displayName,
-            addresses: [
-                draft.address,
-                ...contact.addresses.filter(
-                    (address) => address !== contact.preferredAddress && address !== draft.address,
-                ),
-            ],
-            preferredAddress: draft.address,
-            note: contact.note,
-        }).then((answer) => {
+        void amendContact(session, transport, contact.id, { ...statement, note: contact.note }).then((answer) => {
             if (answer.outcome === 'failed') {
                 setSaid({ where: 'person', said: failedSaid(answer.failure) });
 
@@ -255,7 +304,7 @@ export function PeopleSpace({
 
             setSaid(
                 refused.length === 0
-                    ? { where: 'book', said: 'people.erased' }
+                    ? { where: 'book', said: erasingAsked[contacts[0]?.origin ?? 'Asserted'].done }
                     : unknown
                       ? { where: 'book', said: 'people.writeUnknown' }
                       : erased.length === 0
@@ -274,7 +323,7 @@ export function PeopleSpace({
             setSelected((standing) => standing.filter((contact) => !erased.includes(contact)));
 
             if (openedNow.current !== null && erased.includes(openedNow.current)) {
-                open(null);
+                open(twoPanes ? nextAfter(reading.contacts, openedNow.current, erased) : null);
             }
             reading.readAgain();
         });
@@ -289,6 +338,11 @@ export function PeopleSpace({
         asked.current?.showModal();
     }
 
+    // Whoever is being taken out came out of one book — a selection is cleared when the book changes — so the question
+    // is asked in that book's words.
+    const erasedFrom = erasing[0]?.origin ?? 'Asserted';
+    const erasingQuestion = erasingAsked[erasedFrom];
+
     const personInFront = !twoPanes && opened !== null;
     const paneMoved = usePaneMotion(personInFront, twoPanes);
 
@@ -302,10 +356,14 @@ export function PeopleSpace({
         <div className="relative flex min-h-0 flex-1 flex-col">
             {selected.length > 0 ? (
                 <ContactSelectionBar
+                    book={book}
                     selected={picked}
                     erasable={writable}
                     onClear={() => {
                         setSelected([]);
+                    }}
+                    onSelectAll={() => {
+                        setSelected(reading.contacts.map((contact) => contact.id));
                     }}
                     onAskErasure={() => {
                         askErasure(picked);
@@ -435,9 +493,12 @@ export function PeopleSpace({
                 record now stands — a correction just saved included — rather than on whatever it was first drawn for. */}
             {writable && opened !== null && opened.origin === 'Asserted' ? (
                 <ContactDialog
-                    key={`${opened.id} ${opened.displayName} ${opened.preferredAddress}`}
+                    key={`${opened.id} ${opened.displayName} ${opened.preferredAddress} ${opened.addresses.join(' ')}`}
                     asked={amending}
-                    amending={{ displayName: opened.displayName, address: opened.preferredAddress }}
+                    amending={{
+                        displayName: opened.displayName,
+                        rows: rowsOf(opened.addresses, opened.preferredAddress),
+                    }}
                     onSave={(draft) => {
                         amend(opened, draft);
                     }}
@@ -447,23 +508,22 @@ export function PeopleSpace({
             <Confirmation
                 asked={asked}
                 mark="delete"
-                question={translate(erasing.length === 1 ? 'people.eraseOne' : 'people.eraseMany', {
-                    count: erasing.length.toFixed(0),
-                })}
+                question={translate(erasing.length === 1 ? erasingQuestion.one : erasingQuestion.many)}
                 consequence={
-                    <>
-                        {erasing.map((contact) => (
-                            <span key={contact.id} className="block truncate">
-                                {contact.displayName}
-                            </span>
-                        ))}
-                    </>
+                    <p className="text-base text-pretty">
+                        {erasing.length === 1
+                            ? translate(erasingQuestion.oneWhat, { name: erasing[0]?.displayName ?? '' })
+                            : translate(
+                                  erasingCounted[erasedFrom][new Intl.PluralRules(locale).select(erasing.length)],
+                                  { count: new Intl.NumberFormat(locale).format(erasing.length) },
+                              )}
+                    </p>
                 }
-                reversal={{ kind: 'permanent', said: translate('people.erasePermanent') }}
+                reversal={{ kind: 'permanent', said: translate(erasingQuestion.afterwards) }}
                 ways={[
                     { said: translate('act.cancel'), manner: 'back' },
                     {
-                        said: translate('people.eraseAct'),
+                        said: translate(erasingQuestion.act),
                         manner: 'destroy',
                         run: () => {
                             erase(erasing);

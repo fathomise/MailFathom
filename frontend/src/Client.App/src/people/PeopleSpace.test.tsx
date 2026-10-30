@@ -50,12 +50,17 @@ afterEach(() => {
     }
 });
 
-function personCalled(id: string, displayName: string, origin = 'Asserted'): unknown {
+function personCalled(
+    id: string,
+    displayName: string,
+    origin = 'Asserted',
+    addresses = [`${id}@contoso.example`],
+): unknown {
     return {
         id,
         displayName,
-        addresses: [`${id}@contoso.example`],
-        preferredAddress: `${id}@contoso.example`,
+        addresses,
+        preferredAddress: addresses[0],
         note: null,
         origin,
         recordedAt: '2026-08-31T09:41:00+00:00',
@@ -332,21 +337,87 @@ describe('PeopleSpace', () => {
         expect(screen.getByRole('radio', { name: 'Collected', checked: true })).toBeDefined();
     });
 
-    // Deleting mail's counterpart here: the question names who it is about before anything is removed.
-    it('asks before taking somebody out of the book, naming who it is about', async () => {
-        const { transport, sent } = deployment();
+    // Deleting mail's counterpart here: the question names who it is about before anything is removed, and the page
+    // then opens whoever the book draws next rather than leaving an empty pane.
+    it('asks before deleting somebody from their page, naming who it is about, and then opens the next one', async () => {
+        const { transport, sent } = deployment({
+            own: [personCalled('anna', 'Anna Kowalska'), personCalled('bartek', 'Bartek Nowak')],
+        });
         drawSpace(transport);
 
         fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }));
         fireEvent.click(await screen.findByRole('button', { name: 'Delete contact' }));
 
-        expect(await screen.findByText('Delete this contact?')).toBeDefined();
+        const question = await screen.findByRole('dialog', { name: 'Delete contact?' });
+
+        expect(within(question).getByText('Anna Kowalska will disappear from your contacts.')).toBeDefined();
+        expect(within(question).getByText('Mail with them stays where it is.')).toBeDefined();
         expect(sent().every((request) => request.method !== 'DELETE')).toBe(true);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+        fireEvent.click(within(question).getByRole('button', { name: 'Delete' }));
+
+        expect(await screen.findByRole('heading', { name: 'Bartek Nowak' })).toBeDefined();
+        expect(sent().some((request) => request.method === 'DELETE')).toBe(true);
+    });
+
+    // A collected person fills the collected book again the next time they write, so they are removed from it rather
+    // than deleted, and the question says what that means.
+    it('asks before removing a collected person from the collected book, in that book’s own words', async () => {
+        const { transport } = deployment();
+        drawSpace(transport);
+
+        expect(await screen.findByRole('option', { name: /Anna Kowalska/u })).toBeDefined();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Collected' }));
+        fireEvent.click(await screen.findByRole('option', { name: /Celina Wrona/u }));
+
+        expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull();
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Remove from collected' }));
+
+        const question = await screen.findByRole('dialog', { name: 'Remove contact from collected?' });
+
+        expect(within(question).getByText('Celina Wrona disappears from the collected list.')).toBeDefined();
+
+        fireEvent.click(within(question).getByRole('button', { name: 'Remove from collected' }));
+
+        expect(await screen.findByText('Removed from collected.')).toBeDefined();
+    });
+
+    it('picks out everybody the book in front lists from the selection bar', async () => {
+        const { transport } = deployment({
+            own: [personCalled('anna', 'Anna Kowalska'), personCalled('bartek', 'Bartek Nowak')],
+        });
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }), { ctrlKey: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
+
+        expect(screen.getByText('2 selected')).toBeDefined();
+    });
+
+    // The form now holds every address, so a correction states all of them rather than keeping ones it did not show.
+    it('saves a correction with every address the form holds and the one chosen as the default', async () => {
+        const { transport, sent } = deployment({
+            own: [personCalled('anna', 'Anna Kowalska', 'Asserted', ['anna@contoso.example', 'anna@home.example'])],
+        });
+        drawSpace(transport);
+        const correction = () => screen.getByRole('dialog', { name: 'Edit contact' });
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Edit contact' }));
+        fireEvent.click(within(correction()).getByRole('radio', { name: 'Make this the default address' }));
+        fireEvent.click(within(correction()).getByRole('button', { name: 'Save changes' }));
 
         await waitFor(() => {
-            expect(sent().some((request) => request.method === 'DELETE')).toBe(true);
+            expect(sent().some((request) => request.method === 'PUT')).toBe(true);
+        });
+
+        expect(JSON.parse(sent().find((request) => request.method === 'PUT')?.body ?? 'null')).toStrictEqual({
+            displayName: 'Anna Kowalska',
+            addresses: ['anna@home.example', 'anna@contoso.example'],
+            preferredAddress: 'anna@home.example',
+            note: null,
         });
     });
 
@@ -398,8 +469,13 @@ describe('PeopleSpace', () => {
         fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }), { ctrlKey: true });
         fireEvent.click(screen.getByRole('option', { name: /Bartek Nowak/u }), { ctrlKey: true });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Delete contacts' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+        const question = await screen.findByRole('dialog', { name: 'Delete contacts?' });
+
+        expect(within(question).getByText('2 contacts will disappear from your contacts.')).toBeDefined();
+
+        fireEvent.click(within(question).getByRole('button', { name: 'Delete' }));
 
         expect(await screen.findByText('Could not delete Bartek Nowak. Everybody else was deleted.')).toBeDefined();
         expect(screen.getByRole('toolbar', { name: 'Selected contacts' })).toBeDefined();
@@ -414,8 +490,12 @@ describe('PeopleSpace', () => {
         drawSpace(unanswering);
 
         fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }), { ctrlKey: true });
-        fireEvent.click(screen.getByRole('button', { name: 'Delete contacts' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Delete contact?' })).getByRole('button', {
+                name: 'Delete',
+            }),
+        );
 
         expect(
             await screen.findByText('The server did not answer, so it is not known whether that was changed.'),
@@ -428,13 +508,13 @@ describe('PeopleSpace', () => {
 
         fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }), { ctrlKey: true });
 
-        const deleting = screen.getByRole('button', { name: 'Delete contacts' });
+        const deleting = screen.getByRole('button', { name: 'Delete' });
 
         expect(deleting.getAttribute('aria-disabled')).toBe('true');
 
         fireEvent.click(deleting);
 
-        expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+        expect(screen.queryByRole('dialog', { name: 'Delete contact?' })).toBeNull();
         expect(sent().some((request) => request.method === 'DELETE')).toBe(false);
     });
 

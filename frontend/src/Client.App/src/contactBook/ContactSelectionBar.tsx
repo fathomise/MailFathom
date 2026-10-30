@@ -9,9 +9,10 @@ import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import type { ContactBookName } from './useContactBook';
 
-// What stands where the toolbar stands while people are picked out, which is the design's own bar: how many
-// are selected, the acts over the whole of them, and the way out.
+// What stands where the toolbar stands while people are picked out, laid out as the mail list's own bar: the way out
+// with how many are selected, the acts over the whole of them, and a way to take the whole book in at once.
 //
 // It replaces the toolbar rather than standing beside it, for the reason `mailSpace/SelectionBar.tsx` gives about its
 // own: the two answer the same question, and a screen offering both would be asking a reader which of two rows their
@@ -21,10 +22,9 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 // **Leaving is the close control and nothing else.** It clears the selection rather than acting on it, which is what
 // makes picking people out safe to do by accident.
 //
-// The design draws a third act on this bar — exporting the people picked out — and the client surface publishes no
-// route behind it: exporting a contact is deliberately absent from `/api/client`, because a data-subject request is
-// answered from the surface an operator answers one from. So it is left out here rather than drawn as a control that
-// would do nothing, and closing that gap is a decision about what a client export *is* rather than a control to add.
+// **The acts follow the book in front.** Writing to everybody picked out is offered in either; what takes them out of
+// it is a deletion from the book somebody wrote and a removal from the one their mail collected, because the second
+// fills itself again the next time they write.
 
 // How many people are picked out, in the forms a language has for the noun. The mail list counts its own selection with
 // the same four entries, which is deliberate: *how many are selected* is one sentence in this client rather than one
@@ -38,12 +38,23 @@ const selectionCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'select.count.other',
 };
 
+/** What taking the people picked out of the book is called, per book. */
+const erasureCalled: Readonly<Record<ContactBookName, MessageKey>> = {
+    own: 'people.deleteSelected',
+    collected: 'people.removeSelected',
+};
+
 export function ContactSelectionBar({
+    book,
     selected,
     erasable,
     onClear,
+    onSelectAll,
     onAskErasure,
 }: {
+    /** The book the selection was made in, which decides what taking people out of it is. */
+    readonly book: ContactBookName;
+
     /** The people picked out, in the order the list draws them. */
     readonly selected: readonly Contact[];
 
@@ -52,6 +63,9 @@ export function ContactSelectionBar({
 
     readonly onClear: () => void;
 
+    /** Picks out everybody the book in front lists. */
+    readonly onSelectAll: () => void;
+
     /** Raises the question the erasure stands behind, over everything picked out. */
     readonly onAskErasure: () => void;
 }) {
@@ -59,8 +73,10 @@ export function ContactSelectionBar({
     const composing = useComposing();
     const wide = useWideWorkspace();
 
-    // Deleting writes, so while the server is out of reach it is drawn as a control that cannot act, named by why.
-    const erasureRefused = useWriteRefusal()(translate('people.deleteContacts'));
+    // Taking people out writes, so while the server is out of reach it is drawn as a control that cannot act, named
+    // by why.
+    const erasure = translate(erasureCalled[book]);
+    const erasureRefused = useWriteRefusal()(erasure);
 
     // Words beside the symbols where the composition has room for them, and the symbols alone where it has not, which
     // is how the design draws this bar on a phone. The name is on the control either way.
@@ -97,13 +113,17 @@ export function ContactSelectionBar({
 
             {erasable ? (
                 <Control
-                    label={translate('people.deleteContacts')}
+                    label={erasure}
                     icon="delete"
                     shape={shape}
                     {...(erasureRefused === null ? {} : { held: true, hint: erasureRefused })}
                     onPress={onAskErasure}
                 />
             ) : null}
+
+            {/* Against the far edge, and words at every width as the mail list's bar draws it: no symbol names it, so
+                narrowed to one it would be a button with nothing on it. */}
+            <Control label={translate('select.all')} shape="selected" className="ms-auto" onPress={onSelectAll} />
         </div>
     );
 }

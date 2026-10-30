@@ -67,12 +67,18 @@ export function ContactRowMenu({
     items.push({ icon: 'person', label: translate('people.openContact'), choose: onOpen });
 
     if (erasable) {
-        // Deleting writes, so while the server is out of reach it stays here saying why it cannot act.
+        // Said as the person's page says it: a contact somebody wrote down is deleted, and one their mail collected is
+        // removed from the collected book. Either writes, so while the server is out of reach it stays here saying why
+        // it cannot act.
+        const erasure = translate(
+            contact.origin === 'Collected' ? 'people.removeFromCollected' : 'people.deleteContact',
+        );
+
         items.push({
             icon: 'delete',
-            label: translate('people.deleteContact'),
+            label: erasure,
             destroys: true,
-            refused: writeRefused(translate('people.deleteContact')),
+            refused: writeRefused(erasure),
             choose: onAskErasure,
         });
     }

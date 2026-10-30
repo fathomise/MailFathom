@@ -21,8 +21,10 @@ import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 //
 // **What the record admits is read off its origin rather than from a control being pressed.** A contact one of this
 // user's mailboxes collected is theirs to take on or to erase and nobody's to amend, and the page says so on the record
-// rather than leaving somebody to discover it from a refusal. Erasing is offered either way, because somebody asking to
-// be taken out of a book is not answered with which book they happen to be in.
+// rather than leaving somebody to discover it from a refusal. Taking them out is offered either way, because somebody
+// asking to be taken out of a book is not answered with which book they happen to be in — but it is said as what it
+// is: a contact somebody wrote down is deleted, and one their mail collected is removed from the collected book, which
+// gathers them again the next time they write.
 //
 // **The way back is part of the page rather than of the frame**, and it is drawn only where the list and the person
 // cannot stand together: at that width the two are one pane the reader moves between, so the control that returns is on
@@ -84,7 +86,8 @@ export function PersonPage({
     // controls that cannot act; the one with no room for a name of its own says why on the line under the person.
     // Editing opens a form whose own *Save* says the same.
     const writeRefused = useWriteRefusal();
-    const deleteRefused = writeRefused(translate('people.deleteContact'));
+    const erasure = translate(collected ? 'people.removeFromCollected' : 'people.deleteContact');
+    const erasureRefused = writeRefused(erasure);
     const promoteRefused = writeRefused(translate('people.promote'));
 
     const opened = useRef<HTMLDivElement>(null);
@@ -121,7 +124,7 @@ export function PersonPage({
 
                 <div className="flex min-w-0 flex-col gap-0.75">
                     <div className="flex min-w-0 items-center gap-2.25">
-                        <h2 className="truncate text-2xl font-semibold tracking-tighter">{contact.displayName}</h2>
+                        <h2 className="truncate text-3xl font-semibold tracking-tighter">{contact.displayName}</h2>
 
                         {collected ? (
                             <span className="shrink-0 rounded-sm border border-line-strong px-1.75 py-0.5 text-xs font-semibold text-muted">
@@ -141,22 +144,24 @@ export function PersonPage({
                 </div>
 
                 <div className="ms-auto flex shrink-0 items-center gap-2.25">
+                    {writable ? (
+                        <Control
+                            label={erasure}
+                            icon="delete"
+                            shape="outlinedSymbol"
+                            className="bg-panel"
+                            {...(erasureRefused === null ? {} : { held: true, hint: erasureRefused })}
+                            onPress={onAskErasure}
+                        />
+                    ) : null}
+
                     {writable && !collected ? (
                         <Control
                             label={translate('people.editContact')}
                             icon="edit_note"
-                            shape="symbol"
+                            shape="outlinedSymbol"
+                            className="bg-panel"
                             onPress={onAskAmendment}
-                        />
-                    ) : null}
-
-                    {writable ? (
-                        <Control
-                            label={translate('people.deleteContact')}
-                            icon="delete"
-                            shape="symbol"
-                            {...(deleteRefused === null ? {} : { held: true, hint: deleteRefused })}
-                            onPress={onAskErasure}
                         />
                     ) : null}
 
@@ -172,7 +177,6 @@ export function PersonPage({
                     {composing.offered ? (
                         <Control
                             label={translate('people.write')}
-                            icon="edit"
                             shape="primary"
                             onPress={() => {
                                 composing.compose({ kind: 'new', to: [contact.preferredAddress] });

@@ -157,6 +157,13 @@ describe('PersonPage', () => {
         expect(screen.queryByRole('button', { name: 'Edit contact' })).toBeNull();
     });
 
+    it('offers deleting a record the reader asserted, and only removing one a mailbox collected', () => {
+        drawPage({ contact: personCalled('Collected') });
+
+        expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Remove from collected' })).toBeDefined();
+    });
+
     it('raises the question an erasure stands behind rather than erasing on the press', () => {
         const onAskErasure = vi.fn();
         drawPage({ onAskErasure });
