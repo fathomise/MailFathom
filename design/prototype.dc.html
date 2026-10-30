@@ -2719,26 +2719,21 @@ Project repository: https://github.com/fathomise/MailFathom
   <sc-if value="{{ fathomMenuOpen }}" hint-placeholder-val="{{ false }}">
     <div data-fathom-ui="1" onClick="{{ closeFathomMenu }}" style="position:fixed;inset:0;z-index:88"></div>
     <div data-fathom-ui="1" data-motion="pop" data-phase="{{ mo.fathomMenu }}" role="menu" aria-label="Fathom" style="{{ fathomMenuStyle }}">
-      <div style="display:flex;flex-direction:column;gap:1px;padding:4px 10px 8px">
-        <div style="font-size:13px;font-weight:600;color:var(--text)">Fathom</div>
-        <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fathomMenuWhere }}</div>
-      </div>
       <sc-for list="{{ fathomMenuItems }}" as="fm" hint-placeholder-count="2">
-        <div role="menuitem" tabIndex="0" onClick="{{ fm.run }}" style="{{ fm.style }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;width:24px;text-align:center;color:var(--accent-d)">{{ fm.icon }}</span>{{ fm.label }}</div>
+        <div role="menuitem" tabIndex="0" onClick="{{ fm.run }}" style="{{ fm.style }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">{{ fm.icon }}</span>{{ fm.label }}</div>
       </sc-for>
-      <div style="height:1px;background:var(--line2);margin:5px 6px"></div>
       <div role="menuitem" tabIndex="0" onClick="{{ startSmart }}" style="{{ fathomRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-        <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;width:24px;text-align:center;color:var(--accent-d)">ads_click</span>
-        <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span>Smart</span><span style="font-size:12px;color:var(--muted)">Point at anything on screen</span></span>
+        <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">ads_click</span>
+        Smart
       </div>
       <div role="menuitem" tabIndex="0" onClick="{{ openAgentFromFathom }}" style="{{ fathomRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-        <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;width:24px;text-align:center;color:var(--muted)">open_in_new</span>Open the Agent
+        <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">open_in_new</span>Open the Agent
       </div>
     </div>
   </sc-if>
 
   <sc-if value="{{ fathomFabShown }}" hint-placeholder-val="{{ true }}">
-    <div data-fathom-ui="1" data-fathom-fab="1" data-smart-on="{{ fathomFabSmart }}" role="button" tabIndex="0" aria-haspopup="menu" aria-expanded="{{ fathomFabExpanded }}" aria-label="{{ fathomFabTitle }}" title="{{ fathomFabTitle }}" onClick="{{ toggleFathom }}" style="{{ fathomFabStyle }}" style-hover="cursor:pointer">
+    <div data-fathom-ui="1" data-fathom-fab="1" role="button" tabIndex="0" aria-haspopup="menu" aria-expanded="{{ fathomFabExpanded }}" aria-label="{{ fathomFabTitle }}" title="{{ fathomFabTitle }}" onClick="{{ toggleFathom }}" style="{{ fathomFabStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">
       <span style="{{ fathomFabGlyph }}">{{ fathomFabIcon }}</span>
     </div>
   </sc-if>

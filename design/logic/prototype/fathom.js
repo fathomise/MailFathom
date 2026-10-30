@@ -211,9 +211,8 @@ MailFathomDesign.fathomUi = (() => {
     const supported = st.screen === "start" || st.screen === "agent";
     const menuKey = st.screen === "agent" ? "agent" : "start";
     const where = st.screen === "agent" ? "the conversation" : "your day";
-    const space = st.screen === "agent" ? "Agent" : "Start";
     const fabShown = supported && !st.catchupOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings && !st.notifCenter;
-    const fabSize = touch ? 56 : 52;
+    const fabSize = isMobile ? 56 : 48;
     /* 24 px from both edges, 20 on a phone; in the Agent it stands level with the field it sits beside (`fathomDock`). */
     const fabEdge = isMobile ? 20 : 24;
     const fabBottom = st.screen === "agent" && st.fathomDock != null ? st.fathomDock : fabEdge + barH;
@@ -222,7 +221,8 @@ MailFathomDesign.fathomUi = (() => {
       if (a.do === "agent") { self.setState({ fathomMenu: false }); self.goAgentWith(a.ctx || where); return; }
       self.runFathom(a, { label: where });
     };
-    const rowStyle = "display:flex;align-items:center;gap:11px;border-radius:9px;color:var(--text);" + (touch ? "min-height:48px;padding:0 12px;font-size:15px;" : "min-height:38px;padding:0 10px;font-size:14px;");
+    const rowStyle = "display:flex;align-items:center;gap:10px;white-space:nowrap;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);font-weight:600;" +
+      (touch ? "min-height:48px;padding:0 18px 0 14px;font-size:15px;" : "height:40px;padding:0 16px 0 12px;font-size:14px;");
     const v = {
       fathomFabShown: fabShown,
       fathomFabIcon: st.fathomMenu || smartOn ? "close" : "auto_awesome",
@@ -232,18 +232,14 @@ MailFathomDesign.fathomUi = (() => {
         if (self.state.fathomSmart) { self._smartKey = null; self.setState({ fathomSmart: false, smartHover: null }); return; }
         self.setState(s => ({ fathomMenu: !s.fathomMenu, fathomAnswer: null }));
       },
-      fathomFabSmart: smartOn ? "1" : "0",
-      /* A disc whose glyph alone names it; its surface lives in prototype.css. */
       fathomFabStyle: "position:fixed;z-index:88;right:" + fabEdge + "px;bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
-        "display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--onaccent)",
-      fathomFabGlyph: GLYPH + "position:relative;z-index:1;font-size:" + (touch ? 26 : 24) + "px;font-variation-settings:'FILL' 0,'wght' 400",
+        "display:flex;align-items:center;justify-content:center;border-radius:" + (isMobile ? 18 : 14) + "px;color:var(--onaccent);background:var(--accent);box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2)",
+      fathomFabGlyph: GLYPH + "font-size:22px;font-variation-settings:'wght' 400",
       fathomMenuOpen: supported && !!st.fathomMenu,
       closeFathomMenu: () => self.setState({ fathomMenu: false }),
-      fathomMenuWhere: space + " · " + where,
       fathomMenuItems: (F.menu[menuKey] || []).map(a => ({ icon: a.icon, label: a.label, run: menuRun(a), style: rowStyle })),
       fathomRowStyle: rowStyle,
-      fathomMenuStyle: "position:fixed;z-index:89;right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + 12) + "px;width:" + (isMobile ? "min(320px,calc(100% - 32px))" : "296px") + ";box-sizing:border-box;" +
-        "display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 6px;box-shadow:0 20px 46px var(--sh-3),0 2px 6px var(--sh-2)",
+      fathomMenuStyle: "position:fixed;z-index:89;right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + (isMobile ? 12 : 8)) + "px;display:flex;flex-direction:column;align-items:flex-end;gap:8px",
       startSmart: () => { self._smartKey = null; self.setState({ fathomMenu: false, fathomSmart: true, smartHover: null }); },
       openAgentFromFathom: () => { self.setState({ fathomMenu: false }); self.goScreen("agent"); },
       smartHint: isMobile ? "Tap anything for its actions" : touch ? "Tap anything to see what Fathom can do with it" : "Point at anything, or Tab to it, to see what Fathom can do with it",
