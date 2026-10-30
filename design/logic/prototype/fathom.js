@@ -116,16 +116,33 @@ MailFathomDesign.fathomUi = (() => {
       return comp ? { id: id, comp: comp, label: el.getAttribute("data-smart-label") || "", text: el.getAttribute("data-smart-text") || "", tid: el.getAttribute("data-smart-ref") || "" } : null;
     };
     const disabledBySmart = new Set();
+    const mutedBySmart = new Set();
     self.syncSmartDisabled = () => {
       const next = new Set();
+      const muted = new Set();
       const root = self.rootRef.current;
-      const available = "[data-smart], [data-fathom-ui], [data-ctx-menu]";
-      const visit = (el) => {
-        if (el.matches(available)) return;
-        if (!el.querySelector(available)) { next.add(el); return; }
-        Array.from(el.children).forEach(visit);
-      };
-      if (self.state.fathomSmart && root) Array.from(root.children).forEach(visit);
+      if (self.state.fathomSmart && root) {
+        const available = "[data-smart], [data-fathom-ui], [data-ctx-menu]";
+        const visit = (el) => {
+          if (el.matches(available)) return;
+          if (!el.querySelector(available)) { muted.add(el); return; }
+          Array.from(el.children).forEach(visit);
+        };
+        Array.from(root.children).forEach(visit);
+        root.querySelectorAll("[data-rail], button, input, textarea, select, a[href], [contenteditable], [role=button], [role=tab], [tabindex]").forEach(el => {
+          if (el.closest("[data-fathom-ui], [data-ctx-menu]") || el.matches("[data-smart]") || el.querySelector("[data-smart], [data-fathom-ui], [data-ctx-menu]")) return;
+          next.add(el);
+        });
+      }
+      mutedBySmart.forEach(el => {
+        if (muted.has(el)) return;
+        el.removeAttribute("data-smart-muted");
+        mutedBySmart.delete(el);
+      });
+      muted.forEach(el => {
+        el.setAttribute("data-smart-muted", "1");
+        mutedBySmart.add(el);
+      });
       disabledBySmart.forEach(el => {
         if (next.has(el)) return;
         el.inert = false;
@@ -270,7 +287,7 @@ MailFathomDesign.fathomUi = (() => {
       fathomMenuStyle: "position:fixed;z-index:89;right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + (isMobile ? 12 : 8)) + "px;display:flex;flex-direction:column;align-items:flex-end;gap:8px",
       startSmart: () => { document.activeElement?.blur(); self._smartKey = null; self.setState({ fathomMenu: false, fathomSmart: true, smartHover: null }); },
       openAgentFromFathom: () => { self.setState({ fathomMenu: false }); self.goScreen("agent"); },
-      smartHint: isMobile ? "Tap anything for its actions" : touch ? "Tap anything to see what Fathom can do with it" : "Point at anything, or Tab to it, to see what Fathom can do with it",
+      smartHint: isMobile ? "Tap a highlighted item" : touch ? "Tap a highlighted item for its actions" : "Choose a highlighted item, or Tab to it",
       smartOn,
       smartMode: smartOn ? "on" : undefined,
       smartBarStyle: "position:fixed;z-index:87;left:50%;transform:translateX(-50%);top:" + (isMobile ? 10 : 14) + "px;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);box-sizing:border-box;" +
