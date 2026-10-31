@@ -302,7 +302,7 @@ no photo: an agent has nothing to do with a picture somebody chose for a person.
 message, on a row of the address book and on the person's own page, in the
 organization's structure, on a person a recipient field suggests, and in the people and the participants an AI answer
 names. Two photos exist to draw, and
-they are found by address in the order [ADR 0044](../decisions/0044-an-organizations-member-directory-as-a-projection-of-user-records.md)
+they are found by address in the order [ADR 0044](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0044-an-organizations-member-directory-as-a-projection-of-user-records.md)
 sets for naming somebody: the photo the reader gave a person in their own book, and otherwise the portrait a member of
 the reader's organization holds in their own record. **The first book holding the address decides, with or without a
 photo**, so a person the reader wrote down without one is drawn by their initials even where a colleague of that
