@@ -2205,7 +2205,7 @@ The same shape `create_contact` answers with, and two more states it can carry:
 | State | What it means |
 |---|---|
 | `written` | The book holds the record, published in `contact` |
-| `notFound` | No contact of that identifier is in the books the caller reads, or the one that is carries `organization`, which this tool does not amend |
+| `notFound` | No contact of that identifier is in the books the caller reads. A contact carrying `organization` is not answered here at all: the call is refused `51017`, because the organization's book is written by its administrators alone |
 | `addressHeldByAnotherContact` | One of the addresses belongs to somebody else, named by `addressHolderContactId` |
 | `contactWasCollected` | The record is one of the caller's mail accounts' rather than one somebody wrote down |
 
@@ -2227,8 +2227,7 @@ It reaches every book the caller reads except the organization's, rather than th
 nor collected gates an erasure — somebody asking to be taken out of a contact book is not answered with which book they
 happen to be in. So **erasing a collected record takes it out of the mail account's book for every user assigned that
 account**, the record having been one record rather than a copy each. A contact carrying `organization` is the
-exception: its book is written by administrators alone, so this tool answers it with `wasHeld` false and leaves it where
-it is. Emptying a whole account's collected book is `mfctl contact delete-collected`, which no tool here
+exception: its book is written by administrators alone, so this tool refuses it `51017` and leaves it where it is. Emptying a whole account's collected book is `mfctl contact delete-collected`, which no tool here
 publishes.
 
 ### Arguments
@@ -2251,14 +2250,16 @@ error would only say whether somebody had already erased that person.
 
 ## `promote_contact`
 
-Takes on one person a mail account collected from arriving mail, by writing the caller's own asserted copy of the
-record.
+Takes on one person a mail account collected from arriving mail, or one the caller's organization keeps, by writing the
+caller's own asserted copy of the record.
 
 **It copies rather than moves.** The collected record is the mail account's, and the account's other users go on reading
 it, so the promotion writes a second record — in the caller's own book, under an identity of its own — and leaves the
 first where it is. A read for the caller then answers with their own copy in place of the collected one, and a read for
 anybody else assigned that account is unchanged. A caller who wants the collected record gone as well erases it, which
-is the act that reaches the mailbox's book.
+is the act that reaches the mailbox's book. An organization's contact is copied the same way, with its addresses, its
+preferred address, its note, and its phone numbers, and the organization's record stays as its administrators wrote it;
+the copy is the caller's to amend, which the organization's record never is.
 
 It is the only path between the two books and it runs one way. It is also what unlocks `update_contact` on a record
 that answered `contactWasCollected`: an agent that read the book and found somebody a mailbox picked up takes the record

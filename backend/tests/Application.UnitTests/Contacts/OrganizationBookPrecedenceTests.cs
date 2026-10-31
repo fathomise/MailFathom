@@ -154,7 +154,17 @@ public sealed class OrganizationBookPrecedenceTests
     public async Task PromoteAsync_AnOrganizationContact_CopiesItIntoTheReadersOwnBook()
     {
         // Arrange
-        var kept = ContactOf("Biuro Rachunkowe", "biuro@example.test", Organization);
+        var kept = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(Now)),
+            ContactDisplayName.Create("Biuro Rachunkowe"),
+            [Address("biuro@example.test"), Address("faktury@example.test")],
+            Address("faktury@example.test"),
+            ContactNote.Create("Invoices go to the second address."),
+            ContactOrigin.Asserted,
+            Now,
+            Now,
+            Organization,
+            phoneNumbers: [ContactPhoneNumber.Create("+48 22 100 20 30", ContactPhoneLabel.Work)]);
         this.store.Hold(ContactBookHolder.OfOrganization(Organization), kept);
 
         // Act
@@ -168,6 +178,10 @@ public sealed class OrganizationBookPrecedenceTests
         Assert.NotEqual(kept.Id, copy.Id);
         Assert.Null(copy.Organization);
         Assert.Equal("Biuro Rachunkowe", copy.DisplayName.Value);
+        Assert.Equal(kept.Addresses, copy.Addresses);
+        Assert.Equal(kept.PreferredAddress, copy.PreferredAddress);
+        Assert.Equal(kept.Note, copy.Note);
+        Assert.Equal(kept.PhoneNumbers, copy.PhoneNumbers);
         Assert.Equal(2, this.store.ContactCount);
     }
 

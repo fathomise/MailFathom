@@ -56,7 +56,7 @@ internal sealed record PublishedContact
     public required DateTimeOffset AmendedAt { get; init; }
 
     /// <summary>Gets the organization whose book holds this contact, or <see langword="null" /> when the user's own book or a mailbox's does.</summary>
-    [Description("The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact, promote_contact, and delete_contact answer it as one this book does not hold.")]
+    [Description("The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact and delete_contact refuse it with error 51017, and promote_contact copies it into the user's own book.")]
     public string? Organization { get; init; }
 
     /// <summary>Publishes one contact the book holds.</summary>
