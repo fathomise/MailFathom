@@ -93,9 +93,17 @@ export function useTodayCalendar(
                 return;
             }
 
-            setHeld(
+            // A failed read keeps the day already drawn for the same person beside the failure, so a refresh or a signal
+            // the deployment does not answer leaves the panel as it was rather than emptying it.
+            setHeld((current) =>
                 answer.outcome === 'failed'
-                    ? { session, day: from, events: [], reading: false, failure: answer.failure.reason }
+                    ? {
+                          session,
+                          day: from,
+                          events: current.session === session && current.day === from ? current.events : [],
+                          reading: false,
+                          failure: answer.failure.reason,
+                      }
                     : { session, day: from, events: answer.value.events, reading: false, failure: null },
             );
         },

@@ -135,6 +135,30 @@ describe('useTodayCalendar', () => {
         expect(deployment.asked()).toHaveLength(3);
     });
 
+    it('keeps the day it drew beside the failure when a re-read is not answered', async () => {
+        const deployment = answering([
+            JSON.stringify({ events: [event('standup', 'Standup', '2026-09-21T10:00:00+02:00')] }),
+            503,
+        ]);
+        const channel = told();
+
+        render(
+            <SignalledChangesContext value={channel.changes}>
+                <Day transport={deployment.transport} />
+            </SignalledChangesContext>,
+        );
+        expect(await screen.findByText('Standup')).toBeDefined();
+
+        act(() => {
+            channel.say({ kind: 'calendar.changed' });
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByText('no failure')).toBeNull();
+        });
+        expect(screen.getByText('Standup')).toBeDefined();
+    });
+
     it('asks for the reader’s own day, for what is on the calendar rather than what was proposed', async () => {
         const deployment = answering([JSON.stringify({ events: [] })]);
         const day = dayAround(readingAt);

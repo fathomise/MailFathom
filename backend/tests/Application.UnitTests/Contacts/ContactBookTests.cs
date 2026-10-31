@@ -944,6 +944,56 @@ public sealed class ContactBookTests
             channel.Published.Select(signal => signal.Scope));
     }
 
+    /// <summary>The organization's book, an amendment, a promotion, and an emptied collected book each announce the book they wrote, and emptying a book already empty announces nothing.</summary>
+    [Fact]
+    public async Task EveryOtherWriteThatChangedABook_AnnouncesTheBookItWrote()
+    {
+        // Arrange
+        var organization = Guid.CreateVersion7(Now);
+        var store = new InMemoryContactBookStore();
+        var own = ContactOf("Anna Kowalska", ["anna@example.test"], ContactOrigin.Asserted);
+        var collected = ContactOf("Marek Nowak", ["marek@example.test"], ContactOrigin.Collected);
+        store.Hold(User, own);
+        store.Hold(Account, collected);
+        var clock = new FakeTimeProvider(Now);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var book = BookOver(store, clock, signals: signals);
+
+        // Act
+        foreach (var write in new Func<Task>[]
+        {
+            () => book.RecordInOrganizationAsync(
+                organization,
+                NewContactOf("Ewa Lis", ["ewa@example.test"]),
+                PersonWriting,
+                TestContext.Current.CancellationToken),
+            () => book.AmendAsync(
+                Scope,
+                AmendmentOf(own, ContactOrigin.Asserted, "Anna Nowak", ["anna@example.test"]),
+                PersonWriting,
+                TestContext.Current.CancellationToken),
+            () => book.PromoteAsync(Scope, collected.Id, ContactOrigin.Asserted, PersonWriting, TestContext.Current.CancellationToken),
+            () => book.EraseCollectedAsync(Account, TestContext.Current.CancellationToken),
+            () => book.EraseCollectedAsync(Account, TestContext.Current.CancellationToken),
+        })
+        {
+            await write();
+            clock.Advance(ClientSignals.FoldingWindow);
+            await signals.DrainAsync();
+        }
+
+        // Assert
+        Assert.Equal(
+            [
+                ClientSignal.ContactsChanged(ContactBookHolder.OfOrganization(organization)).Scope,
+                ClientSignal.ContactsChanged(ContactBookHolder.Of(User)).Scope,
+                ClientSignal.ContactsChanged(ContactBookHolder.Of(User)).Scope,
+                ClientSignal.ContactsChanged(ContactBookHolder.Of(Account)).Scope,
+            ],
+            channel.Published.Select(signal => signal.Scope));
+    }
+
     /// <summary>Erasing a person announces every book the erasure could reach, since the store does not say which one held them.</summary>
     [Fact]
     public async Task EraseAsync_APersonTheBooksHeld_AnnouncesEveryBookItCouldReach()
