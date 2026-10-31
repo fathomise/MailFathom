@@ -222,7 +222,8 @@ A member contact says the colleague is out of office, and until when, while the 
 [automatic reply](automatic-reply.md) is switched on and in its period: the end of that period and nothing else. The
 reply's text, the accounts it answers on, and when it started never reach a colleague, so what a member wrote to the
 people they correspond with is not shown to the people they work with. It is read from the reply on every read of a
-colleague and stored nowhere else, so a reply switched off or past its end stops showing at once. Like presence, it
+colleague and stored nowhere else, so a reply switched off or past its end stops showing on the next read. No signal
+announces either change: an open client learns of it when it reads the directory again. Like presence, it
 reaches members of the same organization alone and no MCP tool reads it. The client marks the colleague in the
 directory and on their page, and warns when a message is addressed to them.
 
