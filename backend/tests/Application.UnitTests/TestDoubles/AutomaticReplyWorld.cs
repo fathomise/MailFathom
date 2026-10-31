@@ -121,18 +121,23 @@ internal sealed class AutomaticReplyWorld
     }
 
     /// <summary>Stores one arrival with the header block and the sender standing it is answered on.</summary>
+    /// <remarks>
+    /// It is received at the world's current instant unless <paramref name="receivedAt" /> names another, and carries
+    /// no received date at all when <paramref name="isUndated" /> says so.
+    /// </remarks>
     internal StoredEmailId Arrive(
         string from,
         EmailAutomation automation = EmailAutomation.None,
         bool hasNullReturnPath = false,
         SenderTrustSource trustedBy = SenderTrustSource.None,
         string? replyTo = null,
-        DateTimeOffset? receivedAt = null)
+        DateTimeOffset? receivedAt = null,
+        bool isUndated = false)
     {
         var id = StoredEmailId.Create(Guid.CreateVersion7());
 
         this.Summaries.With(SyntheticEmailSummaries.Create(
-            receivedAt: receivedAt ?? this.Clock.GetUtcNow(),
+            receivedAt: isUndated ? null : receivedAt ?? this.Clock.GetUtcNow(),
             storedEmailId: id.Value,
             accountId: Account.Value,
             senderVerification: SenderVerificationGrantedBy(trustedBy)));

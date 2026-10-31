@@ -191,7 +191,7 @@ public sealed class AutomaticReplyResponderTests
 
     /// <summary>
     /// History a synchronization stores during the period settles like anything new, so what tells it apart is when
-    /// the mailbox received it: mail received before the period started is not answered, and neither is undated mail.
+    /// the mailbox received it: mail received before the period started is not answered.
     /// </summary>
     [Fact]
     public async Task AnswerAsync_MailReceivedBeforeThePeriodStarted_WritesNothing()
@@ -203,6 +203,23 @@ public sealed class AutomaticReplyResponderTests
 
         // Act
         var answered = await world.RespondAsync(backfilled);
+
+        // Assert
+        Assert.Equal(0, answered);
+        Assert.Empty(world.Composed);
+    }
+
+    /// <summary>Mail no receiving hop dated could be history as easily as news, so it is not answered either.</summary>
+    [Fact]
+    public async Task AnswerAsync_MailCarryingNoReceivedDate_WritesNothing()
+    {
+        // Arrange
+        var world = new AutomaticReplyWorld();
+        await world.AnswerAsync();
+        var undated = world.Arrive("anna@example.test", isUndated: true);
+
+        // Act
+        var answered = await world.RespondAsync(undated);
 
         // Assert
         Assert.Equal(0, answered);
