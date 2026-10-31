@@ -82,11 +82,12 @@ MailFathomDesign.data.outbox = {
 
 // Drafts MailFathom keeps whose copy in the account's Drafts folder on the mail server may be missing (its filing was
 // never answered) or out of date (an older copy could not be removed after an edit): the Drafts list gathers them at
-// its foot under *Out of step with your server*.
+// its foot under *Out of step with your server*. `receipts` is what a draft asks for when it is sent - `dsn`, a delivery
+// notification, and `mdn`, a read receipt - kept with the draft as everything else it says is.
 MailFathomDesign.data.localDrafts = {
   acc1: [
     { id: "ld1", at: "09:31", subject: "Q4 supplier review - agenda",
-      to: ["r.lis@nordwind.example"], cc: ["m.nowak@company.example"],
+      to: ["r.lis@nordwind.example"], cc: ["m.nowak@company.example"], receipts: { mdn: true },
       attachments: [{ name: "Supplier-scorecard-Q3.xlsx", meta: "XLSX · 48 KB" }],
       body: ["Robert,", "Before Thursday, a short agenda: delivery times against the SLA, the two open credit notes, and the 2027 price list.", "Karolina"] },
   ],

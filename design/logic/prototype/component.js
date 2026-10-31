@@ -19,7 +19,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
-    senderMarks: SENDER_MARKS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
+    senderMarks: SENDER_MARKS, receipts: RECEIPTS, receiptRequests: RECEIPT_REQUESTS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
   } = MailFathomDesign.data;
   const { mdPlain, mdView, MDTXT } = MailFathomDesign.markdown;
   const { HTML_SHELL, embedHtml, embedLinks, htmlFallback } = MailFathomDesign.mailHtml;
@@ -311,6 +311,53 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     fail: { glyph: "cancel", word: "Failed", ink: "var(--err-text)" },
     unchecked: { glyph: "help", word: "Not checked", ink: "var(--muted)" },
     skip: { glyph: "do_not_disturb_on", word: "Skipped", ink: "var(--muted)" },
+  };
+
+  /* THE RECEIPT MARK — what came back for a message the account sent (data/prototype/receipts.js). A recipient's
+     outcome is the furthest a report took it: read, then what a delivery status notification said - delivered,
+     delayed or failed - then requested with nothing back. The message's mark is the outcome that most needs the
+     sender: a failure, then a delay, then read, then delivered, then nothing back; with several recipients it counts
+     the ones it names, and its name lists every recipient's own outcome. Nothing back is drawn on the opened message
+     alone: most read receipts never come, so on a Sent row it would stand for ever beside every request. */
+  const RECEIPT = {
+    failed: { glyph: "error", tone: "err", word: "Not delivered", each: "not delivered", count: (n, of) => "Not delivered to " + n + " of " + of },
+    delayed: { glyph: "hourglass_top", tone: "warn", word: "Delayed", each: "delayed", count: (n, of) => "Delayed for " + n + " of " + of },
+    read: { glyph: "done_all", tone: "ok", word: "Read", each: "read", count: (n, of) => "Read by " + n + " of " + of },
+    delivered: { glyph: "done", tone: "plain", word: "Delivered", each: "delivered", count: (n, of) => "Delivered to " + n + " of " + of },
+    waiting: { glyph: "schedule", tone: "faint", word: "Requested", each: "nothing back yet", count: () => "Requested" },
+  };
+  const RECEIPT_ORDER = ["failed", "delayed", "read", "delivered", "waiting"];
+  const RECEIPT_INK = { err: "var(--err-text)", warn: "var(--warn-text)", ok: "var(--ok-text)", plain: "var(--muted)", faint: "var(--faint)" };
+  const RECEIPT_PILL = {
+    err: MARK_PILL.err, ok: MARK_PILL.ok, plain: MARK_PILL.known,
+    warn: "color:var(--warn-text);background:var(--warn-soft);border:1px solid var(--warn);",
+    faint: "color:var(--muted);background:transparent;border:1px dashed var(--border2);",
+  };
+  const receiptOutcome = (r) => r.read ? "read" : r.dsn || "waiting";
+  const receiptOf = (threadId) => {
+    const rec = RECEIPTS[threadId];
+    if (!rec) return null;
+    const outs = rec.to.map(receiptOutcome);
+    const k = RECEIPT_ORDER.find(x => outs.includes(x));
+    const R = RECEIPT[k];
+    const n = outs.filter(x => x === k).length, of = outs.length;
+    const word = k === "waiting" || n === of ? R.word : R.count(n, of);
+    const lead = k === "waiting" ? "Receipts requested, nothing back yet" : word;
+    return Object.assign({}, R, { k, rec, outs, word, name: lead + " - " + rec.to.map((r, i) => r.name + " " + RECEIPT[outs[i]].each).join(", ") });
+  };
+  /* What one recipient's reports say, line by line, for the details. */
+  const receiptLines = (r, asked) => {
+    if (r.internal) return [
+      r.read && "Opened " + r.read + " · in MailFathom",
+      "Delivered " + r.dsnAt + " · to their mailbox in your organization",
+    ].filter(Boolean);
+    const lines = [];
+    if (r.read) lines.push("Displayed " + r.read + " · their read receipt");
+    if (r.dsn === "delivered") lines.push("Delivered " + r.dsnAt + " · " + r.by);
+    if (r.dsn === "failed" || r.dsn === "delayed") lines.push(r.why, "Reported " + r.dsnAt + " · " + r.by);
+    if (asked.dsn && !r.dsn) lines.push("No delivery notification back yet.");
+    if (asked.mdn && !r.read && r.dsn !== "failed") lines.push("No read receipt back yet.");
+    return lines;
   };
   const domainOf = (a) => (a || "").split("@")[1] || a || "";
   const pgpSig = (s) => s.format === "pgp";
@@ -844,7 +891,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     openDraft = (d) => {
       this.pendingBody = draftHtml(d.body);
       const patch = { compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null,
-        composeSubjEdit: d.subject, composeDraft: d, composeCc: (d.cc || []).slice(), ccOpen: !!(d.cc || []).length, closeAsk: false, sendAsk: null };
+        composeSubjEdit: d.subject, composeDraft: d, composeCc: (d.cc || []).slice(), ccOpen: !!(d.cc || []).length, closeAsk: false, sendAsk: null,
+        composeReceipts: Object.assign({}, d.receipts) };
       if (this.tabsMode()) this.openTab("compose", patch);
       else this.setState(patch);
     };
@@ -1144,7 +1192,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     startReply = (mode, ids) => {
       const id = this.opTargets(ids)[0];
       if (this.refuseSpam(id, mode === "fwd" ? "Spam cannot be forwarded." : "Spam cannot be answered.")) return;
-      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
+      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], composeReceipts: {}, threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
       if (this.state.workMode === "tabs") this.openTab("compose", patch);
       else this.setState(patch);
     };
@@ -1176,7 +1224,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "statusMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
-      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "linkAsk", "source"];
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "receiptPop", "linkAsk", "source"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -1224,7 +1272,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "source", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "statusMenu", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
+      "statusMenu", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "receiptPop", "replyDock", "replyChooser", "linkAsk"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1821,6 +1869,28 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       });
     };
 
+    /* *Sending options* — the three-dot control at the end of the composer's foot. The same context menu, standing
+       above the control since the foot is the composer's last row, its end edge on the control's, holding the two
+       requests this one message makes. Both start off; neither has an account-wide default. */
+    openComposeMore = (e) => {
+      const r = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
+      const coarse = this.state.coarse;
+      const W = (coarse ? 312 : 296) + 14;
+      const H = 46 + 2 * (coarse ? 50 : 38) + 15;
+      const p = this.localPt(r ? r.right - W : 0, r ? r.top - H - 4 : 0);
+      const turn = (k) => () => this.setState(s => ({ composeReceipts: Object.assign({}, s.composeReceipts, { [k]: !(s.composeReceipts || {})[k] }) }));
+      this.armCtx(false);
+      this.setState({
+        ctxMenu: {
+          x: p.x, y: p.y, kind: "composeMore", wide: true, title: "Sending options",
+          items: [
+            { icon: "move_to_inbox", label: "Request delivery notification", checked: () => !!(this.state.composeReceipts || {}).dsn, run: turn("dsn") },
+            { icon: "mark_email_read", label: "Request read receipt", checked: () => !!(this.state.composeReceipts || {}).mdn, run: turn("mdn") },
+          ],
+        },
+      });
+    };
+
     /* The raw source is asked for when *Show source* is pressed and never with the message, so the surface opens on a
        skeleton and the text fades in once it arrives. One sample message fails until it is tried again, one arrives
        cut, one is refused by its deployment's screen, one is asked for offline, which sends nothing and opens on no
@@ -1916,11 +1986,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          the header's detail, since a folded row draws no badge and a finger has no hover to ask with. */
       const sp = this.spamOf(id);
       const ai = !sp.spam;
+      /* A Sent row's receipt mark is reached from the keyboard here, as the sender mark is on a received row. */
+      const rcptAny = /·Sent$/.test(this.state.folderKey || "") && receiptOf(id);
+      const rcpt = rcptAny && rcptAny.k !== "waiting" ? rcptAny : null;
       this.setState({
         ctxMenu: {
           x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message",
           detail: th.from + (sp.spam ? " - " + (spamKind(sp.kind) ? spamKind(sp.kind).label + " spam" : "Spam") : "") +
-            (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name),
+            (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name) +
+            (rcpt ? " - " + rcpt.word : ""),
           items: [
             ai && { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
@@ -1938,6 +2012,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                anchored panel opens centred instead. */
             !/·(Sent|Drafts)$/.test(this.state.folderKey || "") && senderRecord(id, null) &&
               { icon: MARKS[markKeyOf(senderRecord(id, null))].glyph, label: "Sender details", run: () => this.openSenderMark(id, null, null) },
+            rcpt && { icon: rcpt.glyph, label: "Receipt details", run: () => this.openReceipt(id, null) },
           ].filter(Boolean),
         },
       });
@@ -1972,11 +2047,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (this.state.filtersOpen && this._isMobile && !e.target.closest?.("[data-filters-band],[data-filters-toggle]")) this.setState({ filtersOpen: false });
       /* The sender details close on a press anywhere outside them; a press on a mark is that mark's own to answer. */
       if (this.state.senderMark && !e.target.closest?.("[data-sender-pop],[data-sender-mark]")) this.closeSenderMark(false);
+      if (this.state.receiptPop && !e.target.closest?.("[data-receipt-pop],[data-receipt-mark]")) this.closeReceipt(false);
     };
 
     onDocKey = (e) => {
       if (e.key === "Escape" && this.state.linkAsk) { e.preventDefault(); this.closeLinkAsk(); return; }
       if (e.key === "Escape" && this.state.senderMark) { e.preventDefault(); this.closeSenderMark(true); return; }
+      if (e.key === "Escape" && this.state.receiptPop) { e.preventDefault(); this.closeReceipt(true); return; }
       if (e.key === "Escape" && this.state.ctxMenu) { e.preventDefault(); this.setState({ ctxMenu: null }); return; }
       if (e.key === "Escape" && this.state.source) { e.preventDefault(); this.closeSource(); }
     };
@@ -2061,6 +2138,48 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const t = this._markTrigger;
       this.setState({ senderMark: null, senderAdd: null });
       if (refocus && t && t.focus) setTimeout(() => t.focus(), 0);
+    };
+
+    /* A receipt mark on a Sent row or on the head of an own message opens what came back for each recipient, placed
+       exactly as the sender details are: under the mark with a mouse, a sheet under a finger, centred from a menu. */
+    receiptPopRef = React.createRef();
+    openReceipt = (threadId, e) => {
+      if (e && e.type === "keydown") {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+      }
+      if (e && e.stopPropagation) e.stopPropagation();
+      if (this.state.receiptPop && this.state.receiptPop.id === threadId) { this.closeReceipt(true); return; }
+      const el = e && e.currentTarget;
+      const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : { right: 0, top: 0, bottom: 0 };
+      const a = this.localPt(r.right, r.bottom);
+      this._receiptTrigger = el || null;
+      this.setState({ receiptPop: { id: threadId, x: a.x, y: a.y, top: this.localPt(r.right, r.top).y, centred: !el } });
+      setTimeout(() => { const p = this.receiptPopRef.current; if (p && p.focus) p.focus(); }, 0);
+    };
+    closeReceipt = (refocus) => {
+      const t = this._receiptTrigger;
+      this.setState({ receiptPop: null });
+      if (refocus && t && t.focus) setTimeout(() => t.focus(), 0);
+    };
+
+    /* A received message asking for a read receipt is answered only when the reader presses *Send read receipt*:
+       the press sends one (`sending`), and once the server took it the offer gives way to a line saying it was sent,
+       which stays, so the receipt is never offered twice. Nothing sends one on its own. */
+    sendReadReceipt = (threadId, e) => {
+      if (e && e.type === "keydown") {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+      }
+      if (this.writeRefused("send") || (this.state.mdnSending || {})[threadId]) return;
+      this.setState(s => ({ mdnSending: Object.assign({}, s.mdnSending, { [threadId]: true }) }));
+      setTimeout(() => {
+        this.setState(s => ({
+          mdnSending: Object.assign({}, s.mdnSending, { [threadId]: false }),
+          mdnSent: Object.assign({}, s.mdnSent, { [threadId]: "today " + new Date().toTimeString().slice(0, 5) }),
+        }));
+        setTimeout(() => { const el = document.querySelector("[data-mdn-sent]"); if (el) el.focus(); }, 0);
+      }, 800);
     };
 
     tabsMode = () => {
@@ -3755,6 +3874,61 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           markGlyphStyle: markGlyph(M.word ? 15 : 16),
         };
       };
+      /* The receipt mark: on a Sent row the glyph alone among the row's markers before the flag, beside an own
+         message's head a badge naming the outcome. Either opens the same details. A row draws nothing for a request
+         nothing came back for; the opened message does. */
+      const inSent = /·Sent$/.test(st.folderKey || "");
+      const rcptOpen = (id) => !!(st.receiptPop && st.receiptPop.id === id);
+      const withReceipt = (t, row) => {
+        const R = inSent ? receiptOf(t.id) : null;
+        if (!R || R.k === "waiting") return Object.assign(row, { rcptShown: false });
+        return Object.assign(row, {
+          rcptShown: true, rcptGlyph: R.glyph, rcptName: R.name, rcptOpen: rcptOpen(t.id),
+          openRcpt: (e) => this.openReceipt(t.id, e),
+          rcptBtnStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:" + RECEIPT_INK[R.tone] + ";" +
+            (touch ? "width:44px;height:44px;margin:-12px -10px;" : "width:24px;height:24px;margin:-4px -3px;"),
+          rcptGlyphStyle: markGlyph(touch ? 20 : 17),
+          stripLabel: row.stripLabel + " - " + R.name,
+        });
+      };
+      const receiptBadge = (threadId) => {
+        const R = receiptOf(threadId);
+        if (!R) return { rcptShown: false };
+        return {
+          rcptShown: true, rcptGlyph: R.glyph, rcptWord: R.word, rcptName: R.name, rcptOpen: rcptOpen(threadId),
+          openRcpt: (e) => this.openReceipt(threadId, e),
+          rcptBtnStyle: "flex:0 0 auto;align-self:center;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;" +
+            (touch ? "min-width:44px;min-height:44px;margin:-11px 0;" : ""),
+          rcptPillStyle: "display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;height:22px;border-radius:6px;padding:0 8px 0 6px;font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;" +
+            RECEIPT_PILL[R.tone],
+          rcptGlyphStyle: markGlyph(15),
+        };
+      };
+      /* A read receipt somebody asked of the reader: offered on the newest received message that asks, never on spam,
+         whose request is ignored because answering it confirms the address reads mail. Where the receipt would go
+         somewhere other than the sender, the offer names where. */
+      const readReceiptAsk = (th, from) => {
+        const rq = RECEIPT_REQUESTS[th.id];
+        if (!rq) return { mdnAskShown: false, mdnSentShown: false };
+        const sentAt = (st.mdnSent || {})[th.id] || rq.sentAt;
+        if (sentAt) return { mdnAskShown: false, mdnSentShown: true, mdnSentText: "Read receipt sent " + sentAt + " to " + rq.to + "." };
+        const busy = !!(st.mdnSending || {})[th.id];
+        const refused = this.writeRefused("send");
+        const fromAddr = (((th.meta || "").split(" · ")[0] || "").match(/[^<\s]+@[^>\s]+/) || [""])[0];
+        return {
+          mdnAskShown: true, mdnSentShown: false,
+          mdnAskText: from + " asked for a read receipt" + (rq.to === fromAddr ? "." : ", to be sent to " + rq.to + " rather than to them."),
+          mdnAskNote: "Sending one tells them you opened this message. Nothing is sent unless you send it.",
+          mdnBtnLabel: busy ? "Sending…" : "Send read receipt",
+          mdnBtnTitle: this.writeRefusedTitle("send", "Send read receipt"),
+          mdnBtnOff: busy || refused,
+          sendMdn: (e) => this.sendReadReceipt(th.id, e),
+          mdnBoxStyle: "display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:" + (touch ? "12px 14px" : "11px 14px"),
+          mdnIconStyle: "flex:0 0 auto;align-self:flex-start;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:21px;color:var(--muted)",
+          mdnBtnStyle: "flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);white-space:nowrap;" +
+            (touch ? "min-height:44px;padding:0 14px;" : "min-height:32px;padding:0 13px;") + (busy ? "opacity:.7;cursor:progress;" : "") + this.writeRefusedStyle("send"),
+        };
+      };
       const rowAnim = st.rowAnim || {};
       const rowOut = (id) => rowAnim[id] === "out" || rowAnim[id] === "outdel" || rowAnim[id] === "outarc";
       /* the wash names the act: red for a deletion, orange for archive and move */
@@ -3785,7 +3959,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -3863,6 +4037,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
+          // What came back belongs to the newest message the account sent in the conversation.
+          ...(m.mine && i === msgs.map(x => x.mine).lastIndexOf(true) ? receiptBadge(thread.id) : { rcptShown: false }),
+          ...(!m.mine && i === lastIdx && !threadSpam.spam ? readReceiptAsk(thread, m.from) : { mdnAskShown: false, mdnSentShown: false }),
           ...(threadSpam.spam && !m.mine ? spamWarning(threadSpam) : { spamWarn: false }),
           changeShown: !!chg,
           changeIcon: chgUnknown ? "help" : "sync_problem",
@@ -4515,9 +4692,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctxMenuDetail: (st.ctxMenu && st.ctxMenu.detail) || "",
         ctxMenuHasDetail: !!(st.ctxMenu && st.ctxMenu.detail),
         closeCtxMenu: () => { if (this.ctxArmed()) this.setState({ ctxMenu: null }); },
+        /* A checkable item reads its state from the render rather than from when the menu opened, and pressing it
+           turns it over and leaves the menu standing, so both of the composer's requests are set in one visit. */
         ctxMenuItems: (st.ctxMenu ? st.ctxMenu.items : []).map(mi => ({
           icon: mi.icon, label: mi.label,
-          run: () => { if (!this.ctxArmed()) return; this.setState({ ctxMenu: null }); if (mi.run) mi.run(); },
+          role: mi.checked ? "menuitemcheckbox" : "menuitem",
+          ariaChecked: mi.checked ? !!mi.checked() : null,
+          checkShown: !!(mi.checked && mi.checked()),
+          run: () => { if (!this.ctxArmed()) return; if (!mi.checked) this.setState({ ctxMenu: null }); if (mi.run) mi.run(); },
           style: "display:flex;align-items:center;gap:11px;border-radius:8px;padding:0 12px;color:" + (mi.danger ? "var(--err-text)" : "var(--text)") +
             (touch ? ";min-height:48px;font-size:15px" : ";min-height:36px;font-size:14px"),
         })),
@@ -4525,7 +4707,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const c = st.ctxMenu || { x: 0, y: 0, items: [] };
           const base = "display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 6px 8px;box-shadow:0 20px 46px var(--sh-3);position:fixed;z-index:99;";
           if (isMobile) return base + "left:50%;top:50%;transform:translate(-50%,-50%);width:min(300px,calc(100% - 36px));max-height:calc(100% - 120px);overflow:auto";
-          const W = touch ? 262 : 236;
+          const W = c.wide ? (touch ? 312 : 296) : touch ? 262 : 236;
           const H = 46 + (c.items || []).length * (touch ? 50 : 38);
           const bw = st.vw || 1200;
           const bh = st.vh || (typeof window !== "undefined" ? window.innerHeight : 900);
@@ -4632,6 +4814,62 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               MARK_PILL[M.tone] + (M.tone === "plain" ? "background:var(--sub);border-color:var(--line);" : "") + markGlyph(20),
             senderPopTitleStyle: "font-size:15px;font-weight:600;line-height:1.35;color:" + (M.tone === "plain" || M.tone === "known" ? "var(--text)" : MARK_INK[M.tone]),
             senderPopBodyStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;" + (touch ? "padding:14px 18px 22px" : "padding:14px 18px 18px"),
+          };
+        })(),
+        ...(() => {
+          /* The receipt details: the summary the mark shows, what the message asked for, then every recipient with
+             their own outcome and what each report said, and what a missing report does not mean. */
+          const rp = st.receiptPop;
+          const R = rp ? receiptOf(rp.id) : null;
+          if (!R) return { receiptPopOpen: false };
+          const asked = R.rec.asked;
+          const bw = st.vw || 1200;
+          const bh = st.vh || (typeof window !== "undefined" ? window.innerHeight : 900);
+          const W = 360;
+          const below = bh - rp.y - 16;
+          const up = below < 300 && rp.top > below;
+          const x = Math.max(10, Math.min(rp.x - W, bw - W - 10));
+          const frame = "display:flex;flex-direction:column;background:var(--panel);overflow:hidden;outline:none;";
+          const notes = [];
+          if (asked.mdn) notes.push("A read receipt comes back only if the recipient's mail app sends one, so none back does not mean the message was not read.");
+          if (asked.dsn) notes.push("A delivery notification comes back only where every server on the way supports it.");
+          if (R.rec.to.some(r => r.internal)) notes.push("A colleague in your organization is marked by MailFathom itself, without a receipt, once their mailbox holds the message and once they open it here.");
+          return {
+            receiptPopOpen: true,
+            receiptPopSheet: touch,
+            receiptPopMotion: touch ? "sheet" : "pop",
+            receiptPopRef: this.receiptPopRef,
+            closeReceipt: (e) => {
+              if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+              this.closeReceipt(true);
+            },
+            receiptPopTitle: R.word,
+            receiptPopGlyph: R.glyph,
+            receiptPopAsked: !asked.dsn && !asked.mdn ? "You asked for no receipt."
+              : "You asked for " + (asked.dsn && asked.mdn ? "a delivery notification and a read receipt." : asked.dsn ? "a delivery notification." : "a read receipt."),
+            receiptPopRows: R.rec.to.map((r, i) => {
+              const O = RECEIPT[R.outs[i]];
+              return {
+                name: r.name, addr: r.addr, word: O.word === "Requested" ? "Nothing back yet" : O.word, glyph: O.glyph,
+                lines: receiptLines(r, asked).map(text => ({ text })),
+                rowStyle: "display:flex;flex-direction:column;gap:3px;padding:10px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+                resultStyle: "flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;white-space:nowrap;color:" + RECEIPT_INK[O.tone],
+              };
+            }),
+            receiptPopNotes: notes.map(text => ({ text })),
+            receiptPopStyle: touch
+              ? "position:fixed;z-index:93;left:0;right:0;bottom:0;margin:0 auto;width:100%;max-width:600px;max-height:" + (low ? "calc(100dvh - 8px)" : "82dvh") + ";" +
+                frame + "border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -12px 40px var(--sh-3)"
+              : rp.centred ? "position:fixed;z-index:93;left:50%;top:50%;transform:translate(-50%,-50%);width:" + W + "px;max-width:calc(100% - 20px);max-height:520px;" +
+                frame + "border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 46px var(--sh-3)"
+              : "position:fixed;z-index:93;left:" + x + "px;width:" + W + "px;max-width:calc(100% - 20px);" +
+                (up ? "bottom:" + (bh - rp.top + 6) + "px;max-height:" + Math.min(520, rp.top - 16) + "px;" : "top:" + (rp.y + 6) + "px;max-height:" + Math.min(520, below) + "px;") +
+                frame + "border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 46px var(--sh-3)",
+            receiptPopHeadStyle: "flex:0 0 auto;display:flex;align-items:flex-start;gap:12px;border-bottom:1px solid var(--line);" + (touch ? "padding:4px 12px 14px 18px" : "padding:16px 10px 14px 18px"),
+            receiptPopTileStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;box-sizing:border-box;" +
+              RECEIPT_PILL[R.tone] + markGlyph(20),
+            receiptPopTitleStyle: "font-size:15px;font-weight:600;line-height:1.35;color:" + (R.tone === "plain" || R.tone === "faint" ? "var(--text)" : RECEIPT_INK[R.tone]),
+            receiptPopBodyStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;" + (touch ? "padding:14px 18px 22px" : "padding:14px 18px 18px"),
           };
         })(),
         senderGroupStyle: "display:flex;flex-direction:column;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:0 14px",
@@ -5097,6 +5335,28 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeSaveStyle: (touch
           ? "display:inline-flex;align-items:center;min-height:44px;padding:0 6px;font-size:13px;color:var(--muted)"
           : "font-size:12px;color:var(--muted)") + this.writeRefusedStyle("save"),
+        /* The two receipt requests of the message being written. While either is on, the foot's three-dot control
+           stands on the accent ground and a line above the foot says in words what will be asked, so nobody sends
+           unaware of it; a press on the line opens the same menu. */
+        ...(() => {
+          const rq = st.composeReceipts || {};
+          const what = rq.dsn && rq.mdn ? "a delivery notification and a read receipt" : rq.dsn ? "a delivery notification" : "a read receipt";
+          const on = !!(rq.dsn || rq.mdn);
+          return {
+            openComposeMore: this.openComposeMore,
+            composeReceiptsOn: on,
+            composeReceiptsGlyph: rq.mdn ? "mark_email_read" : "move_to_inbox",
+            composeReceiptsText: "This message asks for " + what + ".",
+            composeReceiptsNote: rq.mdn ? "A read receipt comes back only if the recipient's mail app sends one." : "",
+            composeMoreTitle: on ? "Sending options - asks for " + what : "Sending options",
+            composeMoreStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;" +
+              "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
+              (touch ? "width:44px;height:44px;font-size:22px;margin-left:auto;" : "width:32px;height:32px;font-size:20px;") +
+              (on ? "color:var(--accent-d);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
+            composeReceiptsLineStyle: "display:flex;align-items:flex-start;gap:8px;padding:" + (touch ? "6px 15px" : "7px 15px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : "") +
+              "border-top:1px solid var(--line);background:var(--panel);font-size:13px;line-height:1.45;color:var(--text2);text-wrap:pretty",
+          };
+        })(),
         composeAiPlaceholder: isMobile ? "Write what this is about…" : "Write what this is about - e.g. “we accept the 2 h SLA but ask for a 5% CPI cap”",
         /* Both drafting fields take an instruction, a draft of the message, or both, so they grow with what is
            written: one line empty, wrapping rather than scrolling sideways, up to six lines, and a scrollbar past
@@ -6783,7 +7043,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         cameFromResult: st.cameFrom,
         fromCitation: st.fromCite || "",
         backToResult: () => this.setState({ screen: "discover", cameFrom: false }),
-        threads: listedThreads.map(t => withMark(t, spamRowOf(t, {
+        threads: listedThreads.map(t => withReceipt(t, withMark(t, spamRowOf(t, {
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
           movedTo: movedMap[t.id] || "",
@@ -6845,7 +7105,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             rowWash(t.id),
           count: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10),
           multi: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10) > 1,
-        }))),
+        })))),
         activeSubject: thread.subject,
         activeMeta: thread.meta,
         activeState: thread.state.map((s, i) => {
@@ -6872,8 +7132,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeExpanded: (!!st.compose && !st.composeMin) || composeInPane,
         composeChromeShown: !composeTabActive,
         openCompose: () => (tabsMode
-          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
-          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
+          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
+          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
         composeSubjValue: curSubj,
         onComposeSubj: (e) => this.setState({ composeSubjEdit: e.target.value }),
         closeCompose: () => (bodyTxt() || curSubj.trim() ? this.setState({ closeAsk: true }) : finishCompose()),
