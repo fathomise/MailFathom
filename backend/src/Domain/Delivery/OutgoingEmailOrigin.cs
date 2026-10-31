@@ -30,4 +30,11 @@ public enum OutgoingEmailOrigin
     /// composed, and two instances reaching one occasion have to compose one request rather than two messages.
     /// </remarks>
     Schedule = 2,
+
+    /// <summary>A message arrived while the user's automatic reply was running, and MailFathom answered it.</summary>
+    /// <remarks>
+    /// Nobody is present when the answer is composed, so the identity is the arrival it answers: the replica that
+    /// settles the arrival is the one that answers it, and asking again for the same arrival is the same request.
+    /// </remarks>
+    AutomaticReply = 3,
 }

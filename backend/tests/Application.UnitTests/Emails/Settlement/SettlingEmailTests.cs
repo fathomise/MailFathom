@@ -223,6 +223,27 @@ public sealed class SettlingEmailTests
         Assert.False(announced);
     }
 
+    /// <summary>A message already read elsewhere is still answered automatically, while junk and a deleted one are not.</summary>
+    [Theory]
+    [InlineData(true, SpamVerdict.NotSpam, false, true)]
+    [InlineData(false, SpamVerdict.Spam, false, false)]
+    [InlineData(false, SpamVerdict.NotSpam, true, false)]
+    public void IsAnswerable_WhatTheMessageIs_AnswersInboxMailReadOrNot(
+        bool isSeen,
+        SpamVerdict verdict,
+        bool isTombstoned,
+        bool expected)
+    {
+        // Arrange
+        var email = Email(verdict) with { IsSeen = isSeen, IsTombstoned = isTombstoned };
+
+        // Act
+        var answerable = email.IsAnswerable();
+
+        // Assert
+        Assert.Equal(expected, answerable);
+    }
+
     private static SettlingEmail Email(
         SpamVerdict? verdict = SpamVerdict.NotSpam,
         bool rulesFinished = true,

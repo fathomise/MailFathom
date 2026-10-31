@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Signals;
@@ -184,6 +185,28 @@ public sealed class MailSettlementPassTests
         Assert.NotEmpty(this.notificationStore.Recorded);
     }
 
+    /// <summary>
+    /// What settles while the account's user's automatic reply runs is answered once settled, and junk that settles
+    /// beside it is not answered at all.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_ArrivalsSettlingWhileAnAutomaticReplyRuns_AnswersTheInboxArrivalAndNotTheJunk()
+    {
+        // Arrange
+        var world = new AutomaticReplyWorld(this.clock, periodAround: Now);
+        await world.AnswerAsync();
+        var inbox = Email(1) with { Id = world.Arrive("anna@example.test") };
+        var junk = Email(2, SpamVerdict.Spam) with { Id = world.Arrive("spammer@example.test") };
+        this.store.Holding(inbox, junk);
+        await using var signals = new ClientSignals([this.channel], this.clock);
+
+        // Act
+        await this.CreatePass(signals, world.Responder).RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("anna@example.test", Assert.Single(Assert.Single(world.Outgoing.OpenRequests).Recipients).Address.Address);
+    }
+
     private static SettlingEmail Email(int number, SpamVerdict? verdict = SpamVerdict.NotSpam) =>
         new(
             StoredEmailId.Create(Guid.Parse($"0199a0c0-0000-7000-8000-{number:D12}")),
@@ -199,7 +222,7 @@ public sealed class MailSettlementPassTests
             ArrivedInInbox: true,
             MailFolderSpecialUse.Inbox);
 
-    private MailSettlementPass CreatePass(ClientSignals signals) =>
+    private MailSettlementPass CreatePass(ClientSignals signals, AutomaticReplyResponder? responder = null) =>
         new(
             this.store,
             new DerivedWorkGate(
@@ -213,6 +236,7 @@ public sealed class MailSettlementPassTests
                 new InMemoryStoredEmailSummaries(),
                 this.clock),
             this.telemetry,
+            responder ?? new AutomaticReplyWorld(this.clock).Responder,
             this.clock);
 
     private async Task DrainAsync(ClientSignals signals)

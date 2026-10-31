@@ -15,6 +15,7 @@ using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Agent.Search;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Calendar;
 using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Application.Calendar.Import;
@@ -159,6 +160,7 @@ using MailFathom.Infrastructure.Persistence.Agent;
 using MailFathom.Infrastructure.Persistence.AiProviders;
 using MailFathom.Infrastructure.Persistence.Answering;
 using MailFathom.Infrastructure.Persistence.Authentication;
+using MailFathom.Infrastructure.Persistence.AutomaticReplies;
 using MailFathom.Infrastructure.Persistence.Calendar;
 using MailFathom.Infrastructure.Persistence.ClientAssertions;
 using MailFathom.Infrastructure.Persistence.ClientSessions;
@@ -521,6 +523,13 @@ public static class ServiceCollectionExtensions
         // and announces it then rather than when synchronization committed it.
         services.AddScoped<IMailSettlementStore, MailSettlementStore>();
         services.AddScoped<MailSettlementPass>();
+        // The automatic reply a user sets while away: their own setting, the claimed senders, and what answers an arrival
+        // the settlement has just placed. Registered unconditionally, because a user without a reply costs one indexed
+        // read per settled batch and nothing else.
+        services.AddScoped<IAutomaticReplyStore, AutomaticReplyStore>();
+        services.AddScoped<OwnAutomaticReply>();
+        services.AddSingleton<IArrivedMailEnvelopeReader, MimeKitArrivedMailEnvelopeReader>();
+        services.AddScoped<AutomaticReplyResponder>();
         // The reading of what a message's attachments say, and the pass that performs it. A stage behind the cut rather
         // than part of it, because it is the only one that parses octets a stranger composed and the only one that may
         // reach a provider — so a message reaches retrieval on its own words first and gains its attachments' words

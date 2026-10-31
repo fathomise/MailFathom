@@ -514,6 +514,12 @@ internal sealed class MimeKitAuthoredEmailComposer(
         message.Date = timeProvider.GetUtcNow();
         message.MessageId = messageId.Value;
         PlaceInThread(message, authored.Threading);
+
+        if (authored.IsAutomaticReply)
+        {
+            message.Headers.Replace(HeaderId.AutoSubmitted, "auto-replied");
+        }
+
         message.Body = BuildBody(authored);
 
         return this.Serialize(

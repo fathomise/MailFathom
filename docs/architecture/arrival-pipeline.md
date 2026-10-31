@@ -28,6 +28,7 @@ flowchart TD
         classify["Classification pass — only when somebody asked for a run over the whole mailbox"]
         rules["Rule evaluation pass"]
         settle["Settle: admit the message to every read, and announce its arrival"]
+        reply(["Answer it automatically — only where its user's automatic reply is running"])
         cut["Cut the passages"]
         read["Read the attachments — only where the deployment turned it on"]
         offer(["Offer the message to the embedding backlog"])
@@ -66,6 +67,7 @@ flowchart TD
     gate -- "no verdict yet: queued, running, or the job ran out of attempts" --> held["Held; the next run or a sweep asks again"]
     gate -- "released: unclassifiable, or waited longer than allowed" --> rules
     rules --> settle --> cut
+    settle --> reply
     cut --> offer
     cut --> read
     read --> offer
@@ -216,6 +218,13 @@ everything a held account files locally, which no synchronization stores.
 What it hands a client and the person is said on settlement rather than on the commit: `mail.arrived` carries how many
 messages one run settled, and the arrival notification is raised for those of them
 [the person is told about](../features/imap-synchronization.md#what-a-run-tells-the-person-whose-mailbox-it-is).
+
+The [automatic reply](../features/automatic-reply.md) answers on settlement as well, after the announcement and only
+for the messages the run itself settled, so a message a competing replica settled first is not answered from here a
+second time. It answers what settled in the inbox — or was filed out of it by a rule — whether or not it was already
+read, and never what settled as junk, in the trash, or tombstoned. Like the announcement it is not durable: a message
+the reply could not be queued for is not answered later. Everything stored already settled is never answered, which is
+also why nothing a held account files locally and nothing a restore appends ever is.
 
 ## The sidecar fails closed, and classification fails open
 

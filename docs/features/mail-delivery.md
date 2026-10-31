@@ -332,7 +332,9 @@ random half and the account's own domain, so nothing outside this deployment can
 has not seen and forge a reply into its thread. The `Date` comes from the injected clock, as every timestamp in this
 system does. Every message names the product that wrote it as `User-Agent: Fathomise MailFathom`, and nothing beyond
 the name: a version, a runtime, or a platform would tell every recipient which build a deployment runs, which is a
-fingerprint nobody reading the header needs. No `X-Mailer` is written beside it. A send, a draft, and an occasion of a
+fingerprint nobody reading the header needs. No `X-Mailer` is written beside it. An [automatic reply](automatic-reply.md) also carries
+`Auto-Submitted: auto-replied`, which is what RFC 3834 asks of a responder so that one on the other side does not
+answer it in turn; nothing else this deployment sends carries the header. A send, a draft, and an occasion of a
 recurring send all carry it exactly once, because it is written where each of them is serialized and replaces whatever
 a stored draft carried.
 
@@ -552,9 +554,9 @@ transaction: a record whose message was never stored has nothing to transmit, an
 bytes nothing will ever read.
 
 **Being the one way in is also where the send grant is asked for.** The record already names the kind of act that asked
-— a rule, or somebody present — and the outbox admits each origin under exactly the principal that can produce it: a
-command needs a caller granted `mailfathom.mail.send`, and a rule needs MailFathom's own identity, which holds no
-permission at all. So a caller cannot enqueue as a rule and borrow a rule's idempotency identity, and work nobody
+— a rule, a recurring send, an automatic reply, or somebody present — and the outbox admits each origin under exactly
+the principal that can produce it: a command needs a caller granted `mailfathom.mail.send`, and the other three need
+MailFathom's own identity, which holds no permission at all. So a caller cannot enqueue as a rule and borrow a rule's idempotency identity, and work nobody
 requested cannot enqueue as a command however a grant is written. The question is put here with no transport in the
 picture, which is what makes it hold for an entrypoint added later — a command, a gateway, a second protocol — rather
 than only for a request that passed a filter. Nothing has been written down when it is asked, so a refusal leaves no
