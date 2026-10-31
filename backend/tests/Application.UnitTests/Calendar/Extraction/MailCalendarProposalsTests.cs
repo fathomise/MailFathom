@@ -7,6 +7,7 @@ using MailFathom.Application.Calendar;
 using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Calendar;
@@ -159,7 +160,8 @@ public sealed class MailCalendarProposalsTests
             Substitute.For<ICalendarEventExtractor>(),
             events,
             assignments,
-            new FakeTimeProvider(RecordedAt));
+            new FakeTimeProvider(RecordedAt),
+            ClientSignalPublishers.ReachingNobody);
 
         // Act
         var staged = await proposals.StageAsync(
@@ -204,10 +206,45 @@ public sealed class MailCalendarProposalsTests
         Assert.Equal("Racking survey", Assert.Single(extraction.Events).Title.Value);
     }
 
+    /// <summary>Staging tells nobody, since nothing is committed yet; announcing afterwards tells each person the mailbox serves.</summary>
+    [Fact]
+    public async Task AnnounceAsync_AfterTheStagedProposalsCommitted_TellsEachPersonTheMailboxServes()
+    {
+        // Arrange
+        var first = UserId.Create(Guid.CreateVersion7());
+        var second = UserId.Create(Guid.CreateVersion7());
+        var clock = new FakeTimeProvider(RecordedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var proposals = ProposalsFor([first, second], Substitute.For<ICalendarEventStore>(), signals: signals);
+
+        // Act
+        await proposals.StageAsync(
+            Substitute.For<IPersistenceSession>(),
+            Account,
+            StoredEmailId.Create(Guid.CreateVersion7()),
+            [Extracted("Racking survey")],
+            TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+        var afterStaging = channel.Published.Count;
+
+        await proposals.AnnounceAsync(Account, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal(0, afterStaging);
+        Assert.Equivalent(
+            new[] { ClientSignal.CalendarChanged(first).Scope, ClientSignal.CalendarChanged(second).Scope },
+            channel.Published.Select(signal => signal.Scope).ToArray());
+    }
+
     private static MailCalendarProposals ProposalsFor(
         IReadOnlyList<UserId> owners,
         ICalendarEventStore events,
-        ICalendarEventExtractor? extractor = null)
+        ICalendarEventExtractor? extractor = null,
+        ClientSignals? signals = null)
     {
         var assignments = Substitute.For<IMailAccountAssignments>();
         assignments.ReadUsersAssignedToAsync(Account, Arg.Any<CancellationToken>()).Returns(owners);
@@ -216,7 +253,8 @@ public sealed class MailCalendarProposalsTests
             extractor ?? Substitute.For<ICalendarEventExtractor>(),
             events,
             assignments,
-            new FakeTimeProvider(RecordedAt));
+            new FakeTimeProvider(RecordedAt),
+            signals ?? ClientSignalPublishers.ReachingNobody);
     }
 
     private static ExtractedCalendarEvent Extracted(string title) =>

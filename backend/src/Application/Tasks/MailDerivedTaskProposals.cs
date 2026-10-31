@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Enrichment;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
@@ -40,24 +41,29 @@ public sealed class MailDerivedTaskProposals
     private readonly IMailAccountAssignments assignments;
     private readonly IPersonalTaskStore store;
     private readonly TimeProvider clock;
+    private readonly ClientSignals signals;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="assignments">Answers which people the mailbox a message arrived in is assigned to.</param>
     /// <param name="store">Keeps what each of them owes and what has been proposed to them.</param>
     /// <param name="clock">Stamps the identity each proposed task is addressed under.</param>
+    /// <param name="signals">Tells each person proposed to that their list moved.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailDerivedTaskProposals(
         IMailAccountAssignments assignments,
         IPersonalTaskStore store,
-        TimeProvider clock)
+        TimeProvider clock,
+        ClientSignals signals)
     {
         ArgumentNullException.ThrowIfNull(assignments);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(signals);
 
         this.assignments = assignments;
         this.store = store;
         this.clock = clock;
+        this.signals = signals;
     }
 
     /// <summary>Writes one message's readings onto the list of each person assigned the mailbox it arrived in.</summary>
@@ -109,6 +115,8 @@ public sealed class MailDerivedTaskProposals
 
                 written++;
             }
+
+            this.signals.Publish(ClientSignal.TasksChanged(user));
         }
 
         return written;

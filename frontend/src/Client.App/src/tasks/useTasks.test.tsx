@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import { SignalledChangesContext, type SignalListener, type SignalledChanges } from '../signals/signalledChanges';
 import { useTasks } from './useTasks';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
@@ -94,11 +95,66 @@ function List({
     );
 }
 
+// A channel a test speaks into, standing in for the deployment and the refresh control.
+function told(): { readonly say: SignalListener; readonly changes: SignalledChanges } {
+    const listeners = new Set<SignalListener>();
+
+    return {
+        say: (change) => {
+            for (const listener of listeners) {
+                listener(change);
+            }
+        },
+        changes: {
+            listen: (listener) => {
+                listeners.add(listener);
+
+                return () => {
+                    listeners.delete(listener);
+                };
+            },
+            refresh: () => undefined,
+        },
+    };
+}
+
 function titlesDrawn(): (string | null)[] {
     return screen.getAllByRole('listitem').map((row) => row.textContent);
 }
 
 describe('useTasks', () => {
+    it('reads the list again when it changed elsewhere and on a refresh, and for nothing else', async () => {
+        const deployment = answering({
+            committed: [
+                pageOf([task('one', 'Send the invoice', null)], null),
+                pageOf([task('two', 'Call the supplier', null)], null),
+                pageOf([task('three', 'Book the room', null)], null),
+            ],
+            proposed: [pageOf([], null)],
+        });
+        const channel = told();
+
+        render(
+            <SignalledChangesContext value={channel.changes}>
+                <List transport={deployment.transport} />
+            </SignalledChangesContext>,
+        );
+        expect(await screen.findByText('Send the invoice')).toBeDefined();
+
+        act(() => {
+            channel.say({ kind: 'calendar.changed' });
+            channel.say({ kind: 'tasks.changed' });
+        });
+        expect(await screen.findByText('Call the supplier')).toBeDefined();
+
+        act(() => {
+            channel.say({ kind: 'refresh' });
+        });
+        expect(await screen.findByText('Book the room')).toBeDefined();
+        expect(titlesDrawn()).toStrictEqual(['Book the room']);
+        expect(deployment.asked().filter((path) => !path.includes('/tasks/proposed'))).toHaveLength(3);
+    });
+
     it('reads both halves and draws them as one list in the order they are due', async () => {
         render(
             <List

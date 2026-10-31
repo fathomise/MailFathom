@@ -2327,7 +2327,8 @@ public sealed class MailboxSynchronizerTests
                     new PersistenceConcurrencyOptions(),
                     timeProvider),
                 timeProvider,
-                collecting),
+                collecting,
+                ClientSignalPublishers.ReachingNobody),
             StubContactCollectionSettingsReader.CollectingNothing,
             StubAuthoredMailTally.NobodyHasWritten,
             new RecordingContactCollectionTelemetry());
@@ -2381,7 +2382,8 @@ public sealed class MailboxSynchronizerTests
                     new PersistenceConcurrencyOptions(),
                     timeProvider),
                 timeProvider,
-                collecting),
+                collecting,
+                ClientSignalPublishers.ReachingNobody),
             new StubContactCollectionSettingsReader(new ContactCollectionSettings
             {
                 IsEnabled = true,

@@ -467,7 +467,8 @@ public sealed class MailContactCollectorTests
                 Substitute.For<IStoredFileStore>(),
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), timeProvider),
                 timeProvider,
-                new AccessAuthorization(principals)),
+                new AccessAuthorization(principals),
+                ClientSignalPublishers.ReachingNobody),
             new StubContactCollectionSettingsReader(settings),
             tally,
             telemetry ?? new RecordingContactCollectionTelemetry());

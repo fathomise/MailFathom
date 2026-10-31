@@ -7,6 +7,7 @@ using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Portraits;
+using MailFathom.Application.Signals;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
@@ -227,6 +228,33 @@ public sealed class ContactPhotosTests
             () => photos.ReadAsync(AContactId(), TestContext.Current.CancellationToken));
     }
 
+    /// <summary>A photo relinked on a contact the user holds tells their clients the book moved; one naming nobody tells nobody.</summary>
+    [Fact]
+    public async Task RemoveAsync_AContactTheUserHoldsAndOneNobodyHolds_AnnouncesOnlyTheFirst()
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var contact = OwnContact(Linked);
+        book.Hold(User, contact);
+        var clock = new FakeTimeProvider(Now);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var photos = PhotosOver(book, book, Substitute.For<IStoredFileStore>(), signals);
+
+        // Act
+        await photos.RemoveAsync(AContactId(), TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+        await photos.RemoveAsync(contact.Id, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal(
+            ClientSignal.ContactsChanged(ContactBookHolder.Of(User)).Scope,
+            Assert.Single(channel.Published).Scope);
+    }
+
     private static ContactPhotos PhotosOver(
         InMemoryContactBookStore book,
         IStoredFileStore files,
@@ -237,6 +265,14 @@ public sealed class ContactPhotosTests
         InMemoryContactBookStore book,
         IContactStore store,
         IStoredFileStore files,
+        params MailFathomPermission[] permissions) =>
+        PhotosOver(book, store, files, ClientSignalPublishers.ReachingNobody, permissions);
+
+    private static ContactPhotos PhotosOver(
+        InMemoryContactBookStore book,
+        IContactStore store,
+        IStoredFileStore files,
+        ClientSignals signals,
         params MailFathomPermission[] permissions)
     {
         var authorization = AccessAuthorizations.ForCallerGranted(
@@ -251,7 +287,8 @@ public sealed class ContactPhotosTests
             book,
             store,
             files,
-            new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), new FakeTimeProvider(Now)));
+            new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), new FakeTimeProvider(Now)),
+            signals);
     }
 
     private static IStoredFileStore FilesWriting(StoredFileId written)

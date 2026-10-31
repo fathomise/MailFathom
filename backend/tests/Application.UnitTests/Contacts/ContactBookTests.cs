@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
@@ -894,6 +895,82 @@ public sealed class ContactBookTests
         Assert.Single(store.ContactsOf(User));
     }
 
+    /// <summary>Each write that changed a book tells whoever reads that book — the user, everybody assigned the mailbox, or every member — and a write that changed nothing tells nobody.</summary>
+    [Fact]
+    public async Task WritesThatChangedABook_AnnounceThatBookAndRefusalsAnnounceNothing()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var clock = new FakeTimeProvider(Now);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var operatorBook = BookOver(store, clock, signals: signals);
+        var collection = BookOver(
+            store,
+            clock,
+            AccessAuthorizations.ForPrincipal(AuthorizedPrincipal.Process),
+            signals: signals);
+
+        // Act
+        foreach (var write in new Func<Task>[]
+        {
+            () => operatorBook.RecordAsync(
+                User,
+                NewContactOf("Anna Kowalska", ["anna@example.test"]),
+                PersonWriting,
+                TestContext.Current.CancellationToken),
+            () => operatorBook.RecordAsync(
+                User,
+                NewContactOf("Anna K.", ["anna@example.test"]),
+                PersonWriting,
+                TestContext.Current.CancellationToken),
+            () => collection.CollectAsync(
+                Account,
+                NewContactOf("Marek Nowak", ["marek@example.test"]) with { Origin = ContactOrigin.Collected },
+                TestContext.Current.CancellationToken),
+        })
+        {
+            await write();
+            clock.Advance(ClientSignals.FoldingWindow);
+            await signals.DrainAsync();
+        }
+
+        // Assert
+        Assert.Equal(
+            [
+                ClientSignal.ContactsChanged(ContactBookHolder.Of(User)).Scope,
+                ClientSignal.ContactsChanged(ContactBookHolder.Of(Account)).Scope,
+            ],
+            channel.Published.Select(signal => signal.Scope));
+    }
+
+    /// <summary>Erasing a person announces every book the erasure could reach, since the store does not say which one held them.</summary>
+    [Fact]
+    public async Task EraseAsync_APersonTheBooksHeld_AnnouncesEveryBookItCouldReach()
+    {
+        // Arrange
+        var store = new InMemoryContactBookStore();
+        var contact = ContactOf("Anna Kowalska", ["anna@example.test"], ContactOrigin.Collected);
+        store.Hold(Account, contact);
+        var clock = new FakeTimeProvider(Now);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+
+        // Act
+        await BookOver(store, clock, signals: signals).EraseAsync(Scope, contact.Id, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equivalent(
+            new[]
+            {
+                ClientSignal.ContactsChanged(ContactBookHolder.Of(User)).Scope,
+                ClientSignal.ContactsChanged(ContactBookHolder.Of(Account)).Scope,
+            },
+            channel.Published.Select(signal => signal.Scope).ToArray());
+    }
+
     private static StatedAdministrativeTargets UserIn(Guid organization) =>
         new StatedAdministrativeTargets().WithUser(User, organization);
 
@@ -901,7 +978,8 @@ public sealed class ContactBookTests
         InMemoryContactBookStore book,
         FakeTimeProvider? clock = null,
         AccessAuthorization? authorization = null,
-        IStoredFileStore? files = null)
+        IStoredFileStore? files = null,
+        ClientSignals? signals = null)
     {
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
@@ -917,7 +995,8 @@ public sealed class ContactBookTests
             authorization ?? AccessAuthorizations.ForCallerGranted(
                 MailFathomPermission.AdminAuditRead,
                 MailFathomPermission.AdminOperate,
-                MailFathomPermission.AdminErase));
+                MailFathomPermission.AdminErase),
+            signals ?? ClientSignalPublishers.ReachingNobody);
     }
 
     private static NewContact NewContactOf(string displayName, IReadOnlyList<string> addresses) =>

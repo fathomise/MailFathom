@@ -2,9 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import type { ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import { SignalledChangesContext, type SignalListener, type SignalledChanges } from '../signals/signalledChanges';
 import type { CalendarSpan } from './calendarSpan';
 import { useCalendarWindow } from './useCalendarWindow';
 
@@ -23,6 +25,29 @@ function eventCalled(id: string, origin: string): unknown {
         sourceMessage: null,
         recordedAt: '2026-09-01T09:00:00+02:00',
         amendedAt: '2026-09-01T09:00:00+02:00',
+    };
+}
+
+// A channel a test speaks into, standing in for the deployment and the refresh control.
+function told(): { readonly say: SignalListener; readonly changes: SignalledChanges } {
+    const listeners = new Set<SignalListener>();
+
+    return {
+        say: (change) => {
+            for (const listener of listeners) {
+                listener(change);
+            }
+        },
+        changes: {
+            listen: (listener) => {
+                listeners.add(listener);
+
+                return () => {
+                    listeners.delete(listener);
+                };
+            },
+            refresh: () => undefined,
+        },
     };
 }
 
@@ -56,5 +81,47 @@ describe('useCalendarWindow', () => {
         expect(result.current.reading).toBe(true);
         expect(result.current.events.map((event) => event.id)).toStrictEqual(['review']);
         expect(result.current.proposals).toStrictEqual([]);
+    });
+
+    // A calendar written somewhere else is read again in place, without the grid saying it is waiting again.
+    it('reads the span again when the calendar changed elsewhere and on a refresh, and for nothing else', async () => {
+        let asked = 0;
+        const transport: MailFathomTransport = () => {
+            asked += 1;
+
+            return Promise.resolve({
+                status: 200,
+                headers: {},
+                body: JSON.stringify({ events: [eventCalled(`review-${String(asked)}`, 'Asserted')] }),
+            });
+        };
+        const channel = told();
+        const wrapper = ({ children }: { readonly children: ReactNode }) =>
+            createElement(SignalledChangesContext, { value: channel.changes }, children);
+
+        const { result } = renderHook(() => useCalendarWindow(session, transport, thisWeek), { wrapper });
+
+        await waitFor(() => {
+            expect(result.current.events.map((event) => event.id)).toStrictEqual(['review-1']);
+        });
+
+        act(() => {
+            channel.say({ kind: 'tasks.changed' });
+            channel.say({ kind: 'calendar.changed' });
+        });
+
+        await waitFor(() => {
+            expect(result.current.events.map((event) => event.id)).toStrictEqual(['review-2']);
+        });
+        expect(result.current.reading).toBe(false);
+
+        act(() => {
+            channel.say({ kind: 'refresh' });
+        });
+
+        await waitFor(() => {
+            expect(result.current.events.map((event) => event.id)).toStrictEqual(['review-3']);
+        });
+        expect(asked).toBe(3);
     });
 });

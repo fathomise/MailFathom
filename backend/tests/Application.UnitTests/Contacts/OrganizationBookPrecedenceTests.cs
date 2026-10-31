@@ -285,7 +285,7 @@ public sealed class OrganizationBookPrecedenceTests
         var timeProvider = new FakeTimeProvider(Now);
 
         return new ContactBookWriter(
-            new ContactBook(this.store, this.store, this.files, CommitPolicy(), timeProvider, authorization),
+            new ContactBook(this.store, this.store, this.files, CommitPolicy(), timeProvider, authorization, ClientSignalPublishers.ReachingNobody),
             this.store,
             this.Ownership(authorization),
             authorization);
@@ -295,7 +295,7 @@ public sealed class OrganizationBookPrecedenceTests
     {
         var authorization = Authorization();
 
-        return new ContactPhotos(authorization, this.Ownership(authorization), this.store, this.store, this.files, CommitPolicy());
+        return new ContactPhotos(authorization, this.Ownership(authorization), this.store, this.store, this.files, CommitPolicy(), ClientSignalPublishers.ReachingNobody);
     }
 
     /// <summary>A session that commits, because nothing here is about a conflict the policy has to retry.</summary>

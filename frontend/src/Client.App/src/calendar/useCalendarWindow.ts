@@ -10,6 +10,7 @@ import {
     type ClientSession,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
+import { useSignalledChanges } from '../signals/signalledChanges';
 import type { CalendarSpan } from './calendarSpan';
 
 // One span of the calendar as a screen holds it: what is on the calendar, what the mail proposed, and whether either
@@ -119,6 +120,21 @@ export function useCalendarWindow(
     useEffect(() => {
         void read();
     }, [read]);
+
+    // A calendar written somewhere else — another device, an agent, an import, or mail proposing a date — is read again
+    // in place when the deployment says so, and on every refresh, as every other screen is. Nothing is cleared first:
+    // what is drawn stays until the answer replaces it.
+    const signalled = useSignalledChanges();
+
+    useEffect(
+        () =>
+            signalled.listen((change) => {
+                if (change.kind === 'refresh' || change.kind === 'calendar.changed') {
+                    void read();
+                }
+            }),
+        [signalled, read],
+    );
 
     // A span not answered yet keeps drawing what the last one held on the calendar for the same person, so moving
     // between views or weeks does not empty the grid for the moment the read takes and fill it again: each view draws

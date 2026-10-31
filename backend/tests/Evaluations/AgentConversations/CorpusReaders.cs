@@ -105,8 +105,9 @@ internal static class CorpusReaders
                 authorization,
                 PersonalAgenda.CalendarStore(),
                 new OptimisticConcurrencyRetryPolicy(new NoSessions(), new PersistenceConcurrencyOptions(), TimeProvider.System),
-                TimeProvider.System),
-            new OwnTasks(authorization, PersonalAgenda.TaskStore(), TimeProvider.System),
+                TimeProvider.System,
+                ClientSignalPublishers.ReachingNobody),
+            new OwnTasks(authorization, PersonalAgenda.TaskStore(), TimeProvider.System, ClientSignalPublishers.ReachingNobody),
             new StoredEmailResponseAuthoring(
                 summaries,
                 content,

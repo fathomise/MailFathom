@@ -13,6 +13,7 @@ import {
     type PersonalTask,
     type PersonalTaskPage,
 } from '@mailfathom/client-backend';
+import { useSignalledChanges } from '../signals/signalledChanges';
 import { inDueOrder } from './taskGrouping';
 
 // The signed-in person's list as the screen holds it: the pages of both halves read so far, where each walk continues,
@@ -163,6 +164,22 @@ export function useTasks(session: ClientSession | null, transport: MailFathomTra
     useEffect(() => {
         void readFrom(null);
     }, [readFrom]);
+
+    // The list is read again from the leading end when it changed somewhere else, and on every refresh, without saying
+    // it is waiting: what is drawn stays until the answer replaces it. A reader who had scrolled past the first page
+    // keeps only that page afterwards, which is the read a refresh is for; reading every held page again would be the
+    // upgrade if lists that long turn out to be read that far.
+    const signalled = useSignalledChanges();
+
+    useEffect(
+        () =>
+            signalled.listen((change) => {
+                if (change.kind === 'refresh' || change.kind === 'tasks.changed') {
+                    void readFrom(null);
+                }
+            }),
+        [signalled, readFrom],
+    );
 
     const standing = held.session === session ? held : nothingRead(session);
     const complete = standing.committed.cursor === null && standing.proposed.cursor === null;

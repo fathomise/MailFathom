@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Emails;
@@ -37,6 +38,10 @@ namespace MailFathom.Application.Calendar;
 /// replay after a lost race decides again from the calendar as it then stands instead of writing back what it read
 /// before.
 /// </para>
+/// <para>
+/// A write that changed the calendar is announced to the owner's open clients once it has committed, so a second
+/// device draws it without being reopened.
+/// </para>
 /// </remarks>
 public sealed class OwnCalendar
 {
@@ -44,28 +49,33 @@ public sealed class OwnCalendar
     private readonly ICalendarEventStore store;
     private readonly OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy;
     private readonly TimeProvider timeProvider;
+    private readonly ClientSignals signals;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="authorization">Reports the grant the caller holds and the person it acts for.</param>
     /// <param name="store">Holds the calendars.</param>
     /// <param name="concurrencyRetryPolicy">Commits a write, deciding again from a fresh read when another write won.</param>
     /// <param name="timeProvider">Supplies the instant an event is identified, recorded, and amended by.</param>
+    /// <param name="signals">Announces a committed write to the owner's open clients.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public OwnCalendar(
         AccessAuthorization authorization,
         ICalendarEventStore store,
         OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ClientSignals signals)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(concurrencyRetryPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(signals);
 
         this.authorization = authorization;
         this.store = store;
         this.concurrencyRetryPolicy = concurrencyRetryPolicy;
         this.timeProvider = timeProvider;
+        this.signals = signals;
     }
 
     /// <summary>Reads one window of the signed-in person's calendar, earliest first.</summary>
@@ -172,6 +182,8 @@ public sealed class OwnCalendar
                 this.store.AddAsync(session, owner, created, attemptCancellationToken),
             cancellationToken);
 
+        this.signals.Publish(ClientSignal.CalendarChanged(owner));
+
         return CalendarEventWriteResult.Written(created);
     }
 
@@ -214,7 +226,7 @@ public sealed class OwnCalendar
         var amendedNotes = StatedNotes(notes);
         var amendedReminders = Stated(reminders);
 
-        return await this.concurrencyRetryPolicy.CommitAsync(
+        var result = await this.concurrencyRetryPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
             {
                 if (await this.store.ReadAsync(owner, eventId, attemptCancellationToken) is not { } held)
@@ -236,6 +248,8 @@ public sealed class OwnCalendar
                     : CalendarEventWriteResult.NotFound;
             },
             cancellationToken);
+
+        return this.Announced(owner, result);
     }
 
     /// <summary>Takes a date the person's mail proposed onto their calendar, under the identity it already has.</summary>
@@ -256,7 +270,7 @@ public sealed class OwnCalendar
 
         var owner = this.authorization.RequireUser();
 
-        return await this.concurrencyRetryPolicy.CommitAsync(
+        var result = await this.concurrencyRetryPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
             {
                 if (await this.store.ReadAsync(owner, eventId, attemptCancellationToken) is not { } held)
@@ -276,6 +290,8 @@ public sealed class OwnCalendar
                     : CalendarEventWriteResult.NotFound;
             },
             cancellationToken);
+
+        return this.Announced(owner, result);
     }
 
     /// <summary>Takes one event off the signed-in person's calendar for good.</summary>
@@ -293,10 +309,27 @@ public sealed class OwnCalendar
 
         var owner = this.authorization.RequireUser();
 
-        return await this.concurrencyRetryPolicy.CommitAsync(
+        var deleted = await this.concurrencyRetryPolicy.CommitAsync(
             (session, attemptCancellationToken) =>
                 this.store.DeleteAsync(session, owner, eventId, attemptCancellationToken),
             cancellationToken);
+
+        if (deleted)
+        {
+            this.signals.Publish(ClientSignal.CalendarChanged(owner));
+        }
+
+        return deleted;
+    }
+
+    private CalendarEventWriteResult Announced(UserId owner, CalendarEventWriteResult result)
+    {
+        if (result.Outcome == CalendarEventWriteOutcome.Written)
+        {
+            this.signals.Publish(ClientSignal.CalendarChanged(owner));
+        }
+
+        return result;
     }
 
     /// <summary>Reports which rule the record a caller stated breaks, or that it breaks none.</summary>

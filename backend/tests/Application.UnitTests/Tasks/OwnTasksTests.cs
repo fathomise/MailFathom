@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Signals;
 using MailFathom.Application.Tasks;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
@@ -431,7 +432,8 @@ public sealed class OwnTasksTests
         var tasks = new OwnTasks(
             AccessAuthorizations.ForUserGranted(User, MailFathomPermission.MailRead),
             new InMemoryPersonalTaskStore(),
-            new FakeTimeProvider(Stamped));
+            new FakeTimeProvider(Stamped),
+            ClientSignalPublishers.ReachingNobody);
 
         // Act and assert
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
@@ -451,7 +453,8 @@ public sealed class OwnTasksTests
         var tasks = new OwnTasks(
             AccessAuthorizations.ForUserGranted(User, MailFathomPermission.TasksRead),
             store,
-            new FakeTimeProvider(Stamped));
+            new FakeTimeProvider(Stamped),
+            ClientSignalPublishers.ReachingNobody);
 
         // Act and assert
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
@@ -474,7 +477,8 @@ public sealed class OwnTasksTests
         var tasks = new OwnTasks(
             AccessAuthorizations.ForUserGranted(User, MailFathomPermission.TasksWrite),
             store,
-            new FakeTimeProvider(Stamped));
+            new FakeTimeProvider(Stamped),
+            ClientSignalPublishers.ReachingNobody);
 
         // Act
         await tasks.RecordAsync(
@@ -488,12 +492,68 @@ public sealed class OwnTasksTests
         Assert.Equal("keep a list", Assert.Single(store.Held).Title);
     }
 
+    /// <summary>Each write that changed the list tells the person's other clients, and names nothing about the task.</summary>
+    [Fact]
+    public async Task EveryWriteThatChangedTheList_AnnouncesItToThePerson()
+    {
+        // Arrange
+        var store = new InMemoryPersonalTaskStore();
+        var proposed = await KeepAsync(store, User, "suggested", dueOn: null, PersonalTaskOrigin.Proposed);
+        var clock = new FakeTimeProvider(Stamped);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var tasks = Signed(store, User, signals);
+
+        // Act
+        foreach (var write in new Func<Task>[]
+        {
+            () => tasks.RecordAsync("call back", null, TaskAnnouncement.Silent, null, TestContext.Current.CancellationToken),
+            () => tasks.ReviseAsync(proposed.Id, "call back soon", null, TaskAnnouncement.Silent, TestContext.Current.CancellationToken),
+            () => tasks.AcceptAsync(proposed.Id, TestContext.Current.CancellationToken),
+            () => tasks.SetCompletionAsync(proposed.Id, isCompleted: true, TestContext.Current.CancellationToken),
+            () => tasks.EraseAsync(proposed.Id, TestContext.Current.CancellationToken),
+        })
+        {
+            await write();
+            clock.Advance(ClientSignals.FoldingWindow);
+            await signals.DrainAsync();
+        }
+
+        // Assert
+        Assert.Equal(5, channel.Published.Count);
+        Assert.All(channel.Published, signal => Assert.Equal(ClientSignal.TasksChanged(User).Scope, signal.Scope));
+    }
+
+    /// <summary>A write naming a task the person does not hold changed nothing, so it tells nobody anything.</summary>
+    [Fact]
+    public async Task WritesNamingATaskSomebodyElseHolds_AnnounceNothing()
+    {
+        // Arrange
+        var store = new InMemoryPersonalTaskStore();
+        var theirs = await KeepAsync(store, SomebodyElse, "theirs", dueOn: null, PersonalTaskOrigin.Proposed);
+        var clock = new FakeTimeProvider(Stamped);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var tasks = Signed(store, User, signals);
+
+        // Act
+        await tasks.ReviseAsync(theirs.Id, "mine now", null, TaskAnnouncement.Silent, TestContext.Current.CancellationToken);
+        await tasks.AcceptAsync(theirs.Id, TestContext.Current.CancellationToken);
+        await tasks.EraseAsync(theirs.Id, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Empty(channel.Published);
+    }
+
     private static OwnTasks SignedIn(IPersonalTaskStore store) => Signed(store, User);
 
-    private static OwnTasks Signed(IPersonalTaskStore store, UserId user) => new(
+    private static OwnTasks Signed(IPersonalTaskStore store, UserId user, ClientSignals? signals = null) => new(
         AccessAuthorizations.ForUserGranted(user, MailFathomPermission.TasksRead, MailFathomPermission.TasksWrite),
         store,
-        new FakeTimeProvider(Stamped));
+        new FakeTimeProvider(Stamped),
+        signals ?? ClientSignalPublishers.ReachingNobody);
 
     private static async Task<PersonalTask> KeepAsync(
         InMemoryPersonalTaskStore store,

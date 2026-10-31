@@ -123,6 +123,7 @@ public sealed class ContactBookAuditScopeTests
                 new PersistenceConcurrencyOptions(),
                 timeProvider),
             timeProvider,
-            authorization);
+            authorization,
+            ClientSignalPublishers.ReachingNobody);
     }
 }

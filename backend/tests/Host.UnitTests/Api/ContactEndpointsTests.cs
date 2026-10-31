@@ -1260,7 +1260,8 @@ public sealed class ContactEndpointsTests
             this.files,
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
             this.clock,
-            authorization ?? AdministrativeGrant.WholeSurface);
+            authorization ?? AdministrativeGrant.WholeSurface,
+            ClientSignalPublishers.ReachingNobody);
     }
 
     /// <summary>A session that commits whatever was staged in it, which is what a write's ordinary path needs.</summary>

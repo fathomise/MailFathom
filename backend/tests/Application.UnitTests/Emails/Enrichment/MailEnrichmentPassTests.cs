@@ -523,7 +523,8 @@ public sealed class MailEnrichmentPassTests
             new MailDerivedTaskProposals(
                 new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
                 taskStore ?? Substitute.For<IPersonalTaskStore>(),
-                timeProvider),
+                timeProvider,
+                ClientSignalPublishers.ReachingNobody),
             SensitiveContentEgressGuards.Inactive(),
             new OptimisticConcurrencyRetryPolicy(
                 sessionFactory,
@@ -544,7 +545,7 @@ public sealed class MailEnrichmentPassTests
         var assignments = Substitute.For<IMailAccountAssignments>();
         assignments.ReadUsersAssignedToAsync(Account, Arg.Any<CancellationToken>()).Returns([Owner]);
 
-        return new MailCalendarProposals(extractor, events, assignments, new FakeTimeProvider(DerivedAt));
+        return new MailCalendarProposals(extractor, events, assignments, new FakeTimeProvider(DerivedAt), ClientSignalPublishers.ReachingNobody);
     }
 
     private static ICalendarEventExtractor InactiveExtractor()

@@ -10,6 +10,7 @@ import {
     type ClientSession,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
+import { useSignalledChanges } from '../signals/signalledChanges';
 import { dayAround } from './dayInstants';
 
 // What the reader's day already holds, read through the calendar's own route rather than through a copy of it. This
@@ -104,6 +105,19 @@ export function useTodayCalendar(
     useEffect(() => {
         void read(window.from, window.until);
     }, [read, window.from, window.until]);
+
+    // The day is read again in place when the calendar changed somewhere else, and on every refresh.
+    const signalled = useSignalledChanges();
+
+    useEffect(
+        () =>
+            signalled.listen((change) => {
+                if (change.kind === 'refresh' || change.kind === 'calendar.changed') {
+                    void read(window.from, window.until);
+                }
+            }),
+        [signalled, read, window.from, window.until],
+    );
 
     const standing = held.session === session && held.day === window.from ? held : nothingRead(session, window.from);
 

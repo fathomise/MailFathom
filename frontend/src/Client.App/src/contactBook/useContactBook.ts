@@ -18,7 +18,7 @@ import {
     type ContactPageRequest,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
-import { useSignalledChanges } from '../signals/signalledChanges';
+import { useSignalledChanges, type SignalledChange } from '../signals/signalledChanges';
 
 // One book of the address book as a screen holds it: the page or pages read so far, where the walk continues, and
 // whether it is still going. The books are read the same way and are calls of this rather than one reader with a
@@ -38,11 +38,13 @@ import { useSignalledChanges } from '../signals/signalledChanges';
 // is derived away during the render that observes it rather than cleared by an effect. That is what keeps the tab a
 // reader has just pressed from drawing the other one's rows for a frame.
 //
-// **A colleague's presence moves while the directory is open**, which is the one thing about a held page that does:
-// a presence change read again by member where it names them, and the pages held read again in place where it names
-// nobody or a refresh was asked for — which is also how a colleague whose client simply expired comes to read as gone.
-// Each answer replaces the record it read rather than editing one, so the deployment stays the one deciding what a
-// reader may see of somebody.
+// **What is held moves while the book is open**, and is read again in place rather than from nothing. A book of
+// contacts is read again when the deployment says one of the reader's books was written — by them on another device, by
+// an agent, by an administrator, or by collection from arriving mail — and on every refresh. A colleague's presence is
+// read again by member where a presence change names them, and the pages held read again where it names nobody or a
+// refresh was asked for — which is also how a colleague whose client simply expired comes to read as gone. Each answer
+// replaces the record it read rather than editing one, so the deployment stays the one deciding what a reader may see
+// of somebody.
 
 /** Which book a screen is reading: the reader's own, their organization's members, or what their mail collected. */
 export type ContactBookName = 'own' | 'colleagues' | 'collected';
@@ -197,7 +199,7 @@ export function useContactBook(
     const rereads = useRef(0);
 
     useEffect(() => {
-        if (book !== 'colleagues' || session === null) {
+        if (session === null) {
             return;
         }
 
@@ -227,7 +229,7 @@ export function useContactBook(
         };
 
         // The pages held are read again as one window, of at most what one page may hold: a reader who has scrolled past
-        // that many members keeps the rest as last read until a presence change names them. Reading every page again
+        // that many people keeps the rest as last read until a later change reaches them. Reading every page again
         // would be the upgrade if a directory that long turns out to be read that far.
         const readHeldAgain = async (): Promise<void> => {
             const window = Math.min(Math.max(holding.current.contacts.length, contactsPerPage), mostContactsPerPage);
@@ -250,10 +252,18 @@ export function useContactBook(
             );
         };
 
+        // A contacts change says nothing of the directory, which is read from user records rather than from a book, and a
+        // presence change says nothing of a book.
+        const everyHeldChanged = (change: SignalledChange): boolean =>
+            change.kind === 'refresh' ||
+            (book === 'colleagues'
+                ? change.kind === 'presence.changed' && change.members.length === 0
+                : change.kind === 'contacts.changed');
+
         return signalled.listen((change) => {
-            if (change.kind === 'refresh' || (change.kind === 'presence.changed' && change.members.length === 0)) {
+            if (everyHeldChanged(change)) {
                 void readHeldAgain();
-            } else if (change.kind === 'presence.changed') {
+            } else if (book === 'colleagues' && change.kind === 'presence.changed') {
                 void readNamedAgain(change.members);
             }
         });

@@ -631,7 +631,8 @@ public sealed class ContactBookWriterTests
                 Substitute.For<IStoredFileStore>(),
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), timeProvider),
                 timeProvider,
-                authorization),
+                authorization,
+                ClientSignalPublishers.ReachingNobody),
             book,
             ContactBookOwnerships.For(authorization, Account),
             authorization);

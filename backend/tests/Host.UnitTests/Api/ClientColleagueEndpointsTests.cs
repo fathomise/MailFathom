@@ -249,7 +249,8 @@ public sealed class ClientColleagueEndpointsTests
                 Substitute.For<IStoredFileStore>(),
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), clock),
                 clock,
-                authorization),
+                authorization,
+                ClientSignalPublishers.ReachingNobody),
             this.directory,
             ownership,
             authorization);

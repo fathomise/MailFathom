@@ -5,6 +5,7 @@
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Emails;
@@ -37,28 +38,33 @@ public sealed class MailCalendarProposals
     private readonly ICalendarEventStore events;
     private readonly IMailAccountAssignments assignments;
     private readonly TimeProvider timeProvider;
+    private readonly ClientSignals signals;
 
     /// <summary>Initializes the proposals over the reading that finds them and the calendars they reach.</summary>
     /// <param name="extractor">Reads one message into the events it names.</param>
     /// <param name="events">Holds the calendars the proposals are written into.</param>
     /// <param name="assignments">Answers which people the mailbox serves.</param>
     /// <param name="timeProvider">Reads when a proposal was written down.</param>
+    /// <param name="signals">Tells the people proposed to that their calendar moved, once the proposals are committed.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailCalendarProposals(
         ICalendarEventExtractor extractor,
         ICalendarEventStore events,
         IMailAccountAssignments assignments,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ClientSignals signals)
     {
         ArgumentNullException.ThrowIfNull(extractor);
         ArgumentNullException.ThrowIfNull(events);
         ArgumentNullException.ThrowIfNull(assignments);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(signals);
 
         this.extractor = extractor;
         this.events = events;
         this.assignments = assignments;
         this.timeProvider = timeProvider;
+        this.signals = signals;
     }
 
     /// <summary>Gets whether this deployment proposes events from mail at all.</summary>
@@ -120,6 +126,24 @@ public sealed class MailCalendarProposals
         }
 
         return rows.Length;
+    }
+
+    /// <summary>Tells each person the mailbox serves that their calendar moved, once what <see cref="StageAsync" /> staged has committed.</summary>
+    /// <param name="account">The mailbox the proposals were read out of.</param>
+    /// <param name="cancellationToken">Cancels the read of whom the mailbox serves.</param>
+    /// <returns>A task that completes when every signal has been raised.</returns>
+    /// <remarks>
+    /// Separate from the staging because the staging joins a statement somebody else commits, and a signal raised
+    /// before that commit would send a client to read a calendar that does not hold the proposals yet. Whom the mailbox
+    /// serves is read again here rather than carried from the staging, as every signal about a mailbox resolves its
+    /// people when it is raised.
+    /// </remarks>
+    public async Task AnnounceAsync(MailAccountId account, CancellationToken cancellationToken)
+    {
+        foreach (var owner in await this.assignments.ReadUsersAssignedToAsync(account, cancellationToken))
+        {
+            this.signals.Publish(ClientSignal.CalendarChanged(owner));
+        }
     }
 
     /// <summary>Composes one proposal as the event it will be held as.</summary>

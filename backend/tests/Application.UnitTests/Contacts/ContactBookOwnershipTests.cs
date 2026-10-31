@@ -707,7 +707,8 @@ public sealed class ContactBookOwnershipTests
             Substitute.For<IStoredFileStore>(),
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), timeProvider),
             timeProvider,
-            authorization);
+            authorization,
+            ClientSignalPublishers.ReachingNobody);
     }
 
     private static NewContact NewContactOf(string displayName, string address) =>

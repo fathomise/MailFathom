@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Contacts;
 using MailFathom.Application.Discovery.Streaming;
 using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
@@ -223,6 +224,8 @@ public sealed class ClientSignalTests
         Assert.Equal(
             [
                 "account.state",
+                "calendar.changed",
+                "contacts.changed",
                 "folders.changed",
                 "mail.arrived",
                 "mail.changed",
@@ -231,6 +234,7 @@ public sealed class ClientSignalTests
                 "outbox.changed",
                 "presence.changed",
                 "run.advanced",
+                "tasks.changed",
             ],
             [.. names.Order(StringComparer.Ordinal)]);
     }
@@ -288,7 +292,50 @@ public sealed class ClientSignalTests
         Assert.Empty(folded.Members);
     }
 
-    /// <summary>A kind nobody named is not one of the nine, so a value that reached a channel by accident says so.</summary>
+    /// <summary>A calendar or a task list is one person's, so each change names that person and nothing about the record.</summary>
+    [Fact]
+    public void CalendarChangedAndTasksChanged_ForOnePerson_NameThatPersonAndNothingElse()
+    {
+        // Act
+        var calendar = ClientSignal.CalendarChanged(SyntheticUser.Deployment);
+        var tasks = ClientSignal.TasksChanged(SyntheticUser.Deployment);
+
+        // Assert
+        Assert.Equal(
+            [(ClientSignalKind.CalendarChanged, SyntheticUser.Deployment), (ClientSignalKind.TasksChanged, SyntheticUser.Deployment)],
+            new[] { calendar, tasks }.Select(signal => (signal.Kind, signal.User!.Value)).ToArray());
+        Assert.All(new[] { calendar, tasks }, signal =>
+        {
+            Assert.Null(signal.Account);
+            Assert.Null(signal.Organization);
+            Assert.Empty(signal.Emails);
+            Assert.Null(signal.Headline);
+        });
+    }
+
+    /// <summary>A contacts change names the book's holder — a user, a mailbox, or an organization — and the three are three scopes that never fold into one another.</summary>
+    [Fact]
+    public void ContactsChanged_ForEachKindOfBook_NamesItsHolderAndKeepsTheThreeApart()
+    {
+        // Arrange
+        var organization = Guid.Parse("0199c1a2-0000-7000-8000-0000000000c1");
+
+        // Act
+        var own = ClientSignal.ContactsChanged(ContactBookHolder.Of(SyntheticUser.Deployment));
+        var collected = ClientSignal.ContactsChanged(ContactBookHolder.Of(Account));
+        var organizations = ClientSignal.ContactsChanged(ContactBookHolder.OfOrganization(organization));
+
+        // Assert
+        Assert.Equal(
+            [(SyntheticUser.Deployment, null, null), (null, Account, null), (null, null, organization)],
+            new[] { own, collected, organizations }
+                .Select(signal => ((UserId?)signal.User, (MailAccountId?)signal.Account, signal.Organization))
+                .ToArray());
+        Assert.Throws<ArgumentException>(() => collected.FoldedWith(organizations));
+        Assert.Equal(organization, organizations.FoldedWith(organizations).Organization);
+    }
+
+    /// <summary>A kind nobody named is not one of the twelve, so a value that reached a channel by accident says so.</summary>
     [Fact]
     public void IsSpecified_ForTheStructDefault_ReportsThatNoKindWasNamed() =>
         Assert.False(default(ClientSignalKind).IsSpecified);

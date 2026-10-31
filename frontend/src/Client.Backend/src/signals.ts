@@ -68,7 +68,7 @@ export interface SignalledFlags {
 /**
  * One statement that something changed.
  *
- * Nine closed shapes rather than one record of optional fields, because what a reader does with a signal is decided
+ * Twelve closed shapes rather than one record of optional fields, because what a reader does with a signal is decided
  * entirely by which of them arrived: a folder set that moved and a message that changed are read again from different
  * routes, and a shape carrying both would leave every reader checking which fields happened to be present.
  */
@@ -115,7 +115,15 @@ export type ClientSignal =
            */
           readonly kind: 'presence.changed';
           readonly members: readonly string[];
-      };
+      }
+    /**
+     * Something on the reader's own calendar, task list, or one of the contact books they read was written — by them
+     * somewhere else, by an agent, or by MailFathom itself. Each names nothing about the record, so a reader reads again
+     * the space it draws.
+     */
+    | { readonly kind: 'calendar.changed' }
+    | { readonly kind: 'tasks.changed' }
+    | { readonly kind: 'contacts.changed' };
 
 /** The ticket one connection is opened against, and when presenting it stops working. */
 export interface SignalTicket {
@@ -215,7 +223,7 @@ export function readSignalTicket(
 }
 
 /**
- * Reads one payload the deployment sent, refusing anything that is not one of the nine statements.
+ * Reads one payload the deployment sent, refusing anything that is not one of the twelve statements.
  *
  * @returns The signal, or `null` where the payload is not one this client acts on.
  */
@@ -245,6 +253,14 @@ export function parseClientSignal(payload: unknown): ClientSignal | null {
             return parseRunAdvance(record);
         case 'presence.changed':
             return parsePresenceChange(record);
+        // Whatever else the payload carries is not read: these say only which space to read again, and a contact
+        // book's account is a book the reader re-reads whichever it was.
+        case 'calendar.changed':
+            return { kind: 'calendar.changed' };
+        case 'tasks.changed':
+            return { kind: 'tasks.changed' };
+        case 'contacts.changed':
+            return { kind: 'contacts.changed' };
         default:
             return null;
     }
@@ -269,7 +285,7 @@ export function parseClientSignal(payload: unknown): ClientSignal | null {
  * What the stream does say is how the channel stands, to the caller rather than to the person: the client's connection
  * status is one sentence about whether the server is there, and the channel is half of what it reads.
  *
- * @param told Called once per statement, after the payload has been read as one of the nine.
+ * @param told Called once per statement, after the payload has been read as one of the twelve.
  * @param stood Called after every step of keeping the channel open, with how it then stands. `opened` is the moment a
  * caller reads again what it draws, since whatever was said while none stood was said to nobody — except after the
  * first opening, which only the caller can tell apart, since only it knows whether anything was drawn before it.

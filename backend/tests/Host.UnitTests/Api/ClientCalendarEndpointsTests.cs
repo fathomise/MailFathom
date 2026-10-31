@@ -605,7 +605,8 @@ public sealed class ClientCalendarEndpointsTests
             AccessAuthorizations.ForUserGranted(Person, MailFathomPermission.CalendarRead, MailFathomPermission.CalendarWrite),
             this.store,
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
-            this.clock);
+            this.clock,
+            ClientSignalPublishers.ReachingNobody);
     }
 
     /// <summary>A session that commits whatever was staged in it, which is what a write's ordinary path needs.</summary>

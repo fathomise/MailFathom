@@ -472,7 +472,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IClientSignalTicketStore, ClientSignalTicketStore>();
         // A singleton over the pool for the same reasons: bare commands with no query shape, over tables every replica
         // reads, which a deployment serving no client surface carries in its schema and never writes.
-        services.AddSingleton<IPresenceStore, PresenceStore>();
+        services.AddSingleton<IPresenceStore>(provider => new PresenceStore(() => provider.GetRequiredService<NpgsqlDataSource>()));
         // A singleton over the pool for the same reasons again, and registered here rather than beside the client
         // endpoint's composition because a deployment serving no client surface still carries the table in its schema.
         // Its callers are an authentication handler and a sign-in route, neither of which is a unit of work, and what

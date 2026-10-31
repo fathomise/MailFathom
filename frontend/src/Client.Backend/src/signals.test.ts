@@ -307,6 +307,15 @@ describe('parseClientSignal', () => {
         });
     });
 
+    it.each(['calendar.changed', 'tasks.changed', 'contacts.changed'] as const)(
+        'reads %s as the space to read again and nothing about the record',
+        (kind) => {
+            expect(
+                parseClientSignal({ kind, account: 'work', count: 0, emails: [], members: [], subject: 'Lunch' }),
+            ).toStrictEqual({ kind });
+        },
+    );
+
     const refused: readonly (readonly [string, unknown])[] = [
         ['nothing at all', null],
         ['a presence change whose members are not a list', { kind: 'presence.changed', members: 'member-1' }],

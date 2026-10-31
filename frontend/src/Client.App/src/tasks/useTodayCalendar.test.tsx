@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import { SignalledChangesContext, type SignalListener, type SignalledChanges } from '../signals/signalledChanges';
 import { dayAround } from './dayInstants';
 import { useTodayCalendar } from './useTodayCalendar';
 
@@ -59,6 +60,29 @@ function answering(answers: readonly (string | number)[]): {
     };
 }
 
+// A channel a test speaks into, standing in for the deployment and the refresh control.
+function told(): { readonly say: SignalListener; readonly changes: SignalledChanges } {
+    const listeners = new Set<SignalListener>();
+
+    return {
+        say: (change) => {
+            for (const listener of listeners) {
+                listener(change);
+            }
+        },
+        changes: {
+            listen: (listener) => {
+                listeners.add(listener);
+
+                return () => {
+                    listeners.delete(listener);
+                };
+            },
+            refresh: () => undefined,
+        },
+    };
+}
+
 function Day({
     transport,
     asking = session,
@@ -83,6 +107,34 @@ function Day({
 }
 
 describe('useTodayCalendar', () => {
+    it('reads the day again when the calendar changed elsewhere and on a refresh, and for nothing else', async () => {
+        const deployment = answering([
+            JSON.stringify({ events: [event('standup', 'Standup', '2026-09-21T10:00:00+02:00')] }),
+            JSON.stringify({ events: [event('review', 'Review', '2026-09-21T11:00:00+02:00')] }),
+            JSON.stringify({ events: [event('lunch', 'Lunch', '2026-09-21T12:00:00+02:00')] }),
+        ]);
+        const channel = told();
+
+        render(
+            <SignalledChangesContext value={channel.changes}>
+                <Day transport={deployment.transport} />
+            </SignalledChangesContext>,
+        );
+        expect(await screen.findByText('Standup')).toBeDefined();
+
+        act(() => {
+            channel.say({ kind: 'contacts.changed' });
+            channel.say({ kind: 'calendar.changed' });
+        });
+        expect(await screen.findByText('Review')).toBeDefined();
+
+        act(() => {
+            channel.say({ kind: 'refresh' });
+        });
+        expect(await screen.findByText('Lunch')).toBeDefined();
+        expect(deployment.asked()).toHaveLength(3);
+    });
+
     it('asks for the reader’s own day, for what is on the calendar rather than what was proposed', async () => {
         const deployment = answering([JSON.stringify({ events: [] })]);
         const day = dayAround(readingAt);

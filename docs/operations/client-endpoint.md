@@ -3596,6 +3596,12 @@ whoever reads it.
 the writing grant rather than a narrower one: a grant that may edit the book may take somebody out of it, and no
 smaller grant reaches an act that cannot be undone.
 
+**An open client is told when a book it reads changes.** A contact recorded, amended, taken on, erased, or given or
+relieved of a photo — over these routes, through a tool on the MCP surface, or by an Agent act — and a contact a run
+collected from arriving mail each raise `contacts.changed` on [the signal channel](#the-signal-channel), naming nothing
+of the record, and the client reads the book again. The colleagues are not part of it: they are the organization's
+members rather than a book anybody writes, and what changes about them is said by `presence.changed`.
+
 ### The contact photo routes
 
 These three hold the photo a person the signed-in user wrote down is drawn by, in the list of their book, on the
@@ -4061,6 +4067,11 @@ and a person whose mail accounts an administrator maintains keeps their own list
 those accounts. `mailfathom.mail.delete` is the power to remove somebody's mail and is not what the erasure asks for:
 what leaves is a commitment about a message that stays.
 
+**An open client is told when the list moves.** A task recorded, revised, accepted, completed or reopened, or erased —
+over these routes, through a tool on the MCP surface, or by an Agent act — and a task mail proposed each raise
+`tasks.changed` on [the signal channel](#the-signal-channel) to the person whose list it is and nobody else, naming
+nothing of the task, and the client reads its list again.
+
 ### The day-layout routes
 
 These are the two routes behind *Lay out today*: one says whether this deployment arranges a day at all, and the other
@@ -4213,6 +4224,11 @@ one is refused before it is read.
 committed: nothing here reaches a mail server, nothing moves in a mailbox, and the message an event cites is a value it
 carries rather than mail these routes read. `mailfathom.mail.delete` is the power to remove somebody's mail and is not
 what the deletion asks for — what leaves is a date about a message that stays.
+
+**An open client is told when the calendar moves.** An event created, amended, accepted, or deleted — over these routes,
+through a tool on the MCP surface, or by an Agent act — an [import](#the-calendar-import-routes) that wrote at least one
+event, and an event mail proposed each raise `calendar.changed` on [the signal channel](#the-signal-channel) to the
+person whose calendar it is, naming nothing of the event, and the client reads the window it draws again.
 
 **What these routes do not serve.** There is no recurrence and no external calendar synchronization;
 [calendar events](../features/calendar-events.md) states which of those are refused as ideas and which are simply not
@@ -4738,7 +4754,7 @@ no subject, address, body fragment, filename, or attachment name reaches it at a
 flags `mail.flags.changed` carries, which say where each of those two stands rather than that one moved, for the reason
 the paragraph below the table gives. The second is a raised notification's own headline and second line, which are the
 record's already-derived text and reach a client entitled to read that record over
-[the notification routes](#the-notification-routes). Nine things are said:
+[the notification routes](#the-notification-routes). Twelve things are said:
 
 | Signal | What it says |
 | --- | --- |
@@ -4751,6 +4767,9 @@ record's already-derived text and reach a client entitled to read that record ov
 | `account.state` | An account's synchronization run finished, so what a client says about it is out of date |
 | `run.advanced` | A [Discover run](../features/discovery-run.md#a-run-is-watched-rather-than-waited-for) or an [Agent conversation](#the-agent-conversation-routes) had something written, naming the run, the conversation where it is one, and the place reached — and no part of what was written |
 | `presence.changed` | How up to 100 colleagues read to the other members of the organization may have changed, naming their user identities in `members` and nothing about them; an empty `members` names every colleague. A client re-reads them over [the contact routes](#the-contact-routes) |
+| `calendar.changed` | One person's [calendar](#the-calendar-routes) was written, whoever wrote it, naming nothing of any event; it reaches that person alone |
+| `tasks.changed` | One person's [task list](#the-task-routes) was written, whoever wrote it, naming nothing of any task; it reaches that person alone |
+| `contacts.changed` | A [contact book](#the-contact-routes) was written, whoever wrote it, naming nothing of any record. One person's own book reaches that person, a mailbox's collected book reaches everybody that mailbox serves and names the account, and the organization's book reaches every member |
 
 **A flag is the one change stated rather than pointed at.** `mail.flags.changed` carries, per row, the stored identity
 and where each of the two flags now stands, so a client redraws the row it already holds without reading the page it is
@@ -4761,8 +4780,8 @@ else that moved — a message that changed folder, was deleted, or whose keyword
 whole of what a run found, and a client re-reads. A flag a publisher did not observe is left out rather than reported as
 cleared: a reconciliation window states both, and a change this deployment authored states the one it wrote.
 
-**A client that does not know a kind ignores it and catches up on its next refresh**, which is what made the sixth, the
-seventh, the eighth, and the ninth additions rather than breaks; the client and the service ship under one version.
+**A client that does not know a kind ignores it and catches up on its next refresh**, which is what made every kind
+from the sixth to the twelfth an addition rather than a break; the client and the service ship under one version.
 
 **A statement names no folder where the change is known only by where it stands on the mail server.** A change
 settled against the server — a move, a copy, a delete, a keyword or a flag change MailFathom wrote there — and what a
@@ -4797,7 +4816,7 @@ to the front or the browser reports its network back.
 a gap in the channel is a gap in what the client heard — a dropped socket, a rolling upgrade, a network that went and
 came back, and, above one replica with no backplane configured, a statement lost behind a connection that stayed open. So the client refreshes: it
 reads again everything it draws — the folder tree and its counts, the pages of the list it holds, the open message, the
-accounts, and the notification centre — whenever a connection stands again after one stood for the same sign-in, and
+accounts, the notification centre, the calendar, the task list, and the contact book — whenever a connection stands again after one stood for the same sign-in, and
 every five minutes while its window is visible, counted from the last refresh rather than on a fixed clock. It never
 refreshes while the window is hidden, and refreshes at once when a window hidden past those five minutes comes back. A
 refresh is the act the client's *Refresh* control performs, it keeps what the person is in the middle of — the

@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Presence;
 using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using Microsoft.AspNetCore.SignalR;
@@ -27,24 +28,29 @@ internal sealed partial class SignalRClientSignalChannel : IClientSignalChannel
 {
     private readonly IHubContext<ClientSignalHub> hub;
     private readonly IMailAccountAssignments assignments;
+    private readonly IPresenceStore organizations;
     private readonly ILogger<SignalRClientSignalChannel> logger;
 
     /// <summary>Initializes the channel over the hub it publishes through.</summary>
     /// <param name="hub">Addresses one user's connections by their group.</param>
     /// <param name="assignments">Answers who is assigned the mailbox a signal names, read when the signal is delivered.</param>
+    /// <param name="organizations">Answers who belongs to the organization a signal names, read when the signal is delivered.</param>
     /// <param name="logger">Records a signal that could not be delivered, in kinds and counts rather than in anything about mail.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public SignalRClientSignalChannel(
         IHubContext<ClientSignalHub> hub,
         IMailAccountAssignments assignments,
+        IPresenceStore organizations,
         ILogger<SignalRClientSignalChannel> logger)
     {
         ArgumentNullException.ThrowIfNull(hub);
         ArgumentNullException.ThrowIfNull(assignments);
+        ArgumentNullException.ThrowIfNull(organizations);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.hub = hub;
         this.assignments = assignments;
+        this.organizations = organizations;
         this.logger = logger;
     }
 
@@ -77,12 +83,13 @@ internal sealed partial class SignalRClientSignalChannel : IClientSignalChannel
         }
     }
 
-    /// <summary>Resolves whose connections one signal reaches, which is the assigned users where it names a mailbox.</summary>
+    /// <summary>Resolves whose connections one signal reaches: the assigned users where it names a mailbox, and the members where it names an organization.</summary>
     /// <remarks>
     /// A signal naming a user is that person's and reaches them alone. One naming an account reaches everybody
-    /// assigned that account, resolved here rather than where the signal was composed: an assignment made between the
-    /// two would otherwise deliver to the set as it stood when a run started. A mailbox assigned to nobody reaches
-    /// nobody, which is what an empty answer has to mean everywhere the assignment relation is read.
+    /// assigned that account, and one naming an organization every person in it, each resolved here rather than where
+    /// the signal was composed: an assignment or a membership made between the two would otherwise deliver to the set
+    /// as it stood when the write happened. A mailbox assigned to nobody reaches nobody, which is what an empty answer
+    /// has to mean everywhere the assignment relation is read.
     /// </remarks>
     private async Task<IReadOnlyList<UserId>> ReadRecipientsAsync(ClientSignal signal, CancellationToken cancellationToken)
     {
@@ -91,12 +98,17 @@ internal sealed partial class SignalRClientSignalChannel : IClientSignalChannel
             return [named];
         }
 
-        if (signal.Account is not { } account)
+        if (signal.Account is { } account)
         {
-            return [];
+            return await this.assignments.ReadUsersAssignedToAsync(account, cancellationToken);
         }
 
-        return await this.assignments.ReadUsersAssignedToAsync(account, cancellationToken);
+        if (signal.Organization is { } organization)
+        {
+            return await this.organizations.ReadOrganizationUsersAsync(organization, cancellationToken);
+        }
+
+        return [];
     }
 
     [LoggerMessage(
