@@ -4186,7 +4186,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const k = mKey(i);
         const open = true;
         const flash = st.msgFlash === k;
-        const isActive = firstNew == null && i === activeIdx && msgs.length > 1 && !hiddenCount;
+        /* Read by thread, the row was the conversation, so what it opened at is its newest message, whichever folder
+           holds it; the mark shows wherever more than that one message stands open. */
+        const shownCount = !hiddenCount ? msgs.length : firstNew != null ? lastIdx - firstNew + 1 : 1;
+        const isActive = convMail
+          ? i === lastIdx && shownCount > 1
+          : i === activeIdx && msgs.length > 1 && !hiddenCount;
         const isNew = firstNew != null && i >= firstNew && !m.mine;
         const remoteRefs = m.remoteRefs != null ? m.remoteRefs
           : m.mine || thread.report ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
