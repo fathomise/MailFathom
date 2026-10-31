@@ -130,6 +130,13 @@ export function RecipientField({
             : [...suggested.participants, ...suggested.groups.flatMap((group) => group.suggestions)];
     const unsearchable = searchable && lookup?.term === term && lookup.answer.incomplete;
     const open = focused && !dismissed && (offered.length > 0 || unsearchable);
+
+    // The arrows move only the highlight, and the list is bounded, so the one in force is brought into the box's view.
+    useEffect(() => {
+        if (active !== null) {
+            document.getElementById(`${listId}-${active.toFixed(0)}`)?.scrollIntoView({ block: 'nearest' });
+        }
+    }, [active, listId]);
     // The popup can hold the note alone, and the combobox names only a listbox that is drawn.
     const listed = open && offered.length > 0;
     const inForce = open && active !== null ? offered[active] : undefined;

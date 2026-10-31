@@ -6,7 +6,7 @@ using MailFathom.Domain.Access;
 
 namespace MailFathom.Application.Access;
 
-/// <summary>Gives a user the row the mail graph hangs on, and keeps the label on it the one they were recorded under.</summary>
+/// <summary>Gives a user the row the mail graph hangs on, and keeps the label, the title, and the type on it the ones an administrator last wrote.</summary>
 /// <remarks>
 /// <para>
 /// The envelope is all this writes: the row exists because <c>mailbox_accounts.UserId</c> is a foreign key and the
@@ -14,9 +14,10 @@ namespace MailFathom.Application.Access;
 /// until a write to the user's record fills it.
 /// </para>
 /// <para>
-/// Both operations are idempotent, because two writers may reach one row at once and the one that lost has to be
+/// All four operations are idempotent, because two writers may reach one row at once and the one that lost has to be
 /// answered with what the deployment holds rather than with a failure. Provisioning a user the deployment already
-/// holds writes nothing, and relabelling one already carrying the label leaves them as they were.
+/// holds writes nothing, and relabelling one already carrying the label, or giving one the title or the type they
+/// already carry, leaves them as they were.
 /// </para>
 /// </remarks>
 public interface IUserProvisioning

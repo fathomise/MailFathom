@@ -43,13 +43,34 @@ public sealed class OrganizationBookPrecedenceTests
 
     private readonly IStoredFileStore files = Substitute.For<IStoredFileStore>();
 
+    private readonly StubMailAccountAssignments assignments = new();
+
     /// <summary>A colleague answers for their own address, so the organization's and a mailbox's record of it give way to them on a listing read beside the directory.</summary>
     [Fact]
     public async Task ReadPageAsync_BesideColleagues_LeavesOutTheOrganizationAndCollectedRecordsOfAColleaguesAddress()
     {
         // Arrange
         this.ColleagueHolds("piotr@nordwind.example");
+        this.assignments.Assigning(Reader, SyntheticMailAccount.Deployment);
         this.store.Hold(ContactBookHolder.OfOrganization(Organization), ContactOf("Piotr (biuro)", "piotr@nordwind.example", Organization));
+        this.store.Hold(ContactBookHolder.OfOrganization(Organization), ContactOf("Biuro Rachunkowe", "biuro@example.test", Organization));
+        this.store.Hold(SyntheticMailAccount.Deployment, ContactOf("piotr@nordwind.example", "piotr@nordwind.example", origin: ContactOrigin.Collected));
+        this.store.Hold(SyntheticMailAccount.Deployment, ContactOf("Anna Kowalska", "anna@example.test", origin: ContactOrigin.Collected));
+
+        // Act
+        var page = await this.BookReader()
+            .ReadPageAsync(new ContactPageRequest { BesideColleagues = true }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["Anna Kowalska", "Biuro Rachunkowe"], page.Contacts.Select(contact => contact.DisplayName.Value));
+    }
+
+    /// <summary>The reader is not their own colleague, so an address the directory reads as theirs outranks nobody's record of it.</summary>
+    [Fact]
+    public async Task ReadPageAsync_BesideColleagues_KeepsTheOrganizationsRecordOfTheReadersOwnAddress()
+    {
+        // Arrange
+        this.Composing(MemberOf(Reader, "biuro@example.test"));
         this.store.Hold(ContactBookHolder.OfOrganization(Organization), ContactOf("Biuro Rachunkowe", "biuro@example.test", Organization));
 
         // Act
@@ -166,14 +187,33 @@ public sealed class OrganizationBookPrecedenceTests
         await this.files.DidNotReceiveWithAnyArgs().WriteAsync(default, default!, default, TestContext.Current.CancellationToken);
     }
 
-    private static Contact ContactOf(string displayName, string address, Guid? organization = null) =>
+    /// <summary>Taking a photo off is as much a change to the record as putting one on, so removing the organization's is refused before any file is touched.</summary>
+    [Fact]
+    public async Task RemoveAsync_AnOrganizationContactsPhoto_IsRefusedWithoutTouchingTheFileStore()
+    {
+        // Arrange
+        var kept = ContactOf("Biuro Rachunkowe", "biuro@example.test", Organization);
+        this.store.Hold(ContactBookHolder.OfOrganization(Organization), kept);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<ContactReadOnlyException>(() =>
+            this.Photos().RemoveAsync(kept.Id, TestContext.Current.CancellationToken));
+
+        Assert.Empty(this.files.ReceivedCalls());
+    }
+
+    private static Contact ContactOf(
+        string displayName,
+        string address,
+        Guid? organization = null,
+        ContactOrigin origin = ContactOrigin.Asserted) =>
         Contact.Create(
             ContactId.Create(Guid.CreateVersion7(Now)),
             ContactDisplayName.Create(displayName),
             [Address(address)],
             Address(address),
             note: null,
-            ContactOrigin.Asserted,
+            origin,
             Now,
             Now,
             organization);
@@ -194,36 +234,34 @@ public sealed class OrganizationBookPrecedenceTests
     private static AccessAuthorization Authorization() =>
         AccessAuthorizations.ForUserGranted(Reader, MailFathomPermission.ContactsRead, MailFathomPermission.ContactsWrite);
 
-    private static ContactBookOwnership Ownership(AccessAuthorization authorization) =>
+    private static MemberContact MemberOf(UserId member, string address) =>
+        new(
+            member,
+            ContactDisplayName.Create("Piotr Zieliński"),
+            [Address(address)],
+            Address(address),
+            [],
+            JobTitle: null,
+            "Nordwind",
+            Portrait: null,
+            TimeZone: null);
+
+    private ContactBookOwnership Ownership(AccessAuthorization authorization) =>
         ContactBookOwnerships.For(
             authorization,
-            new StubMailAccountAssignments(),
+            this.assignments,
             new StatedAdministrativeTargets().WithUser(Reader, Organization).WithUser(Colleague, Organization));
 
-    private void ColleagueHolds(string address)
-    {
-        MemberContact[] composed =
-        [
-            new(
-                Colleague,
-                ContactDisplayName.Create("Piotr Zieliński"),
-                [Address(address)],
-                Address(address),
-                [],
-                JobTitle: null,
-                "Nordwind",
-                Portrait: null,
-                TimeZone: null),
-        ];
+    private void ColleagueHolds(string address) => this.Composing(MemberOf(Colleague, address));
 
+    private void Composing(params MemberContact[] composed) =>
         this.members.ReadAsync(Organization, Arg.Any<CancellationToken>()).Returns(composed);
-    }
 
     private ContactBookReader BookReader()
     {
         var authorization = Authorization();
 
-        return new ContactBookReader(this.store, this.members, Ownership(authorization), authorization);
+        return new ContactBookReader(this.store, this.members, this.Ownership(authorization), authorization);
     }
 
     private ContactBookWriter Writer()
@@ -234,7 +272,7 @@ public sealed class OrganizationBookPrecedenceTests
         return new ContactBookWriter(
             new ContactBook(this.store, this.store, this.files, CommitPolicy(), timeProvider, authorization),
             this.store,
-            Ownership(authorization),
+            this.Ownership(authorization),
             authorization);
     }
 
@@ -242,7 +280,7 @@ public sealed class OrganizationBookPrecedenceTests
     {
         var authorization = Authorization();
 
-        return new ContactPhotos(authorization, Ownership(authorization), this.store, this.store, this.files, CommitPolicy());
+        return new ContactPhotos(authorization, this.Ownership(authorization), this.store, this.store, this.files, CommitPolicy());
     }
 
     /// <summary>A session that commits, because nothing here is about a conflict the policy has to retry.</summary>

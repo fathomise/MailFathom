@@ -1106,6 +1106,40 @@ public sealed class UserRosterAdministrationTests
         await harness.Provisioning.Received(1).SetTypeAsync(SyntheticUser.Deployment, UserType.ServiceAccount, Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A user outside the administrator's scope is answered as one the deployment does not hold, so nobody's directory is changed from outside it.</summary>
+    [Theory]
+    [MemberData(nameof(ScopesOutsideTheUser))]
+    public async Task SetTypeAsync_AUserOutsideTheCallersScope_ReportsTheUserAsUnheldWithoutTouchingTheRow(AssignmentScope scope)
+    {
+        // Arrange
+        var harness = HarnessScopedAt(scope, MailFathomPermission.AdminConfigurationWrite);
+        harness.Holding(new UserRecord(AccessAuthorizations.ScopedHolder, "alexandra"));
+
+        // Act
+        var outcome = await harness.Roster.SetTypeAsync(AccessAuthorizations.ScopedHolder, UserType.ServiceAccount, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(UserRowWriteOutcome.NoSuchUser, outcome);
+        Assert.Empty(harness.Provisioning.ReceivedCalls());
+    }
+
+    /// <summary>Writing a title is configuration, so the reading grant does not reach it.</summary>
+    [Fact]
+    public async Task SetJobTitleAsync_ACallerWithoutTheConfigurationGrant_IsRefused()
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminRead);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "alex"));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
+            () => harness.Roster.SetJobTitleAsync(SyntheticUser.Deployment, "Controller", TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.AdminConfigurationWrite, refusal.RequiredPermission);
+        Assert.Empty(harness.Provisioning.ReceivedCalls());
+    }
+
     /// <summary>A user this deployment does not hold is an absence to report rather than a label to refuse.</summary>
     /// <remarks>
     /// The two are one sentence to an administrator and two answers to a caller: the route publishes this one as the

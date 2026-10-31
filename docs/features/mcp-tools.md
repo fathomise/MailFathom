@@ -2054,7 +2054,7 @@ an erasure removes. Nothing of that is restated here; what this section holds is
 **A caller reads the books of the user it was admitted to act for** — that user's own, holding the people they wrote
 down, beside the book of the organization they are a member of and the collected book of each mail account assigned to
 them — and no argument of any of the six names another user or an organization. Its writes reach the user's own book
-alone, so an organization's contact, which carries `organization`, is one the writing tools answer as not held. A person another user wrote down is answered as somebody these books
+alone, so an organization's contact, which carries `organization`, is refused `51017` by `update_contact` and `delete_contact`, and `promote_contact` copies it into the user's own book. A person another user wrote down is answered as somebody these books
 do not hold, and an address another user's contact holds is free for this one; an address a mail account collected is
 answered once even where two of the caller's accounts picked it up, and the user's own contact is what answers where
 both books carry the address.
@@ -2117,7 +2117,7 @@ which is the same rule every listing on this surface follows.
 
 | Field | Meaning |
 |---|---|
-| `contacts` | The page, ordered by the name's comparison form and then by identity, each entry carrying `contactId`, `displayName`, `addresses`, `preferredAddress`, `note`, `origin`, `recordedAt`, `amendedAt`, and `organization` — the organization whose book holds the contact, absent for a contact of the caller's own book or of a mailbox's. A contact carrying it is read-only here: `update_contact`, `promote_contact`, and `delete_contact` answer it as a contact the caller does not hold |
+| `contacts` | The page, ordered by the name's comparison form and then by identity, each entry carrying `contactId`, `displayName`, `addresses`, `preferredAddress`, `note`, `origin`, `recordedAt`, `amendedAt`, and `organization` — the organization whose book holds the contact, absent for a contact of the caller's own book or of a mailbox's. A contact carrying it is read-only here: `update_contact` and `delete_contact` refuse it `51017`, and `promote_contact` copies it into the caller's own book |
 | `nextCursor` | The cursor of the following page, or absent when the walk is done |
 
 **A contact cursor is not bound to the filters.** The book is walked in one order whatever narrows it, so continuing a

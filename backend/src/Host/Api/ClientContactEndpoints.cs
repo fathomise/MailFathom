@@ -31,7 +31,8 @@ namespace MailFathom.Host.Api;
 /// Every write acts under <see cref="ContactOrigin.Asserted" />, which is <see cref="ContactBookWriter" />'s decision
 /// rather than this file's: what somebody types into their own client is a person they wrote down. What follows from it
 /// is that amending a contact one of their mailboxes collected is refused until it has been promoted, and promotion is
-/// published here as the act it is.
+/// published here as the act it is. A contact their organization keeps is refused outright, and promoting one copies it
+/// into their own book, where it is theirs to amend.
 /// </para>
 /// <para>
 /// <b>Two routes the administrative surface publishes are deliberately absent.</b> There is no export, because that is
@@ -67,7 +68,7 @@ internal static class ClientContactEndpoints
     /// <summary>The route one contact is read, amended, and erased at, relative to the client prefix.</summary>
     internal const string ContactRoute = "/contacts/{contactId:guid}";
 
-    /// <summary>The route a collected contact is taken on at, relative to the client prefix.</summary>
+    /// <summary>The route a collected contact is taken on at, and an organization's contact copied into the user's own book, relative to the client prefix.</summary>
     internal const string ContactPromotionRoute = "/contacts/{contactId:guid}/promotion";
 
     /// <summary>Maps the contact routes into the client group, so they inherit its requirement, its policy, and its limits.</summary>
@@ -257,11 +258,11 @@ internal static class ClientContactEndpoints
         }
     }
 
-    /// <summary>Takes on a contact one of the acting user's mailboxes collected, so it becomes one they asserted.</summary>
+    /// <summary>Takes on a contact one of the acting user's mailboxes collected, so it becomes one they asserted, or copies one their organization keeps into their own book.</summary>
     /// <param name="contactId">The contact to promote.</param>
     /// <param name="contacts">Performs the write.</param>
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
-    /// <returns><c>200</c> with the outcome and no record, including for a contact that was already asserted.</returns>
+    /// <returns><c>200</c> with the outcome and no record, including for a contact that was already asserted; for an organization's contact the outcome is that of writing the copy, and the organization's record stays as it was.</returns>
     /// <remarks>
     /// The only write here whose caller states no record, and therefore the only one whose answer would be the book's
     /// own contents rather than the request's. It is published under the writing grant while reading the book is its

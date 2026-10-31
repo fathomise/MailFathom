@@ -316,6 +316,31 @@ describe('RecipientField', () => {
         expect((field() as HTMLInputElement).value).toBe('');
     });
 
+    it('brings the entry the arrows put in force into the bounded list’s view', async () => {
+        const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView');
+
+        drawField(
+            [],
+            [
+                { address: 'anna@example.invalid', name: 'Anna' },
+                { address: 'annika@example.invalid', name: 'Annika' },
+            ],
+        );
+
+        typeInto('ann');
+        fireEvent.keyDown(field(), { key: 'ArrowDown' });
+        fireEvent.keyDown(field(), { key: 'ArrowDown' });
+
+        const [, second] = screen.getAllByRole('option');
+
+        await waitFor(() => {
+            expect(scrolled.mock.contexts.at(-1)).toBe(second);
+        });
+        expect(scrolled).toHaveBeenLastCalledWith({ block: 'nearest' });
+
+        scrolled.mockRestore();
+    });
+
     it('writes in an entry pressed with the pointer, rather than the half-typed text the press left behind', () => {
         const { changed } = drawField([], [{ address: 'anna@example.invalid', name: 'Anna' }]);
 

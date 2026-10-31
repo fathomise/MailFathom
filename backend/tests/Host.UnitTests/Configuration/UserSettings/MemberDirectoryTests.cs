@@ -80,6 +80,26 @@ public sealed class MemberDirectoryTests
         Assert.Null(member.Portrait);
     }
 
+    /// <summary>A record naming the all-zero portrait names none, so it reads as a member with no portrait rather than failing the directory.</summary>
+    [Fact]
+    public async Task ReadAsync_AMemberWhoseRecordNamesTheEmptyPortrait_IsListedWithNoPortrait()
+    {
+        // Arrange
+        this.Reading(new OrganizationMember(
+            Piotr,
+            "Piotr Zieliński",
+            JobTitle: null,
+            """{"Language": "English", "TimeZone": "Europe/Warsaw", "Portrait": "00000000-0000-0000-0000-000000000000"}""",
+            ["piotr@nordwind.example"]));
+
+        // Act
+        var member = Assert.Single(await this.Directory().ReadAsync(Organization, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Null(member.Portrait);
+        Assert.Equal("Europe/Warsaw", member.TimeZone?.Id);
+    }
+
     /// <summary>A label no contact could carry as a name leaves the member out, rather than failing the whole directory.</summary>
     [Fact]
     public async Task ReadAsync_AMemberWhoseLabelNoContactCouldCarry_IsLeftOut()

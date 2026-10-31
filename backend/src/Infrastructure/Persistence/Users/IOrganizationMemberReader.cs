@@ -9,8 +9,10 @@ namespace MailFathom.Infrastructure.Persistence.Users;
 /// <summary>Reads what an organization's member directory is composed from: its people, their records, and the addresses that are each one's own.</summary>
 /// <remarks>
 /// The rows rather than the contacts, because what a member's record states is read through the settings policies
-/// governing them, which the configuration layer resolves. Everything a member contact needs comes back from one
-/// connection, so the directory a reader is shown is one moment's reading of the rows rather than several.
+/// governing them, which the configuration layer resolves. Everything a member contact needs comes back over one
+/// connection but not from one snapshot: each statement reads what was committed when it ran, so a member retyped, a
+/// mailbox reassigned, or a policy changed between two of them is read half before and half after, and the next read
+/// answers with the change whole.
 /// </remarks>
 public interface IOrganizationMemberReader
 {

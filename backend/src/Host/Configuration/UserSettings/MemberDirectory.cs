@@ -93,7 +93,7 @@ internal sealed class MemberDirectory(IOrganizationMemberReader members, UserAcc
             record?.ReadingPhoneNumbers ?? [],
             member.JobTitle,
             organizationName,
-            record?.Portrait is { } portrait ? StoredFileId.Create(portrait) : null,
+            record?.Portrait is { } portrait && portrait != Guid.Empty ? StoredFileId.Create(portrait) : null,
             record?.ReadingTimeZone);
     }
 

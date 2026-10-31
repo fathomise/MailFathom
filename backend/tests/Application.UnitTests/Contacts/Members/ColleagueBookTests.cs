@@ -282,6 +282,23 @@ public sealed class ColleagueBookTests
         Assert.Empty(page.Colleagues);
     }
 
+    /// <summary>Copying a colleague writes the reader's own book, so the reading grant alone does not reach it.</summary>
+    [Fact]
+    public async Task PromoteAsync_ACallerWithoutTheWritingGrant_IsRefusedAndWritesNothing()
+    {
+        // Arrange
+        this.Holding(MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example"));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            this.BookFor(Organization, MailFathomPermission.ContactsRead)
+                .PromoteAsync(Piotr, ContactAddressWriterKind.Person, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.ContactsWrite, refusal.RequiredPermission);
+        Assert.Equal(0, this.store.ContactCount);
+    }
+
     /// <summary>Somebody who is not the reader's colleague cannot be copied out of a directory the reader does not read.</summary>
     [Fact]
     public async Task PromoteAsync_NoSuchColleague_IsNotFoundAndWritesNothing()
