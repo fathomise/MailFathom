@@ -1315,6 +1315,15 @@
               "string"
             ]
           },
+          "phoneNumbers": {
+            "items": {
+              "$ref": "#/components/schemas/ContactPhoneNumberDraft"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
           "preferredAddress": {
             "type": [
               "null",
@@ -5832,6 +5841,42 @@
         ],
         "type": "object"
       },
+      "ContactPhoneNumberDraft": {
+        "properties": {
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "number": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "number",
+          "label"
+        ],
+        "type": "object"
+      },
+      "ContactPhoneNumberResponse": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "label"
+        ],
+        "type": "object"
+      },
       "ContactPhotoResponse": {
         "properties": {
           "content": {
@@ -5868,6 +5913,15 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "phoneNumbers": {
+            "items": {
+              "$ref": "#/components/schemas/ContactPhoneNumberDraft"
+            },
+            "type": [
+              "null",
+              "array"
             ]
           },
           "preferredAddress": {
@@ -5920,6 +5974,12 @@
           "origin": {
             "type": "string"
           },
+          "phoneNumbers": {
+            "items": {
+              "$ref": "#/components/schemas/ContactPhoneNumberResponse"
+            },
+            "type": "array"
+          },
           "photo": {
             "format": "uuid",
             "type": [
@@ -5945,7 +6005,8 @@
           "recordedAt",
           "amendedAt",
           "organization",
-          "photo"
+          "photo",
+          "phoneNumbers"
         ],
         "type": "object"
       },

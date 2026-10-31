@@ -42,4 +42,12 @@ public sealed record ContactRecordDraft
     /// <summary>Gets what the user wrote about this person, or <see langword="null" /> for none.</summary>
     /// <remarks>Blank text is the absence of a note rather than an empty one, so a caller clearing a note sends the field empty instead of reaching for a second verb.</remarks>
     public string? Note { get; init; }
+
+    /// <summary>Gets the phone numbers this person uses, the preferred one first, or <see langword="null" /> where the caller stated none.</summary>
+    /// <remarks>
+    /// Absent is not empty. A record written with none holds none, while an amendment stating none keeps the numbers the
+    /// contact holds — which is what lets a caller that knows nothing of numbers amend a contact without erasing them. An
+    /// empty list is how numbers are cleared.
+    /// </remarks>
+    public IReadOnlyList<ContactPhoneNumberDraft>? PhoneNumbers { get; init; }
 }

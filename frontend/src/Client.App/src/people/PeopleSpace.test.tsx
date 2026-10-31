@@ -10,6 +10,7 @@ import type { ContactPhotoExchange } from '../deployment/portraitExchange';
 import { LocalizationProvider } from '../localization/Localization';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from '../shell/screenLayers';
+import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { PeopleSpace } from './PeopleSpace';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
@@ -63,6 +64,7 @@ function personCalled(
         addresses,
         preferredAddress: addresses[0],
         note: null,
+        phoneNumbers: [],
         origin,
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
@@ -178,20 +180,22 @@ function drawSpace(
 ): void {
     render(
         <LocalizationProvider>
-            <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
-                <ScreenLayersContext value={layers}>
-                    <ComposingContext value={composing}>
-                        <PeopleSpace
-                            session={session}
-                            transport={transport}
-                            contactPhotos={photos}
-                            writable={writable}
-                            onOpenThread={vi.fn()}
-                            onOpenDocument={vi.fn()}
-                        />
-                    </ComposingContext>
-                </ScreenLayersContext>
-            </ConnectionStatusContext>
+            <LinkOpenerContext value={() => Promise.resolve()}>
+                <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
+                    <ScreenLayersContext value={layers}>
+                        <ComposingContext value={composing}>
+                            <PeopleSpace
+                                session={session}
+                                transport={transport}
+                                contactPhotos={photos}
+                                writable={writable}
+                                onOpenThread={vi.fn()}
+                                onOpenDocument={vi.fn()}
+                            />
+                        </ComposingContext>
+                    </ScreenLayersContext>
+                </ConnectionStatusContext>
+            </LinkOpenerContext>
         </LocalizationProvider>,
     );
 }
@@ -262,6 +266,7 @@ describe('PeopleSpace', () => {
             addresses: ['bartek@contoso.example'],
             preferredAddress: 'bartek@contoso.example',
             note: null,
+            phoneNumbers: [],
         });
     });
 
@@ -656,6 +661,7 @@ describe('PeopleSpace', () => {
             addresses: ['anna@home.example', 'anna@contoso.example'],
             preferredAddress: 'anna@home.example',
             note: null,
+            phoneNumbers: [],
         });
     });
 

@@ -6,6 +6,7 @@ using MailFathom.Application.Contacts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Contacts;
 
@@ -65,8 +66,30 @@ internal static class ContactMapping
             entity.Addresses.Add(ToAddressEntity(holder, contact, address, writer));
         }
 
+        for (var position = 0; position < contact.PhoneNumbers.Count; position++)
+        {
+            entity.PhoneNumbers.Add(ToPhoneNumberEntity(contact, contact.PhoneNumbers[position], position));
+        }
+
         return entity;
     }
+
+    /// <summary>Builds the row one of a contact's phone numbers is kept as.</summary>
+    /// <param name="contact">The contact the number belongs to.</param>
+    /// <param name="phoneNumber">The number to keep.</param>
+    /// <param name="position">Its place in the contact's order.</param>
+    /// <returns>The phone number row.</returns>
+    internal static ContactPhoneNumberEntity ToPhoneNumberEntity(
+        Contact contact,
+        ContactPhoneNumber phoneNumber,
+        int position) =>
+        new()
+        {
+            ContactId = contact.Id.Value,
+            Position = position,
+            Number = phoneNumber.Number,
+            Label = phoneNumber.Label,
+        };
 
     /// <summary>Builds the row one of a contact's addresses is kept as.</summary>
     /// <param name="holder">The book the contact is in, which the row repeats because the uniqueness rule spans this table alone.</param>
@@ -134,8 +157,25 @@ internal static class ContactMapping
             entity.RecordedAt,
             entity.AmendedAt,
             entity.OrganizationId,
-            entity.PhotoFileId);
+            entity.PhotoFileId,
+            [.. entity.PhoneNumbers
+                .OrderBy(phoneNumber => phoneNumber.Position)
+                .Select(phoneNumber => ContactPhoneNumber.Create(phoneNumber.Number, phoneNumber.Label))]);
     }
+
+    /// <summary>Loads every row <see cref="ToContact" /> rebuilds a contact from, beside the contact's own.</summary>
+    /// <param name="contacts">The contacts a query reads.</param>
+    /// <returns>The same query with the addresses and the phone numbers loaded in one statement.</returns>
+    /// <remarks>
+    /// One statement rather than one per collection, because the preferred address is read against the addresses and a
+    /// split read could see an amendment between the two. The product of a person's addresses and numbers is bounded
+    /// by the two ceilings the domain holds.
+    /// </remarks>
+    internal static IQueryable<ContactEntity> WithRecordRows(IQueryable<ContactEntity> contacts) =>
+        contacts
+            .Include(record => record.Addresses)
+            .Include(record => record.PhoneNumbers)
+            .AsSingleQuery();
 
     /// <summary>Rebuilds one stored address, which the write path already validated.</summary>
     private static EmailAddress ToAddress(ContactAddressEntity entity) =>

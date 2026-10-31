@@ -234,6 +234,7 @@ internal static class ClientContactEndpoints
             Addresses = request.Addresses,
             PreferredAddress = request.PreferredAddress,
             Note = request.Note,
+            PhoneNumbers = request.PhoneNumbers,
         };
 
         try
@@ -379,6 +380,7 @@ internal static class ClientContactEndpoints
             Addresses = request.Addresses,
             PreferredAddress = request.PreferredAddress,
             Note = request.Note,
+            PhoneNumbers = request.PhoneNumbers,
         };
 
     /// <summary>States that the route named the one identifier no contact can carry.</summary>

@@ -389,7 +389,8 @@ public sealed class ContactBook
                     amendment.Addresses,
                     amendment.PreferredAddress,
                     amendment.Note,
-                    this.timeProvider.GetUtcNow());
+                    this.timeProvider.GetUtcNow(),
+                    amendment.PhoneNumbers);
 
                 if (await this.AddressHolderOtherThanAsync(holder, amended, token) is { } addressHolder)
                 {
@@ -756,7 +757,8 @@ public sealed class ContactBook
             newContact.Origin,
             recordedAt,
             recordedAt,
-            holder.Organization);
+            holder.Organization,
+            phoneNumbers: newContact.PhoneNumbers);
 
         if (await this.AddressHolderOtherThanAsync(holder, contact, cancellationToken) is { } addressHolder)
         {

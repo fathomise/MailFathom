@@ -49,7 +49,7 @@ test('offers a person it wrote down to a message, opens their page, and lets the
     await expect(book.getByRole('option', { name: new RegExp(name, 'u') })).toBeVisible();
 
     expect(deployment.requests('POST', '/contacts').map(({ body }) => body)).toStrictEqual([
-        { displayName: name, addresses: [address], preferredAddress: address, note: null },
+        { displayName: name, addresses: [address], preferredAddress: address, note: null, phoneNumbers: [] },
     ]);
 
     // At once somebody to write to: the composer finds them by a fragment, and choosing them addresses the message.
@@ -67,7 +67,8 @@ test('offers a person it wrote down to a message, opens their page, and lets the
 
     const person = page.getByRole('region', { name });
 
-    await expect(person.getByText(address)).toBeVisible();
+    await expect(person.getByRole('listitem').filter({ hasText: address })).toBeVisible();
+    await expect(person.getByText('No phone numbers', { exact: true })).toBeVisible();
     await expect(person.getByText('No conversation here names this person.')).toBeVisible();
 
     const [correspondence] = deployment.issued.filter(
@@ -147,6 +148,10 @@ test('corrects a person it wrote down from their page, and the book and the page
             addresses: ['anna@nordwind.example', 'a.marlow@nordwind.example'],
             preferredAddress: 'anna@nordwind.example',
             note: 'Runs the warehouse in Gdańsk.',
+            phoneNumbers: [
+                { number: '+1 202 555 0143', label: 'Mobile' },
+                { number: '+1 202 555 0178', label: 'Work' },
+            ],
         },
     ]);
 });

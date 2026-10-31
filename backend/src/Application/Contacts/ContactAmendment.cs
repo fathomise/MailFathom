@@ -39,6 +39,10 @@ public sealed record ContactAmendment
     /// <summary>Gets what the user wrote about this person, or <see langword="null" /> to hold no note.</summary>
     public ContactNote? Note { get; init; }
 
+    /// <summary>Gets the phone numbers the contact is to hold afterwards, or <see langword="null" /> to keep the ones it holds.</summary>
+    /// <remarks>The one part an amendment may leave unstated, so a surface that carries no numbers cannot erase them.</remarks>
+    public IReadOnlyList<ContactPhoneNumber>? PhoneNumbers { get; init; }
+
     /// <summary>Gets the addresses among <see cref="Addresses" /> the writer states again, which take this amendment's writer although the contact keeps them.</summary>
     /// <remarks>
     /// An amendment that keeps an address keeps the writer that address has, so an address an agent wrote, or one

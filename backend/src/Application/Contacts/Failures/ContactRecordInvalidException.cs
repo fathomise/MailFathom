@@ -83,6 +83,30 @@ public sealed class ContactRecordInvalidException : MailFathomException
     public static ContactRecordInvalidException RestatedAddressNotHeld() =>
         new("A restated address is one of the addresses the contact holds.");
 
+    /// <summary>Refuses a record naming more phone numbers than one person may be recorded as using.</summary>
+    /// <returns>The failure to raise.</returns>
+    public static ContactRecordInvalidException TooManyPhoneNumbers() => new(
+        string.Format(
+            CultureInfo.InvariantCulture,
+            "A contact cannot hold more than {0} phone numbers.",
+            Contact.MaximumPhoneNumberCount));
+
+    /// <summary>Refuses text that is not a phone number the book can hold.</summary>
+    /// <returns>The failure to raise.</returns>
+    public static ContactRecordInvalidException NotAPhoneNumber() => new(
+        string.Format(
+            CultureInfo.InvariantCulture,
+            "A phone number is at most {0} characters of digits, '+', spaces, '-', '(', ')', and '.', with at least one digit.",
+            ContactPhoneNumber.MaximumLength));
+
+    /// <summary>Refuses a phone label naming none of the labels the book knows.</summary>
+    /// <returns>The failure to raise.</returns>
+    public static ContactRecordInvalidException NotAPhoneLabel() => new(
+        string.Format(
+            CultureInfo.InvariantCulture,
+            "A phone label is one of {0}.",
+            string.Join(", ", Enum.GetNames<ContactPhoneLabel>())));
+
     /// <summary>Refuses a note the book cannot hold.</summary>
     /// <param name="cause">The validation failure the domain value raised, kept as the inner exception.</param>
     /// <returns>The failure to raise.</returns>

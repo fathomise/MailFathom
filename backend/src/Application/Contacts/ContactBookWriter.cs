@@ -91,6 +91,7 @@ public sealed class ContactBookWriter
                 Addresses = record.Addresses,
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
+                PhoneNumbers = record.PhoneNumbers ?? [],
                 Origin = CallerWriter,
             },
             this.WriterThrough(writtenThrough),
@@ -164,6 +165,7 @@ public sealed class ContactBookWriter
                 Addresses = record.Addresses,
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
+                PhoneNumbers = record.PhoneNumbers,
                 RestatedAddresses = restated,
             },
             this.WriterThrough(writtenThrough),
@@ -249,7 +251,12 @@ public sealed class ContactBookWriter
             throw ContactRecordInvalidException.PreferredAddressNotHeld();
         }
 
-        return new ContactRecord(displayName, addresses, preferredAddress, ReadNote(draft.Note));
+        return new ContactRecord(
+            displayName,
+            addresses,
+            preferredAddress,
+            ReadNote(draft.Note),
+            ContactPhoneNumberDraft.ReadAll(draft.PhoneNumbers));
     }
 
     /// <summary>Reads the addresses an amendment states again, each of which has to be one the record it states holds.</summary>
@@ -376,5 +383,6 @@ public sealed class ContactBookWriter
         ContactDisplayName DisplayName,
         IReadOnlyCollection<EmailAddress> Addresses,
         EmailAddress PreferredAddress,
-        ContactNote? Note);
+        ContactNote? Note,
+        IReadOnlyList<ContactPhoneNumber>? PhoneNumbers);
 }

@@ -250,6 +250,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<ContactAddressEntity> ContactAddresses => this.Set<ContactAddressEntity>();
 
+    internal DbSet<ContactPhoneNumberEntity> ContactPhoneNumbers => this.Set<ContactPhoneNumberEntity>();
+
     internal DbSet<CalendarEventEntity> CalendarEvents => this.Set<CalendarEventEntity>();
 
     internal DbSet<CalendarEventReminderEntity> CalendarEventReminders => this.Set<CalendarEventReminderEntity>();
@@ -376,6 +378,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new EmailThreadIdentifierConfiguration());
         modelBuilder.ApplyConfiguration(new ContactConfiguration());
         modelBuilder.ApplyConfiguration(new ContactAddressConfiguration());
+        modelBuilder.ApplyConfiguration(new ContactPhoneNumberConfiguration());
         modelBuilder.ApplyConfiguration(new CalendarEventConfiguration());
         modelBuilder.ApplyConfiguration(new CalendarEventReminderConfiguration());
         modelBuilder.ApplyConfiguration(new PersonalTaskReminderConfiguration());

@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
+using MailFathom.Application.Contacts.Failures;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
@@ -283,6 +284,7 @@ internal static class ContactEndpoints
                 Addresses = record.Addresses,
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
+                PhoneNumbers = record.PhoneNumbers ?? [],
                 Origin = AdministrativeWriter,
             },
             AdministratorWriting(context),
@@ -442,6 +444,7 @@ internal static class ContactEndpoints
                 Addresses = record.Addresses,
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
+                PhoneNumbers = record.PhoneNumbers,
             },
             AdministratorWriting(context),
             cancellationToken);
@@ -800,7 +803,18 @@ internal static class ContactEndpoints
             return ContactRecordReading.Refuse(noteRefusal);
         }
 
-        return ContactRecordReading.Read(new ContactRecord(displayName, addresses, preferred, note));
+        IReadOnlyList<ContactPhoneNumber>? phoneNumbers;
+
+        try
+        {
+            phoneNumbers = ContactPhoneNumberDraft.ReadAll(request.PhoneNumbers);
+        }
+        catch (ContactRecordInvalidException refusal)
+        {
+            return ContactRecordReading.Refuse(refusal.Message);
+        }
+
+        return ContactRecordReading.Read(new ContactRecord(displayName, addresses, preferred, note, phoneNumbers));
     }
 
     /// <summary>Reads the name a request stated, or names the rule it broke.</summary>
@@ -888,7 +902,8 @@ internal static class ContactEndpoints
         ContactDisplayName DisplayName,
         IReadOnlyCollection<EmailAddress> Addresses,
         EmailAddress PreferredAddress,
-        ContactNote? Note);
+        ContactNote? Note,
+        IReadOnlyList<ContactPhoneNumber>? PhoneNumbers);
 
     /// <summary>What reading a request's record produced: the record, or the one rule it broke.</summary>
     internal sealed record ContactRecordReading(ContactRecord? Record, string? Refusal)

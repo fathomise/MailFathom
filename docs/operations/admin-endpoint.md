@@ -1676,23 +1676,24 @@ contact surface alone is refused there rather than at the command's own act. Pas
 `mailfathom.admin.read` beside it.
 
 ```console
-$ mfctl contact create --name "Anna Kowalska" --address anna@example.test --note "Met at the conference."
+$ mfctl contact create --name "Anna Kowalska" --address anna@example.test --phone "Mobile:+1 202 555 0143" --note "Met at the conference."
 Recorded contact 018f2b1c-9b3a-7c41-8f7d-2c6a5e9d10ab.
-Contact:    018f2b1c-9b3a-7c41-8f7d-2c6a5e9d10ab
-Name:       Anna Kowalska
-Origin:     Asserted
-Addresses:  anna@example.test  (preferred)
-Note:       Met at the conference.
-Recorded:   2026-08-16 09:00:00Z
-Amended:    2026-08-16 09:00:00Z
+Contact:        018f2b1c-9b3a-7c41-8f7d-2c6a5e9d10ab
+Name:           Anna Kowalska
+Origin:         Asserted
+Addresses:      anna@example.test  (preferred)
+Phone numbers:  +1 202 555 0143  (Mobile)
+Note:           Met at the conference.
+Recorded:       2026-08-16 09:00:00Z
+Amended:        2026-08-16 09:00:00Z
 ```
 
 | Command | What it does |
 | --- | --- |
-| `contact create` | Records a person into `--user`'s own book. `--address` is repeated for each address they use, and `--preferred` says which to use by default — required as soon as there is more than one, because that is your choice rather than an ordering accident |
-| `contact show` | Shows one person out of the books `--user` reads, by `--id` or by `--address`. Naming both, or neither, is refused |
+| `contact create` | Records a person into `--user`'s own book. `--address` is repeated for each address they use, and `--preferred` says which to use by default — required as soon as there is more than one, because that is your choice rather than an ordering accident. `--phone LABEL:NUMBER` is repeated for each phone number, the preferred one first, where `LABEL` is `Mobile`, `Work`, `Home`, or `Other` |
+| `contact show` | Shows one person out of the books `--user` reads, by `--id` or by `--address`, with their phone numbers. Naming both, or neither, is refused |
 | `contact list` | Reads one page of the books `--user` reads, optionally narrowed with `--origin`. `--page-size` bounds it and `--cursor` continues it |
-| `contact update` | Corrects `--name`, `--note`, `--preferred`, or the whole `--address` set, in `--user`'s own book. What you do not name is kept; `--clear-note` holds no note afterwards |
+| `contact update` | Corrects `--name`, `--note`, `--preferred`, or the whole `--address` set, in `--user`'s own book. What you do not name is kept, the phone numbers included; `--clear-note` holds no note afterwards |
 | `contact add-address` | Adds one address, keeping the rest. `--preferred` names which address to use by default afterwards |
 | `contact remove-address` | Takes one address off. `--preferred` is required when the one being removed is the default |
 | `contact promote` | Writes an asserted copy of a collected contact into `--user`'s own book, leaving the mail account's record for the account's other users. It reports that the promotion happened rather than the record, because it sent none and reading the book is a permission of its own; `contact show` is how you look at the person afterwards |

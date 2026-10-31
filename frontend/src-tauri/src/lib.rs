@@ -47,7 +47,7 @@
 // link a reader followed to the system browser, per ADR 0024 — and the notification plugin answers the second: whether
 // raising one is permitted, which the bundle asks it directly, and the raising and the report of a click, which this
 // shell asks it for. Both are plugins' commands, so both are gated: `capabilities/open-a-link.json` narrows what the
-// webview may ask of the opener to the three schemes a message body may carry, and
+// webview may ask of the opener to the three schemes a message body may carry and the `tel` a contact's number is, and
 // `capabilities/raise-a-notification.json` narrows the notification plugin to the two permission commands the
 // application calls, on the desktop targets alone, rather than taking the plugin's own default set. No core capability
 // is granted either.

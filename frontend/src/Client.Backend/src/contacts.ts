@@ -39,6 +39,21 @@ export function contactPromotionRoute(contactId: string): string {
 /** How a contact came to be in the book, which decides who may amend it. */
 export type ContactOrigin = 'Asserted' | 'Collected';
 
+/** Which of a person's phones a number reaches. */
+export type ContactPhoneLabel = 'Mobile' | 'Work' | 'Home' | 'Other';
+
+/** Every label the service publishes, in the order a form offers them. */
+export const contactPhoneLabels: readonly ContactPhoneLabel[] = ['Mobile', 'Work', 'Home', 'Other'];
+
+/** One phone number a user wrote down for a person, kept as they typed it. */
+export interface ContactPhoneNumber {
+    readonly number: string;
+    readonly label: ContactPhoneLabel;
+}
+
+/** The most phone numbers one contact may hold, which is the service's own bound. */
+export const mostPhoneNumbersPerContact = 16;
+
 /** One person as the book holds them. */
 export interface Contact {
     readonly id: string;
@@ -51,6 +66,9 @@ export interface Contact {
 
     /** What the user wrote about them, or `null` where they wrote nothing. */
     readonly note: string | null;
+
+    /** Every phone number the user wrote down for them, the preferred one first; none for a collected contact. */
+    readonly phoneNumbers: readonly ContactPhoneNumber[];
 
     readonly origin: ContactOrigin;
     readonly recordedAt: string;
@@ -103,6 +121,9 @@ export interface ContactRecord {
 
     /** What the user wrote about the person, or `null` to hold no note. */
     readonly note: string | null;
+
+    /** Every phone number the person uses, the preferred one first; an empty list holds none. */
+    readonly phoneNumbers: readonly ContactPhoneNumber[];
 }
 
 /** What erasing one contact removed, which carries no name, address, or note by design. */
@@ -288,6 +309,7 @@ export async function addAuthorToContacts(
             addresses: [author.address],
             preferredAddress: author.address,
             note: null,
+            phoneNumbers: [],
         });
     }
 
@@ -297,13 +319,13 @@ export async function addAuthorToContacts(
         return holder;
     }
 
-    const { displayName, addresses, preferredAddress, note } = holder.value;
+    const { displayName, addresses, preferredAddress, note, phoneNumbers } = holder.value;
 
     return amendContact(
         session,
         transport,
         author.restatedContactId,
-        { displayName, addresses, preferredAddress, note },
+        { displayName, addresses, preferredAddress, note, phoneNumbers },
         [author.address],
     );
 }
@@ -543,17 +565,49 @@ export function parseContact(value: unknown): Contact | null {
         }
     }
 
+    const phoneNumbers = parsePhoneNumbers(record['phoneNumbers']);
+
+    if (phoneNumbers === null) {
+        return null;
+    }
+
     return {
         id,
         displayName,
         addresses: addresses as readonly string[],
         preferredAddress,
         note,
+        phoneNumbers,
         origin,
         recordedAt,
         amendedAt,
         photo,
     };
+}
+
+function parsePhoneNumbers(value: unknown): ContactPhoneNumber[] | null {
+    if (!Array.isArray(value) || value.length > mostPhoneNumbersPerContact) {
+        return null;
+    }
+
+    const phoneNumbers: ContactPhoneNumber[] = [];
+    for (const entry of value) {
+        const record = asRecord(entry);
+        const number = record?.['number'];
+        const label = record?.['label'];
+
+        if (typeof number !== 'string' || !isContactPhoneLabel(label)) {
+            return null;
+        }
+
+        phoneNumbers.push({ number, label });
+    }
+
+    return phoneNumbers;
+}
+
+function isContactPhoneLabel(value: unknown): value is ContactPhoneLabel {
+    return typeof value === 'string' && contactPhoneLabels.includes(value as ContactPhoneLabel);
 }
 
 /** Whether the value is one of the two origins this surface publishes. */

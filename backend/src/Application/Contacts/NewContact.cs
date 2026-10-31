@@ -26,6 +26,9 @@ public sealed record NewContact
     /// <summary>Gets what the user wrote about this person, or <see langword="null" /> for none.</summary>
     public ContactNote? Note { get; init; }
 
+    /// <summary>Gets the phone numbers the user wrote down, the preferred one first; none unless stated.</summary>
+    public IReadOnlyList<ContactPhoneNumber> PhoneNumbers { get; init; } = [];
+
     /// <summary>Gets the origin the writer acts under, which becomes the record's own.</summary>
     public required ContactOrigin Origin { get; init; }
 }

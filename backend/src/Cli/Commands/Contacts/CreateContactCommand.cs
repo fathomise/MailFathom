@@ -55,6 +55,13 @@ internal static class CreateContactCommand
             Description = "What you want recorded about the person beyond their name and addresses.",
         };
 
+        Option<string[]> phoneOption = new("--phone")
+        {
+            Description =
+                "A phone number the person uses, as LABEL:NUMBER where LABEL is Mobile, Work, Home, or Other. Repeat it for every number, the preferred one first.",
+            AllowMultipleArgumentsPerToken = false,
+        };
+
         Command command = new("create", "Record a person in one user's own contact book, or in an organization's.")
         {
             userOption,
@@ -63,6 +70,7 @@ internal static class CreateContactCommand
             addressOption,
             preferredOption,
             noteOption,
+            phoneOption,
             endpointOption,
         };
 
@@ -74,6 +82,7 @@ internal static class CreateContactCommand
             result.GetValue(addressOption) ?? [],
             result.GetValue(preferredOption),
             result.GetValue(noteOption),
+            result.GetValue(phoneOption) ?? [],
             CliOptions.RequestedDeployment(result.GetValue(endpointOption), context.Variable(CliOptions.EndpointVariable)),
             cancellationToken));
 
@@ -88,10 +97,16 @@ internal static class CreateContactCommand
         IReadOnlyList<string> addresses,
         string? preferred,
         string? note,
+        IReadOnlyList<string> phones,
         string? requestedDeployment,
         CancellationToken cancellationToken)
     {
-        var record = new ContactRecordRequest(name, addresses, ChoosePreferred(addresses, preferred), note);
+        var record = new ContactRecordRequest(
+            name,
+            addresses,
+            ChoosePreferred(addresses, preferred),
+            note,
+            [.. phones.Select(ReadPhone)]);
 
         var profile = await context.Deployment().ReachAsync(requestedDeployment, cancellationToken);
 
@@ -107,6 +122,17 @@ internal static class CreateContactCommand
         var written = await deployment.RecordContactAsync(profile.Token, book, record, cancellationToken);
 
         return ContactOutput.ReportWrite(context, written, "Recorded");
+    }
+
+    /// <summary>Splits one <c>--phone</c> value into its label and its number, leaving both to the deployment to judge.</summary>
+    /// <remarks>A number never holds a colon, so the first one is where the label ends.</remarks>
+    private static ContactPhoneNumberRecord ReadPhone(string value)
+    {
+        var separator = value.IndexOf(':', StringComparison.Ordinal);
+
+        return separator > 0
+            ? new ContactPhoneNumberRecord(value[(separator + 1)..], value[..separator])
+            : throw new CliFailure("A --phone value is LABEL:NUMBER, such as Mobile:+1 202 555 0100.");
     }
 
     /// <summary>Reports which address the record is to prefer, refusing to pick one where the operator has a choice.</summary>

@@ -1,6 +1,6 @@
 # Contacts
 
-<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
+<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactPhoneNumberEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
 
 MailFathom holds a contact book of its own: people, the addresses they use, and what a user recorded about them, in
 the same PostgreSQL database the mail is in. This page describes the record and the rules every writer of it obeys —
@@ -135,6 +135,7 @@ person and the addresses hang off them.
 | Addresses | At least one and at most 32, each at most 320 characters |
 | Preferred address | Which of them to use when something addresses the person without naming which |
 | Note | Optional free text, at most 4000 characters, in which line breaks and tabs are kept and every other character that renders as nothing is refused |
+| Phone numbers | None to 16, in the user's order, each a number and a label — see [§ Phone numbers](#phone-numbers) |
 | Origin | How the contact came to be in the book — see [§ Two origins](#two-origins-and-who-may-write-which) |
 | Recorded, amended | When the contact entered the book, and when it was last changed |
 | Photo | Optional: the stored file a user gave a person they wrote down in their own book — see [§ A contact's photo](#a-contacts-photo) |
@@ -146,6 +147,27 @@ a record arrived rather than anything the person supplied. Everything else is pe
 
 Which address is preferred is the user's choice rather than an ordering accident. Nothing picks one, and a record
 naming a preferred address the contact does not hold is refused rather than repaired.
+
+### Phone numbers
+
+A person somebody wrote down may carry phone numbers, at most 16 of them, each a **number** and a **label** saying
+which of their phones it reaches: `Mobile`, `Work`, `Home`, or `Other`. A label is matched without regard to case and
+anything else is refused naming the four.
+
+The number is kept as it was typed, trimmed of surrounding whitespace and otherwise unchanged: at most 32 characters,
+drawn from the digits, `+`, space, `-`, `(`, `)`, and `.`, with at least one digit. Nothing normalizes it to E.164,
+because nothing here compares, deduplicates, or dials one — it is read back to the person who wrote it and offered as a
+link — and a normalization would need a numbering plan and a region to guess with. That becomes worth having when
+numbers are matched against each other or exported as a vCard.
+
+The order is the user's, and **the first number is the one to call by default**; there is no separate preferred
+field to disagree with it. A refusal names the rule a number broke — its form, its label, or a seventeenth number —
+and never the number.
+
+**Only an asserted contact holds numbers.** Collection reads headers and never infers a number about a third party from
+a signature, so a collected contact holds none and the book refuses a collected record that states one. Promotion
+therefore copies no numbers, and the promoted record gains them when the user adds them. The numbers are rows of their
+own beside the addresses, keyed on the contact and its position, and they cascade with the contact when it is erased.
 
 A name and a note are published into listings of the other contacts, into an answer an agent reads, and into an export,
 so both refuse the characters that carry no glyph of their own: the control characters, the line and paragraph
@@ -394,6 +416,11 @@ four that could each leave a contact without an address or with a default it doe
 An address the amended record no longer names is removed, which is also what frees it for another contact in the same
 book to claim.
 
+**The phone numbers are the one part an amendment may leave unstated.** An amendment carrying no list keeps the numbers
+the contact holds, and one carrying an empty list clears them, so a surface that knows nothing about numbers — an
+agent's tool, or `mfctl contact update` and the address commands — corrects a name or an address without erasing them.
+A list that is stated replaces the held one whole, in the order given.
+
 An amendment writes into the caller's own book alone. A record one of their mailboxes collected is therefore refused by
 its origin, naming the record as collected, and what the caller does instead is promote it — which leaves them a record
 of their own to amend and leaves the mailbox's for everybody else assigned the account. A contact outside the books the
@@ -514,8 +541,8 @@ A contact book is the most concentrated personal data this system holds: not mai
 assembled record about identified third parties. Both data-subject paths therefore exist from the first commit rather
 than as a later addition, and both are proven by test rather than described.
 
-**Erasing a contact removes them and everything derived from them.** The schema's own foreign key is what guarantees no
-address outlives its person, rather than a second statement somebody remembers to write; the erasure takes those rows
+**Erasing a contact removes them and everything derived from them.** The schema's own foreign keys are what guarantee no
+address and no phone number outlives its person, rather than a second statement somebody remembers to write; the erasure takes those rows
 first inside the same transaction so it can answer with what it removed — the contact and how many addresses went with
 it — and a user asking for one gets an answer rather than a call that returned without complaint. Erasing somebody the books do not hold is a completed erasure, not
 a failure: the state the user asked for is the state the books are in. **A photo goes with its contact**: the stored
@@ -541,7 +568,7 @@ mailboxes and to whoever is still assigned them; a mailbox nobody is left assign
 collected book goes with it.
 
 **Exporting a contact produces everything held about them** as of the instant it was taken: the name, every address,
-which is preferred, the note, the origin, both timestamps, and the photo where one is held — its kind and its octets,
+which is preferred, every phone number with its label in the user's order, the note, the origin, both timestamps, and the photo where one is held — its kind and its octets,
 encoded as Base64, so the document carries the picture itself rather than an identifier nobody outside the deployment
 can resolve. What a user reads is left to the surface that asks for
 it, so no surface can choose which parts of a person to hand back.
@@ -565,5 +592,5 @@ deployment's own protection of its database. There is no retention window: a con
 which is what distinguishes an assembled record from mail that arrived and ages.
 
 Nothing here is logged. No log line, metric dimension, trace attribute, or failure message carries a name, an address,
-or a note; the contact's identifier is what a failure names, and it is the one part of the record that is not personal
+a phone number, or a note; the contact's identifier is what a failure names, and it is the one part of the record that is not personal
 data.

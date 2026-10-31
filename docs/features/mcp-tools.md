@@ -267,7 +267,9 @@ Each of those three values is a fact about the tool rather than a posture. `crea
 the book mints the identity: calling it twice with one person records them once and then answers
 `addressHeldByAnotherContact`. `update_contact` is idempotent because an amendment states the whole record, so the
 second identical call writes what the first one already wrote — and destructive for that same reason, because stating
-the whole record removes an address the caller left out and clears a note it omitted. `delete_contact` is idempotent
+the whole record removes an address the caller left out and clears a note it omitted. The contact's phone numbers are
+the one part it keeps: no tool here reads or states them, and an amendment that names none leaves them as they are, as
+[Contacts § Amending a contact](contacts.md#amending-a-contact-states-the-whole-record) describes. `delete_contact` is idempotent
 too and destructive all the same: erasing somebody twice leaves the state the caller asked for, and the first call
 removed a record nothing here can bring back. `create_contact` is the one write that is neither, because it mints a
 record where none was held and so has nothing to drop. `promote_contact` is idempotent and not destructive: nothing about the

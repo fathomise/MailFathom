@@ -427,6 +427,13 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string CalendarEventReminderPrimaryKeyConstraintName = "PK_calendar_event_reminders";
 
+    /// <summary>The key one phone number of a contact is written under, kept at EF Core's conventional name.</summary>
+    /// <remarks>
+    /// Stated for the reason the reminder's key is: two amendments of one contact arriving at once both read that a
+    /// position holds no number and both insert one, and the loser is recognized by this constraint and retried.
+    /// </remarks>
+    internal const string ContactPhoneNumberPrimaryKeyConstraintName = "PK_contact_phone_numbers";
+
     /// <summary>The index the run that announces reminders reads over every task list at once.</summary>
     /// <remarks>
     /// The calendar's index with the same reasoning: the pass asks which reminders across the deployment have come

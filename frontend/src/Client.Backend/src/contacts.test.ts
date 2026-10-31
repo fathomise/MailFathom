@@ -28,6 +28,7 @@ const asserted = {
     addresses: ['anna@example.invalid', 'a.kowalska@example.invalid'],
     preferredAddress: 'anna@example.invalid',
     note: 'Renewal owner',
+    phoneNumbers: [{ number: '+1 202 555 0143', label: 'Mobile' }],
     origin: 'Asserted',
     recordedAt: '2026-03-01T08:00:00+00:00',
     amendedAt: '2026-03-04T09:01:12+00:00',
@@ -62,6 +63,7 @@ const record: ContactRecord = {
     addresses: ['anna@example.invalid'],
     preferredAddress: 'anna@example.invalid',
     note: null,
+    phoneNumbers: [{ number: '+1 202 555 0143', label: 'Mobile' }],
 };
 
 describe('readOwnContacts', () => {
@@ -122,6 +124,7 @@ describe('readOwnContacts', () => {
                         addresses: ['anna@example.invalid', 'a.kowalska@example.invalid'],
                         preferredAddress: 'anna@example.invalid',
                         note: 'Renewal owner',
+                        phoneNumbers: [{ number: '+1 202 555 0143', label: 'Mobile' }],
                         origin: 'Asserted',
                         recordedAt: '2026-03-01T08:00:00+00:00',
                         amendedAt: '2026-03-04T09:01:12+00:00',
@@ -154,6 +157,28 @@ describe('readOwnContacts', () => {
         ['a contact carrying no addresses at all', JSON.stringify({ contacts: [{ ...asserted, addresses: [] }] })],
         ['an origin this surface does not publish', JSON.stringify({ contacts: [{ ...asserted, origin: 'Guessed' }] })],
         ['an address that is not text', JSON.stringify({ contacts: [{ ...asserted, addresses: [7] }] })],
+        [
+            'a contact that does not say which numbers it holds',
+            JSON.stringify({ contacts: [{ ...asserted, phoneNumbers: undefined }] }),
+        ],
+        ['phone numbers that are not a list', JSON.stringify({ contacts: [{ ...asserted, phoneNumbers: {} }] })],
+        ['a phone number that is not a record', JSON.stringify({ contacts: [{ ...asserted, phoneNumbers: ['+1'] }] })],
+        [
+            'a phone number whose number is not text',
+            JSON.stringify({ contacts: [{ ...asserted, phoneNumbers: [{ number: 12025550143, label: 'Work' }] }] }),
+        ],
+        [
+            'a phone label this surface does not publish',
+            JSON.stringify({
+                contacts: [{ ...asserted, phoneNumbers: [{ number: '+1 202 555 0143', label: 'Pager' }] }],
+            }),
+        ],
+        [
+            'more phone numbers than a contact may hold',
+            JSON.stringify({
+                contacts: [{ ...asserted, phoneNumbers: Array.from({ length: 17 }, () => asserted.phoneNumbers[0]) }],
+            }),
+        ],
         ['a cursor that is not text', JSON.stringify({ contacts: [], nextCursor: 3 })],
     ])('refuses %s', async (_, body) => {
         const result = await readOwnContacts(session, answering({ status: 200, body }));
@@ -286,7 +311,11 @@ describe('addAuthorToContacts', () => {
         });
 
         expect(requests.map((request) => [request.method, request.path, request.body])).toEqual([
-            ['POST', 'https://mail.example.invalid/api/client/contacts', JSON.stringify(record)],
+            [
+                'POST',
+                'https://mail.example.invalid/api/client/contacts',
+                JSON.stringify({ ...record, phoneNumbers: [] }),
+            ],
         ]);
     });
 
@@ -317,6 +346,7 @@ describe('addAuthorToContacts', () => {
                     addresses: asserted.addresses,
                     preferredAddress: asserted.preferredAddress,
                     note: asserted.note,
+                    phoneNumbers: asserted.phoneNumbers,
                     restatedAddresses: ['a.kowalska@example.invalid'],
                 }),
             ],
@@ -374,6 +404,7 @@ describe('recordContact', () => {
                     addresses: ['anna@example.invalid', 'a.kowalska@example.invalid'],
                     preferredAddress: 'anna@example.invalid',
                     note: 'Renewal owner',
+                    phoneNumbers: [{ number: '+1 202 555 0143', label: 'Mobile' }],
                     origin: 'Asserted',
                     recordedAt: '2026-03-01T08:00:00+00:00',
                     amendedAt: '2026-03-04T09:01:12+00:00',

@@ -286,6 +286,55 @@ public sealed class ClientContactEndpointsTests
         Assert.Equal(nameof(ContactOrigin.Asserted), written.Value.Contact!.Origin);
     }
 
+    /// <summary>The numbers a person types travel into the record and back in the answer, in their order and with their labels.</summary>
+    [Fact]
+    public async Task RecordAsync_ARecordWithPhoneNumbers_AnswersWithThemAsWritten()
+    {
+        // Arrange
+        this.HoldsNoAddresses();
+
+        // Act
+        var result = await ClientContactEndpoints.RecordAsync(
+            new ContactRecordRequest(
+                "Anna Kowalska",
+                ["anna@example.test"],
+                "anna@example.test",
+                Note: null,
+                [new ContactPhoneNumberDraft("+1 202 555 0178", "Work"), new ContactPhoneNumberDraft("+1 202 555 0143", "Mobile")]),
+            this.Writer(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var written = Assert.IsType<Ok<ContactWriteResponse>>(result.Result);
+        Assert.Equal(
+            [new ContactPhoneNumberResponse("+1 202 555 0178", "Work"), new ContactPhoneNumberResponse("+1 202 555 0143", "Mobile")],
+            written.Value!.Contact!.PhoneNumbers);
+    }
+
+    /// <summary>A number the record refuses is refused with the rule, and the number itself is not repeated back.</summary>
+    [Fact]
+    public async Task RecordAsync_APhoneNumberTheRecordRefuses_IsRefusedWithoutEchoingIt()
+    {
+        // Arrange
+        this.HoldsNoAddresses();
+
+        // Act
+        var result = await ClientContactEndpoints.RecordAsync(
+            new ContactRecordRequest(
+                "Anna Kowalska",
+                ["anna@example.test"],
+                "anna@example.test",
+                Note: null,
+                [new ContactPhoneNumberDraft("202 555 0143 ask for Anna", "Mobile")]),
+            this.Writer(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.DoesNotContain("0143", refusal.ProblemDetails.Detail, StringComparison.Ordinal);
+    }
+
     /// <summary>The regression this exists for: a refusal is the one part of an answer a proxy log keeps, so a mistyped address must not travel in it.</summary>
     [Fact]
     public async Task RecordAsync_AnAddressNobodyCanBeReachedAt_IsRefusedWithoutEchoingIt()
@@ -462,6 +511,57 @@ public sealed class ClientContactEndpointsTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>The client's edit carries the numbers it states into the amendment, and one that states none leaves the held numbers alone.</summary>
+    [Theory]
+    [InlineData(false, null, "+1 202 555 0178")]
+    [InlineData(true, null, null)]
+    [InlineData(true, "+1 202 555 0143", "+1 202 555 0143")]
+    public async Task AmendAsync_PhoneNumbersStatedOrLeftOut_AnswersWithTheNumbersTheRecordNowHolds(
+        bool statesNumbers,
+        string? statedNumber,
+        string? expectedNumber)
+    {
+        // Arrange
+        ContactPhoneNumberDraft[]? stated = statesNumbers
+            ? statedNumber is null ? [] : [new ContactPhoneNumberDraft(statedNumber, "Mobile")]
+            : null;
+        var held = ContactOf(
+            "Anna Kowalska",
+            "anna@example.test",
+            [ContactPhoneNumber.Create("+1 202 555 0178", ContactPhoneLabel.Work)]);
+        this.HoldsNoAddresses();
+        this.directory
+            .FindAsync(Arg.Any<ContactBookScope>(), held.Id, Arg.Any<CancellationToken>())
+            .Returns(held);
+        this.store
+            .ReplaceAsync(
+                Arg.Any<IPersistenceSession>(),
+                Arg.Any<ContactBookHolder>(),
+                Arg.Any<Contact>(),
+                Arg.Any<ContactAddressWriter>(),
+                Arg.Any<IReadOnlyCollection<EmailAddress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        var result = await ClientContactEndpoints.AmendAsync(
+            held.Id.Value,
+            new ClientContactAmendmentRequest(
+                "Anna Kowalska",
+                ["anna@example.test"],
+                "anna@example.test",
+                Note: null,
+                RestatedAddresses: null,
+                stated),
+            this.Writer(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<ContactWriteResponse>>(result.Result);
+        string[] expected = expectedNumber is null ? [] : [expectedNumber];
+        Assert.Equal(expected, answered.Value!.Contact!.PhoneNumbers.Select(phoneNumber => phoneNumber.Number));
+    }
+
     /// <summary>A promotion states an identity and nothing else, so its answer must not be the book's own contents under the writing grant.</summary>
     [Fact]
     public async Task PromoteAsync_AContactTheseBooksDoNotHold_AnswersTheOutcomeAndNoRecord()
@@ -525,7 +625,10 @@ public sealed class ClientContactEndpointsTests
         Assert.Empty(this.store.ReceivedCalls());
     }
 
-    private static Contact ContactOf(string displayName, string address)
+    private static Contact ContactOf(
+        string displayName,
+        string address,
+        IReadOnlyCollection<ContactPhoneNumber>? phoneNumbers = null)
     {
         var mailbox = Mailbox(address);
 
@@ -537,7 +640,8 @@ public sealed class ClientContactEndpointsTests
             note: null,
             ContactOrigin.Asserted,
             Now,
-            Now);
+            Now,
+            phoneNumbers: phoneNumbers);
     }
 
     private static EmailAddress Mailbox(string address)

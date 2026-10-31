@@ -65,6 +65,65 @@ public sealed class ContactCommandTests : IDisposable
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("Anna Kowalska", StringComparison.Ordinal));
     }
 
+    /// <summary>Every <c>--phone</c> is sent as a label and a number, in the order typed, the number left as written.</summary>
+    [Fact]
+    public async Task Create_PhoneNumbers_SendsEachWithItsLabelInTheOrderTyped()
+    {
+        // Arrange
+        using var deployment = FakeContactDeployment.Holding(write: FakeContactDeployment.Written());
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "contact",
+            "create",
+            "--name",
+            "Anna Kowalska",
+            "--address",
+            "anna@example.test",
+            "--phone",
+            "Work:+1 202 555 0178",
+            "--phone",
+            "Mobile:+1 202 555 0143",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        Assert.Equal(
+            [("Work", "+1 202 555 0178"), ("Mobile", "+1 202 555 0143")],
+            SentRecord(deployment).GetProperty("phoneNumbers").EnumerateArray()
+                .Select(phoneNumber => (phoneNumber.GetProperty("label").GetString(), phoneNumber.GetProperty("number").GetString())));
+    }
+
+    /// <summary>A <c>--phone</c> naming no label is refused before anything is sent, and without repeating the number.</summary>
+    [Fact]
+    public async Task Create_APhoneNamingNoLabel_RefusesWithoutWritingOrRepeatingIt()
+    {
+        // Arrange
+        using var deployment = FakeContactDeployment.Holding(write: FakeContactDeployment.Written());
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "contact",
+            "create",
+            "--name",
+            "Anna Kowalska",
+            "--address",
+            "anna@example.test",
+            "--phone",
+            "+1 202 555 0143",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Failure, exitCode);
+        Assert.Equal(0, deployment.ContactRequestCount(HttpMethod.Post));
+        Assert.Contains(this.harness.Console.Errors, line => line.Contains("LABEL:NUMBER", StringComparison.Ordinal));
+        Assert.DoesNotContain(this.harness.Console.Errors, line => line.Contains("555 0143", StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// Which address a message to somebody goes to is the operator's decision, so several addresses without a stated
     /// preference is refused here rather than resolved by the order the arguments were typed in.
@@ -165,6 +224,30 @@ public sealed class ContactCommandTests : IDisposable
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("Anna Kowalska", StringComparison.Ordinal));
+    }
+
+    /// <summary>A person's numbers are printed with the record, each beside the phone it reaches.</summary>
+    [Fact]
+    public async Task Show_AContactWithPhoneNumbers_PrintsEachWithItsLabel()
+    {
+        // Arrange
+        using var deployment = FakeContactDeployment.Holding(lookup: FakeContactDeployment.Lookup(
+            phoneNumbers: """[{"number":"+1 202 555 0143","label":"Mobile"},{"number":"+1 202 555 0178","label":"Work"}]"""));
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "contact",
+            "show",
+            "--address",
+            "anna@example.test",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("+1 202 555 0143  (Mobile)", StringComparison.Ordinal));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("+1 202 555 0178  (Work)", StringComparison.Ordinal));
     }
 
     /// <summary>

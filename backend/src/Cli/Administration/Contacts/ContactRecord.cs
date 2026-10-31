@@ -16,6 +16,7 @@ namespace MailFathom.Cli.Administration.Contacts;
 /// <param name="RecordedAt">When the contact entered the book.</param>
 /// <param name="AmendedAt">When it was last amended.</param>
 /// <param name="Organization">The organization whose book holds the contact, or <see langword="null" /> where a user or a mailbox holds it.</param>
+/// <param name="PhoneNumbers">Every phone number recorded for them, the preferred one first, or <see langword="null" /> where the deployment reported none.</param>
 /// <remarks>
 /// Everything here but the identity, the origin, and the organization is personal data about a third party. It is printed to the terminal
 /// the operator asked from and reaches nothing else: no failure message this command writes carries any of it, and the
@@ -30,7 +31,8 @@ internal sealed record ContactRecord(
     [property: JsonPropertyName("origin")] string? Origin,
     [property: JsonPropertyName("recordedAt")] DateTimeOffset RecordedAt,
     [property: JsonPropertyName("amendedAt")] DateTimeOffset AmendedAt,
-    [property: JsonPropertyName("organization")] Guid? Organization = null);
+    [property: JsonPropertyName("organization")] Guid? Organization = null,
+    [property: JsonPropertyName("phoneNumbers")] IReadOnlyList<ContactPhoneNumberRecord>? PhoneNumbers = null);
 
 /// <summary>The person a lookup found, or that the book holds none.</summary>
 /// <param name="Contact">The contact, or <see langword="null" /> when the book holds nobody matching what was asked.</param>

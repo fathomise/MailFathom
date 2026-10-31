@@ -17,6 +17,7 @@ function personCalled(id: string, displayName: string): Contact {
         addresses: [`${id}@contoso.example`],
         preferredAddress: `${id}@contoso.example`,
         note: null,
+        phoneNumbers: [],
         origin: 'Asserted',
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
