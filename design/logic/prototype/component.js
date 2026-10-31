@@ -3784,8 +3784,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const thCollapsed = low || (!!st.thScroll && !tall);
       /* Width decides that the folder list stands as a column only from 1180; the pointer decides what it folds into
          below that — a drawer under a finger, which has no hover to read a strip of icons by, and the 58 px strip of
-         icons under a mouse. The phone has no rail to fold beside, so its list is always the drawer. */
-      const drawer = isMobile || (compact && !!touch);
+         icons under a mouse. One pane shows the list or the message and nothing beside it, so below 820 the folder list
+         is always the drawer, under a mouse as well. */
+      const drawer = singlePane || (compact && !!touch);
       const drawerOpen = !!st.sideDrawer;
       const rowStyleFor = (active, selected) =>
         "position:relative;display:flex;flex-direction:column;user-select:none;-webkit-user-select:none;" +

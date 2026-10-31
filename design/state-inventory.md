@@ -61,11 +61,11 @@ capped — § *Width inside a pane* below — so a 2560 px window shows a 96 px 
 and the thread's 880 px column centred in what is left. Settings, which fills the window below that, stands past 1440 px as a 1440 px surface centred on `--bg` between two `--line` edges (`settingsCardStyle`).
 
 **The folder list has three forms, and each question about it reads one axis.** Width says whether it stands: as a
-column from 1180, folded below it, and in the phone's drawer under 700, where there is no rail to fold beside. The
-pointer says what *folded* is between 700 and 1180: a drawer under a finger (`drawer`), because a finger has no hover
-to tell a strip of glyphs apart by, and a 58 px strip of glyphs under a mouse (`sideCollapsed`), each named by its
-title, which the toolbar's `left_panel_open` widens to the column again. So `drawer` is
-`isMobile || (compact && touch)`, and `sideCollapsed` starts true wherever the column does not stand.
+column from 1180, folded below it, and always a drawer on one pane under 820, where the window shows the list or the
+message and nothing may stand beside either. The pointer says what *folded* is between 820 and 1180: a drawer under a
+finger (`drawer`), because a finger has no hover to tell a strip of glyphs apart by, and a 58 px strip of glyphs under a
+mouse (`sideCollapsed`), each named by its title, which the toolbar's `left_panel_open` widens to the column again. So
+`drawer` is `singlePane || (compact && touch)`, and `sideCollapsed` starts true wherever the column does not stand.
 
 ### Height — vertical density
 
