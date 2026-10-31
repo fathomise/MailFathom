@@ -115,7 +115,7 @@ export function SpaceNavigation({
             // The bar is `pan-x` so a finger moving up it is this navigation's rather than the page's, which is what a
             // gesture that has to be followed one to one needs; the rail above the workspace breakpoint has no such
             // gesture and is unaffected by it.
-            className="flex shrink-0 touch-pan-x justify-center gap-0.75 border-t border-line bg-rail px-1.5 pt-1.5 pb-2 rail:order-first rail:min-h-0 rail:w-rail-narrow rail:touch-auto desktop:w-rail rail:flex-col rail:justify-start rail:gap-0.5 roomy:gap-1 rail:overflow-y-auto rail:border-t-0 rail:border-e rail:px-0 rail:pt-4 rail:pb-3 min-h-navigation"
+            className="flex shrink-0 touch-pan-x justify-center gap-0.75 border-t border-line bg-rail px-1.5 pt-1.5 pb-2 rail:order-first rail:min-h-0 rail:w-rail-narrow rail:touch-auto rail:desktop:w-rail rail:flex-col rail:justify-start rail:gap-0.5 rail:roomy:gap-1 rail:overflow-y-auto rail:border-t-0 rail:border-e rail:px-0 rail:pt-4 rail:pb-3 min-h-navigation"
             onPointerDown={onPointerDown}
             onClickCapture={onClickCapture}
         >
@@ -124,7 +124,7 @@ export function SpaceNavigation({
                 window gives its height to them for the same reason. */}
             <BrandMark
                 label={translate('shell.title')}
-                className="mb-3 hidden size-10 self-center rail:block low:hidden"
+                className="mb-3 hidden size-10 self-center rail:block rail:low:hidden"
             />
 
             {/* In the rail the destinations scroll between its top and its foot, so the bell and the account stay where
@@ -133,7 +133,7 @@ export function SpaceNavigation({
                 gives the same room back outside, which leaves the rail laid out as it was. It stands in both shapes,
                 drawing no box of its own in the bar, so a window crossing the workspace width keeps the same tree and
                 remounts no destination — a remount there is a render the list keeping its place would have to race. */}
-            <div className="contents rail:-my-1 rail:flex rail:min-h-0 rail:flex-col rail:gap-0.5 rail:overflow-y-auto rail:py-1 roomy:gap-1">
+            <div className="contents rail:-my-1 rail:flex rail:min-h-0 rail:flex-col rail:gap-0.5 rail:overflow-y-auto rail:py-1 rail:roomy:gap-1">
                 {destinations}
             </div>
 
@@ -256,7 +256,7 @@ function SpaceLink({
                 // A low window draws the symbol alone, the name staying the link's, in a target the design sizes by the
                 // pointer: 36 under a mouse and 44 under a finger, stated here because the touch floor reaches controls
                 // and a link is not one.
-                className={`group relative flex max-w-30 flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition rail:mx-1.75 rail:flex-none rail:px-0 rail:gap-1 rail:rounded-lg rail:py-2 desktop:py-2.25 rail:low:min-h-9 rail:low:justify-center rail:low:py-1 rail:low:pointer-coarse:min-h-11 rail:low:pointer-coarse:py-0 ${
+                className={`group relative flex max-w-30 flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition rail:mx-1.75 rail:flex-none rail:px-0 rail:gap-1 rail:rounded-lg rail:py-2 rail:desktop:py-2.25 rail:low:min-h-9 rail:low:justify-center rail:low:py-1 rail:low:pointer-coarse:min-h-11 rail:low:pointer-coarse:py-0 ${
                     current
                         ? 'font-semibold text-accent-deep rail:bg-accent-soft'
                         : 'text-muted hover:bg-hover hover:text-text'
