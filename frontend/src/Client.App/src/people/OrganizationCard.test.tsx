@@ -9,7 +9,12 @@ import { LocalizationProvider } from '../localization/Localization';
 import { OrganizationCard } from './OrganizationCard';
 import type { ColleagueStructureInForce } from './useColleagueStructure';
 
-function colleagueCalled(id: string, displayName: string, jobTitle: string | null = null): Colleague {
+function colleagueCalled(
+    id: string,
+    displayName: string,
+    jobTitle: string | null = null,
+    presence: Colleague['presence'] = 'Active',
+): Colleague {
     return {
         id,
         book: 'Member',
@@ -22,10 +27,12 @@ function colleagueCalled(id: string, displayName: string, jobTitle: string | nul
         timeZone: null,
         workingHours: null,
         photo: null,
+        presence,
+        lastSeen: null,
     };
 }
 
-const zofia = colleagueCalled('zofia', 'Zofia Nowak', 'Managing Director');
+const zofia = colleagueCalled('zofia', 'Zofia Nowak', 'Managing Director', 'Busy');
 const anna = colleagueCalled('anna', 'Anna Kowalska');
 const piotr = colleagueCalled('piotr', 'Piotr Zieliński', 'Head of Delivery');
 const hanna = colleagueCalled('hanna', 'Hanna Wiśniewska');
@@ -55,9 +62,9 @@ describe('OrganizationCard', () => {
         const chain = within(chainList ?? document.body);
 
         expect(chain.getAllByRole('listitem').map((row) => row.textContent)).toEqual([
-            'ZNZofia NowakManaging Director',
-            'AKAnna Kowalska',
-            'PZPiotr ZielińskiHead of Delivery',
+            'ZNZofia NowakManaging Director · Busy',
+            'AKAnna KowalskaActive',
+            'PZPiotr ZielińskiHead of Delivery · Active',
         ]);
         expect(chain.getByText('Piotr Zieliński').closest('[aria-current="true"]')).not.toBeNull();
     });

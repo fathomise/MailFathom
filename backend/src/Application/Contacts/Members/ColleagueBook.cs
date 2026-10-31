@@ -195,7 +195,9 @@ public sealed class ColleagueBook
                 .ThenBy(colleague => colleague.Member.Value),
         ];
 
-        return new ColleagueStructure(above, reports, scope.User);
+        var withPresence = await this.WithPresenceAsync([.. above, .. reports], cancellationToken);
+
+        return new ColleagueStructure([.. withPresence.Take(above.Length)], [.. withPresence.Skip(above.Length)], scope.User);
     }
 
     /// <summary>Reads the portrait one colleague is drawn by.</summary>

@@ -382,8 +382,8 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.NotNull(structure);
-        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Member));
-        Assert.Equal([adam, marta], structure.DirectReports.Select(colleague => colleague.Member));
+        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Contact.Member));
+        Assert.Equal([adam, marta], structure.DirectReports.Select(colleague => colleague.Contact.Member));
         Assert.Equal(Reader, structure.Reader);
     }
 
@@ -402,7 +402,7 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.NotNull(structure);
-        Assert.Equal([Zofia, Reader], structure.Managers.Select(colleague => colleague.Member));
+        Assert.Equal([Zofia, Reader], structure.Managers.Select(colleague => colleague.Contact.Member));
         Assert.Empty(structure.DirectReports);
     }
 
@@ -421,7 +421,31 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.NotNull(structure);
-        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Member));
+        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Contact.Member));
+    }
+
+    /// <summary>Every member of the structure carries the presence a reader is handed, so a manager who chose to hide reads as offline there too.</summary>
+    [Fact]
+    public async Task ReadStructureAsync_AManagerWhoChoseToHideAndAnActiveReport_CarriesEachOnesPresenceAsOthersSeeIt()
+    {
+        // Arrange
+        var marta = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000c004"));
+        this.Holding(
+            MemberOf(Zofia, "Zofia Nowak"),
+            MemberOf(Piotr, "Piotr Zieliński") with { Manager = Zofia },
+            MemberOf(marta, "Marta Nowak") with { Manager = Piotr });
+        this.presence
+            .WithClient(Zofia, Guid.NewGuid(), ClientActivity.Active, Now.AddMinutes(2))
+            .WithChoice(Zofia, new PresenceChoice(PresenceState.Hidden, Duration: null, EndsAt: null))
+            .WithClient(marta, Guid.NewGuid(), ClientActivity.Active, Now.AddMinutes(2));
+
+        // Act
+        var structure = await this.BookFor(Organization).ReadStructureAsync(Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(structure);
+        Assert.Equal([new PresenceReading(PresenceState.Offline, LastSeen: null)], structure.Managers.Select(colleague => colleague.Presence));
+        Assert.Equal([new PresenceReading(PresenceState.Active, LastSeen: null)], structure.DirectReports.Select(colleague => colleague.Presence));
     }
 
     /// <summary>The structure is read only for a colleague: the reader themselves and a member of no organization the reader shares are nobody here.</summary>

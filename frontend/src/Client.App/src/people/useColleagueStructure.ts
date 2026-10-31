@@ -10,6 +10,7 @@ import {
     type ColleagueStructure,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
+import { useSignalledChanges } from '../signals/signalledChanges';
 
 // Where the colleague somebody has opened sits in their organization: the managers above them and who reports to them.
 // It is read apart from the colleague because the directory composes it out of every member while the colleague is one
@@ -63,6 +64,11 @@ export function useColleagueStructure(
 ): ColleagueStructureInForce {
     const [held, setHeld] = useState<HeldStructure>(() => nothingRead(colleagueId, session));
     const latest = useRef(0);
+    const signalled = useSignalledChanges();
+
+    // Who the structure last read names, so a presence change about one of them reads it again and one about anybody
+    // else does not.
+    const named = useRef<readonly string[]>([]);
 
     const read = useCallback(async (): Promise<void> => {
         if (session === null || colleagueId === null) {
@@ -76,6 +82,10 @@ export function useColleagueStructure(
             return;
         }
 
+        named.current =
+            answer.outcome === 'read'
+                ? [...answer.value.managers, ...answer.value.directReports].map(({ id }) => id)
+                : [];
         setHeld({
             colleagueId,
             session,
@@ -88,6 +98,20 @@ export function useColleagueStructure(
     useEffect(() => {
         void read();
     }, [read]);
+
+    useEffect(
+        () =>
+            signalled.listen((change) => {
+                if (
+                    change.kind === 'refresh' ||
+                    (change.kind === 'presence.changed' &&
+                        (change.members.length === 0 || change.members.some((id) => named.current.includes(id))))
+                ) {
+                    void read();
+                }
+            }),
+        [read, signalled],
+    );
 
     const standing =
         held.colleagueId === colleagueId && held.session === session ? held : nothingRead(colleagueId, session);

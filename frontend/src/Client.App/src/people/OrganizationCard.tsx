@@ -9,7 +9,9 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { SkeletonLines, type SkeletonLine } from '../controls/Skeleton';
 import type { MessageKey } from '../localization/en';
-import { useLocalization } from '../localization/useLocalization';
+import { useLocalization, type Translate } from '../localization/useLocalization';
+import { PresenceDot } from '../presence/PresenceDot';
+import { presenceSaid } from '../presence/presenceWords';
 import type { ColleagueStructureInForce } from './useColleagueStructure';
 
 // Where a colleague sits in the organization, as the design draws it: the chain of managers from the top down to the
@@ -124,8 +126,15 @@ export function OrganizationCard({
     );
 }
 
-// One member of the structure: their portrait, name, and title, leading to their page unless they are the colleague
-// already open or the reader.
+// The line under a member's name: their title and their presence, or their presence alone where they have no title.
+function lineOf(member: Colleague, translate: Translate): string {
+    const presence = translate(presenceSaid[member.presence]);
+
+    return member.jobTitle === null ? presence : translate('presence.afterRole', { role: member.jobTitle, presence });
+}
+
+// One member of the structure: their portrait with their presence on it, name, title, and presence in words, leading
+// to their page unless they are the colleague already open or the reader.
 function StructureRow({
     member,
     open,
@@ -137,15 +146,17 @@ function StructureRow({
     readonly reader: boolean;
     readonly onOpen: (member: Colleague) => void;
 }) {
+    const { translate } = useLocalization();
     const picture = useContactPhoto(member);
     const content = (
         <>
-            <SenderAvatar displayName={member.displayName} address={member.preferredAddress} picture={picture} />
+            <span className="relative flex shrink-0">
+                <SenderAvatar displayName={member.displayName} address={member.preferredAddress} picture={picture} />
+                <PresenceDot presence={member.presence} place="structure" />
+            </span>
             <span className="flex min-w-0 flex-1 flex-col gap-px text-start">
                 <span className="truncate text-md leading-natural font-semibold">{member.displayName}</span>
-                {member.jobTitle === null ? null : (
-                    <span className="truncate text-sm leading-natural text-muted">{member.jobTitle}</span>
-                )}
+                <span className="truncate text-sm leading-natural text-muted">{lineOf(member, translate)}</span>
             </span>
         </>
     );

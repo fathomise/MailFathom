@@ -2763,6 +2763,7 @@ export const pl: Catalogue = {
     'presence.hiddenNote': 'Inni widzą cię jako Offline',
     'presence.hiddenOwn': 'Ukryty - inni widzą cię jako Offline',
     'presence.withRole': '{presence} · {role}',
+    'presence.afterRole': '{role} · {presence}',
     'presence.lastSeen': 'Ostatnia aktywność: {when}',
     'presence.yours': 'Twój status',
     'presence.duration': 'Czas trwania',

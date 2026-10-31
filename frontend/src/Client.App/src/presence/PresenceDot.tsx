@@ -15,8 +15,9 @@ import { presenceSaid } from './presenceWords';
 // dot is hidden from the accessibility tree. The one place it stands alone — the account control in the rail — the
 // words are held beside it for that control to be described by.
 
-/** Where a dot stands, which decides its size: the design draws eight. */
-export type PresenceDotPlace = 'contact' | 'person' | 'rail' | 'head' | 'sheet' | 'line' | 'header' | 'suggestion';
+/** Where a dot stands, which decides its size: the design draws nine. */
+export type PresenceDotPlace =
+    'contact' | 'person' | 'rail' | 'head' | 'sheet' | 'line' | 'header' | 'suggestion' | 'structure';
 
 // Over an avatar, ringed; or inline at the start of a line. The ring a dot for *Offline* is drawn as thickens with the
 // dot, as the design draws it: two pixels up to 11, three from 13.
@@ -31,6 +32,7 @@ const places: Readonly<
     line: { size: 'size-2.5', over: false, thick: false },
     header: { size: 'size-2.25', over: false, thick: false },
     suggestion: { size: 'size-2.5', over: true, thick: false },
+    structure: { size: 'size-2.5', over: true, thick: false },
 };
 
 const fills: Readonly<Record<PresenceState, string>> = {

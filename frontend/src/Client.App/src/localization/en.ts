@@ -2728,6 +2728,7 @@ export const en = {
     'presence.hiddenNote': 'Others see you as Offline',
     'presence.hiddenOwn': 'Hidden - others see you as Offline',
     'presence.withRole': '{presence} · {role}',
+    'presence.afterRole': '{role} · {presence}',
     'presence.lastSeen': 'Last seen {when}',
     'presence.yours': 'Your status',
     'presence.duration': 'Duration',

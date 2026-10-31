@@ -5,11 +5,12 @@
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import { SignalledChangesContext, type SignalListener } from '../signals/signalledChanges';
 import { useColleagueStructure } from './useColleagueStructure';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
-function structureReporting(displayName: string): string {
+function structureReporting(displayName: string, presence = 'Active'): string {
     return JSON.stringify({
         managers: [],
         directReports: [
@@ -24,6 +25,7 @@ function structureReporting(displayName: string): string {
                 organizationName: 'Nordwind',
                 timeZone: null,
                 photo: null,
+                presence,
             },
         ],
         readerId: 'reader',
@@ -44,7 +46,9 @@ function Structured({
             <p>{held.reading ? 'reading' : 'settled'}</p>
             <ul>
                 {(held.structure?.directReports ?? []).map((report) => (
-                    <li key={report.id}>{report.displayName}</li>
+                    <li key={report.id}>
+                        <span>{report.displayName}</span> <span>{report.presence}</span>
+                    </li>
                 ))}
             </ul>
         </div>
@@ -76,5 +80,50 @@ describe('useColleagueStructure', () => {
         expect(screen.getByText('Hanna Mazur')).toBeDefined();
         expect(screen.queryByText('Oliver Brandt')).toBeNull();
         expect(screen.getByText('settled')).toBeDefined();
+    });
+
+    it('reads the structure again when somebody in it changes presence, and not for anybody else', async () => {
+        let presence = 'Active';
+        const asked: string[] = [];
+        const transport: MailFathomTransport = ({ path }) => {
+            asked.push(path);
+
+            return Promise.resolve({ status: 200, body: structureReporting('Hanna Mazur', presence), headers: {} });
+        };
+        const listeners = new Set<SignalListener>();
+        const say = (change: Parameters<SignalListener>[0]): void => {
+            for (const listener of listeners) {
+                listener(change);
+            }
+        };
+
+        render(
+            <SignalledChangesContext
+                value={{
+                    listen: (listener) => {
+                        listeners.add(listener);
+
+                        return () => {
+                            listeners.delete(listener);
+                        };
+                    },
+                    refresh: () => undefined,
+                }}
+            >
+                <Structured transport={transport} colleagueId="piotr" />
+            </SignalledChangesContext>,
+        );
+        expect(await screen.findByText('Active')).toBeDefined();
+
+        act(() => {
+            say({ kind: 'presence.changed', members: ['somebody-else'] });
+        });
+        presence = 'Away';
+        act(() => {
+            say({ kind: 'presence.changed', members: ['Hanna Mazur-id'] });
+        });
+
+        expect(await screen.findByText('Away')).toBeDefined();
+        expect(asked).toHaveLength(2);
     });
 });

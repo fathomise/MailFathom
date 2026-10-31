@@ -3492,7 +3492,7 @@ up from mail that arrived, and the four things they do about either.
 | `GET /api/client/contacts/colleagues` | Reads one page of the other members of this user's organization |
 | `GET /api/client/contacts/colleagues/{userId}` | Reads one of them |
 | `GET /api/client/contacts/colleagues/{userId}/photo` | Serves that colleague's portrait, or `404` where they have none |
-| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own, `directReports` by name, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
+| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence` and `lastSeen`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
 | `POST /api/client/contacts/colleagues/{userId}/promotion` | Writes a copy of that colleague into this user's own book |
 
 **The book is read as two, because it is two.** What somebody wrote down and what their mailboxes picked up are
