@@ -327,7 +327,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     waiting: { glyph: "schedule", tone: "faint", word: "Requested", each: "nothing back yet", count: () => "Requested" },
   };
   const RECEIPT_ORDER = ["failed", "delayed", "read", "delivered", "waiting"];
-  const RECEIPT_INK = { err: "var(--err-text)", warn: "var(--warn-text)", ok: "var(--ok-text)", plain: "var(--muted)", faint: "var(--faint)" };
+  const RECEIPT_INK = { err: "var(--err-text)", warn: "var(--warn-text)", ok: "var(--ok-text)", plain: "var(--muted)", faint: "var(--muted)" };
   const RECEIPT_PILL = {
     err: MARK_PILL.err, ok: MARK_PILL.ok, plain: MARK_PILL.known,
     warn: "color:var(--warn-text);background:var(--warn-soft);border:1px solid var(--warn);",
@@ -1869,10 +1869,25 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       });
     };
 
+    closeCtxMenuFocus = () => {
+      const t = this.state.ctxMenu && this.state.ctxMenu.kind === "composeMore" ? this._ctxTrigger : null;
+      this.setState({ ctxMenu: null });
+      if (t && t.isConnected) setTimeout(() => t.focus(), 0);
+    };
+
     /* *Sending options* — the three-dot control at the end of the composer's foot. The same context menu, standing
        above the control since the foot is the composer's last row, its end edge on the control's, holding the two
        requests this one message makes. Both start off; neither has an account-wide default. */
     openComposeMore = (e) => {
+      if (e && e.type === "keydown") {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+      }
+      /* The menu hands focus back to what opened it, the control or the line above the foot; opened from a key, its
+         first item takes focus so the arrow keys and Enter work at once. */
+      this._ctxTrigger = e && e.currentTarget && e.currentTarget.focus ? e.currentTarget : null;
+      const byKey = !!(e && e.type === "keydown");
+      if (byKey) setTimeout(() => { const it = document.querySelector("[data-ctx-item]"); if (it) it.focus(); }, 0);
       const r = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
       const coarse = this.state.coarse;
       const W = (coarse ? 312 : 296) + 14;
@@ -2054,7 +2069,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (e.key === "Escape" && this.state.linkAsk) { e.preventDefault(); this.closeLinkAsk(); return; }
       if (e.key === "Escape" && this.state.senderMark) { e.preventDefault(); this.closeSenderMark(true); return; }
       if (e.key === "Escape" && this.state.receiptPop) { e.preventDefault(); this.closeReceipt(true); return; }
-      if (e.key === "Escape" && this.state.ctxMenu) { e.preventDefault(); this.setState({ ctxMenu: null }); return; }
+      if (e.key === "Escape" && this.state.ctxMenu) { e.preventDefault(); this.closeCtxMenuFocus(); return; }
       if (e.key === "Escape" && this.state.source) { e.preventDefault(); this.closeSource(); }
     };
 
@@ -4691,7 +4706,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctxMenuTitle: st.ctxMenu ? st.ctxMenu.title : "",
         ctxMenuDetail: (st.ctxMenu && st.ctxMenu.detail) || "",
         ctxMenuHasDetail: !!(st.ctxMenu && st.ctxMenu.detail),
-        closeCtxMenu: () => { if (this.ctxArmed()) this.setState({ ctxMenu: null }); },
+        closeCtxMenu: () => { if (this.ctxArmed()) this.closeCtxMenuFocus(); },
         /* A checkable item reads its state from the render rather than from when the menu opened, and pressing it
            turns it over and leaves the menu standing, so both of the composer's requests are set in one visit. */
         ctxMenuItems: (st.ctxMenu ? st.ctxMenu.items : []).map(mi => ({
@@ -4699,7 +4714,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           role: mi.checked ? "menuitemcheckbox" : "menuitem",
           ariaChecked: mi.checked ? !!mi.checked() : null,
           checkShown: !!(mi.checked && mi.checked()),
-          run: () => { if (!this.ctxArmed()) return; if (!mi.checked) this.setState({ ctxMenu: null }); if (mi.run) mi.run(); },
+          run: () => { if (!this.ctxArmed()) return; if (!mi.checked) this.closeCtxMenuFocus(); if (mi.run) mi.run(); },
+          /* Enter and Space take an item, the arrow keys walk the items; Escape is the document's. */
+          key: (e) => {
+            const items = [...document.querySelectorAll("[data-ctx-item]")];
+            const i = items.indexOf(e.currentTarget);
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              const next = items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length];
+              if (next) next.focus();
+            } else if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              if (!mi.checked) this.closeCtxMenuFocus();
+              if (mi.run) mi.run();
+            }
+          },
           style: "display:flex;align-items:center;gap:11px;border-radius:8px;padding:0 12px;color:" + (mi.danger ? "var(--err-text)" : "var(--text)") +
             (touch ? ";min-height:48px;font-size:15px" : ";min-height:36px;font-size:14px"),
         })),

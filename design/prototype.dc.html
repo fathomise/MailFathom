@@ -1599,14 +1599,14 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div role="status" style="display:flex;align-items:flex-start;gap:8px;padding:9px 15px;border-top:1px solid var(--line);background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:20px;flex-shrink:0">cloud_off</span><span>{{ composeRefusedNote }}</span></div>
               </sc-if>
               <sc-if value="{{ composeReceiptsOn }}" hint-placeholder-val="{{ false }}">
-                <div data-compose-receipts role="button" tabindex="0" title="Change sending options" aria-haspopup="menu" onClick="{{ openComposeMore }}" style="{{ composeReceiptsLineStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:19px;flex-shrink:0;color:var(--accent-d)">{{ composeReceiptsGlyph }}</span><span style="min-width:0">{{ composeReceiptsText }} <span style="color:var(--muted)">{{ composeReceiptsNote }}</span></span></div>
+                <div data-compose-receipts role="button" tabindex="0" title="Change sending options" aria-haspopup="menu" onClick="{{ openComposeMore }}" onKeyDown="{{ openComposeMore }}" style="{{ composeReceiptsLineStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:19px;flex-shrink:0;color:var(--accent-d)">{{ composeReceiptsGlyph }}</span><span style="min-width:0">{{ composeReceiptsText }} <span style="color:var(--muted)">{{ composeReceiptsNote }}</span></span></div>
               </sc-if>
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 15px;border-top:1px solid var(--line);background:var(--sub)">
                 <div onClick="{{ askSendNow }}" title="{{ composeSendTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send</div>
                 <div title="Attach" style="{{ composeAttachStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ composeAttachIconStyle }}">attach_file</span><sc-if value="{{ composeAttachLabel }}" hint-placeholder-val="{{ true }}">Attach</sc-if></div>
                 <div onClick="{{ saveDraftNow }}" title="{{ composeSaveTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSaveStyle }}" style-hover="cursor:pointer;color:var(--text)">Save draft</div>
                 <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div style="margin-left:auto;font-size:11px;color:var(--faint)">Ctrl+Enter sends</div></sc-if>
-                <div role="button" tabindex="0" title="{{ composeMoreTitle }}" aria-label="{{ composeMoreTitle }}" aria-haspopup="menu" onClick="{{ openComposeMore }}" style="{{ composeMoreStyle }}" style-hover="cursor:pointer;background:var(--hover)">more_vert</div>
+                <div role="button" tabindex="0" title="{{ composeMoreTitle }}" aria-label="{{ composeMoreTitle }}" aria-haspopup="menu" onClick="{{ openComposeMore }}" onKeyDown="{{ openComposeMore }}" style="{{ composeMoreStyle }}" style-hover="cursor:pointer;background:var(--hover)">more_vert</div>
               </div>
             </div>
           </sc-if>
@@ -2552,7 +2552,7 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:4px 12px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">{{ ctxMenuTitle }}</div>
         <sc-if value="{{ ctxMenuHasDetail }}" hint-placeholder-val="{{ false }}"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);padding:0 12px 6px;margin-top:-4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ctxMenuDetail }}</div></sc-if>
         <sc-for list="{{ ctxMenuItems }}" as="cm" hint-placeholder-count="4">
-          <div role="{{ cm.role }}" aria-checked="{{ cm.ariaChecked }}" onClick="{{ cm.run }}" style="{{ cm.style }}" style-hover="cursor:pointer;background:var(--hover)">
+          <div data-ctx-item role="{{ cm.role }}" aria-checked="{{ cm.ariaChecked }}" tabindex="-1" onClick="{{ cm.run }}" onKeyDown="{{ cm.key }}" style="{{ cm.style }}" style-hover="cursor:pointer;background:var(--hover)">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;width:24px;text-align:center">{{ cm.icon }}</span>{{ cm.label }}
             <sc-if value="{{ cm.checkShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="margin-left:auto;padding-left:10px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:var(--accent-d)">check</span></sc-if>
           </div>
