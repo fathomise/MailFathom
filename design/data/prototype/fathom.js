@@ -2,10 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-// Fathom: the button in the bottom-right corner of Start, the Agent and Mail, and what it offers.
+// Fathom: the button in the bottom-right corner of Start and Mail, and what it offers.
 //
 // `menu` is what pressing it unfolds: the space's own actions first (Mail's come from the screen: *New message* and,
-// with a thread open, the reply), then *Smart* on Start and the Agent, then the Agent. `components` is what *Smart*
+// with a thread open, the reply), then *Smart* on Start, then the Agent. `components` is what *Smart*
 // finds under the pointer: an element carrying `data-smart="<id>"` is one component, named and given its own actions.
 // `itemActions` is what a press on anything inside the catch-up offers, by the item's kind, and `selection` what
 // selected text offers anywhere Fathom reads it.
@@ -19,9 +19,6 @@ MailFathomDesign.data.fathom = {
     start: [
       { id: "ask-day", icon: "forum", label: "Ask about your day", do: "agent", ctx: "your day" },
       { id: "plan-day", icon: "event_note", label: "Plan the rest of today", do: "agent", ctx: "planning today" },
-    ],
-    agent: [
-      { id: "new-conv", icon: "add_comment", label: "New conversation", do: "agentNew" },
     ],
   },
   components: {
@@ -101,13 +98,6 @@ MailFathomDesign.data.fathom = {
       { id: "want", icon: "help", label: "What do they want?", do: "answer" },
       { id: "when", icon: "schedule_send", label: "Tell them when I will answer", do: "toast", toast: "A short holding reply is in the composer." },
       { id: "person", icon: "person", label: "Open in People", do: "go", go: "people" },
-    ] },
-
-    "agent.message": { name: "Answer", what: "an answer in the conversation", actions: [
-      { id: "shorter", icon: "compress", label: "Shorter", do: "answer", line: "In one line: answer Contoso with a 5% cap before tomorrow." },
-      { id: "sources", icon: "fact_check", label: "Show the sources", do: "answer", line: "From six messages in “Contract addendum - signatures” and the attachment terms_2027.pdf." },
-      { id: "translate", icon: "translate", label: "Translate", do: "answer" },
-      { id: "task", icon: "add_task", label: "Make it a task", do: "toast", toast: "Task added from the answer." },
     ] },
   },
 

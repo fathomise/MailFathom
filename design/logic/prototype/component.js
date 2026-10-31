@@ -2232,7 +2232,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     goScreen = (id, patch) => {
       this.setState({ fathomMenu: false });
-      if (id !== "start" && id !== "agent") this.setState({ fathomSmart: false, fathomAnswer: null, selBar: null });
+      if (id !== "start") this.setState({ fathomSmart: false, fathomAnswer: null });
+      if (id !== "start" && id !== "agent") this.setState({ selBar: null });
       /* The first entry into mail starts with an empty panel; after that the open message
          is remembered for the session (in-memory state - gone when the app closes). */
       const p = Object.assign({ screen: id, replyDock: null, replyChooser: null }, patch || {});
@@ -4224,7 +4225,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* The framed previews are the three touch devices; anything else asks the pointer, as the client does. */
       const touch = FR ? true : mode === "desktop" ? false : !!st.coarse;
       const startWide = !isMobile && w >= 1680;
-      const agentCorner = (isMobile ? 20 : 24) + (isMobile ? 56 : 48) + 12 - (isMobile ? 14 : 26);
       /* Start's deck of steps: what is still to take, plus a step just taken or declined until the reader moves on. */
       const stepSettled = (i) => ((st.bkPhase || {})["start#" + i] || "pending") !== "pending";
       const stepDeck = HOME.steps.map((b, i) => i).filter(i => !(stepSettled(i) && (st.stepsGone || []).indexOf(i) >= 0));
@@ -5476,8 +5476,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:22px max(26px, calc((100% - 1290px) / 2))",
         /* The field and the line under it keep Fathom's corner free (its button, its edge and 12 px of air), so the button
            never stands over Send or Cancel; the context, the quote and the suggestions above them run the full width. */
-        agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 8 : 12) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:10px 13px") + ";margin-right:" + agentCorner + "px",
-        agentHintStyle: "font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:" + agentCorner + "px",
+        agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 8 : 12) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:10px 13px"),
+        agentHintStyle: "font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis",
         agentInputWrapStyle: isMobile
           ? "display:flex;flex-direction:column;gap:9px;background:var(--panel);border-top:1px solid var(--line);padding:12px 14px"
           : "display:flex;flex-direction:column;gap:10px;background:var(--panel);border-top:1px solid var(--line);padding:14px max(26px, calc((100% - 1290px) / 2)) 16px",

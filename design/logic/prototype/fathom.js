@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-// Fathom and the catch-up: the button in the bottom-right corner of Start and the Agent, its Smart mode, the answer card both
+// Fathom and the catch-up: the button in the bottom-right corner of Start and Mail, its Smart mode, the answer card both
 // write into, and the run of cards Start opens after an absence. `component.js` calls `install` once and merges `vals`
 // into what the template reads; the sample content is `data/prototype/fathom.js` and `data/prototype/catchup.js`.
 MailFathomDesign.fathomUi = (() => {
@@ -52,10 +52,9 @@ MailFathomDesign.fathomUi = (() => {
         self.setState({ fathomMenu: false, fathomSmart: false, smartHover: null, fathomAnswer: { title: a.label, about: t.label || "", text: answerText(a, t), ctx: t.label || a.label } });
         return;
       }
-      if (a.do === "agent" || a.do === "agentNew") {
+      if (a.do === "agent") {
         self.setState(Object.assign({ catchupOpen: false }, closeAll));
-        if (a.do === "agentNew") self.setState({ screen: "agent", convId: null, agentCtx: null });
-        else self.goAgentWith(a.ctx ? a.ctx + (t.label ? " · " + t.label : "") : t.label || "this");
+        self.goAgentWith(a.ctx ? a.ctx + (t.label ? " · " + t.label : "") : t.label || "this");
         return;
       }
       if (a.do === "toast") {
@@ -236,16 +235,7 @@ MailFathomDesign.fathomUi = (() => {
         e.stopPropagation();
       }
     };
-    /* In the Agent, Fathom stands level with the field it sits beside: its centre on the field's centre, kept in step
-       as the field moves (a context chip, a quote, the suggestions folding away). */
-    self.syncFathomDock = () => {
-      const box = self.state.screen === "agent" ? document.querySelector("[data-agent-box]") : null;
-      const fab = document.querySelector("[data-fathom-fab]");
-      const dock = box && fab ? Math.round(window.innerHeight - box.getBoundingClientRect().top - box.offsetHeight / 2 - fab.offsetHeight / 2) : null;
-      if (dock !== (self.state.fathomDock ?? null)) self.setState({ fathomDock: dock });
-    };
     if (typeof window !== "undefined") {
-      setInterval(self.syncFathomDock, 150);
       ["pointerdown", "mousedown", "pointerup", "click"].forEach(t => window.addEventListener(t, self.onSmartPress, true));
       window.addEventListener("pointermove", self.onSmartMove, true);
       window.addEventListener("scroll", () => self.onSmartMove(null), true);
@@ -259,16 +249,16 @@ MailFathomDesign.fathomUi = (() => {
     const barH = isMobile ? self.barH() : 0;
 
     /* ——— The Fathom button ——— */
-    /* It stands on Start, the Agent and Mail; Smart, which needs components to land on, only on Start and the Agent. */
-    const supported = st.screen === "start" || st.screen === "agent";
+    /* It stands on Start and Mail; Smart, which needs components to land on, only on Start. */
+    const supported = st.screen === "start";
     const menuKey = st.screen;
-    const where = st.screen === "agent" ? "the conversation" : "your day";
+    const where = "your day";
     const fabShown = (supported || st.screen === "mail") && !st.catchupOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings &&
       !st.notifCenter && !st.replyDock && !(isMobile && (st.sel || []).length);
     const fabSize = isMobile ? 56 : 48;
-    /* 24 px from both edges, 20 on a phone; in the Agent it stands level with the field it sits beside (`fathomDock`). */
+    /* 24 px from both edges, 20 on a phone, above its bottom bar. */
     const fabEdge = isMobile ? 20 : 24;
-    const fabBottom = st.screen === "agent" && st.fathomDock != null ? st.fathomDock : fabEdge + barH;
+    const fabBottom = fabEdge + barH;
     const smartOn = supported && !!st.fathomSmart;
     const menuRun = (a) => () => {
       if (a.do === "agent") { self.setState({ fathomMenu: false }); self.goAgentWith(a.ctx || where); return; }

@@ -2085,7 +2085,7 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
       <div ref="{{ agentScrollRef }}" onScroll="{{ onAgentScroll }}" onWheel="{{ onAgentWheel }}" onTouchMove="{{ onAgentWheel }}" onMouseUp="{{ onAgentSelect }}" onKeyUp="{{ onAgentSelect }}" onTouchEnd="{{ onAgentSelect }}" style="{{ agentScrollStyle }}">
         <sc-for list="{{ agentMsgs }}" as="m" hint-placeholder-count="2">
-          <div data-smart="agent.message" style="{{ m.rowStyle }}">
+          <div style="{{ m.rowStyle }}">
             <div style="{{ m.colStyle }}">
             <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
               <div style="{{ m.bubbleStyle }}"><sc-if value="{{ m.hasQuote }}" hint-placeholder-val="{{ false }}"><div style="{{ m.quoteStyle }}">{{ m.quote }}</div></sc-if>{{ m.text }}</div>
