@@ -4575,10 +4575,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const paneCompact = paneW < 760;
       const paneNarrow = paneW < 560;
       const stateCards = !isMobile && paneCompact;
-      /* A pane wide enough to leave a margin beside the reading column carries the thread's state in that margin
-         rather than in a bar over the correspondence. */
-      const stateAside = !singlePane && !isMobile && paneW >= 1200;
-      const readPad = (min) => "max(" + min + "px, calc((100% - 880px) / 2))";
+      const readW = 880;
+      const readPad = (min) => "max(" + min + "px, calc((100% - " + readW + "px) / 2))";
+      /* A pane wide enough to keep the whole reading column and still have room beside it carries the thread's state
+         there rather than in a bar over the correspondence. */
+      const stateAsideW = 560;
+      const stateAside = !singlePane && !isMobile && paneW >= readW + 2 * 22 + stateAsideW;
 
       const vals = {
         ...this.connVals(st, touch, isMobile),
@@ -7200,7 +7202,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         threadStateStyle: singlePane
           ? "flex:0 0 auto;display:flex;align-items:center;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 12px"
           : stateAside
-            ? "flex:0 0 280px;display:flex;flex-direction:column;gap:6px;background:var(--sub);border-left:1px solid var(--line);padding:18px 20px;overflow:auto;min-height:0;box-sizing:border-box"
+            ? "flex:0 0 " + stateAsideW + "px;display:flex;flex-direction:column;gap:6px;background:var(--sub);border-left:1px solid var(--line);padding:18px 20px;overflow:auto;min-height:0;box-sizing:border-box"
             : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 22px",
         stateRowStyle: stateAside ? "display:grid;grid-template-columns:minmax(0,1fr);gap:16px"
           : isMobile || paneNarrow ? "display:flex;flex-direction:column;gap:6px;padding-top:1px"
