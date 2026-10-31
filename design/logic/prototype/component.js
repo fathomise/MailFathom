@@ -4580,8 +4580,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          there rather than in a bar over the correspondence. */
       const stateAsideW = Math.min(560, paneW - readW - 2 * 22);
       const stateAside = !singlePane && !isMobile && stateAsideW >= 420;
-      /* A percentage padding reads its parent's width, and beside the state column that parent includes the column. */
+      /* Beside the state card the reading column is centred in what the card leaves, and the body still spans the pane
+         so its scrollbar stays at the pane's edge. */
       const readPad = (min) => "max(" + min + "px, calc((100% - " + (readW + (stateAside ? stateAsideW : 0)) + "px) / 2))";
+      const readPadEnd = (min) => stateAside ? "calc(" + stateAsideW + "px + " + readPad(min) + ")" : readPad(min);
 
       const vals = {
         ...this.connVals(st, touch, isMobile),
@@ -7199,11 +7201,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const next = i < 0 ? null : listedThreads[dx < 0 ? i + 1 : i - 1];
           if (next) this.setState({ threadId: next.id, thScroll: false, stateOpen: false });
         },
-        threadMainStyle: "flex:1;display:flex;min-width:0;min-height:0;flex-direction:" + (stateAside ? "row-reverse" : "column"),
+        threadMainStyle: "position:relative;flex:1;display:flex;flex-direction:column;min-width:0;min-height:0",
         threadStateStyle: singlePane
           ? "flex:0 0 auto;display:flex;align-items:center;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 12px"
           : stateAside
-            ? "flex:0 0 " + (stateAsideW - 22) + "px;align-self:flex-start;max-height:calc(100% - 36px);margin:18px 22px 18px 0;display:flex;flex-direction:column;gap:6px;background:var(--sub);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;box-sizing:border-box"
+            ? "position:absolute;z-index:1;top:18px;right:22px;width:" + (stateAsideW - 22) + "px;max-height:calc(100% - 104px);display:flex;flex-direction:column;gap:6px;background:var(--sub);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;box-sizing:border-box"
             : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 22px",
         stateRowStyle: stateAside ? "display:grid;grid-template-columns:minmax(0,1fr);gap:16px"
           : isMobile || paneNarrow ? "display:flex;flex-direction:column;gap:6px;padding-top:1px"
@@ -7229,7 +7231,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The bottom padding keeps the last line of the thread clear of the floating reply button. */
         threadBodyStyle: singlePane
           ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : st.replyDock ? 96 : 84) + "px;overflow:auto;min-height:0"
-          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px " + readPad(22) + " " + (st.stateBarOff ? 18 : st.replyDock ? 150 : 86) + "px;overflow:auto;min-height:0",
+          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px " + readPadEnd(22) + " " + (st.stateBarOff ? 18 : st.replyDock ? 150 : 86) + "px " + readPad(22) + ";overflow:auto;min-height:0",
         backBannerStyle: isMobile
           ? "display:flex;flex-direction:column;gap:3px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:9px 14px"
           : "display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:10px 22px",
