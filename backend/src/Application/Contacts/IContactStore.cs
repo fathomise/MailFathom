@@ -2,7 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
@@ -82,6 +85,28 @@ public interface IContactStore
         Contact contact,
         ContactAddressWriter writer,
         IReadOnlyCollection<EmailAddress> restatedAddresses,
+        CancellationToken cancellationToken);
+
+    /// <summary>Stages a contact of one user's own book linking a photo, or none.</summary>
+    /// <param name="session">The session the write joins.</param>
+    /// <param name="user">The user whose own book holds the contact, and who owns the file.</param>
+    /// <param name="contactId">The contact whose photo is linked.</param>
+    /// <param name="photo">The file to link, or <see langword="null" /> to link none.</param>
+    /// <param name="cancellationToken">Cancels the staging.</param>
+    /// <returns>Whether that book holds the contact, and the file it linked before this write.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when the session cannot supply this store's persistence context.</exception>
+    /// <remarks>
+    /// Only the user's own book is reached, because only a contact a user wrote down has a user to own its photo: a
+    /// collected contact and an organization's contact are answered as contacts the book does not hold. The row's
+    /// concurrency token travels with the write, so of two replacements of one photo each displaces exactly the file the
+    /// other did not, and a contact erased meanwhile is a conflict the retry answers as nobody held.
+    /// </remarks>
+    Task<ContactPhotoRelinking> RelinkPhotoAsync(
+        IPersistenceSession session,
+        UserId user,
+        ContactId contactId,
+        StoredFileId? photo,
         CancellationToken cancellationToken);
 
     /// <summary>Erases one contact and everything derived from it, from whichever book of the scope holds it.</summary>

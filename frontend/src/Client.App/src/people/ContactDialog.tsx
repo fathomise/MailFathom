@@ -3,11 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useId, useRef, useState, type RefObject } from 'react';
+import type { PortraitImageType } from '@mailfathom/client-backend';
 import { mannerDrawn } from '../confirmation/wayOutShapes';
 import { dialogField, dialogFieldLabel } from '../controls/chrome';
+import { chosenPortrait } from '../controls/chosenPortrait';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { SurfaceControl } from '../controls/SurfaceControl';
+import { asDataUrl } from '../deployment/dataUrl';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
@@ -23,14 +26,14 @@ import {
 } from './contactAddresses';
 
 // Writing somebody down, and correcting somebody already written down, which are the two ways this client states a
-// person in the book and one form: a name, and every address they use with the one mail goes to by default. What it
-// records is asserted by the person typing it, which is not a field on this form and never could be: the surface reads
+// person in the book and one form: a photo, a name, and every address they use with the one mail goes to by default.
+// What it records is asserted by the person typing it, which is not a field on this form and never could be: the surface reads
 // the origin off who is writing rather than off what they send. Amending opens on what the record holds, and *Save*
 // stays flat until something in it differs.
 //
-// **The name and the addresses rather than everything the design draws.** The design's dialog also takes a photo and
-// phone numbers, and a contact record on this deployment holds neither, so a form offering them would be asking for
-// values no request could carry and no screen could ever draw back.
+// **The photo, the name, and the addresses rather than everything the design draws.** The design's dialog also takes
+// phone numbers, and a contact record on this deployment holds none, so a form offering them would be asking for values
+// no request could carry and no screen could ever draw back.
 //
 // **The addresses are a radio group**, because choosing the default is choosing one out of several: the platform
 // announces the set, reports which is in force, and moves between the rows with the arrow keys. What the rows may hold
@@ -40,14 +43,38 @@ import {
 // text that is not shaped like an address. Everything else the book judges — an address another contact already holds
 // above all — is an outcome the screen reports rather than a rule restated here.
 //
+// **The photo is a change the form carries rather than a write it makes.** A file chosen here is judged against the
+// two bounds the deployment holds a photo to and drawn in the circle at once, but nothing is sent until *Save*: the
+// contact has to exist before a photo can be stored under it, and a form somebody cancels leaves the record exactly as
+// it was. What *Save* hands over is therefore whether the photo is kept, replaced by the file chosen, or removed.
+//
 // The dialog is the platform's own, so the page behind it is inert, focus moves into it and is held there, Escape
 // leaves it, and leaving it puts focus back on the control that opened it. Whether it is open is therefore the
 // element's state rather than a second copy of it, which is why the caller hands over the reference.
+
+/** What happens to the photo when the form is saved. */
+export type ContactPhotoChange =
+    | { readonly kind: 'kept' }
+    | {
+          readonly kind: 'chosen';
+          readonly picture: Blob;
+          readonly type: PortraitImageType;
+
+          /** The address the chosen file is drawn at in the form. */
+          readonly shown: string;
+      }
+    | { readonly kind: 'removed' };
 
 /** What a person has typed into the form: the name, and the address rows with the default among them. */
 export interface ContactDraft {
     readonly displayName: string;
     readonly rows: AddressRows;
+}
+
+/** What the record being corrected holds as the form opens on it. */
+export interface ContactHeld extends ContactDraft {
+    /** The address the person's photo is drawn at, or `null` where they have none or it has not been read yet. */
+    readonly photo: string | null;
 }
 
 /** What the form is saved as, which is the whole of what a record this client writes carries beside its note. */
@@ -57,7 +84,26 @@ export interface ContactStatement {
     readonly preferredAddress: string;
 }
 
+/** What *Save* hands over: the record as the form states it, whether that differs from the record held, and the photo. */
+export interface ContactSave {
+    readonly statement: ContactStatement;
+    readonly restated: boolean;
+    readonly photo: ContactPhotoChange;
+}
+
 const nothingWritten: ContactDraft = { displayName: '', rows: noAddressWritten };
+
+const photoKept: ContactPhotoChange = { kind: 'kept' };
+
+/** Why a chosen file was not taken, with its size where that is the reason, since the sentence names it. */
+type PhotoRefusal =
+    { readonly reason: 'notAnImageKind' | 'notRead' } | { readonly reason: 'tooLarge'; readonly octets: number };
+
+const octetsPerMegabyte = 1_048_576;
+
+// The two photo controls are one shape, the design's small bordered button, whether it opens a file or removes one.
+const photoControl =
+    'flex cursor-pointer items-center gap-1.5 rounded-md border border-line-strong bg-panel px-3 py-1.75 text-base whitespace-nowrap text-text-soft transition hover:bg-hover has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent';
 
 function statementOf(draft: ContactDraft): ContactStatement | null {
     const displayName = draft.displayName.trim();
@@ -85,12 +131,12 @@ export function ContactDialog({
     readonly asked: RefObject<HTMLDialogElement | null>;
 
     /** What the record being corrected holds, or `null` where somebody is being written down for the first time. */
-    readonly amending?: ContactDraft | null;
+    readonly amending?: ContactHeld | null;
 
     /** Records what was typed, run once the dialog has closed and focus has been restored. */
-    readonly onSave: (statement: ContactStatement) => void;
+    readonly onSave: (save: ContactSave) => void;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const closesOnBack = useTopLayerSurface();
     const asks = useId();
     const names = useId();
@@ -99,11 +145,53 @@ export function ContactDialog({
 
     const opensOn = amending ?? nothingWritten;
     const [draft, setDraft] = useState<ContactDraft>(opensOn);
+    const [photo, setPhoto] = useState<ContactPhotoChange>(photoKept);
+    const [photoRefused, setPhotoRefused] = useState<PhotoRefusal | null>(null);
 
     const statement = statementOf(draft);
     const usable = !holdsUnusableAddress(draft.rows);
-    const changed = amending === null || statement === null || !sameStatement(statement, statementOf(amending));
-    const savable = statement !== null && changed;
+    const restated = amending === null || statement === null || !sameStatement(statement, statementOf(amending));
+    const savable = statement !== null && (restated || photo.kind !== 'kept');
+
+    const heldPhoto = amending?.photo ?? null;
+    const shownPhoto = photo.kind === 'chosen' ? photo.shown : photo.kind === 'removed' ? null : heldPhoto;
+
+    function choosePhoto(picture: File | undefined): void {
+        if (picture === undefined) {
+            return;
+        }
+
+        const choice = chosenPortrait(picture.type, picture.size);
+
+        if (choice.outcome !== 'admissible') {
+            setPhotoRefused(
+                choice.outcome === 'notAnImageKind'
+                    ? { reason: 'notAnImageKind' }
+                    : { reason: 'tooLarge', octets: picture.size },
+            );
+
+            return;
+        }
+
+        setPhotoRefused(null);
+
+        // Drawn from the file itself, so the circle shows what *Save* will send rather than what is stored.
+        void asDataUrl(picture).then(
+            (shown) => {
+                setPhoto({ kind: 'chosen', picture, type: choice.type, shown });
+            },
+            () => {
+                setPhotoRefused({ reason: 'notRead' });
+            },
+        );
+    }
+
+    function removePhoto(): void {
+        setPhotoRefused(null);
+
+        // A photo chosen for somebody who has none stored is simply let go of: there is nothing to remove from them.
+        setPhoto(heldPhoto === null ? photoKept : { kind: 'removed' });
+    }
 
     // Saving writes the person into the book, so while the server is out of reach it says why it cannot act — over the
     // buttons, where a finger reads it as well as a mouse — and the dialog keeps everything typed into it.
@@ -147,12 +235,14 @@ export function ContactDialog({
                 dialog.returnValue = '';
 
                 if (answer === 'save' && refused === null && statement !== null) {
-                    onSave(statement);
+                    onSave({ statement, restated, photo });
                 }
 
                 // The form is put back on the way out rather than on the way in, so a dialog opened again opens on the
                 // record and nothing of what was typed outlives the question it was typed into.
                 setDraft(opensOn);
+                setPhoto(photoKept);
+                setPhotoRefused(null);
             }}
         >
             <div aria-hidden="true" className="flex h-5 shrink-0 items-center justify-center workspace:hidden">
@@ -187,6 +277,76 @@ export function ContactDialog({
                 </div>
 
                 <div className="flex min-h-0 flex-col gap-3.5 overflow-y-auto px-4.5 py-4.5">
+                    <div className="flex items-center gap-3.5">
+                        {shownPhoto === null ? (
+                            <span
+                                aria-hidden="true"
+                                className="flex size-14 shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong bg-rail text-faint"
+                            >
+                                <Icon name="add_a_photo" className="size-icon-2xl" />
+                            </span>
+                        ) : (
+                            <img
+                                src={shownPhoto}
+                                alt={translate('people.contactPhoto')}
+                                className="size-14 shrink-0 rounded-full bg-line-strong object-cover"
+                            />
+                        )}
+
+                        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                            <div className="flex flex-wrap gap-2">
+                                <label className={photoControl}>
+                                    <Icon name="image" className="size-icon-sm" />
+                                    {translate(shownPhoto === null ? 'people.choosePhoto' : 'people.changePhoto')}
+
+                                    {/* The file input carries the label rather than being clicked by a handler, for the
+                                        reason the settings screen gives about the portrait's: a label already names
+                                        the input and opens it, from the keyboard as from a pointer. */}
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/png"
+                                        className="sr-only"
+                                        onChange={(event) => {
+                                            choosePhoto(event.target.files?.[0]);
+
+                                            // Cleared so that picking the same file twice is a second choice.
+                                            event.target.value = '';
+                                        }}
+                                    />
+                                </label>
+
+                                {shownPhoto === null ? null : (
+                                    <button
+                                        type="button"
+                                        className={`${photoControl} hover:text-warning-text`}
+                                        onClick={removePhoto}
+                                    >
+                                        {translate('people.removePhoto')}
+                                    </button>
+                                )}
+                            </div>
+
+                            <span className="text-sm text-muted text-pretty">{translate('people.photoBounds')}</span>
+
+                            {photoRefused === null ? null : (
+                                <span role="alert" className="text-sm text-error-text">
+                                    {photoRefused.reason === 'tooLarge'
+                                        ? translate('people.photoTooLarge', {
+                                              size: new Intl.NumberFormat(locale, {
+                                                  minimumFractionDigits: 1,
+                                                  maximumFractionDigits: 1,
+                                              }).format(photoRefused.octets / octetsPerMegabyte),
+                                          })
+                                        : translate(
+                                              photoRefused.reason === 'notRead'
+                                                  ? 'people.photoNotRead'
+                                                  : 'people.photoNotAnImageKind',
+                                          )}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="flex flex-col gap-1.5">
                         <label htmlFor={names} className={dialogFieldLabel}>
                             {translate('people.contactName')}

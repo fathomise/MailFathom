@@ -133,7 +133,8 @@ internal static class ContactMapping
             entity.Origin,
             entity.RecordedAt,
             entity.AmendedAt,
-            entity.OrganizationId);
+            entity.OrganizationId,
+            entity.PhotoFileId);
     }
 
     /// <summary>Rebuilds one stored address, which the write path already validated.</summary>

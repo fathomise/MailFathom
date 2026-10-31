@@ -206,6 +206,56 @@ public sealed class ContactTests
         Assert.Equal(organization, amended.Organization);
     }
 
+    /// <summary>A photo is a file a user owns, so only a contact a user wrote down in their own book links one, and never the empty identity.</summary>
+    [Theory]
+    [InlineData(ContactOrigin.Collected, null, "0197a3c0-0000-7000-8000-000000000001")]
+    [InlineData(ContactOrigin.Asserted, "0198f0aa-0000-7000-8000-00000000f001", "0197a3c0-0000-7000-8000-000000000001")]
+    [InlineData(ContactOrigin.Asserted, null, "00000000-0000-0000-0000-000000000000")]
+    public void Create_APhotoOutsideAUsersOwnBookOrNamingNoFile_IsRefused(ContactOrigin origin, string? organization, string photo)
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentException>(() => Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(RecordedAt)),
+            ContactDisplayName.Create("Anna Kowalska"),
+            [Address("anna@example.test")],
+            Address("anna@example.test"),
+            note: null,
+            origin,
+            RecordedAt,
+            RecordedAt,
+            organization is null ? null : new Guid(organization),
+            new Guid(photo)));
+    }
+
+    /// <summary>An amendment states the person rather than their picture, so the photo survives one.</summary>
+    [Fact]
+    public void AmendedWith_AContactWithAPhoto_KeepsThePhoto()
+    {
+        // Arrange
+        var photo = new Guid("0197a3c0-0000-7000-8000-000000000001");
+        var contact = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(RecordedAt)),
+            ContactDisplayName.Create("Anna Kowalska"),
+            [Address("anna@example.test")],
+            Address("anna@example.test"),
+            note: null,
+            ContactOrigin.Asserted,
+            RecordedAt,
+            RecordedAt,
+            photo: photo);
+
+        // Act
+        var amended = contact.AmendedWith(
+            ContactDisplayName.Create("Anna Nowak"),
+            [Address("anna@example.test")],
+            Address("anna@example.test"),
+            note: null,
+            RecordedAt.AddDays(1));
+
+        // Assert
+        Assert.Equal(photo, amended.Photo);
+    }
+
     /// <summary>An amendment states the record the user wants, and keeps everything identity is made of.</summary>
     [Fact]
     public void AmendedWith_ANewNamePreferredAddressAndNote_KeepsIdentityOriginAndArrival()

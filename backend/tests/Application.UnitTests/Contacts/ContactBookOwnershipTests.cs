@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
@@ -700,6 +701,7 @@ public sealed class ContactBookOwnershipTests
         return new ContactBook(
             store,
             store,
+            Substitute.For<IStoredFileStore>(),
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), timeProvider),
             timeProvider,
             authorization);

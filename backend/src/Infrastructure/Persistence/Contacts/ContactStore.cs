@@ -3,11 +3,15 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Contacts;
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
+using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using Microsoft.EntityFrameworkCore;
@@ -122,6 +126,43 @@ internal sealed class ContactStore : IContactStore
     }
 
     /// <inheritdoc />
+    public async Task<ContactPhotoRelinking> RelinkPhotoAsync(
+        IPersistenceSession session,
+        UserId user,
+        ContactId contactId,
+        StoredFileId? photo,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var bookHolderId = ContactBookHolder.Of(user).Key;
+        var contactValue = contactId.Value;
+
+        // Tracked so the concurrency token travels with the write: the file read here as the one displaced is the file
+        // the row still links when the commit lands, or the commit is a conflict the retry reads again.
+        var held = await writeContext.Contacts.FirstOrDefaultAsync(
+            record => record.Id == contactValue && record.BookHolderId == bookHolderId,
+            cancellationToken);
+
+        if (held is null)
+        {
+            return ContactPhotoRelinking.NoSuchContact;
+        }
+
+        var replaced = held.PhotoFileId is { } linked ? StoredFileId.Create(linked) : (StoredFileId?)null;
+
+        held.PhotoFileId = photo?.Value;
+
+        return new ContactPhotoRelinking(ContactHeld: true, replaced);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The photo goes with the person in the same transaction rather than waiting for the sweep: an erasure answered to a
+    /// data subject has to be true when it is answered, so the file's row is deleted here and its object, where it has
+    /// one, is released on the commit.
+    /// </remarks>
     public async Task<ContactErasure> EraseAsync(
         IPersistenceSession session,
         ContactBookScope scope,
@@ -156,6 +197,20 @@ internal sealed class ContactStore : IContactStore
         var erasedAddresses = await writeContext.ContactAddresses
             .Where(address => address.ContactId == contactValue && books.Contains(address.BookHolderId))
             .ExecuteDeleteAsync(cancellationToken);
+
+        var photos = await writeContext.Contacts
+            .Where(record => record.Id == contactValue && books.Contains(record.BookHolderId) && record.PhotoFileId != null)
+            .Select(record => record.PhotoFileId!.Value)
+            .ToArrayAsync(cancellationToken);
+
+        if (photos.Length > 0)
+        {
+            await ReleasedContentObjects.ReleaseForStoredFilesAsync(session, photos, cancellationToken);
+
+            await writeContext.StoredFiles
+                .Where(file => photos.Contains(file.Id))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
 
         var erasedContacts = await writeContext.Contacts
             .Where(record => record.Id == contactValue && books.Contains(record.BookHolderId))

@@ -18,6 +18,9 @@ import { initialsOf } from './initials';
 // The address book draws the same circle at two further sizes — one on a contact's row and a larger one at the head of
 // the person opened — and they are places here rather than a second component, because a person recognised by their
 // letters is the same circle wherever it stands.
+//
+// A person the reader wrote down in their own book may carry a photo the reader gave them, and then the circle draws
+// that instead of the letters — the same circle in the same place, as `PersonAvatar.tsx` does for the signed-in person.
 
 /**
  * Where the avatar stands: a row of a list or that row folded to a strip, the head of a message drawn as a card, an opened person's own page, or one
@@ -41,24 +44,29 @@ const places: Readonly<Record<SenderAvatarPlace, string>> = {
 export function SenderAvatar({
     displayName,
     address,
+    picture = null,
     place = 'card',
 }: {
     readonly displayName: string | null;
     readonly address: string | null;
+
+    /** Where a photo of them may be drawn from, or `null` where the letters are drawn instead. */
+    readonly picture?: string | null;
+
     readonly place?: SenderAvatarPlace;
 }) {
     const initials = initialsOf(displayName, address);
 
-    if (initials === null) {
+    if (initials === null && picture === null) {
         return null;
     }
 
     return (
         <span
             aria-hidden="true"
-            className={`flex shrink-0 items-center justify-center self-center rounded-full bg-line-strong font-medium tracking-wide text-text-soft ${places[place]}`}
+            className={`flex shrink-0 items-center justify-center self-center overflow-hidden rounded-full bg-line-strong font-medium tracking-wide text-text-soft ${places[place]}`}
         >
-            {initials}
+            {picture === null ? initials : <img src={picture} alt={''} className="size-full object-cover" />}
         </span>
     );
 }

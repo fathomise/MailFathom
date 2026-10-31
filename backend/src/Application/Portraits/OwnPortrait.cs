@@ -60,7 +60,7 @@ public sealed class OwnPortrait
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>Their portrait, or <see langword="null" /> where this deployment holds none for them.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.ProfileRead" />.</exception>
-    public async Task<UserPortrait?> ReadAsync(CancellationToken cancellationToken)
+    public async Task<Portrait?> ReadAsync(CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.ProfileRead);
 
@@ -72,7 +72,7 @@ public sealed class OwnPortrait
         }
 
         return await this.files.ReadAsync(user, linked, cancellationToken) is { } content
-            ? UserPortrait.Of(content)
+            ? Portrait.Of(content)
             : null;
     }
 
@@ -83,7 +83,7 @@ public sealed class OwnPortrait
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="portrait" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.ProfileWrite" />.</exception>
     /// <remarks>A refused portrait leaves the file written for it removed again, so a refusal stores nothing.</remarks>
-    public async Task<PortraitChange> ReplaceAsync(UserPortrait portrait, CancellationToken cancellationToken)
+    public async Task<PortraitChange> ReplaceAsync(Portrait portrait, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(portrait);
 

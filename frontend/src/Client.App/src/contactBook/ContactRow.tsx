@@ -8,6 +8,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
 import { SenderAvatar } from '../controls/SenderAvatar';
+import { useContactPhoto } from './contactPhotos';
 
 // One person on the list, which is its own component for the reason a message row is: it is what carries the press,
 // the keyboard path, and a test.
@@ -64,6 +65,7 @@ export function ContactRow({
     readonly onElement: (element: HTMLLIElement | null) => void;
 }) {
     const press = useRowPress(onPress);
+    const picture = useContactPhoto(contact);
 
     return (
         <li
@@ -123,7 +125,12 @@ export function ContactRow({
                 </span>
             ) : null}
 
-            <SenderAvatar displayName={contact.displayName} address={contact.preferredAddress} place="contact" />
+            <SenderAvatar
+                displayName={contact.displayName}
+                address={contact.preferredAddress}
+                picture={picture}
+                place="contact"
+            />
 
             <span className="flex min-w-0 flex-col gap-0.75">
                 <span className="truncate text-base font-semibold">{contact.displayName}</span>

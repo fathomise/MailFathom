@@ -645,9 +645,7 @@ internal static class ContactEndpoints
 
         var export = await book.ExportAsync(bookScope, identity, cancellationToken);
 
-        return TypedResults.Ok(export is null
-            ? new ContactExportResponse(Contact: null, ProducedAt: null)
-            : new ContactExportResponse(ContactResponse.For(export.Contact), export.ProducedAt));
+        return TypedResults.Ok(ContactExportResponse.For(export));
     }
 
     /// <summary>Reads the identity a route named, refusing the one value a UUID route constraint still admits.</summary>

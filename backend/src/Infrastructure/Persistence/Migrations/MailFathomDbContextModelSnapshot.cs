@@ -513,6 +513,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<Guid?>("PhotoFileId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("PreferredNormalizedAddress")
                         .IsRequired()
                         .HasMaxLength(320)
@@ -530,6 +533,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OrganizationId");
 
+                    b.HasIndex("PhotoFileId")
+                        .HasDatabaseName("ix_contacts_photo_file_id")
+                        .HasFilter("\"PhotoFileId\" IS NOT NULL");
+
                     b.HasIndex("UserId");
 
                     b.HasIndex("BookHolderId", "DisplayNameSortKey", "Id")
@@ -538,6 +545,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("contacts", null, t =>
                         {
                             t.HasCheckConstraint("ck_contacts_book_holder", "((\"UserId\" IS NOT NULL)::int + (\"OrganizationId\" IS NOT NULL)::int + (\"MailboxAccountId\" IS NOT NULL)::int) = 1\nAND \"BookHolderId\" = CASE WHEN \"UserId\" IS NOT NULL THEN 'user:' || \"UserId\"::text WHEN \"OrganizationId\" IS NOT NULL THEN 'organization:' || \"OrganizationId\"::text ELSE 'account:' || \"MailboxAccountId\" END\nAND \"Origin\" = CASE WHEN \"MailboxAccountId\" IS NULL THEN 'Asserted' ELSE 'Collected' END");
+
+                            t.HasCheckConstraint("ck_contacts_photo_holder", "\"PhotoFileId\" IS NULL OR \"UserId\" IS NOT NULL");
                         });
                 });
 
@@ -4719,6 +4728,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredFileEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PhotoFileId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_contacts_stored_files_photo");
 
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.UserAccountEntity", null)
                         .WithMany()

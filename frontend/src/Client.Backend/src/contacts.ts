@@ -55,6 +55,12 @@ export interface Contact {
     readonly origin: ContactOrigin;
     readonly recordedAt: string;
     readonly amendedAt: string;
+
+    /**
+     * Which photo the user supplied for them, or `null` where they supplied none. It names the stored file and changes
+     * whenever the photo does, so a screen reads the photo again exactly when this differs from what it last read.
+     */
+    readonly photo: string | null;
 }
 
 /** One bounded page of one book, and where the walk continues. */
@@ -509,8 +515,13 @@ export function parseContact(value: unknown): Contact | null {
     const origin = record['origin'];
     const recordedAt = record['recordedAt'];
     const amendedAt = record['amendedAt'];
+    const photo = record['photo'];
 
     if (typeof id !== 'string' || typeof displayName !== 'string' || typeof preferredAddress !== 'string') {
+        return null;
+    }
+
+    if (photo !== null && typeof photo !== 'string') {
         return null;
     }
 
@@ -541,6 +552,7 @@ export function parseContact(value: unknown): Contact | null {
         origin,
         recordedAt,
         amendedAt,
+        photo,
     };
 }
 

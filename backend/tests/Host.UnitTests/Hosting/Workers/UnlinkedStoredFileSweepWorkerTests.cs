@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Contacts;
 using MailFathom.Application.Coordination;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
@@ -153,7 +154,7 @@ public sealed class UnlinkedStoredFileSweepWorkerTests
         throw new InvalidOperationException("The database answered after all.");
     }
 
-    /// <summary>Composes the worker over the real sweep, substituted files, a record linking nothing, and a lease nothing competes for.</summary>
+    /// <summary>Composes the worker over the real sweep, substituted files, a record and a book linking nothing, and a lease nothing competes for.</summary>
     private static UnlinkedStoredFileSweepWorker CreateWorker(
         IStoredFileStore files,
         out FakeTimeProvider timeProvider,
@@ -166,10 +167,15 @@ public sealed class UnlinkedStoredFileSweepWorkerTests
         links.ReadLinkedFilesAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>())
             .Returns(new HashSet<StoredFileId>());
 
+        var contacts = Substitute.For<IContactDirectory>();
+        contacts.FindPhotosOfAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(new HashSet<StoredFileId>());
+
         var services = new ServiceCollection();
         services.AddSingleton<TimeProvider>(timeProvider);
         services.AddSingleton(files);
         services.AddSingleton(links);
+        services.AddSingleton(contacts);
         services.AddSingleton<IWorkLeaseRunner>(new GrantingLeaseRunner());
         services.AddSingleton(AccessAuthorizations.ForPrincipal(AuthorizedPrincipal.Process));
         services.AddScoped<UnlinkedStoredFileSweep>();

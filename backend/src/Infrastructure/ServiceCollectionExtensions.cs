@@ -21,6 +21,7 @@ using MailFathom.Application.Calendar.Import;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Contacts.Correspondence;
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Coordination;
 using MailFathom.Application.Discovery.Citations;
 using MailFathom.Application.Discovery.Planning;
@@ -1698,6 +1699,10 @@ public static class ServiceCollectionExtensions
         // and the bounds every request is checked against before the store is reached.
         services.AddScoped<ContactBookReader>();
         services.AddScoped<ContactBookWriter>();
+
+        // A contact's photo, a stored file of the user's linked from the contact the way their own portrait is linked
+        // from their record.
+        services.AddScoped<ContactPhotos>();
 
         // The correlation an opened contact is drawn beside, which is a mail read rather than a book one: it stores
         // nothing, keys on the addresses the book already holds, and narrows by the same scope every other mail read

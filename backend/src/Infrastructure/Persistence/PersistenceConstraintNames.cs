@@ -379,6 +379,19 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string ContactBookHolderCheckConstraintName = "ck_contacts_book_holder";
 
+    /// <summary>The constraint that keeps a photo on a contact a user wrote down in their own book and nowhere else.</summary>
+    /// <remarks>
+    /// A stored file belongs to a user, so only a contact a user holds has anybody to own one; a collected contact and an
+    /// organization's contact linking a file would link one that belongs to nobody it could be erased with.
+    /// </remarks>
+    internal const string ContactPhotoHolderCheckConstraintName = "ck_contacts_photo_holder";
+
+    /// <summary>The foreign key that unlinks a contact's photo when its stored file goes.</summary>
+    internal const string ContactPhotoFileForeignKeyName = "fk_contacts_stored_files_photo";
+
+    /// <summary>The index the photo link is looked up by: the sweep asking whether a file is linked, and the unlinking a removed file causes.</summary>
+    internal const string ContactPhotoFileIndexName = "ix_contacts_photo_file_id";
+
     /// <summary>The order one person's calendar is read in, and what a window over it is answered from.</summary>
     /// <remarks>
     /// The owner leads it because a read is always one person's, and the identity closes it so that two events

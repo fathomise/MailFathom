@@ -22,7 +22,7 @@ import { Containment } from './containment/Containment';
 import type { ClientDeployment } from './deployment/adoptedDeployment';
 import { AttachmentExchangeContext, type AttachmentExchange } from './deployment/attachmentExchange';
 import { AttachmentUploadContext, type AttachmentUpload } from './deployment/attachmentUpload';
-import type { PortraitExchange } from './deployment/portraitExchange';
+import type { ContactPhotoExchange, PortraitExchange } from './deployment/portraitExchange';
 import type { DeploymentTransport } from './deployment/sendToDeployment';
 import { LocalizationProvider } from './localization/Localization';
 import type { CredentialStore, KeptBeyondTheTab } from './signIn/credentialStore';
@@ -686,6 +686,13 @@ const drawsNobody: PortraitExchange = {
     remove: () => Promise.resolve({ outcome: 'refused', reason: 'unavailable' }),
 };
 
+// The photo of a person in the book is read the same way and answered the same way, for the same reason.
+const photographsNobody: ContactPhotoExchange = {
+    read: () => Promise.resolve({ outcome: 'none' }),
+    replace: () => Promise.resolve({ outcome: 'refused', reason: 'unavailable' }),
+    remove: () => Promise.resolve({ outcome: 'refused', reason: 'unavailable' }),
+};
+
 // A deployment serving no signal channel, which is what every test here is against: the stream mints a ticket, fails
 // to open anything, and waits on a schedule that never fires — so every screen this family reaches behaves exactly as
 // it did before there was a channel at all, which is the thing these tests are asserting.
@@ -719,6 +726,7 @@ export function renderApp(
                                             <TelemetryContext value={telemetry}>
                                                 <Containment region="application">
                                                     <App
+                                                        contactPhotos={photographsNobody}
                                                         credentials={credentials}
                                                         deployment={deployment}
                                                         openSignals={noSignalChannel}

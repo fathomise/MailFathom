@@ -12,7 +12,7 @@ import { adoptedDeployment } from './deployment/adoptedDeployment';
 import { watchRequestsWith } from './deployment/deploymentFetch';
 import { attachmentExchange, AttachmentExchangeContext } from './deployment/attachmentExchange';
 import { AttachmentUploadContext, uploadAttachment } from './deployment/attachmentUpload';
-import { portraitExchange } from './deployment/portraitExchange';
+import { contactPhotoExchange, portraitExchange } from './deployment/portraitExchange';
 import { transportForThisRun } from './deployment/transportForThisRun';
 import {
     watchedByDeveloperRecord,
@@ -130,6 +130,7 @@ async function open(root: HTMLElement): Promise<void> {
                                                 it stands around; this one is what catches whatever none of them did. */}
                                                 <Containment region="application">
                                                     <App
+                                                        contactPhotos={contactPhotoExchange}
                                                         credentials={credentials}
                                                         deployment={deployment}
                                                         openSignals={watchedSignalChannel(openSignalChannel)}

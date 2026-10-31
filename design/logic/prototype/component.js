@@ -5599,9 +5599,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         onCtPhotoFile: (e) => {
           const f = e.target.files && e.target.files[0];
           if (!f) return;
+          if (f.type !== "image/jpeg" && f.type !== "image/png") { this.setState({ ctPhotoError: "That file is neither a JPEG nor a PNG." }); return; }
           if (f.size > 1048576) { this.setState({ ctPhotoError: "The file is " + (f.size / 1048576).toFixed(1) + " MB - the limit is 1 MB." }); return; }
           const r = new FileReader();
           r.onload = () => this.setState({ ctPhoto: String(r.result), ctPhotoError: "" });
+          r.onerror = () => this.setState({ ctPhotoError: "That file could not be read. Choose it again, or choose another." });
           r.readAsDataURL(f);
         },
         // Email addresses: one row each, exactly one of them the default a new message goes to.

@@ -5,6 +5,7 @@
 import { useEffect, useRef } from 'react';
 import type { Contact } from '@mailfathom/client-backend';
 import { useComposing } from '../composer/useComposing';
+import { useContactPhoto } from '../contactBook/contactPhotos';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
@@ -79,6 +80,7 @@ export function PersonPage({
     readonly onOpenDocument: (document: { readonly messageId: string; readonly position: number }) => void;
 }) {
     const { translate } = useLocalization();
+    const picture = useContactPhoto(contact);
     const composing = useComposing();
     const collected = contact.origin === 'Collected';
 
@@ -120,7 +122,12 @@ export function PersonPage({
             )}
 
             <div className="flex shrink-0 flex-wrap items-center gap-3.5 border-b border-line bg-sunken px-4 py-3.5 workspace:px-6 workspace:py-4.5">
-                <SenderAvatar displayName={contact.displayName} address={contact.preferredAddress} place="person" />
+                <SenderAvatar
+                    displayName={contact.displayName}
+                    address={contact.preferredAddress}
+                    picture={picture}
+                    place="person"
+                />
 
                 <div className="flex min-w-0 flex-col gap-0.75">
                     <div className="flex min-w-0 items-center gap-2.25">

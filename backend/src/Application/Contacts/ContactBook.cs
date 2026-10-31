@@ -4,6 +4,8 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Portraits;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
@@ -76,6 +78,7 @@ public sealed class ContactBook
 {
     private readonly IContactStore store;
     private readonly IContactDirectory directory;
+    private readonly IStoredFileStore files;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly TimeProvider timeProvider;
     private readonly AccessAuthorization authorization;
@@ -83,6 +86,7 @@ public sealed class ContactBook
     /// <summary>Initializes the book over the store it writes to and the directory it reads from.</summary>
     /// <param name="store">Keeps the records.</param>
     /// <param name="directory">Answers what the books already hold.</param>
+    /// <param name="files">Holds the photos an export hands back.</param>
     /// <param name="commitPolicy">Commits each write, retrying a lost race from a fresh read.</param>
     /// <param name="timeProvider">Stamps when a contact was recorded, amended, promoted, or exported.</param>
     /// <param name="authorization">Answers which principal reached each act.</param>
@@ -90,18 +94,21 @@ public sealed class ContactBook
     public ContactBook(
         IContactStore store,
         IContactDirectory directory,
+        IStoredFileStore files,
         OptimisticConcurrencyRetryPolicy commitPolicy,
         TimeProvider timeProvider,
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(directory);
+        ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.store = store;
         this.directory = directory;
+        this.files = files;
         this.commitPolicy = commitPolicy;
         this.timeProvider = timeProvider;
         this.authorization = authorization;
@@ -580,7 +587,27 @@ public sealed class ContactBook
 
         var held = await this.directory.FindAsync(audited, contactId, cancellationToken);
 
-        return held is null ? null : new ContactExport(held, this.timeProvider.GetUtcNow());
+        if (held is null)
+        {
+            return null;
+        }
+
+        var photo = await this.ReadPhotoAsync(audited, held, cancellationToken);
+
+        return new ContactExport(held, this.timeProvider.GetUtcNow(), photo);
+    }
+
+    /// <summary>Reads the photo a contact links, which is a file of the user whose own book holds it.</summary>
+    private async Task<Portrait?> ReadPhotoAsync(ContactBookScope scope, Contact contact, CancellationToken cancellationToken)
+    {
+        if (contact.Photo is not { } photo || scope.OwnBook.User is not { } owner)
+        {
+            return null;
+        }
+
+        return await this.files.ReadAsync(owner, StoredFileId.Create(photo), cancellationToken) is { } content
+            ? Portrait.Of(content)
+            : null;
     }
 
     /// <summary>Requires the audit read over the scope's user or organization, and keeps of the scope only the collected books the caller's scope covers.</summary>

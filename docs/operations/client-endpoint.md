@@ -1,6 +1,6 @@
 # The client endpoint
 
-<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
+<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
 
 Where the MailFathom client reaches the service, what a deployment has to enable before it answers, and what a person's
 mail client presents to get in.
@@ -126,6 +126,9 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `PUT /api/client/contacts/{contactId}` | `mailfathom.contacts.write` |
 | `POST /api/client/contacts/{contactId}/promotion` | `mailfathom.contacts.write` |
 | `DELETE /api/client/contacts/{contactId}` | `mailfathom.contacts.write` |
+| `GET /api/client/contacts/{contactId}/photo` | `mailfathom.contacts.read` |
+| `POST /api/client/contacts/{contactId}/photo` | `mailfathom.contacts.write` |
+| `DELETE /api/client/contacts/{contactId}/photo` | `mailfathom.contacts.write` |
 | `GET /api/client/notifications` | `mailfathom.notifications.read` |
 | `GET /api/client/notifications/unread-count` | `mailfathom.notifications.read` |
 | `POST /api/client/notifications/{notificationId}/read-state` | `mailfathom.notifications.write` |
@@ -3501,6 +3504,45 @@ whoever reads it.
 [the tools over this book](../features/mcp-tools.md#the-contact-book-on-this-surface) publish. The erasure is behind
 the writing grant rather than a narrower one: a grant that may edit the book may take somebody out of it, and no
 smaller grant reaches an act that cannot be undone.
+
+### The contact photo routes
+
+These three hold the photo a person the signed-in user wrote down is drawn by, in the list of their book, on the
+person's own page, and in the form that writes them down. It is the portrait's twin: a stored file the contact's record
+links to, held wherever [`ContentStorage:Backend`](configuration-runtime.md#contentstorage) places content, and read,
+replaced, and removed exactly as [the portrait routes](#the-portrait-routes) do it.
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/client/contacts/{contactId}/photo` | Serves the contact's photo under the kind it is |
+| `POST /api/client/contacts/{contactId}/photo` | Replaces it with the octets the request body carries |
+| `DELETE /api/client/contacts/{contactId}/photo` | Removes it, leaving the rest of the contact as it was |
+
+**Only a person this user wrote down in their own book takes a photo.** A collected contact, an organization's, and a
+contact somebody else holds are each answered on the two writes `404` as a contact the book does not hold, with a
+problem document saying that only somebody written down in one's own book has a photo. The read answers them `204`,
+exactly as it answers a contact of that book with no photo: there is no photo of them to draw, and the client draws the
+initials either way. The rule is the
+contact's own rather than this route's — [Contacts § A contact's photo](../features/contacts.md#a-contacts-photo)
+states it — so no other surface can link one either.
+
+**The bounds, the kind check, and the headers are the portrait's.** An upload is at most 1 MB and is answered `413`
+past it, its kind is read from the signature the octets open with and anything but a JPEG or a PNG is answered `415`,
+and an empty body is answered `400`. A served photo carries an entity tag over the octets,
+`Cache-Control: private, no-cache`, and `X-Content-Type-Options: nosniff`, and a contact with no photo is answered
+`204`, because the client draws the initials it already has from the name.
+
+**Which photo a contact has is in the record.** [Every contact this surface answers with](#the-contact-routes) carries
+`photo`, the identifier of the stored file, or `null`. It changes whenever the photo does, so a client reads the photo
+again exactly when that value differs from the one it last drew, and never otherwise.
+
+**A replacement writes the new file, links it, and only then removes the old one**, so a failure between steps leaves
+the previous photo in force or a file nothing links to, which the sweep removes once it is an hour old. A write for a
+contact the book turns out not to hold removes the file it just wrote and answers `404`.
+
+**Reading is `mailfathom.contacts.read` and the two writes are `mailfathom.contacts.write`**, the grants of the book the
+photo belongs to rather than the profile grants the portrait asks for: a contact's photo is part of what the user
+recorded about a person.
 
 ### The contact correlation route
 

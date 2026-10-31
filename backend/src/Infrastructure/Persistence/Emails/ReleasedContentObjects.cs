@@ -131,6 +131,29 @@ internal static class ReleasedContentObjects
             cancellationToken);
     }
 
+    /// <summary>States the objects a set of stored files is held in.</summary>
+    /// <param name="session">The session the deletion is staged in.</param>
+    /// <param name="storedFileIds">The files whose rows the caller is about to remove.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>A task that completes once the session holds every key the deletion frees.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    public static async Task ReleaseForStoredFilesAsync(
+        IPersistenceSession session,
+        IReadOnlyCollection<Guid> storedFileIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(storedFileIds);
+
+        var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+
+        await ReleaseAsync(
+            session,
+            sessionContext.StoredFiles
+                .Where(file => storedFileIds.Contains(file.Id) && file.Backend == ContentStorageBackend.ObjectStorage)
+                .Select(file => file.ObjectLocator!),
+            cancellationToken);
+    }
+
     /// <summary>Releases the object-stored payloads of one mail account, which is one copy however many read it.</summary>
     /// <param name="session">The transaction the erasure runs in.</param>
     /// <param name="accountId">The account whose payloads are released.</param>

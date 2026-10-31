@@ -1744,8 +1744,9 @@ the identity and how many addresses — and never with the person. Erasing someb
 having removed nothing, because that is the state you asked for.
 
 **`mfctl contact export` is the access path**, and it writes one JSON document on standard output so it redirects into
-a file you can hand to the person who asked. It carries the complete record and the instant the export was taken;
-everything else the command prints goes to standard error.
+a file you can hand to the person who asked. It carries the complete record, the photo the user gave the person — its
+media type and its octets as base64, or `null` where there is none — and the instant the export was taken; everything
+else the command prints goes to standard error.
 
 **The listing is bounded and there is no command that prints the whole book.** A page holds 50 contacts unless you ask
 for fewer and never more than 200, ordered by the name's comparison form and then by identity. That order is total, so

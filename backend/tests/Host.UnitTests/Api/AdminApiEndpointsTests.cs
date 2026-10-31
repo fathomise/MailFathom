@@ -16,6 +16,7 @@ using MailFathom.Application.Emails.Embeddings.Limits;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Host.Api;
 using MailFathom.Host.Configuration.Embeddings;
@@ -872,6 +873,7 @@ public sealed class AdminApiEndpointsTests
         services.AddScoped(_ => new ContactBook(
             Substitute.For<IContactStore>(),
             directory,
+            Substitute.For<IStoredFileStore>(),
             new OptimisticConcurrencyRetryPolicy(
                 Substitute.For<IPersistenceSessionFactory>(),
                 new PersistenceConcurrencyOptions(),

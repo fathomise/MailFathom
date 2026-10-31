@@ -106,24 +106,9 @@ internal static class ClientPortraitEndpoint
         ArgumentNullException.ThrowIfNull(portraits);
         ArgumentNullException.ThrowIfNull(context);
 
-        if (await portraits.ReadAsync(cancellationToken) is not { } portrait)
-        {
-            return TypedResults.NoContent();
-        }
-
-        // Private and revalidated rather than freely cacheable: a portrait is personal data, and the entity tag is what
-        // turns the second screen drawing it into a 304 instead of the picture again.
-        context.Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue { Private = true, NoCache = true };
-
-        // The kind was proven from a signature rather than by decoding the file, so what follows those few octets is
-        // whatever the person uploaded: the browser is told to serve it as the type stated and never to sniff its way
-        // to another one.
-        context.Response.Headers.XContentTypeOptions = "nosniff";
-
-        return TypedResults.File(
-            portrait.Content.ToArray(),
-            portrait.Type.MediaType,
-            entityTag: EntityTagOf(portrait));
+        return await portraits.ReadAsync(cancellationToken) is { } portrait
+            ? Served(context, portrait)
+            : TypedResults.NoContent();
     }
 
     /// <summary>Replaces the picture the acting person is drawn by with the octets the request carries.</summary>
@@ -139,34 +124,11 @@ internal static class ClientPortraitEndpoint
         ArgumentNullException.ThrowIfNull(portraits);
         ArgumentNullException.ThrowIfNull(context);
 
-        using var buffer = new MemoryStream();
+        var upload = await ReadUploadAsync(context, cancellationToken);
 
-        try
+        if (upload.Portrait is not { } portrait)
         {
-            await context.Request.Body.CopyToAsync(buffer, cancellationToken);
-        }
-        catch (BadHttpRequestException refusal)
-            when (refusal.StatusCode == StatusCodes.Status413PayloadTooLarge)
-        {
-            // The pipeline's own refusal carries no body, and the one thing a person needs from it is the bound they
-            // went over, so it is restated here as a problem rather than left as a bare status.
-            return Refusal(
-                $"A portrait is at most {MaxPortraitBytes / 1024 / 1024} MB.",
-                StatusCodes.Status413PayloadTooLarge);
-        }
-
-        if (buffer.Length == 0)
-        {
-            return Refusal(
-                "An upload carries the picture. A request with no body replaces nothing.",
-                StatusCodes.Status400BadRequest);
-        }
-
-        if (UserPortrait.Of(buffer.ToArray()) is not { } portrait)
-        {
-            return Refusal(
-                $"A portrait is {string.Join(" or ", PortraitImageType.All.Select(kind => kind.MediaType))}, judged by what the file is rather than by what the request declared it to be.",
-                StatusCodes.Status415UnsupportedMediaType);
+            return upload.Refusal!;
         }
 
         var change = await portraits.ReplaceAsync(portrait, cancellationToken);
@@ -201,11 +163,77 @@ internal static class ClientPortraitEndpoint
             : TypedResults.NoContent();
     }
 
+    /// <summary>Serves a picture of a person: private, revalidated, under the kind it was proven to be, and never sniffed.</summary>
+    /// <param name="context">The request being answered, whose response carries the caching the client revalidates against.</param>
+    /// <param name="portrait">The picture.</param>
+    /// <returns>The octets under the kind they are, with an entity tag over them.</returns>
+    internal static FileContentHttpResult Served(HttpContext context, Portrait portrait)
+    {
+        // Private and revalidated rather than freely cacheable: a portrait is personal data, and the entity tag is what
+        // turns the second screen drawing it into a 304 instead of the picture again.
+        context.Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue { Private = true, NoCache = true };
+
+        // The kind was proven from a signature rather than by decoding the file, so what follows those few octets is
+        // whatever the person uploaded: the browser is told to serve it as the type stated and never to sniff its way
+        // to another one.
+        context.Response.Headers.XContentTypeOptions = "nosniff";
+
+        return TypedResults.File(
+            portrait.Content.ToArray(),
+            portrait.Type.MediaType,
+            entityTag: EntityTagOf(portrait));
+    }
+
+    /// <summary>Reads a picture of a person from a request body, refusing an upload over the bound, an empty body, and octets that are neither kind.</summary>
+    /// <param name="context">The request whose body carries the picture.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The picture, or the refusal naming what it was refused against.</returns>
+    /// <remarks>The bound itself is applied by the routing pipeline from the route's request size limit, before a handler is entered.</remarks>
+    internal static async Task<PortraitUpload> ReadUploadAsync(HttpContext context, CancellationToken cancellationToken)
+    {
+        using var buffer = new MemoryStream();
+
+        try
+        {
+            await context.Request.Body.CopyToAsync(buffer, cancellationToken);
+        }
+        catch (BadHttpRequestException refusal)
+            when (refusal.StatusCode == StatusCodes.Status413PayloadTooLarge)
+        {
+            // The pipeline's own refusal carries no body, and the one thing a person needs from it is the bound they
+            // went over, so it is restated here as a problem rather than left as a bare status.
+            return PortraitUpload.Refused(Refusal(
+                $"A picture is at most {MaxPortraitBytes / 1024 / 1024} MB.",
+                StatusCodes.Status413PayloadTooLarge));
+        }
+
+        if (buffer.Length == 0)
+        {
+            return PortraitUpload.Refused(Refusal(
+                "An upload carries the picture. A request with no body replaces nothing.",
+                StatusCodes.Status400BadRequest));
+        }
+
+        return Portrait.Of(buffer.ToArray()) is { } portrait
+            ? new PortraitUpload(portrait, Refusal: null)
+            : PortraitUpload.Refused(Refusal(
+                $"A picture is {string.Join(" or ", PortraitImageType.All.Select(kind => kind.MediaType))}, judged by what the file is rather than by what the request declared it to be.",
+                StatusCodes.Status415UnsupportedMediaType));
+    }
+
     /// <summary>Names the served octets, so a client that already holds them is answered that they have not changed.</summary>
     /// <remarks>A digest of the picture rather than the instant it was written: it is stable across a restore, and two writes of the same picture leave a client's copy valid.</remarks>
-    private static EntityTagHeaderValue EntityTagOf(UserPortrait portrait) =>
+    private static EntityTagHeaderValue EntityTagOf(Portrait portrait) =>
         new($"\"{Convert.ToHexString(SHA256.HashData(portrait.Content.Span))}\"");
 
     private static ProblemHttpResult Refusal(string detail, int statusCode) =>
         TypedResults.Problem(detail, statusCode: statusCode);
+
+    /// <summary>A picture read from a request body, or the refusal of it.</summary>
+    /// <param name="Portrait">The picture, where the body carried one.</param>
+    /// <param name="Refusal">The problem to answer with, where it did not.</param>
+    internal sealed record PortraitUpload(Portrait? Portrait, ProblemHttpResult? Refusal)
+    {
+        internal static PortraitUpload Refused(ProblemHttpResult refusal) => new(Portrait: null, refusal);
+    }
 }

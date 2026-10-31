@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
@@ -90,6 +91,7 @@ internal sealed class StubContactBook
         new ContactBook(
             this.Store,
             this.Directory,
+            Substitute.For<IStoredFileStore>(),
             this.CommitPolicy(),
             this.timeProvider,
             this.authorization),

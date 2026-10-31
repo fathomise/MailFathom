@@ -18,9 +18,9 @@ namespace MailFathom.Application.Portraits;
 /// upload and the database.
 /// </para>
 /// </remarks>
-public sealed class UserPortrait
+public sealed class Portrait
 {
-    private UserPortrait(PortraitImageType type, ReadOnlyMemory<byte> content)
+    private Portrait(PortraitImageType type, ReadOnlyMemory<byte> content)
     {
         this.Type = type;
         this.Content = content;
@@ -35,6 +35,6 @@ public sealed class UserPortrait
     /// <summary>Reads octets as a portrait, where they are one.</summary>
     /// <param name="content">The octets as they were supplied.</param>
     /// <returns>The portrait, or <see langword="null" /> where the octets are not an image kind this build stores.</returns>
-    public static UserPortrait? Of(ReadOnlyMemory<byte> content) =>
-        PortraitImageType.TryDetect(content.Span, out var type) ? new UserPortrait(type, content) : null;
+    public static Portrait? Of(ReadOnlyMemory<byte> content) =>
+        PortraitImageType.TryDetect(content.Span, out var type) ? new Portrait(type, content) : null;
 }

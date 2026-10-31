@@ -49,6 +49,7 @@ using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.Synchronization.Drain;
@@ -391,6 +392,7 @@ internal static class SynchronizationTestHost
         // the folder rather than the assertion.
         services.AddSingleton(Substitute.For<IContactStore>());
         services.AddSingleton(Substitute.For<IContactDirectory>());
+        services.AddSingleton(Substitute.For<IStoredFileStore>());
         services.AddSingleton(Substitute.For<IAuthoredMailTally>());
         services.AddSingleton(Substitute.For<IContactCollectionTelemetry>());
         services.AddScoped<IContactCollectionSettingsReader>(provider =>

@@ -142,9 +142,10 @@ internal static class FakeContactDeployment
 
     /// <summary>Writes the body an export answers with.</summary>
     /// <param name="displayName">The name the exported record carries.</param>
+    /// <param name="photo">The photo member as JSON, which is <c>null</c> for a person nobody gave a photo.</param>
     /// <returns>The response body.</returns>
-    internal static string Export(string displayName = "Anna Kowalska") =>
-        $$"""{"contact":{{Contact(displayName, addresses: null, "Asserted", note: null)}},"producedAt":"2026-08-16T09:00:00+00:00"}""";
+    internal static string Export(string displayName = "Anna Kowalska", string photo = "null") =>
+        $$"""{"contact":{{Contact(displayName, addresses: null, "Asserted", note: null)}},"producedAt":"2026-08-16T09:00:00+00:00","photo":{{photo}}}""";
 
     /// <summary>Reports the body of the write the command last sent.</summary>
     /// <param name="deployment">The deployment the command was pointed at.</param>

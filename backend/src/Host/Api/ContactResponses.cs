@@ -34,8 +34,9 @@ internal sealed record ContactRecordRequest(
 /// <param name="RecordedAt">When the contact entered the book.</param>
 /// <param name="AmendedAt">When it was last amended, which equals <paramref name="RecordedAt" /> until one happens.</param>
 /// <param name="Organization">The organization whose book holds the contact, or nothing where a person or a mailbox holds it. A member reads such a contact and cannot change it.</param>
+/// <param name="Photo">The stored photo the user supplied for the contact, or nothing where there is none. It changes whenever the photo does, so a client reads the photo again only when this does.</param>
 /// <remarks>
-/// Every field but the identity, the origin, and the organization is personal data about a third party. It travels to
+/// Every field but the identity, the origin, the organization, and the photo's identifier is personal data about a third party. It travels to
 /// the caller that asked for this person and reaches nothing else — no log line, no metric dimension, and no failure
 /// message.
 /// </remarks>
@@ -48,7 +49,8 @@ internal sealed record ContactResponse(
     string Origin,
     DateTimeOffset RecordedAt,
     DateTimeOffset AmendedAt,
-    Guid? Organization)
+    Guid? Organization,
+    Guid? Photo)
 {
     /// <summary>Describes one contact for a caller.</summary>
     /// <param name="contact">The contact as the book holds it.</param>
@@ -67,7 +69,8 @@ internal sealed record ContactResponse(
             contact.Origin.ToString(),
             contact.RecordedAt,
             contact.AmendedAt,
-            contact.Organization);
+            contact.Organization,
+            contact.Photo);
     }
 }
 
@@ -173,8 +176,30 @@ internal sealed record CollectedContactErasureResponse(int ContactsErased, int A
 /// <summary>Everything the deployment holds about one person, as of the instant it was taken.</summary>
 /// <param name="Contact">The complete record, or nothing when the book holds no such contact.</param>
 /// <param name="ProducedAt">When the export was produced, absent together with the contact.</param>
+/// <param name="Photo">The photo the user supplied for the person, or nothing where there is none.</param>
 /// <remarks>
-/// The data-subject access path. It carries the same complete record every other surface over the book renders, because
-/// which parts of a person are handed back is not a decision any surface gets to make.
+/// The data-subject access path. It carries the same complete record every other surface over the book renders, and the
+/// photo itself rather than a pointer to it, because which parts of a person are handed back is not a decision any
+/// surface gets to make.
 /// </remarks>
-internal sealed record ContactExportResponse(ContactResponse? Contact, DateTimeOffset? ProducedAt);
+internal sealed record ContactExportResponse(ContactResponse? Contact, DateTimeOffset? ProducedAt, ContactPhotoResponse? Photo)
+{
+    /// <summary>Gets the answer for a book that holds no such person.</summary>
+    internal static ContactExportResponse None { get; } = new(Contact: null, ProducedAt: null, Photo: null);
+
+    /// <summary>Describes one export for a caller.</summary>
+    /// <param name="export">The export, or <see langword="null" /> where the book holds no such person.</param>
+    /// <returns>The response body.</returns>
+    internal static ContactExportResponse For(ContactExport? export) =>
+        export is null
+            ? None
+            : new ContactExportResponse(
+                ContactResponse.For(export.Contact),
+                export.ProducedAt,
+                export.Photo is { } photo ? new ContactPhotoResponse(photo.Type.MediaType, photo.Content) : null);
+}
+
+/// <summary>A contact's photo as an export hands it back.</summary>
+/// <param name="MediaType">The kind of image the octets are, proven from their signature when they were stored.</param>
+/// <param name="Content">The octets the user supplied, unchanged, which JSON carries as base64.</param>
+internal sealed record ContactPhotoResponse(string MediaType, ReadOnlyMemory<byte> Content);

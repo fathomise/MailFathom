@@ -63,7 +63,7 @@ public interface IStoredFileStore
     /// <remarks>Removing what is not there reports nothing, so a removal is safe to repeat.</remarks>
     Task RemoveAsync(UserId owner, StoredFileId file, CancellationToken cancellationToken);
 
-    /// <summary>Finds files written before an instant whose identifier their owner's record does not mention.</summary>
+    /// <summary>Finds files written before an instant whose identifier their owner's record does not mention and no contact links.</summary>
     /// <param name="writtenBefore">The instant a candidate was written before.</param>
     /// <param name="maxFiles">How many candidates to answer at most.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
@@ -72,7 +72,8 @@ public interface IStoredFileStore
     /// <remarks>
     /// A mention is a coarser test than a link, and deliberately errs one way: a file whose identifier appears anywhere
     /// in the record is left out, so the sweep never spends its bound re-reading files that are linked. Whether a
-    /// candidate is actually unlinked is decided by the sweep against the links the record declares.
+    /// candidate is actually unlinked is decided by the sweep against the links its owner's record declares and the
+    /// photos the contacts of its owner's own book link.
     /// </remarks>
     Task<IReadOnlyList<HeldStoredFile>> FindUnmentionedAsync(
         DateTimeOffset writtenBefore,

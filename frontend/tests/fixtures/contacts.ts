@@ -27,6 +27,7 @@ function person(at: number, origin: string) {
         origin,
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
+        photo: null,
     };
 }
 
@@ -46,6 +47,7 @@ export const assertedContact = {
     origin: 'Asserted',
     recordedAt: '2026-06-02T11:15:00+00:00',
     amendedAt: '2026-08-14T08:02:00+00:00',
+    photo: null,
 };
 
 /**
@@ -63,6 +65,7 @@ export const collectedContact = {
     origin: 'Collected',
     recordedAt: '2026-08-29T16:40:00+00:00',
     amendedAt: '2026-08-29T16:40:00+00:00',
+    photo: null,
 };
 
 /** The book of people this user wrote down, long enough that the list windows rather than drawing every row. */

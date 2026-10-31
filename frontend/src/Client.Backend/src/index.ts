@@ -61,6 +61,8 @@ export {
     type CorrespondingDocument,
     type CorrespondingThread,
 } from './contactCorrespondence';
+// The three request composers beside these are deliberately unpublished, for the reason the portrait's are.
+export { contactPhotoRoute, readContactPhoto, removeContactPhoto, replaceContactPhoto } from './contactPhoto';
 export {
     addAuthorToContacts,
     amendContact,

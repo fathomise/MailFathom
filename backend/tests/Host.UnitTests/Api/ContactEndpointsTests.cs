@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
@@ -48,6 +49,7 @@ public sealed class ContactEndpointsTests
 
     private readonly IContactStore store = Substitute.For<IContactStore>();
     private readonly IContactDirectory directory = Substitute.For<IContactDirectory>();
+    private readonly IStoredFileStore files = Substitute.For<IStoredFileStore>();
     private readonly FakeTimeProvider clock = new(new DateTimeOffset(2026, 8, 16, 9, 0, 0, TimeSpan.Zero));
 
     /// <summary>
@@ -826,6 +828,43 @@ public sealed class ContactEndpointsTests
         Assert.Equal(this.clock.GetUtcNow(), export.Value.ProducedAt);
     }
 
+    /// <summary>A person's export is their access to what the book holds about them, so the photo travels in it unchanged.</summary>
+    [Fact]
+    public async Task ExportAsync_AContactWithAPhoto_AnswersWithItsKindAndItsOctets()
+    {
+        // Arrange
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x0D, 0x0A];
+        var photo = Guid.Parse("0198f0aa-0000-7000-8000-00000000f0a1");
+        var anna = Asserted("Anna Kowalska", "anna@example.test");
+        this.Holds(Contact.Create(
+            anna.Id,
+            anna.DisplayName,
+            anna.Addresses,
+            anna.PreferredAddress,
+            anna.Note,
+            anna.Origin,
+            anna.RecordedAt,
+            anna.AmendedAt,
+            photo: photo));
+        this.files.ReadAsync(SyntheticUser.Deployment, StoredFileId.Create(photo), Arg.Any<CancellationToken>())
+            .Returns(new ReadOnlyMemory<byte>(png));
+
+        // Act
+        var result = await ContactEndpoints.ExportAsync(
+            Identity,
+            User,
+            this.Book(),
+            this.Scopes(),
+            this.Roster(),
+            AdministrativeGrant.WholeSurface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var export = Assert.IsType<Ok<ContactExportResponse>>(result.Result);
+        Assert.Equal("image/png", export.Value!.Photo!.MediaType);
+        Assert.Equal(png, export.Value.Photo.Content.ToArray());
+    }
+
     public static TheoryData<AssignmentScope> ScopesCoveringTheHolder => [.. AccessAuthorizations.ScopesCoveringTheirTarget];
 
     /// <summary>A grant held at any scope covering the user is served their books by the listing, not only one held over the whole deployment.</summary>
@@ -1095,6 +1134,7 @@ public sealed class ContactEndpointsTests
         return new ContactBook(
             this.store,
             this.directory,
+            this.files,
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
             this.clock,
             authorization ?? AdministrativeGrant.WholeSurface);
