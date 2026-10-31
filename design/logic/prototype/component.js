@@ -3833,15 +3833,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* An account's Spam folder lists what sits in it, badged by kind; every other list leaves it out and folds the
          spam that sits elsewhere. The prototype's lists are otherwise one list under every folder. */
       /* Listed by conversation there are no folders: a conversation gathers its messages from every folder, Spam and
-         Trash included, and is listed under its account as long as one of them sits in an ordinary folder. The
-         prototype keeps a whole thread in one place, so one wholly in Spam or in Trash is the one left out. */
+         Trash included, and is listed under its account as long as one of them is neither spam nor in Trash. The
+         prototype keeps a whole thread in one place and under one verdict, so a thread judged spam - wherever it sits -
+         one in Spam, and one in Trash are the ones left out. */
       const convMail = !!st.convMail;
       const convAcc = st.convAcc || "all";
       const inSpamBox = !convMail && this.inSpamFolder();
       const spamBoxAcc = (st.folderKey || "").split("·")[0];
-      const listedThreads = THREADS.filter(t => (convMail || (st.archived || []).indexOf(t.id) < 0) && (st.deleted || []).indexOf(t.id) < 0 &&
-        this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc) &&
-        (!convMail || convAcc === "all" || this.accountOf(t.id) === convAcc));
+      const convOnlySpamOrTrash = (t) => this.spamOf(t.id).spam || this.sitsInSpam(t.id) ||
+        (st.moved || {})[t.id] === "Trash" || (st.deleted || []).indexOf(t.id) >= 0;
+      const listedThreads = convMail
+        ? THREADS.filter(t => !convOnlySpamOrTrash(t) && (convAcc === "all" || this.accountOf(t.id) === convAcc))
+        : THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 &&
+          this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc));
       const convFirst = (n) => n === ME ? "me" : n.split(" ")[0];
       const convRowOf = (t) => {
         const ms = msgsFor(t);
@@ -3849,15 +3853,26 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const people = ms.map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
         const others = people.filter(n => n !== ME);
         const named = (list) => list.length === 1 ? (list[0] === ME ? "me" : list[0]) : list.map(convFirst).join(", ");
-        const title = aiHints && !this.spamOf(t.id).spam ? CONV_TITLES[t.id] : "";
+        /* The title is a topic kept as replies arrive and a standing written again with each of them. A thread that
+           changed since it was read keeps its topic and holds its standing back, as the thread's own state does. */
+        const title = aiHints && !this.spamOf(t.id).spam ? CONV_TITLES[t.id] : null;
+        const standingStale = !!title && !!t.stateStale;
+        const standing = title && !standingStale ? title.standing || "" : "";
         const who = pick.mine ? "You:" : others.length > 1 ? convFirst(pick.from) + ":" : "";
         return {
           convPeople: named(people),
           convTitled: !!title,
-          convTitle: title || t.subject,
+          convTitle: title ? title.topic : t.subject,
+          convStanding: standing,
+          convStandingShown: !!standing,
+          convStandingStale: standingStale,
+          convStandingStyle: "font-size:13px;line-height:1.35;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+          convStaleStyle: "display:flex;align-items:center;gap:5px;font-size:13px;line-height:1.35;color:var(--faint);overflow:hidden;white-space:nowrap",
           convWho: who,
           convWhoShown: !!who,
           convSnippet: this.mdPlain((pick.paras || []).map(p => p.md || p.text || "").join(" ")).slice(0, 260),
+          convSnippetStyle: "font-size:13px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:" +
+            (standing || standingStale ? 1 : 2) + ";-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere",
         };
       };
       const threadSpam = this.spamOf(thread.id);
@@ -7317,8 +7332,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           convTitleRowStyle: "display:flex;align-items:center;gap:6px;min-width:0",
           convGlyphStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1;color:var(--muted)",
           convTitleStyle: "flex:1 1 auto;min-width:0;font-size:" + (isMobile ? 15 : 14) + "px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" +
-            (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:500;color:var(--text)"),
-          convSnippetStyle: "font-size:13px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere",
+            (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:600;color:var(--text)"),
           convWhoStyle: "font-weight:600;color:var(--text2);margin-right:4px",
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
