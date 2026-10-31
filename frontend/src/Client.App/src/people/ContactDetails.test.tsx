@@ -22,6 +22,7 @@ const anna: Contact = {
     origin: 'Asserted',
     recordedAt: '2026-08-31T09:41:00+00:00',
     amendedAt: '2026-08-31T09:41:00+00:00',
+    photo: null,
 };
 
 function drawDetails(contact: Contact, openLink: OpenLink = () => Promise.resolve()): void {
