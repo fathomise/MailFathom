@@ -3,10 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useRef } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
-import { ContactDialog, type ContactDraft } from './ContactDialog';
+import { ContactDialog, type ContactDraft, type ContactStatement } from './ContactDialog';
 
 // What opens the dialog in the test, named here rather than written into the markup: the localization rule
 // holds over every `.tsx` under the packages, and a label a test invented is not a catalogue entry.
@@ -17,7 +17,7 @@ function Asking({
     onSave,
 }: {
     readonly amending: ContactDraft | null;
-    readonly onSave: (draft: ContactDraft) => void;
+    readonly onSave: (statement: ContactStatement) => void;
 }) {
     const asked = useRef<HTMLDialogElement>(null);
 
@@ -51,36 +51,118 @@ function drawForm(amending: ContactDraft | null = null): { readonly saved: Retur
     return { saved };
 }
 
-function typeInto(field: string, text: string): void {
-    fireEvent.change(screen.getByLabelText(field), { target: { value: text } });
+function typeInto(field: HTMLElement, text: string): void {
+    fireEvent.change(field, { target: { value: text } });
 }
 
+function addressRows(): HTMLInputElement[] {
+    return screen.getAllByLabelText<HTMLInputElement>('Email address');
+}
+
+function nth<T>(items: readonly T[], at: number): T {
+    const item = items[at];
+
+    if (item === undefined) {
+        throw new Error(`Nothing is drawn at position ${String(at)}.`);
+    }
+
+    return item;
+}
+
+const anna: ContactDraft = {
+    displayName: 'Anna Kowalska',
+    rows: { addresses: ['anna@contoso.example', 'a.kowalska@fabrikam.example'], preferred: 0 },
+};
+
 describe('ContactDialog', () => {
-    // A name and an address are what a contact record holds on this deployment; a company and a role are not fields of
+    // A name and addresses are what a contact record holds on this deployment; a company and a role are not fields of
     // it, so a form offering them would be asking for values no request could carry.
-    it('asks for the two things a record this client writes actually holds', () => {
+    it('asks for a name and the addresses a record this client writes actually holds', () => {
         drawForm();
 
         expect(screen.getByLabelText('Name')).toBeDefined();
-        expect(screen.getByLabelText('Email address')).toBeDefined();
+        expect(screen.getByRole('group', { name: 'Email addresses' })).toBeDefined();
+        expect(addressRows()).toHaveLength(1);
         expect(screen.queryByLabelText('Company')).toBeNull();
     });
 
     it('records what was typed once the question has been answered', () => {
         const { saved } = drawForm();
 
-        typeInto('Name', '  Anna Kowalska  ');
-        typeInto('Email address', ' anna@contoso.example ');
+        typeInto(screen.getByLabelText('Name'), '  Anna Kowalska  ');
+        typeInto(nth(addressRows(), 0), ' anna@contoso.example ');
         fireEvent.click(screen.getByRole('button', { name: 'Save contact' }));
 
-        expect(saved).toHaveBeenCalledWith({ displayName: 'Anna Kowalska', address: 'anna@contoso.example' });
+        expect(saved).toHaveBeenCalledWith({
+            displayName: 'Anna Kowalska',
+            addresses: ['anna@contoso.example'],
+            preferredAddress: 'anna@contoso.example',
+        });
+    });
+
+    it('records every address added, with the one chosen as the default and an empty row dropped', () => {
+        const { saved } = drawForm();
+
+        typeInto(screen.getByLabelText('Name'), 'Anna Kowalska');
+        typeInto(nth(addressRows(), 0), 'anna@contoso.example');
+        fireEvent.click(screen.getByRole('button', { name: 'Add an email address' }));
+        typeInto(nth(addressRows(), 1), 'anna@home.example');
+        fireEvent.click(screen.getByRole('button', { name: 'Add an email address' }));
+        fireEvent.click(nth(screen.getAllByRole('radio'), 1));
+
+        expect(screen.getByRole('radio', { name: 'Default address' })).toBe(nth(screen.getAllByRole('radio'), 1));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save contact' }));
+
+        expect(saved).toHaveBeenCalledWith({
+            displayName: 'Anna Kowalska',
+            addresses: ['anna@home.example', 'anna@contoso.example'],
+            preferredAddress: 'anna@home.example',
+        });
+    });
+
+    it('marks exactly one row the default, and offers removing a row only while there is more than one', () => {
+        drawForm(anna);
+
+        expect(screen.getAllByRole('radio', { checked: true })).toHaveLength(1);
+        expect(screen.getAllByText('Default')).toHaveLength(1);
+        expect(screen.getAllByRole('button', { name: 'Remove address' })).toHaveLength(2);
+
+        fireEvent.click(nth(screen.getAllByRole('button', { name: 'Remove address' }), 0));
+
+        expect(addressRows().map((row) => row.value)).toEqual(['a.kowalska@fabrikam.example']);
+        expect(screen.getByRole('radio', { name: 'Default address' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Remove address' })).toBeNull();
+    });
+
+    it('puts focus on the row standing where a removed one was, or on the one above where it was the last', async () => {
+        drawForm({
+            displayName: 'Anna Kowalska',
+            rows: {
+                addresses: ['anna@contoso.example', 'a.kowalska@fabrikam.example', 'anna@home.example'],
+                preferred: 0,
+            },
+        });
+
+        fireEvent.click(nth(screen.getAllByRole('button', { name: 'Remove address' }), 2));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(nth(addressRows(), 1));
+        });
+
+        fireEvent.click(nth(screen.getAllByRole('button', { name: 'Remove address' }), 0));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(nth(addressRows(), 0));
+        });
+        expect(nth(addressRows(), 0).value).toBe('a.kowalska@fabrikam.example');
     });
 
     it('records nothing at all where the question was left rather than answered', () => {
         const { saved } = drawForm();
 
-        typeInto('Name', 'Anna Kowalska');
-        typeInto('Email address', 'anna@contoso.example');
+        typeInto(screen.getByLabelText('Name'), 'Anna Kowalska');
+        typeInto(nth(addressRows(), 0), 'anna@contoso.example');
         fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
         expect(saved).not.toHaveBeenCalled();
@@ -91,10 +173,10 @@ describe('ContactDialog', () => {
     it('says an address is not one only once something has been typed into the field', () => {
         const { saved } = drawForm();
 
-        typeInto('Name', 'Anna Kowalska');
+        typeInto(screen.getByLabelText('Name'), 'Anna Kowalska');
         expect(screen.queryByRole('alert')).toBeNull();
 
-        typeInto('Email address', 'anna');
+        typeInto(nth(addressRows(), 0), 'anna');
         expect(screen.getByRole('alert').textContent).toBe('That does not look like an email address.');
 
         fireEvent.click(screen.getByRole('button', { name: 'Save contact' }));
@@ -104,8 +186,9 @@ describe('ContactDialog', () => {
     it('empties the form on the way out, so the next question is a blank one', () => {
         const { saved } = drawForm();
 
-        typeInto('Name', 'Anna Kowalska');
-        typeInto('Email address', 'anna@contoso.example');
+        typeInto(screen.getByLabelText('Name'), 'Anna Kowalska');
+        typeInto(nth(addressRows(), 0), 'anna@contoso.example');
+        fireEvent.click(screen.getByRole('button', { name: 'Add an email address' }));
         fireEvent.click(screen.getByRole('button', { name: 'Save contact' }));
 
         expect(saved).toHaveBeenCalledTimes(1);
@@ -113,22 +196,24 @@ describe('ContactDialog', () => {
         fireEvent.click(screen.getByRole('button', { name: asks }));
 
         expect(screen.getByLabelText<HTMLInputElement>('Name').value).toBe('');
-        expect(screen.getByLabelText<HTMLInputElement>('Email address').value).toBe('');
+        expect(addressRows().map((row) => row.value)).toEqual(['']);
     });
 
     it('opens a correction on what the record holds and saves nothing until something in it changes', () => {
-        const { saved } = drawForm({ displayName: 'Anna Kowalska', address: 'anna@contoso.example' });
+        const { saved } = drawForm(anna);
 
         expect(screen.getByRole('heading', { name: 'Edit contact' })).toBeDefined();
         expect(screen.getByLabelText<HTMLInputElement>('Name').value).toBe('Anna Kowalska');
+        expect(addressRows().map((row) => row.value)).toEqual(anna.rows.addresses);
         expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(true);
 
-        typeInto('Email address', 'anna.kowalska@contoso.example');
+        fireEvent.click(screen.getByRole('radio', { name: 'Make this the default address' }));
         fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
         expect(saved).toHaveBeenCalledWith({
             displayName: 'Anna Kowalska',
-            address: 'anna.kowalska@contoso.example',
+            addresses: ['a.kowalska@fabrikam.example', 'anna@contoso.example'],
+            preferredAddress: 'a.kowalska@fabrikam.example',
         });
     });
 });

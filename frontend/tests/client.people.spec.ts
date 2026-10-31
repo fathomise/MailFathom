@@ -42,7 +42,7 @@ test('offers a person it wrote down to a message, opens their page, and lets the
     const writing = page.getByRole('dialog', { name: 'New contact' });
 
     await writing.getByLabel('Name').fill(name);
-    await writing.getByLabel('Email address').fill(address);
+    await writing.getByRole('textbox', { name: 'Email address', exact: true }).fill(address);
     await writing.getByRole('button', { name: 'Save contact' }).click();
 
     await expect(page.getByRole('status').filter({ hasText: 'Contact added.' })).toBeVisible();
@@ -76,10 +76,11 @@ test('offers a person it wrote down to a message, opens their page, and lets the
     const contactRoute = correspondence?.route.replace(/\/correspondence$/u, '');
 
     await person.getByRole('button', { name: 'Delete contact' }).click();
-    await page.getByRole('dialog', { name: 'Delete this contact?' }).getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('dialog', { name: 'Delete contact?' }).getByRole('button', { name: 'Delete' }).click();
 
+    // The page then opens whoever the book draws in their place, which in a book sorted by name is the next person.
     await expect(page.getByRole('status').filter({ hasText: 'Deleted.' })).toBeVisible();
-    await expect(page.getByText('Open somebody to read their page.')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Correspondent 1', exact: true })).toBeVisible();
     await expect(book.getByRole('option', { name: /Anna Marlow/u })).toBeVisible();
     await expect(book.getByRole('option', { name: new RegExp(name, 'u') })).toHaveCount(0);
 
@@ -111,8 +112,8 @@ test('offers a person it wrote down to a message, opens their page, and lets the
     ]);
 });
 
-// A correction made from the person's own page reaches the book beside it and the page itself, and states the rest of
-// the record as it stood: the address it was not given stays, and so does the note.
+// A correction made from the person's own page reaches the book beside it and the page itself, and states the record
+// the form holds: every address, the default first, and the note it does not show.
 test('corrects a person it wrote down from their page, and the book and the page both read the correction', async ({
     page,
     deployment,
@@ -128,7 +129,11 @@ test('corrects a person it wrote down from their page, and the book and the page
 
     const correcting = page.getByRole('dialog', { name: 'Edit contact' });
 
-    await expect(correcting.getByLabel('Email address')).toHaveValue('anna@nordwind.example');
+    const addresses = correcting.getByRole('textbox', { name: 'Email address', exact: true });
+
+    await expect(addresses.nth(0)).toHaveValue('anna@nordwind.example');
+    await expect(addresses.nth(1)).toHaveValue('a.marlow@nordwind.example');
+    await expect(correcting.getByRole('radio', { name: 'Default address', exact: true })).toBeChecked();
     await correcting.getByLabel('Name').fill('Anna Marlow-Berg');
     await correcting.getByRole('button', { name: 'Save changes' }).click();
 

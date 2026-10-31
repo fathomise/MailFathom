@@ -108,6 +108,7 @@ export const iconNames = [
     'person_add',
     'priority_high',
     'progress_activity',
+    'radio_button_checked',
     'radio_button_unchecked',
     'refresh',
     'reply',

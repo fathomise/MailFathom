@@ -8,6 +8,7 @@ import type { Contact } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
 import { ContactSelectionBar } from './ContactSelectionBar';
+import type { ContactBookName } from './useContactBook';
 
 function personCalled(id: string, displayName: string): Contact {
     return {
@@ -29,25 +30,31 @@ function composingWhere(offered: boolean, compose = vi.fn()): Composing {
 }
 
 function drawBar({
+    book = 'own',
     selected = picked,
     erasable = true,
     composing = composingWhere(true),
     onClear = vi.fn(),
+    onSelectAll = vi.fn(),
     onAskErasure = vi.fn(),
 }: {
+    book?: ContactBookName;
     selected?: readonly Contact[];
     erasable?: boolean;
     composing?: Composing;
     onClear?: () => void;
+    onSelectAll?: () => void;
     onAskErasure?: () => void;
 } = {}): void {
     render(
         <LocalizationProvider>
             <ComposingContext value={composing}>
                 <ContactSelectionBar
+                    book={book}
                     selected={selected}
                     erasable={erasable}
                     onClear={onClear}
+                    onSelectAll={onSelectAll}
                     onAskErasure={onAskErasure}
                 />
             </ComposingContext>
@@ -86,9 +93,39 @@ describe('ContactSelectionBar', () => {
         expect(onAskErasure).not.toHaveBeenCalled();
     });
 
+    // Laid out as the mail list's bar: the way out and the count first, and taking the whole book in at the far end.
+    it('draws the way out first and picking out everybody last', () => {
+        const onSelectAll = vi.fn();
+        drawBar({ onSelectAll });
+
+        const controls = screen.getAllByRole('button');
+
+        expect(controls[0]).toBe(screen.getByRole('button', { name: 'Clear the selection' }));
+        expect(controls.at(-1)).toBe(screen.getByRole('button', { name: 'Select all' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
+
+        expect(onSelectAll).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+        ['own', 'Delete', 'Remove'],
+        ['collected', 'Remove', 'Delete'],
+    ] as const)('offers writing and the %s book’s own way of taking people out of it', (book, offered, absent) => {
+        const onAskErasure = vi.fn();
+        drawBar({ book, onAskErasure });
+
+        fireEvent.click(screen.getByRole('button', { name: offered }));
+
+        expect(onAskErasure).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Write' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: absent })).toBeNull();
+        expect(screen.queryByRole('button', { name: /export/i })).toBeNull();
+    });
+
     it('offers no deletion where the credential may not change the book', () => {
         drawBar({ erasable: false });
 
-        expect(screen.queryByRole('button', { name: 'Delete contacts' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
     });
 });

@@ -15,7 +15,7 @@ const anna: Contact = {
     addresses: ['anna@contoso.example'],
     preferredAddress: 'anna@contoso.example',
     note: null,
-    origin: 'Collected',
+    origin: 'Asserted',
     recordedAt: '2026-08-31T09:41:00+00:00',
     amendedAt: '2026-08-31T09:41:00+00:00',
 };
@@ -25,12 +25,14 @@ function composingWhere(offered: boolean, compose = vi.fn()): Composing {
 }
 
 function menuUnder({
+    contact = anna,
     composing = composingWhere(true),
     erasable = true,
     onOpen = vi.fn(),
     onSelect = vi.fn(),
     onAskErasure = vi.fn(),
 }: {
+    contact?: Contact;
     composing?: Composing;
     erasable?: boolean;
     onOpen?: () => void;
@@ -41,7 +43,7 @@ function menuUnder({
         <LocalizationProvider>
             <ComposingContext value={composing}>
                 <ContactRowMenu
-                    contact={anna}
+                    contact={contact}
                     at={{ x: 20, y: 30 }}
                     erasable={erasable}
                     onSelect={onSelect}
@@ -75,6 +77,13 @@ describe('ContactRowMenu', () => {
         menuUnder({ erasable: false });
 
         expect(drawn()).toStrictEqual(['Select contacts', 'Write a message', 'Open contact']);
+    });
+
+    // Said as the person's page says it: a collected person is removed from the collected book rather than deleted.
+    it('offers removing a collected person from the collected book rather than deleting them', () => {
+        menuUnder({ contact: { ...anna, origin: 'Collected' } });
+
+        expect(drawn()).toStrictEqual(['Select contacts', 'Write a message', 'Open contact', 'Remove from collected']);
     });
 
     it('opens a message addressed to the person the menu is about', () => {

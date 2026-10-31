@@ -96,7 +96,7 @@ test('writes somebody down, and takes them out of the book again', async ({ page
 
     await rowFor(page, written).click();
     await page.getByRole('region', { name: written }).getByRole('button', { name: 'Delete contact' }).click();
-    await page.getByRole('dialog', { name: 'Delete this contact?' }).getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('dialog', { name: 'Delete contact?' }).getByRole('button', { name: 'Delete' }).click();
 
     await expect(rowFor(page, written)).toHaveCount(0);
 

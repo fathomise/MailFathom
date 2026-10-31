@@ -640,6 +640,38 @@
         }
       ]
     },
+    "contact-edit": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "people",
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Own"
+          }
+        },
+        {
+          "click": {
+            "text": "Anna Kowalska"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Edit contact",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "Email addresses"
+          }
+        }
+      ]
+    },
     "tasks": {
       "file": "prototype.dc.html",
       "properties": {

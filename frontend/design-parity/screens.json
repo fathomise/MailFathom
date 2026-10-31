@@ -1165,6 +1165,38 @@
       ]
     },
     {
+      "id": "contact-edit",
+      "route": "/#/people",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Contacts"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 0
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Edit contact",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "group",
+            "name": "Email addresses"
+          }
+        }
+      ]
+    },
+    {
       "id": "tasks",
       "route": "/#/tasks",
       "signIn": true,
