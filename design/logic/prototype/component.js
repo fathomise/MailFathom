@@ -7203,7 +7203,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         threadStateStyle: singlePane
           ? "flex:0 0 auto;display:flex;align-items:center;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 12px"
           : stateAside
-            ? "flex:0 0 " + stateAsideW + "px;display:flex;flex-direction:column;gap:6px;background:var(--sub);border-left:1px solid var(--line);padding:18px 20px;overflow:auto;min-height:0;box-sizing:border-box"
+            ? "flex:0 0 " + (stateAsideW - 22) + "px;align-self:flex-start;max-height:calc(100% - 36px);margin:18px 22px 18px 0;display:flex;flex-direction:column;gap:6px;background:var(--sub);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;box-sizing:border-box"
             : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 22px",
         stateRowStyle: stateAside ? "display:grid;grid-template-columns:minmax(0,1fr);gap:16px"
           : isMobile || paneNarrow ? "display:flex;flex-direction:column;gap:6px;padding-top:1px"
