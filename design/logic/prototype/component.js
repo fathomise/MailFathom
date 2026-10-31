@@ -4143,6 +4143,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         fullscreen_exit: () => this.setState({ stateBarOff: false }),
       };
       const msgs = convMail ? convMsgsFor(thread) : msgsFor(thread);
+      /* Where each message is kept, said at its foot in either mode: the user's own in Sent, a received one wherever
+         the thread was moved, archived, deleted, or judged to, else the folder the list stands for. The account is the
+         one the list was opened under, or the thread's own under All accounts and by thread. */
+      const [listAcc, listFolder] = (st.folderKey || "acc1·Inbox").split("·");
+      const placeAcc = ACCOUNTS.find(a => a.key === (!convMail && listAcc !== "all" ? listAcc : this.accountOf(thread.id))) || ACCOUNTS[0];
+      const receivedFolder = (st.deleted || []).indexOf(thread.id) >= 0 ? "Trash"
+        : (st.moved || {})[thread.id] || ((st.archived || []).indexOf(thread.id) >= 0 ? "Archive"
+        : this.sitsInSpam(thread.id) ? "Spam"
+        : convMail || /^(Sent|Drafts|Outbox)$/.test(listFolder) ? "Inbox" : listFolder);
+      const placeOf = (m) => (m.mine ? "Sent" : receivedFolder) + " · " + placeAcc.label;
       const htmlViewMode = st.msgView === "html";
       const lastIdx = msgs.length - 1;
       const openMap = st.msgOpen || {};
@@ -4208,6 +4218,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            a spam thread carries its own warning, as each message the client opens is warned from its own. */
         items.push({
           isMsg: true, isPill: false, key: k, isActive, newShown: isNew,
+          place: placeOf(m),
+          placeStyle: "display:flex;align-items:center;gap:6px;min-width:0;padding-top:8px;border-top:1px solid var(--line);font-size:12px;line-height:1.35;color:var(--faint);white-space:nowrap",
           /* The thread's AI summary, wherever the list is read, on its newest received message - never on spam. */
           aiBtnShown: !m.mine && !threadSpam.spam && i === msgs.map(x => x.mine).lastIndexOf(false),
           openAiSum: () => this.openAiSum(thread.id),
