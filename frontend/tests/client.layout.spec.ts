@@ -520,10 +520,13 @@ test('keeps the open message, the folder, and the selection as the window crosse
         await expect(selection.getByRole('status')).toHaveText('1 selected');
     }
 
-    // Down to the tablet, which is known by the way into the drawer the desktop has no need of; then the list and the
-    // message are measured side by side, which is the tablet's own shape.
+    await expect(page.getByRole('separator', { name: 'Mailbox column width' })).toBeVisible();
+
+    // Down to the tablet's width under a mouse, which is known by the mailbox column folding to its strip — a drawer is
+    // what a finger gets there — and so losing the boundary the desktop's open column is dragged by; then the list and
+    // the message are measured side by side, which is the tablet's own shape.
     await page.setViewportSize(tabletWindow);
-    await expect(page.getByRole('button', { name: 'Folders and filters' })).toBeVisible();
+    await expect(page.getByRole('separator', { name: 'Mailbox column width' })).toHaveCount(0);
     await holdsWhatItHeld();
     await expect(listed).toHaveCount(2);
     await expect(row(page, 'Message 4')).toHaveAttribute('aria-current', 'true');
@@ -608,6 +611,33 @@ test('stops a message’s own content at the reading ceiling and leaves everythi
     // binding: a head laid out to a measure meant for paragraphs is the defect this asserts against.
     const region = await boxOf(page.getByRole('article', messageRegion));
     expect(region.width).toBeGreaterThan(content.width);
+});
+
+test('draws the head’s acts as their symbols once the pane they stand in is narrower than 560 pixels', async ({
+    page,
+}) => {
+    // The tablet's width under a mouse, where the pane is wide enough for the words until the list is dragged wider:
+    // what decides is the pane's own width rather than the window's, which only a browser lays out.
+    await page.setViewportSize(tabletWindow);
+    await openTheFirstMessage(page);
+
+    const reply = page.getByRole('article', messageRegion).getByRole('button', { name: 'Reply - not built yet' });
+    const named = await boxOf(reply);
+
+    expect(named.width).toBeGreaterThan(named.height);
+
+    const grip = page.getByRole('separator', { name: 'Message list width' });
+    await grip.focus();
+    for (let step = 0; step < 20; step += 1) {
+        await page.keyboard.press('ArrowRight');
+    }
+
+    await expect(grip).toHaveAttribute('aria-valuenow', '560');
+
+    const symbol = await boxOf(reply);
+
+    expect(symbol.width).toBe(symbol.height);
+    await expect(reply).toHaveAccessibleName('Reply - not built yet');
 });
 
 // The defect this replaced: a space arriving rises from a few pixels below its place, which lengthened the document

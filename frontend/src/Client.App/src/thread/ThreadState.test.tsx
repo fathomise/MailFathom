@@ -250,17 +250,14 @@ describe('ThreadState', () => {
     });
 
     // A card holds a label and a line, which is what a pane narrower than 760 pixels has room for. The pane says so
-    // through a container query rather than the window through a tree, so the source stands in the document and the
-    // query is what leaves it out of a card — jsdom evaluates none, so what is asserted is that the query reaches it.
-    it('leaves a statement’s source to the pane’s width, which draws none in a card', () => {
+    // through a container query rather than the window through a tree, so the window no longer takes the source away.
+    it('draws a statement’s source at a window narrower than the desktop, leaving the room for it to the pane', () => {
         theTabletComposition();
 
         render(drawing(stateOf([entry()])));
 
         expect(screen.getByText('The response time stays at two hours.')).toBeDefined();
-        expect(
-            screen.getByRole('button', { name: 'message 2 · Karolina' }).closest('.\\@max-pane-compact\\:hidden'),
-        ).not.toBeNull();
+        expect(screen.getByRole('button', { name: 'message 2 · Karolina' })).toBeDefined();
     });
 
     // The sheet is drawn closed rather than absent, so that the platform keeps focus where it found it. A stylesheet

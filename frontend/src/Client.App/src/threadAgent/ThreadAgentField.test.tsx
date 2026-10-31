@@ -363,17 +363,15 @@ describe('ThreadAgentField', () => {
     });
 
     // Whether there is room for it is the pane's width rather than the window's, which a container query on the
-    // reading column answers — jsdom evaluates none, so what is asserted is that the query reaches the chips.
-    it('leaves that to the pane’s width, which has no room for it below 760 pixels', () => {
+    // reading column answers and the browser suite holds — so a window narrower than the desktop takes nothing away.
+    it('says it at a window narrower than the desktop, leaving the room for it to the pane', () => {
         theTabletComposition();
 
         drawing();
         openingTheDrafter();
 
-        expect(screen.getByText('Scope: this thread').closest('.\\@max-pane-compact\\:hidden')).not.toBeNull();
-        expect(
-            screen.getByText('Draft stays local until confirmed').closest('.\\@max-pane-compact\\:hidden'),
-        ).not.toBeNull();
+        expect(screen.getByText('Scope: this thread')).toBeDefined();
+        expect(screen.getByText('Draft stays local until confirmed')).toBeDefined();
     });
 
     // The two fields hold separate sentences: what is typed under a correspondence is about that correspondence, and

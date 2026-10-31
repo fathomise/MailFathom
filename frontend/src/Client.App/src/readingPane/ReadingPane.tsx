@@ -485,7 +485,7 @@ function OpenMessage({
         >
             <MessageHeaders headers={message.headers} message={message} />
 
-            <div className="flex flex-col gap-3 px-reading-gutter py-4.5">
+            <div className="flex flex-col gap-3 px-5.5 py-4.5">
                 <OpenedMessage
                     session={session}
                     transport={transport}

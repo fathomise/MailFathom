@@ -250,7 +250,7 @@ export function MailSpace({
     const mailboxesInDrawer = mailboxes === 'drawer';
     const { strip: toolbarStrip, fit: toolbarFit } = useStripFit(
         true,
-        `${locale}:${String(mailboxesInDrawer)}:${String(listFold !== null)}`,
+        `${locale}:${String(mailboxesInDrawer)}:${String(listFold !== null)}:${String(coarse)}`,
         1,
     );
     const toolbarDrawn = !selecting && wide;
