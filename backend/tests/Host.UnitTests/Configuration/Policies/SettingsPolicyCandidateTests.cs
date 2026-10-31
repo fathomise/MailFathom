@@ -60,6 +60,23 @@ public sealed class SettingsPolicyCandidateTests
     }
 
     /// <summary>
+    /// Working hours are three keys a policy may state apart, so a default naming only the days leaves the hours to the
+    /// member and is judged on the days alone.
+    /// </summary>
+    [Fact]
+    public void Judge_ADefaultStatingSomeOfTheWorkingHoursKeys_IsNotHeldToTheRuleAboutAllThree()
+    {
+        // Arrange
+        const string saved = """{"Users":{"Defaults":{"WorkingHours":{"Days":["Monday","Tuesday"]}}}}""";
+
+        // Act
+        var candidate = SettingsPolicyCandidate.Judge(saved);
+
+        // Assert
+        Assert.Empty(candidate.Refusals);
+    }
+
+    /// <summary>
     /// A statement is a sparse record rather than a record, so forcing one property of a block says nothing about its
     /// siblings: delivery forced on with no host stated is a rule about each account, not about the policy.
     /// </summary>
@@ -294,6 +311,8 @@ public sealed class SettingsPolicyCandidateTests
     [InlineData("""{"Users":{"Forced":{"TimeZone":"Europe/Warszawa"}}}""", "Users:Forced: TimeZone states 'Europe/Warszawa'")]
     [InlineData("""{"Users":{"Forced":{"ClientTelemetryLevel":"Verbose"}}}""", "Users:Forced: ClientTelemetryLevel states 'Verbose'")]
     [InlineData("""{"MailAccounts":{"Defaults":{"Language":"Klingon"}}}""", "MailAccounts:Defaults: Language states 'Klingon', which is not a language MailFathom writes in.")]
+    [InlineData("""{"Users":{"Defaults":{"WorkingHours":{"Days":["Mon"]}}}}""", "Users:Defaults: WorkingHours cannot be this user's: Each of Days names a weekday in English")]
+    [InlineData("""{"Users":{"Forced":{"WorkingHours":{"Start":"8am"}}}}""", "Users:Forced: WorkingHours cannot be this user's: Start and End are times of day written as 'HH:mm'")]
     public void Judge_AValueTheBinderAcceptsAndTheRecordWouldNot_IsRefusedByTheRecordsOwnRule(string saved, string expected)
     {
         // Act

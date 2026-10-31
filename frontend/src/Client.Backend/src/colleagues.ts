@@ -77,8 +77,28 @@ export interface Colleague {
     /** The IANA zone the member lives in, or `null` where they state none — in which case no time of theirs is known. */
     readonly timeZone: string | null;
 
+    /** When the member works, on their own wall clock and so read in {@link timeZone}, or `null` where none is stated. */
+    readonly workingHours: ColleagueWorkingHours | null;
+
     /** Which portrait they are drawn by, changing whenever it does, or `null` where they have none. */
     readonly photo: string | null;
+}
+
+/** A day of the week as the service names one. */
+export type Weekday = (typeof weekdays)[number];
+
+/** Every day of the week, Monday first, which is the order the service lists working days in. */
+export const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
+/** When a member works: the days, and one range of hours those days share, as minutes after midnight on their clock. */
+export interface ColleagueWorkingHours {
+    /** The days worked, each once, Monday first. */
+    readonly days: readonly Weekday[];
+
+    readonly start: number;
+
+    /** Always after {@link start}: a range across midnight is not one the service states. */
+    readonly end: number;
 }
 
 /** One bounded page of the directory, and where the walk continues. */
@@ -263,8 +283,10 @@ export function parseColleague(value: unknown): Colleague | null {
     }
 
     const phoneNumbers = parsePhoneNumbers(record['phoneNumbers']);
+    const workingHours = record['workingHours'] ?? null;
+    const hours = workingHours === null ? null : parseWorkingHours(workingHours);
 
-    if (phoneNumbers === null) {
+    if (phoneNumbers === null || (workingHours !== null && hours === null)) {
         return null;
     }
 
@@ -278,8 +300,40 @@ export function parseColleague(value: unknown): Colleague | null {
         jobTitle,
         organizationName,
         timeZone,
+        workingHours: hours,
         photo,
     };
+}
+
+function parseWorkingHours(value: unknown): ColleagueWorkingHours | null {
+    const record = asRecord(value);
+    const days = parseEach(
+        record?.['days'],
+        weekdays.length,
+        (day) => weekdays.find((weekday) => weekday === day) ?? null,
+    );
+    const start = minutesOf(record?.['start']);
+    const end = minutesOf(record?.['end']);
+
+    if (days === null || days.length === 0 || start === null || end === null || end <= start) {
+        return null;
+    }
+
+    return { days: weekdays.filter((weekday) => days.includes(weekday)), start, end };
+}
+
+// A time of day written `HH:mm`, as minutes after midnight.
+function minutesOf(value: unknown): number | null {
+    const time = typeof value === 'string' ? /^(\d{2}):(\d{2})$/.exec(value) : null;
+
+    if (time === null) {
+        return null;
+    }
+
+    const hours = Number(time[1]);
+    const minutes = Number(time[2]);
+
+    return hours < 24 && minutes < 60 ? hours * 60 + minutes : null;
 }
 
 function isText(value: unknown, longest: number): value is string {

@@ -60,6 +60,25 @@ export function wordClockDifference(minutes: number, locale: Locale): string {
     ]);
 }
 
+/** Where a zone's wall clock stands at an instant: the day of the week, Sunday being 0, and the minutes since its midnight. */
+export interface WallClock {
+    readonly weekday: number;
+    readonly minute: number;
+}
+
+/** A zone's wall clock at an instant, or `null` where this runtime does not know the zone. */
+export function wallClockAt(zone: string, at: number): WallClock | null {
+    const offset = offsetAt(zone, at);
+
+    if (offset === null) {
+        return null;
+    }
+
+    const wall = new Date(Math.floor(at / 60_000) * 60_000 + offset * 60_000);
+
+    return { weekday: wall.getUTCDay(), minute: wall.getUTCHours() * 60 + wall.getUTCMinutes() };
+}
+
 // The zone's offset from UTC at an instant, in minutes: the wall clock it reads there, taken as if it were UTC, less the
 // instant itself. Read in a fixed numbering because these are numbers to compute with rather than words to show.
 function offsetAt(zone: string | null, at: number): number | null {

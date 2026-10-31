@@ -288,16 +288,23 @@ public sealed class GovernedRecordResolutionTests
         {
             Assert.Equal(SettingsValueSource.DeploymentForced, resolved.Find(property.Path).Source);
             Assert.True(
-                SettingsDocumentTree.StateTheSame(SampleFor(property, builtIn), JsonValue.Create(property.ReadFrom(bound).Value?.ToString())),
+                SettingsDocumentTree.StateTheSame(SampleFor(property, builtIn), Stated(property.ReadFrom(bound).Value)),
                 $"{property.Path} was forced and the record bound from the resolution does not carry the forced value.");
         });
     }
 
-    private static JsonValue SampleFor(GovernableProperty property, UserAccountOptions builtIn) => property.Path switch
+    private static JsonNode? Stated(object? value) => value is IEnumerable<string> entries
+        ? new JsonArray([.. entries.Select(entry => (JsonNode?)JsonValue.Create(entry))])
+        : JsonValue.Create(value?.ToString());
+
+    private static JsonNode SampleFor(GovernableProperty property, UserAccountOptions builtIn) => property.Path switch
     {
         "Language" => JsonValue.Create("Polish"),
         "TimeZone" => JsonValue.Create("Europe/Warsaw"),
         "ClientTelemetryLevel" => JsonValue.Create("Debug"),
+        "WorkingHours:Days" => new JsonArray("Monday", "Friday"),
+        "WorkingHours:Start" => JsonValue.Create("08:00"),
+        "WorkingHours:End" => JsonValue.Create("16:30"),
         _ when property.ValueType == typeof(bool) => JsonValue.Create(!(bool)property.ReadFrom(builtIn).Value!),
         _ => throw new InvalidOperationException(
             $"{property.Path} is a property of a user's record this test has no sample value for. Add one, so that the resolution is shown to govern it."),

@@ -36,6 +36,7 @@ const piotr: Colleague = {
     jobTitle: 'Head of Delivery',
     organizationName: 'Nordwind',
     timeZone: null,
+    workingHours: null,
     photo: null,
 };
 

@@ -35,6 +35,10 @@ public sealed class GovernablePropertiesTests
                 "Portrait Value",
                 "PreferredAddress Value",
                 "TimeZone Value",
+                "WorkingHours Block",
+                "WorkingHours:Days List",
+                "WorkingHours:End Value",
+                "WorkingHours:Start Value",
         ];
         string[] mailAccounts =
         [
@@ -160,6 +164,7 @@ public sealed class GovernablePropertiesTests
             classed);
         Assert.Equal(SettingsPolicyPropertyClass.Ordinary, properties.Find("Language")!.PropertyClass);
         Assert.Equal(SettingsPolicyPropertyClass.Ordinary, properties.Find("TimeZone")!.PropertyClass);
+        Assert.Equal(SettingsPolicyPropertyClass.Ordinary, properties.Find("WorkingHours")!.PropertyClass);
     }
 
     [Fact]

@@ -2,7 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
 using MailFathom.Application.Contacts.Members;
+using MailFathom.Domain.Access;
 
 namespace MailFathom.Host.Api;
 
@@ -16,6 +18,7 @@ namespace MailFathom.Host.Api;
 /// <param name="JobTitle">The title an administrator gave them, or nothing where none was stated.</param>
 /// <param name="OrganizationName">The name of the organization they belong to.</param>
 /// <param name="TimeZone">The IANA zone the member's record states, or nothing where it states none.</param>
+/// <param name="WorkingHours">When the member works, on their own wall clock and so read in <paramref name="TimeZone" />, or nothing where none is stated.</param>
 /// <param name="Photo">An identifier that changes whenever the member's portrait does, or nothing where they have none.</param>
 /// <remarks>
 /// Personal data about a colleague. It travels to the member of the same organization who asked and reaches nothing
@@ -31,6 +34,7 @@ internal sealed record ColleagueResponse(
     string? JobTitle,
     string OrganizationName,
     string? TimeZone,
+    WorkingHoursResponse? WorkingHours,
     Guid? Photo)
 {
     /// <summary>The name every colleague's <see cref="Book" /> carries.</summary>
@@ -59,8 +63,25 @@ internal sealed record ColleagueResponse(
             member.JobTitle,
             member.OrganizationName,
             member.TimeZone?.Id,
+            member.WorkingHours is { } hours ? WorkingHoursResponse.For(hours) : null,
             member.Portrait?.Value);
     }
+}
+
+/// <summary>When a member works: the days, and one range of hours those days share on the member's own wall clock.</summary>
+/// <param name="Days">The days worked, each named in English, Monday first.</param>
+/// <param name="Start">The time work starts at, written <c>HH:mm</c>.</param>
+/// <param name="End">The time work ends at, written <c>HH:mm</c> and after <paramref name="Start" />.</param>
+internal sealed record WorkingHoursResponse(IReadOnlyList<string> Days, string Start, string End)
+{
+    /// <summary>Describes working hours for a colleague.</summary>
+    /// <param name="hours">The working hours.</param>
+    /// <returns>The response body.</returns>
+    internal static WorkingHoursResponse For(WorkingHours hours) =>
+        new(
+            [.. hours.Days.Select(static day => day.ToString())],
+            hours.Start.ToString("HH:mm", CultureInfo.InvariantCulture),
+            hours.End.ToString("HH:mm", CultureInfo.InvariantCulture));
 }
 
 /// <summary>One bounded page of the reader's colleagues, and where the walk continues.</summary>

@@ -142,6 +142,7 @@ is the decision.
 | The phone numbers | `PhoneNumbers` in the user's record, under the labels and rules a contact's phone numbers obey |
 | The job title | The title an administrator wrote on the user's row |
 | The organization's name, the portrait, the time zone | The organization's row, and `Portrait` and `TimeZone` in the user's record |
+| The working hours | `WorkingHours` in the user's record as the settings policies governing them resolve it, so an organization's default reaches every member stating none; the client shows them in the member's time and in the reader's, and *Outside working hours* while it is outside them where the member is. [When this person works](../operations/configuration-sources.md#when-this-person-works--workinghours) holds the rules |
 
 **Who is in it.** Every user of the organization whose type is `User`. A user an administrator marked `ServiceAccount`
 — a technical account somebody signs a robot in as — is never shown, and the reader is never their own colleague. A

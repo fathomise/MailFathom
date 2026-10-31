@@ -19,6 +19,7 @@ namespace MailFathom.Application.Contacts.Members;
 /// <param name="OrganizationName">The name of the organization the member belongs to.</param>
 /// <param name="Portrait">The stored file the member is drawn by, or <see langword="null" /> for none.</param>
 /// <param name="TimeZone">The zone the member's record states, or <see langword="null" /> where it states none.</param>
+/// <param name="WorkingHours">When the member works, on their own wall clock and so read in <paramref name="TimeZone" />, as the settings policies governing them resolve it; <see langword="null" /> where nothing states any.</param>
 /// <remarks>
 /// <para>
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0044-an-organizations-member-directory-as-a-projection-of-user-records.md">ADR 0044</see>
@@ -39,7 +40,8 @@ public sealed record MemberContact(
     string? JobTitle,
     string OrganizationName,
     StoredFileId? Portrait,
-    UserTimeZone? TimeZone)
+    UserTimeZone? TimeZone,
+    WorkingHours? WorkingHours)
 {
     /// <summary>Resolves which of a member's current addresses answers as their preferred one.</summary>
     /// <param name="addresses">The member's current addresses, in the ordinal order of their accounts' identifiers.</param>

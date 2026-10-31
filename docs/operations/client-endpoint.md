@@ -3528,8 +3528,9 @@ organization reads the other members beneath `/contacts/colleagues` — a page u
 `search` rules as the listings above, ordered by name, and empty for a user in no organization. Each colleague is
 answered with `id` (their user's identifier), `book` (always `Member`), `displayName`, `addresses` with the preferred
 one first, `preferredAddress` (`null` exactly when `addresses` is empty), `phoneNumbers` in a contact's shape,
-`jobTitle`, `organizationName`, `timeZone` as an IANA identifier, and `photo`, an identifier that changes whenever the
-portrait does. A colleague whose address this user's own book holds is left out, because the user's own record of them
+`jobTitle`, `organizationName`, `timeZone` as an IANA identifier, `workingHours` — `days` named in English Monday
+first, and `start` and `end` written `HH:mm` on the colleague's own wall clock, or `null` where none is stated — and
+`photo`, an identifier that changes whenever the portrait does. A colleague whose address this user's own book holds is left out, because the user's own record of them
 answers for them; the two listings above leave out an organization contact and a collected contact holding a
 colleague's address, for the same reason in the other direction. [Contacts § The organization's member
 directory](../features/contacts.md#the-organizations-member-directory) holds where each field comes from and who is in
