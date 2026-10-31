@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 import {
     actingGrants,
@@ -29,6 +29,19 @@ import type { FakeDeployment } from './fakeDeployment';
 // Each act is reached from the row's own menu and from the toolbar over the message that is open, because the two are
 // different controls onto the same acts and a client can wire one of them to the wrong message. The selection bar is
 // the third, and `client.selection.spec.ts` drives it.
+
+/**
+ * The row of one message whatever its reserved line says, which is gone only once the row has left the list.
+ *
+ * `row` stops matching the moment an act is asked of the message, because the row's name then ends in what the act is
+ * doing — while the row stays where it was through its leaving animation, and the rows below it move up only after.
+ * A pointer gesture aimed at a row below one still leaving lands on whichever row has slid under it by then.
+ */
+function leaving(page: Page, subject: string): Locator {
+    return page
+        .getByRole('listbox', { name: 'Messages' })
+        .getByRole('option', { name: new RegExp(`\\b${subject}\\b`, 'u') });
+}
 
 /** Every record the page asked to release, in the order it asked. */
 function recordsReleased(deployment: FakeDeployment): string[] {
@@ -138,7 +151,7 @@ test('files a message by the menu and another by dragging it onto a folder, and 
     await choice.getByRole('button', { name: 'Archive / 2024' }).click();
 
     await expect(notice(page, 'Filed in “Archive / 2024”')).toContainText('1 message');
-    await expect(row(page, 'Message 4')).toHaveCount(0);
+    await expect(leaving(page, 'Message 4')).toHaveCount(0);
 
     // The level the corpus files that folder under arrives shut, so it is opened the way a reader opens it.
     await page.getByRole('treeitem', { name: 'Archive', expanded: false }).click();
@@ -147,7 +160,7 @@ test('files a message by the menu and another by dragging it onto a folder, and 
     await row(page, 'Message 7').dragTo(folder(page, '2024'));
 
     await expect(notice(page, 'Filed in “Archive / 2024”').filter({ hasText: '1 message' })).toHaveCount(2);
-    await expect(row(page, 'Message 7')).toHaveCount(0);
+    await expect(leaving(page, 'Message 7')).toHaveCount(0);
     await expect(row(page, 'Message 6')).toBeVisible();
 
     expect(bodiesOf(deployment, '/mutations/moves')).toStrictEqual([

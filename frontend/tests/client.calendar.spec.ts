@@ -4,7 +4,7 @@
 
 import { expect, type Page } from '@playwright/test';
 
-import { openSignedIn, test } from './client.harness';
+import { holdTheDay, openSignedIn, test } from './client.harness';
 
 // An event written, amended, and deleted through the calendar, and each of the four views read after every act. A
 // view reads its own span again rather than correcting what another one held, so what each draws is what the next read
@@ -18,14 +18,14 @@ test.use({ timezoneId: 'UTC' });
 const views = ['Week', 'Day', 'Month', 'Agenda'] as const;
 
 /** The day the reader is on, as the listbox of one day's events is named in the three views drawing days. */
-function dayNamed(): string {
+function dayNamed(day: Date): string {
     return new Intl.DateTimeFormat('en', {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
         year: 'numeric',
         timeZone: 'UTC',
-    }).format(new Date());
+    }).format(day);
 }
 
 /** One hour of the day, as the listbox the day view draws that hour's events in is named. */
@@ -36,8 +36,8 @@ function hourNamed(hour: number): string {
 }
 
 /** Today as the day field of the event form writes it, which is what an instant on it is composed from. */
-function today(): string {
-    return new Date().toISOString().slice(0, 10);
+function today(day: Date): string {
+    return day.toISOString().slice(0, 10);
 }
 
 /**
@@ -47,14 +47,14 @@ function today(): string {
  * What says the read answered is the corpus's first entry, which every window places on its first day at nine: the
  * views draw nothing while a span is being read, so an absence asserted before it would be an absence of anything.
  */
-async function viewOfToday(page: Page, view: (typeof views)[number], hour: number) {
+async function viewOfToday(page: Page, day: Date, view: (typeof views)[number], hour: number) {
     // Chosen from the keyboard, because the radio itself is drawn inside the label that names it and a pointer lands
     // on the label.
     await page.getByRole('radio', { name: view }).press('Space');
     await expect(page.getByRole('option', { name: /Warehouse handover$/u }).first()).toBeVisible();
 
     return page.getByRole('listbox', {
-        name: view === 'Day' ? `Events at ${hourNamed(hour)}` : `Events on ${dayNamed()}`,
+        name: view === 'Day' ? `Events at ${hourNamed(hour)}` : `Events on ${dayNamed(day)}`,
     });
 }
 
@@ -62,6 +62,8 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
     page,
     deployment,
 }) => {
+    const day = await holdTheDay(page, deployment);
+
     await openSignedIn(page, '/#/calendar');
 
     await page.getByRole('button', { name: 'New event' }).click();
@@ -78,15 +80,15 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
 
     for (const view of views) {
         await expect(
-            (await viewOfToday(page, view, 13)).getByRole('option', { name: /Dentist appointment$/u }),
+            (await viewOfToday(page, day, view, 13)).getByRole('option', { name: /Dentist appointment$/u }),
         ).toBeVisible();
     }
 
     expect(deployment.requests('POST', '/calendar').map(({ body }) => body)).toStrictEqual([
         {
             title: 'Dentist appointment',
-            start: `${today()}T13:00:00.000Z`,
-            end: `${today()}T13:30:00.000Z`,
+            start: `${today(day)}T13:00:00.000Z`,
+            end: `${today(day)}T13:30:00.000Z`,
             isAllDay: false,
             reminders: [],
             notes: 'Bring the referral.',
@@ -95,7 +97,7 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
     ]);
 
     // Amended from the agenda, which is the view the loop above ended on, and moved two hours later on the same day.
-    await (await viewOfToday(page, 'Agenda', 13)).getByRole('option', { name: /Dentist appointment$/u }).click();
+    await (await viewOfToday(page, day, 'Agenda', 13)).getByRole('option', { name: /Dentist appointment$/u }).click();
 
     const opened = page.getByRole('dialog', { name: 'Dentist appointment' });
 
@@ -112,16 +114,16 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
     await amended.getByRole('button', { name: 'Close' }).click();
 
     for (const view of views) {
-        const drawn = await viewOfToday(page, view, 15);
+        const drawn = await viewOfToday(page, day, view, 15);
 
         await expect(drawn.getByRole('option', { name: /Dental check-up$/u })).toBeVisible();
         await expect(page.getByRole('option', { name: /Dentist appointment$/u })).toHaveCount(0);
     }
 
     // The hour it was moved out of holds nothing of it any more, which the day view is the only one to say.
-    await expect((await viewOfToday(page, 'Day', 13)).getByRole('option', { name: /Dental check-up$/u })).toHaveCount(
-        0,
-    );
+    await expect(
+        (await viewOfToday(page, day, 'Day', 13)).getByRole('option', { name: /Dental check-up$/u }),
+    ).toHaveCount(0);
 
     const [amendment] = deployment.issued.filter(
         ({ method, route }) => method === 'PUT' && route.startsWith('/calendar/'),
@@ -129,14 +131,14 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
 
     expect(amendment?.body).toStrictEqual({
         title: 'Dental check-up',
-        start: `${today()}T15:00:00.000Z`,
-        end: `${today()}T15:45:00.000Z`,
+        start: `${today(day)}T15:00:00.000Z`,
+        end: `${today(day)}T15:45:00.000Z`,
         isAllDay: false,
         reminders: [],
         notes: 'Bring the referral.',
     });
 
-    await (await viewOfToday(page, 'Week', 15)).getByRole('option', { name: /Dental check-up$/u }).click();
+    await (await viewOfToday(page, day, 'Week', 15)).getByRole('option', { name: /Dental check-up$/u }).click();
     await page
         .getByRole('dialog', { name: 'Dental check-up' })
         .getByRole('button', { name: 'Delete the event' })
@@ -146,7 +148,7 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
     await expect(page.getByRole('status').filter({ hasText: 'Deleted.' })).toBeVisible();
 
     for (const view of views) {
-        await viewOfToday(page, view, 15);
+        await viewOfToday(page, day, view, 15);
         await expect(page.getByRole('option', { name: /Dental check-up$/u })).toHaveCount(0);
     }
 

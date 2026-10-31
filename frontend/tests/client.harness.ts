@@ -122,9 +122,44 @@ export async function openWithTheChannel(page: Page, deployment: FakeDeployment,
  * The clock is installed before the page loads and runs as a real one until here, because signing in and drawing the
  * frame have timers of their own that nothing is proving. Held from here, a running answer reads as running for as long
  * as the check is looking at it, however loaded the machine is, and reads again only on `page.clock.runFor`.
+ *
+ * The page's clock keeps running until the call reaches it, so a loaded machine can carry it past the instant asked
+ * for, which Playwright refuses as a jump into the past. It stops the clock before it refuses, so the time the page
+ * reads afterwards no longer moves and is an instant the second call cannot miss.
  */
 export async function holdTheClock(page: Page): Promise<void> {
-    await page.clock.pauseAt(Date.now() + 1_000);
+    try {
+        await page.clock.pauseAt((await pageTime(page)) + 1_000);
+    } catch (error) {
+        if (!(error instanceof Error && error.message.includes('Cannot fast-forward to the past'))) {
+            throw error;
+        }
+
+        await page.clock.pauseAt(await pageTime(page));
+    }
+}
+
+/** The instant the page's own clock reads, which an installed clock decides rather than the machine. */
+function pageTime(page: Page): Promise<number> {
+    return page.evaluate(() => Date.now());
+}
+
+/**
+ * Keeps a check on one day however close to midnight it starts, and answers the instant that day is read from.
+ *
+ * The page, the deployment, and the check each read the day off a clock of their own, so a check started just before
+ * midnight could compose its expectation on one day, have the deployment file the work under the next, and see the
+ * screen draw either. Noon of the day the check began on is an instant all three read, with half a day either side
+ * before any of them reaches another one. Called before the page loads, because that is when the clock is installed.
+ */
+export async function holdTheDay(page: Page, deployment: FakeDeployment): Promise<Date> {
+    const noon = new Date();
+
+    noon.setUTCHours(12, 0, 0, 0);
+    deployment.holdTheDay(noon);
+    await page.clock.install({ time: noon });
+
+    return noon;
 }
 
 /** The client opened at an address and signed in, which is where every test about the frame starts. */

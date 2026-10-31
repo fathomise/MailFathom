@@ -515,10 +515,16 @@ describe('App', () => {
             }),
         );
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Close the message' }));
+        // Closed once the composer has read the message it answers and its drafting has answered, so the close is the
+        // only thing still settling when the button is looked for — the deployment here drafts nothing, which the
+        // composer says.
+        await screen.findByText('Nothing was drafted');
+        fireEvent.click(screen.getByRole('button', { name: 'Close the message' }));
+
+        const handedBackTo = await screen.findByRole('button', { name: aiButton });
 
         await waitFor(() => {
-            expect(document.activeElement).toBe(screen.getByRole('button', { name: aiButton }));
+            expect(document.activeElement).toBe(handedBackTo);
         });
     });
 
