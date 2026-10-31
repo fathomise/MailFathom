@@ -4217,7 +4217,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         items.push({
           isMsg: true, isPill: false, key: k, isActive, newShown: isNew,
           place: placeOf(m),
-          placeStyle: "display:flex;align-items:center;gap:6px;min-width:0;padding-top:8px;border-top:1px solid var(--line);font-size:12px;line-height:1.35;color:var(--faint);white-space:nowrap",
+          placeStyle: "display:flex;align-items:center;gap:6px;min-width:0;margin-top:-4px;font-size:12px;line-height:1.35;color:var(--faint);white-space:nowrap",
           /* The thread's AI summary, wherever the list is read, on its newest received message - never on spam. */
           aiBtnShown: !m.mine && !threadSpam.spam && i === msgs.map(x => x.mine).lastIndexOf(false),
           openAiSum: () => this.openAiSum(thread.id),
