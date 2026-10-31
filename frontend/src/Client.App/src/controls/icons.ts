@@ -133,6 +133,7 @@ export const iconNames = [
     'task_alt',
     'text_format',
     'timeline',
+    'timer',
     'topic',
     'tune',
     'unarchive',

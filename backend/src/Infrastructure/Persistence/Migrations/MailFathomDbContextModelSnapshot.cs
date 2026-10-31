@@ -2892,6 +2892,32 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("mailbox_source_removals", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MemberPresenceEntity", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserId");
+
+                    b.Property<int?>("ChoiceDuration")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("ChoiceEndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ChoiceEndsAt");
+
+                    b.Property<int?>("ChosenState")
+                        .HasColumnType("integer")
+                        .HasColumnName("ChosenState");
+
+                    b.Property<DateTimeOffset?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("LastSeenAt");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("member_presence", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.NotificationEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3420,6 +3446,32 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasFilter("\"RaisedForDueAt\" IS NULL");
 
                     b.ToTable("task_reminders", (string)null);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.PresenceClientEntity", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserId");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ClientId");
+
+                    b.Property<int>("Activity")
+                        .HasColumnType("integer")
+                        .HasColumnName("Activity");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpiresAt");
+
+                    b.HasKey("UserId", "ClientId");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_presence_clients_expires_at");
+
+                    b.ToTable("presence_clients", (string)null);
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.ProviderPaceMarkerEntity", b =>
@@ -5308,6 +5360,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Navigation("MailFolderBinding");
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MemberPresenceEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.UserAccountEntity", null)
+                        .WithOne()
+                        .HasForeignKey("MailFathom.Infrastructure.Persistence.Entities.MemberPresenceEntity", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.NotificationEntity", b =>
                 {
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.CalendarEventEntity", "TargetCalendarEvent")
@@ -5438,6 +5499,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("PersonalTask");
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.PresenceClientEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.UserAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.RecurringSendDraftEntity", b =>

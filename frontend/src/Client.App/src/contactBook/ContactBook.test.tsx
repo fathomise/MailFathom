@@ -50,6 +50,8 @@ const piotr: Colleague = {
     timeZone: 'Europe/Warsaw',
     workingHours: null,
     photo: null,
+    presence: 'Busy',
+    lastSeen: null,
 };
 
 const nothingRead: ContactBookInForce = {

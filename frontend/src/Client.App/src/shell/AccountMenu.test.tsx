@@ -4,7 +4,7 @@
 
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MailAccount } from '@mailfathom/client-backend';
+import type { MailAccount, PresenceState } from '@mailfathom/client-backend';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
 import { LocalizationProvider } from '../localization/Localization';
 import type { ClientPreferencesInForce } from '../preferences/useClientPreferences';
@@ -147,6 +147,7 @@ function renderMenu({
     telemetryForwarding = forwardedTo,
     preferences = settings,
     profile = nobody,
+    presence = null,
     onSignOut = () => undefined,
     scope = null,
     lostServer = false,
@@ -156,6 +157,7 @@ function renderMenu({
     readonly telemetryForwarding?: TelemetryForwarding;
     readonly preferences?: ClientPreferencesInForce;
     readonly profile?: OwnProfileInForce;
+    readonly presence?: PresenceState | null;
     readonly onSignOut?: () => void;
     readonly scope?: MailScope | null;
 
@@ -180,6 +182,7 @@ function renderMenu({
                                 writesProfile
                                 preferences={preferences}
                                 profile={profile}
+                                presence={presence}
                                 onSignOut={onSignOut}
                             />
                         </ConnectionStatusContext>
@@ -317,6 +320,37 @@ describe('AccountMenu', () => {
         renderMenu({ profile: nobody });
 
         expect(screen.getByRole('button', { name: 'Account and preferences' }).textContent).toBe('');
+    });
+
+    it('describes the circle in the rail by the member’s presence, the dot being the only telling it carries there', () => {
+        atTabWidth(true);
+        renderMenu({ presence: 'Busy' });
+
+        expect(screen.getByRole('button', { name: 'Account and preferences', description: 'Busy' })).toBeDefined();
+    });
+
+    it('leads from under the name to the status menu, saying in words that others see a hidden member as offline', () => {
+        atTabWidth(true);
+        renderMenu({ profile: { ...nobody, displayName: 'Ada Lovelace' }, presence: 'Hidden' });
+
+        expect(
+            screen.getByRole('button', {
+                name: 'Your status',
+                description: 'Hidden - others see you as Offline',
+                hidden: true,
+            }),
+        ).toBeDefined();
+    });
+
+    it('draws no presence at all for a reader in no organization', () => {
+        atTabWidth(true);
+        renderMenu({ profile: { ...nobody, displayName: 'Ada Lovelace' } });
+
+        expect(screen.getByText('Ada Lovelace')).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Your status', hidden: true })).toBeNull();
+        expect(
+            screen.getByRole('button', { name: 'Account and preferences' }).getAttribute('aria-describedby'),
+        ).toBeNull();
     });
 
     it('draws the person by their own picture once they have one', () => {

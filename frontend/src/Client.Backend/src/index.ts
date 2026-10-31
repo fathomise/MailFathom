@@ -71,6 +71,22 @@ export {
     type Weekday,
 } from './colleagues';
 export {
+    choosePresence,
+    closePresenceClient,
+    presenceChoiceRoute,
+    presenceClientRoute,
+    presenceDurations,
+    presenceRoute,
+    presenceStates,
+    readOwnPresence,
+    renewPresenceClient,
+    type ColleaguePresence,
+    type OwnPresence,
+    type PresenceActivity,
+    type PresenceDuration,
+    type PresenceState,
+} from './presence';
+export {
     contactCorrespondenceRoute,
     mostCorrespondenceEntries,
     readContactCorrespondence,

@@ -14,7 +14,12 @@ import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import type { MessageKey } from '../localization/en';
+import { wordLastSeen } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
+import { useReadingZone } from '../localization/useReadingZone';
+import { useCurrentMinute } from '../notifications/notificationAge';
+import { PresenceDot } from '../presence/PresenceDot';
+import { presenceSaid } from '../presence/presenceWords';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { ColleagueTime } from './ColleagueTime';
 import { ContactDetails } from './ContactDetails';
@@ -125,7 +130,9 @@ export function PersonPage({
 
     readonly onOpenDocument: (document: { readonly messageId: string; readonly position: number }) => void;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
+    const readingZone = useReadingZone();
+    const now = useCurrentMinute();
     const picture = useContactPhoto(contact);
     const composing = useComposing();
     const copy = useAddressCopy();
@@ -135,6 +142,10 @@ export function PersonPage({
     const address = contact.preferredAddress;
     const role = roleOf(contact);
     const readOnly = readOnlySaid(contact, organizationName ?? translate('people.yourOrganization'));
+
+    // When an offline colleague was last seen, which the deployment states only for one who did not choose to hide.
+    const lastSeen =
+        member && contact.lastSeen !== null ? wordLastSeen(contact.lastSeen, locale, now, readingZone) : null;
 
     // Deleting and taking somebody on write to the book, so while the server is out of reach both are drawn as
     // controls that cannot act; the one with no room for a name of its own says why on the line under the person.
@@ -174,12 +185,15 @@ export function PersonPage({
             )}
 
             <div className="flex shrink-0 flex-wrap items-center gap-3.5 border-b border-line bg-sunken px-4 py-3.5 workspace:px-6 workspace:py-4.5">
-                <SenderAvatar
-                    displayName={contact.displayName}
-                    address={contact.preferredAddress}
-                    picture={picture}
-                    place="person"
-                />
+                <span className="relative flex shrink-0 self-start">
+                    <SenderAvatar
+                        displayName={contact.displayName}
+                        address={contact.preferredAddress}
+                        picture={picture}
+                        place="person"
+                    />
+                    {member ? <PresenceDot presence={contact.presence} place="person" /> : null}
+                </span>
 
                 <div className="flex min-w-0 flex-col gap-0.75">
                     <div className="flex min-w-0 items-center gap-2.25">
@@ -206,6 +220,18 @@ export function PersonPage({
                     {role === '' ? null : <p className="truncate text-base text-muted">{role}</p>}
 
                     {address === null ? null : <p className="truncate text-sm text-accent-deep">{address}</p>}
+
+                    {member ? (
+                        <p className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-0.75 text-sm text-text-soft">
+                            <span className="flex items-center gap-1.5">
+                                <PresenceDot presence={contact.presence} place="header" />
+                                {translate(presenceSaid[contact.presence])}
+                            </span>
+                            {lastSeen === null ? null : (
+                                <span className="text-muted">{translate('presence.lastSeen', { when: lastSeen })}</span>
+                            )}
+                        </p>
+                    ) : null}
 
                     {own ? null : (
                         <p className="flex items-center gap-1.5 text-sm text-muted text-pretty">

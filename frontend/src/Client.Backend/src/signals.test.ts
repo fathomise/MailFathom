@@ -293,8 +293,28 @@ describe('parseClientSignal', () => {
         );
     });
 
+    it('reads a presence change as the members it names', () => {
+        expect(parseClientSignal({ kind: 'presence.changed', members: ['member-1', 'member-2'] })).toStrictEqual({
+            kind: 'presence.changed',
+            members: ['member-1', 'member-2'],
+        });
+    });
+
+    it('reads a presence change naming nobody as one about every member drawn', () => {
+        expect(parseClientSignal({ kind: 'presence.changed', members: [] })).toStrictEqual({
+            kind: 'presence.changed',
+            members: [],
+        });
+    });
+
     const refused: readonly (readonly [string, unknown])[] = [
         ['nothing at all', null],
+        ['a presence change whose members are not a list', { kind: 'presence.changed', members: 'member-1' }],
+        ['a presence change naming a member by nothing', { kind: 'presence.changed', members: [''] }],
+        [
+            'a presence change naming more members than the deployment ever does',
+            { kind: 'presence.changed', members: Array.from({ length: 101 }, (_, at) => `member-${String(at)}`) },
+        ],
         ['an array', []],
         ['a kind this client does not act on', { kind: 'mail.vanished', account: 'work' }],
         ['an arrival of nothing', { kind: 'mail.arrived', account: 'work', folder: 'INBOX', count: 0 }],

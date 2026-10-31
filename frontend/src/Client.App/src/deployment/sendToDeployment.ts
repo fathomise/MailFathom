@@ -2,7 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { longestResponseBody, type MailFathomTransport } from '@mailfathom/client-backend';
+import {
+    longestResponseBody,
+    type ClientRequest,
+    type ClientResponse,
+    type MailFathomTransport,
+} from '@mailfathom/client-backend';
 import { fetchFromDeployment } from './deploymentFetch';
 
 // The adapter `Client.Backend` asks its caller for. That package declares no DOM, so `fetch` is called in this
@@ -35,7 +40,24 @@ export const deploymentCredentials: RequestCredentials = 'omit';
 
 /** Puts one request on the wire, and reports what came back without deciding anything about it. */
 export const sendToDeployment: DeploymentTransport = (abandoned) => (request) =>
-    fetchFromDeployment(
+    request.outlivesThePage === true ? sendAsThePageGoes(request) : sendWithinTheShare(request, abandoned);
+
+// Straight to `fetch` rather than through the client's share of the deployment, because a request waiting there for a
+// place would still be waiting when the page is gone. Nothing abandons it and nothing reads its body: the browser
+// carries it past the page, which is the whole of what `keepalive` is for.
+async function sendAsThePageGoes(request: ClientRequest): Promise<ClientResponse> {
+    const response = await fetch(request.path, {
+        method: request.method,
+        headers: { ...request.headers },
+        credentials: deploymentCredentials,
+        keepalive: true,
+    });
+
+    return { status: response.status, body: '', headers: {} };
+}
+
+function sendWithinTheShare(request: ClientRequest, abandoned: AbortSignal): Promise<ClientResponse> {
+    return fetchFromDeployment(
         request.path,
         {
             method: request.method,
@@ -60,6 +82,7 @@ export const sendToDeployment: DeploymentTransport = (abandoned) => (request) =>
             changesNothing: request.changesNothing === true,
         },
     );
+}
 
 /**
  * Reads the answer up to the bound the wire states, and stops there.

@@ -1,6 +1,6 @@
 # Contacts
 
-<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactPhoneNumberEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Configuration/UserSettings/MemberDirectory.cs, backend/src/Infrastructure/Persistence/Users/*OrganizationMember*.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
+<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactPhoneNumberEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Domain/Presence/**, backend/src/Application/Presence/**, backend/src/Infrastructure/Persistence/Presence/**, backend/src/Host/Configuration/UserSettings/MemberDirectory.cs, backend/src/Infrastructure/Persistence/Users/*OrganizationMember*.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
 
 MailFathom holds a contact book of its own: people, the addresses they use, and what a user recorded about them, in
 the same PostgreSQL database the mail is in. This page describes the record and the rules every writer of it obeys —
@@ -175,6 +175,46 @@ reports to the user directly or through others, and each refusal names its rule.
 or is erased, stops being anybody's manager there, and a user who moves to another organization leaves their own manager
 behind. The structure is read beneath `/contacts/colleagues/{userId}/structure` under `mailfathom.contacts.read`, for the
 client alone: no MCP tool reads it.
+
+### A colleague's presence
+
+A member contact also says whether the colleague is around: one of six states, worked out when it is read from the
+clients the colleague keeps open and the state they chose, and never stored.
+[ADR 0045](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0045-a-members-presence-from-the-clients-it-keeps-open-and-the-state-it-chose.md)
+is the decision.
+
+| State | When a colleague reads as it |
+| --- | --- |
+| `Active` | A client of theirs is open and a person used it in the last ten minutes |
+| `Away` | Every open client of theirs has had no input for ten minutes |
+| `Busy`, `Do not disturb` | They chose it, and a client of theirs is open |
+| `Offline` | No client of theirs is open, whatever they chose; or they chose `Offline` or `Hidden` |
+
+- **An open client is a row its client renews.** A running client renews it every minute, saying whether a person is
+  using it, and removes it when it closes or signs out. A row stops counting three minutes after its last renewal, so
+  a client that crashed, lost its network, or was last renewed by a replica that has since died stops counting with
+  nothing written for it. Across several devices the most present one answers: `Active`, then `Away`. A member keeps
+  at most sixteen clients open.
+- **A chosen state lasts until changed or for a while.** The member chooses any of the six from the status menu, until
+  changed or for 30 minutes, an hour, two hours, the rest of today, or the rest of this week. Today and this week end
+  at midnight in the member's own time zone, the week at the end of Sunday, and in UTC where their record states none.
+  Choosing `Active` until changed returns them to the presence their clients produce. A choice is kept while every
+  client is closed and applies again when one opens, unless it ran out meanwhile.
+- **`Hidden` is the member's own word for `Offline`.** They see `Hidden`; everybody else sees `Offline`, with no
+  *Last seen*.
+- ***Last seen* is one timestamp.** Every renewal moves it, except while the member's chosen state is `Hidden` or
+  `Offline`. A colleague who reads as `Offline` shows it, and one who chose `Hidden` never does.
+
+**What is held, and who sees it.** Presence is monitoring of an employee, so only the present is held: one row per open
+client — the member, the client's own identifier, whether it is in use, and when the row expires — and one row per
+member holding the chosen state, the while it was chosen for, when it ends, and the last-seen time. Each row is overwritten by the next write and
+nothing keeps what it said before, so no history of anybody's presence exists. Both go with the user when they are
+erased. Members of the same organization see a colleague's presence and nobody else: no MCP tool, administrative route,
+or `mfctl` command reads it. A user in no organization is recorded nothing. No log line, metric, trace, or audit entry
+names a person's presence or a renewal. A change another member could see is announced over the signal channel by
+naming the member and nothing about them, and a client re-reads that colleague; a client that crashed or a duration
+that ran out reaches colleagues on their client's own re-read, within five minutes. [The client endpoint § The
+presence routes](../operations/client-endpoint.md#the-presence-routes) holds the routes.
 
 ## A contact is a person, not an address
 

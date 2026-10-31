@@ -77,7 +77,9 @@ const readRoutes: readonly (readonly [string, unknown])[] = [
     ['/calendar/drafts', calendar.calendarDescriptionsRead],
     ['/contacts', contacts.assertedContactPage],
     ['/contacts/collected', contacts.collectedContactPage],
+    ['/contacts/colleagues', contacts.colleaguePage],
     [`/contacts/${contacts.assertedContact.id}/correspondence`, contacts.contactCorrespondence],
+    ['/presence', deployment.ownPresence],
     ['/tasks/today/layout', tasks.daysArranged],
     [`/outbox?account=${deployment.workAccount.id}&pageSize=200`, outbox.outboxPage],
     [`/outbox/${outbox.refusedOutgoingSend.outgoingEmail}`, outbox.outgoingMailPreview(outbox.refusedOutgoingSend)],
@@ -190,6 +192,48 @@ describe('fixtureAnswer', () => {
         expect(held === null ? null : stated(held)['theme']).toBe('dark');
     });
 
+    it('holds a presence chosen for a while, and returns the member to their clients for Active until changed', () => {
+        const state = fixtureDeploymentState();
+        const choosing = (body: unknown): ClientResponse | null =>
+            fixtureAnswer(asking('/presence/choice', 'PUT', JSON.stringify(body)), fixtureDeploymentDefaults, 1, state);
+
+        choosing({ state: 'Busy', duration: '1h' });
+
+        const busy = fixtureAnswer(asking('/presence'), fixtureDeploymentDefaults, 1, state);
+
+        expect(busy === null ? null : stated(busy)).toMatchObject({
+            state: 'Busy',
+            chosenState: 'Busy',
+            choiceDuration: '1h',
+        });
+        expect(busy === null ? null : stated(busy)['choiceEndsAt']).toEqual(expect.any(String));
+
+        const automatic = choosing({ state: 'Active', duration: null });
+
+        expect(automatic === null ? null : stated(automatic)).toEqual({
+            state: 'Active',
+            chosenState: null,
+            choiceDuration: null,
+            choiceEndsAt: null,
+        });
+    });
+
+    it('takes a renewal and a close of an open client and answers neither', () => {
+        const client = '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90';
+        const state = fixtureDeploymentState();
+
+        for (const method of ['PUT', 'DELETE'] as const) {
+            const answer = fixtureAnswer(
+                asking(`/presence/clients/${client}`, method, method === 'PUT' ? '{"activity":"active"}' : undefined),
+                fixtureDeploymentDefaults,
+                1,
+                state,
+            );
+
+            expect(answer?.status).toBe(204);
+        }
+    });
+
     // What the route does and what the client now relies on: every write the person did not move the telemetry switch
     // in states it as nothing, and an answer echoing that back would be one the client refuses to read.
     it('keeps the telemetry answer it holds through a write that states none', () => {
@@ -233,6 +277,7 @@ describe('fixtureAnswer', () => {
         expect(byName['contacts']).toStrictEqual([contacts.assertedContact]);
         expect(byAddress['contacts']).toStrictEqual([contacts.collectedContact]);
         expect(stated(answered('/contacts?pageSize=5&search=example'))['contacts']).toHaveLength(5);
+        expect(stated(answered('/contacts/colleagues?pageSize=3&search='))['contacts']).toHaveLength(3);
     });
 
     it('answers both books empty where the deployment is set to hold nothing', () => {

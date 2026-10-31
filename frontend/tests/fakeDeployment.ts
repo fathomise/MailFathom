@@ -237,6 +237,7 @@ export class FakeDeployment {
     private preferences: Readonly<Record<string, unknown>> = { ...deployment.clientPreferences };
     private displayName = { ...deployment.ownDisplayName };
     private timeZone = { ...deployment.ownTimeZone };
+    private presence: Readonly<Record<string, unknown>> = { ...deployment.ownPresence };
 
     /** The instant a check held the day to, or `null` where the day is the one the machine's clock is on. */
     private heldInstant: Date | null = null;
@@ -680,6 +681,10 @@ export class FakeDeployment {
 
                 return answering(this.timeZone);
             }
+            case 'GET /presence':
+                return answering(this.presence);
+            case 'PUT /presence/choice':
+                return answering(this.presenceChosen(request.body));
             // Until a check serves the channel, the ticket is refused the way a deployment built before the channel
             // existed refuses it, which every screen already reads as a channel that is down and carries on without.
             case 'POST /signals/ticket':
@@ -814,6 +819,7 @@ export class FakeDeployment {
             default:
                 return (
                     this.telemetryAnswer(request) ??
+                    presenceClientAnswer(request, segments) ??
                     this.outboxAnswer(request, segments) ??
                     this.notificationAnswer(request, segments) ??
                     this.messageAnswer(request, segments) ??
@@ -825,6 +831,30 @@ export class FakeDeployment {
                     this.contactAnswer(request, segments)
                 );
         }
+    }
+
+    /**
+     * Holds the state the person chose, so the next read answers it — `Active` until changed being their clients deciding
+     * again, as on the route — ending a while after the day the fake is held to, or after now.
+     */
+    private presenceChosen(body: unknown): Readonly<Record<string, unknown>> {
+        const stated = recordIn(body);
+        const chosen = stated?.['state'];
+        const duration = String(stated?.['duration']);
+        const lasting = choiceLasts[duration];
+
+        if (typeof chosen === 'string') {
+            const from = (this.heldInstant ?? new Date()).getTime();
+
+            this.presence = {
+                state: chosen,
+                chosenState: chosen === 'Active' && lasting === undefined ? null : chosen,
+                choiceDuration: lasting === undefined ? null : duration,
+                choiceEndsAt: lasting === undefined ? null : new Date(from + lasting).toISOString(),
+            };
+        }
+
+        return this.presence;
     }
 
     /** Amending and deleting one event, whether the corpus stated it or a write here did. */
@@ -2394,6 +2424,26 @@ export class FakeDeployment {
 
 /** An answer that says only that it happened. */
 const nothing: FakeAnswer = { status: 204, body: '' };
+
+/** How long each duration a presence is chosen for lasts, by the name the route takes it under. */
+const choiceLasts: Readonly<Record<string, number>> = {
+    '30m': 1_800_000,
+    '1h': 3_600_000,
+    '2h': 7_200_000,
+    today: 86_400_000,
+    week: 604_800_000,
+};
+
+/** A client renewing its presence or closing it, which the deployment takes and answers nothing to. */
+function presenceClientAnswer({ method }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
+    const [space, part] = segments;
+
+    if (space !== 'presence' || part !== 'clients' || segments.length !== 3) {
+        return null;
+    }
+
+    return method === 'PUT' || method === 'DELETE' ? nothing : null;
+}
 
 /** A staged file the way a draft record lists it and a stage answers it. */
 function stagedRecord({ attachmentId, fileName, mediaType, octets }: StagedFile) {

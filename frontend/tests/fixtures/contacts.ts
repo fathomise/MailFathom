@@ -130,7 +130,9 @@ function colleague(
     addresses: readonly string[],
     timeZone: string | null,
     workingHours: { readonly days: readonly string[]; readonly start: string; readonly end: string },
-    phoneNumbers: readonly { readonly number: string; readonly label: string }[] = [],
+    phoneNumbers: readonly { readonly number: string; readonly label: string }[],
+    presence: string,
+    lastSeen: string | null = null,
 ) {
     return {
         id,
@@ -144,6 +146,8 @@ function colleague(
         timeZone,
         workingHours,
         photo: null,
+        presence,
+        lastSeen,
     };
 }
 
@@ -157,7 +161,9 @@ function hoursOn(days: readonly string[], start: string, end: string) {
  * The members of that organization, as the directory derives them from their user records and orders them by name.
  *
  * They are the design's own sample members, so a parity capture of the directory draws the people the artboard does:
- * one who lives six hours behind, one in London, one who states no zone, and the rest beside the reader.
+ * one who lives six hours behind, one in London, one who states no zone, and the rest beside the reader — each in the
+ * presence the artboard draws them in. Igor Pawlak chose to hide, so he reads as offline with no time he was last seen,
+ * and the two who are simply offline were last seen the evening before the corpus's own day.
  */
 export const colleaguePage = {
     contacts: [
@@ -169,6 +175,7 @@ export const colleaguePage = {
             'Europe/Warsaw',
             hoursOn(mondayToFriday, '08:00', '16:00'),
             [{ number: '+48 22 555 01 10', label: 'Work' }],
+            'Away',
         ),
         colleague(
             'member-hanna',
@@ -177,6 +184,8 @@ export const colleaguePage = {
             ['h.mazur@nordwind.example'],
             null,
             hoursOn(['Monday', 'Tuesday', 'Wednesday', 'Thursday'], '07:00', '15:00'),
+            [],
+            'DoNotDisturb',
         ),
         colleague(
             'member-igor',
@@ -185,6 +194,8 @@ export const colleaguePage = {
             ['i.pawlak@nordwind.example'],
             'Europe/Warsaw',
             hoursOn(mondayToFriday, '08:00', '16:00'),
+            [],
+            'Offline',
         ),
         colleague(
             'member-marta',
@@ -197,6 +208,7 @@ export const colleaguePage = {
                 { number: '+48 22 555 01 14', label: 'Work' },
                 { number: '+48 601 555 014', label: 'Mobile' },
             ],
+            'Busy',
         ),
         colleague(
             'member-oliver',
@@ -206,6 +218,7 @@ export const colleaguePage = {
             'Europe/London',
             hoursOn(mondayToFriday, '09:00', '17:30'),
             [{ number: '+44 20 7946 0321', label: 'Work' }],
+            'Active',
         ),
         colleague(
             'member-piotr',
@@ -215,6 +228,8 @@ export const colleaguePage = {
             'Europe/Warsaw',
             hoursOn(mondayToFriday, '09:00', '17:00'),
             [{ number: '+48 603 555 207', label: 'Mobile' }],
+            'Offline',
+            '2026-10-30T18:20:00+01:00',
         ),
         colleague(
             'member-zofia',
@@ -224,6 +239,8 @@ export const colleaguePage = {
             'America/New_York',
             hoursOn(mondayToFriday, '09:00', '17:00'),
             [{ number: '+1 212 555 0148', label: 'Work' }],
+            'Offline',
+            '2026-10-30T23:10:00+01:00',
         ),
     ],
     nextCursor: null,

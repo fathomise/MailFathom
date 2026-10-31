@@ -18,6 +18,7 @@ import {
 import { failed, failureReasonForStatus, read, type ClientFailureReason, type ClientResult } from './failure';
 import { asRecord, parseEach } from './json';
 import { largestPortraitOctets, portraitImageTypes } from './ownPortrait';
+import { isInstant, isPresenceState, type ColleaguePresence } from './presence';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { reported, spanned } from './telemetry';
 import { send, type ClientRequest, type MailFathomTransport } from './transport';
@@ -87,6 +88,12 @@ export interface Colleague {
 
     /** Which portrait they are drawn by, changing whenever it does, or `null` where they have none. */
     readonly photo: string | null;
+
+    /** How they read to the other members, which is `Offline` for a member who chose to hide. */
+    readonly presence: ColleaguePresence;
+
+    /** When they were last present, only where they read as `Offline` and did not choose to hide. */
+    readonly lastSeen: string | null;
 }
 
 /** A day of the week as the service names one. */
@@ -362,6 +369,18 @@ export function parseColleague(value: unknown): Colleague | null {
         return null;
     }
 
+    const presence = record['presence'];
+    const lastSeen = record['lastSeen'] ?? null;
+
+    // A colleague never reads as hidden, and only an offline one carries when they were last seen.
+    if (!isPresenceState(presence) || presence === 'Hidden') {
+        return null;
+    }
+
+    if (lastSeen !== null && (presence !== 'Offline' || !isInstant(lastSeen))) {
+        return null;
+    }
+
     return {
         id,
         book: 'Member',
@@ -374,6 +393,8 @@ export function parseColleague(value: unknown): Colleague | null {
         timeZone,
         workingHours: hours,
         photo,
+        presence,
+        lastSeen,
     };
 }
 

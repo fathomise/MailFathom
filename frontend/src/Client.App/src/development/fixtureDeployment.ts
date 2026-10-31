@@ -102,21 +102,27 @@ declare global {
 export interface FixtureDeploymentState {
     preferences: Record<string, unknown>;
     displayName: { displayName: string; changeable: boolean };
+    presence: Record<string, unknown>;
 }
 
 /** The state a fixture deployment opens with, which is what the corpus says one holds before anything is chosen. */
 export function fixtureDeploymentState(): FixtureDeploymentState {
-    return { preferences: { ...deployment.clientPreferences }, displayName: { ...deployment.ownDisplayName } };
+    return {
+        preferences: { ...deployment.clientPreferences },
+        displayName: { ...deployment.ownDisplayName },
+        presence: { ...deployment.ownPresence },
+    };
 }
 
 /**
  * What the fixture deployment answers one request with, or `null` where it answered nothing at all.
  *
  * It is a function of the request, the options and one drawn value rather than of a generator, so the whole of the
- * option handling is provable without one. Two routes are the exception and both state it: minting a session reads the
- * clock for the instant it ends and the corpus's own record of what it has already minted, neither of which a caller
- * decides, and the task routes read it for the day they answer about — a task list is grouped under *today*, *this
- * week* and *later*, and nothing in a request for one says which day that is. `null` is what
+ * option handling is provable without one. Three routes are the exception and each states it: minting a session reads
+ * the clock for the instant it ends and the corpus's own record of what it has already minted, neither of which a
+ * caller decides, the task routes read it for the day they answer about — a task list is grouped under *today*, *this
+ * week* and *later*, and nothing in a request for one says which day that is — and a presence chosen for a while reads
+ * it for the instant the while ends. `null` is what
  * {@link fixtureDeployment} turns into a rejected promise, which is what `send` reads as a deployment that could not
  * be reached.
  *
@@ -388,6 +394,10 @@ function answerFor(
         }
 
         return answering(state.displayName);
+    }
+
+    if (route.startsWith('/presence')) {
+        return presenceAnswer(route, request, state);
     }
 
     // The capability and the drafting itself, on one address the way the surface publishes them: the read is what the
@@ -674,17 +684,52 @@ function searched(
     asked: URLSearchParams,
 ): unknown {
     const search = asked.get('search')?.trim().toUpperCase() ?? '';
-
-    if (search === '') {
-        return page;
-    }
-
     const pageSize = Number(asked.get('pageSize') ?? page.contacts.length);
     const found = page.contacts.filter((contact) =>
         [contact.displayName, ...contact.addresses].some((text) => text.toUpperCase().includes(search)),
     );
 
     return { contacts: found.slice(0, pageSize), nextCursor: null };
+}
+
+// How long each while lasts, roughly as the deployment resolves it: the two that end on the calendar end a day and a
+// week from now here, because which midnight is the member's own is the deployment's to work out and nothing a
+// screen drawn from the corpus depends on.
+const choiceLasts: Readonly<Record<string, number>> = {
+    '30m': 1_800_000,
+    '1h': 3_600_000,
+    '2h': 7_200_000,
+    today: 86_400_000,
+    week: 604_800_000,
+};
+
+/**
+ * The member's own presence, and the two writes to it. A renewal and a close are taken and answer nothing, and a choice
+ * is held so the next read answers it — `Active` until changed being the member's clients deciding again, as on the
+ * route.
+ */
+function presenceAnswer(route: string, request: ClientRequest, state: FixtureDeploymentState): ClientResponse {
+    if (route.startsWith('/presence/clients/')) {
+        return { status: 204, body: '', headers: {} };
+    }
+
+    if (route === '/presence/choice') {
+        const stated = recordIn(request.body);
+        const chosen = stated?.['state'];
+        const duration = String(stated?.['duration']);
+        const lasting = choiceLasts[duration];
+
+        if (typeof chosen === 'string') {
+            state.presence = {
+                state: chosen,
+                chosenState: chosen === 'Active' && lasting === undefined ? null : chosen,
+                choiceDuration: lasting === undefined ? null : duration,
+                choiceEndsAt: lasting === undefined ? null : new Date(Date.now() + lasting).toISOString(),
+            };
+        }
+    }
+
+    return answering(state.presence);
 }
 
 /** What the notification centre and the bell above it answer with. */

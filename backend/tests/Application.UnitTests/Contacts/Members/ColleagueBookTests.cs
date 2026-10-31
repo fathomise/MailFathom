@@ -12,6 +12,7 @@ using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Presence;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -44,6 +45,8 @@ public sealed class ColleagueBookTests
 
     private readonly IStoredFileStore files = Substitute.For<IStoredFileStore>();
 
+    private readonly InMemoryPresenceStore presence = new();
+
     /// <summary>The reader is one of the members the directory composes, and is never their own colleague.</summary>
     [Fact]
     public async Task ReadPageAsync_TheReadersOrganization_ListsEveryOtherMemberByName()
@@ -58,7 +61,7 @@ public sealed class ColleagueBookTests
         var page = await this.BookFor(Organization).ReadPageAsync(new ContactPageRequest(), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal([Piotr, Zofia], page.Colleagues.Select(colleague => colleague.Member));
+        Assert.Equal([Piotr, Zofia], page.Colleagues.Select(colleague => colleague.Contact.Member));
         Assert.Null(page.NextCursor);
     }
 
@@ -88,7 +91,7 @@ public sealed class ColleagueBookTests
         var page = await this.BookFor(Organization).ReadPageAsync(new ContactPageRequest(), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal([Zofia], page.Colleagues.Select(colleague => colleague.Member));
+        Assert.Equal([Zofia], page.Colleagues.Select(colleague => colleague.Contact.Member));
     }
 
     /// <summary>The search matches an address as well as a name, as it does on the reader's own book.</summary>
@@ -106,7 +109,7 @@ public sealed class ColleagueBookTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal([Piotr], page.Colleagues.Select(colleague => colleague.Member));
+        Assert.Equal([Piotr], page.Colleagues.Select(colleague => colleague.Contact.Member));
     }
 
     /// <summary>A page ends with a cursor the next page continues from, so walking the directory reaches everybody once.</summary>
@@ -126,8 +129,8 @@ public sealed class ColleagueBookTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal([Piotr], first.Colleagues.Select(colleague => colleague.Member));
-        Assert.Equal([Zofia], second.Colleagues.Select(colleague => colleague.Member));
+        Assert.Equal([Piotr], first.Colleagues.Select(colleague => colleague.Contact.Member));
+        Assert.Equal([Zofia], second.Colleagues.Select(colleague => colleague.Contact.Member));
         Assert.Null(second.NextCursor);
     }
 
@@ -186,8 +189,40 @@ public sealed class ColleagueBookTests
         var found = await this.BookFor(Organization).FindAsync(Piotr, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(Piotr, found?.Member);
+        Assert.Equal(Piotr, found?.Contact.Member);
         await this.members.DidNotReceiveWithAnyArgs().ReadAsync(default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A colleague who chose to hide is handed to a reader as offline with no last-seen time, which is the only presence a reader is ever given.</summary>
+    [Fact]
+    public async Task ReadPageAsync_AColleagueWhoChoseToHide_ReadsAsOfflineWithNoLastSeen()
+    {
+        // Arrange
+        this.Holding(MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example"));
+        this.presence
+            .WithClient(Piotr, Guid.NewGuid(), ClientActivity.Active, Now.AddMinutes(2))
+            .WithChoice(Piotr, new PresenceChoice(PresenceState.Hidden, Duration: null, EndsAt: null))
+            .WithLastSeen(Piotr, Now.AddHours(-1));
+
+        // Act
+        var page = await this.BookFor(Organization).ReadPageAsync(new ContactPageRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([new PresenceReading(PresenceState.Offline, LastSeen: null)], page.Colleagues.Select(colleague => colleague.Presence));
+    }
+
+    [Fact]
+    public async Task FindAsync_AColleagueWithAClientOpen_CarriesTheirPresence()
+    {
+        // Arrange
+        this.Holding(MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example"));
+        this.presence.WithClient(Piotr, Guid.NewGuid(), ClientActivity.Idle, Now.AddMinutes(2));
+
+        // Act
+        var found = await this.BookFor(Organization).FindAsync(Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new PresenceReading(PresenceState.Away, LastSeen: null), found?.Presence);
     }
 
     /// <summary>
@@ -347,8 +382,8 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.NotNull(structure);
-        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Member));
-        Assert.Equal([adam, marta], structure.DirectReports.Select(colleague => colleague.Member));
+        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Contact.Member));
+        Assert.Equal([adam, marta], structure.DirectReports.Select(colleague => colleague.Contact.Member));
         Assert.Equal(Reader, structure.Reader);
     }
 
@@ -367,7 +402,7 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.NotNull(structure);
-        Assert.Equal([Zofia, Reader], structure.Managers.Select(colleague => colleague.Member));
+        Assert.Equal([Zofia, Reader], structure.Managers.Select(colleague => colleague.Contact.Member));
         Assert.Empty(structure.DirectReports);
     }
 
@@ -386,7 +421,31 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.NotNull(structure);
-        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Member));
+        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Contact.Member));
+    }
+
+    /// <summary>Every member of the structure carries the presence a reader is handed, so a manager who chose to hide reads as offline there too.</summary>
+    [Fact]
+    public async Task ReadStructureAsync_AManagerWhoChoseToHideAndAnActiveReport_CarriesEachOnesPresenceAsOthersSeeIt()
+    {
+        // Arrange
+        var marta = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000c004"));
+        this.Holding(
+            MemberOf(Zofia, "Zofia Nowak"),
+            MemberOf(Piotr, "Piotr Zieliński") with { Manager = Zofia },
+            MemberOf(marta, "Marta Nowak") with { Manager = Piotr });
+        this.presence
+            .WithClient(Zofia, Guid.NewGuid(), ClientActivity.Active, Now.AddMinutes(2))
+            .WithChoice(Zofia, new PresenceChoice(PresenceState.Hidden, Duration: null, EndsAt: null))
+            .WithClient(marta, Guid.NewGuid(), ClientActivity.Active, Now.AddMinutes(2));
+
+        // Act
+        var structure = await this.BookFor(Organization).ReadStructureAsync(Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(structure);
+        Assert.Equal([new PresenceReading(PresenceState.Offline, LastSeen: null)], structure.Managers.Select(colleague => colleague.Presence));
+        Assert.Equal([new PresenceReading(PresenceState.Active, LastSeen: null)], structure.DirectReports.Select(colleague => colleague.Presence));
     }
 
     /// <summary>The structure is read only for a colleague: the reader themselves and a member of no organization the reader shares are nobody here.</summary>
@@ -478,7 +537,7 @@ public sealed class ColleagueBookTests
             ownership,
             authorization);
 
-        return new ColleagueBook(this.members, this.store, this.files, writer, ownership, authorization);
+        return new ColleagueBook(this.members, this.store, this.files, writer, ownership, authorization, this.presence, timeProvider);
     }
 
     /// <summary>A session that commits, because nothing here is about a conflict the policy has to retry.</summary>

@@ -58,8 +58,11 @@ test('opens the account menu from its control and hands focus back to it on Esca
     await control.click();
     await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 
-    // The mailbox rows are the first thing under the person's name and the first thing a keyboard reaches, because
-    // each is a control that puts that mailbox in scope rather than a line to read.
+    // The status row is the first thing under the person's name and the first thing a keyboard reaches, and the mailbox
+    // rows follow it, because each is a control that puts that mailbox in scope rather than a line to read.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Your status' })).toBeFocused();
+
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: 'Work' })).toBeFocused();
 
@@ -205,14 +208,17 @@ test('corrects the name in the Profile section, and the account menu carries it 
         .poll(() => deployment.requests('POST', '/display-name'))
         .toMatchObject([{ body: { displayName: 'Iris Marlow-Vane' } }]);
 
-    // Leaving the screen puts back the menu it was opened from, which is where the person's name is drawn.
+    // Leaving the screen puts back the menu it was opened from, which is where the person's name is drawn. The closed
+    // status menu carries the name too, so the one read is the one the rail's navigation holds.
+    const spaces = page.getByRole('navigation', { name: 'Spaces' });
+
     await page.keyboard.press('Escape');
-    await expect(page.getByText('Iris Marlow-Vane', { exact: true })).toBeVisible();
+    await expect(spaces.getByText('Iris Marlow-Vane', { exact: true })).toBeVisible();
 
     await page.reload();
     await openAccountMenu(page);
 
-    await expect(page.getByText('Iris Marlow-Vane', { exact: true })).toBeVisible();
+    await expect(spaces.getByText('Iris Marlow-Vane', { exact: true })).toBeVisible();
 });
 
 test('takes the AI filters out of the folder column from the Application section, and keeps them out after a reload', async ({

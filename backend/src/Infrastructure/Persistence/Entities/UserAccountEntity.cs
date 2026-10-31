@@ -39,6 +39,12 @@ internal sealed class UserAccountEntity
     /// <summary>The client endpoint switch's column, named here because a session's statements read and lock on it.</summary>
     internal const string ClientEndpointEnabledColumnName = nameof(ClientEndpointEnabled);
 
+    /// <summary>The organization column, named here because presence reads who to tell about a member's change by it.</summary>
+    internal const string OrganizationIdColumnName = nameof(OrganizationId);
+
+    /// <summary>The type column, named here because presence tells a member's change to the persons of the organization and to no service account.</summary>
+    internal const string TypeColumnName = nameof(Type);
+
     /// <summary>The longest label a user is told apart by, which is what a mail account's identifier is bounded at.</summary>
     /// <remarks>Taken from the application's own statement of the bound, so the column and the rule that judges a declaration carrying a label cannot disagree about it.</remarks>
     public const int MaximumDisplayNameLength = UserRecord.MaximumDisplayNameLength;

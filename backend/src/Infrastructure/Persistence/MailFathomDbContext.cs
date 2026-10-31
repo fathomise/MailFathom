@@ -30,6 +30,7 @@ using MailFathom.Infrastructure.Persistence.Mutations.Configurations;
 using MailFathom.Infrastructure.Persistence.Notifications.Configurations;
 using MailFathom.Infrastructure.Persistence.Policies.Configurations;
 using MailFathom.Infrastructure.Persistence.Preferences.Configurations;
+using MailFathom.Infrastructure.Persistence.Presence.Configurations;
 using MailFathom.Infrastructure.Persistence.Rules.Configurations;
 using MailFathom.Infrastructure.Persistence.Secrets.Configurations;
 using MailFathom.Infrastructure.Persistence.Settings.Configurations;
@@ -122,6 +123,10 @@ internal sealed class MailFathomDbContext : DbContext
     internal DbSet<SpentClientAssertionEntity> SpentClientAssertions => this.Set<SpentClientAssertionEntity>();
 
     internal DbSet<ClientSignalTicketEntity> ClientSignalTickets => this.Set<ClientSignalTicketEntity>();
+
+    internal DbSet<PresenceClientEntity> PresenceClients => this.Set<PresenceClientEntity>();
+
+    internal DbSet<MemberPresenceEntity> MemberPresences => this.Set<MemberPresenceEntity>();
 
     internal DbSet<ClientSessionEntity> ClientSessions => this.Set<ClientSessionEntity>();
 
@@ -322,6 +327,8 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new StoredFileConfiguration());
         modelBuilder.ApplyConfiguration(new SpentClientAssertionConfiguration());
         modelBuilder.ApplyConfiguration(new ClientSignalTicketConfiguration());
+        modelBuilder.ApplyConfiguration(new PresenceClientConfiguration());
+        modelBuilder.ApplyConfiguration(new MemberPresenceConfiguration());
         modelBuilder.ApplyConfiguration(new ClientSessionConfiguration());
         modelBuilder.ApplyConfiguration(new AccountStoredContentConfiguration());
         modelBuilder.ApplyConfiguration(new StoredContentClaimConfiguration());

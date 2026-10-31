@@ -102,6 +102,7 @@ using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Portraits;
 using MailFathom.Application.Preferences;
+using MailFathom.Application.Presence;
 using MailFathom.Application.Reminders;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
@@ -181,6 +182,7 @@ using MailFathom.Infrastructure.Persistence.Mutations;
 using MailFathom.Infrastructure.Persistence.Notifications;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Preferences;
+using MailFathom.Infrastructure.Persistence.Presence;
 using MailFathom.Infrastructure.Persistence.ReplyDrafts;
 using MailFathom.Infrastructure.Persistence.Rules;
 using MailFathom.Infrastructure.Persistence.Secrets;
@@ -468,6 +470,9 @@ public static class ServiceCollectionExtensions
         // deployment serving no client surface still carries the table in its schema: what the client endpoint's switch
         // decides is whether anything ever mints a ticket, not whether the deployment knows where one would go.
         services.AddSingleton<IClientSignalTicketStore, ClientSignalTicketStore>();
+        // A singleton over the pool for the same reasons: bare commands with no query shape, over tables every replica
+        // reads, which a deployment serving no client surface carries in its schema and never writes.
+        services.AddSingleton<IPresenceStore, PresenceStore>();
         // A singleton over the pool for the same reasons again, and registered here rather than beside the client
         // endpoint's composition because a deployment serving no client surface still carries the table in its schema.
         // Its callers are an authentication handler and a sign-in route, neither of which is a unit of work, and what
@@ -1718,6 +1723,10 @@ public static class ServiceCollectionExtensions
         // The caller's colleagues, read beside their books from the member directory the host composes, and copied into
         // their own book on promotion.
         services.AddScoped<ColleagueBook>();
+
+        // The caller's own presence, and the one schedule per process its opportunistic sweep of expired clients keeps.
+        services.AddScoped<OwnPresence>();
+        services.AddSingleton<PresenceSweepSchedule>();
 
         // A contact's photo, a stored file of the user's linked from the contact the way their own portrait is linked
         // from their record.

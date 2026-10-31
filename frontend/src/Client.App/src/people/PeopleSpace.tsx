@@ -98,6 +98,12 @@ function failedSaid(failure: ClientFailure): MessageKey {
     return wentUnanswered(failure) ? 'people.writeUnknown' : 'people.writeFailed';
 }
 
+// A colleague as the directory holds them now rather than as they were when opened, because their presence moves
+// while the page is open and the book is what reads it again.
+function asHeld(opened: Person, held: readonly Person[]): Person {
+    return opened.book === 'Member' ? (held.find(({ id }) => id === opened.id) ?? opened) : opened;
+}
+
 // Who is opened once the person who was open has been taken out of the book: whoever the list draws in their place, or
 // the one before where they were the last — and nobody where the book is left empty, or where the person was not in
 // the book being listed at all, which is a person opened in one book and taken out after the reader moved to the other.
@@ -575,7 +581,7 @@ export function PeopleSpace({
                         // the same in either composition, and only the narrow one moves it.
                         <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${paneArrival(paneMoved, true)}`}>
                             <PersonPage
-                                contact={opened}
+                                contact={asHeld(opened, reading.contacts)}
                                 organizationName={organizationName}
                                 correspondence={correspondence}
                                 structure={structure}

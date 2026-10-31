@@ -11798,6 +11798,7 @@ deployment.ts spamFolder GET /api/client/folders
 deployment.ts mailFolders GET /api/client/folders
 deployment.ts troubledFolders GET /api/client/folders
 deployment.ts ownTimeZone GET /api/client/time-zone
+deployment.ts ownPresence GET /api/client/presence
 deployment.ts managedFolders GET /api/client/managed-folders
 discovery.ts runStarted POST /api/client/discovery/runs
 discovery.ts started GET /api/client/discovery/runs/{runId}

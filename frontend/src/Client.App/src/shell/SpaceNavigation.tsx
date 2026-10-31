@@ -40,6 +40,7 @@ export function SpaceNavigation({
     offered,
     current,
     account,
+    presence = null,
     notifications,
     refresh,
     developer,
@@ -54,6 +55,12 @@ export function SpaceNavigation({
 
     /** The control that opens the account menu, which the navigation places rather than draws. */
     readonly account: ReactNode;
+
+    /**
+     * The row leading to the member's status, which heads the overflow sheet on a phone. In the rail it stands in the
+     * account menu instead, so nothing is placed for it there.
+     */
+    readonly presence?: ReactNode;
 
     /** The bell, which is the one thing here that is not a place to go and stands beside the account for that reason. */
     readonly notifications: ReactNode;
@@ -145,6 +152,7 @@ export function SpaceNavigation({
                         spaces={behindMore}
                         current={current}
                         account={account}
+                        presence={presence}
                         refresh={refresh}
                         developer={developer}
                     />

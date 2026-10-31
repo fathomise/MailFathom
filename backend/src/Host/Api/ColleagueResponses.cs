@@ -20,6 +20,8 @@ namespace MailFathom.Host.Api;
 /// <param name="TimeZone">The IANA zone the member's record states, or nothing where it states none.</param>
 /// <param name="WorkingHours">When the member works, on their own wall clock and so read in <paramref name="TimeZone" />, or nothing where none is stated.</param>
 /// <param name="Photo">An identifier that changes whenever the member's portrait does, or nothing where they have none.</param>
+/// <param name="Presence">How the member reads to the other members: <c>Active</c>, <c>Away</c>, <c>Busy</c>, <c>DoNotDisturb</c>, or <c>Offline</c>, which is also what a member who chose to hide reads as.</param>
+/// <param name="LastSeen">When the member was last present, only where they read as <c>Offline</c> and did not choose to hide.</param>
 /// <remarks>
 /// Personal data about a colleague. It travels to the member of the same organization who asked and reaches nothing
 /// else — no log line, no metric dimension, and no failure message.
@@ -35,19 +37,22 @@ internal sealed record ColleagueResponse(
     string OrganizationName,
     string? TimeZone,
     WorkingHoursResponse? WorkingHours,
-    Guid? Photo)
+    Guid? Photo,
+    string Presence,
+    DateTimeOffset? LastSeen)
 {
     /// <summary>The name every colleague's <see cref="Book" /> carries.</summary>
     internal const string MemberBook = "Member";
 
     /// <summary>Describes one member for a colleague.</summary>
-    /// <param name="member">The member as the directory composed them.</param>
+    /// <param name="colleague">The member as the directory composed them, with their presence.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="member" /> is <see langword="null" />.</exception>
-    internal static ColleagueResponse For(MemberContact member)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="colleague" /> is <see langword="null" />.</exception>
+    internal static ColleagueResponse For(Colleague colleague)
     {
-        ArgumentNullException.ThrowIfNull(member);
+        ArgumentNullException.ThrowIfNull(colleague);
 
+        var member = colleague.Contact;
         IReadOnlyList<string> addresses = member.PreferredAddress is { } preferred
             ? [preferred.Address, .. member.Addresses.Where(address => address != preferred).Select(address => address.Address)]
             : [];
@@ -64,7 +69,9 @@ internal sealed record ColleagueResponse(
             member.OrganizationName,
             member.TimeZone?.Id,
             member.WorkingHours is { } hours ? WorkingHoursResponse.For(hours) : null,
-            member.Portrait?.Value);
+            member.Portrait?.Value,
+            colleague.Presence.State.ToString(),
+            colleague.Presence.LastSeen);
     }
 }
 

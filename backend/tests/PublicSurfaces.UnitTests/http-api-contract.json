@@ -5646,6 +5646,13 @@
               "string"
             ]
           },
+          "lastSeen": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "organizationName": {
             "type": "string"
           },
@@ -5667,6 +5674,9 @@
               "null",
               "string"
             ]
+          },
+          "presence": {
+            "type": "string"
           },
           "timeZone": {
             "type": [
@@ -5696,7 +5706,9 @@
           "organizationName",
           "timeZone",
           "workingHours",
-          "photo"
+          "photo",
+          "presence",
+          "lastSeen"
         ],
         "type": "object"
       },
@@ -10713,6 +10725,39 @@
         ],
         "type": "object"
       },
+      "OwnPresenceResponse": {
+        "properties": {
+          "choiceDuration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "choiceEndsAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "chosenState": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "chosenState",
+          "choiceDuration",
+          "choiceEndsAt"
+        ],
+        "type": "object"
+      },
       "PersonEntry": {
         "properties": {
           "address": {
@@ -10742,6 +10787,36 @@
           "lastContactAt",
           "sources"
         ],
+        "type": "object"
+      },
+      "PresenceChoiceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "duration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "state": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "PresenceClientRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "activity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
         "type": "object"
       },
       "PresentationBlock": {
@@ -22259,6 +22334,140 @@
                 }
               }
             },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/presence": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnPresenceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/presence/choice": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresenceChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnPresenceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/presence/clients/{client}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresenceClientRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
             "description": "Not Found"
           }
         },

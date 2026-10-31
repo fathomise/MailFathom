@@ -1,6 +1,6 @@
 # The client endpoint
 
-<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
+<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
 
 Where the MailFathom client reaches the service, what a deployment has to enable before it answers, and what a person's
 mail client presents to get in.
@@ -3492,7 +3492,7 @@ up from mail that arrived, and the four things they do about either.
 | `GET /api/client/contacts/colleagues` | Reads one page of the other members of this user's organization |
 | `GET /api/client/contacts/colleagues/{userId}` | Reads one of them |
 | `GET /api/client/contacts/colleagues/{userId}/photo` | Serves that colleague's portrait, or `404` where they have none |
-| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own, `directReports` by name, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
+| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence` and `lastSeen`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
 | `POST /api/client/contacts/colleagues/{userId}/promotion` | Writes a copy of that colleague into this user's own book |
 
 **The book is read as two, because it is two.** What somebody wrote down and what their mailboxes picked up are
@@ -3530,8 +3530,11 @@ organization reads the other members beneath `/contacts/colleagues` — a page u
 answered with `id` (their user's identifier), `book` (always `Member`), `displayName`, `addresses` with the preferred
 one first, `preferredAddress` (`null` exactly when `addresses` is empty), `phoneNumbers` in a contact's shape,
 `jobTitle`, `organizationName`, `timeZone` as an IANA identifier, `workingHours` — `days` named in English Monday
-first, and `start` and `end` written `HH:mm` on the colleague's own wall clock, or `null` where none is stated — and
-`photo`, an identifier that changes whenever the portrait does. A colleague whose address this user's own book holds is left out, because the user's own record of them
+first, and `start` and `end` written `HH:mm` on the colleague's own wall clock, or `null` where none is stated —
+`photo`, an identifier that changes whenever the portrait does, `presence` — `Active`, `Away`, `Busy`,
+`DoNotDisturb`, or `Offline`, which is also what a colleague who chose `Hidden` reads as — and `lastSeen`, an instant
+answered only for an `Offline` colleague who did not choose to hide, as [the presence routes](#the-presence-routes)
+describe. A colleague whose address this user's own book holds is left out, because the user's own record of them
 answers for them; the two listings above leave out an organization contact and a collected contact holding a
 colleague's address, for the same reason in the other direction. [Contacts § The organization's member
 directory](../features/contacts.md#the-organizations-member-directory) holds where each field comes from and who is in
@@ -3756,6 +3759,35 @@ card carries at most one observation per aspect.
 A credential whose grant does not carry `mailfathom.assistant.use` is answered `403`, and so is one missing
 `mailfathom.mail.read` or `mailfathom.contacts.read`, which the correlation and the book ask for themselves — the
 refusal names which. It reaches no mail server and cannot set the remote `\Seen` flag.
+
+### The presence routes
+
+A member of an organization keeps their own presence through these routes, and their colleagues read it beside each
+colleague over [the contact routes](#the-contact-routes). [Contacts § A colleague's
+presence](../features/contacts.md#a-colleagues-presence) states the six states and how each is worked out.
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/client/presence` | Reads this user's own presence as they see it: `state`, `Hidden` included, and while a choice holds `chosenState`, `choiceDuration` — the while it was chosen for, named as the choice states it — and `choiceEndsAt`, both `null` for until changed |
+| `PUT /api/client/presence/clients/{client}` | Renews one open client, carrying `activity` as `active` or `idle` |
+| `DELETE /api/client/presence/clients/{client}` | Closes one client, which reads as `Offline` at once when it was this user's last |
+| `PUT /api/client/presence/choice` | Chooses a state, carrying `state` as `Active`, `Away`, `Busy`, `DoNotDisturb`, `Hidden`, or `Offline`, and `duration` as `30m`, `1h`, `2h`, `today`, `week`, or nothing for until changed; answers what `GET` answers |
+
+**A running client renews its own row every minute**, under an identifier it mints for itself when it starts, and says
+`idle` once ten minutes pass without input. It renews at once when input returns, and on `pagehide` and sign-out it
+sends the `DELETE` as a `keepalive` request. A row it stops renewing counts for three minutes and then for nothing,
+which is what covers a crash, a lost network, and a replica that died. A new client past the sixteen a user keeps open
+is refused `409`. The `{client}` it names is a row of this user's alone, because the user comes from the session.
+
+**A user in no organization is answered `404` on all four**, because nobody could see their presence, so nothing is
+recorded about them and a client reading that stops renewing. A state or a duration this surface does not know is
+refused `400` before anything is written. Reading is `mailfathom.profile.read`, and the three writes are
+`mailfathom.profile.write`.
+
+**Nothing here is audited or logged.** A renewal changes no mail, and an entry per renewal would be a history of
+somebody's working day. A write that changes how this user reads to the others raises `presence.changed` on [the
+signal channel](#the-signal-channel) to every member of the organization the member directory lists, the user included
+for their other devices; a service account is not told, having no colleague to draw.
 
 ### The notification routes
 
@@ -4660,7 +4692,7 @@ no subject, address, body fragment, filename, or attachment name reaches it at a
 flags `mail.flags.changed` carries, which say where each of those two stands rather than that one moved, for the reason
 the paragraph below the table gives. The second is a raised notification's own headline and second line, which are the
 record's already-derived text and reach a client entitled to read that record over
-[the notification routes](#the-notification-routes). Eight things are said:
+[the notification routes](#the-notification-routes). Nine things are said:
 
 | Signal | What it says |
 | --- | --- |
@@ -4672,6 +4704,7 @@ record's already-derived text and reach a client entitled to read that record ov
 | `notification.raised` | A notification was written, with its kind, its two lines, and how many now stand unread |
 | `account.state` | An account's synchronization run finished, so what a client says about it is out of date |
 | `run.advanced` | A [Discover run](../features/discovery-run.md#a-run-is-watched-rather-than-waited-for) or an [Agent conversation](#the-agent-conversation-routes) had something written, naming the run, the conversation where it is one, and the place reached — and no part of what was written |
+| `presence.changed` | How up to 100 colleagues read to the other members of the organization may have changed, naming their user identities in `members` and nothing about them; an empty `members` names every colleague. A client re-reads them over [the contact routes](#the-contact-routes) |
 
 **A flag is the one change stated rather than pointed at.** `mail.flags.changed` carries, per row, the stored identity
 and where each of the two flags now stands, so a client redraws the row it already holds without reading the page it is
@@ -4683,7 +4716,7 @@ whole of what a run found, and a client re-reads. A flag a publisher did not obs
 cleared: a reconciliation window states both, and a change this deployment authored states the one it wrote.
 
 **A client that does not know a kind ignores it and catches up on its next refresh**, which is what made the sixth, the
-seventh, and the eighth additions rather than breaks; the client and the service ship under one version.
+seventh, the eighth, and the ninth additions rather than breaks; the client and the service ship under one version.
 
 **A statement names no folder where the change is known only by where it stands on the mail server.** A change
 settled against the server — a move, a copy, a delete, a keyword or a flag change MailFathom wrote there — and what a

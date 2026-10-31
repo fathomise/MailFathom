@@ -1126,6 +1126,31 @@ multiply it. A mint that meets it sweeps and tries once more, and answers `503` 
 it is a refusal rather than an eviction, because evicting somebody else's live session would turn one caller's noise
 into another person being signed out.
 
+## A member's presence
+
+`presence_clients` and `member_presence` hold what a member's [presence](../features/contacts.md#a-colleagues-presence)
+is worked out from when it is read. Neither holds the presence itself, and neither holds any earlier state: each row is
+overwritten by the next write.
+[ADR 0045](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0045-a-members-presence-from-the-clients-it-keeps-open-and-the-state-it-chose.md)
+is the decision.
+
+| Column | What it records |
+|---|---|
+| `presence_clients.UserId` | Whose client it is. The foreign key onto `settings_accounts` with `ON DELETE CASCADE` and the first half of the primary key |
+| `presence_clients.ClientId` | The identifier the client minted for itself when it started, a version 7 UUID, and the second half of the primary key. A renewal is an upsert on the pair, and the user comes from the session rather than from the request, so an identifier names nothing of anybody else's |
+| `presence_clients.Activity` | `0` while a person used the client in the last ten minutes, `1` once it went idle, as the client measured it at its last renewal |
+| `presence_clients.ExpiresAt` | Three minutes after the last renewal. Every read leaves out a row past it, which is what lets a client that crashed or a replica that died stop counting with nothing written; it is indexed for the sweep that removes such rows in bounded batches |
+| `member_presence.UserId` | The member, the primary key, and the foreign key onto `settings_accounts` with `ON DELETE CASCADE` |
+| `member_presence.ChosenState` | The state the member chose, as the domain's value (`0` `Offline`, `1` `Active`, `2` `Away`, `3` `Busy`, `4` `DoNotDisturb`, `5` `Hidden`), or `NULL` for the presence their clients produce |
+| `member_presence.ChoiceDuration` | The while the choice was made for — thirty minutes, an hour, two hours, today, or this week — as the domain's numeric value, or `NULL` for until changed. Kept beside the end because the status menu names the while a member picked, which the instant alone cannot say |
+| `member_presence.ChoiceEndsAt` | When the choice runs out, or `NULL` for until changed. Nothing clears a choice that ran out: a read compares this with its own time |
+| `member_presence.LastSeenAt` | When the member was last present, moved by every renewal except while the chosen state is `Hidden` or `Offline` |
+
+**A client row cannot grow without bound.** A member keeps at most sixteen, counted in the statement that writes the
+row; a renewal removes the member's own expired rows first, and each replica removes up to a thousand expired rows of
+anybody's at most once per three minutes. A sweep that never ran would change nobody's presence, since an expired row
+already counts for nothing.
+
 ## The derived search document
 
 `email_search_documents` is one-to-one with `stored_emails` and holds what lexical search reads: `subject_text`, `participant_addresses`, `body_text`, `body_text_before_trimming`, `text_source`, `extracted_at`, and the generated `search_vector`. [Body text and the lexical index](../features/imap-synchronization.md#body-text-and-the-lexical-index) describes how each of them is derived. Every stored email has one, including a message whose body was never read: that row carries the envelope's subject alone and records its text source as not extracted, so an oversized or unparseable message is still findable rather than absent from search entirely.
@@ -2618,6 +2643,9 @@ account reach these four tables through the same cascade every other table is re
 | `PK_client_signal_tickets` | `(Identifier)`, unique | The single-use rule itself. The spend is one `DELETE ... RETURNING` reaching exactly one row, so two connections presenting one ticket at the same instant are settled here rather than by a check either replica makes between two statements |
 | `ix_client_signal_tickets_expires_at` | `(ExpiresAt)` | The order the unspent tickets are aged out through, indexed for the removal alone for the reason the assertions' expiry is: nothing reads a ticket by its age |
 | `IX_client_signal_tickets_UserId` | `(UserId)` | The foreign key onto the user record, which is what erasing a person reaches their unspent tickets by rather than scanning |
+| `PK_presence_clients` | `(UserId, ClientId)`, unique | The upsert a renewal is, and the order one member's open clients are read in |
+| `ix_presence_clients_expires_at` | `(ExpiresAt)` | The order expired client rows are swept through. No read reaches a row by its expiry; every read goes through the key and leaves an expired row out |
+| `PK_member_presence` | `(UserId)`, unique | One row per member, which the colleague read joins and both writes upsert |
 | `PK_client_sessions` | `(Identifier)`, unique | The one read every authenticated request on the client surface makes, and what both removals reach a row by. A renewal's removal and a revocation's carry the digest in the same statement, so two requests presenting one token leave exactly one live session whichever replica each of them reached |
 | `ix_client_sessions_expires_at` | `(ExpiresAt)` | The order the expired sessions are aged out through, indexed for the removal alone for the reason the tickets' expiry is: nothing reads a session by its age |
 | `IX_client_sessions_UserId` | `(UserId)` | The foreign key onto the user record, which is what erasing a person reaches their sessions by — including the ones naming no credential at all |
@@ -2794,6 +2822,13 @@ data.
 `client_signal_tickets` holds a generated user identity, which is a pseudonymous identifier for an identified person and is read as their data; the digest and the instant beside it are neither. It does cascade from the user record, so a data-subject erasure takes whatever it holds without having to know the table exists — and the row's own lifetime of thirty seconds means there is almost never anything for that cascade to reach. The digest is not a credential: it opens nothing, because what a connection presents is the secret it was derived from. Nothing here reaches a log, a metric, a trace, or an error message — a refused connection is counted rather than described, and the one refusal that names anything names the deployment's own inability to reach its database.
 
 `client_sessions` holds a generated user identity and a credential identifier, both pseudonymous identifiers for an identified person and read as their data; the grant, the digest, and the instant beside them are neither. It cascades from the user record and from the credential, so a data-subject erasure takes every session of theirs whether or not a credential stands behind one, and an operator ending a credential takes its sessions in the same transaction. The digest is not a credential: it authenticates nothing, because what a request presents is the secret it was derived from. Nothing about the device is in the row — no address, no user agent, and no name a person gave a session — because a session is not a device register and nothing in MailFathom reads one. Nothing here reaches a log, a metric, a trace, or an error message: a refused request is answered rather than described, and the one refusal that names anything names the deployment's own inability to reach its database.
+
+`presence_clients` and `member_presence` hold personal data about an employee: whether they have a client open and use
+it, the state they chose, and when they were last present. That is monitoring of a person, so the tables hold the
+present alone — no history, and nothing about a device beyond the identifier its client minted — and they reach
+members of the same organization only, through the colleague read. Both cascade from the user record, so an erasure
+takes them without knowing they exist, and a client row is gone three minutes after its client stops. Nothing in either
+reaches a log, a metric, a trace, an audit entry, or an exception message.
 
 `embedding_profiles` is the exception on this page: it holds no personal data at all. It describes a model, and the credential that reaches that model is configuration rather than a column here, so nothing in this table is a secret or is derived from anybody's mail.
 

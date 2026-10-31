@@ -874,6 +874,13 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string ClientSignalTicketExpiryIndexName = "ix_client_signal_tickets_expires_at";
 
+    /// <summary>The order expired presence client rows are removed through.</summary>
+    /// <remarks>
+    /// Stated for the reason the ticket's is: every read of a member's clients goes through the key, and the one
+    /// statement that reaches rows by their expiry is the deployment-wide removal of what already expired.
+    /// </remarks>
+    internal const string PresenceClientExpiryIndexName = "ix_presence_clients_expires_at";
+
     /// <summary>The order the sessions past their expiry are removed through.</summary>
     /// <remarks>
     /// Stated for the reason the two indexes above it are: nothing queries a session by when it expires, and the sweep

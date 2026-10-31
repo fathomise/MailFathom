@@ -44,4 +44,40 @@ describe('sendToDeployment', () => {
         expect(answer.status).toBe(503);
         expect(sent).toHaveBeenCalledOnce();
     });
+
+    it('sends a request that outlives the page as the browser carries past it, abandoned by nothing and read for its status alone', async () => {
+        const sent = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('not read', { status: 202 }));
+
+        const answer = await sendToDeployment(new AbortController().signal)({
+            method: 'DELETE',
+            path: 'https://mail.example/api/client/presence/clients/one',
+            headers: { Authorization: 'Bearer presence' },
+            outlivesThePage: true,
+        });
+
+        expect(sent).toHaveBeenCalledWith('https://mail.example/api/client/presence/clients/one', {
+            method: 'DELETE',
+            headers: { Authorization: 'Bearer presence' },
+            credentials: 'omit',
+            keepalive: true,
+        });
+        expect(answer).toEqual({ status: 202, body: '', headers: {} });
+    });
+
+    it('sends any other request within the client’s share, abandoned with the attempt that started it', async () => {
+        const sent = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+        const attempt = new AbortController();
+
+        await sendToDeployment(attempt.signal)({
+            method: 'GET',
+            path: 'https://mail.example/api/client/presence',
+            headers: {},
+        });
+
+        const init = sent.mock.calls[0]?.[1];
+        attempt.abort();
+
+        expect(init?.signal?.aborted).toBe(true);
+        expect(init).not.toHaveProperty('keepalive');
+    });
 });

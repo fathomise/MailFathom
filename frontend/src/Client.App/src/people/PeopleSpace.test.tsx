@@ -88,6 +88,8 @@ function colleagueCalled(id: string, displayName: string): unknown {
         organizationName: 'Nordwind',
         timeZone: null,
         photo: null,
+        presence: 'Away',
+        lastSeen: null,
     };
 }
 

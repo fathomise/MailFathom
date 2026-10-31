@@ -10,6 +10,7 @@ import {
     wordInstant,
     wordInstantRange,
     wordLasting,
+    wordLastSeen,
     wordRecentInstant,
 } from './instants';
 
@@ -147,6 +148,28 @@ describe('wordInstantRange', () => {
 
     it('answers with nothing where the beginning is not an instant this client can read', () => {
         expect(wordInstantRange('whenever', closes, 'en', 'time', 'Europe/Warsaw')).toBeNull();
+    });
+});
+
+describe('wordLastSeen', () => {
+    const readAt = Date.parse('2026-08-31T10:00:00+00:00');
+
+    it('says today and the time, in the reader’s zone, for somebody seen earlier the same day', () => {
+        expect(wordLastSeen(instant, 'en', readAt, 'Europe/Warsaw')).toBe('today 11:41 AM');
+        expect(wordLastSeen(instant, 'pl', readAt, 'Europe/Warsaw')).toBe('dzisiaj 11:41');
+    });
+
+    it('says yesterday and the time for somebody seen the day before', () => {
+        const tomorrow = Date.parse('2026-09-01T10:00:00+00:00');
+
+        expect(wordLastSeen(instant, 'en', tomorrow, 'Asia/Tokyo')).toBe('yesterday 6:41 PM');
+        expect(wordLastSeen(instant, 'pl', tomorrow, 'Europe/Warsaw')).toBe('wczoraj 11:41');
+    });
+
+    it('says the date and the time for anybody seen earlier than that', () => {
+        const weekLater = Date.parse('2026-09-07T10:00:00+00:00');
+
+        expect(wordLastSeen(instant, 'en', weekLater, 'Europe/Warsaw')).toBe('8/31/26, 11:41 AM');
     });
 });
 

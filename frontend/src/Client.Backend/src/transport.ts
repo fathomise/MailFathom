@@ -53,6 +53,13 @@ export interface ClientRequest {
      * one, and its method alone would otherwise have it said as *Still sending…* for the minutes an AI provider takes.
      */
     readonly changesNothing?: true;
+
+    /**
+     * The request is sent as the page goes away, so it has to be put on the wire at once and carried by the browser
+     * after the page is gone — a `keepalive` request, sent once and never queued behind anything, whose answer nobody
+     * reads. A closing client saying it has closed is the one request of that kind.
+     */
+    readonly outlivesThePage?: true;
 }
 
 /** What came back, reduced to the three things this package reads. */
