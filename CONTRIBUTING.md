@@ -135,7 +135,7 @@ It does that in whichever of the two stacks your change reaches, decided from th
 
 Do not invoke `dotnet format` by hand. Both of its modes already run where they belong — the loop repairs the files you changed, the full gate verifies them — and a hand-run pass over the whole solution costs minutes to report what the build has already told you: a style rule with no automatic fix fails the Release build above, naming its file and line.
 
-That same loop is the gate before you commit, so stage your files and run it again:
+That same loop is the gate before you commit, so stage your files and run it again — unless the run before passed and said `no second run is needed`: then stage the formatter's rewrite and commit without another run, since staging changes what the record describes:
 
 ```bash
 git add <your files>

@@ -214,11 +214,11 @@ fi
 digest_after_formatting="$(resolve_verification_digest)"
 
 if [[ -n "$digest_before_formatting" && "$digest_after_formatting" != "$digest_before_formatting" ]]; then
-  printf 'The formatting pass rewrote files; commit the rewrite with the change.\n'
-
   if [[ "$verification_digest" == "$digest_before_formatting" ]]; then
-    printf 'Nothing else changed while the gate ran, so the formatted tree is recorded and no second run is needed.\n'
+    printf 'The formatting pass rewrote files and nothing else moved, so the formatted tree is recorded and no second run is needed: commit the rewrite with the change.\n'
     verification_digest="$digest_after_formatting"
+  else
+    printf 'The formatting pass rewrote files, but the tree also changed while the gate ran, so nothing is recorded: run the gate again.\n'
   fi
 fi
 

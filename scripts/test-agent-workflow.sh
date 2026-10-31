@@ -1160,7 +1160,7 @@ verify_fast_records_nothing_when_the_tree_moved_beside_a_formatter_rewrite() {
   )
 
   git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
-  assert_contains 'commit the rewrite with the change' "$rewrite_output"
+  assert_contains 'nothing is recorded: run the gate again' "$rewrite_output"
   assert_excludes 'no second run is needed' "$rewrite_output"
   assert_contains 'build backend/MailFathom.slnx --configuration Release --no-restore' "$invocation_log"
 }

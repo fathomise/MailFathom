@@ -33,7 +33,7 @@ where it came from.
    formatting failure is repaired by this same script, which rewrites the changed files, rather than
    by a hand-run `dotnet format` over the whole solution; a diagnostic no rewrite fixes is a build
    error and names its own file and line. A passing run that says its formatting pass rewrote files
-   has recorded the formatted tree: stage the rewrite with the task files and go on to the commit and
+   and `no second run is needed` has recorded the formatted tree: stage the rewrite with the task files and go on to the commit and
    the push without running the gate again — staging changes the digest, so a run after it would
    rebuild for nothing. A diagnostic with no code fix stays the pull request's to report, exactly as
    after a run that rewrote nothing.
