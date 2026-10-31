@@ -77,9 +77,11 @@ test('takes that motion away for a reader who asked for less of it, rather than 
 //
 // Read in the page, because what is asserted is the one fact no role query reaches: that the menu still in the
 // document sits inside an inert region, so a press on something already going reaches nothing.
+// The status menu stands in the document closed, as the account menu does, so the menu meant is the one with no state
+// to choose among.
 const theMenuIsHeldInert = `(() => {
-    const menu = document.querySelector('[role="menu"]');
-    return menu !== null && menu.closest('[inert]') !== null;
+    const menu = [...document.querySelectorAll('[role="menu"]')].find((each) => each.querySelector('[role="menuitemradio"]') === null);
+    return menu !== undefined && menu.closest('[inert]') !== null;
 })()`;
 
 test('plays a menu’s departure before taking it off the screen', async ({ page, deployment }) => {
@@ -100,7 +102,11 @@ test('plays a menu’s departure before taking it off the screen', async ({ page
     await expect.poll(() => page.evaluate(theMenuIsHeldInert)).toBe(true);
 
     await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
-    await expect(page.getByRole('menu', { includeHidden: true })).toHaveCount(0);
+    await expect(
+        page
+            .getByRole('menu', { includeHidden: true })
+            .filter({ hasNot: page.getByRole('menuitemradio', { includeHidden: true }) }),
+    ).toHaveCount(0);
 });
 
 // Hiding a conversation's history folds it away before it goes, so the reader sees where the messages went. Slowed for

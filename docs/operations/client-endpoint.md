@@ -3769,15 +3769,15 @@ presence](../features/contacts.md#a-colleagues-presence) states the six states a
 | Route | What it does |
 | --- | --- |
 | `GET /api/client/presence` | Reads this user's own presence as they see it: `state`, `Hidden` included, and while a choice holds `chosenState`, `choiceDuration` — the while it was chosen for, named as the choice states it — and `choiceEndsAt`, both `null` for until changed |
-| `PUT /api/client/presence/clients/{clientId}` | Renews one open client, carrying `activity` as `active` or `idle` |
-| `DELETE /api/client/presence/clients/{clientId}` | Closes one client, which reads as `Offline` at once when it was this user's last |
+| `PUT /api/client/presence/clients/{client}` | Renews one open client, carrying `activity` as `active` or `idle` |
+| `DELETE /api/client/presence/clients/{client}` | Closes one client, which reads as `Offline` at once when it was this user's last |
 | `PUT /api/client/presence/choice` | Chooses a state, carrying `state` as `Active`, `Away`, `Busy`, `DoNotDisturb`, `Hidden`, or `Offline`, and `duration` as `30m`, `1h`, `2h`, `today`, `week`, or nothing for until changed; answers what `GET` answers |
 
 **A running client renews its own row every minute**, under an identifier it mints for itself when it starts, and says
 `idle` once ten minutes pass without input. It renews at once when input returns, and on `pagehide` and sign-out it
 sends the `DELETE` as a `keepalive` request. A row it stops renewing counts for three minutes and then for nothing,
 which is what covers a crash, a lost network, and a replica that died. A new client past the sixteen a user keeps open
-is refused `409`. A `clientId` names a row of this user's alone, because the user comes from the session.
+is refused `409`. The `{client}` it names is a row of this user's alone, because the user comes from the session.
 
 **A user in no organization is answered `404` on all four**, because nobody could see their presence, so nothing is
 recorded about them and a client reading that stops renewing. A state or a duration this surface does not know is
