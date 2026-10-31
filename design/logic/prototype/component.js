@@ -4576,11 +4576,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const paneNarrow = paneW < 560;
       const stateCards = !isMobile && paneCompact;
       const readW = 880;
-      const readPad = (min) => "max(" + min + "px, calc((100% - " + readW + "px) / 2))";
       /* A pane wide enough to keep the whole reading column and still have room beside it carries the thread's state
          there rather than in a bar over the correspondence. */
       const stateAsideW = 560;
       const stateAside = !singlePane && !isMobile && paneW >= readW + 2 * 22 + stateAsideW;
+      /* A percentage padding reads its parent's width, and beside the state column that parent includes the column. */
+      const readPad = (min) => "max(" + min + "px, calc((100% - " + (readW + (stateAside ? stateAsideW : 0)) + "px) / 2))";
 
       const vals = {
         ...this.connVals(st, touch, isMobile),
