@@ -3,16 +3,16 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useRef, type KeyboardEvent, type PointerEvent } from 'react';
-import { useTip } from '../controls/useTip';
+import { useTip } from './useTip';
 
 // The grip on a boundary between two columns, which is what lets a reader give either side more room. It draws the
 // line the design puts there and it is the control on it — those are one element rather than two, because a
 // boundary somebody can move is a boundary they have to be able to point at.
 //
-// **One component for both boundaries the Mail space has**, the one between the mailboxes and the list and the one
-// between the list and the reading pane. What differs between them is four numbers and two sentences, which is what
-// it takes as props; what does not differ is everything below, and a second grip resembling this one is how a client
-// comes to have two boundaries that behave differently under the keyboard.
+// **One component for every boundary the client has**: the Mail space's between the mailboxes and the list and between
+// the list and the reading pane, and the Agent's between its history and the conversation. What differs between them
+// is four numbers and two sentences, which is what it takes as props; what does not differ is everything below, and a
+// second grip resembling this one is how a client comes to have boundaries that behave differently under the keyboard.
 //
 // It is a separator that takes focus, which is what ARIA calls a window splitter: the position it reports is the
 // width of the pane before it, so a reader who cannot see the columns still knows where the boundary stands and how
@@ -21,7 +21,9 @@ import { useTip } from '../controls/useTip';
 //
 // One pointer path rather than one per input, because pointer events are what a mouse, a finger, and a pen all arrive
 // as. Capturing the pointer is what keeps a drag with it once it has left the five pixels the grip is drawn at, and
-// `touch-none` is what keeps a finger dragging the boundary from scrolling the list underneath it instead.
+// `touch-none` is what keeps a finger dragging the boundary from scrolling the list underneath it instead. A finger
+// also gets something to take hold of — the design's grip, a pill in the middle of the line — which a coarse-pointer
+// query draws rather than the component, since what it decides is only what is drawn.
 
 export function WidthGrip({
     label,
@@ -66,8 +68,9 @@ export function WidthGrip({
     // its own bookkeeping.
     const dragging = useRef<{ pointer: number; from: number; startedAt: number } | null>(null);
 
-    // The hint stands while a mouse rests on the grip or a key has focused it, and gets out of the way of a drag.
-    const { anchor, tip } = useTip({ says: hint, describes: true, onPress: () => undefined });
+    // The hint stands while a mouse rests on the grip or a key has focused it. A finger never brings it up, by a tap or
+    // by a hold: its hold on a boundary is the drag, and one held finger opens one surface.
+    const { anchor, tip } = useTip({ says: hint, describes: true, tapReveals: false });
 
     function beginDrag(event: PointerEvent<HTMLDivElement>): void {
         const drag = dragging.current;
@@ -165,7 +168,17 @@ export function WidthGrip({
                     anchor.onKeyDown(event);
                     moveByKey(event);
                 }}
-            />
+            >
+                {/* The grip a finger takes hold of: a 12 × 44 pill centred on the line, inside a 44 × 44 target. */}
+                <span
+                    aria-hidden="true"
+                    className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 hidden size-11 items-center justify-center pointer-coarse:flex"
+                >
+                    <span className="flex h-11 w-3 items-center justify-center rounded-full border border-line-strong bg-panel shadow-raised">
+                        <span className="h-4.5 w-0.5 rounded-full bg-muted" />
+                    </span>
+                </span>
+            </div>
             {tip}
         </>
     );

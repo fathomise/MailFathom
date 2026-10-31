@@ -479,13 +479,11 @@
        the side. It is the width the design draws a tab at. */
     --container-tab: 14.375rem;
 
-    /* The Agent screen's measures, all the design's. Its history panel stands at the first, which is the
-       design's 250-pixel column with its padding and its rule counted in. A question is
-       drawn at most the second wide — a share of the width on a phone — an answer at most the third, and the whole thread and the field under it stop at
-       the fourth, so a wide window gains margin instead of line length — the design's 1290-pixel column with the
+    /* The Agent screen's measures, all the design's. A question is
+       drawn at most the first wide — a share of the width on a phone — an answer at most the second, and the whole thread and the field under it stop at
+       the third, so a wide window gains margin instead of line length — the design's 1290-pixel column with the
        26-pixel gutter either side counted in. A conversation's tab stops at the last, a little narrower than a mail
        tab. */
-    --spacing-agent-history: 16.9375rem;
     --container-agent-question: 48.4375rem;
     --container-agent-question-narrow: 92%;
     --container-agent-answer: 56.25rem;

@@ -5,13 +5,17 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { pressOpensAfter } from '../contextMenu/rowPress';
-import { focusByKey } from '../controls/useTip.harness';
+import { focusByKey } from './useTip.harness';
 import { LocalizationProvider } from '../localization/Localization';
 import { WidthGrip } from './WidthGrip';
-import { listWidthStep, narrowestList, startingListWidth, widestList } from './listWidth';
 
-// The list's own boundary, which is what this grip is drawn as everywhere but the mailbox column. The numbers are
-// props rather than the component's, so the harness states them once and every case below is about one boundary.
+// One boundary, with numbers of the harness's own: they are props rather than the component's, so the cases below are
+// about the grip and none of them moves when a screen changes the bounds it draws a boundary with.
+const narrowestList = 232;
+const widestList = 560;
+const startingListWidth = 340;
+const listWidthStep = 16;
+
 const listBoundary = {
     label: 'Message list width',
     hint: 'Drag to resize, or double-click to reset.',
@@ -43,6 +47,13 @@ describe('WidthGrip', () => {
 
         expect(screen.getByRole('separator', { name: 'Message list width' })).toBe(grip);
         expect(grip.getAttribute('aria-orientation')).toBe('vertical');
+    });
+
+    it('is named by its label alone, the grip a finger takes hold of adding nothing a screen reader would announce', () => {
+        const { grip } = renderGrip();
+
+        expect(screen.getByRole('separator', { name: 'Message list width' })).toBe(grip);
+        expect(grip.textContent).toBe('');
     });
 
     it('reports where the boundary stands and how far it may go', () => {
@@ -122,6 +133,20 @@ describe('WidthGrip', () => {
             vi.advanceTimersByTime(pressOpensAfter);
         });
         fireEvent.pointerUp(grip, { pointerId: 1, pointerType: 'touch', clientX: 680, clientY: 10 });
+
+        expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+
+    it('says nothing to a finger held still on the boundary or tapping it, its hold being the drag', () => {
+        vi.useFakeTimers();
+        const { grip } = renderGrip();
+
+        fireEvent.pointerDown(grip, { pointerId: 1, pointerType: 'touch', clientX: 600, clientY: 10 });
+        act(() => {
+            vi.advanceTimersByTime(pressOpensAfter);
+        });
+        fireEvent.pointerUp(grip, { pointerId: 1, pointerType: 'touch', clientX: 600, clientY: 10 });
+        fireEvent.click(grip);
 
         expect(screen.queryByRole('tooltip')).toBeNull();
     });

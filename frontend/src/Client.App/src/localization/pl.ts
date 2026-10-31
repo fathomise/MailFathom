@@ -35,6 +35,9 @@ export const pl: Catalogue = {
     'agent.earlier': 'Wcześniej',
     'agent.newConversation': 'Nowa rozmowa',
     'agent.closeHistory': 'Zamknij historię',
+    'agent.historyWidth': 'Szerokość historii',
+    'agent.historyWidthHint':
+        'Przeciągnij, aby zmienić szerokość historii. Dwuklik lub klawisz Home przywraca szerokość początkową.',
     'agent.conversations': 'Rozmowy z agentem',
     'agent.historyReading': 'Wczytuję rozmowy…',
     'agent.historyEmpty': 'Nie ma jeszcze rozmów. Napisz agentowi poniżej, co ma zrobić, a rozmowa pojawi się tutaj.',

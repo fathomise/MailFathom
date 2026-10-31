@@ -40,8 +40,8 @@ one width band combined with one height band. All of it is decided once, in `ren
 |---|---|---|
 | `isMobile` | `w < 700` | Bottom navigation instead of the rail, every form a full-screen surface, the folder list always a drawer |
 | `singlePane` | `w < 820` | One pane at a time — the list and the content never stand together |
-| `narrow` | `700 ≤ w < 1020` | Two panes in little room: the list stays a list, at a fixed 248 px until a mouse drags it, and the thread takes the rest. It never folds away, and a row too narrow for one line of everything it carries draws less on that line (`listCompact`, § *The panes* under Mail) |
-| `compact` | `700 ≤ w < 1180` | The 66 px rail with a 30 px mark (the bottom bar instead where `navBottom` holds below 1020), the list at 284 px from 1020 until a mouse drags it (248 px below that — the `narrow` row), toolbar controls without labels once their words no longer fit the strip — each still naming itself in a bubble, *A control's name* under § *What every artboard shares* — and the folder list folded rather than standing as a column |
+| `narrow` | `700 ≤ w < 1020` | Two panes in little room: the list stays a list, at a fixed 248 px until its boundary is dragged, and the thread takes the rest. It never folds away, and a row too narrow for one line of everything it carries draws less on that line (`listCompact`, § *The panes* under Mail) |
+| `compact` | `700 ≤ w < 1180` | The 66 px rail with a 30 px mark (the bottom bar instead where `navBottom` holds below 1020), the list at 284 px from 1020 until its boundary is dragged (248 px below that — the `narrow` row), toolbar controls without labels once their words no longer fit the strip — each still naming itself in a bubble, *A control's name* under § *What every artboard shares* — and the folder list folded rather than standing as a column |
 | `wide` | `w ≥ 1920` | The folder column at 240 px and the list at 420 px |
 
 **The navigation is the one rule that reads the aspect.** `navBottom` is `isMobile || (narrow && touch && w <= h * 1.15)`:
@@ -114,10 +114,10 @@ three axes already give.
 keeps a mouse's sizes and panels, and a 1366 px touch tablet keeps a finger's. The framed previews say which they are —
 the `layout` property's `phone`, `fold` and `tablet` frames are touch devices, `desktop` is a mouse, and `auto` asks
 the browser (`st.coarse`, kept current by a `matchMedia` listener). Under `touch`: every target meets § *What every
-touch composition holds to* below; sheets and drawers follow the finger; a row swipes and holds; what stands under tabs swipes between them; the message list pulled down from its top refreshes; a toast is dragged aside to dismiss it; and nothing exists
+touch composition holds to* below; sheets and drawers follow the finger; a row swipes and holds; what stands under tabs swipes between them; the message list pulled down from its top refreshes; a toast is dragged aside to dismiss it; a pane boundary carries a grip to drag it by; and nothing exists
 only under a hover — not a control's name, not the reason a control cannot act, not a fact a row folds away (*A control's name* under
-§ *What every artboard shares*). Without it: the desktop's sizes, hover affordances, and the two resizers (`showResizer`,
-`showSideResizer`), which are drag handles and so a fine pointer's alone.
+§ *What every artboard shares*). Without it: the desktop's sizes and hover affordances, and pane boundaries drawn as the
+bare 5 px line.
 
 ### Width inside a pane
 
@@ -173,7 +173,7 @@ What the upright tablets are, drawn rather than fallen into:
   folder list a drawer, and the height given to more rows and more thread rather than to taller dialogs.
 
 A mouse in the tablet band — **960 × 1040**, half a desktop screen, and **1080 × 1800**, a monitor on its side — gets
-the mouse's sizes and panels: the 58 px folder strip, the resizer between the list and the thread, the side rail
+the mouse's sizes and panels: the 58 px folder strip, the side rail
 upright as well as on its side, and below 1020 the same 248 px list a finger gets. **1180 × 820** — the tablet on its side at the edge of the desktop band — is the
 tightest two-column composition, a 534 px thread, and its pane's own rules carry it.
 
@@ -202,7 +202,8 @@ composition keeps its own sizes.
 | Folded away | What a wider window stands in place but a narrow one folds away and slides out — the mail folders, the Agent's history (`historyScrimShown`), the list's filters, a drawer, a sheet — closes on its *X* and on a press anywhere beside it, which is a press on the scrim behind it or, for the filters band on the phone, anywhere outside the band and its control (`onDocDown`). A scrim takes the press it closes on, so nothing under it is pressed too |
 | A long press | A finger held on a row opens the row's own menu and nothing closes it but a choice, a press beside it, Escape or the back gesture — the platform's own menu gesture that follows the same press is that press, not a second one. A finger held on a control inside the row shows that control's name instead, and the row's menu does not open as well: one held finger is one surface |
 | A row's hidden facts | What a row draws only for a mouse to rest on — the instant behind a notification's relative age, the address behind an account's name, a folder's account, whole path and count — is said again under its menu's header (`ctxMenuDetail`), in `--faint` at 11 px, because the hold a finger would ask with is the hold that opens that menu. A row that opens no menu at all — the unified *All accounts* group and its folders — carries no title saying more than it draws |
-| The fold's split | Two panes in less than 1020 px keep the list a list beside the thread, under a finger and a mouse alike: 248 px wide, never folded, nothing to widen or narrow it but a mouse's drag, its rows drawing less where one line cannot carry everything (`listCompact`) — § *The panes* under Mail |
+| The fold's split | Two panes in less than 1020 px keep the list a list beside the thread, under a finger and a mouse alike: 248 px wide, never folded, widened or narrowed only by dragging its boundary, its rows drawing less where one line cannot carry everything (`listCompact`) — § *The panes* under Mail |
+| A pane boundary | Every line a reader drags to give one pane more room — the folder column's (`showSideResizer`), the list's (`showResizer`), the Agent history's (`showHistoryResizer`) — follows a finger as it follows a mouse, and stands wherever its two panes stand side by side under either pointer. Under a mouse it is the bare 5 px `--line`, lit in `--accent` (`--accent-line` for the list's) while the mouse rests on it; under a finger it is never lit (`boundaryHover`, `boundaryListHover`) — a finger has no hover, and a lit line would stay lit after the drag — and it is the same line with a 25 px reach along its whole length and, in its middle, a grip to take hold of (`boundaryGrip`): a 12 × 44 px pill on `--panel` with a `--border2` edge and a 2 × 18 px `--muted` stroke, its own target 44 × 44. The page does not scroll under a finger dragging it. Its name — *Drag to widen the folder pane*, *Drag to resize the list (double-click to reset)*, *Drag to resize the history (double-click to reset)* — is a mouse's hover alone (`data-tip-hover`), because a finger's hold on a boundary is the drag and one held finger opens one surface |
 | Duplicated actions | A two-pane composition under a finger does not repeat in the thread head what the toolbar above it already carries, so the subject keeps the width |
 | Text | 12 px is the smallest size a reader is asked to read; 11 px is left to captions over something larger and to counts on a badge |
 | What a hover explains | Is reached by a tap as well: a chip that explains itself under a mouse (`[data-tip]`) shows the same sentence when tapped, drawn at 36 with a 44 target, and the sentence goes by itself 4 s later or at the next press elsewhere. So does a control that cannot act (`aria-disabled`): a tap says why rather than doing nothing silently |
@@ -349,9 +350,9 @@ than the 3 px accent edge it used to carry.
 | Back to the list | `showMailBack` | `singlePane && mailPane === "thread"` — phone and fold only |
 | Toolbar | `showMailToolbar` | `!selectionOn && !singlePane` |
 | Primary actions in the bar | `tbPrimaryShown` | the toolbar has room for them |
-| Resizer between panes | `showResizer` | `!singlePane && !touch` — a mouse drags the list between 232 and 560 px, double-click returns it to its band's width (`st.listW` back to `null`) |
-| The list below 1020 | `listW` | `!singlePane && narrow` — the list stands at 248 px beside the thread whether or not one is open, and never folds; a mouse still drags it between 232 and 560 px |
-| A compact row | `listCompact` / `t.iconsInline` | the list narrower than 270 px (`listW < 270`) — read from the list's own width, so a list a mouse drags wider draws everything again. The row keeps the one height every row has, because the client's list is windowed at one row height and a row that grew where it had something to carry would put every row below it out of place. Its first line keeps the avatar, the sender, the sender mark, the receipt mark, the attachment mark, the flag and the time, and the sender gives way to an ellipsis rather than pushing the time out; the subject and the AI line stand under it as before. The message count and the *AI summary* button are not drawn — the thread names its own count when opened, and the summary stays one press away in the row's menu and the thread |
+| Resizer between panes | `showResizer` | `!singlePane` — a mouse or a finger drags the list between 232 and 560 px, double-click returns it to its band's width (`st.listW` back to `null`); a pane boundary, as *A pane boundary* under § *What every touch composition holds to* draws it |
+| The list below 1020 | `listW` | `!singlePane && narrow` — the list stands at 248 px beside the thread whether or not one is open, and never folds; its boundary still drags it between 232 and 560 px |
+| A compact row | `listCompact` / `t.iconsInline` | the list narrower than 270 px (`listW < 270`) — read from the list's own width, so a list dragged wider draws everything again. The row keeps the one height every row has, because the client's list is windowed at one row height and a row that grew where it had something to carry would put every row below it out of place. Its first line keeps the avatar, the sender, the sender mark, the receipt mark, the attachment mark, the flag and the time, and the sender gives way to an ellipsis rather than pushing the time out; the subject and the AI line stand under it as before. The message count and the *AI summary* button are not drawn — the thread names its own count when opened, and the summary stays one press away in the row's menu and the thread |
 | A colleague's row | `t.fromMember` / `t.fromDotStyle` | a message from a member of the reader's organization carries the sender's presence dot at the avatar's lower right (8 px, 11 on the phone), ringed in `--panel`; the opened message's head does not. Outside an organization no row does |
 | An unread row | `t.isUnread` / `fromStyle` / `subjStyle` | the sender and the subject in weight 700 and `--text`, a read row's in 400 and `--text2` — weight and ink together, as every mail client draws it, because 600 against 400 in one colour read as the same row at a glance; the row carries no dot |
 | The attachment mark | `t.attShown` / `t.attLabel` | a row whose message carries an attachment draws a 16 px `attach_file` glyph in `--muted` among the markers on its first line, before the flag, as the client draws it; its name — *1 attachment*, *N attachments* — is the glyph's title and is read aloud from a visually hidden label. A row whose message carries none draws nothing in its place. Where the first line runs short, the sender's organization gives way to an ellipsis first and the sender after it, so the markers and the time are never pushed out |
@@ -360,7 +361,7 @@ than the 3 px accent edge it used to carry.
 | Side list scrolls | `sideScrollStyle` | the AI filters and every account scroll together inside the panel once they are taller than it, docked or as a drawer; the panel itself does not move |
 | AI filters | `aiFilters` | the first group in the side list, above every account, under an `auto_awesome` *AI filters* header — rows the same size as folder rows; a collapsed side list draws the glyph alone |
 | AI filters collapsed | `aiFiltersOpen` / `toggleAiFilters` | the header, exactly as an account header collapses its folders — `expand_more` against `chevron_right`, titled *Collapse AI filters* and *Show AI filters*; open by default (`st.aiFiltersOpen !== false`) |
-| Side list resizer | `showSideResizer` | `!drawer && !sideCollapsed && !touch` — drag widens the folder pane between 210 and 420 px, double-click returns it to 210 |
+| Side list resizer | `showSideResizer` | `!drawer && !sideCollapsed` — a pane boundary; a drag widens the folder pane between 210 and 420 px, double-click returns it to 210 |
 | Side list as a drawer | `showSide` / `sideScrim` | `drawer && drawerOpen` — its head reads *Folders and filters* beside a close control (`sideDrawerHead`) |
 | View controls in the toolbar | `viewLeadShown` / `drawerOpenerShown` | Mail with the toolbar standing. The toolbar leads with the folder pane's own control: the side list show/hide where the pane stands beside the list, *Folders and filters* (`menu`) where it is a drawer (`drawer`, the tablet and the fold). Each is the side list toggle's size, and the same 1 px rule (6 px before, 8 px after) sets them apart from *New message* |
 | Folder button | `showFolderBtn` | `drawer && (singlePane \|\| selectionOn)` — the list's head carries it only where no toolbar leads with it: the phone, and a selection, whose bar replaces the toolbar |
@@ -924,7 +925,7 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | Row actions | `h.openMenu` | one `more_horiz` control per row opening the same menu as a right-click or a long press — *Select*, *Open*, *Archive* or *Restore*, *Delete* — instead of an archive and a delete glyph on every row |
 | **Archive section exists** | `hasArchived` | at least one conversation is archived |
 | Archive open | `archiveSectionOpen` | pressing the archive section |
-| History resizer | `showHistoryResizer` | `!isMobile` |
+| History resizer | `showHistoryResizer` | `!isMobile` — a pane boundary; a drag sets the history between 200 and 480 px, double-click returns it to 250 |
 | Conversation bar | `convBarShown` | tabs mode with more than one conversation — see the tabs note above |
 | Delete a conversation | `deleteConvAskOpen` | *Delete conversation* in a conversation's menu |
 

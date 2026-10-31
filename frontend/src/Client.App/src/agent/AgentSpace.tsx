@@ -23,6 +23,7 @@ import { EvidenceInspector } from '../answerCanvas/EvidenceInspector';
 import type { ProposalLook } from '../answerCanvas/proposalAnswering';
 import { Confirmation } from '../confirmation/Confirmation';
 import { Control } from '../controls/Control';
+import { WidthGrip } from '../controls/WidthGrip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import type { AgentHandOver } from '../routing/agentHandOver';
@@ -32,6 +33,13 @@ import { AgentComposer } from './AgentComposer';
 import { ConversationHistory } from './ConversationHistory';
 import { ConversationTabs } from './ConversationTabs';
 import { ConversationThread } from './ConversationThread';
+import {
+    historyWidthStep,
+    historyWidthWithin,
+    narrowestHistory,
+    startingHistoryWidth,
+    widestHistory,
+} from './historyWidth';
 import { answerInFlight, threadOf } from './threadTurns';
 import { newIdentifier } from './newIdentifier';
 import { ProposalAnswersContext } from './proposalAnswers';
@@ -153,6 +161,7 @@ export function AgentSpace({
     const [undeleted, setUndeleted] = useState<Exclude<ClientFailureReason, 'missing'> | null>(null);
     const [unarchived, setUnarchived] = useState<Exclude<ClientFailureReason, 'missing'> | null>(null);
     const [historyShown, setHistoryShown] = useState(true);
+    const [historyWidth, setHistoryWidth] = useState(startingHistoryWidth);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [following, setFollowing] = useState(0);
     const [composerFocusAsked, setComposerFocusAsked] = useState(0);
@@ -582,13 +591,32 @@ export function AgentSpace({
             </header>
 
             <div className="relative flex min-h-0 flex-1">
+                {/* The design draws the column's own rule and, beside it, the boundary a mouse and a finger drag alike. */}
                 {wide && historyShown ? (
-                    <nav
-                        aria-label={translate('agent.history')}
-                        className="flex w-agent-history shrink-0 flex-col border-e border-line bg-rail"
-                    >
-                        {historyPanel(false)}
-                    </nav>
+                    <>
+                        <nav
+                            aria-label={translate('agent.history')}
+                            className="flex shrink-0 flex-col border-e border-line bg-rail"
+                            style={{ width: `${String(historyWidth)}px` }}
+                        >
+                            {historyPanel(false)}
+                        </nav>
+                        <WidthGrip
+                            label={translate('agent.historyWidth')}
+                            hint={translate('agent.historyWidthHint')}
+                            narrowest={narrowestHistory}
+                            widest={widestHistory}
+                            step={historyWidthStep}
+                            startingWidth={startingHistoryWidth}
+                            width={historyWidth}
+                            onWidth={(moved) => {
+                                setHistoryWidth(historyWidthWithin(moved));
+                            }}
+                            onChosen={(chosen) => {
+                                setHistoryWidth(historyWidthWithin(chosen));
+                            }}
+                        />
+                    </>
                 ) : null}
 
                 {wide ? null : (

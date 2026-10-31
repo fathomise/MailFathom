@@ -862,7 +862,7 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
       </sc-if>
       <sc-if value="{{ showSideResizer }}" hint-placeholder-val="{{ false }}">
-        <div onMouseDown="{{ startSideResize }}" onDoubleClick="{{ resetSideResize }}" title="Drag to widen the folder pane" style="flex:0 0 5px;cursor:col-resize;background:var(--line);position:relative;z-index:5" style-hover="background:var(--accent)"></div>
+        <div onPointerDown="{{ startSideResize }}" onDoubleClick="{{ resetSideResize }}" title="Drag to widen the folder pane" data-tip-hover="" style="{{ boundaryStyle }}" style-hover="{{ boundaryHover }}"><div aria-hidden="true" style="{{ boundaryReachStyle }}"></div><sc-if value="{{ boundaryGrip }}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="{{ boundaryGripStyle }}"><div style="{{ boundaryPillStyle }}"></div></div></sc-if></div>
       </sc-if>
 
       <sc-if value="{{ showThreadList }}" hint-placeholder-val="{{ true }}">
@@ -1043,7 +1043,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
         </div>
         <sc-if value="{{ showResizer }}" hint-placeholder-val="{{ true }}">
-          <div onMouseDown="{{ startResize }}" onDoubleClick="{{ resetResize }}" style="flex:0 0 5px;cursor:col-resize;background:var(--line);position:relative;z-index:5" style-hover="background:var(--accent-line)" title="Drag to resize the list (double-click to reset)"></div>
+          <div onPointerDown="{{ startResize }}" onDoubleClick="{{ resetResize }}" style="{{ boundaryStyle }}" style-hover="{{ boundaryListHover }}" title="Drag to resize the list (double-click to reset)" data-tip-hover=""><div aria-hidden="true" style="{{ boundaryReachStyle }}"></div><sc-if value="{{ boundaryGrip }}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="{{ boundaryGripStyle }}"><div style="{{ boundaryPillStyle }}"></div></div></sc-if></div>
         </sc-if>
       </sc-if>
 
@@ -1850,7 +1850,7 @@ Project repository: https://github.com/fathomise/MailFathom
       </sc-if>
       <sc-if value="{{ historyOpen }}" hint-placeholder-val="{{ false }}">
         <sc-if value="{{ showHistoryResizer }}" hint-placeholder-val="{{ true }}">
-          <div onMouseDown="{{ startHistoryResize }}" onDoubleClick="{{ resetHistoryResize }}" style="flex:0 0 5px;cursor:col-resize;background:var(--line);position:relative;z-index:5" style-hover="background:var(--accent)"></div>
+          <div onPointerDown="{{ startHistoryResize }}" onDoubleClick="{{ resetHistoryResize }}" title="Drag to resize the history (double-click to reset)" data-tip-hover="" style="{{ boundaryStyle }}" style-hover="{{ boundaryHover }}"><div aria-hidden="true" style="{{ boundaryReachStyle }}"></div><sc-if value="{{ boundaryGrip }}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="{{ boundaryGripStyle }}"><div style="{{ boundaryPillStyle }}"></div></div></sc-if></div>
         </sc-if>
       </sc-if>
       <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">

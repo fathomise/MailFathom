@@ -803,18 +803,31 @@ describe('MailSpace, where the pointer decides', () => {
         expect(screen.getByRole('separator', { name: 'Mailbox column width' })).toBeDefined();
     });
 
-    it('stands the list at the tablet’s width below the desktop composition, with a grip a mouse drags it by', () => {
+    it('stands the list at the tablet’s width below the desktop composition, with a grip it is dragged by', () => {
         renderSpace(tablet, {}, 'marta');
 
         expect(screen.getByRole('separator', { name: 'Message list width' }).getAttribute('aria-valuenow')).toBe('284');
     });
 
-    it('draws no grip under a finger, at a desktop width as at any other', () => {
+    it('lets a finger drag the list on a tablet, where the mailboxes are a drawer and have no boundary', () => {
+        fingered = true;
+        renderSpace(tablet, {}, 'marta');
+
+        const grip = screen.getByRole('separator', { name: 'Message list width' });
+        fireEvent.pointerDown(grip, { pointerId: 1, pointerType: 'touch', clientX: 400 });
+        fireEvent.pointerUp(grip, { pointerId: 1, pointerType: 'touch', clientX: 440 });
+
+        expect(grip.getAttribute('aria-valuenow')).toBe('324');
+        expect(screen.queryByRole('separator', { name: 'Mailbox column width' })).toBeNull();
+    });
+
+    it('draws both boundaries under a finger at a desktop width, as under a mouse', () => {
         fingered = true;
         renderSpace(desktop);
 
         expect(screen.getByRole('complementary', { name: 'Folders and filters' })).toBeDefined();
-        expect(screen.queryByRole('separator')).toBeNull();
+        expect(screen.getByRole('separator', { name: 'Mailbox column width' })).toBeDefined();
+        expect(screen.getByRole('separator', { name: 'Message list width' })).toBeDefined();
     });
 
     it('opens both columns wider past the monitor width', () => {

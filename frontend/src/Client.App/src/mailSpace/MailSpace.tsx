@@ -41,7 +41,7 @@ import {
     storeMailboxesWidth,
     widestMailboxes,
 } from './mailboxesWidth';
-import { WidthGrip } from './WidthGrip';
+import { WidthGrip } from '../controls/WidthGrip';
 import { MailToolbar } from './MailToolbar';
 import { SelectionBar } from './SelectionBar';
 import { useStripFit } from './useStripFit';
@@ -65,10 +65,10 @@ import { paneArrival, usePaneMotion } from '../shell/paneMotion';
 // - *The toolbar at all*, which is the phone question: bottom navigation already spends the foot of a phone-width
 //   window, and the toolbar's acts are on the selection bar and the message's own head there.
 //
-// The boundaries the columns are dragged at are a mouse's alone: a drag handle is a fine pointer's gesture, so a
-// window driven by one draws them wherever the columns stand beside each other, and one driven by a finger draws none
-// at any width. Nothing is hidden by the width alone; what a narrower composition cannot show at once is reached
-// rather than dropped.
+// The boundaries the columns are dragged at stand wherever two columns stand beside each other, and a mouse and a
+// finger drag them alike — the finger by the grip the design draws in each one's middle. The mailboxes' boundary is
+// absent only where that column is folded to its strip or into a drawer. Nothing is hidden by the width alone; what a
+// narrower composition cannot show at once is reached rather than dropped.
 //
 // Where focus goes when the single-pane shape changes what it shows is this component's too: a message coming in front
 // of the list is a view change, and so is going back, and a reader on a keyboard is put at the start of what replaced
@@ -140,7 +140,7 @@ export function MailSpace({
     const coarse = useCoarsePointer();
     const mailboxes = useMailboxesForm();
 
-    // Each column stands at the width its band draws it at until a mouse drags it, and at what was dragged after that:
+    // Each column stands at the width its band draws it at until somebody drags it, and at what was dragged after that:
     // `null` is nothing chosen. The room the list and the pane share is measured below, and the drawn width is the
     // chosen one brought inside it.
     const [chosenListWidth, setChosenListWidth] = useState(() => readListWidth(person));
@@ -358,13 +358,9 @@ export function MailSpace({
                             <Mailboxes folders={folders} status={status} folded={folded} drawerHead={null} />
                         </aside>
 
-                        {/* The boundary is only there where the column is drawn as one and a mouse can drag it: folded
-                            to its rail it is the width the rail is, and a grip on it would offer to widen something the
-                            fold decided. The line it draws is the border the column would otherwise carry, which is why
-                            a finger's column carries that border itself. */}
-                        {folded ? null : coarse ? (
-                            <span aria-hidden="true" className="w-px shrink-0 bg-line" />
-                        ) : (
+                        {/* The boundary is only there where the column is drawn as one: folded to its rail it is the
+                            width the rail is, and a grip on it would offer to widen something the fold decided. */}
+                        {folded ? null : (
                             <WidthGrip
                                 label={translate('folders.width')}
                                 hint={translate('folders.widthHint')}
@@ -442,7 +438,7 @@ export function MailSpace({
                               : 'flex-1'
                     }`}
                     /* The one width in the client a person sets rather than the design, which is why it is drawn
-                       from a value instead of a utility: the band's own width until a mouse drags it, and what was
+                       from a value instead of a utility: the band's own width until somebody drags it, and what was
                        dragged after that. The narrow shape takes the whole column, so it does not read this.
                        Left able to shrink on purpose: a width chosen on a wider screen is read back before
                        anything has measured this one, and a column that refuses to give way in that frame would
@@ -490,10 +486,9 @@ export function MailSpace({
                     </div>
                 </section>
 
-                {/* The boundary is only there where both columns are and a mouse can drag it: one column at a time has nothing between them, and a finger has
-                    no drag handle to take hold of. The line the grip draws is the one place the design rules the list
-                    off from the pane, so a finger's list stands against the pane without one. */}
-                {twoPanes && !coarse && !listAside ? (
+                {/* The boundary is only there where both columns are: one column at a time has nothing between them.
+                    A mouse and a finger drag it alike, the finger by the grip the design draws in its middle. */}
+                {twoPanes && !listAside ? (
                     <WidthGrip
                         label={translate('mail.listWidth')}
                         hint={translate('mail.listWidthHint')}

@@ -36,6 +36,9 @@ export const en = {
     'agent.earlier': 'Earlier',
     'agent.newConversation': 'New conversation',
     'agent.closeHistory': 'Close history',
+    'agent.historyWidth': 'History width',
+    'agent.historyWidthHint':
+        'Drag to change the history width. Double-click, or press Home, to return it to where it started.',
     'agent.conversations': 'Conversations with the agent',
     'agent.historyReading': 'Reading your conversations…',
     'agent.historyEmpty': 'No conversations yet. Tell the agent what to do below and one starts here.',
