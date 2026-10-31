@@ -3786,7 +3786,8 @@ refused `400` before anything is written. Reading is `mailfathom.profile.read`, 
 
 **Nothing here is audited or logged.** A renewal changes no mail, and an entry per renewal would be a history of
 somebody's working day. A write that changes how this user reads to the others raises `presence.changed` on [the
-signal channel](#the-signal-channel) to every member of the organization, the user included for their other devices.
+signal channel](#the-signal-channel) to every member of the organization the member directory lists, the user included
+for their other devices; a service account is not told, having no colleague to draw.
 
 ### The notification routes
 

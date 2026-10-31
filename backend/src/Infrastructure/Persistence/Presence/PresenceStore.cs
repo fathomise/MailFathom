@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Access;
 using MailFathom.Application.Presence;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
@@ -99,6 +100,7 @@ internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStor
     private const string ReadOrganizationUsersStatement = $"""
         SELECT "{UserAccountEntity.IdColumnName}" FROM "{UserAccountEntity.TableName}"
         WHERE "{UserAccountEntity.OrganizationIdColumnName}" = @organization
+          AND "{UserAccountEntity.TypeColumnName}" = @person
         ORDER BY "{UserAccountEntity.IdColumnName}"
         LIMIT @most;
         """;
@@ -260,6 +262,7 @@ internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStor
     {
         await using var command = dataSource.CreateCommand(ReadOrganizationUsersStatement);
         command.Parameters.AddWithValue("organization", organization);
+        command.Parameters.AddWithValue("person", (int)UserType.User);
         command.Parameters.AddWithValue("most", IPresenceStore.MostReadMembers);
 
         var users = new List<UserId>();

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     choosePresence,
     readOwnPresence,
+    type ClientFailureReason,
     type ClientSession,
     type MailFathomTransport,
     type OwnPresence,
@@ -29,13 +30,14 @@ import type { SignalledChanges } from '../signals/signalledChanges';
 export interface OwnPresenceInForce {
     readonly presence: OwnPresence;
 
-    /** Chooses a state for a while, or until changed with `null`, answering whether the deployment took it. */
-    readonly choose: (state: PresenceState, duration: PresenceDuration | null) => Promise<boolean>;
+    /** Chooses a state for a while, or until changed with `null`, answering `null` where the deployment took it and why it did not otherwise. */
+    readonly choose: (state: PresenceState, duration: PresenceDuration | null) => Promise<ClientFailureReason | null>;
 }
 
-// A timer the platform can hold: anything past this many milliseconds fires at once, so a later end is waited for in
-// steps rather than read early.
-const longestTimer = 2_147_483_647;
+// The soonest a read at the end of a while is asked again. A clock ahead of the deployment's reaches the end first and
+// is answered with the same end still to come; each such answer arms the wait again, and this keeps a skewed clock from
+// asking as fast as the platform can fire.
+const shortestWaitForTheEnd = 10_000;
 
 interface Held {
     readonly session: ClientSession;
@@ -88,10 +90,12 @@ export function useOwnPresence(
     );
 
     const standing = held?.session === session ? held : null;
-    const endsAt = standing?.presence?.choiceEndsAt ?? null;
 
-    // The while runs out at an instant no request marks, and this client knows it.
+    // The while runs out at an instant no request marks, and this client knows it. The wait is armed again by every
+    // answer rather than by every new end, so a read that came back with the same end still to come waits for it again.
     useEffect(() => {
+        const endsAt = standing?.presence?.choiceEndsAt ?? null;
+
         if (endsAt === null) {
             return;
         }
@@ -100,32 +104,32 @@ export function useOwnPresence(
             () => {
                 readAgain();
             },
-            Math.min(Math.max(Date.parse(endsAt) - Date.now(), 0), longestTimer),
+            Math.max(Date.parse(endsAt) - Date.now(), shortestWaitForTheEnd),
         );
 
         return () => {
             clearTimeout(timer);
         };
-    }, [endsAt, readAgain]);
+    }, [standing, readAgain]);
 
     const choose = useCallback(
-        async (state: PresenceState, duration: PresenceDuration | null): Promise<boolean> => {
+        async (state: PresenceState, duration: PresenceDuration | null): Promise<ClientFailureReason | null> => {
             if (session === null) {
-                return false;
+                return 'unauthenticated';
             }
 
             const asked = ++latest.current;
             const answer = await choosePresence(session, transport, state, duration);
 
             if (answer.outcome === 'failed') {
-                return false;
+                return answer.failure.reason;
             }
 
             if (asked === latest.current) {
                 setHeld({ session, presence: answer.value });
             }
 
-            return true;
+            return null;
         },
         [session, transport],
     );

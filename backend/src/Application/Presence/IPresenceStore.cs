@@ -78,9 +78,10 @@ public interface IPresenceStore
     /// <remarks>Housekeeping rather than correctness: an expired row already counts for nothing, so a sweep that never runs leaves rows behind and changes nobody's presence.</remarks>
     Task RemoveExpiredClientsAsync(DateTimeOffset removableFrom, int mostRemoved, CancellationToken cancellationToken);
 
-    /// <summary>Reads who belongs to an organization, which is who a change to one member's presence is announced to.</summary>
+    /// <summary>Reads the persons of an organization, which is who a change to one member's presence is announced to.</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The users of the organization, at most <see cref="MostReadMembers" /> of them by identifier.</returns>
+    /// <returns>The persons of the organization, at most <see cref="MostReadMembers" /> of them by identifier — the population and the bound the member directory lists, so nobody the directory shows is left untold.</returns>
+    /// <remarks>A service account is left out: it appears in no directory, so it has no colleague's presence to redraw.</remarks>
     Task<IReadOnlyList<UserId>> ReadOrganizationUsersAsync(Guid organization, CancellationToken cancellationToken);
 }

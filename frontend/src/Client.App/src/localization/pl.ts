@@ -2776,4 +2776,12 @@ export const pl: Catalogue = {
     'presence.forWeek': 'Ten tydzień',
     'presence.done': 'Gotowe',
     'presence.notChosen': 'Nie udało się zmienić statusu.',
+    'presence.notChosenUnauthenticated':
+        'Twoja sesja nie jest już przyjmowana. Zaloguj się ponownie, aby zmienić status.',
+    'presence.notChosenUnauthorized': 'To poświadczenie nie może zmieniać Twojego statusu.',
+    'presence.notChosenUnavailable': 'Serwer nie odpowiedział.',
+    'presence.notChosenUnreadable':
+        'Serwer odpowiedział czymś, czego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
+    'presence.notChosenMissing': 'Nie należysz już do żadnej organizacji, więc nie masz statusu do zmiany.',
+    'presence.chooseAgain': 'Spróbuj ponownie',
 };

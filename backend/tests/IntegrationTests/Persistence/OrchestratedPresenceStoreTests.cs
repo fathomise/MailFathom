@@ -164,15 +164,16 @@ public sealed class OrchestratedPresenceStoreTests(MailFathomOrchestrationFixtur
         }
     }
 
-    /// <summary>The users a change is told to are the organization's own, and a user of another organization is not among them.</summary>
+    /// <summary>The users a change is told to are the organization's own persons, and neither its service account nor a user of another organization is among them.</summary>
     [Fact]
-    public async Task ReadOrganizationUsersAsync_TwoOrganizations_ReadsOnlyTheNamedOnesUsers()
+    public async Task ReadOrganizationUsersAsync_TwoOrganizationsAndAServiceAccount_ReadsOnlyTheNamedOnesPersons()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var host = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
         var organization = Guid.CreateVersion7();
         var otherOrganization = Guid.CreateVersion7();
         Guid[] members = [Guid.CreateVersion7(), Guid.CreateVersion7()];
+        var robot = Guid.CreateVersion7();
         var outsider = Guid.CreateVersion7();
 
         try
@@ -186,6 +187,10 @@ public sealed class OrchestratedPresenceStoreTests(MailFathomOrchestrationFixtur
                 await ProvisionAsync(host, member, organization, cancellationToken);
             }
 
+            await ProvisionAsync(host, robot, organization, cancellationToken);
+            Assert.True(await host.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IUserProvisioning>().SetTypeAsync(UserId.Create(robot), UserType.ServiceAccount, token),
+                cancellationToken));
             await ProvisionAsync(host, outsider, otherOrganization, cancellationToken);
 
             // Act
@@ -196,7 +201,7 @@ public sealed class OrchestratedPresenceStoreTests(MailFathomOrchestrationFixtur
         }
         finally
         {
-            foreach (var user in members.Append(outsider))
+            foreach (var user in members.Append(robot).Append(outsider))
             {
                 await OrchestratedForeignUser.EraseAsync(host, user);
             }

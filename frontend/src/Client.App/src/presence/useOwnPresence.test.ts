@@ -119,4 +119,60 @@ describe('useOwnPresence', () => {
             expect(result.current?.presence.state).toBe('Active');
         });
     });
+
+    it('waits for the end again when the read at it still finds the while running, as a clock ahead of the deployment’s does', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        vi.setSystemTime(Date.parse('2026-10-31T09:00:00Z'));
+
+        const running = {
+            state: 'Busy',
+            chosenState: 'Busy',
+            choiceDuration: '1h',
+            choiceEndsAt: '2026-10-31T10:00:00Z',
+        };
+        const { transport, reads, answer } = deployment({ status: 200, body: running });
+        const { result } = renderHook(() => useOwnPresence(session, transport, channel().signalled));
+
+        await waitFor(() => {
+            expect(result.current?.presence.choiceEndsAt).toBe('2026-10-31T10:00:00Z');
+        });
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(3_600_000);
+        });
+        await waitFor(() => {
+            expect(reads()).toBe(2);
+        });
+
+        answer({ status: 200, body: { state: 'Active', chosenState: null, choiceEndsAt: null } });
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(10_000);
+        });
+        await waitFor(() => {
+            expect(result.current?.presence.state).toBe('Active');
+        });
+    });
+
+    it('answers why a choice was not taken, and nothing where it was', async () => {
+        const { transport, answer } = deployment({ status: 200, body: busy });
+        const { result } = renderHook(() => useOwnPresence(session, transport, channel().signalled));
+
+        await waitFor(() => {
+            expect(result.current?.presence.state).toBe('Busy');
+        });
+
+        const refused: unknown[] = [];
+
+        answer({ status: 403 });
+        await act(async () => {
+            refused.push(await result.current?.choose('Away', null));
+        });
+        answer({ status: 200, body: { state: 'Away', chosenState: 'Away', choiceEndsAt: null } });
+        await act(async () => {
+            refused.push(await result.current?.choose('Away', null));
+        });
+
+        expect(refused).toEqual(['unauthorized', null]);
+    });
 });

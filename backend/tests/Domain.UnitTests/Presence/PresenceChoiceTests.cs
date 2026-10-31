@@ -82,6 +82,41 @@ public sealed class PresenceChoiceTests
         Assert.Equal(Instant(expected), choice?.EndsAt);
     }
 
+    /// <summary>Warsaw's day of 25 October 2026 lasts twenty-five hours and its day of 29 March twenty-three, so each ends an hour off the offset it began under.</summary>
+    [Theory]
+    [InlineData("2026-10-25T10:00:00Z", "2026-10-25T23:00:00Z")]
+    [InlineData("2026-03-29T08:00:00Z", "2026-03-29T22:00:00Z")]
+    public void Made_TodayOnADaylightSavingChange_EndsAtTheMidnightUnderTheNewOffset(string madeAt, string expected)
+    {
+        // Act
+        var choice = PresenceChoice.Made(PresenceState.Busy, PresenceDuration.Today, Instant(madeAt), Warsaw);
+
+        // Assert
+        Assert.Equal(Instant(expected), choice?.EndsAt);
+    }
+
+    /// <summary>Made on Saturday 24 October under summer time, a week runs across that night's change and ends at midnight under winter time.</summary>
+    [Fact]
+    public void Made_ThisWeekAcrossADaylightSavingChange_EndsAtTheMidnightUnderTheNewOffset()
+    {
+        // Act
+        var choice = PresenceChoice.Made(PresenceState.DoNotDisturb, PresenceDuration.ThisWeek, Instant("2026-10-24T08:00:00Z"), Warsaw);
+
+        // Assert
+        Assert.Equal(Instant("2026-10-25T23:00:00Z"), choice?.EndsAt);
+    }
+
+    /// <summary>Santiago moves its clocks at midnight itself on 6 September 2026, so that day begins at one o'clock and a choice made the day before ends there.</summary>
+    [Fact]
+    public void Made_TodayBeforeAMidnightTheZoneSkips_EndsAtTheFirstLocalTimeThatHappens()
+    {
+        // Act
+        var choice = PresenceChoice.Made(PresenceState.Busy, PresenceDuration.Today, Instant("2026-09-05T16:00:00Z"), Zone("America/Santiago"));
+
+        // Assert
+        Assert.Equal(Instant("2026-09-06T04:00:00Z"), choice?.EndsAt);
+    }
+
     [Fact]
     public void Made_TodayInUtc_EndsAtMidnightUtc()
     {

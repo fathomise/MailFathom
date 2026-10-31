@@ -151,8 +151,8 @@ erases it.
 
 - **Members of the same organization, and nobody else.** Presence and *Last seen* are added to `ColleagueResponse`, so
   every list and contact that already reads colleagues reads presence in the same query, under the same
-  `ContactsRead` grant. A user in no organization has no colleagues. Their renewals are accepted and record nothing,
-  so a deployment holds no presence for somebody nobody can see.
+  `ContactsRead` grant. A user in no organization has no colleagues. Every presence route answers them `404` and
+  records nothing, so a deployment holds no presence for somebody nobody can see, and their client stops renewing.
 - **The member reads their own**: `GET /api/client/presence` answers their state as they see it, `Hidden` included,
   with their choice and when it ends. That is what the dot on the rail avatar and the status menu draw.
 - **MCP never reads it.** ADR 0044 already keeps every availability fact on the client endpoint alone, and this record
@@ -165,7 +165,8 @@ erases it.
 
 A new client signal kind, `presence.changed`, carries the identifiers of the members whose presence a reader might see
 differently, and nothing else: no state and no timestamp. The deployment publishes it to the user group of every member
-of the organization, the member included, resolved when it is published, so somebody who has just left the
+of the organization, the member included — every person the member directory lists, under the same bound, and no
+service account, which has no colleague to draw — resolved when it is published, so somebody who has just left the
 organization receives nothing. It crosses replicas over the backplane exactly as every other signal does, and the
 client answers it by re-reading the presence it draws.
 

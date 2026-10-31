@@ -191,15 +191,48 @@ describe('StatusMenu', () => {
         expect(choices).toEqual([]);
     });
 
-    it('says so where the deployment did not take the choice', async () => {
-        const { toasts } = renderMenu(automatic, 500);
+    it('says the server did not answer where it did not, and offers to choose again', async () => {
+        const { toasts, choices } = renderMenu(automatic, 503);
+        await theMenuShown();
+
+        fireEvent.click(state('Busy'));
+
+        await waitFor(() => {
+            expect(toasts.raise).toHaveBeenCalledOnce();
+        });
+
+        const [raised] = vi.mocked(toasts.raise).mock.calls[0] ?? [];
+
+        expect([raised?.kind, raised?.title, raised?.body, raised?.action?.label]).toEqual([
+            'error',
+            'Your status could not be changed.',
+            'The server did not answer.',
+            'Try again',
+        ]);
+
+        raised?.action?.take();
+
+        await waitFor(() => {
+            expect(choices).toEqual([
+                { state: 'Busy', duration: null },
+                { state: 'Busy', duration: null },
+            ]);
+        });
+    });
+
+    it('says the credential may not change the status where the grant is missing, with nothing to try again', async () => {
+        const { toasts } = renderMenu(automatic, 403);
         await theMenuShown();
 
         fireEvent.click(state('Busy'));
 
         await waitFor(() => {
             expect(toasts.raise).toHaveBeenCalledWith(
-                { kind: 'error', title: 'Your status could not be changed.' },
+                {
+                    kind: 'error',
+                    title: 'Your status could not be changed.',
+                    body: 'This credential may not change your status.',
+                },
                 expect.any(Number),
             );
         });

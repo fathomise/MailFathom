@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type ToggleEven
 import {
     presenceDurations,
     presenceStates,
+    type ClientFailureReason,
     type PresenceDuration,
     type PresenceState,
 } from '@mailfathom/client-backend';
@@ -13,6 +14,7 @@ import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { PersonAvatar } from '../controls/PersonAvatar';
 import { SymbolControl } from '../controls/SymbolControl';
+import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
 import { useToasts } from '../toasts/useToasts';
@@ -27,6 +29,16 @@ import type { OwnPresenceInForce } from './useOwnPresence';
 // from the list lasts until changed, which ends any while chosen before; *Duration* is a state and when to reset it,
 // taken together by its own *Done*. A 272 px menu beside the rail where the user menu stood, and a sheet on a phone;
 // `statusMenuOpening.ts` is how a row in another surface reaches it.
+
+// What a refused choice says beneath *Your status could not be changed*: each reason has its own way out, and only a
+// server that did not answer is one trying again can fix.
+const refusals: Readonly<Record<ClientFailureReason, MessageKey>> = {
+    unauthenticated: 'presence.notChosenUnauthenticated',
+    unauthorized: 'presence.notChosenUnauthorized',
+    unavailable: 'presence.notChosenUnavailable',
+    unreadable: 'presence.notChosenUnreadable',
+    missing: 'presence.notChosenMissing',
+};
 
 // The items of the page in front, which the arrow keys move between as they do in any menu.
 function moveAmong(event: KeyboardEvent<HTMLElement>, items: string): void {
@@ -119,10 +131,26 @@ export function StatusMenu({
         setOnDuration(false);
         setReturnedFromDuration(false);
 
-        void own.choose(state, duration).then((taken) => {
-            if (!taken) {
-                toasts.raise({ kind: 'error', title: translate('presence.notChosen') });
+        void own.choose(state, duration).then((refused) => {
+            if (refused === null) {
+                return;
             }
+
+            toasts.raise({
+                kind: 'error',
+                title: translate('presence.notChosen'),
+                body: translate(refusals[refused]),
+                ...(refused === 'unavailable'
+                    ? {
+                          action: {
+                              label: translate('presence.chooseAgain'),
+                              take: () => {
+                                  choose(state, duration);
+                              },
+                          },
+                      }
+                    : {}),
+            });
         });
     }
 

@@ -2741,6 +2741,13 @@ export const en = {
     'presence.forWeek': 'This week',
     'presence.done': 'Done',
     'presence.notChosen': 'Your status could not be changed.',
+    'presence.notChosenUnauthenticated': 'Your session is no longer accepted. Sign in again to change your status.',
+    'presence.notChosenUnauthorized': 'This credential may not change your status.',
+    'presence.notChosenUnavailable': 'The server did not answer.',
+    'presence.notChosenUnreadable':
+        'The server answered with something this client could not read. This is worth reporting as a defect.',
+    'presence.notChosenMissing': 'You are no longer a member of an organization, so you have no status to change.',
+    'presence.chooseAgain': 'Try again',
 } as const;
 
 /** Every message a screen may ask for. A key absent here does not compile at the call site. */
