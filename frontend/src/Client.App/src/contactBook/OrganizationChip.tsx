@@ -14,7 +14,9 @@ import { useLocalization } from '../localization/useLocalization';
 // row it says nothing more, because a row's own hold opens its menu and one gesture opens one surface.
 //
 // The name is the one the session answered with. Where it answered none — the organization deleted since, or a name the
-// client could not read — the chip says *Organization* rather than the identifier the contact carries.
+// client could not read — the chip says *Organization* rather than the identifier the contact carries. A name may run to
+// what an organization can carry, so the chip takes at most half its line and cuts the rest, and on the page the bubble
+// still says it whole.
 
 export function OrganizationChip({
     organizationName,
@@ -34,9 +36,9 @@ export function OrganizationChip({
 
     if (place === 'row') {
         return (
-            <span className="ms-auto flex shrink-0 items-center gap-1 rounded-sm border border-line-strong px-1.5 py-px text-xs whitespace-nowrap text-text-soft">
-                <Icon name="corporate_fare" className="size-icon-xs" />
-                {name}
+            <span className="ms-auto flex max-w-1/2 shrink-0 items-center gap-1 rounded-sm border border-line-strong px-1.5 py-px text-xs whitespace-nowrap text-text-soft">
+                <Icon name="corporate_fare" className="size-icon-xs shrink-0" />
+                <span className="truncate">{name}</span>
             </span>
         );
     }
@@ -45,10 +47,10 @@ export function OrganizationChip({
         <>
             <span
                 {...anchor}
-                className="flex shrink-0 items-center gap-1.25 rounded-sm border border-line-strong px-1.75 py-0.5 text-xs font-semibold whitespace-nowrap text-text-soft"
+                className="flex max-w-1/2 shrink-0 items-center gap-1.25 rounded-sm border border-line-strong px-1.75 py-0.5 text-xs font-semibold whitespace-nowrap text-text-soft"
             >
-                <Icon name="corporate_fare" className="size-icon-xs" />
-                {name}
+                <Icon name="corporate_fare" className="size-icon-xs shrink-0" />
+                <span className="truncate">{name}</span>
             </span>
             {tip}
         </>
