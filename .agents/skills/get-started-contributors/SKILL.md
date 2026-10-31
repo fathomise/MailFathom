@@ -605,9 +605,11 @@ offer to go deeper on any one of them instead of expanding all six.
    bash scripts/verify-fast.sh
    ```
 
-   In the service stack it restores, builds, runs the unit tests, and then formats the C# files the branch changed; in
-   the client stack it restores the workspace in locked mode and runs its lint, its type check, its suite, and its
-   formatting pass. **Both halves rewrite working-tree files by design.** Never run `dotnet format` or `pnpm format`
+   It builds every stack the change reaches first, tests second, and formats last: in the service stack it restores,
+   builds, runs the unit tests, and formats the C# files the branch changed; in the client stack it restores the
+   workspace in locked mode and runs its lint and its type check, then its suite, then its formatting pass. **Both
+   halves rewrite working-tree files by design**, and a run whose formatting pass rewrote a file fails, to be run again
+   over the formatted tree. Never run `dotnet format` or `pnpm format`
    by hand; both of their modes already run where they belong.
 
    That loop is also the gate before a commit, so stage the task files and run it again. It refuses a branch that no

@@ -675,6 +675,27 @@ verify_fast_runs_the_client_flow_for_a_change_under_frontend() {
     "$client_invocation_log"
 }
 
+# The same branch through one log shared by both shims, which is the only place the order between the
+# two stacks shows: every build and check comes first, then every suite, then every formatting pass,
+# so a lint error in the client ends the run before the service suite starts rather than after it.
+verify_fast_builds_every_stack_before_testing_either() {
+  local shared_invocation_log="$test_directory/shared-invocations.log"
+  add_client_change
+  : > "$shared_invocation_log"
+
+  (
+    export FAKE_DOTNET_LOG="$shared_invocation_log"
+    export FAKE_PNPM_LOG="$shared_invocation_log"
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$test_directory/verify-fast-shared-output" 2>&1
+
+  remove_client_change
+  assert_file_content \
+    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\n--dir frontend install --frozen-lockfile\n--dir frontend run lint\n--dir frontend run typecheck\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\n--dir frontend run test\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs\n--dir frontend run format' \
+    "$shared_invocation_log"
+}
+
 # The full gate over the same branch. The service solution is verified with the files the branch
 # changed, because `--include` selects within the workspace `dotnet format` loaded and the service
 # workspace is several dozen projects; a client path in that list would name no file the solution
@@ -1059,15 +1080,22 @@ verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass() {
 }
 
 # A run whose formatting pass rewrote a file verified a build and a suite against content the working
-# tree no longer holds, so it records nothing and the next run does the work.
-verify_fast_records_nothing_when_formatting_rewrote_a_file() {
-  (
+# tree no longer holds, so it fails, records nothing, and the next run does the work.
+verify_fast_fails_and_records_nothing_when_formatting_rewrote_a_file() {
+  local rewrite_output="$test_directory/verify-fast-rewrite-output"
+
+  if (
     export FAKE_DOTNET_REWRITE="$repository_root/backend/src/Sample.cs"
     cd "$repository_root"
     "$scripts_directory/verify-fast.sh"
-  )
+  ) > "$rewrite_output" 2>&1; then
+    git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
+    printf 'verify-fast.sh succeeded although its formatting pass rewrote a file\n' >&2
+    return 1
+  fi
 
   git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
+  assert_contains 'The formatting pass rewrote files' "$rewrite_output"
   : > "$invocation_log"
 
   (
@@ -12208,6 +12236,7 @@ run_test verify_fast_stops_when_the_remote_is_unreachable
 run_test verify_fast_refuses_a_whitespace_error
 run_test verify_fast_fetches_the_remote_base_before_verifying
 run_test verify_fast_runs_the_client_flow_for_a_change_under_frontend
+run_test verify_fast_builds_every_stack_before_testing_either
 run_test verify_fast_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_both_flows_for_a_change_above_both_stacks
@@ -12227,7 +12256,7 @@ run_test verify_fast_runs_again_once_the_tree_changed
 run_test verify_fast_accepts_the_record_the_full_gate_wrote
 run_test verify_fast_accepts_the_full_gate_record_for_a_client_change
 run_test verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass
-run_test verify_fast_records_nothing_when_formatting_rewrote_a_file
+run_test verify_fast_fails_and_records_nothing_when_formatting_rewrote_a_file
 run_test verify_full_records_nothing_when_it_failed
 run_test verify_force_runs_everything_a_record_would_have_skipped
 run_test verify_full_formats_the_whole_solution_when_a_shared_style_input_changed

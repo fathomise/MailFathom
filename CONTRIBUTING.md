@@ -129,7 +129,7 @@ Once your branch has changed something, run the fast loop instead of the command
 bash scripts/verify-fast.sh
 ```
 
-It restores, builds, runs the unit tests, and then formats the C# files your branch changed. **It rewrites working-tree files by design** — that is how a style diagnostic reaches you in seconds rather than after the full gate has run. Review what it changed.
+It restores, builds, runs the unit tests, and then formats the C# files your branch changed — building every stack your change reaches before testing any of them, so a build error stops it before a suite starts. **It rewrites working-tree files by design** — that is how a style diagnostic reaches you in seconds rather than after the full gate has run. When it does rewrite one, it fails: review what it changed and run it again over the formatted files.
 
 It does that in whichever of the two stacks your change reaches, decided from the paths you touched rather than by you: the server's solution for a change under `backend/`, both stacks for a change to a file above them such as `global.json`, and neither for a change no build reads. The lists are the ones `ci.yml` uses, so the gate builds what the pipeline will. The client stack's half restores the pnpm workspace under `frontend/` in locked mode and runs its lint, its type check, and a formatting pass, so a change under `frontend/` needs Node and pnpm on the path exactly as a change under `backend/` needs the SDK.
 
@@ -152,7 +152,7 @@ bash scripts/verify-full.sh
 
 Every verdict it produces arrives again on your pull request, from the same coverage target, the same contract suite, and the same client flow — on a runner per job rather than on your machine. What running it buys is that answer earlier, which is worth it when it is the one you are waiting on: a coverage figure, the whole solution's formatting after you touched an `.editorconfig` or a shared build file, a client bundle that has to build. It also rejects remaining untracked files, so a newly added file cannot slip past diff validation.
 
-Neither script proves the same tree twice. Each records a digest of what it verified under `artifacts/verify/`, which is ignored and never staged, and a run handed a tree it has already passed over prints the earlier run and stops in under a second. So run the gate rather than working out whether the last run still counts: a failing run records nothing, a fast loop whose formatting pass rewrote a file records nothing, and `VERIFY_FORCE=1` runs everything regardless.
+Neither script proves the same tree twice. Each records a digest of what it verified under `artifacts/verify/`, which is ignored and never staged, and a run handed a tree it has already passed over prints the earlier run and stops in under a second. So run the gate rather than working out whether the last run still counts: a failing run records nothing, a fast loop whose formatting pass rewrote a file fails and records nothing, and `VERIFY_FORCE=1` runs everything regardless.
 
 Both scripts refuse to run on `main` or `master`. Check out your branch rather than working around the refusal.
 
