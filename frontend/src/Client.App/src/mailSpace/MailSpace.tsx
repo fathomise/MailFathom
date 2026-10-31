@@ -65,10 +65,10 @@ import { paneArrival, usePaneMotion } from '../shell/paneMotion';
 // - *The toolbar at all*, which is the phone question: bottom navigation already spends the foot of a phone-width
 //   window, and the toolbar's acts are on the selection bar and the message's own head there.
 //
-// The boundaries the columns are dragged at are a mouse's alone: a drag handle is a fine pointer's gesture, so a
-// window driven by one draws them wherever the columns stand beside each other, and one driven by a finger draws none
-// at any width. Nothing is hidden by the width alone; what a narrower composition cannot show at once is reached
-// rather than dropped.
+// The boundaries the columns are dragged at stand wherever two columns stand beside each other, and a mouse and a
+// finger drag them alike — the finger by the grip the design draws in each one's middle. The mailboxes' boundary is
+// absent only where that column is folded to its strip or into a drawer. Nothing is hidden by the width alone; what a
+// narrower composition cannot show at once is reached rather than dropped.
 //
 // Where focus goes when the single-pane shape changes what it shows is this component's too: a message coming in front
 // of the list is a view change, and so is going back, and a reader on a keyboard is put at the start of what replaced

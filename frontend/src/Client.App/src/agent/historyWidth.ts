@@ -6,7 +6,8 @@
 // the reset, and the keyboard step of the one boundary it has.
 //
 // The design's column is 250 pixels and is dragged between 200 and 480, each of them its content alone; the widths
-// here count its padding and its rule in, twenty-one pixels, because they are the width the column is drawn at.
+// here count its padding and its one-pixel rule in, twenty-one pixels, because they are the width the column is drawn
+// at. The design draws that rule on the column and the five-pixel boundary beside it, and so does `AgentSpace`.
 
 /** The narrowest the history column is drawn at. */
 export const narrowestHistory = 221;

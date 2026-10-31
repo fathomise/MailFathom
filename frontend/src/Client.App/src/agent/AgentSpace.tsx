@@ -591,12 +591,12 @@ export function AgentSpace({
             </header>
 
             <div className="relative flex min-h-0 flex-1">
-                {/* The column's rule is the boundary beside it, which a mouse and a finger drag alike. */}
+                {/* The design draws the column's own rule and, beside it, the boundary a mouse and a finger drag alike. */}
                 {wide && historyShown ? (
                     <>
                         <nav
                             aria-label={translate('agent.history')}
-                            className="flex shrink-0 flex-col bg-rail"
+                            className="flex shrink-0 flex-col border-e border-line bg-rail"
                             style={{ width: `${String(historyWidth)}px` }}
                         >
                             {historyPanel(false)}

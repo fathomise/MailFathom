@@ -68,8 +68,9 @@ export function WidthGrip({
     // its own bookkeeping.
     const dragging = useRef<{ pointer: number; from: number; startedAt: number } | null>(null);
 
-    // The hint stands while a mouse rests on the grip or a key has focused it, and gets out of the way of a drag.
-    const { anchor, tip } = useTip({ says: hint, describes: true, onPress: () => undefined });
+    // The hint stands while a mouse rests on the grip or a key has focused it. A finger never brings it up, by a tap or
+    // by a hold: its hold on a boundary is the drag, and one held finger opens one surface.
+    const { anchor, tip } = useTip({ says: hint, describes: true, tapReveals: false });
 
     function beginDrag(event: PointerEvent<HTMLDivElement>): void {
         const drag = dragging.current;

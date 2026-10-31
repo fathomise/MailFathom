@@ -4648,7 +4648,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         settingsGrabber: singlePane,
         /* A pane boundary is the 5 px line under a mouse. A finger gets a 25 px reach along the whole line and, in its
            middle, a grip to take hold of: a 12 x 44 px pill on --panel, its own target 44 x 44. */
-        boundaryStyle: "flex:0 0 5px;cursor:col-resize;background:var(--line);position:relative;z-index:5;touch-action:none",
+        boundaryStyle: "flex:0 0 5px;cursor:col-resize;background:var(--line);position:relative;z-index:5;touch-action:none;-webkit-tap-highlight-color:transparent",
+        /* A mouse resting on a boundary lights it; a finger has no hover, and a lit line would stay lit after the drag. */
+        boundaryHover: touch ? "" : "background:var(--accent)",
+        boundaryListHover: touch ? "" : "background:var(--accent-line)",
         boundaryReachStyle: "position:absolute;top:0;bottom:0;left:-10px;right:-10px",
         boundaryGrip: !!touch,
         boundaryGripStyle: "position:absolute;top:50%;left:50%;width:44px;height:44px;margin:-22px 0 0 -22px;display:flex;align-items:center;justify-content:center",
