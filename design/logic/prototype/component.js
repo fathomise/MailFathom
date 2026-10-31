@@ -7,7 +7,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     me: { name: ME, address: MY_MAIL },
     app: { version: APP_VERSION, build: APP_BUILD },
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI, organization: ORGANIZATION,
-    threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, newInThread: NEW_IN_THREAD, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
+    threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, newInThread: NEW_IN_THREAD, sentLast: SENT_LAST, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO, sendLater: SEND_LATER,
     accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
@@ -283,6 +283,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     const prior = [M(t.from || "Sender", "earlier", [{ text: "Following up on what we agreed earlier: " + lowerFirst(s1 || "the thread topic") + "." }])];
     if (s2 && s2 !== "None") prior.push(M(ME, "earlier", [{ text: "Thank you. Still open: " + lowerFirst(s2) + "." }]));
     return prior.concat([last]);
+  };
+  /* Read by thread, a thread may end in the user's own reply (`sentLast`). */
+  const convMsgsFor = (t) => {
+    const own = SENT_LAST[t.id];
+    return own ? msgsFor(t).concat([M(ME, own.when, [{ text: own.text }])]) : msgsFor(t);
   };
 
   /* THE SENDER MARK — what the service publishes about who sent a received message (data/prototype/sender-marks.js),
@@ -3852,7 +3857,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc));
       const convFirst = (n) => n === ME ? "me" : n.split(" ")[0];
       const convRowOf = (t) => {
-        const ms = msgsFor(t);
+        const ms = convMsgsFor(t);
         const pick = ms[ms.length - 1];
         const people = ms.map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
         const others = people.filter(n => n !== ME);
@@ -3862,7 +3867,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const title = aiHints && !this.spamOf(t.id).spam ? CONV_TITLES[t.id] : null;
         const standingStale = !!title && !!t.stateStale;
         const standing = title && !standingStale ? title.standing || "" : "";
-        const who = pick.mine ? "You:" : others.length > 1 ? convFirst(pick.from) + ":" : "";
+        const who = pick.mine ? "You:" : (people.length === 1 ? pick.from : convFirst(pick.from)) + ":";
         return {
           convPeople: named(people),
           convTitled: !!title,
@@ -4006,7 +4011,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const inSent = /·Sent$/.test(st.folderKey || "");
       const rcptOpen = (id) => !!(st.receiptPop && st.receiptPop.id === id);
       const withReceipt = (t, row) => {
-        const R = inSent ? receiptOf(t.id) : null;
+        const R = convMail ? (convMsgsFor(t).slice(-1)[0].mine ? receiptOf(t.id) : null) : inSent ? receiptOf(t.id) : null;
         if (!R || R.k === "waiting") return Object.assign(row, { rcptShown: false });
         return Object.assign(row, {
           rcptShown: true, rcptGlyph: R.glyph, rcptName: R.name, rcptOpen: rcptOpen(t.id),
@@ -4133,7 +4138,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         fullscreen: () => this.setState({ stateBarOff: true }),
         fullscreen_exit: () => this.setState({ stateBarOff: false }),
       };
-      const msgs = msgsFor(thread);
+      const msgs = convMail ? convMsgsFor(thread) : msgsFor(thread);
       const htmlViewMode = st.msgView === "html";
       const lastIdx = msgs.length - 1;
       const openMap = st.msgOpen || {};
@@ -7366,7 +7371,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           swipeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;margin-right:8px" + (Math.abs(st.swipeDx || 0) >= 96 ? ";font-variation-settings:'wght' 500" : ""),
           swipeTextStyle: "font-size:13px;font-weight:600;opacity:" + (Math.abs(st.swipeDx || 0) >= 96 ? "1" : "0.55"),
           aiStyle: isMobile ? "display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);line-height:1.35" : "display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)",
-          from: t.from, org: t.org, time: t.time, subject: t.subject, ai: t.ai,
+          from: t.from, org: t.org, time: convMail && SENT_LAST[t.id] ? SENT_LAST[t.id].time : t.time, subject: t.subject, ai: t.ai,
           hasAvatar: !!avatarOf(t.from), noAvatar: !avatarOf(t.from), initials: initialsOf(t.from),
           // A colleague's row carries their presence on the avatar, as every list that draws a member does.
           fromMember: !!isMemberName(t.from), fromDotStyle: presenceDot(seenPresence((isMemberName(t.from) || {}).presence), isMobile ? 11 : 8),

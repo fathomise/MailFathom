@@ -1044,8 +1044,8 @@ MailFathomDesign.data.conversationTitles = {
   marta: { topic: "2027 CPI indexation", standing: "Our reply due 27.08" },
   anna2: { topic: "Contoso 2027 terms", standing: "Waiting on our counter-proposal" },
   hr1: { topic: "Staff satisfaction survey", standing: "Closes 05.09" },
-  north1: { topic: "Northwind reporting module quote", standing: "Needs a decision · valid 30 days" },
-  fabrikam1: { topic: "Fabrikam Q4 deliveries", standing: "Slipped to November" },
+  north1: { topic: "Northwind reporting module quote", standing: "We asked for a revised quote" },
+  fabrikam1: { topic: "Fabrikam Q4 deliveries", standing: "Slipped to November · we asked for October dates" },
   audyt1: { topic: "Contract register for the audit", standing: "Data owed by 03.09" },
   prawnik2: { topic: "Northwind NDA", standing: "Draft ready to sign" },
   travel1: { topic: "Kraków-Berlin trip on 12.09", standing: "" },
@@ -1058,3 +1058,16 @@ MailFathomDesign.data.conversationTitles = {
 /* How many of an unread thread's received messages arrived since it was last read, counted back from the newest. The
    user's own messages between them are context rather than news. A thread unread but missing here has one. */
 MailFathomDesign.data.newInThread = { contoso: 2, piotr: 2, marta: 1, finanse: 1, jacek: 1 };
+
+/* Threads whose newest message is the user's own reply, drawn only when the list is read by thread: its row then
+   carries what came back for that reply (receipts.js), as a Sent row does. */
+MailFathomDesign.data.sentLast = {
+  north1: {
+    when: "today 07:40", time: "07:40",
+    text: "Thank you, Robert. Before we decide, could you send a revised quote with the export to Power BI included and the licence priced per user?",
+  },
+  fabrikam1: {
+    when: "yesterday 17:30", time: "yest.",
+    text: "Tomasz, November does not work for our rollout. Please confirm which items can still ship in October and the new dates for the rest.",
+  },
+};
