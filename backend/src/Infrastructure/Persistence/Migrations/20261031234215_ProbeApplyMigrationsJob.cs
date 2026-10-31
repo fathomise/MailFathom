@@ -15,6 +15,7 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("CREATE TABLE apply_migrations_probe (id integer PRIMARY KEY);");
+            migrationBuilder.Sql("ALTER TABLE apply_migrations_probe_missing ADD COLUMN probe text;");
         }
 
         /// <inheritdoc />
