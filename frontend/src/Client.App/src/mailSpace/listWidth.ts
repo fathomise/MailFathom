@@ -75,9 +75,17 @@ export function readListWidth(person: string | null): number | null {
     return Number.isFinite(stored) && stored > 0 ? listWidthWithin(stored, Number.POSITIVE_INFINITY) : null;
 }
 
-/** Keeps the width this person settled on, so the next start of the client opens the Mail space at it. */
-export function storeListWidth(person: string | null, width: number): void {
+/**
+ * Keeps the width this person settled on, so the next start of the client opens the Mail space at it — or forgets it
+ * for `null`, which a list set back to its band's own width is, so the next band's width is the one it opens at.
+ */
+export function storeListWidth(person: string | null, width: number | null): void {
     if (person === null) {
+        return;
+    }
+
+    if (width === null) {
+        deviceStore().remove(listWidthKey(person));
         return;
     }
 

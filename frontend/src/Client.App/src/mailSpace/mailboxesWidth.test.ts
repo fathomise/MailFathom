@@ -78,6 +78,13 @@ describe('storeMailboxesWidth', () => {
 
         expect(window.localStorage.length).toBe(0);
     });
+
+    it('forgets the width this person settled on when handed none', () => {
+        storeMailboxesWidth(reader, 320);
+        storeMailboxesWidth(reader, null);
+
+        expect(readMailboxesWidth(reader)).toBeNull();
+    });
 });
 
 describe('startingMailboxesWidthIn', () => {

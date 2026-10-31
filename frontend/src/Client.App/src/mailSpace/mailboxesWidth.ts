@@ -62,9 +62,17 @@ export function readMailboxesWidth(person: string | null): number | null {
     return Number.isFinite(stored) && stored > 0 ? mailboxesWidthWithin(stored) : null;
 }
 
-/** Keeps the width this person settled on, so the next start of the client opens the Mail space at it. */
-export function storeMailboxesWidth(person: string | null, width: number): void {
+/**
+ * Keeps the width this person settled on, so the next start of the client opens the Mail space at it — or forgets it
+ * for `null`, which a column set back to its band's own width is, so the next band's width is the one it opens at.
+ */
+export function storeMailboxesWidth(person: string | null, width: number | null): void {
     if (person === null) {
+        return;
+    }
+
+    if (width === null) {
+        deviceStore().remove(mailboxesWidthKey(person));
         return;
     }
 

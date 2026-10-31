@@ -415,7 +415,7 @@ export function MailSpace({
                                     setChosenMailboxesWidth(mailboxesWidthWithin(moved));
                                 }}
                                 onChosen={(chosen) => {
-                                    const settled = mailboxesWidthWithin(chosen);
+                                    const settled = chosen === startingMailboxes ? null : mailboxesWidthWithin(chosen);
 
                                     setChosenMailboxesWidth(settled);
                                     storeMailboxesWidth(person, settled);
@@ -547,7 +547,8 @@ export function MailSpace({
                             setChosenListWidth(withinTheRoom(moved));
                         }}
                         onChosen={(chosen) => {
-                            const settled = withinTheRoom(chosen);
+                            // Set back to the band's own width is no choice at all, so another band opens at its own.
+                            const settled = chosen === startingList ? null : withinTheRoom(chosen);
 
                             setChosenListWidth(settled);
                             storeListWidth(person, settled);

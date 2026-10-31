@@ -64,6 +64,13 @@ describe('readListWidth', () => {
         expect(readListWidth('marta')).toBeNull();
     });
 
+    it('reads nothing chosen once the width this person settled on is forgotten', () => {
+        storeListWidth(reader, 420);
+        storeListWidth(reader, null);
+
+        expect(readListWidth(reader)).toBeNull();
+    });
+
     it('reads nothing chosen where nobody is named, and keeps nothing under one', () => {
         storeListWidth(null, 420);
 

@@ -320,6 +320,22 @@ describe('MailSpace, wide', () => {
         expect(readListWidth('karolina')).toBe(startingListWidth + listWidthStep);
     });
 
+    it('forgets the width a reader sets back to the starting one, so another band opens at its own', () => {
+        storeListWidth('karolina', 420);
+        storeMailboxesWidth('karolina', 320);
+
+        renderSpace(desktop, {}, 'karolina');
+
+        fireEvent.keyDown(screen.getByRole('separator', { name: 'Message list width' }), { key: 'Home' });
+        fireEvent.keyDown(screen.getByRole('separator', { name: 'Mailbox column width' }), { key: 'Home' });
+
+        expect(screen.getByRole('separator', { name: 'Message list width' }).getAttribute('aria-valuenow')).toBe(
+            String(startingListWidth),
+        );
+        expect(readListWidth('karolina')).toBeNull();
+        expect(readMailboxesWidth('karolina')).toBeNull();
+    });
+
     it('moves the boundary while the grip is being dragged, and settles where it was let go', () => {
         renderSpace(desktop, {}, 'karolina');
 
