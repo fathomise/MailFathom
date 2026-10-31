@@ -977,7 +977,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="{{ t.convAiBoxStyle }}">
                 <div style="{{ t.convTitleRowStyle }}"><sc-if value="{{ t.convTitled }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="{{ t.convGlyphStyle }}">auto_awesome</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">AI title:</span></sc-if><span style="{{ t.convTitleStyle }}">{{ t.convTitle }}</span></div>
                 <sc-if value="{{ t.convStandingShown }}" hint-placeholder-val="{{ true }}"><div style="{{ t.convStandingStyle }}">{{ t.convStanding }}</div></sc-if>
-                <sc-if value="{{ t.convStandingStale }}" hint-placeholder-val="{{ false }}"><div style="{{ t.convStaleStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1">update</span><span style="overflow:hidden;text-overflow:ellipsis">Changed since it was last read</span></div></sc-if>
+                <sc-if value="{{ t.convStandingStale }}" hint-placeholder-val="{{ false }}"><div style="{{ t.convStaleStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1">hourglass_top</span><span style="overflow:hidden;text-overflow:ellipsis">Updating with the new message…</span></div></sc-if>
                 </div>
                 <div style="{{ t.convSnippetStyle }}"><sc-if value="{{ t.convWhoShown }}" hint-placeholder-val="{{ false }}"><span style="{{ t.convWhoStyle }}">{{ t.convWho }}</span></sc-if>{{ t.convSnippet }}</div>
                 </sc-if>
