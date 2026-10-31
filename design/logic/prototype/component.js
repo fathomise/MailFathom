@@ -7343,6 +7343,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           convTitleStyle: "flex:1 1 auto;min-width:0;font-size:" + (isMobile ? 15 : 14) + "px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" +
             (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:600;color:var(--text)"),
           convWhoStyle: "font-weight:600;color:var(--text2);margin-right:4px",
+          /* The attachment mark: by message, where this message has one; by thread, where any message in it has. */
+          ...(() => {
+            const n = convMail ? convMsgsFor(t).reduce((sum, m) => sum + (m.atts || []).length, 0) : (t.attachments || []).length;
+            return { attShown: n > 0, attLabel: n === 1 ? "1 attachment" + (convMail ? " in this thread" : "") : n + " attachments" + (convMail ? " in this thread" : "") };
+          })(),
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
           movedTo: movedMap[t.id] || "",
