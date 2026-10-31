@@ -3881,12 +3881,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           convStanding: standing,
           convStandingShown: !!standing,
           convStandingStale: standingStale,
-          convStandingStyle: "font-size:13px;line-height:1.35;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
-          convStaleStyle: "display:flex;align-items:center;gap:5px;font-size:13px;line-height:1.35;color:var(--faint);overflow:hidden;white-space:nowrap",
+          convStandingStyle: "padding-left:21px;font-size:13px;line-height:1.35;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+          convStaleStyle: "padding-left:21px;display:flex;align-items:center;gap:5px;font-size:13px;line-height:1.35;color:var(--faint);overflow:hidden;white-space:nowrap",
           convWho: who,
           convWhoShown: !!who,
           convSnippet: this.mdPlain((pick.paras || []).map(p => p.md || p.text || "").join(" ")).slice(0, 260),
-          convSnippetStyle: "margin-top:2px;padding-left:8px;border-left:2px solid var(--line);font-size:13px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:" +
+          convSnippetStyle: "margin-top:2px;padding-left:8px;border-left:2px solid var(--border2);font-size:13px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:" +
             "2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere",
         };
       };
@@ -3947,7 +3947,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const selected = sel.indexOf(t.id) >= 0;
         return Object.assign(row, {
           folded, unfolded: !folded,
-          aiBtnShown: !sp.spam && !convMail,
+          aiBtnShown: !sp.spam,
           showAi: row.showAi && !sp.spam,
           spamBadge: badged,
           spamBadgeDanger: badged && k.danger,
@@ -7329,12 +7329,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           convShown: convMail,
           convPeopleStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px" : "flex:0 1 auto;min-width:0;font-size:14px") + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap" +
             (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
-          /* Under the first line the row is one column of text starting where the names do, so the avatar stands in a
-             gutter of its own and the AI title's glyph hangs in that gutter beside the topic. */
-          convBodyStyle: "position:relative;display:flex;flex-direction:column;gap:1px;min-width:0;padding-left:" + (avSz + 9) + "px",
-          convTitleRowStyle: "display:flex;align-items:center;min-width:0",
-          convGlyphStyle: "position:absolute;left:0;width:" + avSz + "px;text-align:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:" + (isMobile ? 21 : 20) + "px;color:var(--muted)",
-          convTitleStyle: "flex:1 1 auto;min-width:0;font-size:" + (isMobile ? 15 : 14) + "px;line-height:" + (isMobile ? 21 : 20) + "px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" +
+          convTitleRowStyle: "display:flex;align-items:center;gap:6px;min-width:0",
+          convGlyphStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1;color:var(--muted)",
+          convTitleStyle: "flex:1 1 auto;min-width:0;font-size:" + (isMobile ? 15 : 14) + "px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" +
             (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:600;color:var(--text)"),
           convWhoStyle: "font-weight:600;color:var(--text2);margin-right:4px",
           flagged: !!flags[t.id],
