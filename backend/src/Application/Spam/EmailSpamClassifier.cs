@@ -46,8 +46,9 @@ namespace MailFathom.Application.Spam;
 /// <para>
 /// <b>An open client is told when a verdict it may already have drawn changes</b>: the verdict or its subcategory moved
 /// on a message that has settled, which is a verdict landing after the message was released past its placement wait or
-/// a rescoring that asked nothing of the mailbox. A message still settling is not said, because no read serves it yet
-/// and the arrival signal that settles it carries the verdict with it.
+/// a rescoring that asked nothing of the mailbox. Whether it has settled is asked once the verdict commits rather than
+/// taken from the read before the evaluation, which a model call can outlast. A message still settling then is not
+/// said, because no read serves it yet and the arrival signal that settles it carries the verdict with it.
 /// </para>
 /// <para>
 /// Nothing it reads is loggable. The occurrence identifier, the folder alias, the outcome, and the verdict are safe to
@@ -265,13 +266,26 @@ public sealed class EmailSpamClassifier
             this.gateTelemetry.RecordDiscardedPassages(discardedPassageCount);
         }
 
-        if (email.IsSettled && VerdictMoved(existing, classification))
+        if (VerdictMoved(existing, classification) && await this.HasSettledAsync(account, email, cancellationToken))
         {
             this.signals.Publish(ClientSignal.MailChanged(account, folder: null, [emailId]));
         }
 
         return SpamClassificationResult.Classified(classification);
     }
+
+    /// <summary>Answers whether a client may already draw the message now that its verdict is committed.</summary>
+    /// <remarks>
+    /// A message still settling when it was read is read again: the model call can outlast the placement wait, so a
+    /// message released while it ran was drawn with no verdict, and the snapshot taken before it would say nothing.
+    /// One settling after this read is settled by an arrival that already carries the committed verdict.
+    /// </remarks>
+    private async Task<bool> HasSettledAsync(
+        MailAccountId account,
+        ClassifiableEmail email,
+        CancellationToken cancellationToken) =>
+        email.IsSettled
+        || await this.emailReader.FindAsync(account, email.Id, cancellationToken) is { IsSettled: true };
 
     /// <summary>Answers whether a client reading the message would now be shown a different verdict than before.</summary>
     private static bool VerdictMoved(SpamClassification? before, SpamClassification after) =>

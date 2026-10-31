@@ -225,6 +225,16 @@ function pageOf(
 /** What the deployment says about a message nobody has read yet. */
 const unread = { unread: true };
 
+/** A verdict the model reached on a message, naming it a scam. */
+const scam = {
+    verdict: 'Spam',
+    decidedBy: 'Model',
+    spamSubcategory: 'Scam',
+    spamSubcategoryNamedBy: 'Model',
+    phishingRequest: null,
+    impersonatedParty: null,
+};
+
 /** One message's whole text served on its own, which is a route nothing under a conversation reaches any more. */
 function bodyAsWords(path: string): string {
     return JSON.stringify(saying(path.split('/messages/')[1]?.split('/')[0] ?? ''));
@@ -401,15 +411,6 @@ describe('Thread', () => {
     });
 
     // A conversation standing on spam is read-only: nothing derives where it stands, and nothing hands it to the agent.
-    const scam = {
-        verdict: 'Spam',
-        decidedBy: 'Model',
-        spamSubcategory: 'Scam',
-        spamSubcategoryNamedBy: 'Model',
-        phishingRequest: null,
-        impersonatedParty: null,
-    };
-
     it('draws neither where it stands nor the AI button under a conversation opened on a spam message', async () => {
         drawing(
             deploymentAnswering(pageOf(['one'], {}, { one: { spam: scam } })),
@@ -1338,4 +1339,90 @@ describe('Thread against a deployment that says what changed', () => {
         expect(screen.getByText('The response time stays at two hours.')).toBeDefined();
         expect(screen.getByText('The whole of what two says.')).toBeDefined();
     });
+
+    it('draws what reading it again answered, ending where the conversation now ends', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        const conversation = conversationReadAgainAs(pageOf(['one', 'two'], {}, { two: { spam: scam } }));
+        drawingSaid(conversation.transport, signalling.changes);
+        fireEvent.click(await screen.findByRole('button', { name: 'Read more of this conversation' }));
+        await screen.findByText('The whole of what four says.');
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['two'] });
+        });
+        conversation.answer();
+
+        // Assert
+        expect(await screen.findByText(/^Scam\. This message is spam/u)).toBeDefined();
+        expect(screen.queryByText('The whole of what four says.')).toBeNull();
+    });
+
+    it('keeps a page the reader asked for while the conversation was being read again', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        const conversation = conversationReadAgainAs(
+            pageOf(['one', 'two'], { nextCursor: 'onwards', messageCount: 4 }, { two: { spam: scam } }),
+        );
+        drawingSaid(conversation.transport, signalling.changes);
+        await screen.findByText('The whole of what two says.');
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['two'] });
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Read more of this conversation' }));
+        await screen.findByText('The whole of what four says.');
+
+        // Act
+        conversation.answer();
+
+        // Assert
+        expect(await screen.findByText(/^Scam\. This message is spam/u)).toBeDefined();
+        expect(screen.getByText('The whole of what four says.')).toBeDefined();
+    });
 });
+
+/**
+ * A conversation of two pages whose first page, read a second time, answers only when a test says so and with what it
+ * named — which is what lets a test reach for the next page, or change what the reading says, while it is on the wire.
+ */
+function conversationReadAgainAs(again: string): { transport: MailFathomTransport; answer: () => void } {
+    let firstPagesAsked = 0;
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => {
+        answer = resolve;
+    });
+
+    return {
+        answer: () => {
+            act(() => {
+                answer();
+            });
+        },
+        transport: (request) => {
+            asked.push(request);
+
+            if (request.path.endsWith('/state')) {
+                return Promise.resolve({ status: 404, body: '', headers: {} });
+            }
+
+            if (request.path.includes('cursor=onwards')) {
+                return Promise.resolve({
+                    status: 200,
+                    body: pageOf(['three', 'four'], { messageCount: 4 }),
+                    headers: {},
+                });
+            }
+
+            firstPagesAsked += 1;
+
+            return firstPagesAsked === 1
+                ? Promise.resolve({
+                      status: 200,
+                      body: pageOf(['one', 'two'], { nextCursor: 'onwards', messageCount: 4 }),
+                      headers: {},
+                  })
+                : answered.then(() => ({ status: 200, body: again, headers: {} }));
+        },
+    };
+}

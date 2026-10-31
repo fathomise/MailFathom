@@ -254,6 +254,23 @@ public sealed class EmailSpamClassifierTests
         });
     }
 
+    /// <summary>A message released past its placement wait while its verdict was being reached was drawn without one, so the verdict is said.</summary>
+    [Fact]
+    public async Task ClassifyAsync_AMessageThatSettledWhileItWasClassified_SignalsTheVerdict()
+    {
+        // Arrange
+        var settling = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: false);
+
+        // Act
+        var published = await this.SignalledWhenClassifyingAsync(
+            settling,
+            SpamClassificationMode.FirstTimeOnly,
+            readAgain: settling with { IsSettled = true });
+
+        // Assert
+        Assert.Equal([Occurrence], Assert.Single(published).Emails);
+    }
+
     /// <summary>A rescoring is said where it changed what a client would draw, and only there.</summary>
     [Theory]
     [InlineData(SpamVerdict.NotSpam, null, true)]
@@ -788,6 +805,7 @@ public sealed class EmailSpamClassifierTests
     /// <param name="classifying">Whose mailbox <paramref name="settings" /> belong to, defaulting to the one the message is in.</param>
     /// <param name="modelStage">The model stage the classification is composed through, defaulting to one nobody expects to ask.</param>
     /// <param name="signals">Where a changed verdict is said, defaulting to a publisher that reaches nobody.</param>
+    /// <param name="readAgain">What a second read of the message answers, defaulting to what the first one did.</param>
     /// <returns>The classifier under test.</returns>
     /// <remarks>
     /// The settings are answered for one account rather than for whichever one is asked about, because that is what the
@@ -803,12 +821,14 @@ public sealed class EmailSpamClassifierTests
         bool withContent = true,
         MailAccountId? classifying = null,
         SpamModelStage? modelStage = null,
-        ClientSignals? signals = null)
+        ClientSignals? signals = null,
+        ClassifiableEmail? readAgain = null)
     {
+        var found = withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true) : null;
         var emailReader = Substitute.For<IClassifiableEmailReader>();
         emailReader
             .FindAsync(Arg.Any<MailAccountId>(), Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
-            .Returns(withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true) : null);
+            .Returns(found, readAgain ?? found);
 
         this.contentStore
             .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
@@ -851,7 +871,8 @@ public sealed class EmailSpamClassifierTests
     /// <summary>Classifies the occurrence over a recording channel and hands back what reached it once the folding window has passed.</summary>
     private async Task<IReadOnlyList<ClientSignal>> SignalledWhenClassifyingAsync(
         ClassifiableEmail email,
-        SpamClassificationMode mode)
+        SpamClassificationMode mode,
+        ClassifiableEmail? readAgain = null)
     {
         var clock = new FakeTimeProvider(EvaluatedAt);
         var channel = new RecordingClientSignalChannel();
@@ -860,7 +881,8 @@ public sealed class EmailSpamClassifierTests
             SettingsCovering(Inbox),
             FactsSaying("X-Spam-Flag", "YES"),
             email,
-            signals: signals);
+            signals: signals,
+            readAgain: readAgain);
 
         await classifier.ClassifyAsync(Account, Occurrence, mode, TestContext.Current.CancellationToken);
         clock.Advance(ClientSignals.FoldingWindow);
