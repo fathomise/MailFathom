@@ -462,8 +462,9 @@ keeps the bottom bar, which is the `rail` variant in `src/styles.css` and `useNa
 branches on — two panes beside the bottom bar, the list at its narrow width, and a mailbox column still folded. What
 _folded_ is between `panes` and `desktop` is the pointer's to say rather than the width's, in
 `src/workspace/mailboxesForm.ts`: a drawer under a finger and a strip of symbols under a mouse; on one pane it is a
-drawer under either. The pointer also says whether a column has a boundary to drag at all — a mouse's gesture, so a finger gets none
-at any width. What stands inside the thread pane follows the pane's own width rather than the window's, through the
+drawer under either. Wherever two columns stand side by side, the boundary between them is dragged by a mouse and a
+finger alike — `src/controls/WidthGrip.tsx`, which draws a grip in its middle under a coarse pointer for the finger to
+take hold of — and the Agent's history column has one of its own. What stands inside the thread pane follows the pane's own width rather than the window's, through the
 `pane-compact` and `pane-narrow` container sizes the reading column measures, because the same window gives the pane
 more or less as the list beside it is dragged. The list itself never folds: below `roomy` it opens at its narrow width,
 and below the `list-compact` container size a row draws less on its one line rather than growing taller. How the toolbar draws its controls is measured rather than

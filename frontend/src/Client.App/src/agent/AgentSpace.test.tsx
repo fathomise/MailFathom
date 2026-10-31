@@ -265,6 +265,54 @@ describe('AgentSpace', () => {
         ]);
     });
 
+    it('widens the history column by its boundary, dragged or stepped, and returns it on Home', () => {
+        screenOf(deploymentAnswering().transport);
+
+        const grip = screen.getByRole('separator', { name: 'History width' });
+        const column = screen.getByRole('navigation', { name: 'History' });
+
+        expect(grip.getAttribute('aria-valuenow')).toBe('271');
+
+        fireEvent.pointerDown(grip, { pointerId: 1, pointerType: 'touch', clientX: 300 });
+        fireEvent.pointerMove(grip, { pointerId: 1, pointerType: 'touch', clientX: 360 });
+        fireEvent.pointerUp(grip, { pointerId: 1, pointerType: 'touch', clientX: 380 });
+
+        expect(column.style.width).toBe('351px');
+
+        fireEvent.keyDown(grip, { key: 'ArrowRight' });
+        expect(grip.getAttribute('aria-valuenow')).toBe('367');
+
+        fireEvent.keyDown(grip, { key: 'Home' });
+        expect(column.style.width).toBe('271px');
+    });
+
+    it('holds the history column inside its bounds however far it is dragged', () => {
+        screenOf(deploymentAnswering().transport);
+
+        const grip = screen.getByRole('separator', { name: 'History width' });
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 300 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 2000 });
+
+        expect(grip.getAttribute('aria-valuenow')).toBe('501');
+    });
+
+    it('draws no boundary on the phone, where the history is a drawer over the thread', () => {
+        Object.defineProperty(window, 'matchMedia', {
+            configurable: true,
+            value: (query: string) => ({
+                media: query,
+                matches: false,
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+            }),
+        });
+
+        screenOf(deploymentAnswering().transport);
+
+        expect(screen.queryByRole('separator', { name: 'History width' })).toBeNull();
+    });
+
     it('says in the history what a run under way is doing, in place of the line under its title', async () => {
         screenOf(deploymentAnswering().transport);
 

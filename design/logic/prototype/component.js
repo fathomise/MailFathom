@@ -3610,62 +3610,38 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers.push(setTimeout(() => this.setState({ msgFlash: null }), 2200));
     };
 
-    beginHistoryResize = (e) => {
+    /* One drag for every pane boundary, under a mouse, a finger and a pen alike: the pointer is captured so the drag
+       keeps it once it leaves the 5 px line, and the boundary's touch-action keeps a finger from scrolling the page. */
+    beginPaneDrag = (e, from, apply) => {
       e.preventDefault();
       const startX = e.clientX;
-      const startW = this.state.historyPanelW || 250;
-      const move = (ev) => {
-        const w = Math.max(200, Math.min(480, startW + (ev.clientX - startX)));
-        this.setState({ historyPanelW: w });
-      };
-      const up = () => {
-        window.removeEventListener("mousemove", move);
-        window.removeEventListener("mouseup", up);
+      const target = e.currentTarget;
+      const pointer = e.pointerId;
+      try { target.setPointerCapture(pointer); } catch (err) { /* a synthesised event has no capture to hand over */ }
+      const move = (ev) => { if (ev.pointerId === pointer) apply(from + (ev.clientX - startX)); };
+      const up = (ev) => {
+        if (ev.pointerId !== pointer) return;
+        target.removeEventListener("pointermove", move);
+        target.removeEventListener("pointerup", up);
+        target.removeEventListener("pointercancel", up);
         document.body.style.userSelect = "";
         document.body.style.cursor = "";
       };
       document.body.style.userSelect = "none";
       document.body.style.cursor = "col-resize";
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
+      target.addEventListener("pointermove", move);
+      target.addEventListener("pointerup", up);
+      target.addEventListener("pointercancel", up);
     };
 
-    beginSideResize = (e) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startW = Math.max(210, Math.min(420, this.state.sideW || 210));
-      const move = (ev) => this.setState({ sideW: Math.max(210, Math.min(420, startW + (ev.clientX - startX))) });
-      const up = () => {
-        window.removeEventListener("mousemove", move);
-        window.removeEventListener("mouseup", up);
-        document.body.style.userSelect = "";
-        document.body.style.cursor = "";
-      };
-      document.body.style.userSelect = "none";
-      document.body.style.cursor = "col-resize";
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
-    };
+    beginHistoryResize = (e) => this.beginPaneDrag(e, this.state.historyPanelW || 250,
+      (w) => this.setState({ historyPanelW: Math.max(200, Math.min(480, w)) }));
 
-    beginResize = (e) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startW = this._listW || 340;
-      const move = (ev) => {
-        const w = Math.max(232, Math.min(560, startW + (ev.clientX - startX)));
-        this.setState({ listW: w });
-      };
-      const up = () => {
-        window.removeEventListener("mousemove", move);
-        window.removeEventListener("mouseup", up);
-        document.body.style.userSelect = "";
-        document.body.style.cursor = "";
-      };
-      document.body.style.userSelect = "none";
-      document.body.style.cursor = "col-resize";
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
-    };
+    beginSideResize = (e) => this.beginPaneDrag(e, Math.max(210, Math.min(420, this.state.sideW || 210)),
+      (w) => this.setState({ sideW: Math.max(210, Math.min(420, w)) }));
+
+    beginResize = (e) => this.beginPaneDrag(e, this._listW || 340,
+      (w) => this.setState({ listW: Math.max(232, Math.min(560, w)) }));
 
     componentWillUnmount() {
       document.removeEventListener("mousedown", this.onDocDown, true);
@@ -4670,6 +4646,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Every sheet a finger can pull down to close shows where to take hold of it. */
         sheetGrabber: isMobile,
         settingsGrabber: singlePane,
+        /* A pane boundary is the 5 px line under a mouse. A finger gets a 25 px reach along the whole line and, in its
+           middle, a grip to take hold of: a 12 x 44 px pill on --panel, its own target 44 x 44. */
+        boundaryStyle: "flex:0 0 5px;cursor:col-resize;background:var(--line);position:relative;z-index:5;touch-action:none",
+        boundaryReachStyle: "position:absolute;top:0;bottom:0;left:-10px;right:-10px",
+        boundaryGrip: !!touch,
+        boundaryGripStyle: "position:absolute;top:50%;left:50%;width:44px;height:44px;margin:-22px 0 0 -22px;display:flex;align-items:center;justify-content:center",
+        boundaryPillStyle: "width:12px;height:44px;box-sizing:border-box;border-radius:999px;border:1px solid var(--border2);box-shadow:0 1px 0 var(--inset) inset,0 1px 3px var(--sh-2);background:var(--panel) linear-gradient(var(--muted),var(--muted)) center/2px 18px no-repeat",
         grabberStyle: "flex:0 0 auto;display:flex;justify-content:center;align-items:center;height:20px;background-image:linear-gradient(var(--border2),var(--border2));background-size:38px 4px;background-position:center;background-repeat:no-repeat;",
         moSettingsScrim: singlePane ? "none" : "scrim",
         moCompose: composeInPane ? "fade" : isMobile ? "sheet" : "rise",
@@ -5965,7 +5948,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : sideCollapsed
           ? "width:58px;flex:0 0 58px;display:flex;flex-direction:column;min-height:0;background:var(--sub);border-right:1px solid var(--line)"
           : "width:" + sideW + "px;flex:0 0 " + sideW + "px;display:flex;flex-direction:column;min-height:0;background:var(--sub);border-right:1px solid var(--line)",
-        showSideResizer: !drawer && !sideCollapsed && !touch,
+        showSideResizer: !drawer && !sideCollapsed,
         startSideResize: this.beginSideResize,
         resetSideResize: () => this.setState({ sideW: 210 }),
         filtersWrapStyle: sideCollapsed
@@ -7188,7 +7171,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         keepTask: () => this.setState({ cancelAsk: null }),
         abortTaskNow: this.abortTask,
         /* A drag handle is a fine pointer's: under a finger the list keeps the width its band gives it. */
-        showResizer: !singlePane && !touch,
+        showResizer: !singlePane,
         startResize: this.beginResize,
         resetResize: () => this.setState({ listW: null }),
         /* The thread list leaves the DOM when a message opens (single-panel layout),

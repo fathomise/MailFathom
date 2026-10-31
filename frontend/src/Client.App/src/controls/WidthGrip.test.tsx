@@ -5,10 +5,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { pressOpensAfter } from '../contextMenu/rowPress';
-import { focusByKey } from '../controls/useTip.harness';
+import { focusByKey } from './useTip.harness';
 import { LocalizationProvider } from '../localization/Localization';
 import { WidthGrip } from './WidthGrip';
-import { listWidthStep, narrowestList, startingListWidth, widestList } from './listWidth';
+import { listWidthStep, narrowestList, startingListWidth, widestList } from '../mailSpace/listWidth';
 
 // The list's own boundary, which is what this grip is drawn as everywhere but the mailbox column. The numbers are
 // props rather than the component's, so the harness states them once and every case below is about one boundary.
@@ -43,6 +43,13 @@ describe('WidthGrip', () => {
 
         expect(screen.getByRole('separator', { name: 'Message list width' })).toBe(grip);
         expect(grip.getAttribute('aria-orientation')).toBe('vertical');
+    });
+
+    it('carries the grip a finger takes hold of without adding anything a screen reader would announce', () => {
+        const { grip } = renderGrip();
+
+        expect(grip.querySelector('[aria-hidden="true"]')).not.toBeNull();
+        expect(grip.textContent).toBe('');
     });
 
     it('reports where the boundary stands and how far it may go', () => {
