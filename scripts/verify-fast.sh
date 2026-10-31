@@ -108,44 +108,50 @@ if [[ -z "${VERIFY_FORCE:-}" ]]; then
   done
 fi
 
-# The service stack's flow. Locked mode here and not only in the final gate, for the same reason
-# formatting runs here: a pin moved without regenerating the lock files fails restore with NU1004,
-# and discovering that after the whole coverage collection has already run wastes the loop this
-# script exists to shorten. Regenerate with `dotnet restore backend/MailFathom.slnx --force-evaluate`
-# as part of the change that moves the pin.
-#
-# One formatting pass, and a repairing one, because this is the only step in either gate that
-# rewrites a file rather than reporting on it. What it repairs is the part of formatting the build
-# cannot see: `backend/Directory.Build.props` sets `EnforceCodeStyleInBuild` beside
-# `TreatWarningsAsErrors` and `.editorconfig` gives the IDE rules severity `warning`, so the Release
-# build above already fails on `IDE0055`, `IDE0005`, and `IDE0073` with the file and line — while the
-# ordering of using directives and a missing final newline are `dotnet format`'s own passes and
-# appear nowhere in a build.
-#
-# So a second `--verify-no-changes` pass here would restate the build's verdict at the cost of
-# another full workspace load. What it could still report is a diagnostic with no code fix, which
-# this pass could not act on either — `IDE0060` is the one that reaches this repository, and the
-# Release build passes over it despite `.editorconfig` setting it to `warning`. Naming a defect the
-# loop cannot repair belongs to the full gate and to `CI`, which verify instead of repairing, and
-# which is where a change that was never run through this loop is caught.
-#
-# The loop formats only what the branch changed. `dotnet format` reloads the MSBuild workspace on
-# every invocation and analyzes whatever is in scope, so the whole solution costs several times what
-# a handful of files costs. Splitting the run into the `whitespace`, `style`, and `analyzers`
-# subcommands does not help: it pays that workspace load three times.
+# The loop runs in three phases rather than one stack after another, so a failure ends the run as
+# early as it can: everything that compiles or checks, in every stack the change reaches, then the
+# unit suites, then the repairing formatting passes. A build, lint, or type error
+# fails in seconds rather than behind somebody else's suite. Nothing builds twice: the suites run
+# `--no-build` against the binaries the first phase produced, and the formatter loads a workspace
+# rather than building one.
+
+# The service build. Locked mode here and not only in the final gate: a pin moved without
+# regenerating the lock files fails restore with NU1004, and discovering that after the whole coverage
+# collection has already run wastes the loop this script exists to shorten. Regenerate with
+# `dotnet restore backend/MailFathom.slnx --force-evaluate` as part of the change that moves the pin.
 if [[ -n "$run_service_stack" ]]; then
   dotnet restore backend/MailFathom.slnx --locked-mode
   dotnet build backend/MailFathom.slnx --configuration Release --no-restore
+fi
 
-  # The solution is built whole and tested narrow, which is where the two costs actually sit: on the
-  # owner's machine an incremental Release build is seconds and the whole suite is about eighty,
-  # fifteen thousand tests of which a change reads a handful of projects' worth. Narrowing the build
-  # instead would buy the seconds and give up the analyzer verdict `EnforceCodeStyleInBuild` and
-  # `TreatWarningsAsErrors` produce over every project, which is the half of this step that answers
-  # for the files the change did not open.
-  #
-  # `scripts/resolve-changed-unit-suites.sh` decides which suites, and refuses to narrow at all for a
-  # change that reaches a shared build input — the whole solution then runs exactly as it did before.
+# The client's checks. `frontend/` is a pnpm workspace, so every step runs from that directory and
+# resolves against `frontend/pnpm-lock.yaml`; `--frozen-lockfile` fails rather than rewriting it, which
+# is what locked mode is to the service restore above.
+#
+# The lint is the client's `TreatWarningsAsErrors`: every rule reports as an error and `--max-warnings 0`
+# refuses a warning too, so there is no severity below failing. The type check is the closest thing the
+# client has to the Release build, because Vite's build strips types rather than checking them.
+if [[ -n "$run_client_stack" ]]; then
+  if ! command -v pnpm > /dev/null 2>&1; then
+    printf 'This change reaches the client stack, which needs Node and pnpm on the path. See docs/operations/local-development.md.\n' >&2
+    exit 1
+  fi
+
+  pnpm --dir frontend install --frozen-lockfile
+  pnpm --dir frontend run lint
+  pnpm --dir frontend run typecheck
+fi
+
+# The service suites. The solution is built whole and tested narrow, which is where the two costs
+# actually sit: on the owner's machine an incremental Release build is seconds and the whole suite is
+# about eighty, fifteen thousand tests of which a change reads a handful of projects' worth. Narrowing
+# the build instead would buy the seconds and give up the analyzer verdict `EnforceCodeStyleInBuild`
+# and `TreatWarningsAsErrors` produce over every project, which is the half of the build answering
+# for the files the change did not open.
+#
+# `scripts/resolve-changed-unit-suites.sh` decides which suites, and refuses to narrow at all for a
+# change that reaches a shared build input — the whole solution then runs exactly as it did before.
+if [[ -n "$run_service_stack" ]]; then
   if changed_unit_suites="$(resolve_changed_unit_suites "${touched_paths[@]}")"; then
     mapfile -t unit_suites <<< "$changed_unit_suites"
 
@@ -162,48 +168,68 @@ if [[ -n "$run_service_stack" ]]; then
   else
     dotnet test --solution backend/MailFathom.slnx --configuration Release --no-build
   fi
-
-  if ((${#changed_service_csharp_files[@]} > 0)); then
-    dotnet format backend/MailFathom.slnx --no-restore --include "${changed_service_csharp_files[@]}"
-  fi
 fi
 
-# The client stack's flow. `frontend/` is a pnpm workspace, so every step runs from that directory and
-# resolves against `frontend/pnpm-lock.yaml`; `--frozen-lockfile` fails rather than rewriting it, which
-# is what locked mode is to the service restore above.
-#
-# The lint is the client's `TreatWarningsAsErrors`: every rule reports as an error and `--max-warnings 0`
-# refuses a warning too, so there is no severity below failing. The type check is the closest thing the
-# client has to the Release build, because Vite's build strips types rather than checking them, and
-# `pnpm test` runs behind it for the same reason `dotnet test` runs behind the build above.
-#
-# The formatting pass repairs rather than reports, exactly as `dotnet format` does above, and for the same
-# reason: this loop is where a file is rewritten and the full gate is where the same question is asked
-# without one being touched.
 if [[ -n "$run_client_stack" ]]; then
-  if ! command -v pnpm > /dev/null 2>&1; then
-    printf 'This change reaches the client stack, which needs Node and pnpm on the path. See docs/operations/local-development.md.\n' >&2
-    exit 1
-  fi
-
-  pnpm --dir frontend install --frozen-lockfile
-  pnpm --dir frontend run lint
-  pnpm --dir frontend run typecheck
   pnpm --dir frontend run test
+fi
+
+# One formatting pass per stack, and a repairing one, because this is the only step in either gate
+# that rewrites a file rather than reporting on it. What the service pass repairs is the part of
+# formatting the build cannot see: `backend/Directory.Build.props` sets `EnforceCodeStyleInBuild`
+# beside `TreatWarningsAsErrors` and `.editorconfig` gives the IDE rules severity `warning`, so the
+# Release build above already fails on `IDE0055`, `IDE0005`, and `IDE0073` with the file and line —
+# while the ordering of using directives and a missing final newline are `dotnet format`'s own passes
+# and appear nowhere in a build.
+#
+# So a second `--verify-no-changes` pass here would restate the build's verdict at the cost of
+# another full workspace load. What it could still report is a diagnostic with no code fix, which
+# this pass could not act on either — `IDE0060` is the one that reaches this repository, and the
+# Release build passes over it despite `.editorconfig` setting it to `warning`. Naming a defect the
+# loop cannot repair belongs to the full gate and to `CI`, which verify instead of repairing, and
+# which is where a change that was never run through this loop is caught.
+#
+# The loop formats only what the branch changed. `dotnet format` reloads the MSBuild workspace on
+# every invocation and analyzes whatever is in scope, so the whole solution costs several times what
+# a handful of files costs. Splitting the run into the `whitespace`, `style`, and `analyzers`
+# subcommands does not help: it pays that workspace load three times. The workspace load is a
+# design-time evaluation rather than a build, and `dotnet format` has no switch to skip it.
+digest_before_formatting="$(resolve_verification_digest)"
+
+if [[ -n "$run_service_stack" ]] && ((${#changed_service_csharp_files[@]} > 0)); then
+  dotnet format backend/MailFathom.slnx --no-restore --include "${changed_service_csharp_files[@]}"
+fi
+
+if [[ -n "$run_client_stack" ]]; then
   pnpm --dir frontend run format
 fi
 
-# A change no build reads — documentation, a skill, a deployment asset — runs neither flow and says
-# so, because a gate that prints nothing and exits zero reads as a gate that was not run.
-if [[ -z "$run_service_stack" && -z "$run_client_stack" ]]; then
-  printf 'This change reaches neither stack, so no solution was restored, built, or tested. The whole-tree contracts are what answers for it, and they run on the pull request; scripts/verify-full.sh is how to have that answer now.\n'
+# A rewrite by the formatters is their own repair: whitespace, the order of using directives, a final
+# newline, the fixes an analyzer's code fix applies. A second run over the formatted files would
+# rebuild and retest only to say what this one said, so the run records the formatted tree instead of
+# the one it built — provided nothing moved it before they started. A tree that changed while the
+# build or the suites ran still records nothing, below; an edit landing while the formatters
+# themselves run is indistinguishable from their rewrite and is recorded with it. The record settles no more than a run that rewrote
+# nothing does: a diagnostic with no code fix, which the build passes over and this pass cannot act
+# on, is still left to the full gate and `CI`, as the comment above the formatting passes says.
+digest_after_formatting="$(resolve_verification_digest)"
+formatters_rewrote_the_tree=''
+
+if [[ -n "$digest_before_formatting" && "$digest_after_formatting" != "$digest_before_formatting" ]]; then
+  if [[ "$verification_digest" == "$digest_before_formatting" ]]; then
+    formatters_rewrote_the_tree='yes'
+    verification_digest="$digest_after_formatting"
+  else
+    printf 'The formatting pass rewrote files, but the tree also changed while the gate ran, so nothing is recorded: run the gate again.\n'
+  fi
 fi
 
 # Whitespace errors in a file no formatter reads — a page, a workflow, a Helm template — are checked
 # here rather than only in the full gate, because this loop is the gate a change is held to locally
 # and nothing in the pipeline asks the question at all. It costs milliseconds and reads the diff
-# rather than the tree. The committed range needs the base, so it is asked only where the base
-# resolved; the other two are about this working tree and are always asked.
+# rather than the tree, so it runs last, over whatever the formatting passes left. The committed
+# range needs the base, so it is asked only where the base resolved; the other two are about this
+# working tree and are always asked.
 if [[ -n "$base_remote" ]]; then
   git diff --check "$base_remote/main...HEAD"
 fi
@@ -211,6 +237,18 @@ fi
 git diff --cached --check
 git diff --check
 
-# Records nothing when that pass rewrote a file, because the build and the tests above ran against
-# content this working tree no longer holds.
+# A change no build reads — documentation, a skill, a deployment asset — runs neither flow and says
+# so, because a gate that prints nothing and exits zero reads as a gate that was not run.
+if [[ -z "$run_service_stack" && -z "$run_client_stack" ]]; then
+  printf 'This change reaches neither stack, so no solution was restored, built, or tested. The whole-tree contracts are what answers for it, and they run on the pull request; scripts/verify-full.sh is how to have that answer now.\n'
+fi
+
+# Records nothing when the tree changed while the run went on, because what passed is then not what
+# is here now.
 record_verification 'verify-fast' "$verification_digest"
+
+# Said only once the record exists, because the sentence is an instruction to skip the next run, and
+# a whitespace error or a tree that moved in the last seconds would have left nothing to skip to.
+if [[ -n "$formatters_rewrote_the_tree" ]] && verification_already_recorded 'verify-fast' "$verification_digest"; then
+  printf 'The formatting pass rewrote files and nothing else moved, so the formatted tree is recorded and no second run is needed: commit the rewrite with the change.\n'
+fi

@@ -28,12 +28,25 @@ destination refspec, and lists what arrived when the branch has fallen behind.
 is why that check is here rather than only in the full gate, and why no workflow
 has one.
 
-Then it restores, builds Release, runs the unit suites the change can have
-broken, and formats the C# files the branch changed: everything committed since
-`origin/main`, staged, modified, or newly added. It is the only workflow script
-that rewrites source files, and every `dotnet format` pass it runs is a repairing
-one. Each file is formatted against `backend/MailFathom.slnx`, which is the
-solution that holds it, and formatting is skipped where the branch touched no C#.
+Then it runs in three phases across every stack the change reaches, rather than
+one stack's whole flow after the other's, so a failure ends the run as early as
+it can. First everything that compiles or checks: the restore and the Release
+build, and the client's install, lint, and type check — a build error in either
+stack stops the run before any suite starts. Then the unit suites the change can
+have broken, `--no-build` against the binaries that first phase produced, so
+nothing is built twice. Last the repairing formatting passes: `dotnet format`
+over the C# files the branch changed — everything committed since `origin/main`,
+staged, modified, or newly added — and Prettier over the client workspace. It is
+the only workflow script that rewrites source files. Each C# file is formatted
+against `backend/MailFathom.slnx`, which is the solution that holds it, and that
+pass is skipped where the branch touched no C#. A rewrite that reaches the end of
+a passing run is the formatters' own repair, so the run records the tree they
+left rather than the one it built: the rewrite is staged and committed with the
+change, and the gate is not run a second time to say what it already said —
+staging changes the digest, so a run after it would be a whole one. Such a record
+settles exactly what a run that rewrote nothing settles: a diagnostic with no code
+fix, which the Release build passes over and a repairing pass cannot act on, is
+still the full gate's and `CI`'s to report.
 It ends on the same whitespace checks the full gate makes, over the staged and
 unstaged diffs and — where the base resolved — over the branch's committed range,
 because a whitespace error in a page, a workflow, or a Helm template is read by
@@ -444,19 +457,23 @@ prose; this is the same rule where a session cannot forget it.
 Four things bound what a record claims.
 
 - **It is written only when the tree stayed still.** Each run takes the digest
-  again at the end and records nothing when the two disagree. The fast loop is
-  why: its formatting pass rewrites files, so a run that repaired something
-  verified a build and a test suite against content the working tree no longer
-  holds. That guard is also what would let either gate be started in the
-  background beside an editing session.
+  again at the end and records nothing when the two disagree. The one movement it
+  forgives is the fast loop's own formatting pass: a run whose tree changed only
+  there records the formatted tree, because what moved is the formatters' repair
+  of content the build and the suites already passed. Anything else that moved
+  while the build or the suites ran — an edit beside the gate — records nothing,
+  which is what would let either gate be started in the background beside an
+  editing session. The forgiveness covers the whole formatting phase, though: an
+  edit landing in the seconds the formatters themselves run cannot be told from
+  their rewrite and is recorded with it.
 - **A gate that failed writes nothing**, however far it got.
 - **The full gate's record answers for the fast loop, and never the reverse.**
   Both run the flow of whichever stacks the change reaches, and the full gate's is
   the loop's plus coverage and the verifying formatting pass; passing the loop says
   nothing about coverage or the contract suite. The one step the loop does settle
   for the full gate is the scoped formatting pass over the service solution — the
-  same tool over the same file set, and a record exists only where the repairing
-  pass rewrote nothing, which leaves `--verify-no-changes` one possible answer.
+  same tool over the same file set, and a record names the tree the repairing pass
+  left, which leaves `--verify-no-changes` one possible answer.
   Neither whole-solution pass is settled that way — the client's, and the service's
   where a shared style input triggered it — because the loop never formatted that
   scope.

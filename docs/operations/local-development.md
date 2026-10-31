@@ -100,7 +100,10 @@ the C# files the branch changed — each against whichever of the two solutions
 holds it, which
 [Building and testing the client](#building-and-testing-the-client) describes for
 the client half. It is the only one that rewrites source files, and every
-`dotnet format` pass it runs is a repairing one.
+`dotnet format` pass it runs is a repairing one — a run whose build and suites
+passed records the tree the formatters left, so a rewrite is committed rather than
+verified a second time. Where a change reaches
+both stacks, both are built and checked before either one's suite starts.
 
 Which suites those are is read from what each test project names in its own
 `Include` attributes, and the relation is direct rather than transitive: a change

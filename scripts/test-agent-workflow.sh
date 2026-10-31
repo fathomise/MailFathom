@@ -20,6 +20,12 @@ if [[ "$(basename "$0")" == 'dotnet' ]]; then
     printf 'rewritten\n' >> "$FAKE_DOTNET_REWRITE"
   fi
 
+  # An edit made beside a running gate, landing while the solution builds. It is what a record must
+  # not forgive the way it forgives the formatters' own repair.
+  if [[ -n "${FAKE_DOTNET_EDIT_DURING_BUILD:-}" && "$*" == 'build '* ]]; then
+    printf 'edited\n' >> "$FAKE_DOTNET_EDIT_DURING_BUILD"
+  fi
+
   if [[ "$*" == '--version' ]]; then
     printf '10.0.110\n'
   fi
@@ -33,6 +39,11 @@ fi
 if [[ "$(basename "$0")" == 'pnpm' ]]; then
   : "${FAKE_PNPM_LOG:?FAKE_PNPM_LOG must identify the invocation log}"
   printf '%s\n' "$*" >> "$FAKE_PNPM_LOG"
+
+  # The client's repairing pass, which the fast loop treats exactly as it treats `dotnet format`.
+  if [[ -n "${FAKE_PNPM_REWRITE:-}" && "$*" == '--dir frontend run format' ]]; then
+    printf 'rewritten\n' >> "$FAKE_PNPM_REWRITE"
+  fi
 
   exit 0
 fi
@@ -675,6 +686,27 @@ verify_fast_runs_the_client_flow_for_a_change_under_frontend() {
     "$client_invocation_log"
 }
 
+# The same branch through one log shared by both shims, which is the only place the order between the
+# two stacks shows: every build and check comes first, then every suite, then every formatting pass,
+# so a lint error in the client ends the run before the service suite starts rather than after it.
+verify_fast_builds_every_stack_before_testing_either() {
+  local shared_invocation_log="$test_directory/shared-invocations.log"
+  add_client_change
+  : > "$shared_invocation_log"
+
+  (
+    export FAKE_DOTNET_LOG="$shared_invocation_log"
+    export FAKE_PNPM_LOG="$shared_invocation_log"
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$test_directory/verify-fast-shared-output" 2>&1
+
+  remove_client_change
+  assert_file_content \
+    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\n--dir frontend install --frozen-lockfile\n--dir frontend run lint\n--dir frontend run typecheck\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\n--dir frontend run test\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs\n--dir frontend run format' \
+    "$shared_invocation_log"
+}
+
 # The full gate over the same branch. The service solution is verified with the files the branch
 # changed, because `--include` selects within the workspace `dotnet format` loaded and the service
 # workspace is several dozen projects; a client path in that list would name no file the solution
@@ -1039,8 +1071,7 @@ verify_fast_accepts_the_full_gate_record_for_a_client_change() {
 # And never the other way round — with one exception, which is why both halves are asserted from one
 # run. Passing the loop says nothing about coverage or the contract suite, so those are asked again;
 # it does settle the formatting, because the repairing pass is the same tool over the same file set
-# and a record exists only where it rewrote nothing, which leaves the verifying pass one possible
-# answer.
+# and a record names the tree it left, which leaves the verifying pass one possible answer.
 verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass() {
   (
     cd "$repository_root"
@@ -1058,16 +1089,18 @@ verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass() {
   assert_excludes 'format backend/MailFathom.slnx' "$invocation_log"
 }
 
-# A run whose formatting pass rewrote a file verified a build and a suite against content the working
-# tree no longer holds, so it records nothing and the next run does the work.
-verify_fast_records_nothing_when_formatting_rewrote_a_file() {
+# A formatting pass that only repairs — rewrites a file and reports nothing a person has to fix — asks
+# for no second run: the build and the suite passed, so the run records the formatted tree, and the
+# next run over that same tree reports the record instead of rebuilding.
+verify_fast_records_the_formatted_tree_when_formatting_only_repaired() {
+  local rewrite_output="$test_directory/verify-fast-rewrite-output"
+
   (
     export FAKE_DOTNET_REWRITE="$repository_root/backend/src/Sample.cs"
     cd "$repository_root"
     "$scripts_directory/verify-fast.sh"
-  )
+  ) > "$rewrite_output" 2>&1
 
-  git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
   : > "$invocation_log"
 
   (
@@ -1075,7 +1108,90 @@ verify_fast_records_nothing_when_formatting_rewrote_a_file() {
     "$scripts_directory/verify-fast.sh"
   )
 
+  git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
+  assert_contains 'the formatted tree is recorded and no second run is needed' "$rewrite_output"
+  assert_file_content '' "$invocation_log"
+}
+
+# Prettier's repair is forgiven the same way as `dotnet format`'s: a client run whose only movement
+# was its formatting pass records the formatted tree.
+verify_fast_records_the_formatted_tree_when_prettier_only_repaired() {
+  local rewrite_output="$test_directory/verify-fast-client-rewrite-output"
+  add_client_change
+
+  (
+    export FAKE_PNPM_REWRITE="$repository_root/frontend/src/Sample.txt"
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$rewrite_output" 2>&1
+
+  : > "$client_invocation_log"
+
+  (
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  )
+
+  # Back to the staged content first, or `git rm --cached` refuses a file that differs from both
+  # its index entry and HEAD.
+  git -C "$repository_root" checkout --quiet -- frontend/src/Sample.txt
+  remove_client_change
+  assert_contains 'the formatted tree is recorded and no second run is needed' "$rewrite_output"
+  assert_file_content '' "$client_invocation_log"
+}
+
+# The forgiveness covers the formatters and nothing else. A tree an edit moved while the build ran
+# records nothing, even when the formatters rewrote a file too, so the next run does the work.
+verify_fast_records_nothing_when_the_tree_moved_beside_a_formatter_rewrite() {
+  local rewrite_output="$test_directory/verify-fast-moved-output"
+
+  (
+    export FAKE_DOTNET_EDIT_DURING_BUILD="$repository_root/backend/src/Sample.cs"
+    export FAKE_DOTNET_REWRITE="$repository_root/backend/src/Sample.cs"
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$rewrite_output" 2>&1
+
+  : > "$invocation_log"
+
+  (
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  )
+
+  git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
+  assert_contains 'nothing is recorded: run the gate again' "$rewrite_output"
+  assert_excludes 'no second run is needed' "$rewrite_output"
   assert_contains 'build backend/MailFathom.slnx --configuration Release --no-restore' "$invocation_log"
+}
+
+# The instruction to skip the next run is given only once a record exists to skip to. A rewrite that
+# reaches a whitespace error fails the run, records nothing, and never says otherwise.
+verify_fast_promises_no_second_run_only_once_it_recorded() {
+  local rewrite_output="$test_directory/verify-fast-rewrite-whitespace-output"
+
+  printf 'clean\n\n' > "$repository_root/tracked.txt"
+  git -C "$repository_root" add tracked.txt
+
+  local script_status=0
+
+  (
+    export FAKE_DOTNET_REWRITE="$repository_root/backend/src/Sample.cs"
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$rewrite_output" 2>&1 || script_status=$?
+
+  git -C "$repository_root" restore --staged tracked.txt
+  git -C "$repository_root" restore tracked.txt
+  git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
+
+  if ((script_status == 0)); then
+    printf 'verify-fast.sh ignored a whitespace error after a formatter rewrite\n' >&2
+    return 1
+  fi
+
+  assert_contains 'new blank line at EOF.' "$rewrite_output"
+  assert_excludes 'no second run is needed' "$rewrite_output"
 }
 
 verify_force_runs_everything_a_record_would_have_skipped() {
@@ -12209,6 +12325,7 @@ run_test verify_fast_stops_when_the_remote_is_unreachable
 run_test verify_fast_refuses_a_whitespace_error
 run_test verify_fast_fetches_the_remote_base_before_verifying
 run_test verify_fast_runs_the_client_flow_for_a_change_under_frontend
+run_test verify_fast_builds_every_stack_before_testing_either
 run_test verify_fast_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_both_flows_for_a_change_above_both_stacks
@@ -12228,7 +12345,10 @@ run_test verify_fast_runs_again_once_the_tree_changed
 run_test verify_fast_accepts_the_record_the_full_gate_wrote
 run_test verify_fast_accepts_the_full_gate_record_for_a_client_change
 run_test verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass
-run_test verify_fast_records_nothing_when_formatting_rewrote_a_file
+run_test verify_fast_records_the_formatted_tree_when_formatting_only_repaired
+run_test verify_fast_records_the_formatted_tree_when_prettier_only_repaired
+run_test verify_fast_records_nothing_when_the_tree_moved_beside_a_formatter_rewrite
+run_test verify_fast_promises_no_second_run_only_once_it_recorded
 run_test verify_full_records_nothing_when_it_failed
 run_test verify_force_runs_everything_a_record_would_have_skipped
 run_test verify_full_formats_the_whole_solution_when_a_shared_style_input_changed
