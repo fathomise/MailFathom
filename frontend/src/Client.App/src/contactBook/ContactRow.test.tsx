@@ -77,6 +77,7 @@ describe('ContactRow', () => {
             jobTitle: 'Controller',
             organizationName: 'Nordwind',
             timeZone: null,
+            workingHours: null,
             photo: null,
             presence: 'DoNotDisturb',
             lastSeen: null,
