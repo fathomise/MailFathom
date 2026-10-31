@@ -331,11 +331,11 @@ builds without waiting for a release.
 Publication runs the gates instead, in an order that spends the cheap ones first:
 
 1. **`Build, test, and migrations`**, against the commit being published rather than against a branch — the build,
-   the unit-test and coverage gate, and the check that no model change outran its migration. Both channels wait for
-   all three. `CI` calls the same workflow for a pull request, so "this image passed CI" is one claim about one
+   the unit-test and coverage gate, the check that no model change outran its migration, and the application of the
+   schema artifact to a real PostgreSQL, empty and over the newest release's schema. Both channels wait for all four. `CI` calls the same workflow for a pull request, so "this image passed CI" is one claim about one
    definition rather than about a copy of it. What `CI` keeps to itself is the part that is about a pull request:
    skipping work the changed files cannot affect, and waiting for a draft to be marked ready. A publication skips
-   neither. The fourth thing that workflow can do — `dotnet format` — is the one a publication turns off, on the same
+   neither. The fifth thing that workflow can do — `dotnet format` — is the one a publication turns off, on the same
    argument `CI` uses to exempt a push to `main`: formatting is a property of the files a change wrote, so the pull
    request that wrote them settled it, and no commit reaches a tag or a nightly without having been one.
 
