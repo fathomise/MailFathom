@@ -13,6 +13,7 @@ import {
     type Contact,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
+import type { PhotoOfPerson } from '../contactBook/contactPhotos';
 
 // Who a recipient field offers, as the design draws it: the people in the conversation being answered first, then the
 // address book in three groups under their names — the members of the reader's organization, the contacts the
@@ -31,6 +32,9 @@ export interface RecipientSuggestion {
     readonly address: string;
     readonly name: string | null;
     readonly colleague?: { readonly presence: ColleaguePresence; readonly jobTitle: string | null };
+
+    /** The photo they are drawn by, present only for somebody who has one — anybody else is drawn by their initials. */
+    readonly photo?: PhotoOfPerson;
 }
 
 /** The groups the book is offered in, in the order the design draws them. */
@@ -164,14 +168,17 @@ function offeredAt(contact: Found, term: string): readonly RecipientSuggestion[]
     const typed = term.trim() === '' ? [] : contact.addresses.filter((address) => contains(address, term));
     const addresses = typed.length > 0 ? typed : contact.preferredAddress === null ? [] : [contact.preferredAddress];
 
+    const photo = contact.photo === null ? {} : { photo: { id: contact.id, book: contact.book, photo: contact.photo } };
+
     return addresses.map((address) =>
         contact.book === 'Member'
             ? {
                   address,
                   name: contact.displayName,
                   colleague: { presence: contact.presence, jobTitle: contact.jobTitle },
+                  ...photo,
               }
-            : { address, name: contact.displayName },
+            : { address, name: contact.displayName, ...photo },
     );
 }
 

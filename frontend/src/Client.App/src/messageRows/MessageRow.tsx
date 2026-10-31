@@ -12,6 +12,7 @@ import type { IconName } from '../controls/icons';
 import { MessageMarkers } from '../controls/MessageMarkers';
 import { Organisation } from '../controls/Organisation';
 import { ReceivedAt } from '../controls/ReceivedAt';
+import { useContactPhoto } from '../contactBook/contactPhotos';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
@@ -250,6 +251,7 @@ export function MessageRow({
     const marking = useReadMarking();
     const acts = useMailboxActs();
     const press = useRowPress(onPress);
+    const senderPicture = useContactPhoto(email.senderPhoto);
     const swipe = useRowSwipe(press, { leftward: onAnswer, rightward: onArchive });
     // What spam classification concluded, with the person's own mark from this session counted first. A row of spam
     // offers nothing that reads it for the person, so it carries no reading and no AI line.
@@ -546,6 +548,7 @@ export function MessageRow({
                             <SenderAvatar
                                 displayName={email.senderDisplayName}
                                 address={email.senderAddress}
+                                picture={senderPicture}
                                 place="row"
                             />
 

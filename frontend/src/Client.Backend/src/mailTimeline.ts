@@ -6,6 +6,7 @@ import { failed, failureReasonForStatus, read, type ClientResult } from './failu
 import { asRecord } from './json';
 import { parseEnrichment, type MailEnrichment, type MailEnrichmentAspect } from './mailEnrichment';
 import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
+import { parsePersonPhoto, type PersonPhotoReference } from './personPhotos';
 import { parseListedSender, type MailListedSender } from './senderFacts';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
@@ -158,6 +159,12 @@ export interface MailTimelineEntry {
      * drawing this row carries so the list, the search results, and a conversation mark one sender alike.
      */
     readonly sender: MailListedSender;
+
+    /**
+     * The photo the sender is drawn by, or `null` where they are drawn by their initials — which is what a sender no
+     * book of the reader's holds, a collected one, and every sender for a reader who may not read the books all are.
+     */
+    readonly senderPhoto: PersonPhotoReference | null;
 }
 
 /** One page of the list, and the two cursors the pages either side of it are asked with. */
@@ -418,6 +425,11 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         return null;
     }
 
+    const drawnBy = parsePersonPhoto(record['senderPhoto']);
+    if (drawnBy === null) {
+        return null;
+    }
+
     return {
         id,
         account,
@@ -440,6 +452,7 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         threadMessageCount,
         spam: judged.spam,
         sender,
+        senderPhoto: drawnBy.photo,
     };
 }
 

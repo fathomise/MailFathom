@@ -36,6 +36,7 @@ function message(subject: string | null, participants: readonly MailParticipant[
             inReplyTo: null,
             references: [],
         },
+        senderPhoto: null,
         body: { availability: 'Available', plainText: true, html: false },
         sender: {
             authorAuthentication: 'Authenticated',

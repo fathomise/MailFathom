@@ -11,6 +11,7 @@ import {
     type MailFathomTransport,
     type MailMessage,
 } from '@mailfathom/client-backend';
+import { useContactPhoto } from '../contactBook/contactPhotos';
 import { Icon } from '../controls/Icon';
 import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
@@ -103,6 +104,7 @@ export function OpenedMessage({
 
     const storedEmailId = message.storedEmailId;
     const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
+    const authorPicture = useContactPhoto(message.senderPhoto);
     const numbers = new Intl.NumberFormat(locale);
 
     // Whether a change the mailbox did not take stands over this message, which is the only case the notice is mounted in.
@@ -140,6 +142,7 @@ export function OpenedMessage({
                     <SenderAvatar
                         displayName={author?.displayName ?? null}
                         address={author?.address ?? null}
+                        picture={authorPicture}
                         place="card"
                     />
 

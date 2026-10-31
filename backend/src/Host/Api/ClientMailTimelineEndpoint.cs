@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Emails.BrowseTimeline;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
@@ -102,6 +103,7 @@ internal static class ClientMailTimelineEndpoint
     /// <param name="markDueOnOrAfter">The inclusive start of the range a commitment falls due in, or <see langword="null" /> for no start.</param>
     /// <param name="markDueBefore">The exclusive end of that range, or <see langword="null" /> for no end.</param>
     /// <param name="timeline">Reads the page, for a caller the read's own grant admits.</param>
+    /// <param name="photos">Resolves the photo each sender on the page is drawn by, for a caller who may read the books.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the page, <c>400</c> naming what was wrong with the request, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>
@@ -127,9 +129,11 @@ internal static class ClientMailTimelineEndpoint
         [FromQuery] DateTimeOffset? markDueOnOrAfter,
         [FromQuery] DateTimeOffset? markDueBefore,
         [FromServices] MailTimelineBrowser timeline,
+        [FromServices] PersonPhotos photos,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(timeline);
+        ArgumentNullException.ThrowIfNull(photos);
 
         if (Named(sort) is { } namedSort && !string.Equals(namedSort, ReceivedAtSort, StringComparison.OrdinalIgnoreCase))
         {
@@ -178,8 +182,11 @@ internal static class ClientMailTimelineEndpoint
         try
         {
             var page = await timeline.BrowsePageAsync(request, cancellationToken);
+            var senderPhotos = await photos.ResolveAsync(
+                PersonPhotoResponse.AddressesOf(page.Emails.Select(row => row.Email.SenderAddress)),
+                cancellationToken);
 
-            return TypedResults.Ok(ClientMailTimelineResponse.For(page));
+            return TypedResults.Ok(ClientMailTimelineResponse.For(page, senderPhotos));
         }
         catch (MailboxQueryCursorMalformedException)
         {
@@ -313,14 +320,18 @@ internal sealed record ClientMailTimelineResponse(
 {
     /// <summary>Describes one page for the wire.</summary>
     /// <param name="page">The page the use case read.</param>
+    /// <param name="senderPhotos">The photo each sender on the page is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="page" /> is <see langword="null" />.</exception>
-    internal static ClientMailTimelineResponse For(BrowsedTimelinePage page)
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    internal static ClientMailTimelineResponse For(
+        BrowsedTimelinePage page,
+        IReadOnlyDictionary<EmailAddress, PersonPhoto> senderPhotos)
     {
         ArgumentNullException.ThrowIfNull(page);
+        ArgumentNullException.ThrowIfNull(senderPhotos);
 
         return new ClientMailTimelineResponse(
-            [.. page.Emails.Select(ClientMailTimelineEntryResponse.For)],
+            [.. page.Emails.Select(row => ClientMailTimelineEntryResponse.For(row, senderPhotos))],
             page.NextCursor,
             page.PreviousCursor,
             page.PageSize);
@@ -349,6 +360,7 @@ internal sealed record ClientMailTimelineResponse(
 /// <param name="ThreadMessageCount">How many messages this user may see in the row's conversation, or <see langword="null" /> where threading has placed the message in none.</param>
 /// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
 /// <param name="Sender">The facts about who sent the message that a row's sender mark is chosen from.</param>
+/// <param name="SenderPhoto">The photo the sender is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
 /// <remarks>
 /// <para>
 /// The three flags are published as the states a row draws rather than as the snapshot they came from, because a screen
@@ -403,32 +415,39 @@ internal sealed record ClientMailTimelineEntryResponse(
     ClientMailEnrichmentResponse? Enrichment,
     int? ThreadMessageCount,
     ClientMailSpamVerdictResponse? Spam,
-    ClientMailListedSenderResponse Sender)
+    ClientMailListedSenderResponse Sender,
+    PersonPhotoResponse? SenderPhoto)
 {
     /// <summary>Describes one row for the wire.</summary>
     /// <param name="row">The row the use case read.</param>
+    /// <param name="senderPhotos">The photo each sender of the read is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
-    internal static ClientMailTimelineEntryResponse For(BrowsedEmail row) =>
-        For(row.Email, row.Preview, row.Enrichment, row.ThreadMessageCount);
+    internal static ClientMailTimelineEntryResponse For(
+        BrowsedEmail row,
+        IReadOnlyDictionary<EmailAddress, PersonPhoto> senderPhotos) =>
+        For(row.Email, row.Preview, row.Enrichment, row.ThreadMessageCount, senderPhotos);
 
     /// <summary>Describes one message for the wire, wherever on this surface a message is drawn.</summary>
     /// <param name="email">The message the use case read.</param>
     /// <param name="preview">The opening of the message's own text, or <see langword="null" /> where nothing has extracted it.</param>
     /// <param name="enrichment">What a derivation concluded about the message, or <see langword="null" /> where none has reached it.</param>
     /// <param name="threadMessageCount">How many messages the caller may see in the message's conversation, or <see langword="null" /> where it is in none.</param>
+    /// <param name="senderPhotos">The photo each sender of the read is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
     /// <remarks>
-    /// The four rather than a reading's own row type, because a message is one shape on this surface: a list row and a
+    /// These rather than a reading's own row type, because a message is one shape on this surface: a list row and a
     /// message inside a conversation are drawn from the same fields, and a second mapping is how the two would come to
-    /// publish one message two ways. The derivation and the conversation's size are parameters rather than defaults for
-    /// the same reason — a caller that had one and did not pass it would publish <see langword="null" />, which this
-    /// surface reads as nothing having reached the message rather than as this reading not having asked.
+    /// publish one message two ways. The derivation, the conversation's size, and the senders' photos are parameters
+    /// rather than defaults for the same reason — a caller that had one and did not pass it would publish
+    /// <see langword="null" />, which this surface reads as nothing having reached the message, or a sender with no
+    /// photo, rather than as this reading not having asked.
     /// </remarks>
     internal static ClientMailTimelineEntryResponse For(
         EmailSummary email,
         string? preview,
         EmailEnrichment? enrichment,
-        int? threadMessageCount) => new(
+        int? threadMessageCount,
+        IReadOnlyDictionary<EmailAddress, PersonPhoto> senderPhotos) => new(
         email.StoredEmailId.Value,
         email.Account.Value,
         email.Folder.Id.ToString(),
@@ -449,7 +468,8 @@ internal sealed record ClientMailTimelineEntryResponse(
         ClientMailEnrichmentResponse.For(enrichment),
         threadMessageCount,
         ClientMailSpamVerdictResponse.For(email.Spam),
-        ClientMailListedSenderResponse.For(email.SenderVerification));
+        ClientMailListedSenderResponse.For(email.SenderVerification),
+        PersonPhotoResponse.For(email.SenderAddress, senderPhotos));
 }
 
 /// <summary>What a row publishes about who sent its message: enough to choose the sender mark, and nothing more.</summary>

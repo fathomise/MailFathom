@@ -333,6 +333,15 @@ describe('readMailMessage', () => {
         expect(message?.signature.signer).toEqual(Object.fromEntries(Object.keys(signer).map((key) => [key, null])));
     });
 
+    it('reads the photo its author is drawn by, and a message naming none as drawn by initials', async () => {
+        const senderPhoto = { book: 'Member', id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90', photo: 'revision-1' };
+
+        const drawn = await readingOf(described({ senderPhoto }));
+        const initials = await readingOf(described());
+
+        expect([drawn?.senderPhoto, initials?.senderPhoto]).toEqual([senderPhoto, null]);
+    });
+
     it('reads a message whose parts nothing has ever read as one carrying no counts', async () => {
         const message = await readingOf(described({ carried: null }));
 
@@ -422,6 +431,10 @@ describe('readMailMessage', () => {
         ['an attachment with a fractional size', attachmentOf({ sizeOctets: 1.5 })],
         ['an attachment declaring no media type', attachmentOf({ mediaType: null })],
         ['a carried block with a count that is not a number', described({ carried: { attachmentCount: 'two' } })],
+        [
+            'a sender photo naming a book that carries none',
+            described({ senderPhoto: { book: 'Collected', id: 'x', photo: 'y' } }),
+        ],
         ['more attachments than a message may carry', tooManyAttachments()],
     ])('refuses %s rather than reading part of it', async (_shape, body) => {
         const result = await readMailMessage(session, answering({ status: 200, body }), messageId);

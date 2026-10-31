@@ -3,12 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Emails.BrowseSearch;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -82,6 +84,7 @@ internal static class ClientMailSearchEndpoint
     /// <param name="pageSize">How many results the page may hold, or <see langword="null" /> for the default.</param>
     /// <param name="cursor">The cursor a previous page returned, or <see langword="null" /> for the best-ranked results.</param>
     /// <param name="search">Ranks and pages the results, for a caller the read's own grant admits.</param>
+    /// <param name="photos">Resolves the photo each sender on the page is drawn by, for a caller who may read the books.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the page, <c>400</c> naming what was wrong with the request, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>
@@ -105,9 +108,11 @@ internal static class ClientMailSearchEndpoint
         [FromQuery] int? pageSize,
         [FromQuery] string? cursor,
         [FromServices] MailSearchBrowser search,
+        [FromServices] PersonPhotos photos,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(search);
+        ArgumentNullException.ThrowIfNull(photos);
 
         if (!TryReadScope(Named(account), Named(folder), out var accounts, out var folders))
         {
@@ -134,8 +139,11 @@ internal static class ClientMailSearchEndpoint
         try
         {
             var page = await search.SearchPageAsync(request, cancellationToken);
+            var senderPhotos = await photos.ResolveAsync(
+                PersonPhotoResponse.AddressesOf(page.Results.Select(result => result.Email.SenderAddress)),
+                cancellationToken);
 
-            return TypedResults.Ok(ClientMailSearchResponse.For(page));
+            return TypedResults.Ok(ClientMailSearchResponse.For(page, senderPhotos));
         }
         catch (MailboxQueryCursorMalformedException)
         {
@@ -230,14 +238,18 @@ internal sealed record ClientMailSearchResponse(
 {
     /// <summary>Describes one page for the wire.</summary>
     /// <param name="page">The page the use case read.</param>
+    /// <param name="senderPhotos">The photo each sender on the page is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="page" /> is <see langword="null" />.</exception>
-    internal static ClientMailSearchResponse For(BrowsedSearchPage page)
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    internal static ClientMailSearchResponse For(
+        BrowsedSearchPage page,
+        IReadOnlyDictionary<EmailAddress, PersonPhoto> senderPhotos)
     {
         ArgumentNullException.ThrowIfNull(page);
+        ArgumentNullException.ThrowIfNull(senderPhotos);
 
         return new ClientMailSearchResponse(
-            [.. page.Results.Select(ClientMailSearchResultResponse.For)],
+            [.. page.Results.Select(result => ClientMailSearchResultResponse.For(result, senderPhotos))],
             page.NextCursor,
             page.PageSize,
             page.RetrievalMode.ToString(),
@@ -270,6 +282,7 @@ internal sealed record ClientMailSearchResponse(
 /// <param name="IsDepictedMatch">Whether a description of an attached picture is the whole of this message's claim on the query.</param>
 /// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
 /// <param name="Sender">The facts about who sent the message that a row's sender mark is chosen from.</param>
+/// <param name="SenderPhoto">The photo the sender is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
 /// <remarks>
 /// <para>
 /// The row is the message list's row, field for field, so one layout draws both and a search result can be opened,
@@ -316,12 +329,16 @@ internal sealed record ClientMailSearchResultResponse(
     IReadOnlyList<ClientMailAttachmentMatchResponse> AttachmentMatches,
     bool IsDepictedMatch,
     ClientMailSpamVerdictResponse? Spam,
-    ClientMailListedSenderResponse Sender)
+    ClientMailListedSenderResponse Sender,
+    PersonPhotoResponse? SenderPhoto)
 {
     /// <summary>Describes one result for the wire.</summary>
     /// <param name="result">The result the use case read.</param>
+    /// <param name="senderPhotos">The photo each sender of the page is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
-    internal static ClientMailSearchResultResponse For(BrowsedSearchResult result) => new(
+    internal static ClientMailSearchResultResponse For(
+        BrowsedSearchResult result,
+        IReadOnlyDictionary<EmailAddress, PersonPhoto> senderPhotos) => new(
         result.Email.StoredEmailId.Value,
         result.Email.Account.Value,
         result.Email.Folder.Id.ToString(),
@@ -344,7 +361,8 @@ internal sealed record ClientMailSearchResultResponse(
         [.. result.AttachmentMatches.Select(ClientMailAttachmentMatchResponse.For)],
         result.IsDepictedMatch,
         ClientMailSpamVerdictResponse.For(result.Email.Spam),
-        ClientMailListedSenderResponse.For(result.Email.SenderVerification));
+        ClientMailListedSenderResponse.For(result.Email.SenderVerification),
+        PersonPhotoResponse.For(result.Email.SenderAddress, senderPhotos));
 }
 
 /// <summary>One attachment of a result the query reached, and where inside the file it was reached.</summary>

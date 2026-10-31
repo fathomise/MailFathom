@@ -174,6 +174,7 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientColleagueEndpoints.ColleaguePromotionRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientColleagueEndpoints.ColleagueStructureRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientContactEndpoints.CollectedContactsRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientPersonPhotoEndpoint.PersonPhotosRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientContactEndpoints.ContactRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientContactEndpoints.ContactRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientContactEndpoints.ContactRoute}",
@@ -385,6 +386,7 @@ public sealed class ClientApiEndpointsTests
                 $"POST {prefix}{ClientCitationEndpoint.CitationResolutionRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"POST {prefix}{ClientContactEndpoints.ContactsRoute} -> {MailFathomPermission.ContactsWrite.Name}",
                 $"POST {prefix}{ClientColleagueEndpoints.ColleaguePromotionRoute} -> {MailFathomPermission.ContactsWrite.Name}",
+                $"POST {prefix}{ClientPersonPhotoEndpoint.PersonPhotosRoute} -> {MailFathomPermission.ContactsRead.Name}",
                 $"POST {prefix}{ClientContactPhotoEndpoint.ContactPhotoRoute} -> {MailFathomPermission.ContactsWrite.Name}",
                 $"POST {prefix}{ClientContactEndpoints.ContactPromotionRoute} -> {MailFathomPermission.ContactsWrite.Name}",
                 $"POST {prefix}{ClientDiscoveryRunEndpoints.DiscoveryRunsRoute} -> {MailFathomPermission.AssistantUse.Name}",
@@ -469,7 +471,7 @@ public sealed class ClientApiEndpointsTests
     /// <summary>
     /// A read under a reading grant, and every write under a grant that says what it writes, save the acts that are a
     /// <c>POST</c> for a reason other than changing a record: minting a ticket, exchanging a credential, following
-    /// citations, asking a question, holding a conversation, and the client handing over its own telemetry.
+    /// citations, resolving the photos of the people an answer names, asking a question, holding a conversation, and the client handing over its own telemetry.
     /// Reading mail, changing the caller's own record, composing a draft, filing one on their server, sending,
     /// changing a flag, moving a message, deleting one, and changing the caller's own address book, task list,
     /// calendar, notification centre, and profile are separately provisioned powers, so a route that changes anything
@@ -504,6 +506,7 @@ public sealed class ClientApiEndpointsTests
                         || MintsTheCallersOwnSignalTicket(endpoint)
                         || ExchangesTheCallersOwnCredentialForASession(endpoint)
                         || FollowsTheCallersOwnCitations(endpoint)
+                        || ResolvesThePhotosOfTheCallersCorrespondents(endpoint)
                         || AsksAQuestionOfTheCallersOwnMail(endpoint)
                         || HoldsTheCallersOwnAgentConversation(endpoint)
                         || HandsOverTheClientsOwnTelemetry(endpoint),
@@ -562,17 +565,28 @@ public sealed class ClientApiEndpointsTests
 
     /// <summary>Reports whether a route follows the caller's own citations, by the route it is served at.</summary>
     /// <remarks>
-    /// The one <c>POST</c> here that changes nothing at all, and it is the route rather than the grant for the reason
+    /// A <c>POST</c> here that changes nothing at all, and it is the route rather than the grant for the reason
     /// the writes above are: it reads mail the reading grant already admits and publishes less of a message than the
     /// message route does. It is a <c>POST</c> because what it takes is a list of small documents — three kinds each
     /// carrying different members — which a request line would carry as an encoding of the plan's own JSON, under a
-    /// length Kestrel refuses before a handler is reached. Naming the one route keeps the claim narrow: a second
+    /// length Kestrel refuses before a handler is reached. Naming the one route keeps the claim narrow: another
     /// reading <c>POST</c> fails this rather than joining it.
     /// </remarks>
     private static bool FollowsTheCallersOwnCitations(Endpoint endpoint) =>
         endpoint is RouteEndpoint route
         && $"/{route.RoutePattern.RawText?.TrimStart('/')}"
             == $"{ClientEndpointOptions.RoutePrefix}{ClientCitationEndpoint.CitationResolutionRoute}";
+
+    /// <summary>Reports whether a route resolves the photos the people an answer names are drawn by, by the route it is served at.</summary>
+    /// <remarks>
+    /// The other <c>POST</c> that changes nothing, admitted by name for the reason the citations are: it reads what the
+    /// reading grant over the books already admits, and it is a <c>POST</c> because what it takes is a list of
+    /// correspondents' addresses — personal data a request line would put into every access log on its way.
+    /// </remarks>
+    private static bool ResolvesThePhotosOfTheCallersCorrespondents(Endpoint endpoint) =>
+        endpoint is RouteEndpoint route
+        && $"/{route.RoutePattern.RawText?.TrimStart('/')}"
+            == $"{ClientEndpointOptions.RoutePrefix}{ClientPersonPhotoEndpoint.PersonPhotosRoute}";
 
     /// <summary>Reports whether a route asks a question of the caller's own mail, stops one, reads a sentence into a search, drafts a reply, or reads a description into a calendar event, by the five routes they are served at.</summary>
     /// <remarks>

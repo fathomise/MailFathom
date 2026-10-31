@@ -20,6 +20,7 @@ function message(id: string, position: number, unread = false): MailThreadMessag
             sentAt: '2026-08-31T09:40:00+00:00',
             senderAddress: 'auditor@example.invalid',
             senderDisplayName: 'The auditor',
+            senderPhoto: null,
             toAddresses: [],
             unread,
             flagged: false,

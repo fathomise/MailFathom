@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Emails.BrowseTimeline;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
@@ -19,6 +20,7 @@ using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
+using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -35,6 +37,8 @@ namespace MailFathom.Host.UnitTests.Api;
 /// </remarks>
 public sealed class ClientMailTimelineEndpointTests
 {
+    private static readonly IReadOnlyDictionary<EmailAddress, PersonPhoto> NoPhotos = new Dictionary<EmailAddress, PersonPhoto>();
+
     private static readonly DateTimeOffset FirstJuly = new(2026, 7, 1, 8, 0, 0, TimeSpan.Zero);
 
     private readonly IStoredEmailTimelineReader timeline = Substitute.For<IStoredEmailTimelineReader>();
@@ -324,7 +328,7 @@ public sealed class ClientMailTimelineEndpointTests
             Enrichment: null, ThreadMessageCount: null);
 
         // Act
-        var response = ClientMailTimelineEntryResponse.For(row);
+        var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
 
         // Assert
         Assert.Equal("work", response.Account);
@@ -339,6 +343,29 @@ public sealed class ClientMailTimelineEndpointTests
         Assert.Equal("it went out this morning", response.Preview);
     }
 
+    /// <summary>A row names the photo its sender is drawn by, found under the sender's address whatever its spelling, so no list asks for photos row by row.</summary>
+    [Fact]
+    public void For_ARowWhoseSenderHasAPhoto_NamesItAndARowWhoseSenderHasNone_NamesNothing()
+    {
+        // Arrange
+        var contact = new Guid("0198f0aa-0000-7000-8000-00000000d101");
+        var photo = new Guid("0198f0aa-0000-7000-8000-00000000d1f1");
+        Assert.True(EmailAddress.TryCreate(displayName: null, "SENDER@example.test", out var sender));
+        var photos = new Dictionary<EmailAddress, PersonPhoto>
+        {
+            [sender] = new(PersonPhotoSource.OwnContact, contact, photo),
+        };
+        var row = new BrowsedEmail(SyntheticListedEmail(subject: "drawn", attachmentCount: 0), Preview: null, Enrichment: null, ThreadMessageCount: null);
+
+        // Act
+        var drawn = ClientMailTimelineEntryResponse.For(row, photos);
+        var initials = ClientMailTimelineEntryResponse.For(row, NoPhotos);
+
+        // Assert
+        Assert.Equal(new PersonPhotoResponse("Own", contact, photo), drawn.SenderPhoto);
+        Assert.Null(initials.SenderPhoto);
+    }
+
     /// <summary>A screen draws an unread badge, so the flag reaches it as the state it draws rather than as the one the protocol names.</summary>
     [Fact]
     public void For_ARowTheServerReportedAsSeen_IsNotUnread()
@@ -351,7 +378,7 @@ public sealed class ClientMailTimelineEndpointTests
             ThreadMessageCount: null);
 
         // Act
-        var response = ClientMailTimelineEntryResponse.For(row);
+        var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
 
         // Assert
         Assert.False(response.Unread);
@@ -383,7 +410,7 @@ public sealed class ClientMailTimelineEndpointTests
             ThreadMessageCount: null);
 
         // Act
-        var response = ClientMailTimelineEntryResponse.For(row);
+        var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
 
         // Assert
         Assert.NotNull(response.Enrichment);
@@ -416,8 +443,8 @@ public sealed class ClientMailTimelineEndpointTests
         var neverDerived = new BrowsedEmail(SyntheticListedEmail(), Preview: null, Enrichment: null, ThreadMessageCount: null);
 
         // Act
-        var settled = ClientMailTimelineEntryResponse.For(nothingToSay);
-        var outstanding = ClientMailTimelineEntryResponse.For(neverDerived);
+        var settled = ClientMailTimelineEntryResponse.For(nothingToSay, NoPhotos);
+        var outstanding = ClientMailTimelineEntryResponse.For(neverDerived, NoPhotos);
 
         // Assert
         Assert.NotNull(settled.Enrichment);
@@ -448,7 +475,7 @@ public sealed class ClientMailTimelineEndpointTests
             ThreadMessageCount: null);
 
         // Act
-        var response = ClientMailTimelineEntryResponse.For(row);
+        var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
 
         // Assert
         Assert.Equal(
@@ -482,8 +509,8 @@ public sealed class ClientMailTimelineEndpointTests
         };
 
         // Act
-        var outstanding = ClientMailTimelineEntryResponse.For(unclassified);
-        var settled = ClientMailTimelineEntryResponse.For(cleared);
+        var outstanding = ClientMailTimelineEntryResponse.For(unclassified, NoPhotos);
+        var settled = ClientMailTimelineEntryResponse.For(cleared, NoPhotos);
 
         // Assert
         Assert.Null(outstanding.Spam);
@@ -521,7 +548,7 @@ public sealed class ClientMailTimelineEndpointTests
             ThreadMessageCount: null);
 
         // Act
-        var response = ClientMailTimelineEntryResponse.For(row);
+        var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
 
         // Assert
         Assert.Equal(new ClientMailListedSenderResponse("Authenticated", "Trusted", "Verified", false), response.Sender);
@@ -535,7 +562,7 @@ public sealed class ClientMailTimelineEndpointTests
         var row = new BrowsedEmail(SyntheticListedEmail(), Preview: null, Enrichment: null, ThreadMessageCount: null);
 
         // Act
-        var response = ClientMailTimelineEntryResponse.For(row);
+        var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
 
         // Assert
         Assert.Equal(new ClientMailListedSenderResponse("NotEstablished", "Unknown", "NotSigned", false), response.Sender);
@@ -553,7 +580,7 @@ public sealed class ClientMailTimelineEndpointTests
             PageSize: 25);
 
         // Act
-        var response = ClientMailTimelineResponse.For(page);
+        var response = ClientMailTimelineResponse.For(page, NoPhotos);
 
         // Assert
         Assert.Equal("after", response.NextCursor);
@@ -637,6 +664,7 @@ public sealed class ClientMailTimelineEndpointTests
             markDueOnOrAfter,
             markDueBefore,
             this.Browser(participation),
+            UnresolvedPersonPhotos.Create(),
             TestContext.Current.CancellationToken);
     }
 

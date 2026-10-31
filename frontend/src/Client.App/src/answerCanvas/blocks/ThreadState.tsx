@@ -6,9 +6,11 @@ import type {
     AnswerBlock,
     BlockParticipant,
     ConversationStanding,
+    PersonPhotoReference,
     ThreadCommitment,
     ThreadStatement,
 } from '@mailfathom/client-backend';
+import { useContactPhoto, usePhotosOfAddresses } from '../../contactBook/contactPhotos';
 import { SenderAvatar } from '../../controls/SenderAvatar';
 import type { MessageKey } from '../../localization/en';
 import { wordInstant } from '../../localization/instants';
@@ -131,6 +133,7 @@ export function ConversationStandingBody({
 /** Who is taking part, as the one overlapping run of circles the design draws rather than a list of names. */
 function Participants({ participants }: { readonly participants: readonly BlockParticipant[] }) {
     const { translate } = useLocalization();
+    const photos = usePhotosOfAddresses(participants.map((participant) => participant.address));
 
     if (participants.length === 0) {
         return null;
@@ -145,16 +148,35 @@ function Participants({ participants }: { readonly participants: readonly BlockP
                     className="flex items-center"
                     key={`${participant.address ?? participant.displayName}-${String(at)}`}
                 >
-                    <SenderAvatar
-                        address={participant.address}
-                        displayName={participant.displayName}
-                        place="answerStack"
+                    <ParticipantAvatar
+                        participant={participant}
+                        photo={participant.address === null ? null : (photos.get(participant.address) ?? null)}
                     />
 
                     <span className="sr-only">{participant.displayName}</span>
                 </li>
             ))}
         </ul>
+    );
+}
+
+/** One circle of the run, drawn by the photo the participant has or by their initials. */
+function ParticipantAvatar({
+    participant,
+    photo,
+}: {
+    readonly participant: BlockParticipant;
+    readonly photo: PersonPhotoReference | null;
+}) {
+    const picture = useContactPhoto(photo);
+
+    return (
+        <SenderAvatar
+            address={participant.address}
+            displayName={participant.displayName}
+            picture={picture}
+            place="answerStack"
+        />
     );
 }
 

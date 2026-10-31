@@ -17,6 +17,7 @@ function message(over: Partial<MailTimelineEntry> = {}): MailTimelineEntry {
         sentAt: '2026-08-31T09:40:00+00:00',
         senderAddress: 'ada@example.invalid',
         senderDisplayName: 'Ada Lovelace',
+        senderPhoto: null,
         toAddresses: ['charles@example.invalid'],
         unread: false,
         flagged: false,

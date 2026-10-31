@@ -190,6 +190,36 @@ describe('searchContacts across the directory', () => {
         ]);
     });
 
+    // A suggestion is drawn as its person is everywhere else, so one with a photo names it and one without names none.
+    it('names the photo a suggested person is drawn by, and none for somebody who has no photo', async () => {
+        const transport: MailFathomTransport = (request) =>
+            Promise.resolve({
+                status: 200,
+                body: request.path.includes('/contacts/colleagues')
+                    ? page([{ ...(colleagueCalled('piotr', 'Piotr Zieliński') as object), photo: 'revision-1' }])
+                    : page(
+                          request.path.includes('/contacts/collected')
+                              ? []
+                              : [
+                                    {
+                                        ...(contactCalled('anna', 'Anna Kowalska', 'Own') as object),
+                                        photo: 'stored-file',
+                                    },
+                                    contactCalled('bea', 'Bea Lind', 'Own'),
+                                ],
+                      ),
+                headers: {},
+            });
+
+        const offered = everybodyIn(await searchContacts(session, transport, '')) as readonly { photo?: unknown }[];
+
+        expect(offered.map((suggestion) => suggestion.photo)).toStrictEqual([
+            { id: 'piotr', book: 'Member', photo: 'revision-1' },
+            { id: 'anna', book: 'Own', photo: 'stored-file' },
+            undefined,
+        ]);
+    });
+
     it('asks the directory for the term being typed', async () => {
         const asked: string[] = [];
         const transport: MailFathomTransport = (request) => {

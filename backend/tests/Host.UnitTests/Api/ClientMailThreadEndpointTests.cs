@@ -5,6 +5,7 @@
 using System.Security.Cryptography;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
@@ -26,6 +27,7 @@ using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Api;
+using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -43,6 +45,8 @@ namespace MailFathom.Host.UnitTests.Api;
 /// </remarks>
 public sealed class ClientMailThreadEndpointTests
 {
+    private static readonly IReadOnlyDictionary<EmailAddress, PersonPhoto> NoPhotos = new Dictionary<EmailAddress, PersonPhoto>();
+
     private static readonly DateTimeOffset FirstJuly = new(2026, 7, 1, 8, 0, 0, TimeSpan.Zero);
 
     private static readonly EmailThreadId Conversation =
@@ -313,7 +317,7 @@ public sealed class ClientMailThreadEndpointTests
         var message = new BrowsedThreadEmail(email, Position: 0, AnsweredStoredEmailId: null, "what I added", Enrichment: null);
 
         // Act
-        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: DrawnMessage(), standing: SenderContactStanding.Unanswered);
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: DrawnMessage(), standing: SenderContactStanding.Unanswered, senderPhotos: NoPhotos);
 
         // Assert
         Assert.NotNull(response.Message);
@@ -344,7 +348,7 @@ public sealed class ClientMailThreadEndpointTests
             PageSize: 10);
 
         // Act
-        var response = ClientMailThreadResponse.For(thread, [DrawnMessage()], new Dictionary<StoredEmailId, SenderContactStanding>());
+        var response = ClientMailThreadResponse.For(thread, [DrawnMessage()], new Dictionary<StoredEmailId, SenderContactStanding>(), NoPhotos);
 
         // Assert
         Assert.NotNull(response.Messages[0].Message);
@@ -388,7 +392,7 @@ public sealed class ClientMailThreadEndpointTests
             PageSize: 25);
 
         // Act
-        var response = ClientMailThreadResponse.For(thread, [], new Dictionary<StoredEmailId, SenderContactStanding>());
+        var response = ClientMailThreadResponse.For(thread, [], new Dictionary<StoredEmailId, SenderContactStanding>(), NoPhotos);
 
         // Assert
         Assert.Equal(500, response.MessageCount);
@@ -413,7 +417,7 @@ public sealed class ClientMailThreadEndpointTests
         var message = new BrowsedThreadEmail(SyntheticListedEmail(), Position: 2, answered, "what I added", Enrichment: null);
 
         // Act
-        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 4, drawn: null, standing: SenderContactStanding.Unanswered);
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 4, drawn: null, standing: SenderContactStanding.Unanswered, senderPhotos: NoPhotos);
 
         // Assert
         Assert.Equal(2, response.Position);
@@ -436,7 +440,7 @@ public sealed class ClientMailThreadEndpointTests
             Enrichment: null);
 
         // Act
-        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: null, standing: SenderContactStanding.Unanswered);
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: null, standing: SenderContactStanding.Unanswered, senderPhotos: NoPhotos);
 
         // Assert
         Assert.Null(response.AnsweredId);
@@ -567,6 +571,7 @@ public sealed class ClientMailThreadEndpointTests
             this.Browser(),
             ReadingNothing(),
             NoStandings(),
+            UnresolvedPersonPhotos.Create(),
             TestContext.Current.CancellationToken);
 
     /// <summary>Reads the conversation with its messages drawn, over a content read that answers for the summaries given.</summary>
@@ -581,6 +586,7 @@ public sealed class ClientMailThreadEndpointTests
             this.Browser(participation),
             this.ReadingDrawnMessages(summaries, participation),
             NoStandings(),
+            UnresolvedPersonPhotos.Create(),
             TestContext.Current.CancellationToken);
 
     /// <summary>A standings read for a caller holding no contact grant, which asks the books nothing about a message no personal contact recognized.</summary>

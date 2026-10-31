@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.BrowseSearch;
 using MailFathom.Application.Emails.Embeddings;
@@ -22,6 +23,7 @@ using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
+using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -39,6 +41,8 @@ namespace MailFathom.Host.UnitTests.Api;
 /// </remarks>
 public sealed class ClientMailSearchEndpointTests
 {
+    private static readonly IReadOnlyDictionary<EmailAddress, PersonPhoto> NoPhotos = new Dictionary<EmailAddress, PersonPhoto>();
+
     private static readonly DateTimeOffset FirstJuly = new(2026, 7, 1, 8, 0, 0, TimeSpan.Zero);
 
     private readonly IEmailSearchIndexReader index = Substitute.For<IEmailSearchIndexReader>();
@@ -187,7 +191,7 @@ public sealed class ClientMailSearchEndpointTests
             IncludedJunkMail: true);
 
         // Act
-        var response = ClientMailSearchResponse.For(page);
+        var response = ClientMailSearchResponse.For(page, NoPhotos);
 
         // Assert
         Assert.Equal("after", response.NextCursor);
@@ -220,7 +224,7 @@ public sealed class ClientMailSearchEndpointTests
             IsDepictedMatch: false));
 
         // Act
-        var response = ClientMailSearchResponse.For(page);
+        var response = ClientMailSearchResponse.For(page, NoPhotos);
 
         // Assert
         var attachment = Assert.Single(Assert.Single(response.Results).AttachmentMatches);
@@ -256,7 +260,7 @@ public sealed class ClientMailSearchEndpointTests
             IsDepictedMatch: true));
 
         // Act
-        var response = ClientMailSearchResponse.For(page);
+        var response = ClientMailSearchResponse.For(page, NoPhotos);
 
         // Assert
         var result = Assert.Single(response.Results);
@@ -281,7 +285,7 @@ public sealed class ClientMailSearchEndpointTests
             IsDepictedMatch: false));
 
         // Act
-        var response = ClientMailSearchResponse.For(page);
+        var response = ClientMailSearchResponse.For(page, NoPhotos);
 
         // Assert
         Assert.Empty(Assert.Single(response.Results).AttachmentMatches);
@@ -309,7 +313,7 @@ public sealed class ClientMailSearchEndpointTests
             IsDepictedMatch: false));
 
         // Act
-        var response = ClientMailSearchResponse.For(page);
+        var response = ClientMailSearchResponse.For(page, NoPhotos);
 
         // Assert
         Assert.Equal(
@@ -343,7 +347,7 @@ public sealed class ClientMailSearchEndpointTests
             IsDepictedMatch: false));
 
         // Act
-        var response = ClientMailSearchResponse.For(page);
+        var response = ClientMailSearchResponse.For(page, NoPhotos);
 
         // Assert
         Assert.Equal(
@@ -437,6 +441,7 @@ public sealed class ClientMailSearchEndpointTests
             pageSize,
             cursor,
             this.Browser(participation),
+            UnresolvedPersonPhotos.Create(),
             TestContext.Current.CancellationToken);
     }
 

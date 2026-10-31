@@ -1732,6 +1732,9 @@ public static class ServiceCollectionExtensions
         // from their record.
         services.AddScoped<ContactPhotos>();
 
+        // Which photo each person a read draws is drawn by, answered for the whole read beside it rather than stored.
+        services.AddScoped<PersonPhotos>();
+
         // The correlation an opened contact is drawn beside, which is a mail read rather than a book one: it stores
         // nothing, keys on the addresses the book already holds, and narrows by the same scope every other mail read
         // composes. Registered here beside the book because that is the surface it is reached from.

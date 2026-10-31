@@ -42,6 +42,7 @@ function message(at: number): MailTimelineEntry {
         sentAt: null,
         senderAddress: 'auditor@example.invalid',
         senderDisplayName: null,
+        senderPhoto: null,
         toAddresses: [],
         unread: false,
         flagged: false,

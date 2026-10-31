@@ -2,8 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import type {
     AnswerBlock,
     BlockEvidence,
@@ -11,6 +11,7 @@ import type {
     DeclaredSource,
     ThreadCommitment,
 } from '@mailfathom/client-backend';
+import { ContactPhotoContext, type ContactPhotoReader } from '../../contactBook/contactPhotos';
 import { LocalizationProvider } from '../../localization/Localization';
 import { ReadingZoneContext } from '../../localization/useReadingZone';
 import { AnswerSourcesContext } from '../answerSources';
@@ -175,5 +176,38 @@ describe('ThreadState', () => {
 
         expect(screen.getByText('SLA cut from 4 h to 2 h')).toBeDefined();
         expect(screen.queryByRole('article')).toBeNull();
+    });
+});
+
+describe('ThreadState, drawing who has a photo', () => {
+    const drawn = 'data:image/png;base64,iVBORw0KGgo=';
+
+    // A participant named without an address cannot be resolved, so only the addressed one is asked about — once.
+    it('resolves the addressed participants in one request and draws each by the photo they have', async () => {
+        const resolve = vi.fn<ContactPhotoReader['resolve']>(() =>
+            Promise.resolve(new Map([['anna@contoso.example', { book: 'Member', id: 'anna', photo: 'revision-1' }]])),
+        );
+        const read = vi.fn<ContactPhotoReader['read']>(() => Promise.resolve(drawn));
+
+        render(
+            <ContactPhotoContext value={{ read, resolve }}>
+                <LocalizationProvider>
+                    <AnswerSourcesContext
+                        value={{ sources: new Map([[addendum.id, addendum]]), follow: () => undefined }}
+                    >
+                        <ThreadState block={stood()} />
+                    </AnswerSourcesContext>
+                </LocalizationProvider>
+            </ContactPhotoContext>,
+        );
+
+        const run = screen.getByRole('list', { name: 'Taking part' });
+
+        await waitFor(() => {
+            expect(run.querySelectorAll('img')).toHaveLength(1);
+        });
+        expect(run.querySelector('img')?.getAttribute('src')).toBe(drawn);
+        expect(resolve).toHaveBeenCalledTimes(1);
+        expect(resolve).toHaveBeenCalledWith(['anna@contoso.example']);
     });
 });

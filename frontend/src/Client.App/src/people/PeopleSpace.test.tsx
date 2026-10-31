@@ -6,6 +6,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@te
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
+import { ContactPhotoContext, contactPhotoReader } from '../contactBook/contactPhotos';
 import type { ContactPhotoExchange } from '../deployment/portraitExchange';
 import { LocalizationProvider } from '../localization/Localization';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
@@ -239,16 +240,23 @@ function drawSpace(
                     <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
                         <ScreenLayersContext value={layers}>
                             <ComposingContext value={composing}>
-                                <PeopleSpace
-                                    session={session}
-                                    transport={transport}
-                                    contactPhotos={photos}
-                                    writable={writable}
-                                    organizationName="Nordwind"
-                                    inOrganization={inOrganization}
-                                    onOpenThread={vi.fn()}
-                                    onOpenDocument={vi.fn()}
-                                />
+                                <ContactPhotoContext
+                                    value={{
+                                        ...contactPhotoReader(session, photos),
+                                        resolve: () => Promise.resolve(new Map()),
+                                    }}
+                                >
+                                    <PeopleSpace
+                                        session={session}
+                                        transport={transport}
+                                        contactPhotos={photos}
+                                        writable={writable}
+                                        organizationName="Nordwind"
+                                        inOrganization={inOrganization}
+                                        onOpenThread={vi.fn()}
+                                        onOpenDocument={vi.fn()}
+                                    />
+                                </ContactPhotoContext>
                             </ComposingContext>
                         </ScreenLayersContext>
                     </ConnectionStatusContext>
