@@ -1219,9 +1219,10 @@ so a conversation past the bound leaves the queue instead of heading every pass 
 **The conversation's title is two columns of the same row**, `Topic` of at most 80 characters and `Standing` of at most
 160, both nullable. They are columns rather than a table of their own because the title is written by the same
 derivation as the statements and against the same pair: it is replaced when the state is, and goes with it when the
-conversation's mail is erased. `Topic` is null where the conversation was given no title — it was too long to read, all
-of it sits in junk, or the answer carried none — and `Standing` is null exactly where `Topic` is, and an empty string
-where the conversation is named and nothing in it is left open. Both were refused rather than shortened when a model
+conversation's mail is erased. `Topic` is null where the conversation was given no title — it was too long to read or
+all of it sits in junk — or where no answer has named it yet; an answer carrying no title leaves the kept topic in place
+with an empty standing. `Standing` is null exactly where `Topic` is, and an empty string where the conversation is
+named and nothing in it is left open. Both were refused rather than shortened when a model
 wrote them past their bounds, so the columns never cut a value.
 
 `email_thread_state_entries` holds the statements, a row each rather than four sets of columns on the state: the four
