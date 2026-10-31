@@ -4575,6 +4575,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const paneCompact = paneW < 760;
       const paneNarrow = paneW < 560;
       const stateCards = !isMobile && paneCompact;
+      /* A pane wide enough to leave a margin beside the reading column carries the thread's state in that margin
+         rather than in a bar over the correspondence. */
+      const stateAside = !singlePane && !isMobile && paneW >= 1200;
       const readPad = (min) => "max(" + min + "px, calc((100% - 880px) / 2))";
 
       const vals = {
@@ -7193,10 +7196,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const next = i < 0 ? null : listedThreads[dx < 0 ? i + 1 : i - 1];
           if (next) this.setState({ threadId: next.id, thScroll: false, stateOpen: false });
         },
+        threadMainStyle: "flex:1;display:flex;min-width:0;min-height:0;flex-direction:" + (stateAside ? "row-reverse" : "column"),
         threadStateStyle: singlePane
           ? "flex:0 0 auto;display:flex;align-items:center;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 12px"
-          : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 22px",
-        stateRowStyle: isMobile || paneNarrow ? "display:flex;flex-direction:column;gap:6px;padding-top:1px"
+          : stateAside
+            ? "flex:0 0 280px;display:flex;flex-direction:column;gap:6px;background:var(--sub);border-left:1px solid var(--line);padding:18px 20px;overflow:auto;min-height:0;box-sizing:border-box"
+            : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 22px",
+        stateRowStyle: stateAside ? "display:grid;grid-template-columns:minmax(0,1fr);gap:16px"
+          : isMobile || paneNarrow ? "display:flex;flex-direction:column;gap:6px;padding-top:1px"
           : thread.state.length >= 4 ? "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px" : "display:flex;gap:12px 20px;flex-wrap:wrap",
         stateBodyRowStyle: thread.state.length >= 4
           ? "flex:0 0 auto;display:grid;grid-template-columns:" + (paneNarrow ? "minmax(0,1fr)" : "repeat(2,minmax(0,1fr))") + ";gap:7px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:8px"

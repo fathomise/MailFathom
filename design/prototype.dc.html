@@ -1162,6 +1162,7 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </div>
           </sc-if>
+          <div style="{{ threadMainStyle }}">
           <sc-if value="{{ showThreadStateBar }}" hint-placeholder-val="{{ true }}">
           <div style="{{ threadStateStyle }}">
             <sc-if value="{{ mobileStateLine }}" hint-placeholder-val="{{ false }}">
@@ -1356,6 +1357,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="display:flex;gap:9px;flex-wrap:wrap"><div style="font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 15px" style-hover="opacity:0.88;cursor:pointer">Open in composer</div><div onClick="{{ closeMailAnswer }}" style="font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:8px 15px" style-hover="background:var(--rail);cursor:pointer">Discard draft</div></div>
               </div>
             </sc-if>
+          </div>
           </div>
           <sc-if value="{{ replyChooserOpen }}" hint-placeholder-val="{{ false }}">
             <div onClick="{{ closeReplyChooser }}" style="position:absolute;inset:0;z-index:15"></div>
