@@ -110,7 +110,8 @@ public sealed class AutomaticReplyResponder(
             return false;
         }
 
-        var insideOrganization = summary.SenderVerification.DeploymentTrustGrantedBy is SenderTrustSource.OrganizationMember;
+        var insideOrganization = summary.SenderVerification.DeploymentTrustGrantedBy is SenderTrustSource.OrganizationMember
+            && envelope.AnswersTheAuthor(target);
 
         var composition = composer.Compose(
             account,

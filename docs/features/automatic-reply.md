@@ -3,8 +3,10 @@
 <!-- describes: backend/src/Domain/AutomaticReplies/**, backend/src/Application/AutomaticReplies/**, backend/src/Infrastructure/Persistence/AutomaticReplies/**, backend/src/Infrastructure/Mail/Mime/MimeKitArrivedMailEnvelopeReader.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs -->
 
 A person who is away sets an automatic reply, and mail arriving on the accounts they chose is answered with it until
-the period ends or they switch it off. Every user of a deployment can set one; nothing an operator configures turns it
-on or off. It is set over [the automatic reply routes](../operations/client-endpoint.md#the-automatic-reply-routes) of
+the period ends or they switch it off. Nothing an operator configures turns it on or off: reading one takes
+`mailfathom.profile.read`, and saving one takes `mailfathom.profile.write` together with `mailfathom.mail.send`, since
+what a save arranges is mail sent as the person's accounts — [Permissions](../operations/permissions.md#the-published-set)
+holds both. It is set over [the automatic reply routes](../operations/client-endpoint.md#the-automatic-reply-routes) of
 the client endpoint, and no screen of the client offers it yet.
 
 ## What a reply is
@@ -23,8 +25,11 @@ under the new one.
 
 **A colleague is recognized by proof, never by the address.** A message is answered with the inside text only where it
 carries a signature [made with a key of the receiving account's organization](sender-authentication.md#a-colleague-in-the-receiving-accounts-organization)
-that verified, which is the trust MailFathom grants an organization member. A `From` claiming a colleague's address is something anybody can write, and the inside text is
-usually the one that says more, so a forged colleague is answered with the outside text like any other sender.
+that verified, which is the trust MailFathom grants an organization member, and only where the answer goes back to
+the `From` address that signature proved. A `From` claiming a colleague's address is something anybody can write, and
+the inside text is usually the one that says more, so a forged colleague is answered with the outside text like any
+other sender — and so is a colleague's message whose `Reply-To` names another address, because the signature proves
+nothing about that one.
 
 ## Which accounts may answer
 
@@ -54,7 +59,9 @@ asks of an automatic responder. An arrival is left unanswered when:
 - classification judged it junk.
 
 The answer goes to the first `Reply-To` mailbox where the message names one, and to the first `From` mailbox
-otherwise.
+otherwise. Neither header is authenticated for this purpose, so a forged message can direct one reply carrying the
+outside text to an address of its choosing — once per address per reply, by the rule below — exactly as a forged
+`From` alone could; the inside text never travels that way.
 
 **Each sender is answered once per reply.** The first arrival from an address is answered and every later one is not,
 however many arrive during the period; the address is compared as normalized, so case does not make a second sender.

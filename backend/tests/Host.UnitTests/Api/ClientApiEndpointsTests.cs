@@ -705,6 +705,29 @@ public sealed class ClientApiEndpointsTests
             write.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
     }
 
+    /// <summary>The automatic reply write carries a bound sized for its two texts and its accounts rather than the server's default.</summary>
+    [Fact]
+    public void MapClientApi_TheAutomaticReplyWrite_CarriesItsOwnRequestBodyBound()
+    {
+        // Arrange
+        var endpoints = BuildRouteBuilder();
+
+        // Act
+        endpoints.MapClientApi();
+
+        // Assert
+        var write = endpoints.Materialize()
+            .OfType<RouteEndpoint>()
+            .Single(endpoint =>
+                $"/{endpoint.RoutePattern.RawText?.TrimStart('/')}"
+                    == $"{ClientEndpointOptions.RoutePrefix}{ClientAutomaticReplyEndpoint.AutomaticReplyRoute}"
+                && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("POST"));
+
+        Assert.Equal(
+            ClientAutomaticReplyEndpoint.MaxWriteRequestBytes,
+            write.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
+    }
+
     /// <summary>
     /// The read-state write carries a bound of its own, which is the smallest on this surface: the body is one boolean,
     /// so what the bound guards against is a body that was never a read-state document rather than a large one.

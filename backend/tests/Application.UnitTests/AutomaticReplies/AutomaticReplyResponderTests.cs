@@ -189,6 +189,30 @@ public sealed class AutomaticReplyResponderTests
         Assert.Equal(expected, Assert.Single(world.Composed).PlainTextBody);
     }
 
+    /// <summary>
+    /// A signature proves the <c>From</c> address and nothing a <c>Reply-To</c> names, so a colleague's message asking
+    /// to be answered elsewhere is answered there with the text for everybody else.
+    /// </summary>
+    [Fact]
+    public async Task AnswerAsync_AColleagueAskingToBeAnsweredElsewhere_SendsTheOutsideTextThere()
+    {
+        // Arrange
+        var world = new AutomaticReplyWorld();
+        await world.AnswerAsync(insideText: "Back on Monday; ask Ewa meanwhile.");
+
+        // Act
+        await world.RespondAsync(world.Arrive(
+            "anna@example.test",
+            trustedBy: SenderTrustSource.OrganizationMember,
+            replyTo: "anna.private@elsewhere.test"));
+
+        // Assert
+        var reply = Assert.Single(world.Composed);
+
+        Assert.Equal("I am away until Monday.", reply.PlainTextBody);
+        Assert.Equal("anna.private@elsewhere.test", Assert.Single(reply.Recipients).Address);
+    }
+
     /// <summary>An account shared after the reply was saved is not answered, because nobody is away on a shared mailbox's behalf.</summary>
     [Fact]
     public async Task AnswerAsync_AnAccountSharedSinceTheReplyWasSaved_WritesNothing()

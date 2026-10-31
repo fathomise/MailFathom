@@ -125,7 +125,8 @@ internal sealed class AutomaticReplyWorld
         string from,
         EmailAutomation automation = EmailAutomation.None,
         bool hasNullReturnPath = false,
-        SenderTrustSource trustedBy = SenderTrustSource.None)
+        SenderTrustSource trustedBy = SenderTrustSource.None,
+        string? replyTo = null)
     {
         var id = StoredEmailId.Create(Guid.CreateVersion7());
 
@@ -134,6 +135,7 @@ internal sealed class AutomaticReplyWorld
             accountId: Account.Value,
             senderVerification: SenderVerificationGrantedBy(trustedBy)));
         this.envelopes[id] = new ArrivedMailEnvelope(
+            Address(replyTo ?? from),
             Address(from),
             automation,
             hasNullReturnPath,

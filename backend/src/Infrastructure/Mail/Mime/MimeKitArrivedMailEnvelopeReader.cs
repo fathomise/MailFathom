@@ -33,8 +33,11 @@ internal sealed class MimeKitArrivedMailEnvelopeReader : IArrivedMailEnvelopeRea
             return null;
         }
 
+        var author = FirstAddressOf(headers[HeaderId.From]);
+
         return new ArrivedMailEnvelope(
-            FirstAddressOf(headers[HeaderId.ReplyTo]) ?? FirstAddressOf(headers[HeaderId.From]),
+            FirstAddressOf(headers[HeaderId.ReplyTo]) ?? author,
+            author,
             MailAutomationReading.Read(headers),
             IsNullSender(headers[HeaderId.ReturnPath]),
             headers[HeaderId.Subject],

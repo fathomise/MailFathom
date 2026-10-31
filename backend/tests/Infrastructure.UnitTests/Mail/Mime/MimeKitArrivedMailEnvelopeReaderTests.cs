@@ -29,6 +29,7 @@ public sealed class MimeKitArrivedMailEnvelopeReaderTests
         // Assert
         Assert.NotNull(envelope);
         Assert.Equal("desk@example.test", envelope.ReplyTarget?.Address);
+        Assert.Equal("anna@example.test", envelope.Author?.Address);
         Assert.Equal("Budget", envelope.Subject);
         Assert.Equal(EmailAutomation.None, envelope.Automation);
         Assert.False(envelope.HasNullReturnPath);

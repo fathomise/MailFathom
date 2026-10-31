@@ -207,6 +207,25 @@ public sealed class MailSettlementPassTests
         Assert.Equal("anna@example.test", Assert.Single(Assert.Single(world.Outgoing.OpenRequests).Recipients).Address.Address);
     }
 
+    /// <summary>The run that settled a message is the one that answers it, so a competing replica's settlement leaves this run nothing to send.</summary>
+    [Fact]
+    public async Task RunAsync_AnInboxArrivalACompetingRunSettledFirst_IsNotAnsweredHere()
+    {
+        // Arrange
+        var world = new AutomaticReplyWorld(this.clock, periodAround: Now);
+        await world.AnswerAsync();
+        var inbox = Email(1) with { Id = world.Arrive("anna@example.test") };
+        this.store.Holding(inbox).SettledElsewhere(inbox.Id);
+
+        // Act
+        await this.CreatePass(ClientSignalPublishers.ReachingNobody, world.Responder)
+            .RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(world.Composed);
+        Assert.Empty(world.Outgoing.OpenRequests);
+    }
+
     private static SettlingEmail Email(int number, SpamVerdict? verdict = SpamVerdict.NotSpam) =>
         new(
             StoredEmailId.Create(Guid.Parse($"0199a0c0-0000-7000-8000-{number:D12}")),
