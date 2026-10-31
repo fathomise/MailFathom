@@ -3897,7 +3897,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return Object.assign(row, {
           folded, unfolded: !folded,
           aiBtnShown: !sp.spam,
-          iconLineShown: row.iconLineShown && (!sp.spam || !!row.flagged || !!row.multi),
           showAi: row.showAi && !sp.spam,
           spamBadge: badged,
           spamBadgeDanger: badged && k.danger,
@@ -3961,9 +3960,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const rcptOpen = (id) => !!(st.receiptPop && st.receiptPop.id === id);
       const withReceipt = (t, row) => {
         const R = inSent ? receiptOf(t.id) : null;
-        if (!R || R.k === "waiting") return Object.assign(row, { rcptShown: false });
+        /* A tall row draws neither the count nor the AI summary button: its own line carries the receipt mark and the flag alone. */
+        if (!R || R.k === "waiting") return Object.assign(row, { rcptShown: false, iconLineShown: listTall && !!row.flagged });
         return Object.assign(row, {
-          rcptShown: true, rcptGlyph: R.glyph, rcptName: R.name, rcptOpen: rcptOpen(t.id),
+          rcptShown: true, rcptGlyph: R.glyph, rcptName: R.name, rcptOpen: rcptOpen(t.id), iconLineShown: listTall,
           openRcpt: (e) => this.openReceipt(t.id, e),
           rcptBtnStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:" + RECEIPT_INK[R.tone] + ";" +
             (touch ? "width:44px;height:44px;margin:-12px -10px;" : "width:24px;height:24px;margin:-4px -3px;"),
@@ -7243,7 +7243,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           swipeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;margin-right:8px" + (Math.abs(st.swipeDx || 0) >= 96 ? ";font-variation-settings:'wght' 500" : ""),
           swipeTextStyle: "font-size:13px;font-weight:600;opacity:" + (Math.abs(st.swipeDx || 0) >= 96 ? "1" : "0.55"),
           iconsInline: !listTall,
-          iconLineShown: listTall,
           iconLineStyle: "display:flex;align-items:center;gap:" + (touch ? 10 : 9) + "px;min-height:" + (touch ? 32 : 24) + "px",
           aiStyle: isMobile ? "display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);line-height:1.35" : "display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)",
           from: t.from, org: t.org, time: t.time, subject: t.subject, ai: t.ai,
