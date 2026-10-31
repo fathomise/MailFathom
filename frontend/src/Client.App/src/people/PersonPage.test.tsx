@@ -358,6 +358,34 @@ describe('PersonPage', () => {
             expect(screen.getByText('Outside working hours')).toBeDefined();
         });
 
+        it("names the reader's days beside hours the reader's clock moves onto the evening before", () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-28T08:41:00Z'));
+            drawPage({
+                contact: { ...piotr, timeZone: 'Australia/Sydney', workingHours: officeHours },
+                readerZone: 'America/Los_Angeles',
+            });
+
+            expect(screen.getByText('(Sun–Thu 3:00 PM–11:30 PM your time)')).toBeDefined();
+        });
+
+        it('says which hours a zone this device does not know leaves unconverted, and marks nothing', () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-28T08:41:00Z'));
+            drawPage({
+                contact: { ...piotr, timeZone: 'Mars/Olympus_Mons', workingHours: officeHours },
+                readerZone: 'Europe/Warsaw',
+            });
+
+            expect(
+                screen.getByText(
+                    "The time zone Piotr states is not one this device knows, so these hours are Piotr's own and are not converted to yours.",
+                ),
+            ).toBeDefined();
+            expect(screen.queryByText(/your time/u)).toBeNull();
+            expect(screen.queryByText('Outside working hours')).toBeNull();
+        });
+
         it('marks nothing while it is inside their working hours', () => {
             vi.useFakeTimers({ toFake: ['Date'] });
             vi.setSystemTime(new Date('2026-10-28T10:00:00Z'));

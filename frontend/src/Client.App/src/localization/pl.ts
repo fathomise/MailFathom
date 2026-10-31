@@ -2338,10 +2338,15 @@ export const pl: Catalogue = {
     'people.clockSame': '{time}, tak samo jak u Ciebie',
     'people.workingHours': '{days} {hours}',
     'people.workingHoursYours': '({hours} u Ciebie)',
+    'people.workingHoursYoursOn': '({days} {hours} u Ciebie)',
+    'people.workingHoursYoursIntoNextDay': '({hours} do następnego dnia, u Ciebie)',
+    'people.workingHoursYoursOnIntoNextDay': '({days} {hours} do następnego dnia, u Ciebie)',
     'people.workingRun': '{first}–{last}',
     'people.outsideWorkingHours': 'Poza godzinami pracy',
     'people.workingHoursNoZone':
         'Nie podano strefy czasowej, więc to godziny pracy według zegara tej osoby, nieprzeliczone na Twój czas.',
+    'people.workingHoursUnknownZone':
+        'To urządzenie nie zna podanej strefy czasowej, więc to godziny pracy według zegara tej osoby, nieprzeliczone na Twój czas.',
     'people.writeReadOnly': 'Ten kontakt prowadzi Twoja organizacja, więc nie można go tu zmienić.',
 
     'person.relationship': 'Stan relacji',

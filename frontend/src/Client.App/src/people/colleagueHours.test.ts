@@ -24,7 +24,7 @@ describe('wordColleagueHours', () => {
         expect(wordColleagueHours(officeHours, 'America/New_York', 'Europe/Warsaw', wednesday, 'pl', run)).toEqual({
             days: 'pon.–pt.',
             own: '09:00–17:00',
-            yours: '14:00–22:00',
+            yours: { days: null, hours: '14:00–22:00', intoNextDay: false },
             outside: true,
         });
     });
@@ -35,9 +35,15 @@ describe('wordColleagueHours', () => {
         expect(wordColleagueHours(hours, 'Europe/London', 'Europe/Warsaw', wednesday, 'en', run)).toEqual({
             days: 'Wed',
             own: '8:00 AM–4:30 PM',
-            yours: '9:00 AM–5:30 PM',
+            yours: { days: null, hours: '9:00 AM–5:30 PM', intoNextDay: false },
             outside: false,
         });
+    });
+
+    it('moves the days with the hours where the reader’s clock puts them on the evening before', () => {
+        expect(
+            wordColleagueHours(officeHours, 'Australia/Sydney', 'America/Los_Angeles', wednesday, 'en', run).yours,
+        ).toEqual({ days: 'Sun–Thu', hours: '3:00 PM–11:00 PM', intoNextDay: false });
     });
 
     it('marks a day that is not worked as outside the hours, whatever the time', () => {
@@ -52,10 +58,12 @@ describe('wordColleagueHours', () => {
         ).toBeNull();
     });
 
-    it('wraps converted hours onto the reader’s clock where they cross the reader’s midnight', () => {
-        expect(wordColleagueHours(officeHours, 'Europe/Warsaw', 'Asia/Tokyo', wednesday, 'pl', run).yours).toBe(
-            '17:00–01:00',
-        );
+    it('says the converted hours end the next day where they cross the reader’s midnight', () => {
+        expect(wordColleagueHours(officeHours, 'Europe/Warsaw', 'Asia/Tokyo', wednesday, 'pl', run).yours).toEqual({
+            days: null,
+            hours: '17:00–01:00',
+            intoNextDay: true,
+        });
     });
 
     it('shows the hours as stated, converted to nothing and marked neither way, where no zone is known', () => {
@@ -72,6 +80,7 @@ describe('wordColleagueHours', () => {
         [['Monday', 'Wednesday', 'Friday'], 'Mon, Wed, Fri'],
         [['Monday', 'Tuesday'], 'Mon, Tue'],
         [['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'], 'Mon–Thu, Sat'],
+        [['Saturday', 'Sunday', 'Monday'], 'Sat–Mon'],
     ] as const)('folds only a run of three or more days: %j reads %s', (days, worded) => {
         expect(wordColleagueHours({ ...officeHours, days }, null, null, wednesday, 'en', run).days).toBe(worded);
     });

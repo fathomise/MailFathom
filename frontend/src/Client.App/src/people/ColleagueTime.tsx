@@ -9,15 +9,25 @@ import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { useCurrentMinute } from '../notifications/notificationAge';
 import { colleagueClock, wordClockDifference } from './colleagueClock';
-import { wordColleagueHours } from './colleagueHours';
+import { wordColleagueHours, type ConvertedColleagueHours } from './colleagueHours';
 
 // The card beside a colleague's *Contact details* that says what time it is where they are, and when they work. The
 // clock row — *09:41, 1 h behind you* — is drawn only for a colleague who states a zone this runtime knows. The hours
 // row says the days and hours on their own clock, then the same hours on the reader's where the two differ, and the
-// card is headed *Outside working hours* while it is outside them where the colleague is. Without a zone the hours are
-// shown as stated, with a note that they are not converted, and nobody can say whether it is outside them. The card is
+// card is headed *Outside working hours* while it is outside them where the colleague is. Without a zone, or with one
+// this runtime does not know, the hours are shown as stated, with a note saying which and that they are not converted,
+// and nobody can say whether it is outside them. The card is
 // drawn where there is a clock or hours to show, and it moves with the minute, because a time read once at opening is
 // wrong by the time somebody comes back to the page.
+
+// Which sentence the converted hours take, by whether the reader's clock moves them onto other days or past midnight.
+function convertedSaid(converted: ConvertedColleagueHours): MessageKey {
+    if (converted.days === null) {
+        return converted.intoNextDay ? 'people.workingHoursYoursIntoNextDay' : 'people.workingHoursYours';
+    }
+
+    return converted.intoNextDay ? 'people.workingHoursYoursOnIntoNextDay' : 'people.workingHoursYoursOn';
+}
 
 // Which sentence the offset takes, by which side of the reader's clock theirs stands.
 function clockSaid(minutesAhead: number): MessageKey {
@@ -85,13 +95,19 @@ export function ColleagueTime({
                             {hours.yours === null ? null : (
                                 <span className="text-muted">
                                     {' '}
-                                    {translate('people.workingHoursYours', { hours: hours.yours })}
+                                    {translate(convertedSaid(hours.yours), {
+                                        days: hours.yours.days ?? '',
+                                        hours: hours.yours.hours,
+                                    })}
                                 </span>
                             )}
                         </p>
-                        {timeZone === null ? (
+                        {clock === null ? (
                             <p className="text-sm text-muted text-pretty">
-                                {translate('people.workingHoursNoZone', { name: displayName.split(' ')[0] ?? '' })}
+                                {translate(
+                                    timeZone === null ? 'people.workingHoursNoZone' : 'people.workingHoursUnknownZone',
+                                    { name: displayName.split(' ')[0] ?? '' },
+                                )}
                             </p>
                         ) : null}
                     </div>

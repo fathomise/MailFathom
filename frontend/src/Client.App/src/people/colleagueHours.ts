@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { weekdays, type ColleagueWorkingHours } from '@mailfathom/client-backend';
+import { weekdays, type ColleagueWorkingHours, type Weekday } from '@mailfathom/client-backend';
 import { wordInstant } from '../localization/instants';
 import type { Locale } from '../localization/locale';
 import { colleagueClock, wallClockAt } from './colleagueClock';
@@ -21,10 +21,22 @@ export interface WordedColleagueHours {
     readonly own: string;
 
     /** The same hours on the reader's clock, or `null` where the two clocks read alike or the zone is not known. */
-    readonly yours: string | null;
+    readonly yours: ConvertedColleagueHours | null;
 
     /** Whether it is outside the hours where the colleague is now, or `null` where their zone is not known. */
     readonly outside: boolean | null;
+}
+
+/** A colleague's working hours on the reader's clock. */
+export interface ConvertedColleagueHours {
+    /** The days they start on in the reader's week, or `null` where those are the colleague's own days. */
+    readonly days: string | null;
+
+    /** The hours on the reader's clock. */
+    readonly hours: string;
+
+    /** Whether the hours run past the reader's midnight, so they end on the day after the one they start on. */
+    readonly intoNextDay: boolean;
 }
 
 const minutesPerDay = 24 * 60;
@@ -54,14 +66,39 @@ export function wordColleagueHours(
     const wordedRun = (start: number, end: number): string => run(wordTime(start, locale), wordTime(end, locale));
 
     return {
-        days: wordDays(hours, locale, run),
+        days: wordDays(hours.days, locale, run),
         own: wordedRun(hours.start, hours.end),
         yours:
             clock === null || clock.minutesAhead === 0
                 ? null
-                : wordedRun(hours.start - clock.minutesAhead, hours.end - clock.minutesAhead),
+                : convert(hours, clock.minutesAhead, wordedRun, (days) => wordDays(days, locale, run)),
         outside: wall === null ? null : !isWithin(hours, wall.weekday, wall.minute),
     };
+}
+
+// The hours moved onto the reader's clock, and with them the days, where the move crosses the reader's midnight: nine
+// to five in Sydney is three to eleven the evening before in Los Angeles.
+function convert(
+    hours: ColleagueWorkingHours,
+    minutesAhead: number,
+    wordHours: (start: number, end: number) => string,
+    wordShiftedDays: (days: readonly Weekday[]) => string,
+): ConvertedColleagueHours {
+    const start = hours.start - minutesAhead;
+    const end = hours.end - minutesAhead;
+    const shift = Math.floor(start / minutesPerDay);
+
+    return {
+        days: shift === 0 ? null : wordShiftedDays(hours.days.map((day) => shiftedDay(day, shift))),
+        hours: wordHours(start, end),
+        intoNextDay: Math.floor((end - 1) / minutesPerDay) !== shift,
+    };
+}
+
+function shiftedDay(day: Weekday, shift: number): Weekday {
+    const index = (weekdays.indexOf(day) + shift + weekdays.length) % weekdays.length;
+
+    return weekdays[index] ?? day;
 }
 
 function isWithin(hours: ColleagueWorkingHours, weekday: number, minute: number): boolean {
@@ -70,11 +107,20 @@ function isWithin(hours: ColleagueWorkingHours, weekday: number, minute: number)
     return day !== undefined && hours.days.includes(day) && hours.start <= minute && minute < hours.end;
 }
 
-// The days as runs of consecutive weekdays, Monday first: a run of three or more is said from its first to its last.
-function wordDays(hours: ColleagueWorkingHours, locale: Locale, run: (first: string, last: string) => string): string {
+// The days as runs of consecutive weekdays, Monday first unless a run carries on over the weekend — *Sun–Thu* rather than
+// *Mon–Thu, Sun*: a run of three or more is said from its first to its last.
+function wordDays(days: readonly Weekday[], locale: Locale, run: (first: string, last: string) => string): string {
     const format = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
-    const dayName = (index: number): string => format.format(firstMonday + index * minutesPerDay * 60_000);
-    const indices = weekdays.flatMap((weekday, index) => (hours.days.includes(weekday) ? [index] : []));
+    const dayName = (index: number): string =>
+        format.format(firstMonday + (index % weekdays.length) * minutesPerDay * 60_000);
+    const worked = (index: number): boolean => {
+        const day = weekdays[index % weekdays.length];
+
+        return day !== undefined && days.includes(day);
+    };
+    const opening = weekdays.findIndex((_, index) => worked(index) && !worked(index + weekdays.length - 1));
+    const first = opening === -1 ? 0 : opening;
+    const indices = weekdays.flatMap((_, offset) => (worked(first + offset) ? [first + offset] : []));
     const runs = indices.reduce<number[][]>((found, index) => {
         const last = found.at(-1);
 

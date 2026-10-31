@@ -289,7 +289,9 @@ midnight and different hours on different days are not supported.
 
 **The hours carry no zone.** They are always read in [`TimeZone`](#the-zone-this-persons-days-are-read-in--timezone):
 eight to five means eight to five in Warsaw for a person in Warsaw and eight to five in London for a person in London.
-Where the record states no zone, a colleague is shown the hours as written, with a note that they are not converted.
+A colleague is shown them converted to their own zone as well, on the days they fall on there — nine to five in Sydney
+is three to eleven the evening before in Los Angeles. Where the record states no zone, or one the colleague's device
+does not know, a colleague is shown the hours as written, with a note that they are not converted.
 
 **There is no built-in value**, so nothing states working hours until somebody does. A person writes their own through
 [their record](client-endpoint.md#the-record-routes) and an administrator through `mfctl user edit`.
