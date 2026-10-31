@@ -628,6 +628,19 @@ function contactAnswer(
         return answering(contacts.contactWritten);
     }
 
+    // The organization's members, matched before the asserted book because its path has the other's as a prefix.
+    if (route === '/contacts/colleagues') {
+        return answering(
+            options.emptyCollections ? contacts.emptyContactPage : searched(contacts.colleaguePage, asked),
+        );
+    }
+
+    if (route.startsWith('/contacts/colleagues/')) {
+        const member = contacts.colleaguePage.contacts.find(({ id }) => route.endsWith(id));
+
+        return member === undefined ? { status: 404, body: '', headers: {} } : answering(member);
+    }
+
     if (route === '/contacts/collected') {
         return answering(
             options.emptyCollections ? contacts.emptyContactPage : searched(contacts.collectedContactPage, asked),

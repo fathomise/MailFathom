@@ -1,6 +1,6 @@
 # Contacts
 
-<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactPhoneNumberEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
+<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactPhoneNumberEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Configuration/UserSettings/MemberDirectory.cs, backend/src/Infrastructure/Persistence/Users/*OrganizationMember*.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
 
 MailFathom holds a contact book of its own: people, the addresses they use, and what a user recorded about them, in
 the same PostgreSQL database the mail is in. This page describes the record and the rules every writer of it obeys —
@@ -81,8 +81,11 @@ address they share still answers from the record a listing shows.
 book: recording a person, amending one, promoting one. Collection writes into the book of the account it is
 synchronizing and into no other. Erasure is the exception and deliberately so — see [§ Erasing and exporting a
 person](#erasing-and-exporting-a-person) — and even erasure reached through a user's books never reaches the
-organization's: a member reads the organization's contacts and writes none of them, so an amendment, a promotion, or an
-erasure a member asks for answers an organization's contact as one they do not hold.
+organization's: a member reads the organization's contacts and writes none of them. On the client endpoint an
+amendment, an erasure, or a photo write a member asks for on one of them is refused `409` under the code `51017`
+(`OrganizationContactReadOnly`), and over the MCP endpoint the same refusal arrives as that code; a promotion of one
+writes a copy into the member's own book — its name, addresses, preferred address, note, and phone numbers — and
+leaves the organization's record where it is for every other member.
 
 Each book keys onto its holder and is erased with it, by the schema rather than by a statement somebody remembers to
 write. Erasing a user takes their own book, deleting an organization takes the organization's book, and erasing a mail
@@ -121,6 +124,44 @@ lock, because it is a sweep over a mailbox's whole book rather than a write abou
 **MailFathom's own work finds the organization's contact by address.** It is one indexed seek on the book and the
 address's comparison form, so it ignores case like every other match in the book, and it answers with the contact's
 identity alone rather than anything the contact says. Nothing but MailFathom's own identity may ask it.
+
+## The organization's member directory
+
+Every person of an organization is shown to the other members as a **member contact**, without anybody writing one
+down. The directory is not a fourth book: no row holds it. It is composed from the users' own rows and records each
+time it is read, so a user joining an organization, leaving it, being erased, gaining or losing a mailbox, or changing
+their record shows in their colleagues' directory on the next read with nothing written anywhere else.
+[ADR 0044](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0044-an-organizations-member-directory-as-a-projection-of-user-records.md)
+is the decision.
+
+| What a member contact shows | Where it comes from |
+| --- | --- |
+| The name | The user's label |
+| The addresses | Every mail account in the same organization assigned to that user and to nobody else, in the ordinal order of the accounts' identifiers. An account assigned to two or more users is a shared mailbox and is nobody's address here |
+| The preferred address | `PreferredAddress` in the user's record while it is one of those addresses, otherwise the first of them; none where there is no address |
+| The phone numbers | `PhoneNumbers` in the user's record, under the labels and rules a contact's phone numbers obey |
+| The job title | The title an administrator wrote on the user's row |
+| The organization's name, the portrait, the time zone | The organization's row, and `Portrait` and `TimeZone` in the user's record |
+
+**Who is in it.** Every user of the organization whose type is `User`. A user an administrator marked `ServiceAccount`
+— a technical account somebody signs a robot in as — is never shown, and the reader is never their own colleague. A
+user whose record does not bind is still shown, from what their row holds; one whose label no contact name could carry
+is left out. The directory reads at most 1,000 members of one organization per read; an organization larger than that
+needs the read to move into the database, which is the upgrade the ceiling names.
+
+**Where it sits in the order.** The reader's own book comes first, then the directory, then the organization's book,
+then the collected books. A member the reader wrote down is shown from the reader's own record and not from the
+directory. A listing of the reader's own book or of what their mailboxes collected, as the client endpoint reads it,
+leaves out an organization contact and a collected contact holding a colleague's address, because the colleague answers
+for it; the MCP tools and the administrative surface read the books without the directory and are unchanged.
+
+**It is read-only by construction.** There is no route that changes a member contact: what it shows is what the user's
+record and an administrator state. A reader keeps a colleague differently by promoting them, which writes a copy of
+their name, addresses, preferred address, and phone numbers into the reader's own book; a colleague with no address
+cannot be copied, because a contact needs one. The client endpoint serves the directory beneath `/contacts/colleagues`
+under `mailfathom.contacts.read`, and the promotion under `mailfathom.contacts.write`; [the client endpoint § The
+contact routes](../operations/client-endpoint.md#the-contact-routes) holds the routes. A user's job title and type are an
+administrator's to write, through `mfctl user set-job-title` and `mfctl user set-type`.
 
 ## A contact is a person, not an address
 
@@ -556,7 +597,7 @@ gates it, and somebody making that request is not answered with which half of wh
 a copy each — which is the honest reading of the request and the cost of the mailbox holding one record for everybody.
 The organization's book is the one a member reads and does not reach: its contacts are erased only by an administrator,
 through the administrative surface or `mfctl contact delete --organization`, under `mailfathom.admin.erase`, and a
-member's erasure answers one of them as a contact the books do not hold — see [§ The organization's
+member's erasure of one of them is refused under `51017` and removes nothing — see [§ The organization's
 book](#the-organizations-book).
 
 **Erasing a user erases their own book.** It is the cascade rather than an erasure of its own, and it runs in two

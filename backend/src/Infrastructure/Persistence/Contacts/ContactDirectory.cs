@@ -441,6 +441,17 @@ internal sealed class ContactDirectory(MailFathomDbContext readContext) : IConta
                 || record.Addresses.Any(held => held.NormalizedAddress.Contains(soughtText)));
         }
 
+        // A colleague's member contact outranks an organization contact and a collected one for the address they share,
+        // and the reader's own record outranks the colleague, so only records outside the own book give way.
+        if (query.OutrankedAddresses.Count > 0)
+        {
+            var outranked = query.OutrankedAddresses.ToArray();
+            var ownBook = scope.OwnBook.Key;
+
+            records = records.Where(record => record.BookHolderId == ownBook
+                || !record.Addresses.Any(held => outranked.Contains(held.NormalizedAddress)));
+        }
+
         // The keyset boundary is the pair the order is taken on, so a contact whose name compares equal to the last one
         // of the previous page is served exactly once rather than skipped or repeated. Both comparisons are evaluated by
         // PostgreSQL over the same columns the index is built on, so the walk never depends on how the CLR would have

@@ -42,24 +42,29 @@ public sealed class ContactBookWriter
     private const ContactOrigin CallerWriter = ContactOrigin.Asserted;
 
     private readonly ContactBook book;
+    private readonly IContactDirectory directory;
     private readonly ContactBookOwnership ownership;
     private readonly AccessAuthorization authorization;
 
     /// <summary>Initializes the use case over the book it writes to and the authorization it asks first.</summary>
     /// <param name="book">Performs the acts the book supports.</param>
+    /// <param name="directory">Answers whether a contact the caller names is one their organization keeps.</param>
     /// <param name="ownership">Answers whose book this caller writes and which books they read.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public ContactBookWriter(
         ContactBook book,
+        IContactDirectory directory,
         ContactBookOwnership ownership,
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(book);
+        ArgumentNullException.ThrowIfNull(directory);
         ArgumentNullException.ThrowIfNull(ownership);
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.book = book;
+        this.directory = directory;
         this.ownership = ownership;
         this.authorization = authorization;
     }
@@ -125,6 +130,7 @@ public sealed class ContactBookWriter
     /// <exception cref="ArgumentException">Thrown when addresses are restated through a surface whose word grants nothing, which could only take a person's standing away.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
     /// <exception cref="ContactRecordInvalidException">Thrown when the record breaks a rule the book holds, or a restated address is not one of its addresses.</exception>
+    /// <exception cref="ContactReadOnlyException">Thrown when the contact is one the caller's organization keeps.</exception>
     /// <remarks>
     /// This is how a person makes an address count that an agent wrote, or that was written before writers were
     /// recorded: an ordinary amendment keeps the writer each kept address has, and a contact holding that address alone
@@ -155,6 +161,8 @@ public sealed class ContactBookWriter
 
         var scope = await this.ownership.ReadScopeAsync(cancellationToken);
 
+        await this.RefuseOrganizationContactAsync(scope, contactId, cancellationToken);
+
         return await this.book.AmendAsync(
             scope,
             new ContactAmendment
@@ -179,12 +187,19 @@ public sealed class ContactBookWriter
     /// <returns>The promoted record, or the refusal naming what stopped it.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
     /// <remarks>
+    /// <para>
     /// The act that turns a record nobody wrote down into one somebody did, and the only crossing between the origins.
     /// It is what unlocks amending a contact a mailbox collected: an amendment reaches the caller's own book alone, so a
     /// caller promotes the collected record — which writes their own copy of it and leaves the mailbox's for whoever
     /// else is assigned that account — and then amends that copy like any other. It acts under <see cref="CallerWriter" /> for the same reason
     /// every other write here does — a caller granted this permission is writing for the user — which is also what
     /// keeps collection from performing it on its own output.
+    /// </para>
+    /// <para>
+    /// A contact the caller's organization keeps is promoted the same way, as a copy: the organization's record stays
+    /// where it is for every member, and the caller gains one of their own carrying its name, addresses, note, and
+    /// phone numbers.
+    /// </para>
     /// </remarks>
     public async Task<ContactWriteResult> PromoteAsync(
         ContactId contactId,
@@ -194,6 +209,23 @@ public sealed class ContactBookWriter
         this.authorization.RequirePermission(MailFathomPermission.ContactsWrite);
 
         var scope = await this.ownership.ReadScopeAsync(cancellationToken);
+
+        if (await OrganizationContacts.FindAsync(this.directory, scope, contactId, cancellationToken) is { } kept)
+        {
+            return await this.book.RecordAsync(
+                this.ownership.User,
+                new NewContact
+                {
+                    DisplayName = kept.DisplayName,
+                    Addresses = [.. kept.Addresses],
+                    PreferredAddress = kept.PreferredAddress,
+                    Note = kept.Note,
+                    PhoneNumbers = kept.PhoneNumbers,
+                    Origin = CallerWriter,
+                },
+                this.WriterThrough(writtenThrough),
+                cancellationToken);
+        }
 
         return await this.book.PromoteAsync(
             scope,
@@ -208,6 +240,7 @@ public sealed class ContactBookWriter
     /// <param name="cancellationToken">Cancels the erasure.</param>
     /// <returns>What the erasure removed, including a book that held no such contact.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
+    /// <exception cref="ContactReadOnlyException">Thrown when the contact is one the caller's organization keeps, which its administrators erase.</exception>
     /// <remarks>
     /// The data-subject erasure path, so it removes rather than marks and no origin gates it: somebody asking to be
     /// taken out of a contact book is not answered with which book they happen to be in. That is also why a caller may
@@ -220,7 +253,22 @@ public sealed class ContactBookWriter
 
         var scope = await this.ownership.ReadScopeAsync(cancellationToken);
 
+        await this.RefuseOrganizationContactAsync(scope, contactId, cancellationToken);
+
         return await this.book.EraseAsync(scope, contactId, cancellationToken);
+    }
+
+    /// <summary>Refuses an act on a contact the caller's organization keeps, which only its administrators change.</summary>
+    /// <remarks>Asked outside the commit, because which book a contact is filed in never changes.</remarks>
+    private async Task RefuseOrganizationContactAsync(
+        ContactBookScope scope,
+        ContactId contactId,
+        CancellationToken cancellationToken)
+    {
+        if (await OrganizationContacts.FindAsync(this.directory, scope, contactId, cancellationToken) is not null)
+        {
+            throw new ContactReadOnlyException();
+        }
     }
 
     /// <summary>Names the caller as the writer of what it states through one surface.</summary>

@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Contacts;
+using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
@@ -84,7 +85,7 @@ internal sealed class StubContactBook
 
     /// <summary>Gets the use case the read tools call.</summary>
     public ContactBookReader Reader =>
-        new(this.Directory, this.Ownership(), this.authorization);
+        new(this.Directory, Substitute.For<IMemberDirectory>(), this.Ownership(), this.authorization);
 
     /// <summary>Gets the use case the write tools call.</summary>
     public ContactBookWriter Writer => new(
@@ -95,6 +96,7 @@ internal sealed class StubContactBook
             this.CommitPolicy(),
             this.timeProvider,
             this.authorization),
+        this.Directory,
         this.Ownership(),
         this.authorization);
 

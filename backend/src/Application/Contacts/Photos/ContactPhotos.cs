@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Contacts.Failures;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Portraits;
 using MailFathom.Application.StoredFiles;
@@ -99,12 +100,15 @@ public sealed class ContactPhotos
     /// <returns><see langword="true" /> when the caller's own book holds the contact and the photo landed.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="photo" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.ContactsWrite" />.</exception>
+    /// <exception cref="ContactReadOnlyException">Thrown when the contact is one the caller's organization keeps, before anything is stored.</exception>
     /// <remarks>A photo for a contact the book does not hold leaves the file written for it removed again, so a refusal stores nothing.</remarks>
     public async Task<bool> ReplaceAsync(ContactId contactId, Portrait photo, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(photo);
 
         this.authorization.RequirePermission(MailFathomPermission.ContactsWrite);
+
+        await this.RefuseOrganizationContactAsync(contactId, cancellationToken);
 
         var user = this.ownership.User;
 
@@ -135,10 +139,13 @@ public sealed class ContactPhotos
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns><see langword="true" /> when the caller's own book holds the contact, whether or not it had a photo.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.ContactsWrite" />.</exception>
+    /// <exception cref="ContactReadOnlyException">Thrown when the contact is one the caller's organization keeps.</exception>
     /// <remarks>The link goes before the file does, for the reason a replacement orders its steps.</remarks>
     public async Task<bool> RemoveAsync(ContactId contactId, CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.ContactsWrite);
+
+        await this.RefuseOrganizationContactAsync(contactId, cancellationToken);
 
         var user = this.ownership.User;
         var relinked = await this.RelinkAsync(user, contactId, photo: null, cancellationToken);
@@ -149,6 +156,17 @@ public sealed class ContactPhotos
         }
 
         return relinked.ContactHeld;
+    }
+
+    /// <summary>Refuses a write to the photo of a contact the caller's organization keeps, rather than answering it as one the caller does not hold.</summary>
+    private async Task RefuseOrganizationContactAsync(ContactId contactId, CancellationToken cancellationToken)
+    {
+        var scope = await this.ownership.ReadScopeAsync(cancellationToken);
+
+        if (await OrganizationContacts.FindAsync(this.directory, scope, contactId, cancellationToken) is not null)
+        {
+            throw new ContactReadOnlyException();
+        }
     }
 
     private Task<ContactPhotoRelinking> RelinkAsync(

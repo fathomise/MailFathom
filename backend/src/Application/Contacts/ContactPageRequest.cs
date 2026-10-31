@@ -25,4 +25,11 @@ public sealed record ContactPageRequest
 
     /// <summary>Gets the cursor a previous page returned, or <see langword="null" /> for the first page.</summary>
     public string? Cursor { get; init; }
+
+    /// <summary>Gets whether the page is read beside the reader's colleagues, so a record whose address a colleague holds gives way to the colleague's member contact.</summary>
+    /// <remarks>
+    /// Asked for by a surface that shows the colleagues beside the book, and by no other: a surface that does not show
+    /// them would otherwise lose an organization contact or a collected one with nothing in its place.
+    /// </remarks>
+    public bool BesideColleagues { get; init; }
 }

@@ -5515,6 +5515,94 @@
         ],
         "type": "object"
       },
+      "ColleaguePageResponse": {
+        "properties": {
+          "contacts": {
+            "items": {
+              "$ref": "#/components/schemas/ColleagueResponse"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "contacts",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "ColleagueResponse": {
+        "properties": {
+          "addresses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "book": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "phoneNumbers": {
+            "items": {
+              "$ref": "#/components/schemas/ContactPhoneNumberResponse"
+            },
+            "type": "array"
+          },
+          "photo": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "preferredAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "book",
+          "displayName",
+          "addresses",
+          "preferredAddress",
+          "phoneNumbers",
+          "jobTitle",
+          "organizationName",
+          "timeZone",
+          "photo"
+        ],
+        "type": "object"
+      },
       "CollectedContactErasureResponse": {
         "properties": {
           "addressesErased": {
@@ -5958,6 +6046,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "book": {
+            "type": "string"
+          },
           "displayName": {
             "type": "string"
           },
@@ -6009,6 +6100,7 @@
           "preferredAddress",
           "note",
           "origin",
+          "book",
           "recordedAt",
           "amendedAt",
           "organization",
@@ -12545,6 +12637,20 @@
         ],
         "type": "object"
       },
+      "UserJobTitleRequest": {
+        "properties": {
+          "jobTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "jobTitle"
+        ],
+        "type": "object"
+      },
       "UserMailAccountResponse": {
         "properties": {
           "id": {
@@ -12833,11 +12939,20 @@
             "format": "uuid",
             "type": "string"
           },
+          "jobTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "mcpEndpoint": {
             "type": "boolean"
           },
           "served": {
             "type": "boolean"
+          },
+          "type": {
+            "type": "string"
           }
         },
         "required": [
@@ -12845,7 +12960,9 @@
           "displayName",
           "served",
           "mcpEndpoint",
-          "clientEndpoint"
+          "clientEndpoint",
+          "type",
+          "jobTitle"
         ],
         "type": "object"
       },
@@ -12867,6 +12984,20 @@
         "required": [
           "users",
           "nextCursor"
+        ],
+        "type": "object"
+      },
+      "UserTypeRequest": {
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "type"
         ],
         "type": "object"
       }
@@ -17693,6 +17824,54 @@
         ]
       }
     },
+    "/api/admin/users/{userId}/job-title": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserJobTitleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
     "/api/admin/users/{userId}/organization": {
       "put": {
         "parameters": [
@@ -17919,6 +18098,54 @@
               }
             },
             "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/users/{userId}/type": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
           },
           "404": {
             "content": {
@@ -18921,6 +19148,174 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactWriteResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/contacts/colleagues": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColleaguePageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/contacts/colleagues/{userId}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColleagueResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/contacts/colleagues/{userId}/photo": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/contacts/colleagues/{userId}/promotion": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

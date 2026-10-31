@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Contacts;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Contacts;
 
@@ -54,6 +55,13 @@ public sealed record ContactQuery
     /// <summary>Gets the boundary a continued walk reads beyond, or <see langword="null" /> for the first page.</summary>
     public ContactCursor? Cursor { get; }
 
+    /// <summary>Gets the comparison forms of the addresses a record of another book than the reader's own gives way on, empty for none.</summary>
+    /// <remarks>
+    /// The addresses of the reader's colleagues, whose member contacts outrank an organization contact and a collected
+    /// one holding the same address. It narrows the page and never reorders it, like the search.
+    /// </remarks>
+    public IReadOnlyCollection<string> OutrankedAddresses { get; private init; } = [];
+
     /// <summary>Builds a validated query from what a caller asked for.</summary>
     /// <param name="origin">The origin to narrow to, or <see langword="null" /> for the whole book.</param>
     /// <param name="search">The text a contact must carry in its name or in one of its addresses, or <see langword="null" /> for no narrowing.</param>
@@ -78,5 +86,19 @@ public sealed record ContactQuery
         }
 
         return new ContactQuery(origin, search, resolvedPageSize, cursor);
+    }
+
+    /// <summary>Leaves out every record outside the reader's own book that holds one of the given addresses.</summary>
+    /// <param name="addresses">The addresses a record of another book gives way on.</param>
+    /// <returns>The query narrowed accordingly.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="addresses" /> is <see langword="null" />.</exception>
+    public ContactQuery Outranking(IReadOnlyCollection<EmailAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+
+        return this with
+        {
+            OutrankedAddresses = [.. addresses.Select(address => address.NormalizedAddress).Distinct(StringComparer.Ordinal)],
+        };
     }
 }

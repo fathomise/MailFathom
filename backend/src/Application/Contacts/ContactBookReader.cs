@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Contacts.Failures;
+using MailFathom.Application.Contacts.Members;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
@@ -38,24 +39,29 @@ namespace MailFathom.Application.Contacts;
 public sealed class ContactBookReader
 {
     private readonly IContactDirectory directory;
+    private readonly IMemberDirectory members;
     private readonly ContactBookOwnership ownership;
     private readonly AccessAuthorization authorization;
 
     /// <summary>Initializes the use case over the directory it reads and the authorization it asks first.</summary>
     /// <param name="directory">Answers what the book holds.</param>
+    /// <param name="members">Answers which addresses the reader's colleagues hold, for a page read beside them.</param>
     /// <param name="ownership">Answers whose book this caller reads.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public ContactBookReader(
         IContactDirectory directory,
+        IMemberDirectory members,
         ContactBookOwnership ownership,
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(directory);
+        ArgumentNullException.ThrowIfNull(members);
         ArgumentNullException.ThrowIfNull(ownership);
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.directory = directory;
+        this.members = members;
         this.ownership = ownership;
         this.authorization = authorization;
     }
@@ -68,15 +74,30 @@ public sealed class ContactBookReader
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the reading grant.</exception>
     /// <exception cref="ContactQueryInvalidException">Thrown when the page size, the origin, or the search text is not one the book serves.</exception>
     /// <exception cref="ContactCursorMalformedException">Thrown when the cursor is not one this system issued.</exception>
+    /// <remarks>
+    /// A page read <see cref="ContactPageRequest.BesideColleagues" /> leaves out an organization contact and a collected
+    /// contact holding an address one of the reader's colleagues holds, because the colleague's member contact answers
+    /// for that address on the same screen. A record of the reader's own book is never left out.
+    /// </remarks>
     public async Task<ContactPage> ReadPageAsync(ContactPageRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         this.authorization.RequirePermission(MailFathomPermission.ContactsRead);
 
+        var query = QueryFrom(request);
         var scope = await this.ownership.ReadScopeAsync(cancellationToken);
 
-        return await this.directory.ReadPageAsync(scope, QueryFrom(request), cancellationToken);
+        if (request.BesideColleagues && scope.OrganizationBook?.Organization is { } organization)
+        {
+            var reader = scope.User;
+            var colleagues = await this.members.ReadAsync(organization, cancellationToken);
+
+            query = query.Outranking(
+                [.. colleagues.Where(colleague => colleague.Member != reader).SelectMany(colleague => colleague.Addresses)]);
+        }
+
+        return await this.directory.ReadPageAsync(scope, query, cancellationToken);
     }
 
     /// <summary>Reads one contact by the identity the book gave it.</summary>
@@ -119,7 +140,11 @@ public sealed class ContactBookReader
     /// The cursor is decoded before the query is built, so a caller presenting one this deployment did not issue is told
     /// that rather than served the first page — which would read as a walk that started over.
     /// </remarks>
-    private static ContactQuery QueryFrom(ContactPageRequest request)
+    /// <param name="request">What the caller asked the page for.</param>
+    /// <returns>The query the book reads under.</returns>
+    /// <exception cref="ContactQueryInvalidException">Thrown when the page size, the origin, or the search text is not one the book serves.</exception>
+    /// <exception cref="ContactCursorMalformedException">Thrown when the cursor is not one this system issued.</exception>
+    internal static ContactQuery QueryFrom(ContactPageRequest request)
     {
         if (request.PageSize is { } pageSize && (pageSize < 1 || pageSize > ContactQuery.MaximumPageSize))
         {

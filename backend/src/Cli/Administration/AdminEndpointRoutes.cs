@@ -244,6 +244,16 @@ internal static class AdminEndpointRoutes
     /// <returns>The path.</returns>
     internal static string UserDisplayNamePath(Guid userId) => $"{UserPath(userId)}/display-name";
 
+    /// <summary>Where the title one user's colleagues read them by is written.</summary>
+    /// <param name="userId">The user the path names.</param>
+    /// <returns>The path.</returns>
+    internal static string UserJobTitlePath(Guid userId) => $"{UserPath(userId)}/job-title";
+
+    /// <summary>Where one user is marked a person or a technical account.</summary>
+    /// <param name="userId">The user the path names.</param>
+    /// <returns>The path.</returns>
+    internal static string UserTypePath(Guid userId) => $"{UserPath(userId)}/type";
+
     /// <summary>Where one user's two endpoint switches are written.</summary>
     /// <param name="userId">The user the path names.</param>
     /// <returns>The path.</returns>

@@ -23,6 +23,7 @@ function contact(id: string, displayName: string): unknown {
         note: null,
         phoneNumbers: [],
         origin: 'Asserted',
+        book: 'Own',
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
@@ -34,22 +35,42 @@ function pageOf(contacts: readonly unknown[], nextCursor: string | null): string
     return JSON.stringify({ contacts, nextCursor });
 }
 
-// Both books over one transport, so a test can say what each answered and how often it was asked. The collected route
-// is matched first because the asserted one is a prefix of it.
-function answering(answers: Readonly<Record<ContactBookName, readonly string[]>>): {
+function colleague(id: string, displayName: string): unknown {
+    return {
+        id,
+        book: 'Member',
+        displayName,
+        addresses: [`${id}@nordwind.example`],
+        preferredAddress: `${id}@nordwind.example`,
+        phoneNumbers: [],
+        jobTitle: 'Controller',
+        organizationName: 'Nordwind',
+        timeZone: null,
+        photo: null,
+    };
+}
+
+// Every book over one transport, so a test can say what each answered and how often it was asked. The collected route
+// and the directory are matched first because the asserted one is a prefix of both. A book a test states nothing for
+// answers an empty page.
+function answering(answers: Partial<Readonly<Record<ContactBookName, readonly string[]>>>): {
     readonly transport: MailFathomTransport;
     readonly asked: () => readonly string[];
 } {
     const asked: string[] = [];
-    const served: Record<ContactBookName, number> = { own: 0, collected: 0 };
+    const served: Record<ContactBookName, number> = { own: 0, colleagues: 0, collected: 0 };
 
     return {
         asked: () => asked,
         transport: ({ path }) => {
             asked.push(path);
 
-            const book: ContactBookName = path.includes('/contacts/collected') ? 'collected' : 'own';
-            const pages = answers[book];
+            const book: ContactBookName = path.includes('/contacts/collected')
+                ? 'collected'
+                : path.includes('/contacts/colleagues')
+                  ? 'colleagues'
+                  : 'own';
+            const pages = answers[book] ?? [];
             const body = pages[Math.min(served[book], pages.length - 1)] ?? pageOf([], null);
 
             served[book] += 1;
@@ -138,6 +159,19 @@ describe('useContactBook', () => {
 
         expect(screen.queryByText('Anna Kowalska')).toBeNull();
         expect(await screen.findByText('Celina Wrona')).toBeDefined();
+    });
+
+    it("reads the organization's members out of the directory, as the book of colleagues", async () => {
+        const { transport, asked } = answering({
+            own: [pageOf([contact('anna', 'Anna Kowalska')], null)],
+            colleagues: [pageOf([colleague('piotr', 'Piotr Zieliński')], null)],
+        });
+
+        render(<Book transport={transport} book="colleagues" />);
+
+        expect(await screen.findByText('Piotr Zieliński')).toBeDefined();
+        expect(screen.queryByText('Anna Kowalska')).toBeNull();
+        expect(asked()[0]).toContain('/contacts/colleagues?');
     });
 
     it('reports why the deployment did not answer, and reads again when asked to', async () => {

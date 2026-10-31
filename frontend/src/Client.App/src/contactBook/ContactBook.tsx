@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
-import type { ClientFailureReason, Contact } from '@mailfathom/client-backend';
+import type { ClientFailureReason, Colleague, Contact } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { onlySelected, withToggled } from '../contextMenu/rowSelection';
 import { ChoiceSegment } from '../controls/ChoiceSegment';
@@ -14,15 +14,16 @@ import { useLocalization } from '../localization/useLocalization';
 import { estimatedRowHeight, offsetOfRow, windowOf } from '../messageRows/rowWindow';
 import { ContactRow } from './ContactRow';
 import { ContactRowMenu } from './ContactRowMenu';
-import type { ContactBookInForce, ContactBookName } from './useContactBook';
+import type { ContactBookInForce, ContactBookName, Person } from './useContactBook';
 import { Departing } from '../shell/Departing';
 
-// The column the address book is read down: the two books as the design draws them, how many people the one in
-// front holds, and the rows themselves.
+// The column the address book is read down: the books as the design draws them, how many people the one in front
+// holds, and the rows themselves.
 //
-// **The two books are a choice rather than a filter**, which is what the design draws and what the surface publishes —
-// so they are radio segments in a pill, announced as one set of choices, rather than two buttons whose relationship a
-// reader has to work out.
+// **The books are a choice rather than a filter**, which is what the design draws and what the surface publishes — so
+// they are radio segments in a pill, announced as one set of choices, rather than buttons whose relationship a reader
+// has to work out. Which books there are is the space's to say: *Colleagues* stands between the other two only for a
+// reader who belongs to an organization.
 //
 // **The rows are windowed**, over the token height a contact row is drawn at, for the reason the message list is: a
 // collected book holds everybody who has ever written, and a list that keeps every row in the document grows with it.
@@ -34,7 +35,8 @@ import { Departing } from '../shell/Departing';
 
 // How many people the book in front holds, in the forms a language has for the noun. Selected rather than spelled,
 // because Polish needs three forms and English hides that it needs two.
-const bookCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+// The directory counts colleagues where the books count people, because that is what the design calls them there.
+const peopleCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     zero: 'people.count.other',
     one: 'people.count.one',
     two: 'people.count.other',
@@ -43,20 +45,40 @@ const bookCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'people.count.other',
 };
 
-const bookNames: Readonly<Record<ContactBookName, MessageKey>> = {
-    own: 'people.own',
-    collected: 'people.collected',
+const colleaguesCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'people.colleagueCount.other',
+    one: 'people.colleagueCount.one',
+    two: 'people.colleagueCount.other',
+    few: 'people.colleagueCount.few',
+    many: 'people.colleagueCount.many',
+    other: 'people.colleagueCount.other',
 };
 
-const bookHints: Readonly<Record<ContactBookName, MessageKey>> = {
-    own: 'people.ownHint',
-    collected: 'people.collectedHint',
+const bookNames: Readonly<Record<ContactBookName, MessageKey>> = {
+    own: 'people.own',
+    colleagues: 'people.colleagues',
+    collected: 'people.collected',
 };
 
 const bookEmpty: Readonly<Record<ContactBookName, MessageKey>> = {
     own: 'people.ownEmpty',
+    colleagues: 'people.colleaguesEmpty',
     collected: 'people.collectedEmpty',
 };
+
+// What the line above the rows says the book is. The directory is named after the organization, which only a member
+// read out of it names, so it says *your organization's* until one has been.
+function bookHint(book: ContactBookName, contacts: readonly Person[]): { key: MessageKey; organization?: string } {
+    if (book !== 'colleagues') {
+        return { key: book === 'own' ? 'people.ownHint' : 'people.collectedHint' };
+    }
+
+    const member = contacts.find((person): person is Colleague => person.book === 'Member');
+
+    return member === undefined
+        ? { key: 'people.colleaguesHintUnnamed' }
+        : { key: 'people.colleaguesHint', organization: member.organizationName };
+}
 
 // Why the book did not answer, each said as what it is with a next step rather than as a status code. A book the
 // deployment no longer holds is not one of the five this route can produce, so it is worded as the deployment not
@@ -69,9 +91,8 @@ const bookFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
     missing: 'people.failedUnavailable',
 };
 
-const books: readonly ContactBookName[] = ['own', 'collected'];
-
 export function ContactBook({
+    books,
     book,
     reading,
     organizationName,
@@ -83,6 +104,9 @@ export function ContactBook({
     onSelected,
     onAskErasure,
 }: {
+    /** The books this reader has, in the order the segments stand. */
+    readonly books: readonly ContactBookName[];
+
     readonly book: ContactBookName;
     readonly reading: ContactBookInForce;
 
@@ -99,7 +123,7 @@ export function ContactBook({
     readonly erasable: boolean;
 
     readonly onBook: (book: ContactBookName) => void;
-    readonly onOpen: (contact: Contact) => void;
+    readonly onOpen: (contact: Person) => void;
     readonly onSelected: (selected: readonly string[]) => void;
 
     /** Raises the question an erasure stands behind, over the people it is about. */
@@ -111,7 +135,7 @@ export function ContactBook({
     const [viewport, setViewport] = useState(0);
     const [rowHeight, setRowHeight] = useState(estimatedRowHeight);
     const [focusedRow, setFocusedRow] = useState(0);
-    const [menu, setMenu] = useState<{ readonly contact: Contact; readonly at: MenuPoint } | null>(null);
+    const [menu, setMenu] = useState<{ readonly contact: Person; readonly at: MenuPoint } | null>(null);
 
     const scroller = useRef<HTMLDivElement>(null);
     const elements = useRef(new Map<number, HTMLLIElement>());
@@ -120,6 +144,7 @@ export function ContactBook({
     const bookSwipe = useTabSwipe(books, book, onBook);
 
     const contacts = reading.contacts;
+    const hint = bookHint(book, contacts);
     const drawn = windowOf(contacts.length, rowHeight, scrollTop, viewport);
 
     // The two measurements the window is arithmetic over, taken after the browser has laid the rows out rather than
@@ -265,11 +290,19 @@ export function ContactBook({
 
                 <div className="flex items-baseline gap-2 px-0.75">
                     <p className="text-sm text-faint">
-                        {translate(bookCounted[new Intl.PluralRules(locale).select(contacts.length)], {
-                            count: new Intl.NumberFormat(locale).format(contacts.length),
-                        })}
+                        {translate(
+                            (book === 'colleagues' ? colleaguesCounted : peopleCounted)[
+                                new Intl.PluralRules(locale).select(contacts.length)
+                            ],
+                            { count: new Intl.NumberFormat(locale).format(contacts.length) },
+                        )}
                     </p>
-                    <p className="ms-auto truncate text-xs text-faint">{translate(bookHints[book])}</p>
+                    <p className="ms-auto truncate text-xs text-faint">
+                        {translate(
+                            hint.key,
+                            hint.organization === undefined ? {} : { organization: hint.organization },
+                        )}
+                    </p>
                 </div>
             </div>
 
@@ -385,8 +418,8 @@ export function ContactBook({
                         onOpen={() => {
                             onOpen(menu.contact);
                         }}
-                        onAskErasure={() => {
-                            onAskErasure([menu.contact]);
+                        onAskErasure={(contact) => {
+                            onAskErasure([contact]);
                         }}
                         onClose={() => {
                             setMenu(null);

@@ -21,6 +21,16 @@ internal sealed record UserProvisioningRequest(
 internal sealed record UserRelabelRequest(
     [property: JsonPropertyName("displayName")] string DisplayName);
 
+/// <summary>The title a user's colleagues read them by from now on.</summary>
+/// <param name="JobTitle">The title, or <see langword="null" /> to state none.</param>
+internal sealed record UserJobTitleRequest(
+    [property: JsonPropertyName("jobTitle")] string? JobTitle);
+
+/// <summary>Whether a user is a person or a technical account from now on.</summary>
+/// <param name="Type"><c>User</c> or <c>ServiceAccount</c>.</param>
+internal sealed record UserTypeRequest(
+    [property: JsonPropertyName("type")] string Type);
+
 /// <summary>The endpoint switches one user carries from now on.</summary>
 /// <param name="McpEndpoint">Whether the user is served on the MCP endpoint, or <see langword="null" /> to leave it.</param>
 /// <param name="ClientEndpoint">Whether the user is served on the client endpoint, or <see langword="null" /> to leave it.</param>

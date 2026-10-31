@@ -90,6 +90,42 @@ internal sealed class PersistedUserProvisioning(MailFathomDbContext dbContext, T
         return relabelled > 0;
     }
 
+    /// <inheritdoc />
+    public async Task<bool> SetJobTitleAsync(UserId user, string? jobTitle, CancellationToken cancellationToken)
+    {
+        var userId = RequireNamed(user);
+
+        if (jobTitle is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(jobTitle);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(jobTitle.Length, UserRecord.MaximumJobTitleLength, nameof(jobTitle));
+        }
+
+        // The version is left where it is, for the reason the label's is: the title is not part of the document.
+        var written = await dbContext.UserAccounts
+            .Where(record => record.Id == userId)
+            .ExecuteUpdateAsync(record => record.SetProperty(held => held.JobTitle, jobTitle), cancellationToken);
+
+        return written > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> SetTypeAsync(UserId user, UserType type, CancellationToken cancellationToken)
+    {
+        var userId = RequireNamed(user);
+
+        if (!Enum.IsDefined(type))
+        {
+            throw new ArgumentOutOfRangeException(nameof(type), "A user's type names a declared value.");
+        }
+
+        var written = await dbContext.UserAccounts
+            .Where(record => record.Id == userId)
+            .ExecuteUpdateAsync(record => record.SetProperty(held => held.Type, type), cancellationToken);
+
+        return written > 0;
+    }
+
     private static Guid RequireNamed(UserId user) =>
         user.IsSpecified
             ? user.Value

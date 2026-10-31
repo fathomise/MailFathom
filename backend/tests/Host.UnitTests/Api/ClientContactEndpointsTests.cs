@@ -4,6 +4,7 @@
 
 using System.Globalization;
 using MailFathom.Application.Contacts;
+using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
@@ -37,6 +38,9 @@ namespace MailFathom.Host.UnitTests.Api;
 public sealed class ClientContactEndpointsTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 16, 9, 0, 0, TimeSpan.Zero);
+
+    /// <summary>The organization the caller of the organization tests belongs to.</summary>
+    private static readonly Guid KeepingOrganization = new("0198f0aa-0000-7000-8000-00000000e001");
 
     private readonly IContactStore store = Substitute.For<IContactStore>();
     private readonly IContactDirectory directory = Substitute.For<IContactDirectory>();
@@ -625,6 +629,107 @@ public sealed class ClientContactEndpointsTests
         Assert.Empty(this.store.ReceivedCalls());
     }
 
+    /// <summary>
+    /// The organization's record is its administrators' to change, so a member's amendment and erasure are refused under
+    /// a code a screen tells apart from a person it does not hold.
+    /// </summary>
+    [Fact]
+    public async Task AmendAndEraseAsync_AContactTheOrganizationKeeps_AreRefusedAsAConflictUnderItsCode()
+    {
+        // Arrange
+        var kept = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(Now)),
+            ContactDisplayName.Create("Biuro Rachunkowe"),
+            [Mailbox("biuro@example.test")],
+            Mailbox("biuro@example.test"),
+            note: null,
+            ContactOrigin.Asserted,
+            Now,
+            Now,
+            KeepingOrganization);
+        this.directory
+            .FindAsync(Arg.Is<ContactBookScope>(scope => scope.OwnBook == ContactBookHolder.OfOrganization(KeepingOrganization)), kept.Id, Arg.Any<CancellationToken>())
+            .Returns(kept);
+
+        // Act
+        var amendment = await ClientContactEndpoints.AmendAsync(
+            kept.Id.Value,
+            new ClientContactAmendmentRequest("Biuro", ["biuro@example.test"], "biuro@example.test", Note: null, RestatedAddresses: null),
+            this.Writer(KeepingOrganization),
+            TestContext.Current.CancellationToken);
+        var erasure = await ClientContactEndpoints.EraseAsync(
+            kept.Id.Value,
+            this.Writer(KeepingOrganization),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.All(
+            new[] { amendment.Result, erasure.Result },
+            answer =>
+            {
+                var refusal = Assert.IsType<ProblemHttpResult>(answer);
+                Assert.Equal(StatusCodes.Status409Conflict, refusal.StatusCode);
+                Assert.Equal(51017, refusal.ProblemDetails.Extensions["errorCode"]);
+            });
+        Assert.Empty(this.store.ReceivedCalls());
+    }
+
+    /// <summary>A client draws each book apart, so every contact says which one holds it.</summary>
+    [Fact]
+    public void ContactResponse_EachBook_IsNamedFromTheOriginAndTheOrganization()
+    {
+        // Arrange
+        var own = ContactOf("Anna Kowalska", "anna@example.test");
+        var collected = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(Now)),
+            ContactDisplayName.Create("Jan Nowak"),
+            [Mailbox("jan@example.test")],
+            Mailbox("jan@example.test"),
+            note: null,
+            ContactOrigin.Collected,
+            Now,
+            Now);
+        var kept = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(Now)),
+            ContactDisplayName.Create("Biuro Rachunkowe"),
+            [Mailbox("biuro@example.test")],
+            Mailbox("biuro@example.test"),
+            note: null,
+            ContactOrigin.Asserted,
+            Now,
+            Now,
+            KeepingOrganization);
+
+        // Act
+        var books = new[] { own, collected, kept }.Select(contact => ContactResponse.For(contact).Book);
+
+        // Assert
+        Assert.Equal(["Own", "Collected", "Organization"], books);
+    }
+
+    /// <summary>A listing of the book is drawn beside the reader's colleagues, so it asks for the records a colleague outranks to be left out.</summary>
+    [Fact]
+    public async Task ReadOwnBookAsync_ARequestForTheBook_IsReadBesideTheColleagues()
+    {
+        // Arrange
+        this.AnswersWith(new ContactPage([], NextCursor: null));
+        var members = Substitute.For<IMemberDirectory>();
+        var reader = new ContactBookReader(
+            this.directory,
+            members,
+            ContactBookOwnerships.For(
+                AccessAuthorizations.ForCallerGranted(MailFathomPermission.ContactsRead),
+                new StubMailAccountAssignments(),
+                new StatedAdministrativeTargets().WithUser(SyntheticUser.Deployment, KeepingOrganization)),
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.ContactsRead));
+
+        // Act
+        await ClientContactEndpoints.ReadOwnBookAsync(search: null, pageSize: null, cursor: null, reader, TestContext.Current.CancellationToken);
+
+        // Assert
+        await members.Received(1).ReadAsync(KeepingOrganization, Arg.Any<CancellationToken>());
+    }
+
     private static Contact ContactOf(
         string displayName,
         string address,
@@ -653,15 +758,22 @@ public sealed class ClientContactEndpointsTests
 
     private ContactBookReader Reader() => new(
         this.directory,
+        Substitute.For<IMemberDirectory>(),
         ContactBookOwnerships.ForTheServedUser(),
         AccessAuthorizations.ForCallerGranted(MailFathomPermission.ContactsRead));
 
-    private ContactBookWriter Writer()
+    private ContactBookWriter Writer(Guid? organization = null)
     {
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
 
         var authorization = AccessAuthorizations.ForCallerGranted(MailFathomPermission.ContactsWrite);
+        var ownership = organization is null
+            ? ContactBookOwnerships.ForTheServedUser()
+            : ContactBookOwnerships.For(
+                authorization,
+                new StubMailAccountAssignments(),
+                new StatedAdministrativeTargets().WithUser(SyntheticUser.Deployment, organization));
 
         return new ContactBookWriter(
             new ContactBook(
@@ -671,7 +783,8 @@ public sealed class ClientContactEndpointsTests
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
                 this.clock,
                 authorization),
-            ContactBookOwnerships.ForTheServedUser(),
+            this.directory,
+            ownership,
             authorization);
     }
 

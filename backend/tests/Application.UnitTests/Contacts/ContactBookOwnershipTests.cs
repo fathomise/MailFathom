@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Contacts;
+using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.StoredFiles;
@@ -652,6 +653,7 @@ public sealed class ContactBookOwnershipTests
 
         return new ContactBookReader(
             store,
+            Substitute.For<IMemberDirectory>(),
             ContactBookOwnerships.For(authorization, new StubMailAccountAssignments(), placements),
             authorization);
     }
@@ -677,6 +679,7 @@ public sealed class ContactBookOwnershipTests
 
         return new ContactBookReader(
             store,
+            Substitute.For<IMemberDirectory>(),
             ContactBookOwnerships.For(authorization, assignments ?? new StubMailAccountAssignments()),
             authorization);
     }

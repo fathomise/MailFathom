@@ -11,6 +11,7 @@ import { LocalizationProvider } from '../localization/Localization';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from '../shell/screenLayers';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
+import { ToastContext } from '../toasts/useToasts';
 import { PeopleSpace } from './PeopleSpace';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
@@ -57,6 +58,7 @@ function personCalled(
     displayName: string,
     origin = 'Asserted',
     addresses = [`${id}@contoso.example`],
+    book = origin === 'Collected' ? 'Collected' : 'Own',
 ): unknown {
     return {
         id,
@@ -66,32 +68,60 @@ function personCalled(
         note: null,
         phoneNumbers: [],
         origin,
+        book,
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
-        organization: null,
+        organization: book === 'Organization' ? organizationId : null,
+    };
+}
+
+function colleagueCalled(id: string, displayName: string): unknown {
+    return {
+        id,
+        book: 'Member',
+        displayName,
+        addresses: [`${id}@nordwind.example`],
+        preferredAddress: `${id}@nordwind.example`,
+        phoneNumbers: [],
+        jobTitle: 'Head of Delivery',
+        organizationName: 'Nordwind',
+        timeZone: null,
+        photo: null,
     };
 }
 
 const answered = { status: 200, headers: {} } as const;
 
 const organizationId = '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f';
+// The answer the service gives a write to a contact the reader's organization keeps.
+const organizationReadOnly = {
+    status: 409,
+    headers: {},
+    body: JSON.stringify({ title: 'Read-only', status: 409, errorCode: 51017 }),
+} as const;
 
 // One deployment behind the screen: the two books, one person's correlation, and the three writes. A test states what
 // the write answers and reads back what the screen did about it.
 function deployment({
     own = [personCalled('anna', 'Anna Kowalska')],
     collected = [personCalled('celina', 'Celina Wrona', 'Collected')],
+    colleagues = [colleagueCalled('piotr', 'Piotr Zieliński')],
     write = { outcome: 'Written', contact: personCalled('anna', 'Anna Kowalska'), addressHolder: null },
     refuses = [],
+    keptByOrganization = [],
     holdsWrites = false,
 }: {
     own?: readonly unknown[];
     collected?: readonly unknown[];
+    colleagues?: readonly unknown[];
     write?: unknown;
 
     /** Whose erasure this deployment will not perform, which is how a batch is made to half succeed. */
     refuses?: readonly string[];
+
+    /** Whose erasure this deployment refuses as the organization's, which nobody but the organization erases from. */
+    keptByOrganization?: readonly string[];
 
     /** Whether a write waits to be released, which is what gives a test the time inside one to navigate elsewhere. */
     holdsWrites?: boolean;
@@ -118,7 +148,9 @@ function deployment({
             const { method, path } = request;
             let answer: ClientResponse;
 
-            if (method === 'DELETE') {
+            if (method === 'DELETE' && keptByOrganization.some((contact) => path.endsWith(`/contacts/${contact}`))) {
+                answer = organizationReadOnly;
+            } else if (method === 'DELETE') {
                 answer = refuses.some((contact) => path.endsWith(`/contacts/${contact}`))
                     ? { status: 403, headers: {}, body: '' }
                     : {
@@ -139,6 +171,8 @@ function deployment({
                 }
             } else if (path.includes('/correspondence')) {
                 answer = { ...answered, body: JSON.stringify({ contactId: 'anna', threads: [], documents: [] }) };
+            } else if (path.includes('/contacts/colleagues')) {
+                answer = { ...answered, body: JSON.stringify({ contacts: colleagues, nextCursor: null }) };
             } else if (path.includes('/contacts/collected')) {
                 answer = { ...answered, body: JSON.stringify({ contacts: collected, nextCursor: null }) };
             } else {
@@ -161,6 +195,7 @@ const notWriting: Composing = {
 // Nobody in the book has a photo unless a test says so, and a photo written is stored.
 const photographsNobody: ContactPhotoExchange = {
     read: () => Promise.resolve({ outcome: 'none' }),
+    readColleague: () => Promise.resolve({ outcome: 'none' }),
     replace: () => Promise.resolve({ outcome: 'stored' }),
     remove: () => Promise.resolve({ outcome: 'stored' }),
 };
@@ -173,33 +208,38 @@ function drawSpace(
         layers = null,
         lostServer = false,
         photos = photographsNobody,
+        inOrganization = false,
     }: {
         writable?: boolean;
         composing?: Composing;
         layers?: ScreenLayers | null;
         lostServer?: boolean;
         photos?: ContactPhotoExchange;
+        inOrganization?: boolean;
     } = {},
 ): void {
     render(
         <LocalizationProvider>
-            <LinkOpenerContext value={() => Promise.resolve()}>
-                <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
-                    <ScreenLayersContext value={layers}>
-                        <ComposingContext value={composing}>
-                            <PeopleSpace
-                                session={session}
-                                transport={transport}
-                                contactPhotos={photos}
-                                writable={writable}
-                                organizationName="Nordwind"
-                                onOpenThread={vi.fn()}
-                                onOpenDocument={vi.fn()}
-                            />
-                        </ComposingContext>
-                    </ScreenLayersContext>
-                </ConnectionStatusContext>
-            </LinkOpenerContext>
+            <ToastContext value={{ raise: vi.fn(), raiseOperation: () => () => undefined }}>
+                <LinkOpenerContext value={() => Promise.resolve()}>
+                    <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
+                        <ScreenLayersContext value={layers}>
+                            <ComposingContext value={composing}>
+                                <PeopleSpace
+                                    session={session}
+                                    transport={transport}
+                                    contactPhotos={photos}
+                                    writable={writable}
+                                    organizationName="Nordwind"
+                                    inOrganization={inOrganization}
+                                    onOpenThread={vi.fn()}
+                                    onOpenDocument={vi.fn()}
+                                />
+                            </ComposingContext>
+                        </ScreenLayersContext>
+                    </ConnectionStatusContext>
+                </LinkOpenerContext>
+            </ToastContext>
         </LocalizationProvider>,
     );
 }
@@ -713,7 +753,7 @@ describe('PeopleSpace', () => {
         const { transport, sent } = deployment({
             own: [
                 personCalled('anna', 'Anna Kowalska'),
-                { ...(personCalled('globe', 'Globe Travel desk') as object), organization: organizationId },
+                personCalled('globe', 'Globe Travel desk', 'Asserted', undefined, 'Organization'),
             ],
         });
         drawSpace(transport);
@@ -741,7 +781,7 @@ describe('PeopleSpace', () => {
 
     it('offers no deletion over a selection of the organization’s contacts alone', async () => {
         const { transport } = deployment({
-            own: [{ ...(personCalled('globe', 'Globe Travel desk') as object), organization: organizationId }],
+            own: [personCalled('globe', 'Globe Travel desk', 'Asserted', undefined, 'Organization')],
         });
         drawSpace(transport);
 
@@ -882,5 +922,61 @@ describe('PeopleSpace', () => {
         await screen.findByRole('heading', { name: 'Anna Kowalska' });
 
         expect(layers.current.depth).toBe(0);
+    });
+
+    describe('inside an organization', () => {
+        it('opens on its members, under a segment standing between the two books', async () => {
+            const { transport, sent } = deployment();
+            drawSpace(transport, { inOrganization: true });
+
+            expect(await screen.findByRole('option', { name: /Piotr Zieliński/u })).toBeDefined();
+            expect(screen.getByRole('radio', { name: 'Colleagues', checked: true })).toBeDefined();
+            expect(screen.getAllByRole('radio').map((segment) => segment.getAttribute('value'))).toEqual([
+                'own',
+                'colleagues',
+                'collected',
+            ]);
+            expect(sent()[0]?.path).toContain('/contacts/colleagues?');
+        });
+
+        it('opens a colleague on a page that offers nothing to change them', async () => {
+            const { transport, sent } = deployment();
+            drawSpace(transport, { inOrganization: true });
+
+            fireEvent.click(await screen.findByRole('option', { name: /Piotr Zieliński/u }));
+
+            expect(await screen.findByRole('heading', { name: 'Piotr Zieliński' })).toBeDefined();
+            expect(screen.getByText("From Nordwind's directory - read-only")).toBeDefined();
+            expect(screen.queryByRole('button', { name: 'Edit contact' })).toBeNull();
+            expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull();
+            // The directory serves no correspondence for a member, so none is asked for.
+            expect(sent().some((request) => request.path.includes('/correspondence'))).toBe(false);
+        });
+    });
+
+    it("opens on the reader's own book, with no Colleagues segment, outside an organization", async () => {
+        const { transport, sent } = deployment();
+        drawSpace(transport);
+
+        expect(await screen.findByRole('option', { name: /Anna Kowalska/u })).toBeDefined();
+        expect(screen.queryByRole('radio', { name: 'Colleagues' })).toBeNull();
+        expect(sent().some((request) => request.path.includes('/contacts/colleagues'))).toBe(false);
+    });
+
+    it("says an erasure the service refused as the organization's is read-only rather than an unknown failure", async () => {
+        const { transport } = deployment({ keptByOrganization: ['anna'] });
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Delete contact' }));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Delete contact?' })).getByRole('button', {
+                name: 'Delete',
+            }),
+        );
+
+        expect(
+            await screen.findByText('That contact is kept by your organization, so it cannot be changed here.'),
+        ).toBeDefined();
     });
 });

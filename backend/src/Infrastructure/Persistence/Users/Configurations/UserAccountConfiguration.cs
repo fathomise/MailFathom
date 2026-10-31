@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Access;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -43,6 +44,12 @@ internal sealed class UserAccountConfiguration : IEntityTypeConfiguration<UserAc
             .OnDelete(DeleteBehavior.Restrict);
         entity.HasIndex(user => user.OrganizationId)
             .HasDatabaseName(PersistenceConstraintNames.UserAccountOrganizationIndexName);
+
+        // Defaulted in the database, so the provisioning insert naming no type and every row an upgrade finds read as a
+        // person, which is the one backfill the member directory needs.
+        entity.Property(user => user.Type).HasDefaultValue(UserType.User);
+
+        entity.Property(user => user.JobTitle).HasMaxLength(UserRecord.MaximumJobTitleLength);
 
         // A document rather than a schema, for the reason the job payload is one: nothing here queries into it, and
         // what it holds is decided by the configuration layer that writes it.

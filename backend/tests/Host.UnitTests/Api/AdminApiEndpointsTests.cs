@@ -283,11 +283,13 @@ public sealed class AdminApiEndpointsTests
                 $"{AdminEndpointOptions.RoutePrefix}{UserCredentialEndpoints.UserCredentialMaterialRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserDisplayNameRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserEndpointAccessRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserJobTitleRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{OrganizationEndpoints.UserOrganizationRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{GrantEndpoints.UserPermissionsRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserRecordRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserRecordRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserSecretsRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserTypeRoute}",
             ],
             routes);
     }
@@ -398,6 +400,8 @@ public sealed class AdminApiEndpointsTests
                 $"DELETE {prefix}{UserRecordEndpoints.UserRoute} -> {MailFathomPermission.AdminErase.Name} over its target",
                 $"PUT {prefix}{UserRecordEndpoints.UserDisplayNameRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
                 $"PUT {prefix}{UserRecordEndpoints.UserEndpointAccessRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"PUT {prefix}{UserRecordEndpoints.UserJobTitleRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"PUT {prefix}{UserRecordEndpoints.UserTypeRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
                 $"GET {prefix}{UserRecordEndpoints.UserRecordRoute} -> {MailFathomPermission.AdminRead.Name} over its target",
                 $"POST {prefix}{UserRecordEndpoints.UserRecordRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
                 $"GET {prefix}{MailAccountEndpoints.MailAccountsRoute} -> {MailFathomPermission.AdminRead.Name} over its target",
@@ -541,6 +545,8 @@ public sealed class AdminApiEndpointsTests
     [InlineData("POST", UserRecordEndpoints.UsersRoute)]
     [InlineData("PUT", UserRecordEndpoints.UserDisplayNameRoute)]
     [InlineData("PUT", UserRecordEndpoints.UserEndpointAccessRoute)]
+    [InlineData("PUT", UserRecordEndpoints.UserJobTitleRoute)]
+    [InlineData("PUT", UserRecordEndpoints.UserTypeRoute)]
     [InlineData("POST", UserRecordEndpoints.UserRecordRoute)]
     [InlineData("POST", MailAccountEndpoints.MailAccountsRoute)]
     [InlineData("POST", MailAccountEndpoints.MailAccountRoute)]

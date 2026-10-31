@@ -171,7 +171,7 @@ No count bounds how many users may be recorded. A replica reads a user's record 
 anybody writing a line of it — and provisions the empty record instead where
 [a settings policy](#how-a-settings-policy-resolves-a-users-record) of their organization or of the deployment
 supplies the language, because one written on the record would stand in front of the default they were recorded
-under. What it can carry is four keys, and everything else about how their mail is read belongs
+under. What it can carry is six keys, and everything else about how their mail is read belongs
 to the mail accounts they are assigned:
 
 | Key | Required | What it is |
@@ -180,6 +180,12 @@ to the mail accounts they are assigned:
 | `TimeZone` | No | The IANA zone this person's own days are read in, such as `Europe/Warsaw`. [The zone their days are read in](#the-zone-this-persons-days-are-read-in--timezone) holds the rule and its refusal; a record stating none is read in `UTC` |
 | `ClientTelemetryLevel` | No | The lowest severity **this person's own client** is asked to record at, such as `Debug`. [The level their client records at](#the-level-this-persons-client-records-at--clienttelemetrylevel) holds the rule and its refusal; a record stating none is served the deployment's own level |
 | `Portrait` | No | The identifier of the stored file this person is drawn by. [The portrait routes](client-endpoint.md#the-portrait-routes) write it; a record naming a file that is not a stored file of this same user is refused |
+| `PhoneNumbers` | No | The numbers this person's colleagues read in [the member directory](../features/contacts.md#the-organizations-member-directory): a list of at most 16, each `Number` and `Label`, the first being the one to call by default. Each is held to [the rules a contact's phone number obeys](../features/contacts.md#phone-numbers) — at most 32 characters of digits, `+`, spaces, `-`, `(`, `)`, and `.`, under `Mobile`, `Work`, `Home`, or `Other` — and a list breaking one is refused under `PhoneNumbers` with the rule, never the number. A record stating none shows no number |
+| `PreferredAddress` | No | The address this person's colleagues write to by default, at most 320 characters. It is judged only as an address: text that is no address is refused, and whether it is one of this person's own mailboxes is not asked, because which accounts are theirs alone changes without the record being written. The member directory resolves it each time it is read — the stated address while it is one of theirs, otherwise their first — so a record naming a mailbox they no longer hold alone is not refused, and answers again if that mailbox comes back |
+
+`PhoneNumbers` and `PreferredAddress`, like `Portrait`, are of the identity class under
+[a settings policy](#how-a-settings-policy-resolves-a-users-record): a policy may restrict who edits them and never
+defaults or forces a value, because no value is right for everybody.
 
 ### The language this person reads — `Language`
 

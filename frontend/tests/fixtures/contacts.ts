@@ -26,6 +26,7 @@ function person(at: number, origin: string) {
         note: null,
         phoneNumbers: [],
         origin,
+        book: origin === 'Collected' ? 'Collected' : 'Own',
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
@@ -51,6 +52,7 @@ export const assertedContact = {
         { number: '+1 202 555 0178', label: 'Work' },
     ],
     origin: 'Asserted',
+    book: 'Own',
     recordedAt: '2026-06-02T11:15:00+00:00',
     amendedAt: '2026-08-14T08:02:00+00:00',
     photo: null,
@@ -71,6 +73,7 @@ export const collectedContact = {
     note: null,
     phoneNumbers: [],
     origin: 'Collected',
+    book: 'Collected',
     recordedAt: '2026-08-29T16:40:00+00:00',
     amendedAt: '2026-08-29T16:40:00+00:00',
     photo: null,
@@ -91,6 +94,7 @@ export const organizationContact = {
     note: null,
     phoneNumbers: [],
     origin: 'Asserted',
+    book: 'Organization',
     recordedAt: '2026-05-12T07:30:00+00:00',
     amendedAt: '2026-05-12T07:30:00+00:00',
     photo: null,
@@ -116,6 +120,83 @@ export const collectedContactPage = {
     nextCursor: null,
 };
 
+/** The name the session gives the signed-in person's organization, which is the one its members' records carry. */
+const organizationName = 'Nordwind';
+
+function colleague(
+    id: string,
+    displayName: string,
+    jobTitle: string | null,
+    addresses: readonly string[],
+    timeZone: string | null,
+    phoneNumbers: readonly { readonly number: string; readonly label: string }[] = [],
+) {
+    return {
+        id,
+        book: 'Member',
+        displayName,
+        addresses,
+        preferredAddress: addresses[0] ?? null,
+        phoneNumbers,
+        jobTitle,
+        organizationName,
+        timeZone,
+        photo: null,
+    };
+}
+
+/**
+ * The members of that organization, as the directory derives them from their user records and orders them by name.
+ *
+ * They are the design's own sample members, so a parity capture of the directory draws the people the artboard does:
+ * one who lives six hours behind, one in London, one who states no zone, and the rest beside the reader.
+ */
+export const colleaguePage = {
+    contacts: [
+        colleague(
+            'member-adam',
+            'Adam Lewandowski',
+            'Finance Director',
+            ['a.lewandowski@nordwind.example'],
+            'Europe/Warsaw',
+            [{ number: '+48 22 555 01 10', label: 'Work' }],
+        ),
+        colleague('member-hanna', 'Hanna Mazur', 'QA Lead', ['h.mazur@nordwind.example'], null),
+        colleague('member-igor', 'Igor Pawlak', 'Systems Engineer', ['i.pawlak@nordwind.example'], 'Europe/Warsaw'),
+        colleague(
+            'member-marta',
+            'Marta Nowak',
+            'Controller',
+            ['m.nowak@nordwind.example', 'm.nowak@company.example'],
+            'Europe/Warsaw',
+            [
+                { number: '+48 22 555 01 14', label: 'Work' },
+                { number: '+48 601 555 014', label: 'Mobile' },
+            ],
+        ),
+        colleague('member-oliver', 'Oliver Grant', 'Delivery Engineer', ['o.grant@nordwind.example'], 'Europe/London', [
+            { number: '+44 20 7946 0321', label: 'Work' },
+        ]),
+        colleague(
+            'member-piotr',
+            'Piotr Zieliński',
+            'Head of Delivery',
+            ['p.zielinski@nordwind.example', 'p.zielinski@company.example'],
+            'Europe/Warsaw',
+            [{ number: '+48 603 555 207', label: 'Mobile' }],
+        ),
+        colleague(
+            'member-zofia',
+            'Zofia Krawczyk',
+            'Managing Director',
+            ['z.krawczyk@nordwind.example'],
+            'America/New_York',
+            [{ number: '+1 212 555 0148', label: 'Work' }],
+        ),
+    ],
+    nextCursor: null,
+};
+
 /** A book with nobody in it, which is a state neither of the two above can be scrolled into. */
 export const emptyContactPage = { contacts: [], nextCursor: null };
 
@@ -137,7 +218,7 @@ export const contactAddressHeld = {
 /** What taking a collected record on answers with, which is that person as one this user now asserts. */
 export const contactPromoted = {
     outcome: 'Written',
-    contact: { ...collectedContact, origin: 'Asserted' },
+    contact: { ...collectedContact, origin: 'Asserted', book: 'Own' },
     addressHolder: null,
 };
 

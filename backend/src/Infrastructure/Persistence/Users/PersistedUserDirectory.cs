@@ -41,6 +41,8 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                 user.DisplayName,
                 user.McpEndpointEnabled,
                 user.ClientEndpointEnabled,
+                user.Type,
+                user.JobTitle,
             })
             .Take(limit)
             .ToArrayAsync(cancellationToken);
@@ -50,6 +52,8 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
             .. users.Select(user => new UserRecord(UserId.Create(user.Id), user.DisplayName)
             {
                 EndpointAccess = new UserEndpointAccess(user.McpEndpointEnabled, user.ClientEndpointEnabled),
+                Type = user.Type,
+                JobTitle = user.JobTitle,
             }),
         ];
     }
@@ -80,6 +84,8 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                 user.DisplayName,
                 user.McpEndpointEnabled,
                 user.ClientEndpointEnabled,
+                user.Type,
+                user.JobTitle,
             })
             .ToArrayAsync(cancellationToken);
 
@@ -88,6 +94,8 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                 .. read.Select(user => new UserRecord(UserId.Create(user.Id), user.DisplayName)
                 {
                     EndpointAccess = new UserEndpointAccess(user.McpEndpointEnabled, user.ClientEndpointEnabled),
+                    Type = user.Type,
+                    JobTitle = user.JobTitle,
                 }),
             ],
             record => record.User.Value);
@@ -113,6 +121,8 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                 record.DisplayName,
                 record.McpEndpointEnabled,
                 record.ClientEndpointEnabled,
+                record.Type,
+                record.JobTitle,
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -121,6 +131,8 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
             : new UserRecord(user, envelope.DisplayName)
             {
                 EndpointAccess = new UserEndpointAccess(envelope.McpEndpointEnabled, envelope.ClientEndpointEnabled),
+                Type = envelope.Type,
+                JobTitle = envelope.JobTitle,
             };
     }
 }

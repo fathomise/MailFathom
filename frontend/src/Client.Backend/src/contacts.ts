@@ -10,7 +10,9 @@ import { send, type ClientResponse, type MailFathomTransport } from './transport
 
 // The signed-in person's own address book, which this surface serves as two books rather than as one listing with a
 // filter: what somebody wrote down and what their own mailboxes picked up from mail that arrived are different things
-// to whoever is reading them, and the service publishes a route for each.
+// to whoever is reading them, and the service publishes a route for each. The first also lists what the reader's
+// organization keeps in its own book, which every contact names as its `book` so a screen can tell the two apart; the
+// members of that organization are a directory of their own, in `colleagues.ts`.
 //
 // Nothing here names a user. Which books are reached is resolved from the session, so a contact somebody else holds
 // answers exactly as one nobody holds.
@@ -38,6 +40,14 @@ export function contactPromotionRoute(contactId: string): string {
 
 /** How a contact came to be in the book, which decides who may amend it. */
 export type ContactOrigin = 'Asserted' | 'Collected';
+
+/**
+ * Which book holds a contact: the reader's own, the one their organization keeps, or the one their mailboxes collected.
+ *
+ * The service derives it rather than storing it, and it is what a screen reads to tell the three apart — an
+ * organization's contact is asserted like the reader's own and is nevertheless nobody's to change but the organization's.
+ */
+export type ContactBookKind = 'Own' | 'Organization' | 'Collected';
 
 /** Which of a person's phones a number reaches. */
 export type ContactPhoneLabel = 'Mobile' | 'Work' | 'Home' | 'Other';
@@ -71,6 +81,10 @@ export interface Contact {
     readonly phoneNumbers: readonly ContactPhoneNumber[];
 
     readonly origin: ContactOrigin;
+
+    /** Which book holds them, which is what decides whether this reader may change them at all. */
+    readonly book: ContactBookKind;
+
     readonly recordedAt: string;
     readonly amendedAt: string;
 
@@ -100,9 +114,24 @@ export interface ContactPage {
     readonly nextCursor: string | null;
 }
 
-/** How a write to the book ended, in the vocabulary the surface publishes. */
+/**
+ * How a write to the book ended, in the vocabulary the surface publishes.
+ *
+ * `OrganizationContactReadOnly` is the one outcome the surface states as a refusal rather than in the answer's body:
+ * a contact the reader's organization keeps is read by its members and changed by nobody but the organization, so the
+ * service answers a write to one with a `409` naming that rule, which is read here into the same vocabulary because it
+ * is the same kind of thing — a reason the book did not change, which a screen reports and carries on from.
+ */
 export type ContactWriteOutcome =
-    'Written' | 'NotFound' | 'AddressHeldByAnotherContact' | 'OriginRefusesWriter' | 'AlreadyAsserted';
+    | 'Written'
+    | 'NotFound'
+    | 'AddressHeldByAnotherContact'
+    | 'OriginRefusesWriter'
+    | 'AlreadyAsserted'
+    | 'OrganizationContactReadOnly';
+
+/** What erasing a contact the reader's organization keeps answers instead of an erasure, which it never performs. */
+export type ContactErasureRefusal = 'OrganizationContactReadOnly';
 
 /** What one write to the book produced. */
 export interface ContactWrite {
@@ -178,6 +207,12 @@ const longestContactAnswer = 32 * 1024;
 
 const contactOrigins: readonly ContactOrigin[] = ['Asserted', 'Collected'];
 
+const contactBooks: readonly ContactBookKind[] = ['Own', 'Organization', 'Collected'];
+
+// The code the service's problem document carries where a write named a contact the reader's organization keeps.
+const organizationContactReadOnly = 51_017;
+
+// The outcomes a write's body may name. The read-only refusal is not among them: it arrives as a problem document.
 const contactWriteOutcomes: readonly ContactWriteOutcome[] = [
     'Written',
     'NotFound',
@@ -354,12 +389,15 @@ export function promoteContact(
     );
 }
 
-/** Erases one person and everything the book derived from them, whichever book holds them. */
+/**
+ * Erases one person and everything the book derived from them, whichever of the reader's books holds them — or answers
+ * the refusal where the organization's book holds them, which nothing but the organization erases from.
+ */
 export function eraseContact(
     session: ClientSession,
     transport: MailFathomTransport,
     contactId: string,
-): Promise<ClientResult<ContactErasure>> {
+): Promise<ClientResult<ContactErasure | ContactErasureRefusal>> {
     return spanned(`DELETE ${contactsRoute}/{contactId}`, async () => {
         const response = await send(transport, {
             method: 'DELETE',
@@ -370,6 +408,10 @@ export function eraseContact(
 
         if (response === null) {
             return failed('unavailable', null);
+        }
+
+        if (refusedAsReadOnly(response)) {
+            return read('OrganizationContactReadOnly');
         }
 
         if (response.status !== 200) {
@@ -416,7 +458,8 @@ function readBook(
 
 // Written out rather than composed with `URLSearchParams`, which is a browser API and therefore one this package
 // declares nothing of: the wire half of the client knows a route and a status code and nothing about a document.
-function pageArguments(pageSize: number, cursor: string | null, search: string | null): string {
+// Shared with the organization's directory, which pages and narrows exactly as a book does.
+export function pageArguments(pageSize: number, cursor: string | null, search: string | null): string {
     const asked = [`pageSize=${pageSize.toFixed(0)}`];
 
     if (cursor !== null && cursor !== '') {
@@ -432,7 +475,8 @@ function pageArguments(pageSize: number, cursor: string | null, search: string |
     return asked.join('&');
 }
 
-function bodyOf(response: ClientResponse): unknown {
+/** The body of an answer as JSON, or `null` where it is none. */
+export function bodyOf(response: ClientResponse): unknown {
     try {
         return JSON.parse(response.body);
     } catch {
@@ -440,9 +484,21 @@ function bodyOf(response: ClientResponse): unknown {
     }
 }
 
-function writeOf(response: ClientResponse | null): ClientResult<ContactWrite> {
+// Whether the answer is the service refusing a write because the organization's book holds the contact. Only a `409`
+// carrying that code is: any other conflict, or one whose body is not a problem document, is the failure its status
+// names, because reading it as this rule would tell somebody a contact is read-only when nothing said so.
+function refusedAsReadOnly(response: ClientResponse): boolean {
+    return response.status === 409 && asRecord(bodyOf(response))?.['errorCode'] === organizationContactReadOnly;
+}
+
+/** What a write answered, read into the book's vocabulary; shared with the promotion of a colleague. */
+export function writeOf(response: ClientResponse | null): ClientResult<ContactWrite> {
     if (response === null) {
         return failed('unavailable', null);
+    }
+
+    if (refusedAsReadOnly(response)) {
+        return read({ outcome: 'OrganizationContactReadOnly', contact: null, addressHolder: null });
     }
 
     if (response.status !== 200) {
@@ -541,6 +597,7 @@ export function parseContact(value: unknown): Contact | null {
     const preferredAddress = record['preferredAddress'];
     const note = record['note'] ?? null;
     const origin = record['origin'];
+    const book = record['book'];
     const recordedAt = record['recordedAt'];
     const amendedAt = record['amendedAt'];
     const photo = record['photo'];
@@ -558,11 +615,21 @@ export function parseContact(value: unknown): Contact | null {
         return null;
     }
 
+    if (!isContactBook(book)) {
+        return null;
+    }
+
     if (note !== null && typeof note !== 'string') {
         return null;
     }
 
     if (organization !== null && (typeof organization !== 'string' || organization === '')) {
+        return null;
+    }
+
+    // The two say one thing — that the organization's book holds them — and a contact on which they disagree is not
+    // one the service writes, so it is refused rather than drawn as editable or as kept by nobody.
+    if ((book === 'Organization') !== (organization !== null)) {
         return null;
     }
 
@@ -590,6 +657,7 @@ export function parseContact(value: unknown): Contact | null {
         note,
         phoneNumbers,
         origin,
+        book,
         recordedAt,
         amendedAt,
         photo,
@@ -597,7 +665,8 @@ export function parseContact(value: unknown): Contact | null {
     };
 }
 
-function parsePhoneNumbers(value: unknown): ContactPhoneNumber[] | null {
+/** Reads a person's phone numbers off a response body, or answers `null` where any of them is of the wrong shape. */
+export function parsePhoneNumbers(value: unknown): ContactPhoneNumber[] | null {
     if (!Array.isArray(value) || value.length > mostPhoneNumbersPerContact) {
         return null;
     }
@@ -625,6 +694,10 @@ function isContactPhoneLabel(value: unknown): value is ContactPhoneLabel {
 /** Whether the value is one of the two origins this surface publishes. */
 export function isContactOrigin(value: unknown): value is ContactOrigin {
     return typeof value === 'string' && contactOrigins.includes(value as ContactOrigin);
+}
+
+function isContactBook(value: unknown): value is ContactBookKind {
+    return typeof value === 'string' && contactBooks.includes(value as ContactBookKind);
 }
 
 function isWriteOutcome(value: unknown): value is ContactWriteOutcome {

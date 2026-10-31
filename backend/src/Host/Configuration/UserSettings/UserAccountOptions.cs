@@ -5,8 +5,12 @@
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using MailFathom.Application.Contacts;
+using MailFathom.Application.Contacts.Failures;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Contacts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Scheduling;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.SensitiveContent;
@@ -154,6 +158,24 @@ internal sealed class UserAccountOptions : IValidatableObject
     [SettingsPolicyClass(SettingsPolicyPropertyClass.Identity)]
     public Guid? Portrait { get; set; }
 
+    /// <summary>Gets or sets the phone numbers this user's colleagues reach them on, the preferred one first.</summary>
+    /// <remarks>
+    /// Shown on the user's member contact to the other members of their organization, and in the shape and under the
+    /// bounds a contact's numbers take. The user writes them on their own record and an administrator on theirs; a
+    /// settings policy restricting who edits them is what makes them the administrator's alone.
+    /// </remarks>
+    [SettingsPolicyClass(SettingsPolicyPropertyClass.Identity)]
+    public List<UserPhoneNumberOptions> PhoneNumbers { get; set; } = [];
+
+    /// <summary>Gets or sets the address this user's colleagues write to by default, or <see langword="null" /> for none stated.</summary>
+    /// <remarks>
+    /// A choice among the addresses of the mail accounts assigned to the user, resolved when the member directory is
+    /// read rather than kept in step: while it is one of those addresses it answers, and otherwise the first of them
+    /// does. So it is only judged here as an address at all, and a choice whose account was unassigned stays stated.
+    /// </remarks>
+    [SettingsPolicyClass(SettingsPolicyPropertyClass.Identity)]
+    public string? PreferredAddress { get; set; }
+
     /// <summary>Gets which of the two mail-serving endpoints this user is served on.</summary>
     /// <remarks>
     /// Always present and on in both switches, so a record written before this block existed serves its user where it
@@ -198,6 +220,27 @@ internal sealed class UserAccountOptions : IValidatableObject
     /// </remarks>
     internal ClientTelemetryLevel? ReadingClientTelemetryLevel => ClientTelemetryLevels.Read(this.ClientTelemetryLevel);
 
+    /// <summary>Gets the phone numbers this record states, or none where they break a rule a contact's numbers are held to.</summary>
+    /// <remarks>Read only where the record has already been judged, which leaves the empty answer for a record held from before a rule it now breaks.</remarks>
+    internal IReadOnlyList<ContactPhoneNumber> ReadingPhoneNumbers
+    {
+        get
+        {
+            try
+            {
+                return ContactPhoneNumberDraft.ReadAll(this.PhoneDrafts) ?? [];
+            }
+            catch (ContactRecordInvalidException)
+            {
+                return [];
+            }
+        }
+    }
+
+    /// <summary>Gets the phone numbers as the drafts the contact book's rule reads.</summary>
+    private ContactPhoneNumberDraft[] PhoneDrafts =>
+        [.. this.PhoneNumbers.Select(phoneNumber => new ContactPhoneNumberDraft(phoneNumber.Number, phoneNumber.Label))];
+
     /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) => this.FindRefusals();
 
@@ -216,6 +259,8 @@ internal sealed class UserAccountOptions : IValidatableObject
         this.FindUnwritableLanguageError()
             .Concat(this.FindUnknownTimeZoneError())
             .Concat(this.FindUnrecordableClientTelemetryLevelError())
+            .Concat(this.FindUnusablePhoneNumberError())
+            .Concat(this.FindUnusablePreferredAddressError())
             .Concat(UserMailAccountRules.FindRefusals(this.MailAccounts, nameof(this.MailAccounts)));
 
     /// <summary>Finds every declared earliest received date that could not mean anything on the supplied date.</summary>
@@ -333,6 +378,45 @@ internal sealed class UserAccountOptions : IValidatableObject
             yield return new ValidationResult(
                 $"{nameof(this.ClientTelemetryLevel)} states '{this.ClientTelemetryLevel}', which is not a level a client can be asked to record at. It takes {ClientTelemetryLevels.WrittenNames}, or no value at all to be asked for whatever this deployment asks every client for.",
                 [nameof(this.ClientTelemetryLevel)]);
+        }
+    }
+
+    /// <summary>Reports phone numbers a contact could not carry.</summary>
+    /// <returns>One result naming the rule the list breaks, empty where every number is one a contact could carry.</returns>
+    /// <remarks>The rule is the contact book's own, so the sentence names the rule and never the number, which is personal data.</remarks>
+    private IEnumerable<ValidationResult> FindUnusablePhoneNumberError()
+    {
+        string? refusal = null;
+
+        try
+        {
+            ContactPhoneNumberDraft.ReadAll(this.PhoneDrafts);
+        }
+        catch (ContactRecordInvalidException refused)
+        {
+            refusal = refused.Message;
+        }
+
+        if (refusal is not null)
+        {
+            yield return new ValidationResult(
+                $"{nameof(this.PhoneNumbers)} cannot be this user's: {refusal}",
+                [nameof(this.PhoneNumbers)]);
+        }
+    }
+
+    /// <summary>Reports a preferred address that is no address at all.</summary>
+    /// <returns>One result where <see cref="PreferredAddress" /> states something no mailbox could be named by, empty where it names one or nothing.</returns>
+    /// <remarks>Whether it is one of the user's addresses is not asked, for the reason the property's own remarks give.</remarks>
+    private IEnumerable<ValidationResult> FindUnusablePreferredAddressError()
+    {
+        if (!string.IsNullOrWhiteSpace(this.PreferredAddress)
+            && (this.PreferredAddress.Trim().Length > Contact.MaximumAddressLength
+                || !EmailAddress.TryCreate(displayName: null, this.PreferredAddress, out _)))
+        {
+            yield return new ValidationResult(
+                $"{nameof(this.PreferredAddress)} is not an address. State the address of one of this user's mail accounts, at most {Contact.MaximumAddressLength} characters, or state none.",
+                [nameof(this.PreferredAddress)]);
         }
     }
 

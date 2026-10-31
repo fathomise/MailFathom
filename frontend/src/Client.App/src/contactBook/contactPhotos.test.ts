@@ -11,20 +11,27 @@ const session: ClientSession = { baseAddress: 'https://mail.example.invalid', au
 
 const drawn = 'data:image/png;base64,iVBORw0KGgo=';
 
+const anna = { id: 'anna', book: 'Own' } as const;
+
 function exchangeAnswering(...answers: PortraitRead[]): {
     exchange: ContactPhotoExchange;
     read: ReturnType<typeof vi.fn>;
+    readColleague: ReturnType<typeof vi.fn>;
 } {
     const read = vi.fn<ContactPhotoExchange['read']>();
+    const readColleague = vi.fn<ContactPhotoExchange['readColleague']>();
 
     for (const answer of answers) {
         read.mockResolvedValueOnce(answer);
+        readColleague.mockResolvedValueOnce(answer);
     }
 
     return {
         read,
+        readColleague,
         exchange: {
             read,
+            readColleague,
             replace: () => Promise.resolve({ outcome: 'stored' }),
             remove: () => Promise.resolve({ outcome: 'stored' }),
         },
@@ -36,8 +43,8 @@ describe('contactPhotoReader', () => {
         const { exchange, read } = exchangeAnswering({ outcome: 'drawn', picture: drawn });
         const reader = contactPhotoReader(session, exchange);
 
-        const first = await reader.read('anna', 'stored-file', new AbortController().signal);
-        const second = await reader.read('anna', 'stored-file', new AbortController().signal);
+        const first = await reader.read(anna, 'stored-file', new AbortController().signal);
+        const second = await reader.read(anna, 'stored-file', new AbortController().signal);
 
         expect([first, second]).toEqual([drawn, drawn]);
         expect(read).toHaveBeenCalledTimes(1);
@@ -51,10 +58,22 @@ describe('contactPhotoReader', () => {
         );
         const reader = contactPhotoReader(session, exchange);
 
-        const refused = await reader.read('anna', 'stored-file', new AbortController().signal);
-        const asked = await reader.read('anna', 'stored-file', new AbortController().signal);
+        const refused = await reader.read(anna, 'stored-file', new AbortController().signal);
+        const asked = await reader.read(anna, 'stored-file', new AbortController().signal);
 
         expect([refused, asked]).toEqual([null, drawn]);
         expect(read).toHaveBeenCalledTimes(2);
+    });
+
+    // A member's portrait is their own record's, read at the directory, and its revision names nothing in the books.
+    it("reads a colleague's portrait at the directory, apart from a contact's photo of the same name", async () => {
+        const { exchange, read, readColleague } = exchangeAnswering({ outcome: 'drawn', picture: drawn });
+        const reader = contactPhotoReader(session, exchange);
+
+        const portrait = await reader.read({ id: 'piotr', book: 'Member' }, 'revision-1', new AbortController().signal);
+
+        expect(portrait).toBe(drawn);
+        expect(readColleague).toHaveBeenCalledWith(session, 'piotr', expect.any(AbortSignal));
+        expect(read).not.toHaveBeenCalled();
     });
 });

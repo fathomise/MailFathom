@@ -4465,6 +4465,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L);
 
+                    b.Property<string>("JobTitle")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
                     b.Property<bool>("McpEndpointEnabled")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -4472,6 +4476,11 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("OrganizationId")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("Type")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");

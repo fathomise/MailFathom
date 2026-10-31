@@ -887,6 +887,139 @@ public sealed class UserCommandTests : IDisposable
             line => line.Contains("MailAccounts:1:AccountId", StringComparison.Ordinal));
     }
 
+    /// <summary>A title is what a user's colleagues read them by, so the command sends it trimmed and reports it.</summary>
+    [Fact]
+    public async Task SetJobTitle_ATitle_SendsItTrimmedAndReportsIt()
+    {
+        // Arrange
+        using var deployment = FakeUserRecordDeployment.Holding(User);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "user",
+            "set-job-title",
+            "--user",
+            $"{User:D}",
+            "--job-title",
+            "  Controller ",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+
+        var write = Assert.Single(deployment.UserRequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserJobTitlePath(User)));
+
+        Assert.Equal("Controller", ReadField(write.ContentAsUtf8String(), "jobTitle"));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("title Controller", StringComparison.Ordinal));
+    }
+
+    /// <summary>Taking a title off is its own flag, so an empty title can never be what an operator meant by none.</summary>
+    [Fact]
+    public async Task SetJobTitle_None_SendsNoTitle()
+    {
+        // Arrange
+        using var deployment = FakeUserRecordDeployment.Holding(User);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "user",
+            "set-job-title",
+            "--user",
+            $"{User:D}",
+            "--none",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+
+        var write = Assert.Single(deployment.UserRequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserJobTitlePath(User)));
+
+        Assert.Equal(
+            JsonValueKind.Null,
+            JsonDocument.Parse(write.ContentAsUtf8String()).RootElement.GetProperty("jobTitle").ValueKind);
+    }
+
+    /// <summary>A title beside the flag taking it off is two answers to one question, so nothing is sent.</summary>
+    [Fact]
+    public async Task SetJobTitle_ATitleBesideNone_IsRefusedBeforeAnythingIsSent()
+    {
+        // Arrange
+        using var deployment = FakeUserRecordDeployment.Holding(User);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "user",
+            "set-job-title",
+            "--user",
+            $"{User:D}",
+            "--job-title",
+            "Controller",
+            "--none",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Failure, exitCode);
+        Assert.Empty(deployment.UserRequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserJobTitlePath(User)));
+    }
+
+    /// <summary>A technical account leaves the member directory, so the command sends the type by name and reports it.</summary>
+    [Fact]
+    public async Task SetType_ServiceAccount_SendsTheTypeAndReportsIt()
+    {
+        // Arrange
+        using var deployment = FakeUserRecordDeployment.Holding(User);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "user",
+            "set-type",
+            "--user",
+            $"{User:D}",
+            "--type",
+            "ServiceAccount",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+
+        var write = Assert.Single(deployment.UserRequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserTypePath(User)));
+
+        Assert.Equal("ServiceAccount", ReadField(write.ContentAsUtf8String(), "type"));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("type ServiceAccount", StringComparison.Ordinal));
+    }
+
+    /// <summary>A type the deployment does not know is refused by the parser, so no request carries it.</summary>
+    [Fact]
+    public async Task SetType_ATypeNoUserHas_IsRefusedBeforeAnythingIsSent()
+    {
+        // Arrange
+        using var deployment = FakeUserRecordDeployment.Holding(User);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "user",
+            "set-type",
+            "--user",
+            $"{User:D}",
+            "--type",
+            "Robot",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.NotEqual(CliExitCode.Success, exitCode);
+        Assert.Empty(deployment.UserRequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserTypePath(User)));
+    }
+
     public void Dispose() => this.harness.Dispose();
 
     private static string ReadField(string body, string name) =>

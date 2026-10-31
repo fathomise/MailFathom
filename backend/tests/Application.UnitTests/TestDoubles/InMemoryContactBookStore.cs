@@ -402,6 +402,8 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
     {
         var ordered = this.VisibleIn(scope)
             .Where(contact => query.Origin is not { } origin || contact.Origin == origin)
+            .Where(contact => this.HeldIn(scope.OwnBook, contact.Id) is not null
+                || !contact.Addresses.Any(address => query.OutrankedAddresses.Contains(address.NormalizedAddress)))
             .OrderBy(contact => contact.DisplayName.SortKey, StringComparer.Ordinal)
             .ThenBy(contact => contact.Id.Value)
             .Where(contact => query.Cursor is not { } cursor || IsBeyond(contact, cursor))

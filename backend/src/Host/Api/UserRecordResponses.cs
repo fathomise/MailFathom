@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Text.Json.Nodes;
+using MailFathom.Application.Access;
 using MailFathom.Application.Paging;
 using MailFathom.Host.Configuration.Policies;
 using MailFathom.Host.Configuration.UserSettings.Administration;
@@ -35,12 +36,16 @@ internal sealed record UserRosterResponse(IReadOnlyList<UserRosterEntryResponse>
 /// <param name="Served">Whether the running process is serving them, which every user it holds is; a user it is not serving is one whose mail is neither read nor refreshed.</param>
 /// <param name="McpEndpoint">Whether they are served on the MCP endpoint, whichever credential they present there.</param>
 /// <param name="ClientEndpoint">Whether they are served on the client endpoint, whichever credential or session they present there.</param>
+/// <param name="Type">Whether they are a person, <c>User</c>, or a technical account, <c>ServiceAccount</c>, which has no member contact.</param>
+/// <param name="JobTitle">The title their colleagues read them by, or nothing where an administrator stated none.</param>
 internal sealed record UserRosterEntryResponse(
     Guid Id,
     string DisplayName,
     bool Served,
     bool McpEndpoint,
-    bool ClientEndpoint)
+    bool ClientEndpoint,
+    string Type,
+    string? JobTitle)
 {
     /// <summary>Describes one user.</summary>
     /// <param name="entry">The user as the roster reported them.</param>
@@ -55,7 +60,9 @@ internal sealed record UserRosterEntryResponse(
             entry.DisplayName,
             entry.Served,
             entry.EndpointAccess.McpEndpoint,
-            entry.EndpointAccess.ClientEndpoint);
+            entry.EndpointAccess.ClientEndpoint,
+            entry.Type.ToString(),
+            entry.JobTitle);
     }
 }
 
@@ -81,6 +88,28 @@ internal sealed record UserProvisioningRequest(string? DisplayName, Guid? Organi
 /// <param name="DisplayName">The label an administrator reads this user by from now on, which another user may carry as well.</param>
 /// <remarks>Its own request type rather than the provisioning one, because the two carry the same field for different acts: a body that named a user would be a rename that recorded somebody, and a shared type is what would let one become the other.</remarks>
 internal sealed record UserRelabelRequest(string? DisplayName);
+
+/// <summary>The title a user's colleagues read them by from now on.</summary>
+/// <param name="JobTitle">The title, at most 256 characters, or nothing or blank to state none.</param>
+internal sealed record UserJobTitleRequest(string? JobTitle);
+
+/// <summary>Whether a user is a person or a technical account from now on.</summary>
+/// <param name="Type"><c>User</c> or <c>ServiceAccount</c>, compared without regard to case.</param>
+internal sealed record UserTypeRequest(string? Type)
+{
+    /// <summary>Every type a request may name, as one phrase a refusal ends with.</summary>
+    internal static readonly string WrittenNames =
+        string.Join(" or ", Enum.GetNames<UserType>().Select(name => $"'{name}'"));
+
+    /// <summary>Reads the type a request names.</summary>
+    /// <param name="written">The name as the request spelled it.</param>
+    /// <returns>The type, or <see langword="null" /> where the text names none; a number is not a type.</returns>
+    internal static UserType? Read(string? written) =>
+        Enum.GetValues<UserType>()
+            .Where(type => string.Equals(type.ToString(), written?.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Select(type => (UserType?)type)
+            .FirstOrDefault();
+}
 
 /// <summary>The user a provisioning recorded.</summary>
 /// <param name="Id">The identifier the user was minted under.</param>

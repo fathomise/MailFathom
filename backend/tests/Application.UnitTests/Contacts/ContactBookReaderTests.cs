@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Failures;
+using MailFathom.Application.Contacts.Members;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
@@ -48,6 +49,7 @@ public sealed class ContactBookReaderTests
         var directory = Substitute.For<IContactDirectory>();
         var reader = new ContactBookReader(
             directory,
+            Substitute.For<IMemberDirectory>(),
             ContactBookOwnerships.ForTheServedUser(),
             AuthorizationOf(AuthorizedPrincipal.Process));
 
@@ -64,6 +66,7 @@ public sealed class ContactBookReaderTests
         var directory = Substitute.For<IContactDirectory>();
         var reader = new ContactBookReader(
             directory,
+            Substitute.For<IMemberDirectory>(),
             ContactBookOwnerships.ForTheServedUser(),
             AuthorizationOf(principal: null));
 
@@ -269,6 +272,7 @@ public sealed class ContactBookReaderTests
 
         return new ContactBookReader(
             directory,
+            Substitute.For<IMemberDirectory>(),
             ContactBookOwnerships.ForTheServedUser(),
             AuthorizationOf(AuthorizedPrincipal.CallerActingFor(
                 SyntheticUser.Deployment,

@@ -64,6 +64,14 @@ internal sealed class UserAccountEntity
     /// <remarks>It groups users and scopes the login their passwords are typed as, and narrows nothing they read.</remarks>
     public Guid? OrganizationId { get; set; }
 
+    /// <summary>Whether the user is a person or a technical account.</summary>
+    /// <remarks>A column rather than a property of the document, because the organization's member directory reads it across every member in one statement, and an administrator writes it rather than the person.</remarks>
+    public UserType Type { get; set; } = UserType.User;
+
+    /// <summary>The title the user's colleagues read them by, or <see langword="null" /> for none.</summary>
+    /// <remarks>A column for the reason <see cref="Type" /> is one.</remarks>
+    public string? JobTitle { get; set; }
+
     /// <summary>The user's configurable record, as one <c>jsonb</c> document.</summary>
     /// <remarks>
     /// Held as text because nothing here reads into it: what the document contains — the user's mail-account

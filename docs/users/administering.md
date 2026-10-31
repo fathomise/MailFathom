@@ -811,6 +811,14 @@ The switches live in that person's record, so `mfctl user edit` shows and change
 cannot change them from their own client. An endpoint you left requiring no credential has no idea who is calling, so
 it has nobody to keep off: give it a credential first.
 
+**Inside an organization, every person is a colleague to the others.** Each member's contacts list the other members as
+read-only contacts, drawn from their user records — the name, the addresses of the mailboxes assigned to them alone,
+the portrait, the phone numbers and the time zone they state — and two fields only you write:
+`mfctl user set-job-title --job-title Controller` is the title they read somebody by, and `--none` takes it off.
+`mfctl user set-type --type ServiceAccount` marks a technical account, which leaves that directory and is never
+suggested as a recipient; every user starts as `User`, so mark each automation account once after upgrading.
+[Contacts](../features/contacts.md#the-organizations-member-directory) states what the directory shows and to whom.
+
 **Mailboxes are `mfctl account`, and they are records of their own.** `mfctl account add` creates one from a file and
 assigns it to a person, and `mfctl account edit` changes its settings. One address is one account in the whole
 deployment, and an account is served to one person at a time, so adding a mailbox somebody already has is refused, and

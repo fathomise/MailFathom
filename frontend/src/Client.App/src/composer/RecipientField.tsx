@@ -7,9 +7,15 @@ import { longestContactSearch, type ClientSession, type MailFathomTransport } fr
 import { Icon } from '../controls/Icon';
 import { SymbolControl } from '../controls/SymbolControl';
 import { useTip } from '../controls/useTip';
-import { useLocalization } from '../localization/useLocalization';
+import { useLocalization, type Translate } from '../localization/useLocalization';
 import { looksLikeAnAddress, mostRecipientsInOneHeader } from './composition';
-import { searchContacts, suggestionsFor, type ContactLookup, type RecipientSuggestion } from './recipientSuggestions';
+import {
+    searchContacts,
+    suggestionsFor,
+    type ContactLookup,
+    type RecipientSuggestion,
+    type SuggestionGroupName,
+} from './recipientSuggestions';
 
 // One header of a message being written, as the design draws it: the header's name, a chip per address with a
 // way to take each one back off, and a field to write the next one in.
@@ -20,11 +26,27 @@ import { searchContacts, suggestionsFor, type ContactLookup, type RecipientSugge
 //
 // **What the field offers is a list this component draws**, as the combobox pattern the platform's accessibility
 // guidance describes: the field keeps the keyboard, the arrows move through the list, Enter takes the entry in force,
-// and Escape puts the list away. A native `datalist` cannot do what the list is for — it matches the text of its
+// and Escape puts the list away. It opens as soon as the field has the focus, before anything is typed, and the book's
+// people stand in it in the design's groups — each a `group` named by its heading, which the arrows walk through as one
+// list rather than stopping at. A native `datalist` cannot do what the list is for — it matches the text of its
 // options alone, so nobody is found by their name, and it draws no second line to say which address a name stands for.
 
 /** How long the field waits after a keystroke before searching the book, so a word typed is one search rather than five. */
 const searchDelay = 200;
+
+// What each group of the book is drawn under, the organization's by the name the session gave it where it gave one.
+function groupHeading(name: SuggestionGroupName, organizationName: string | null, translate: Translate): string {
+    switch (name) {
+        case 'colleagues':
+            return translate('compose.suggestionsColleagues');
+        case 'organization':
+            return organizationName === null
+                ? translate('compose.suggestionsOrganizationUnnamed')
+                : translate('compose.suggestionsOrganization', { organization: organizationName });
+        case 'own':
+            return translate('compose.suggestionsOwn');
+    }
+}
 
 export function RecipientField({
     label,
@@ -33,6 +55,7 @@ export function RecipientField({
     participants,
     session,
     transport,
+    organizationName,
     onChanged,
     trailing,
 }: {
@@ -49,6 +72,9 @@ export function RecipientField({
 
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
+
+    /** The name the reader's organization is shown by, which the group of the contacts its book keeps is headed by. */
+    readonly organizationName: string | null;
 
     readonly onChanged: (addresses: readonly string[]) => void;
 
@@ -68,7 +94,9 @@ export function RecipientField({
     const listId = useId();
 
     const term = written.trim();
-    const searchable = term !== '' && term.length <= longestContactSearch;
+    // The book is asked while the field has the focus, typed in or not: the design lists a few of each group before
+    // anything is typed.
+    const searchable = focused && term.length <= longestContactSearch;
 
     // Searching the book is a request going out, which is what an effect is for. The answer is discarded where the term
     // moved on before it arrived, and the wait before asking is what keeps a word typed from being a search per letter.
@@ -93,10 +121,22 @@ export function RecipientField({
         };
     }, [searchable, term, session, transport]);
 
-    const fromTheBook = lookup?.answer.suggestions ?? [];
-    const offered = searchable ? suggestionsFor(term, participants, fromTheBook, addresses) : [];
+    const fromTheBook = lookup?.answer.groups ?? [];
+    const suggested = searchable ? suggestionsFor(term, participants, fromTheBook, addresses) : null;
+    // The list as the arrows walk it: the conversation's people, then each group in turn.
+    const offered =
+        suggested === null
+            ? []
+            : [...suggested.participants, ...suggested.groups.flatMap((group) => group.suggestions)];
     const unsearchable = searchable && lookup?.term === term && lookup.answer.incomplete;
     const open = focused && !dismissed && (offered.length > 0 || unsearchable);
+
+    // The arrows move only the highlight, and the list is bounded, so the one in force is brought into the box's view.
+    useEffect(() => {
+        if (active !== null) {
+            document.getElementById(`${listId}-${active.toFixed(0)}`)?.scrollIntoView({ block: 'nearest' });
+        }
+    }, [active, listId]);
     // The popup can hold the note alone, and the combobox names only a listbox that is drawn.
     const listed = open && offered.length > 0;
     const inForce = open && active !== null ? offered[active] : undefined;
@@ -234,24 +274,57 @@ export function RecipientField({
 
             {open ? (
                 <div className="absolute inset-x-3.75 top-full z-20 mt-1 overflow-hidden rounded-lg border border-line bg-panel py-1 shadow-overlay">
-                    {listed ? (
-                        <ul
+                    {listed && suggested !== null ? (
+                        <div
                             id={listId}
                             role="listbox"
                             aria-label={translate('compose.suggestedRecipients', { header: label })}
+                            className="max-h-75 overflow-y-auto"
                         >
-                            {offered.map((suggestion, index) => (
-                                <SuggestedRecipient
-                                    key={suggestion.address}
-                                    id={`${listId}-${index.toFixed(0)}`}
-                                    suggestion={suggestion}
-                                    inForce={index === active}
-                                    onChosen={() => {
-                                        commit(suggestion.address);
-                                    }}
-                                />
+                            {suggested.participants.map((suggestion) => {
+                                const index = offered.indexOf(suggestion);
+
+                                return (
+                                    <SuggestedRecipient
+                                        key={suggestion.address}
+                                        id={`${listId}-${index.toFixed(0)}`}
+                                        suggestion={suggestion}
+                                        inForce={index === active}
+                                        onChosen={() => {
+                                            commit(suggestion.address);
+                                        }}
+                                    />
+                                );
+                            })}
+
+                            {suggested.groups.map((group) => (
+                                <div key={group.name} role="group" aria-labelledby={`${listId}-${group.name}`}>
+                                    <div
+                                        id={`${listId}-${group.name}`}
+                                        role="presentation"
+                                        className="px-3 pt-2 pb-0.75 text-xs font-semibold text-faint"
+                                    >
+                                        {groupHeading(group.name, organizationName, translate)}
+                                    </div>
+
+                                    {group.suggestions.map((suggestion) => {
+                                        const index = offered.indexOf(suggestion);
+
+                                        return (
+                                            <SuggestedRecipient
+                                                key={suggestion.address}
+                                                id={`${listId}-${index.toFixed(0)}`}
+                                                suggestion={suggestion}
+                                                inForce={index === active}
+                                                onChosen={() => {
+                                                    commit(suggestion.address);
+                                                }}
+                                            />
+                                        );
+                                    })}
+                                </div>
                             ))}
-                        </ul>
+                        </div>
                     ) : null}
 
                     {unsearchable ? (
@@ -285,7 +358,7 @@ function SuggestedRecipient({
     readonly onChosen: () => void;
 }) {
     return (
-        <li
+        <div
             id={id}
             role="option"
             aria-selected={inForce}
@@ -299,7 +372,7 @@ function SuggestedRecipient({
             <span className={`truncate ${suggestion.name === null ? 'text-base text-text' : 'text-sm text-muted'}`}>
                 {suggestion.address}
             </span>
-        </li>
+        </div>
     );
 }
 

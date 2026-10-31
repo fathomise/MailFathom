@@ -13,7 +13,7 @@ namespace MailFathom.Host.Configuration.UserSettings.Administration;
 /// trimmed on its way in: a client redrawing what somebody typed would show a name this deployment does not hold, and
 /// deriving it at the boundary would put the trimming rule in two places for a reader to notice they agree.
 /// <para>
-/// The absence of a record is apart from a refusal for the reason <see cref="UserRelabelOutcome" /> keeps them apart:
+/// The absence of a record is apart from a refusal for the reason <see cref="UserRowWriteOutcome" /> keeps them apart:
 /// a person this deployment does not hold is the same answer as at every other user-scoped route, while an unusable
 /// name, or one a settings policy holds, is about the name rather than about the person.
 /// </para>

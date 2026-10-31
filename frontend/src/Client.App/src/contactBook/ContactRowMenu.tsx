@@ -8,6 +8,8 @@ import { ContextMenu, type ContextMenuItem } from '../contextMenu/ContextMenu';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useLocalization } from '../localization/useLocalization';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import { useAddressCopy } from './useAddressCopy';
+import type { Person } from './useContactBook';
 
 // What a contact's row offers, which is this list's own items handed to the one menu six lists share: where the menu
 // stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s.
@@ -18,11 +20,12 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 // because the Calendar space is a placeholder and a menu item that opens nothing is worse than no item at all. It
 // arrives with that screen rather than being drawn ahead of it.
 //
-// **A contact the reader's organization keeps offers no erasure**, because the organization's book is read-only to a
-// member and the press would answer as a contact the books do not hold.
-//
 // **Nothing here performs the erasure.** The question it stands behind outlives the menu — the menu is gone the moment
 // an item is chosen — so what this does is ask the screen to raise it.
+//
+// **A colleague and a contact the reader's organization keeps offer no erasure**, because both are read-only to a
+// member and the press would answer as a contact the books do not hold. Each offers *Copy address* in that place, as
+// the design draws.
 
 export function ContactRowMenu({
     contact,
@@ -33,7 +36,7 @@ export function ContactRowMenu({
     onAskErasure,
     onClose,
 }: {
-    readonly contact: Contact;
+    readonly contact: Person;
     readonly at: MenuPoint;
 
     /** Whether this credential may take somebody out of the book at all. */
@@ -44,45 +47,57 @@ export function ContactRowMenu({
 
     readonly onOpen: () => void;
 
-    /** Raises the question the erasure stands behind, over this one person. */
-    readonly onAskErasure: () => void;
+    /** Raises the question the erasure stands behind, over this one person, who is one of the reader's own books'. */
+    readonly onAskErasure: (contact: Contact) => void;
 
     readonly onClose: () => void;
 }) {
     const { translate } = useLocalization();
     const composing = useComposing();
     const writeRefused = useWriteRefusal();
+    const copy = useAddressCopy();
+    const address = contact.preferredAddress;
 
     const items: ContextMenuItem[] = [
         { icon: 'check_box', label: translate('people.selectContacts'), choose: onSelect },
     ];
 
-    if (composing.offered) {
+    if (composing.offered && address !== null) {
         items.push({
             icon: 'edit',
-            label: translate('people.writeMessage'),
+            label: translate(contact.book === 'Member' ? 'people.writeEmail' : 'people.writeMessage'),
             choose: () => {
-                composing.compose({ kind: 'new', to: [contact.preferredAddress] });
+                composing.compose({ kind: 'new', to: [address] });
             },
         });
     }
 
     items.push({ icon: 'person', label: translate('people.openContact'), choose: onOpen });
 
-    if (erasable && contact.organization === null) {
+    if (contact.book === 'Member' || contact.book === 'Organization') {
+        if (address !== null) {
+            items.push({
+                icon: 'content_copy',
+                label: translate('people.copyAddress'),
+                choose: () => {
+                    copy([address]);
+                },
+            });
+        }
+    } else if (erasable) {
         // Said as the person's page says it: a contact somebody wrote down is deleted, and one their mail collected is
         // removed from the collected book. Either writes, so while the server is out of reach it stays here saying why
         // it cannot act.
-        const erasure = translate(
-            contact.origin === 'Collected' ? 'people.removeFromCollected' : 'people.deleteContact',
-        );
+        const erasure = translate(contact.book === 'Collected' ? 'people.removeFromCollected' : 'people.deleteContact');
 
         items.push({
             icon: 'delete',
             label: erasure,
             destroys: true,
             refused: writeRefused(erasure),
-            choose: onAskErasure,
+            choose: () => {
+                onAskErasure(contact);
+            },
         });
     }
 

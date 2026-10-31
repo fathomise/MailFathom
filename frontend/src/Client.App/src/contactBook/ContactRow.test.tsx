@@ -16,6 +16,7 @@ const anna: Contact = {
     note: null,
     phoneNumbers: [],
     origin: 'Asserted',
+    book: 'Own',
     recordedAt: '2026-08-31T09:41:00+00:00',
     amendedAt: '2026-08-31T09:41:00+00:00',
     photo: null,
@@ -66,7 +67,7 @@ describe('ContactRow', () => {
     });
 
     it('marks a contact the reader’s organization keeps with the organization’s name', () => {
-        drawRow({ contact: { ...anna, organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' } });
+        drawRow({ contact: { ...anna, book: 'Organization', organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' } });
 
         expect(screen.getByText('Nordwind')).toBeDefined();
     });

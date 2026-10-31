@@ -11761,6 +11761,8 @@ contacts.ts organizationContact GET /api/client/contacts/{contactId}
 contacts.ts assertedContactPage GET /api/client/contacts
 contacts.ts collectedContactPage GET /api/client/contacts/collected
 contacts.ts emptyContactPage GET /api/client/contacts
+contacts.ts colleague GET /api/client/contacts/colleagues
+contacts.ts colleaguePage GET /api/client/contacts/colleagues
 contacts.ts contactWritten POST /api/client/contacts
 contacts.ts contactAddressHeld POST /api/client/contacts
 contacts.ts contactPromoted POST /api/client/contacts/{contactId}/promotion

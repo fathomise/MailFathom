@@ -391,6 +391,7 @@ configured name for an account and carries nothing the caller did not already wr
 | `51013` | A field of a message a caller authored carries a value no message can be composed from | A subject or a recipient carrying a line break, which would smuggle a header nobody wrote; text naming no mailbox; an address outside ASCII, which is refused because a message is written down long before a submission server has said whether it carries one; an `account` or an `idempotencyKey` that is blank, too long, or carrying a control character — the message names the field and never the value |
 | `51014` | A message a caller authored is larger than this deployment composes | More recipients than an outgoing record holds, more than `MailDelivery:MaxRecipientCount` across the three headers, a body over `MailDelivery:MaxBodyCharacters`, or a forward whose original carries more files or larger ones than `MailDelivery` sends — the message names the field and the configured number, never what was measured |
 | `51016` | The call named a queued send with text that is no identifier this system issues | An `outgoingEmailId` that is blank, not a UUID, or the all-zero UUID, refused before anything is looked up — separate from a send nobody may be told about, because this one is true whatever this deployment has queued |
+| `51017` | The call amended or erased a contact the caller's organization keeps | An organization's contacts are written only by its administrators, over the administrative surface; promoting one copies it into the caller's own book, which the caller may then amend |
 | `52001` | A continuation cursor is not one this system issued | A truncated, hand-written, or foreign cursor |
 | `52002` | A continuation cursor was issued for different filters | A cursor reused after a filter or the reading direction changed |
 | `52003` | A contact listing's cursor is not one this system issued | A truncated, hand-written, or foreign `cursor`; a contact cursor is not bound to the filters, so changing `search` or `origin` mid-walk is not what produces it |
@@ -2053,7 +2054,7 @@ an erasure removes. Nothing of that is restated here; what this section holds is
 **A caller reads the books of the user it was admitted to act for** — that user's own, holding the people they wrote
 down, beside the book of the organization they are a member of and the collected book of each mail account assigned to
 them — and no argument of any of the six names another user or an organization. Its writes reach the user's own book
-alone, so an organization's contact, which carries `organization`, is one the writing tools answer as not held. A person another user wrote down is answered as somebody these books
+alone, so an organization's contact, which carries `organization`, is refused `51017` by `update_contact` and `delete_contact`, and `promote_contact` copies it into the user's own book. A person another user wrote down is answered as somebody these books
 do not hold, and an address another user's contact holds is free for this one; an address a mail account collected is
 answered once even where two of the caller's accounts picked it up, and the user's own contact is what answers where
 both books carry the address.
@@ -2116,7 +2117,7 @@ which is the same rule every listing on this surface follows.
 
 | Field | Meaning |
 |---|---|
-| `contacts` | The page, ordered by the name's comparison form and then by identity, each entry carrying `contactId`, `displayName`, `addresses`, `preferredAddress`, `note`, `origin`, `recordedAt`, `amendedAt`, and `organization` — the organization whose book holds the contact, absent for a contact of the caller's own book or of a mailbox's. A contact carrying it is read-only here: `update_contact`, `promote_contact`, and `delete_contact` answer it as a contact the caller does not hold |
+| `contacts` | The page, ordered by the name's comparison form and then by identity, each entry carrying `contactId`, `displayName`, `addresses`, `preferredAddress`, `note`, `origin`, `recordedAt`, `amendedAt`, and `organization` — the organization whose book holds the contact, absent for a contact of the caller's own book or of a mailbox's. A contact carrying it is read-only here: `update_contact` and `delete_contact` refuse it `51017`, and `promote_contact` copies it into the caller's own book |
 | `nextCursor` | The cursor of the following page, or absent when the walk is done |
 
 **A contact cursor is not bound to the filters.** The book is walked in one order whatever narrows it, so continuing a
@@ -2204,7 +2205,7 @@ The same shape `create_contact` answers with, and two more states it can carry:
 | State | What it means |
 |---|---|
 | `written` | The book holds the record, published in `contact` |
-| `notFound` | No contact of that identifier is in the books the caller reads, or the one that is carries `organization`, which this tool does not amend |
+| `notFound` | No contact of that identifier is in the books the caller reads. A contact carrying `organization` is not answered here at all: the call is refused `51017`, because the organization's book is written by its administrators alone |
 | `addressHeldByAnotherContact` | One of the addresses belongs to somebody else, named by `addressHolderContactId` |
 | `contactWasCollected` | The record is one of the caller's mail accounts' rather than one somebody wrote down |
 
@@ -2226,8 +2227,7 @@ It reaches every book the caller reads except the organization's, rather than th
 nor collected gates an erasure — somebody asking to be taken out of a contact book is not answered with which book they
 happen to be in. So **erasing a collected record takes it out of the mail account's book for every user assigned that
 account**, the record having been one record rather than a copy each. A contact carrying `organization` is the
-exception: its book is written by administrators alone, so this tool answers it with `wasHeld` false and leaves it where
-it is. Emptying a whole account's collected book is `mfctl contact delete-collected`, which no tool here
+exception: its book is written by administrators alone, so this tool refuses it `51017` and leaves it where it is. Emptying a whole account's collected book is `mfctl contact delete-collected`, which no tool here
 publishes.
 
 ### Arguments
@@ -2250,14 +2250,16 @@ error would only say whether somebody had already erased that person.
 
 ## `promote_contact`
 
-Takes on one person a mail account collected from arriving mail, by writing the caller's own asserted copy of the
-record.
+Takes on one person a mail account collected from arriving mail, or one the caller's organization keeps, by writing the
+caller's own asserted copy of the record.
 
 **It copies rather than moves.** The collected record is the mail account's, and the account's other users go on reading
 it, so the promotion writes a second record — in the caller's own book, under an identity of its own — and leaves the
 first where it is. A read for the caller then answers with their own copy in place of the collected one, and a read for
 anybody else assigned that account is unchanged. A caller who wants the collected record gone as well erases it, which
-is the act that reaches the mailbox's book.
+is the act that reaches the mailbox's book. An organization's contact is copied the same way, with its addresses, its
+preferred address, its note, and its phone numbers, and the organization's record stays as its administrators wrote it;
+the copy is the caller's to amend, which the organization's record never is.
 
 It is the only path between the two books and it runs one way. It is also what unlocks `update_contact` on a record
 that answered `contactWasCollected`: an agent that read the book and found somebody a mailbox picked up takes the record

@@ -116,12 +116,19 @@ public sealed class ClientSessionResponseTests
         var organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f");
 
         // Act
-        var within = ClientSessionResponse.For(principal: null, forwardsTelemetry: true, ClientTelemetryLevel.Info, organization: organization);
+        var within = ClientSessionResponse.For(
+            principal: null,
+            forwardsTelemetry: true,
+            ClientTelemetryLevel.Info,
+            organization: organization,
+            organizationName: "Nordwind");
         var outside = ClientSessionResponse.For(principal: null, forwardsTelemetry: true, ClientTelemetryLevel.Info);
 
         // Assert
         Assert.Equal(organization, within.Organization);
+        Assert.Equal("Nordwind", within.OrganizationName);
         Assert.Null(outside.Organization);
+        Assert.Null(outside.OrganizationName);
     }
 
     /// <summary>The organization's name travels with the organization it names, so a name handed in without one is answered as nothing.</summary>

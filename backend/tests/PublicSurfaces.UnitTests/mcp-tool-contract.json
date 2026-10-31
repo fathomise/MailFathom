@@ -701,7 +701,7 @@
               ]
             },
             "organization": {
-              "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact, promote_contact, and delete_contact answer it as one this book does not hold.",
+              "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact and delete_contact refuse it with error 51017, and promote_contact copies it into the user's own book.",
               "type": [
                 "string",
                 "null"
@@ -1036,7 +1036,7 @@
               ]
             },
             "organization": {
-              "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact, promote_contact, and delete_contact answer it as one this book does not hold.",
+              "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact and delete_contact refuse it with error 51017, and promote_contact copies it into the user's own book.",
               "type": [
                 "string",
                 "null"
@@ -2317,7 +2317,7 @@
                 ]
               },
               "organization": {
-                "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact, promote_contact, and delete_contact answer it as one this book does not hold.",
+                "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact and delete_contact refuse it with error 51017, and promote_contact copies it into the user's own book.",
                 "type": [
                   "string",
                   "null"
@@ -3138,7 +3138,7 @@
               ]
             },
             "organization": {
-              "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact, promote_contact, and delete_contact answer it as one this book does not hold.",
+              "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact and delete_contact refuse it with error 51017, and promote_contact copies it into the user's own book.",
               "type": [
                 "string",
                 "null"
@@ -4506,7 +4506,7 @@
               ]
             },
             "organization": {
-              "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact, promote_contact, and delete_contact answer it as one this book does not hold.",
+              "description": "The organization whose contact book holds this person, when the user's organization recorded them for every member; absent when the user or a mailbox holds them. Such a contact is read-only here: update_contact and delete_contact refuse it with error 51017, and promote_contact copies it into the user's own book.",
               "type": [
                 "string",
                 "null"

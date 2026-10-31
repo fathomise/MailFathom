@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Correspondence;
+using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Contacts.Relationship;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.Mailboxes;
@@ -234,6 +235,7 @@ public sealed class ClientContactRelationshipEndpointTests
     /// <summary>Builds the book the route reads the contact from, over a substituted directory and a caller granted every half.</summary>
     private ContactBookReader Contacts() => new(
         this.directory,
+        Substitute.For<IMemberDirectory>(),
         new ContactBookOwnership(Granted(), new ContactBookScopes(new StubMailAccountAssignments(), new StatedAdministrativeTargets())),
         Granted());
 

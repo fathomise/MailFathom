@@ -632,6 +632,7 @@ public sealed class ContactBookWriterTests
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), timeProvider),
                 timeProvider,
                 authorization),
+            book,
             ContactBookOwnerships.For(authorization, Account),
             authorization);
     }

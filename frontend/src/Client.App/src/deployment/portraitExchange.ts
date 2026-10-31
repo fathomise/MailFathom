@@ -5,6 +5,7 @@
 import {
     failureReasonForStatus,
     largestPortraitOctets,
+    readColleaguePhoto,
     readContactPhoto,
     readOwnPortrait,
     removeContactPhoto,
@@ -83,6 +84,12 @@ export interface ContactPhotoExchange {
     /** Fetches a contact's photo, answering an address it may be drawn at, that there is none, or why it could not be read. */
     read(session: ClientSession, contactId: string, abandoned: AbortSignal): Promise<PortraitRead>;
 
+    /**
+     * Fetches the portrait of a member of the reader's organization, which their own record holds rather than any book —
+     * so there is no writing one from here.
+     */
+    readColleague(session: ClientSession, userId: string, abandoned: AbortSignal): Promise<PortraitRead>;
+
     /** Replaces a contact's photo with a file somebody chose, under the kind it was found to be. */
     replace(session: ClientSession, contactId: string, picture: Blob, type: PortraitImageType): Promise<PortraitWrite>;
 
@@ -93,6 +100,9 @@ export interface ContactPhotoExchange {
 export const contactPhotoExchange: ContactPhotoExchange = {
     read: (session, contactId, abandoned) =>
         readContactPhoto(session, contactId, (request) => readPicture(request, abandoned), refusalOf),
+
+    readColleague: (session, userId, abandoned) =>
+        readColleaguePhoto(session, userId, (request) => readPicture(request, abandoned), refusalOf),
 
     replace: (session, contactId, picture, type) =>
         replaceContactPhoto(session, contactId, type, (request) => stated(request, picture), refusalOf),

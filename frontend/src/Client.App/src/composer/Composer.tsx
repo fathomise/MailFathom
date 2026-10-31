@@ -155,6 +155,7 @@ export function Composer({
     drafts,
     showsOutbox = false,
     inFront = true,
+    organizationName = null,
     onClosed,
 }: {
     readonly session: ClientSession;
@@ -183,6 +184,9 @@ export function Composer({
 
     /** Whether the mail space is the one in front, which the composer is written in and stays in while it is aside. */
     readonly inFront?: boolean;
+
+    /** The name the reader's organization is shown by, which the recipients its book keeps are offered under. */
+    readonly organizationName?: string | null;
 
     /**
      * Takes the composer off the screen.
@@ -869,6 +873,7 @@ export function Composer({
                         addresses={composition.to}
                         participants={participants}
                         session={session}
+                        organizationName={organizationName}
                         transport={transport}
                         onChanged={(to) => {
                             revise({ to });
@@ -898,6 +903,7 @@ export function Composer({
                                 addresses={composition.cc}
                                 participants={participants}
                                 session={session}
+                                organizationName={organizationName}
                                 transport={transport}
                                 onChanged={(cc) => {
                                     revise({ cc });
@@ -919,6 +925,7 @@ export function Composer({
                                 addresses={composition.bcc}
                                 participants={participants}
                                 session={session}
+                                organizationName={organizationName}
                                 transport={transport}
                                 onChanged={(bcc) => {
                                     revise({ bcc });

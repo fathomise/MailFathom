@@ -6,7 +6,7 @@ using MailFathom.Domain.Access;
 
 namespace MailFathom.Application.Access;
 
-/// <summary>Gives a user the row the mail graph hangs on, and keeps the label on it the one they were recorded under.</summary>
+/// <summary>Gives a user the row the mail graph hangs on, and keeps the label, the title, and the type on it the ones an administrator last wrote.</summary>
 /// <remarks>
 /// <para>
 /// The envelope is all this writes: the row exists because <c>mailbox_accounts.UserId</c> is a foreign key and the
@@ -14,9 +14,10 @@ namespace MailFathom.Application.Access;
 /// until a write to the user's record fills it.
 /// </para>
 /// <para>
-/// Both operations are idempotent, because two writers may reach one row at once and the one that lost has to be
+/// All four operations are idempotent, because two writers may reach one row at once and the one that lost has to be
 /// answered with what the deployment holds rather than with a failure. Provisioning a user the deployment already
-/// holds writes nothing, and relabelling one already carrying the label leaves them as they were.
+/// holds writes nothing, and relabelling one already carrying the label, or giving one the title or the type they
+/// already carry, leaves them as they were.
 /// </para>
 /// </remarks>
 public interface IUserProvisioning
@@ -67,4 +68,23 @@ public interface IUserProvisioning
     /// </para>
     /// </remarks>
     Task<bool> RelabelAsync(UserId user, string displayName, CancellationToken cancellationToken);
+
+    /// <summary>Puts the title the user's colleagues read them by onto the row of a user this deployment already holds.</summary>
+    /// <param name="user">The user whose row is written.</param>
+    /// <param name="jobTitle">The title, at most <see cref="UserRecord.MaximumJobTitleLength" /> characters, or <see langword="null" /> to state none.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><see langword="true" /> when the row carries the title once the write has run, <see langword="false" /> when this deployment holds nobody under that identifier.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody, or <paramref name="jobTitle" /> is empty, white space, or longer than the column.</exception>
+    /// <remarks>Answered as <see cref="RelabelAsync" /> is, and for the same race.</remarks>
+    Task<bool> SetJobTitleAsync(UserId user, string? jobTitle, CancellationToken cancellationToken);
+
+    /// <summary>Puts whether the user is a person or a technical account onto the row of a user this deployment already holds.</summary>
+    /// <param name="user">The user whose row is written.</param>
+    /// <param name="type">The type the user carries from now on.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><see langword="true" /> when the row carries the type once the write has run, <see langword="false" /> when this deployment holds nobody under that identifier.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="type" /> names no declared value.</exception>
+    /// <remarks>Answered as <see cref="RelabelAsync" /> is, and for the same race.</remarks>
+    Task<bool> SetTypeAsync(UserId user, UserType type, CancellationToken cancellationToken);
 }

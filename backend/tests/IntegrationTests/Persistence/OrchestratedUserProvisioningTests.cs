@@ -149,6 +149,78 @@ public sealed class OrchestratedUserProvisioningTests(MailFathomOrchestrationFix
             cancellationToken));
     }
 
+    /// <summary>A title and a type are written on the user named alone, a title is taken off again, and a user nobody holds is reported unheld.</summary>
+    [Fact]
+    public async Task SetJobTitleAndTypeAsync_AUserAndABystander_WriteTheNamedRowAlone()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var written = Guid.CreateVersion7();
+        var bystander = Guid.CreateVersion7();
+
+        try
+        {
+            Assert.Equal(
+                UserProvisioningResult.Provisioned,
+                await ProvisionAsync(services, written, $"provisioned-{written:N}", cancellationToken));
+            Assert.Equal(
+                UserProvisioningResult.Provisioned,
+                await ProvisionAsync(services, bystander, $"provisioned-{bystander:N}", cancellationToken));
+
+            // Act
+            var answers = await services.InScopeAsync(
+                async (scope, token) =>
+                {
+                    var provisioning = scope.GetRequiredService<IUserProvisioning>();
+
+                    return (
+                        Titled: await provisioning.SetJobTitleAsync(UserId.Create(written), "Controller", token),
+                        Typed: await provisioning.SetTypeAsync(UserId.Create(written), UserType.ServiceAccount, token),
+                        Unheld: await provisioning.SetJobTitleAsync(UserId.Create(Guid.CreateVersion7()), "Nobody", token)
+                            || await provisioning.SetTypeAsync(UserId.Create(Guid.CreateVersion7()), UserType.ServiceAccount, token));
+                },
+                cancellationToken);
+            var afterWriting = await ReadTitleAndTypeOfAsync(services, written, cancellationToken);
+            var untouched = await ReadTitleAndTypeOfAsync(services, bystander, cancellationToken);
+
+            Assert.True(await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IUserProvisioning>().SetJobTitleAsync(UserId.Create(written), jobTitle: null, token),
+                cancellationToken));
+            var afterTakingOff = await ReadTitleAndTypeOfAsync(services, written, cancellationToken);
+
+            // Assert
+            Assert.True(answers.Titled);
+            Assert.True(answers.Typed);
+            Assert.False(answers.Unheld);
+            Assert.Equal(("Controller", UserType.ServiceAccount), afterWriting);
+            Assert.Equal(((string?)null, UserType.User), untouched);
+            Assert.Equal(((string?)null, UserType.ServiceAccount), afterTakingOff);
+        }
+        finally
+        {
+            await OrchestratedForeignUser.EraseAsync(services, written);
+            await OrchestratedForeignUser.EraseAsync(services, bystander);
+        }
+    }
+
+    private static Task<(string? JobTitle, UserType Type)> ReadTitleAndTypeOfAsync(
+        OrchestratedMailFathomServices services,
+        Guid user,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            async (scope, token) =>
+            {
+                var row = await scope.GetRequiredService<MailFathomDbContext>()
+                    .UserAccounts
+                    .AsNoTracking()
+                    .Where(record => record.Id == user)
+                    .Select(record => new { record.JobTitle, record.Type })
+                    .SingleAsync(token);
+
+                return (row.JobTitle, row.Type);
+            },
+            cancellationToken);
+
     private static Task<UserProvisioningResult> ProvisionAsync(
         OrchestratedMailFathomServices services,
         Guid user,

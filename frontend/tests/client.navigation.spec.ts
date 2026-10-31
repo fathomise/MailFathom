@@ -82,6 +82,8 @@ test('goes back from a person to the address book on a phone, rather than out of
     deployment.grant('mailfathom.contacts.read');
     await page.setViewportSize(phoneWindow);
     await openSignedIn(page, '/#/people');
+    // A member of an organization arrives at its directory, so the reader's own book is one press away.
+    await page.getByRole('radio', { name: 'Own' }).press('Space');
 
     const book = page.getByRole('listbox', { name: 'Contacts' });
 
@@ -100,6 +102,7 @@ test('closes a dialog with the back gesture and leaves the screen it stood over 
 }) => {
     deployment.grant('mailfathom.contacts.read', 'mailfathom.contacts.write');
     await openSignedIn(page, '/#/people');
+    await page.getByRole('radio', { name: 'Own' }).press('Space');
     await expect(page.getByRole('listbox', { name: 'Contacts' })).toBeVisible();
 
     await page.getByRole('button', { name: 'New contact' }).click();

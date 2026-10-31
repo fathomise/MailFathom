@@ -21,6 +21,7 @@ using MailFathom.Application.Calendar.Import;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Contacts.Correspondence;
+using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Coordination;
 using MailFathom.Application.Discovery.Citations;
@@ -718,6 +719,11 @@ public static class ServiceCollectionExtensions
         // a person. The pool is reached on first use rather than when the reader is built, because the synchronization
         // coordinator, a hosted service, holds this reader and is built before startup has composed the pool.
         services.AddSingleton<IUserSettingsDocumentReader>(provider => new PersistedUserSettingsDocumentReader(
+            () => provider.GetRequiredService<NpgsqlDataSource>(),
+            provider.GetRequiredService<DatabaseCommandTimeout>()));
+        // An organization's people, read for its member directory over the same rows and the same bound as one user's
+        // record, and a singleton over the pool for the same reason.
+        services.AddSingleton<IOrganizationMemberReader>(provider => new PersistedOrganizationMemberReader(
             () => provider.GetRequiredService<NpgsqlDataSource>(),
             provider.GetRequiredService<DatabaseCommandTimeout>()));
         // The other direction of travel over the same row, registered as a singleton over the pool beside the read for
@@ -1699,6 +1705,10 @@ public static class ServiceCollectionExtensions
         // and the bounds every request is checked against before the store is reached.
         services.AddScoped<ContactBookReader>();
         services.AddScoped<ContactBookWriter>();
+
+        // The caller's colleagues, read beside their books from the member directory the host composes, and copied into
+        // their own book on promotion.
+        services.AddScoped<ColleagueBook>();
 
         // A contact's photo, a stored file of the user's linked from the contact the way their own portrait is linked
         // from their record.
