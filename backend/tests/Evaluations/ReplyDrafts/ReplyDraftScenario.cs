@@ -500,6 +500,7 @@ internal sealed partial record ReplyDraftScenario(
         await using var scenarioRun = await reporting.CreateScenarioRunAsync(
             this.Name,
             iterationName,
+            additionalTags: EvaluationStore.TagsFor(this.Name, modelName),
             cancellationToken: cancellationToken);
 
         var sources = this.Sources();

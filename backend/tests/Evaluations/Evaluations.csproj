@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.AI.Evaluation" />
-    <PackageReference Include="Microsoft.Extensions.AI.Evaluation.NLP" />
     <PackageReference Include="Microsoft.Extensions.AI.Evaluation.Quality" />
     <PackageReference Include="Microsoft.Extensions.AI.Evaluation.Reporting" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />

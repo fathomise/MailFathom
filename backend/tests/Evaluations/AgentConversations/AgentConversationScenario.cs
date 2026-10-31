@@ -1279,7 +1279,11 @@ internal sealed record AgentConversationScenario(
         var modelName = plan.Endpoint.Alias;
         var iterationName = EvaluationStore.IterationNameFor(modelName, repetition);
 
-        await using var scenarioRun = await reporting.CreateScenarioRunAsync(this.Name, iterationName, cancellationToken: cancellationToken);
+        await using var scenarioRun = await reporting.CreateScenarioRunAsync(
+            this.Name,
+            iterationName,
+            additionalTags: EvaluationStore.TagsFor(this.Name, modelName),
+            cancellationToken: cancellationToken);
 
         var cachedModel = await EvaluationStore.CacheOverAsync(reporting, model, plan, this.Name, iterationName, repetition, cancellationToken);
 

@@ -243,7 +243,11 @@ internal static class PostgresRetrievalScenario
     {
         var iterationName = EvaluationStore.IterationNameFor(reportedName, repetition: 1);
 
-        await using var scenarioRun = await reporting.CreateScenarioRunAsync(scenarioName, iterationName, cancellationToken: cancellationToken);
+        await using var scenarioRun = await reporting.CreateScenarioRunAsync(
+            scenarioName,
+            iterationName,
+            additionalTags: EvaluationStore.TagsFor(scenarioName, reportedName),
+            cancellationToken: cancellationToken);
 
         var measurement = new RetrievalMeasurement(
             [.. cases.Zip(rankings, static (retrievalCase, ranking) => SemanticRanking.RanksOf(retrievalCase, ranking))]);

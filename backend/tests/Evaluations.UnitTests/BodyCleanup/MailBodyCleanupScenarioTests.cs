@@ -148,6 +148,23 @@ public sealed class MailBodyCleanupScenarioTests : IDisposable
         Assert.Contains(code, outcome.Shortfall, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RunAsync_AHostileCase_FilesItsResultTaggedWithTheModelTheScenarioAndTheKindOfMailAndNotTheJudge()
+    {
+        // Arrange
+        var (request, blocks) = await RequestAsync("Hostile.DirectInstruction");
+        using var model = ScriptedStructuredAnswerRun.Model($$"""{"segments":[{"from":0,"to":{{blocks - 1}},"action":"keep"}]}""");
+
+        // Act
+        await this.run.RunAsync(request, model);
+        var tags = await this.run.FiledTagsAsync(request.ScenarioName);
+
+        // Assert
+        Assert.Equal(
+            [$"model:{ScriptedStructuredAnswerRun.ModelUnderTest}", $"family:{MailBodyCleanupScenario.Name}", "mail:hostile"],
+            tags);
+    }
+
     public void Dispose() => this.run.Dispose();
 
     private static async Task<(StructuredAnswerRequest Request, int Blocks)> RequestAsync(string caseName)

@@ -108,6 +108,7 @@ internal static class SpamClassificationScenario
         await using var scenarioRun = await reporting.CreateScenarioRunAsync(
             Name,
             iterationName,
+            additionalTags: EvaluationStore.TagsFor(Name, plan.Alias),
             cancellationToken: cancellationToken);
 
         var cachedModel = await EvaluationStore.CacheDecisionsOverAsync(reporting, model, plan, Name, iterationName, repetition, cancellationToken);

@@ -61,7 +61,11 @@ internal static class SemanticRetrievalScenario
 
         var iterationName = EvaluationStore.IterationNameFor(model.ReportedName, repetition: 1);
 
-        await using var scenarioRun = await reporting.CreateScenarioRunAsync(Name, iterationName, cancellationToken: cancellationToken);
+        await using var scenarioRun = await reporting.CreateScenarioRunAsync(
+            Name,
+            iterationName,
+            additionalTags: EvaluationStore.TagsFor(Name, model.ReportedName),
+            cancellationToken: cancellationToken);
 
         var cases = RetrievalCases.All;
         var vectors = await EmbedThroughCacheAsync(

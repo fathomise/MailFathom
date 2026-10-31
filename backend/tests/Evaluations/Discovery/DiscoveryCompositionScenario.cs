@@ -425,6 +425,7 @@ internal sealed record DiscoveryCompositionScenario(
         await using var scenarioRun = await reporting.CreateScenarioRunAsync(
             this.Name,
             iterationName,
+            additionalTags: EvaluationStore.TagsFor(this.Name, modelName),
             cancellationToken: cancellationToken);
 
         var (evidence, sources) = await this.RetrieveAsync(cancellationToken);

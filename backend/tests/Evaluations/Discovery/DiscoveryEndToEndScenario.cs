@@ -151,6 +151,7 @@ internal sealed record DiscoveryEndToEndScenario(string Name, string Question, I
         await using var scenarioRun = await reporting.CreateScenarioRunAsync(
             this.Name,
             iterationName,
+            additionalTags: EvaluationStore.TagsFor(this.Name, modelName),
             cancellationToken: cancellationToken);
 
         var agents = new DiscoveryAgentsUnderTest(

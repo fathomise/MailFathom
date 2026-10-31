@@ -70,6 +70,7 @@ internal static class RelevanceFilterScenario
         await using var scenarioRun = await reporting.CreateScenarioRunAsync(
             Name,
             iterationName,
+            additionalTags: EvaluationStore.TagsFor(Name, modelName),
             cancellationToken: cancellationToken);
 
         var cachedModel = await EvaluationStore.CacheOverAsync(reporting, model, plan, Name, iterationName, repetition, cancellationToken);

@@ -390,6 +390,7 @@ internal sealed partial record MailAnsweringScenario(
         await using var scenarioRun = await reporting.CreateScenarioRunAsync(
             this.Name,
             iterationName,
+            additionalTags: EvaluationStore.TagsFor(this.Name, modelName),
             cancellationToken: cancellationToken);
 
         var cachedModel = await EvaluationStore.CacheOverAsync(

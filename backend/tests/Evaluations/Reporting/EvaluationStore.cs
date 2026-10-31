@@ -148,6 +148,33 @@ internal static class EvaluationStore
         return repetition is 1 ? model : string.Create(CultureInfo.InvariantCulture, $"{model}#{repetition}");
     }
 
+    /// <summary>Names the tags a scenario run carries, which are what the report's cases are filtered by.</summary>
+    /// <param name="scenarioName">The scenario's dotted name, whose first segment names the agent or scenario family and whose later segments name the kind of mail a case reads.</param>
+    /// <param name="modelName">The model under test, as its iteration is named after.</param>
+    /// <returns><c>model:</c> and <c>family:</c>, then one <c>mail:</c> tag for each kind of mail the name carries.</returns>
+    /// <remarks>
+    /// <para>
+    /// The kind of mail is read from the segments a case is already named with — <c>Hostile</c>, <c>FalseClaim</c>,
+    /// <c>Polish</c>, and <c>Mixed</c> — so a case is tagged by being named, and renaming none of them leaves every cached
+    /// answer where it was filed. The judge is never named: its model and its effort stay out of the store and the report.
+    /// </para>
+    /// <para>
+    /// A tag only labels a result. The store files it beside the verdict and no cache key reads it, so tagging a run asks
+    /// no model again.
+    /// </para>
+    /// </remarks>
+    public static string[] TagsFor(string scenarioName, string modelName)
+    {
+        var segments = scenarioName.Split('.');
+
+        return
+        [
+            $"model:{modelName}",
+            $"family:{segments[0]}",
+            .. segments.Skip(1).Select(KindOfMailNamedBy).OfType<string>().Distinct(),
+        ];
+    }
+
     /// <summary>Puts the run's response cache in front of the model under test, filed under the model, its address, and the tools a request offers.</summary>
     /// <param name="reporting">The run's store.</param>
     /// <param name="model">The model under test's client, which stays the caller's.</param>
@@ -274,6 +301,15 @@ internal static class EvaluationStore
         .. extraHeaders.Select(static header => $"{header.Name}: {header.Value}"),
         .. repetitions is 1 ? Array.Empty<string>() : [string.Create(CultureInfo.InvariantCulture, $"repetitions={repetitions}")],
     ];
+
+    private static string? KindOfMailNamedBy(string segment) => segment switch
+    {
+        "Hostile" => "mail:hostile",
+        "FalseClaim" => "mail:false-claim",
+        "Polish" => "mail:polish",
+        "Mixed" => "mail:mixed-language",
+        _ => null,
+    };
 
     /// <summary>Gets the one response cache every handle a run opens over a store shares.</summary>
     /// <remarks>

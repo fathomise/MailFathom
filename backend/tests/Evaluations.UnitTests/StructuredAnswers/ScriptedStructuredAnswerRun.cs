@@ -10,6 +10,7 @@ using MailFathom.Evaluations.Reporting;
 using MailFathom.Evaluations.StructuredAnswers;
 using MailFathom.Evaluations.UnitTests.Enrichment;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.AI.Evaluation.Reporting.Storage;
 using Xunit;
 
 namespace MailFathom.Evaluations.UnitTests.StructuredAnswers;
@@ -24,6 +25,8 @@ internal sealed class ScriptedStructuredAnswerRun : IDisposable
 {
     /// <summary>The routed name every scripted model answers under.</summary>
     public const string ModelUnderTest = "model-under-test";
+
+    private const string ExecutionName = "only";
 
     /// <summary>A verdict in the shape the intent resolution evaluator reads, rating the answer five.</summary>
     private const string JudgeAnswer =
@@ -53,7 +56,7 @@ internal sealed class ScriptedStructuredAnswerRun : IDisposable
         using var anonymousJudge = new AnonymousJudgeChatClient(this.Judge);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
-            "only",
+            ExecutionName,
             anonymousJudge,
             declaration.CachingKey,
             request.Evaluators);
@@ -67,6 +70,22 @@ internal sealed class ScriptedStructuredAnswerRun : IDisposable
             new SpendMeter(),
             new SpendMeter(),
             TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>Reads back the tags this run's store filed one case's result under.</summary>
+    /// <param name="scenarioName">The name the case was filed under.</param>
+    /// <returns>The tags, which is what the report's cases are filtered by.</returns>
+    public async Task<IReadOnlyList<string>> FiledTagsAsync(string scenarioName)
+    {
+        var filed = await new DiskBasedResultStore(this.store.FullName)
+            .ReadResultsAsync(
+                ExecutionName,
+                scenarioName,
+                EvaluationStore.IterationNameFor(ModelUnderTest, repetition: 1),
+                TestContext.Current.CancellationToken)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        return [.. filed.Tags ?? []];
     }
 
     /// <inheritdoc />

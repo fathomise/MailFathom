@@ -340,6 +340,28 @@ public sealed class EvaluationStoreTests : IDisposable
         Assert.Equal((1, 0, 0), (tally.Replayed, tally.Reused, tally.Asked));
     }
 
+    [Theory]
+    [InlineData("Agent.Answers.Polish.PromisedPaymentDay", "family:Agent", "mail:polish")]
+    [InlineData("MailAnswering.Mixed.EnglishQuestionAboutPolishMail", "family:MailAnswering", "mail:mixed-language")]
+    [InlineData("Agent.Calendar.Hostile.EntryTitle", "family:Agent", "mail:hostile")]
+    [InlineData("DiscoveryComposition.FalseClaim.ChangedBankDetails", "family:DiscoveryComposition", "mail:false-claim")]
+    [InlineData("Retrieval.PostgreSQL.Hybrid", "family:Retrieval", null)]
+    [InlineData("SpamClassification", "family:SpamClassification", null)]
+    public void TagsFor_AScenarioName_NamesTheModelTheFamilyAndTheKindOfMailItsSegmentsCarry(
+        string scenarioName,
+        string family,
+        string? kindOfMail)
+    {
+        // Arrange
+        string[] expected = kindOfMail is null ? ["model:vendor/model-2026", family] : ["model:vendor/model-2026", family, kindOfMail];
+
+        // Act
+        var tags = EvaluationStore.TagsFor(scenarioName, "vendor/model-2026");
+
+        // Assert
+        Assert.Equal(expected, tags);
+    }
+
     /// <inheritdoc />
     public void Dispose() => this.store.Delete(recursive: true);
 
