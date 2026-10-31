@@ -3945,7 +3945,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const selected = sel.indexOf(t.id) >= 0;
         return Object.assign(row, {
           folded, unfolded: !folded,
-          aiBtnShown: !sp.spam,
+          aiBtnShown: !sp.spam && !convMail,
           showAi: row.showAi && !sp.spam,
           spamBadge: badged,
           spamBadgeDanger: badged && k.danger,
@@ -4203,6 +4203,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            a spam thread carries its own warning, as each message the client opens is warned from its own. */
         items.push({
           isMsg: true, isPill: false, key: k, isActive, newShown: isNew,
+          /* The thread's AI summary, wherever the list is read, on its newest received message - never on spam. */
+          aiBtnShown: !m.mine && !threadSpam.spam && i === msgs.map(x => x.mine).lastIndexOf(false),
+          openAiSum: () => this.openAiSum(thread.id),
+          openAiSumKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.openAiSum(thread.id); } },
+          aiBtnStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" + (touch ? "width:44px;height:44px;margin:-12px -8px;font-size:20px" : "width:26px;height:26px;margin:-5px -3px;font-size:17px"),
           ...(m.mine ? { rptShown: false } : reportLine(thread)),
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
           // What came back belongs to the newest message the account sent in the conversation.
