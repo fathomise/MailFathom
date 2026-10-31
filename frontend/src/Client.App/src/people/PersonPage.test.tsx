@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import type { Contact } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
+import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { PersonPage } from './PersonPage';
 import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 
@@ -18,6 +19,7 @@ function personCalled(origin: Contact['origin'], id = 'anna', displayName = 'Ann
         addresses: [`${id}@contoso.example`],
         preferredAddress: `${id}@contoso.example`,
         note: null,
+        phoneNumbers: [],
         origin,
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
@@ -59,21 +61,23 @@ function pageOf({
 } = {}): ReactNode {
     return (
         <LocalizationProvider>
-            <ComposingContext value={composing}>
-                <PersonPage
-                    contact={contact}
-                    correspondence={nothingCorrelated}
-                    writable={writable}
-                    promoting={promoting}
-                    recordSaid={recordSaid}
-                    onBack={onBack}
-                    onPromote={onPromote}
-                    onAskAmendment={onAskAmendment}
-                    onAskErasure={onAskErasure}
-                    onOpenThread={vi.fn()}
-                    onOpenDocument={vi.fn()}
-                />
-            </ComposingContext>
+            <LinkOpenerContext value={() => Promise.resolve()}>
+                <ComposingContext value={composing}>
+                    <PersonPage
+                        contact={contact}
+                        correspondence={nothingCorrelated}
+                        writable={writable}
+                        promoting={promoting}
+                        recordSaid={recordSaid}
+                        onBack={onBack}
+                        onPromote={onPromote}
+                        onAskAmendment={onAskAmendment}
+                        onAskErasure={onAskErasure}
+                        onOpenThread={vi.fn()}
+                        onOpenDocument={vi.fn()}
+                    />
+                </ComposingContext>
+            </LinkOpenerContext>
         </LocalizationProvider>
     );
 }
@@ -87,7 +91,8 @@ describe('PersonPage', () => {
         drawPage();
 
         expect(screen.getByRole('heading', { name: 'Anna Kowalska' })).toBeDefined();
-        expect(screen.getByText('anna@contoso.example')).toBeDefined();
+        expect(screen.getByRole('heading', { name: 'Contact details' })).toBeDefined();
+        expect(screen.getAllByText('anna@contoso.example')).toHaveLength(2);
     });
 
     // A record a mailbox collected is nobody's to amend, and the page says so on the record rather than leaving

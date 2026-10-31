@@ -31,6 +31,7 @@ export const iconNames = [
     'block',
     'bolt',
     'calendar_month',
+    'call',
     'campaign',
     'cancel',
     'check',

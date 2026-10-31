@@ -24,6 +24,7 @@ function person(at: number, origin: string) {
         addresses: [`correspondent-${String(at)}@nordwind.example`],
         preferredAddress: `correspondent-${String(at)}@nordwind.example`,
         note: null,
+        phoneNumbers: [],
         origin,
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
@@ -35,8 +36,8 @@ function person(at: number, origin: string) {
  * One person this user wrote down, named rather than numbered.
  *
  * The book's first row is the one every check reaching a contact by position lands on, so it is the record a screen is
- * most often looked at with — a person with two addresses and something written about them, which is what the design
- * draws a contact's own page with.
+ * most often looked at with — a person with two addresses, two phone numbers, and something written about them, which
+ * is what the design draws a contact's own page with.
  */
 export const assertedContact = {
     id: 'contact-anna',
@@ -44,6 +45,10 @@ export const assertedContact = {
     addresses: ['anna@nordwind.example', 'a.marlow@nordwind.example'],
     preferredAddress: 'anna@nordwind.example',
     note: 'Runs the warehouse in Gdańsk.',
+    phoneNumbers: [
+        { number: '+1 202 555 0143', label: 'Mobile' },
+        { number: '+1 202 555 0178', label: 'Work' },
+    ],
     origin: 'Asserted',
     recordedAt: '2026-06-02T11:15:00+00:00',
     amendedAt: '2026-08-14T08:02:00+00:00',
@@ -62,6 +67,7 @@ export const collectedContact = {
     addresses: ['b.rowe@contoso.example'],
     preferredAddress: 'b.rowe@contoso.example',
     note: null,
+    phoneNumbers: [],
     origin: 'Collected',
     recordedAt: '2026-08-29T16:40:00+00:00',
     amendedAt: '2026-08-29T16:40:00+00:00',

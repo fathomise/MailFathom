@@ -300,6 +300,77 @@ public sealed class ContactTests
             RecordedAt.AddDays(1)));
     }
 
+    /// <summary>A person's numbers are held in the order the user wrote them, so the first is the one to call by default.</summary>
+    [Fact]
+    public void Create_SeveralPhoneNumbers_HoldsThemInTheOrderWritten()
+    {
+        // Arrange
+        var mobile = ContactPhoneNumber.Create("+1 202 555 0143", ContactPhoneLabel.Mobile);
+        var work = ContactPhoneNumber.Create("+1 202 555 0178", ContactPhoneLabel.Work);
+
+        // Act
+        var contact = ContactOf([Address("anna@example.test")], phoneNumbers: [work, mobile]);
+
+        // Assert
+        Assert.Equal([work, mobile], contact.PhoneNumbers);
+    }
+
+    /// <summary>Sixteen numbers is the most one person is recorded with, and a seventeenth is refused.</summary>
+    [Fact]
+    public void Create_TheMostPhoneNumbersAndOneMore_AdmitsTheFirstAndRefusesTheSecond()
+    {
+        // Arrange
+        var most = PhoneNumbersNumbered(Contact.MaximumPhoneNumberCount);
+        var tooMany = PhoneNumbersNumbered(Contact.MaximumPhoneNumberCount + 1);
+
+        // Act
+        var contact = ContactOf([Address("anna@example.test")], phoneNumbers: most);
+
+        // Assert
+        Assert.Equal(Contact.MaximumPhoneNumberCount, contact.PhoneNumbers.Count);
+        Assert.Throws<ArgumentException>(() => ContactOf([Address("anna@example.test")], phoneNumbers: tooMany));
+    }
+
+    /// <summary>Nothing collected from mail carries a number, so a collected contact given one is refused.</summary>
+    [Fact]
+    public void Create_CollectedContactWithAPhoneNumber_IsRefused()
+    {
+        // Arrange
+        EmailAddress[] addresses = [Address("anna@example.test")];
+        ContactPhoneNumber[] phoneNumbers = [ContactPhoneNumber.Create("112", ContactPhoneLabel.Other)];
+
+        // Act, Assert
+        Assert.Throws<ArgumentException>(() => ContactOf(addresses, origin: ContactOrigin.Collected, phoneNumbers: phoneNumbers));
+    }
+
+    /// <summary>An amendment that states no numbers keeps the ones held, and one stating none clears them.</summary>
+    [Fact]
+    public void AmendedWith_PhoneNumbersUnstatedThenStatedEmpty_KeepsThemThenClearsThem()
+    {
+        // Arrange
+        var mobile = ContactPhoneNumber.Create("+1 202 555 0143", ContactPhoneLabel.Mobile);
+        var contact = ContactOf([Address("anna@example.test")], phoneNumbers: [mobile]);
+
+        // Act
+        var kept = contact.AmendedWith(
+            contact.DisplayName,
+            contact.Addresses,
+            contact.PreferredAddress,
+            note: null,
+            RecordedAt.AddDays(1));
+        var cleared = kept.AmendedWith(
+            kept.DisplayName,
+            kept.Addresses,
+            kept.PreferredAddress,
+            note: null,
+            RecordedAt.AddDays(2),
+            phoneNumbers: []);
+
+        // Assert
+        Assert.Equal([mobile], kept.PhoneNumbers);
+        Assert.Empty(cleared.PhoneNumbers);
+    }
+
     /// <summary>A writer amends the contacts of its own origin and no others, in both directions.</summary>
     [Theory]
     [InlineData(ContactOrigin.Asserted, ContactOrigin.Asserted, true)]
@@ -345,6 +416,9 @@ public sealed class ContactTests
     private static EmailAddress[] AddressesNumbered(int count) =>
         [.. Enumerable.Range(0, count).Select(number => Address($"anna{number}@example.test"))];
 
+    private static ContactPhoneNumber[] PhoneNumbersNumbered(int count) =>
+        [.. Enumerable.Range(0, count).Select(number => ContactPhoneNumber.Create($"+1 202 555 01{number:00}", ContactPhoneLabel.Mobile))];
+
     private static EmailAddress Address(string address)
     {
         if (!EmailAddress.TryCreate(displayName: null, address, out var emailAddress))
@@ -358,7 +432,8 @@ public sealed class ContactTests
     private static Contact ContactOf(
         IReadOnlyCollection<EmailAddress> addresses,
         EmailAddress? preferred = null,
-        ContactOrigin origin = ContactOrigin.Asserted) =>
+        ContactOrigin origin = ContactOrigin.Asserted,
+        IReadOnlyCollection<ContactPhoneNumber>? phoneNumbers = null) =>
         Contact.Create(
             ContactId.Create(Guid.CreateVersion7(RecordedAt)),
             ContactDisplayName.Create("Anna Kowalska"),
@@ -367,5 +442,6 @@ public sealed class ContactTests
             note: null,
             origin,
             RecordedAt,
-            RecordedAt);
+            RecordedAt,
+            phoneNumbers: phoneNumbers);
 }

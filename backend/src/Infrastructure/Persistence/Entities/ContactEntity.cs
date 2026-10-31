@@ -142,4 +142,7 @@ internal sealed class ContactEntity
 
     /// <summary>Gets the addresses this person uses.</summary>
     public ICollection<ContactAddressEntity> Addresses { get; } = [];
+
+    /// <summary>Gets the phone numbers the user wrote down for this person.</summary>
+    public ICollection<ContactPhoneNumberEntity> PhoneNumbers { get; } = [];
 }

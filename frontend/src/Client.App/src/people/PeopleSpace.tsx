@@ -279,8 +279,8 @@ export function PeopleSpace({
         });
     }
 
-    // A correction states the name and every address the form holds, and keeps the one thing the form does not show:
-    // the note. A correction of the photo alone writes nothing else, so the record is not amended for it.
+    // A correction states the name, every address, and the phone numbers the form holds, and keeps the one thing the
+    // form does not show: the note. A correction of the photo alone writes nothing else, so the record is not amended for it.
     function amend(contact: Contact, { statement, restated, photo }: ContactSave): void {
         if (session === null) {
             return;
@@ -564,7 +564,7 @@ export function PeopleSpace({
                     record now stands — a correction just saved included — rather than on whatever it was first drawn for. */}
                 {writable && opened !== null && opened.origin === 'Asserted' ? (
                     <ContactAmendment
-                        key={`${opened.id} ${opened.displayName} ${opened.preferredAddress} ${opened.addresses.join(' ')} ${opened.photo ?? ''}`}
+                        key={`${opened.id} ${opened.displayName} ${opened.preferredAddress} ${opened.addresses.join(' ')} ${JSON.stringify(opened.phoneNumbers)} ${opened.photo ?? ''}`}
                         contact={opened}
                         asked={amending}
                         onSave={(save) => {
@@ -623,6 +623,7 @@ function ContactAmendment({
             amending={{
                 displayName: contact.displayName,
                 rows: rowsOf(contact.addresses, contact.preferredAddress),
+                phoneNumbers: contact.phoneNumbers,
                 photo,
             }}
             onSave={onSave}

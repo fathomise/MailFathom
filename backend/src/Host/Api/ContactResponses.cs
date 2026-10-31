@@ -12,17 +12,24 @@ namespace MailFathom.Host.Api;
 /// <param name="Addresses">Every address the person uses; two spellings of one address count once.</param>
 /// <param name="PreferredAddress">The address to use by default, which must be one of <paramref name="Addresses" />.</param>
 /// <param name="Note">What the user wrote about the person, or nothing to hold no note.</param>
+/// <param name="PhoneNumbers">The person's phone numbers, the preferred one first; absent holds none on a new record and keeps the held ones on an amendment, and an empty list clears them.</param>
 /// <remarks>
 /// One request shape for both operations, because an amendment states the whole record rather than the difference from
-/// the one held: what a caller sends to create a contact and what it sends to correct one are the same four things, and
-/// a second record differing in nothing would be two contracts to keep in agreement. Which operation is meant is the
-/// route and the verb, never a field.
+/// the one held: what a caller sends to create a contact and what it sends to correct one are the same things, and a
+/// second record differing in nothing would be two contracts to keep in agreement. Which operation is meant is the route
+/// and the verb, never a field. The phone numbers are the one part an amendment may leave out.
 /// </remarks>
 internal sealed record ContactRecordRequest(
     string? DisplayName,
     IReadOnlyList<string>? Addresses,
     string? PreferredAddress,
-    string? Note);
+    string? Note,
+    IReadOnlyList<ContactPhoneNumberDraft>? PhoneNumbers = null);
+
+/// <summary>One phone number of a person as the book holds it.</summary>
+/// <param name="Number">The number as the user wrote it.</param>
+/// <param name="Label">Which of the person's phones it reaches: <c>Mobile</c>, <c>Work</c>, <c>Home</c>, or <c>Other</c>.</param>
+internal sealed record ContactPhoneNumberResponse(string Number, string Label);
 
 /// <summary>One person as the book holds them.</summary>
 /// <param name="Id">The identity the book gave them, which no amendment and no promotion changes.</param>
@@ -35,6 +42,7 @@ internal sealed record ContactRecordRequest(
 /// <param name="AmendedAt">When it was last amended, which equals <paramref name="RecordedAt" /> until one happens.</param>
 /// <param name="Organization">The organization whose book holds the contact, or nothing where a person or a mailbox holds it. A member reads such a contact and cannot change it.</param>
 /// <param name="Photo">The stored photo the user supplied for the contact, or nothing where there is none. It changes whenever the photo does, so a client reads the photo again only when this does.</param>
+/// <param name="PhoneNumbers">Every phone number the user wrote down for them, the preferred one first; none for a collected contact.</param>
 /// <remarks>
 /// Every field but the identity, the origin, the organization, and the photo's identifier is personal data about a third party. It travels to
 /// the caller that asked for this person and reaches nothing else — no log line, no metric dimension, and no failure
@@ -50,7 +58,8 @@ internal sealed record ContactResponse(
     DateTimeOffset RecordedAt,
     DateTimeOffset AmendedAt,
     Guid? Organization,
-    Guid? Photo)
+    Guid? Photo,
+    IReadOnlyList<ContactPhoneNumberResponse> PhoneNumbers)
 {
     /// <summary>Describes one contact for a caller.</summary>
     /// <param name="contact">The contact as the book holds it.</param>
@@ -70,7 +79,9 @@ internal sealed record ContactResponse(
             contact.RecordedAt,
             contact.AmendedAt,
             contact.Organization,
-            contact.Photo);
+            contact.Photo,
+            [.. contact.PhoneNumbers.Select(phoneNumber =>
+                new ContactPhoneNumberResponse(phoneNumber.Number, phoneNumber.Label.ToString()))]);
     }
 }
 

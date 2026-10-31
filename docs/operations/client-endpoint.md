@@ -3488,6 +3488,12 @@ the book compares them, and the list is bounded like the addresses themselves, a
 administrator through a record of their own, and the tools over the book never restate anything. [The message
 route](#the-message-route)'s `addToContacts` names the contact a restatement goes to.
 
+**A record carries its phone numbers as `phoneNumbers`**, a list of `number` and `label` in the order the user wrote
+them, the first being the one to call by default; a collected record's list is always empty. A write states them the
+same way, and [Contacts § Phone numbers](../features/contacts.md#phone-numbers) holds the rules each number is held to.
+On `PUT` the list may be left out, which keeps the numbers the contact holds, and an empty list clears them, so a
+client that does not draw numbers amends a contact without erasing them.
+
 **A write reports an outcome rather than refusing.** A person the books do not hold, an address another contact already
 holds, a record whose origin refuses the writer, and a promotion of somebody already asserted are all named in the
 answer, because each is something a screen reports and continues from. Only a request that is not a request — no body,

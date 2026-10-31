@@ -564,6 +564,12 @@ That leaves two answers, and which one applies is decided before the upgrade rat
   fallback, the release, and the column, so it empties that copy at the next repoint rather than retaining it. Nothing
   is lost either way — the object is the authoritative copy under both builds.
 
+  **`AddContactPhoneNumbers` costs a rollback nothing either.** It adds `contact_phone_numbers`, a table of its own
+  hanging from `contacts`, and changes no column an older build writes. Such a build reads and amends a contact without
+  knowing its numbers exist, so an amendment it writes leaves them in place, and erasing a contact still takes them
+  through the foreign key's cascade. What it does not do is show or accept a number, and the ones recorded meanwhile are
+  there again once the newer image is.
+
 ## What a release records
 
 Each release's notes carry the artifact's name, its SHA-256, and the migration identifiers it contains, so which schema

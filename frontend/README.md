@@ -115,7 +115,7 @@ The plugins are `tauri-plugin-opener` and `tauri-plugin-notification`, and they 
 link outside the application and raising a system notification while nobody is looking at the window are the two things
 the desktop head cannot do from the page. Their commands are a plugin's rather than this repository's, so they are gated
 where the commands above are not: `capabilities/open-a-link.json` grants the webview the first over `http`, `https`, and
-`mailto`, and `capabilities/raise-a-notification.json` grants the second as the two commands the application calls —
+`mailto`, which a message body may carry, and `tel`, which a number on a contact's card is, and `capabilities/raise-a-notification.json` grants the second as the two commands the application calls —
 asking whether permission stands and asking for it — rather than either plugin's own default permission set. A
 capability is reach handed to whatever runs in the page, so it names the operation the application actually makes and
 nothing beside it, and a third permission is added the same way, by the change that needs it.

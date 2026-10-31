@@ -3,13 +3,19 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useId, useRef, useState, type RefObject } from 'react';
-import type { PortraitImageType } from '@mailfathom/client-backend';
+import {
+    contactPhoneLabels,
+    mostPhoneNumbersPerContact,
+    type ContactPhoneNumber,
+    type PortraitImageType,
+} from '@mailfathom/client-backend';
 import { mannerDrawn } from '../confirmation/wayOutShapes';
 import { dialogField, dialogFieldLabel } from '../controls/chrome';
 import { chosenPortrait } from '../controls/chosenPortrait';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { SurfaceControl } from '../controls/SurfaceControl';
+import { SymbolControl } from '../controls/SymbolControl';
 import { asDataUrl } from '../deployment/dataUrl';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
@@ -24,24 +30,26 @@ import {
     withDefault,
     type AddressRows,
 } from './contactAddresses';
+import { looksLikeAPhoneNumber, phoneLabelSaid } from './phoneNumbers';
 
 // Writing somebody down, and correcting somebody already written down, which are the two ways this client states a
-// person in the book and one form: a photo, a name, and every address they use with the one mail goes to by default.
-// What it records is asserted by the person typing it, which is not a field on this form and never could be: the surface reads
-// the origin off who is writing rather than off what they send. Amending opens on what the record holds, and *Save*
-// stays flat until something in it differs.
-//
-// **The photo, the name, and the addresses rather than everything the design draws.** The design's dialog also takes
-// phone numbers, and a contact record on this deployment holds none, so a form offering them would be asking for values
-// no request could carry and no screen could ever draw back.
+// person in the book and one form: a photo, a name, every address they use with the one mail goes to by default, and
+// their phone numbers. What it records is asserted by the person typing it, which is not a field on this form and never
+// could be: the surface reads the origin off who is writing rather than off what they send. Amending opens on what the
+// record holds, and *Save* stays flat until something in it differs.
 //
 // **The addresses are a radio group**, because choosing the default is choosing one out of several: the platform
 // announces the set, reports which is in force, and moves between the rows with the arrow keys. What the rows may hold
 // and which of them is the default are `contactAddresses.ts`'s rules rather than this markup's.
 //
-// **The save is refused before the request where the client can tell**, which is an empty name, no address at all, and
-// text that is not shaped like an address. Everything else the book judges — an address another contact already holds
-// above all — is an outcome the screen reports rather than a rule restated here.
+// **The phone numbers are rows**, each a label and the number as typed, added and removed one at a time in the order
+// the design draws: the first added is *Mobile*, the next *Work*, and a row left empty is dropped on save rather than
+// refused, because an empty row is a row nobody finished rather than a number somebody wrote.
+//
+// **The save is refused before the request where the client can tell**, which is an empty name, no address at all,
+// text that is not shaped like an address, and a number that is not shaped like one. Everything else the book judges —
+// an address another contact already holds above all — is an outcome the screen reports rather than a rule restated
+// here.
 //
 // **The photo is a change the form carries rather than a write it makes.** A file chosen here is judged against the
 // two bounds the deployment holds a photo to and drawn in the circle at once, but nothing is sent until *Save*: the
@@ -65,10 +73,13 @@ export type ContactPhotoChange =
       }
     | { readonly kind: 'removed' };
 
-/** What a person has typed into the form: the name, and the address rows with the default among them. */
+/** What a person has typed into the form: the name, the address rows with the default among them, and the numbers. */
 export interface ContactDraft {
     readonly displayName: string;
     readonly rows: AddressRows;
+
+    /** The numbers in the order the rows stand, the preferred one first. */
+    readonly phoneNumbers: readonly ContactPhoneNumber[];
 }
 
 /** What the record being corrected holds as the form opens on it. */
@@ -82,6 +93,9 @@ export interface ContactStatement {
     readonly displayName: string;
     readonly addresses: readonly string[];
     readonly preferredAddress: string;
+
+    /** Trimmed, and without the rows nobody typed into. */
+    readonly phoneNumbers: readonly ContactPhoneNumber[];
 }
 
 /** What *Save* hands over: the record as the form states it, whether that differs from the record held, and the photo. */
@@ -91,7 +105,14 @@ export interface ContactSave {
     readonly photo: ContactPhotoChange;
 }
 
-const nothingWritten: ContactDraft = { displayName: '', rows: noAddressWritten };
+const nothingWritten: ContactDraft = { displayName: '', rows: noAddressWritten, phoneNumbers: [] };
+
+/** The numbers a draft would save: trimmed, and without the rows nobody typed into. */
+function savedNumbers(phoneNumbers: readonly ContactPhoneNumber[]): ContactPhoneNumber[] {
+    return phoneNumbers
+        .map((phoneNumber) => ({ ...phoneNumber, number: phoneNumber.number.trim() }))
+        .filter((phoneNumber) => phoneNumber.number !== '');
+}
 
 const photoKept: ContactPhotoChange = { kind: 'kept' };
 
@@ -108,8 +129,10 @@ const photoControl =
 function statementOf(draft: ContactDraft): ContactStatement | null {
     const displayName = draft.displayName.trim();
     const saved = savedAddresses(draft.rows);
+    const phoneNumbers = savedNumbers(draft.phoneNumbers);
+    const numbersUsable = phoneNumbers.every((phoneNumber) => looksLikeAPhoneNumber(phoneNumber.number));
 
-    return displayName === '' || saved === null ? null : { displayName, ...saved };
+    return displayName === '' || saved === null || !numbersUsable ? null : { displayName, ...saved, phoneNumbers };
 }
 
 function sameStatement(one: ContactStatement, other: ContactStatement | null): boolean {
@@ -118,7 +141,13 @@ function sameStatement(one: ContactStatement, other: ContactStatement | null): b
         one.displayName === other.displayName &&
         one.preferredAddress === other.preferredAddress &&
         one.addresses.length === other.addresses.length &&
-        one.addresses.every((address, at) => address === other.addresses[at])
+        one.addresses.every((address, at) => address === other.addresses[at]) &&
+        one.phoneNumbers.length === other.phoneNumbers.length &&
+        one.phoneNumbers.every((phoneNumber, at) => {
+            const held = other.phoneNumbers[at];
+
+            return phoneNumber.number === held?.number && phoneNumber.label === held.label;
+        })
     );
 }
 
@@ -142,6 +171,7 @@ export function ContactDialog({
     const names = useId();
     const addressesNamed = useId();
     const choices = useId();
+    const numbering = useId();
 
     const opensOn = amending ?? nothingWritten;
     const [draft, setDraft] = useState<ContactDraft>(opensOn);
@@ -150,6 +180,9 @@ export function ContactDialog({
 
     const statement = statementOf(draft);
     const usable = !holdsUnusableAddress(draft.rows);
+    const numbersUsable = savedNumbers(draft.phoneNumbers).every((phoneNumber) =>
+        looksLikeAPhoneNumber(phoneNumber.number),
+    );
     const restated = amending === null || statement === null || !sameStatement(statement, statementOf(amending));
     const savable = statement !== null && (restated || photo.kind !== 'kept');
 
@@ -215,8 +248,27 @@ export function ContactDialog({
         }
     }, [rowCount]);
 
+    // The numbers follow the same rule, and a number removed where none remain hands focus to the control that adds one.
+    const numbersDrawn = useRef<HTMLDivElement>(null);
+    const addsNumber = useRef<HTMLButtonElement>(null);
+    const numberToFocus = useRef<number | null>(null);
+    const numberCount = draft.phoneNumbers.length;
+
+    useEffect(() => {
+        if (numberToFocus.current !== null) {
+            const rows = [...(numbersDrawn.current?.querySelectorAll<HTMLInputElement>('input[type="tel"]') ?? [])];
+
+            (rows[Math.min(numberToFocus.current, rows.length - 1)] ?? addsNumber.current)?.focus();
+            numberToFocus.current = null;
+        }
+    }, [numberCount]);
+
     function revised(rows: AddressRows): void {
         setDraft({ ...draft, rows });
+    }
+
+    function withNumbers(phoneNumbers: readonly ContactPhoneNumber[]): void {
+        setDraft({ ...draft, phoneNumbers });
     }
 
     return (
@@ -225,7 +277,7 @@ export function ContactDialog({
             ref={asked}
             aria-labelledby={asks}
             data-pull="down"
-            className="max-workspace:surface-sheet workspace:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pb-safe-bottom text-text open:flex open:flex-col backdrop:bg-scrim workspace:m-auto workspace:h-auto workspace:max-h-dialog-tall workspace:w-dialog workspace:max-w-dialog-narrow workspace:rounded-lg workspace:border workspace:border-line workspace:shadow-dialog"
+            className="max-workspace:surface-sheet workspace:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pb-safe-bottom text-text open:flex open:flex-col backdrop:bg-scrim workspace:m-auto workspace:h-fit workspace:max-h-dialog-height workspace:w-dialog workspace:max-w-dialog-narrow workspace:rounded-lg workspace:border workspace:border-line workspace:shadow-dialog"
             onClose={(closing) => {
                 const dialog = closing.currentTarget;
                 const answer = dialog.returnValue;
@@ -447,6 +499,57 @@ export function ContactDialog({
                         </p>
                     )}
 
+                    <div ref={numbersDrawn} role="group" aria-labelledby={numbering} className="flex flex-col gap-2">
+                        <span id={numbering} className={dialogFieldLabel}>
+                            {translate('people.contactPhoneNumbers')}
+                        </span>
+
+                        {draft.phoneNumbers.map((phoneNumber, position) => (
+                            <PhoneNumberRow
+                                // A row is its place in the order, which is what the service keys it by too.
+                                key={position}
+                                phoneNumber={phoneNumber}
+                                onChange={(changedNumber) => {
+                                    withNumbers(
+                                        draft.phoneNumbers.map((held, at) => (at === position ? changedNumber : held)),
+                                    );
+                                }}
+                                onRemove={() => {
+                                    numberToFocus.current = position;
+                                    withNumbers(draft.phoneNumbers.filter((_, at) => at !== position));
+                                }}
+                            />
+                        ))}
+
+                        {draft.phoneNumbers.length === 0 ? (
+                            <span className="text-base text-faint">{translate('people.noPhoneNumbersYet')}</span>
+                        ) : null}
+
+                        {draft.phoneNumbers.length < mostPhoneNumbersPerContact ? (
+                            <button
+                                ref={addsNumber}
+                                type="button"
+                                className="flex items-center gap-1.5 self-start rounded-md border border-line-strong bg-panel px-3 py-1.75 text-base whitespace-nowrap text-text-soft transition hover:bg-hover"
+                                onClick={() => {
+                                    numberToFocus.current = numberCount;
+                                    withNumbers([
+                                        ...draft.phoneNumbers,
+                                        { label: draft.phoneNumbers.length === 0 ? 'Mobile' : 'Work', number: '' },
+                                    ]);
+                                }}
+                            >
+                                <Icon name="add" className="size-icon-md" />
+                                {translate('people.addPhoneNumber')}
+                            </button>
+                        ) : null}
+
+                        {numbersUsable ? null : (
+                            <p role="alert" className="text-sm text-warning-text text-pretty">
+                                {translate('people.phoneNotUsable')}
+                            </p>
+                        )}
+                    </div>
+
                     {amending === null ? (
                         <p className="rounded-md bg-accent-soft px-3 py-2.5 text-sm text-accent-deep text-pretty">
                             {translate('people.newContactHint')}
@@ -482,5 +585,60 @@ export function ContactDialog({
                 </div>
             </form>
         </dialog>
+    );
+}
+
+/** One number on the form: which phone it reaches, the number, and the control that takes the row away. */
+function PhoneNumberRow({
+    phoneNumber,
+    onChange,
+    onRemove,
+}: {
+    readonly phoneNumber: ContactPhoneNumber;
+    readonly onChange: (phoneNumber: ContactPhoneNumber) => void;
+    readonly onRemove: () => void;
+}) {
+    const { translate } = useLocalization();
+
+    return (
+        <div className="flex items-center gap-2">
+            <select
+                aria-label={translate('people.phoneLabel')}
+                value={phoneNumber.label}
+                className="h-9.5 w-26 shrink-0 rounded-md pointer-coarse:w-28 border border-line-strong bg-sunken px-2 text-md text-text outline-none focus:border-accent"
+                onChange={(choosing) => {
+                    const chosen = contactPhoneLabels.find((label) => label === choosing.target.value);
+
+                    if (chosen !== undefined) {
+                        onChange({ ...phoneNumber, label: chosen });
+                    }
+                }}
+            >
+                {contactPhoneLabels.map((label) => (
+                    <option key={label} value={label}>
+                        {translate(phoneLabelSaid[label])}
+                    </option>
+                ))}
+            </select>
+
+            <input
+                type="tel"
+                aria-label={translate('people.phoneNumber')}
+                placeholder={translate('people.phoneNumberPlaceholder')}
+                value={phoneNumber.number}
+                className={`${dialogField} min-w-0 flex-1`}
+                onChange={(typing) => {
+                    onChange({ ...phoneNumber, number: typing.target.value });
+                }}
+            />
+
+            <SymbolControl
+                label={translate('people.removePhoneNumber')}
+                className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text"
+                onPress={onRemove}
+            >
+                <Icon name="close" className="size-icon-md" />
+            </SymbolControl>
+        </div>
     );
 }

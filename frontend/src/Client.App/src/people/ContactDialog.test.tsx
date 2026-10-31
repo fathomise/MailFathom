@@ -77,17 +77,19 @@ const anna: ContactHeld = {
     displayName: 'Anna Kowalska',
     rows: { addresses: ['anna@contoso.example', 'a.kowalska@fabrikam.example'], preferred: 0 },
     photo: null,
+    phoneNumbers: [{ label: 'Work', number: '+1 202 555 0178' }],
 };
 
 describe('ContactDialog', () => {
-    // A name and addresses are what a contact record holds on this deployment; a company and a role are not fields of
-    // it, so a form offering them would be asking for values no request could carry.
-    it('asks for a name and the addresses a record this client writes actually holds', () => {
+    // A name, addresses, and phone numbers are what a contact record holds on this deployment; a company and a role
+    // are not fields of it, so a form offering them would be asking for values no request could carry.
+    it('asks for the things a record this client writes actually holds', () => {
         drawForm();
 
         expect(screen.getByLabelText('Name')).toBeDefined();
         expect(screen.getByRole('group', { name: 'Email addresses' })).toBeDefined();
         expect(addressRows()).toHaveLength(1);
+        expect(screen.getByRole('group', { name: 'Phone numbers' }).textContent).toContain('No phone numbers yet');
         expect(screen.queryByLabelText('Company')).toBeNull();
     });
 
@@ -103,6 +105,7 @@ describe('ContactDialog', () => {
                 displayName: 'Anna Kowalska',
                 addresses: ['anna@contoso.example'],
                 preferredAddress: 'anna@contoso.example',
+                phoneNumbers: [],
             },
             restated: true,
             photo: { kind: 'kept' },
@@ -128,10 +131,85 @@ describe('ContactDialog', () => {
                 displayName: 'Anna Kowalska',
                 addresses: ['anna@home.example', 'anna@contoso.example'],
                 preferredAddress: 'anna@home.example',
+                phoneNumbers: [],
             },
             restated: true,
             photo: { kind: 'kept' },
         });
+    });
+
+    it('adds a number as Mobile first and Work after, and drops a row left empty', () => {
+        const { saved } = drawForm();
+
+        typeInto(screen.getByLabelText('Name'), 'Anna Kowalska');
+        typeInto(nth(addressRows(), 0), 'anna@contoso.example');
+        fireEvent.click(screen.getByRole('button', { name: 'Add a phone number' }));
+        typeInto(screen.getByLabelText('Phone number'), ' +1 202 555 0143 ');
+        fireEvent.click(screen.getByRole('button', { name: 'Add a phone number' }));
+
+        expect(screen.getAllByLabelText<HTMLSelectElement>('Label').map((label) => label.value)).toEqual([
+            'Mobile',
+            'Work',
+        ]);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save contact' }));
+
+        expect(saved).toHaveBeenCalledWith({
+            statement: {
+                displayName: 'Anna Kowalska',
+                addresses: ['anna@contoso.example'],
+                preferredAddress: 'anna@contoso.example',
+                phoneNumbers: [{ label: 'Mobile', number: '+1 202 555 0143' }],
+            },
+            restated: true,
+            photo: { kind: 'kept' },
+        });
+    });
+
+    it('takes a number away with its own control', () => {
+        drawForm();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add a phone number' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Remove number' }));
+
+        expect(screen.queryByLabelText('Phone number')).toBeNull();
+        expect(screen.getByText('No phone numbers yet')).toBeDefined();
+    });
+
+    it('puts focus in a number just added, on the row standing where one was removed, or on adding one', async () => {
+        drawForm(anna);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add a phone number' }));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(nth(screen.getAllByLabelText('Phone number'), 1));
+        });
+
+        fireEvent.click(nth(screen.getAllByRole('button', { name: 'Remove number' }), 0));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(screen.getByLabelText('Phone number'));
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Remove number' }));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add a phone number' }));
+        });
+    });
+
+    it('refuses to save a number that is not shaped like one', () => {
+        const { saved } = drawForm();
+
+        typeInto(screen.getByLabelText('Name'), 'Anna Kowalska');
+        typeInto(nth(addressRows(), 0), 'anna@contoso.example');
+        fireEvent.click(screen.getByRole('button', { name: 'Add a phone number' }));
+        typeInto(screen.getByLabelText('Phone number'), 'call me');
+
+        expect(screen.getByRole('alert').textContent).toContain('A phone number is digits');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save contact' }));
+        expect(saved).not.toHaveBeenCalled();
     });
 
     it('marks exactly one row the default, and offers removing a row only while there is more than one', () => {
@@ -156,6 +234,7 @@ describe('ContactDialog', () => {
                 preferred: 0,
             },
             photo: null,
+            phoneNumbers: [],
         });
 
         fireEvent.click(nth(screen.getAllByRole('button', { name: 'Remove address' }), 2));
@@ -229,6 +308,27 @@ describe('ContactDialog', () => {
                 displayName: 'Anna Kowalska',
                 addresses: ['a.kowalska@fabrikam.example', 'anna@contoso.example'],
                 preferredAddress: 'a.kowalska@fabrikam.example',
+                phoneNumbers: anna.phoneNumbers,
+            },
+            restated: true,
+            photo: { kind: 'kept' },
+        });
+    });
+
+    it('saves a correction that changes nothing but a number', () => {
+        const { saved } = drawForm(anna);
+
+        expect(screen.getByLabelText<HTMLInputElement>('Phone number').value).toBe('+1 202 555 0178');
+
+        fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'Home' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+        expect(saved).toHaveBeenCalledWith({
+            statement: {
+                displayName: 'Anna Kowalska',
+                addresses: anna.rows.addresses,
+                preferredAddress: 'anna@contoso.example',
+                phoneNumbers: [{ label: 'Home', number: '+1 202 555 0178' }],
             },
             restated: true,
             photo: { kind: 'kept' },

@@ -277,6 +277,7 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.MailboxSourceRemovalOccurrenceUniqueIndexName
                 or PersistenceConstraintNames.MailboxFlaggedDeleteOccurrenceUniqueIndexName
                 or PersistenceConstraintNames.CalendarEventReminderPrimaryKeyConstraintName
+                or PersistenceConstraintNames.ContactPhoneNumberPrimaryKeyConstraintName
                 or PersistenceConstraintNames.PersonalTaskReminderPrimaryKeyConstraintName
                 or PersistenceConstraintNames.CalendarEventImportedUidUniqueIndexName,
         };

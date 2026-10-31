@@ -49,6 +49,11 @@ internal static class ContactOutput
 
         details.Add("Addresses", addresses.Count == 0 ? ["none reported"] : [.. addresses.Select(address => Mark(address, contact))]);
 
+        if (contact.PhoneNumbers is { Count: > 0 } phoneNumbers)
+        {
+            details.Add("Phone numbers", [.. phoneNumbers.Select(phoneNumber => $"{phoneNumber.Number}  ({phoneNumber.Label})")]);
+        }
+
         if (contact.Note is { Length: > 0 } note)
         {
             details.Add("Note", note);

@@ -93,8 +93,7 @@ internal sealed class ContactStore : IContactStore
         // Tracked rather than projected, so the amendment is applied to the row as it stands now and the concurrency
         // token travels with it: a contact erased between this read and the commit makes the write affect no row, which
         // the session reports as a conflict rather than reinserting the person.
-        var held = await writeContext.Contacts
-            .Include(record => record.Addresses)
+        var held = await ContactMapping.WithRecordRows(writeContext.Contacts)
             .FirstOrDefaultAsync(
                 record => record.Id == contact.Id.Value && record.BookHolderId == bookHolderId,
                 cancellationToken);
@@ -121,6 +120,7 @@ internal sealed class ContactStore : IContactStore
         held.AmendedAt = contact.AmendedAt;
 
         ReplaceAddresses(writeContext, held, holder, contact, writer, restatedAddresses);
+        ReplacePhoneNumbers(writeContext, held, contact);
 
         return true;
     }
@@ -287,6 +287,37 @@ internal sealed class ContactStore : IContactStore
         foreach (var added in named.Values)
         {
             held.Addresses.Add(ContactMapping.ToAddressEntity(holder, contact, added, writer));
+        }
+    }
+
+    /// <summary>Brings the stored phone number rows to exactly the numbers the amended contact holds, in its order.</summary>
+    /// <remarks>
+    /// A position both sides hold is rewritten in place rather than deleted and inserted, because the position is part
+    /// of the key and the change tracker refuses a second row under a key it is about to delete.
+    /// </remarks>
+    internal static void ReplacePhoneNumbers(MailFathomDbContext writeContext, ContactEntity held, Contact contact)
+    {
+        var stored = held.PhoneNumbers.ToDictionary(row => row.Position);
+
+        foreach (var dropped in stored.Values.Where(row => row.Position >= contact.PhoneNumbers.Count))
+        {
+            held.PhoneNumbers.Remove(dropped);
+            writeContext.ContactPhoneNumbers.Remove(dropped);
+        }
+
+        for (var position = 0; position < contact.PhoneNumbers.Count; position++)
+        {
+            var phoneNumber = contact.PhoneNumbers[position];
+
+            if (stored.TryGetValue(position, out var row))
+            {
+                row.Number = phoneNumber.Number;
+                row.Label = phoneNumber.Label;
+            }
+            else
+            {
+                held.PhoneNumbers.Add(ContactMapping.ToPhoneNumberEntity(contact, phoneNumber, position));
+            }
         }
     }
 

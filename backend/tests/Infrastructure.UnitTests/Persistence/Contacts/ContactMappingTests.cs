@@ -210,6 +210,41 @@ public sealed class ContactMappingTests
         Assert.Equal(contact.AmendedAt, rebuilt.AmendedAt);
     }
 
+    /// <summary>Numbers are written one row per position and read back in the user's order, whatever order the rows arrive in.</summary>
+    [Fact]
+    public void ToContact_PhoneNumberRowsArrivingOutOfOrder_RebuildTheUsersOrder()
+    {
+        // Arrange
+        var work = ContactPhoneNumber.Create("+1 202 555 0178", ContactPhoneLabel.Work);
+        var mobile = ContactPhoneNumber.Create("+1 202 555 0143", ContactPhoneLabel.Mobile);
+        var home = ContactPhoneNumber.Create("(22) 555-00.11", ContactPhoneLabel.Home);
+        var contact = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(RecordedAt)),
+            ContactDisplayName.Create("Anna Kowalska"),
+            [Address("anna@example.test")],
+            Address("anna@example.test"),
+            note: null,
+            ContactOrigin.Asserted,
+            RecordedAt,
+            RecordedAt,
+            phoneNumbers: [work, mobile, home]);
+        var entity = ContactMapping.ToEntity(OwnBook, contact, ContactAddressWriter.Unrecorded);
+        var rows = entity.PhoneNumbers.Reverse().ToArray();
+        entity.PhoneNumbers.Clear();
+        foreach (var row in rows)
+        {
+            entity.PhoneNumbers.Add(row);
+        }
+
+        // Act
+        var rebuilt = ContactMapping.ToContact(entity);
+
+        // Assert
+        Assert.Equal([0, 1, 2], rows.Select(row => row.Position).Reverse());
+        Assert.All(rows, row => Assert.Equal(contact.Id.Value, row.ContactId));
+        Assert.Equal([work, mobile, home], rebuilt.PhoneNumbers);
+    }
+
     /// <summary>A contact with no note reads back holding none rather than holding an empty one.</summary>
     [Fact]
     public void ToContact_ARowWithNoNote_HoldsNone()

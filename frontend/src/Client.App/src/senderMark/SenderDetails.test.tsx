@@ -56,6 +56,7 @@ const heldContact = {
     addresses: ['news@example.invalid'],
     preferredAddress: 'news@example.invalid',
     note: null,
+    phoneNumbers: [{ number: '+1 202 555 0178', label: 'Work' }],
     origin: 'Asserted',
     recordedAt: '2026-03-01T08:00:00+00:00',
     amendedAt: '2026-03-01T08:00:00+00:00',
@@ -390,6 +391,7 @@ describe('SenderDetails', () => {
                 addresses: ['news@example.invalid'],
                 preferredAddress: 'news@example.invalid',
                 note: null,
+                phoneNumbers: [],
             }),
         });
         expect(document.activeElement).toBe(done.closest('[role="status"]'));
@@ -509,6 +511,7 @@ describe('SenderDetails', () => {
                     addresses: ['news@example.invalid'],
                     preferredAddress: 'news@example.invalid',
                     note: null,
+                    phoneNumbers: heldContact.phoneNumbers,
                     restatedAddresses: ['news@example.invalid'],
                 }),
             ],

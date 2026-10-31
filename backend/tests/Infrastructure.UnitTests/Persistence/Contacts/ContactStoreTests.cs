@@ -48,7 +48,38 @@ public sealed class ContactStoreTests
         Assert.Equal((ContactAddressWriterKind.Agent, (Guid?)null, RecordedAt), (kept.WriterKind, kept.WriterCredentialId, kept.WrittenAt));
     }
 
-    private static Contact ContactOf(DateTimeOffset amendedAt, ContactId? id = null) =>
+    /// <summary>An amendment's numbers replace the held rows position by position, and the positions it no longer fills go.</summary>
+    [Theory]
+    [InlineData(3, 1)]
+    [InlineData(1, 3)]
+    [InlineData(2, 0)]
+    public void ReplacePhoneNumbers_AnAmendmentStatingAnotherList_LeavesExactlyItsRowsInItsOrder(int heldCount, int amendedCount)
+    {
+        // Arrange
+        var original = ContactOf(RecordedAt, phoneNumbers: PhoneNumbersEndingIn(heldCount, "0"));
+        var held = ContactMapping.ToEntity(OwnBook, original, Agent);
+        var amended = ContactOf(AmendedAt, original.Id, PhoneNumbersEndingIn(amendedCount, "9"));
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        // Act
+        ContactStore.ReplacePhoneNumbers(context, held, amended);
+
+        // Assert
+        Assert.Equal(
+            amended.PhoneNumbers.Select((phoneNumber, position) => (position, phoneNumber.Number, phoneNumber.Label)),
+            held.PhoneNumbers.OrderBy(row => row.Position).Select(row => (row.Position, row.Number, row.Label)));
+        Assert.All(held.PhoneNumbers, row => Assert.Equal(original.Id.Value, row.ContactId));
+    }
+
+    private static ContactPhoneNumber[] PhoneNumbersEndingIn(int count, string ending) =>
+        [.. Enumerable.Range(0, count).Select(position => ContactPhoneNumber.Create(
+            $"+1 202 555 01{position}{ending}",
+            position % 2 == 0 ? ContactPhoneLabel.Mobile : ContactPhoneLabel.Work))];
+
+    private static Contact ContactOf(
+        DateTimeOffset amendedAt,
+        ContactId? id = null,
+        IReadOnlyCollection<ContactPhoneNumber>? phoneNumbers = null) =>
         Contact.Create(
             id ?? ContactId.Create(Guid.CreateVersion7(RecordedAt)),
             ContactDisplayName.Create("Anna Kowalska"),
@@ -57,7 +88,8 @@ public sealed class ContactStoreTests
             note: null,
             ContactOrigin.Asserted,
             RecordedAt,
-            amendedAt);
+            amendedAt,
+            phoneNumbers: phoneNumbers);
 
     private static EmailAddress Address(string address) =>
         EmailAddress.TryCreate(displayName: null, address, out var parsed)

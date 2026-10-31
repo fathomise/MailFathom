@@ -25,6 +25,7 @@ function contact(identity: string, displayName: string, addresses: readonly [str
         addresses,
         preferredAddress: addresses[0],
         note: null,
+        phoneNumbers: [],
         origin: 'Asserted',
         recordedAt: '2026-03-01T08:00:00+00:00',
         amendedAt: '2026-03-01T08:00:00+00:00',

@@ -52,12 +52,20 @@ public sealed class Contact
     /// </remarks>
     public const int MaximumAddressLength = 320;
 
+    /// <summary>How many phone numbers one person may be recorded as using.</summary>
+    /// <remarks>
+    /// Well above the few phones a person actually has, and bounded for the reason the addresses are: every number is
+    /// a row a read and an erasure carry.
+    /// </remarks>
+    public const int MaximumPhoneNumberCount = 16;
+
     private Contact(
         ContactId id,
         ContactDisplayName displayName,
         IReadOnlyList<EmailAddress> addresses,
         EmailAddress preferredAddress,
         ContactNote? note,
+        IReadOnlyList<ContactPhoneNumber> phoneNumbers,
         ContactOrigin origin,
         DateTimeOffset recordedAt,
         DateTimeOffset amendedAt,
@@ -69,6 +77,7 @@ public sealed class Contact
         this.Addresses = addresses;
         this.PreferredAddress = preferredAddress;
         this.Note = note;
+        this.PhoneNumbers = phoneNumbers;
         this.Origin = origin;
         this.RecordedAt = recordedAt;
         this.AmendedAt = amendedAt;
@@ -95,6 +104,14 @@ public sealed class Contact
 
     /// <summary>Gets what the user wrote about this person, or <see langword="null" /> when they wrote nothing.</summary>
     public ContactNote? Note { get; }
+
+    /// <summary>Gets every phone number the user wrote down for this person, the preferred one first.</summary>
+    /// <remarks>
+    /// The order is the user's, and its first entry is the number to call by default, so no separate preferred field
+    /// exists to disagree with it. A collected contact holds none, because collection never infers a number about a
+    /// third party from a signature.
+    /// </remarks>
+    public IReadOnlyList<ContactPhoneNumber> PhoneNumbers { get; }
 
     /// <summary>Gets how this contact came to be in the book, which decides who may amend it.</summary>
     public ContactOrigin Origin { get; }
@@ -132,9 +149,10 @@ public sealed class Contact
     /// <param name="amendedAt">When it was last amended, which is <paramref name="recordedAt" /> for a new contact.</param>
     /// <param name="organization">The organization whose book holds it, or <see langword="null" /> when a person or a mailbox holds it.</param>
     /// <param name="photo">The stored file this person's photo is, or <see langword="null" /> when they have none.</param>
+    /// <param name="phoneNumbers">The phone numbers the user wrote down, the preferred one first, or <see langword="null" /> for none.</param>
     /// <returns>A contact whose addresses are deduplicated and ordered, with the preferred one first.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="addresses" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when no address is supplied, when more than <see cref="MaximumAddressCount" /> remain after two spellings of one address are merged, when <paramref name="preferredAddress" /> is not among them, when an organization's contact is not asserted, or when a photo is linked from anything but an asserted contact outside an organization's book.</exception>
+    /// <exception cref="ArgumentException">Thrown when no address is supplied, when more than <see cref="MaximumAddressCount" /> remain after two spellings of one address are merged, when <paramref name="preferredAddress" /> is not among them, when an organization's contact is not asserted, when a photo is linked from anything but an asserted contact outside an organization's book, when more than <see cref="MaximumPhoneNumberCount" /> phone numbers are supplied, or when a contact that is not asserted is given any.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> names no declared value.</exception>
     /// <remarks>
     /// Two spellings of one address inside one record are one address, so they are merged rather than refused: they name
@@ -152,7 +170,8 @@ public sealed class Contact
         DateTimeOffset recordedAt,
         DateTimeOffset amendedAt,
         Guid? organization = null,
-        Guid? photo = null)
+        Guid? photo = null,
+        IReadOnlyCollection<ContactPhoneNumber>? phoneNumbers = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
 
@@ -169,6 +188,18 @@ public sealed class Contact
         if (photo is { } file && (file == Guid.Empty || origin != ContactOrigin.Asserted || organization is not null))
         {
             throw new ArgumentException("A photo names its stored file and belongs to a contact a user wrote down in their own book.", nameof(photo));
+        }
+
+        phoneNumbers ??= [];
+
+        if (phoneNumbers.Count > MaximumPhoneNumberCount)
+        {
+            throw new ArgumentException($"A contact cannot hold more than {MaximumPhoneNumberCount} phone numbers.", nameof(phoneNumbers));
+        }
+
+        if (phoneNumbers.Count > 0 && origin != ContactOrigin.Asserted)
+        {
+            throw new ArgumentException("Only a contact somebody wrote down holds phone numbers.", nameof(phoneNumbers));
         }
 
         if (addresses.Count == 0)
@@ -198,6 +229,7 @@ public sealed class Contact
             Ordered(held, preferred),
             preferred,
             note,
+            [.. phoneNumbers],
             origin,
             recordedAt,
             amendedAt,
@@ -235,20 +267,23 @@ public sealed class Contact
     /// <param name="preferredAddress">The address to use by default after the amendment.</param>
     /// <param name="note">What the user wrote about this person, or <see langword="null" /> to hold none.</param>
     /// <param name="amendedAt">When the amendment happened.</param>
+    /// <param name="phoneNumbers">The phone numbers the contact holds afterwards, or <see langword="null" /> to keep the ones it holds.</param>
     /// <returns>The amended contact.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="addresses" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when no address is supplied or when <paramref name="preferredAddress" /> is not among them.</exception>
+    /// <exception cref="ArgumentException">Thrown when no address is supplied, when <paramref name="preferredAddress" /> is not among them, or when the phone numbers break a rule <see cref="Create" /> holds.</exception>
     /// <remarks>
     /// An amendment states the record the user wants rather than the difference from the one held, which is what keeps
     /// removing an address, adding one, and choosing a different preferred address one operation instead of three that
-    /// could each leave the record in a shape the invariants above refuse.
+    /// could each leave the record in a shape the invariants above refuse. The phone numbers are the one part a writer
+    /// may leave unstated, so a surface that carries none — an agent's tool — amends a contact without erasing them.
     /// </remarks>
     public Contact AmendedWith(
         ContactDisplayName displayName,
         IReadOnlyCollection<EmailAddress> addresses,
         EmailAddress preferredAddress,
         ContactNote? note,
-        DateTimeOffset amendedAt) =>
+        DateTimeOffset amendedAt,
+        IReadOnlyCollection<ContactPhoneNumber>? phoneNumbers = null) =>
         Create(
             this.Id,
             displayName,
@@ -259,7 +294,8 @@ public sealed class Contact
             this.RecordedAt,
             amendedAt,
             this.Organization,
-            this.Photo);
+            this.Photo,
+            phoneNumbers ?? this.PhoneNumbers);
 
     /// <summary>Keeps the addr-spec alone, because the person's name is the contact's rather than one sender's spelling of it.</summary>
     /// <remarks>

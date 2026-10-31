@@ -168,6 +168,7 @@ public sealed class ContactBookWriterTests
 
         // Assert
         Assert.Equal(ContactWriteOutcome.Written, promoted.Outcome);
+        Assert.Empty(promoted.Contact.PhoneNumbers);
         Assert.Equal(ContactWriteOutcome.Written, amended.Outcome);
         Assert.Equal("Anna K.", Assert.Single(book.ContactsOf(User)).DisplayName.Value);
         Assert.Equal("Anna Kowalska", Assert.Single(book.ContactsOf(Account)).DisplayName.Value);
@@ -294,7 +295,82 @@ public sealed class ContactBookWriterTests
             PreferredAddress = "anna@example.test",
             Note = PrivateNote + new string('n', ContactNote.MaximumLength),
         },
+        new ContactRecordDraft
+        {
+            DisplayName = "Anna Kowalska",
+            Addresses = ["anna@example.test"],
+            PreferredAddress = "anna@example.test",
+            Note = PrivateNote,
+            PhoneNumbers = [.. Enumerable.Range(0, Contact.MaximumPhoneNumberCount + 1).Select(_ => PhoneOf("+1 202 555 0143", "Mobile"))],
+        },
+        new ContactRecordDraft
+        {
+            DisplayName = "Anna Kowalska",
+            Addresses = ["anna@example.test"],
+            PreferredAddress = "anna@example.test",
+            Note = PrivateNote,
+            PhoneNumbers = [PhoneOf("anna@example.test", "Mobile")],
+        },
+        new ContactRecordDraft
+        {
+            DisplayName = "Anna Kowalska",
+            Addresses = ["anna@example.test"],
+            PreferredAddress = "anna@example.test",
+            Note = PrivateNote,
+            PhoneNumbers = [PhoneOf("+1 202 555 0143", "anna@example.test")],
+        },
     ];
+
+    /// <summary>Numbers are recorded as typed, in order, and a label is read whatever case a caller wrote it in.</summary>
+    [Fact]
+    public async Task RecordAsync_PhoneNumbersAsTyped_RecordsThemTrimmedInOrderWithTheirLabels()
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var writer = WriterOver(book);
+        var draft = DraftOf("Anna Kowalska", "anna@example.test") with
+        {
+            PhoneNumbers = [PhoneOf(" +1 202 555 0178 ", "work"), PhoneOf("+1 202 555 0143", "Mobile")],
+        };
+
+        // Act
+        var result = await writer.RecordAsync(draft, ContactAddressWriterKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [("+1 202 555 0178", ContactPhoneLabel.Work), ("+1 202 555 0143", ContactPhoneLabel.Mobile)],
+            result.Contact?.PhoneNumbers.Select(phoneNumber => (phoneNumber.Number, phoneNumber.Label)));
+    }
+
+    /// <summary>An amendment from a surface that carries no numbers keeps the ones held, and one stating none clears them.</summary>
+    [Fact]
+    public async Task AmendAsync_PhoneNumbersUnstatedThenStatedEmpty_KeepsThemThenClearsThem()
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var writer = WriterOver(book);
+        var recorded = await writer.RecordAsync(
+            DraftOf("Anna Kowalska", "anna@example.test") with { PhoneNumbers = [PhoneOf("+1 202 555 0143", "Mobile")] },
+            ContactAddressWriterKind.Person,
+            TestContext.Current.CancellationToken);
+        var held = recorded.Contact!.Id;
+
+        // Act
+        var kept = await writer.AmendAsync(
+            held,
+            DraftOf("Anna Nowak", "anna@example.test"),
+            ContactAddressWriterKind.Person,
+            TestContext.Current.CancellationToken);
+        var cleared = await writer.AmendAsync(
+            held,
+            DraftOf("Anna Nowak", "anna@example.test") with { PhoneNumbers = [] },
+            ContactAddressWriterKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("+1 202 555 0143", Assert.Single(kept.Contact!.PhoneNumbers).Number);
+        Assert.Empty(cleared.Contact!.PhoneNumbers);
+    }
 
     /// <summary>The ceiling counts the mailboxes a person is reachable at, so two spellings of one address spend one place.</summary>
     /// <remarks>
@@ -566,6 +642,8 @@ public sealed class ContactBookWriterTests
         Addresses = [address],
         PreferredAddress = address,
     };
+
+    private static ContactPhoneNumberDraft PhoneOf(string number, string label) => new(number, label);
 
     private static ContactId AContactId() => ContactId.Create(Guid.CreateVersion7(Now));
 

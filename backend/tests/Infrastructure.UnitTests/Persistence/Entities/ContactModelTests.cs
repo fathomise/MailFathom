@@ -139,6 +139,51 @@ public sealed class ContactModelTests
         Assert.True(foreignKey.IsRequired);
     }
 
+    /// <summary>
+    /// A number is its place in the person's order under the person, and goes with the person, so erasing somebody who
+    /// holds a number takes it rather than refusing on the key.
+    /// </summary>
+    [Fact]
+    public void ContactPhoneNumberModel_TheKeyAndTheKeyBackToThePerson_AreThePlaceInTheOrderAndCascade()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var entityType = EntityTypeOf<ContactPhoneNumberEntity>(context);
+        var primaryKey = entityType.FindPrimaryKey();
+        var foreignKey = Assert.Single(entityType.GetForeignKeys());
+
+        // Assert
+        Assert.NotNull(primaryKey);
+        Assert.Equal(["ContactId", "Position"], primaryKey.Properties.Select(property => property.Name));
+        Assert.Equal(PersistenceConstraintNames.ContactPhoneNumberPrimaryKeyConstraintName, primaryKey.GetName());
+        Assert.Equal(["ContactId"], foreignKey.Properties.Select(property => property.Name));
+        Assert.Equal(typeof(ContactEntity), foreignKey.PrincipalEntityType.ClrType);
+        Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior);
+    }
+
+    /// <summary>The number is held to the bound the domain refuses past, and the label is stored by its name rather than its value.</summary>
+    [Fact]
+    public void ContactPhoneNumberModel_TheNumberAndTheLabel_AreBoundedAndTheLabelIsStoredByName()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var entityType = EntityTypeOf<ContactPhoneNumberEntity>(context);
+        var number = entityType.FindProperty(nameof(ContactPhoneNumberEntity.Number));
+        var label = entityType.FindProperty(nameof(ContactPhoneNumberEntity.Label));
+
+        // Assert
+        Assert.NotNull(number);
+        Assert.Equal(ContactPhoneNumberEntity.MaximumNumberLength, number.GetMaxLength());
+        Assert.False(number.IsNullable);
+        Assert.NotNull(label);
+        Assert.Equal(typeof(string), label.GetProviderClrType());
+        Assert.False(label.IsNullable);
+    }
+
     /// <summary>Each book keys onto its own holder and cascades from it, so no book is erased by a statement somebody has to remember.</summary>
     /// <remarks>
     /// The two keys are what divide an erasure. A user leaving the deployment takes the people they wrote down, by the

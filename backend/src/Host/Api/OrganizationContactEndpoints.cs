@@ -188,6 +188,7 @@ internal static class OrganizationContactEndpoints
                 Addresses = record.Addresses,
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
+                PhoneNumbers = record.PhoneNumbers ?? [],
                 Origin = AdministrativeWriter,
             },
             ContactEndpoints.AdministratorWriting(context),
@@ -324,6 +325,7 @@ internal static class OrganizationContactEndpoints
                 Addresses = record.Addresses,
                 PreferredAddress = record.PreferredAddress,
                 Note = record.Note,
+                PhoneNumbers = record.PhoneNumbers,
             },
             ContactEndpoints.AdministratorWriting(context),
             cancellationToken);

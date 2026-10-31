@@ -64,13 +64,15 @@ internal static class FakeContactDeployment
     /// <param name="addresses">The addresses it holds, the preferred one first.</param>
     /// <param name="origin">How the contact came to be in the book.</param>
     /// <param name="note">What the user wrote about the person, or <see langword="null" /> for none.</param>
+    /// <param name="phoneNumbers">The phone numbers it holds, as the JSON array the deployment answers with.</param>
     /// <returns>The response body.</returns>
     internal static string Lookup(
         string displayName = "Anna Kowalska",
         string[]? addresses = null,
         string origin = "Asserted",
-        string? note = null) =>
-        $$"""{"contact":{{Contact(displayName, addresses, origin, note)}}}""";
+        string? note = null,
+        string phoneNumbers = "[]") =>
+        $$"""{"contact":{{Contact(displayName, addresses, origin, note, phoneNumbers: phoneNumbers)}}}""";
 
     /// <summary>Writes the body a write answers with when the book performed it.</summary>
     /// <param name="displayName">The name the written record carries.</param>
@@ -225,14 +227,15 @@ internal static class FakeContactDeployment
         string[]? addresses,
         string origin,
         string? note,
-        Guid? identity = null)
+        Guid? identity = null,
+        string phoneNumbers = "[]")
     {
         var held = addresses ?? ["anna@example.test"];
         var written = string.Join(',', held.Select(address => $"\"{address}\""));
         var recorded = note is null ? "null" : $"\"{note}\"";
 
         return $$"""
-                 {"id":"{{identity ?? ContactIdentity:D}}","displayName":"{{displayName}}","addresses":[{{written}}],"preferredAddress":"{{held[0]}}","note":{{recorded}},"origin":"{{origin}}","recordedAt":"2026-08-01T10:00:00+00:00","amendedAt":"2026-08-02T11:00:00+00:00"}
+                 {"id":"{{identity ?? ContactIdentity:D}}","displayName":"{{displayName}}","addresses":[{{written}}],"preferredAddress":"{{held[0]}}","note":{{recorded}},"phoneNumbers":{{phoneNumbers}},"origin":"{{origin}}","recordedAt":"2026-08-01T10:00:00+00:00","amendedAt":"2026-08-02T11:00:00+00:00"}
                  """;
     }
 

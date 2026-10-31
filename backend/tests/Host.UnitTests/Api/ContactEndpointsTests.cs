@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
@@ -189,6 +190,54 @@ public sealed class ContactEndpointsTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>An administrative amendment carries the numbers it states, and one that states none leaves the held numbers alone.</summary>
+    [Theory]
+    [InlineData(false, null, "+1 202 555 0178")]
+    [InlineData(true, null, null)]
+    [InlineData(true, "+1 202 555 0143", "+1 202 555 0143")]
+    public async Task AmendAsync_PhoneNumbersStatedOrLeftOut_AnswersWithTheNumbersTheRecordNowHolds(
+        bool statesNumbers,
+        string? statedNumber,
+        string? expectedNumber)
+    {
+        // Arrange
+        ContactPhoneNumberDraft[]? stated = statesNumbers
+            ? statedNumber is null ? [] : [new ContactPhoneNumberDraft(statedNumber, "Mobile")]
+            : null;
+        this.Holds(Build(
+            "Anna Kowalska",
+            "anna@example.test",
+            ContactOrigin.Asserted,
+            note: null,
+            [ContactPhoneNumber.Create("+1 202 555 0178", ContactPhoneLabel.Work)]));
+        this.store
+            .ReplaceAsync(
+                Arg.Any<IPersistenceSession>(),
+                Arg.Any<ContactBookHolder>(),
+                Arg.Any<Contact>(),
+                Arg.Any<ContactAddressWriter>(),
+                Arg.Any<IReadOnlyCollection<EmailAddress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        var result = await ContactEndpoints.AmendAsync(
+            new DefaultHttpContext(),
+            Identity,
+            User,
+            new ContactRecordRequest("Anna Kowalska", ["anna@example.test"], "anna@example.test", Note: null, stated),
+            this.Book(),
+            this.Scopes(),
+            this.Roster(),
+            AdministrativeGrant.WholeSurface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<ContactWriteResponse>>(result.Result);
+        string[] expected = expectedNumber is null ? [] : [expectedNumber];
+        Assert.Equal(expected, answered.Value!.Contact!.PhoneNumbers.Select(phoneNumber => phoneNumber.Number));
+    }
+
     /// <summary>A promotion through the administrative surface records an administrator as the writer of the copy.</summary>
     [Fact]
     public async Task PromoteAsync_ACollectedContact_RecordsAnAdministratorAsTheWriter()
@@ -319,6 +368,68 @@ public sealed class ContactEndpointsTests
         // Assert
         await this.AssertRefusedWithoutWriting(longName, "A contact name cannot be longer than");
         await this.AssertRefusedWithoutWriting(longNote, "A contact note cannot be longer than");
+    }
+
+    /// <summary>Each rule a phone number breaks is refused naming the rule, without repeating the number or the person.</summary>
+    [Theory]
+    [InlineData("+1 202 555 0143 (Anna)", "Mobile", "A phone number is at most")]
+    [InlineData("+1 202 555 0143", "Pager", "A phone label is one of Mobile, Work, Home, Other.")]
+    [InlineData("+1 202 555 0143", null, "A phone label is one of Mobile, Work, Home, Other.")]
+    public async Task RecordAsync_APhoneNumberBreakingOneOfItsRules_RefusesNamingTheRule(
+        string number,
+        string? label,
+        string expectedFragment)
+    {
+        // Arrange
+        this.HoldsNoAddresses();
+
+        // Act
+        var result = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
+            User,
+            new ContactRecordRequest(
+                "Anna Kowalska",
+                ["anna@example.test"],
+                "anna@example.test",
+                Note: null,
+                [new ContactPhoneNumberDraft(number, label)]),
+            this.Book(),
+            this.Roster(),
+            AdministrativeGrant.WholeSurface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.AssertRefusedWithoutWriting(result, expectedFragment);
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.DoesNotContain("0143", refusal.ProblemDetails.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>A seventeenth number is refused naming the ceiling rather than storing the first sixteen.</summary>
+    [Fact]
+    public async Task RecordAsync_MorePhoneNumbersThanOneContactMayHold_RefusesNamingTheCeiling()
+    {
+        // Arrange
+        this.HoldsNoAddresses();
+
+        // Act
+        var result = await ContactEndpoints.RecordAsync(
+            new DefaultHttpContext(),
+            User,
+            new ContactRecordRequest(
+                "Anna Kowalska",
+                ["anna@example.test"],
+                "anna@example.test",
+                Note: null,
+                [.. Enumerable.Range(0, Contact.MaximumPhoneNumberCount + 1).Select(_ => new ContactPhoneNumberDraft("112", "Other"))]),
+            this.Book(),
+            this.Roster(),
+            AdministrativeGrant.WholeSurface,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.AssertRefusedWithoutWriting(
+            result,
+            $"more than {Contact.MaximumPhoneNumberCount.ToString(CultureInfo.InvariantCulture)} phone numbers");
     }
 
     /// <summary>A body the caller sent nothing in is refused rather than read as a record of blanks.</summary>
@@ -809,7 +920,12 @@ public sealed class ContactEndpointsTests
     public async Task ExportAsync_AContactTheBookHolds_AnswersWithTheCompleteRecordAndWhenItWasTaken()
     {
         // Arrange
-        this.Holds(Asserted("Anna Kowalska", "anna@example.test", "Met at the conference."));
+        this.Holds(Build(
+            "Anna Kowalska",
+            "anna@example.test",
+            ContactOrigin.Asserted,
+            "Met at the conference.",
+            [ContactPhoneNumber.Create("+1 202 555 0143", ContactPhoneLabel.Mobile)]));
 
         // Act
         var result = await ContactEndpoints.ExportAsync(
@@ -825,6 +941,7 @@ public sealed class ContactEndpointsTests
         var export = Assert.IsType<Ok<ContactExportResponse>>(result.Result);
         Assert.Equal("Anna Kowalska", export.Value!.Contact!.DisplayName);
         Assert.Equal("Met at the conference.", export.Value.Contact.Note);
+        Assert.Equal([new ContactPhoneNumberResponse("+1 202 555 0143", "Mobile")], export.Value.Contact.PhoneNumbers);
         Assert.Equal(this.clock.GetUtcNow(), export.Value.ProducedAt);
     }
 
@@ -1032,7 +1149,12 @@ public sealed class ContactEndpointsTests
     private static Contact Collected(string displayName, string address) =>
         Build(displayName, address, ContactOrigin.Collected, note: null);
 
-    private static Contact Build(string displayName, string address, ContactOrigin origin, string? note)
+    private static Contact Build(
+        string displayName,
+        string address,
+        ContactOrigin origin,
+        string? note,
+        IReadOnlyCollection<ContactPhoneNumber>? phoneNumbers = null)
     {
         Assert.True(EmailAddress.TryCreate(displayName: null, address, out var mailbox));
 
@@ -1044,7 +1166,8 @@ public sealed class ContactEndpointsTests
             note is null ? null : ContactNote.Create(note),
             origin,
             new DateTimeOffset(2026, 8, 1, 10, 0, 0, TimeSpan.Zero),
-            new DateTimeOffset(2026, 8, 2, 11, 0, 0, TimeSpan.Zero));
+            new DateTimeOffset(2026, 8, 2, 11, 0, 0, TimeSpan.Zero),
+            phoneNumbers: phoneNumbers);
     }
 
     /// <summary>Asserts that a write was refused for the rule named, wrote nothing, and echoed nobody.</summary>

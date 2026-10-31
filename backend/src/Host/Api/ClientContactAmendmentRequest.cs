@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Contacts;
+
 namespace MailFathom.Host.Api;
 
 /// <summary>The record a person states for one of their own contacts, and which of the addresses it keeps they state again.</summary>
@@ -10,6 +12,7 @@ namespace MailFathom.Host.Api;
 /// <param name="PreferredAddress">The address to use by default, which must be one of <paramref name="Addresses" />.</param>
 /// <param name="Note">What the user wrote about the person, or nothing to hold no note.</param>
 /// <param name="RestatedAddresses">Addresses of <paramref name="Addresses" /> the person states again, or nothing to restate none.</param>
+/// <param name="PhoneNumbers">The person's phone numbers afterwards, the preferred one first; absent keeps the held ones and an empty list clears them.</param>
 /// <remarks>
 /// <para>
 /// The record a creation states, plus one field only a person's amendment carries. An amendment keeps the writer each
@@ -28,4 +31,5 @@ internal sealed record ClientContactAmendmentRequest(
     IReadOnlyList<string>? Addresses,
     string? PreferredAddress,
     string? Note,
-    IReadOnlyList<string>? RestatedAddresses);
+    IReadOnlyList<string>? RestatedAddresses,
+    IReadOnlyList<ContactPhoneNumberDraft>? PhoneNumbers = null);

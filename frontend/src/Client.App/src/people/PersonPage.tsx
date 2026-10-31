@@ -13,6 +13,7 @@ import { SenderAvatar } from '../controls/SenderAvatar';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import { ContactDetails } from './ContactDetails';
 import { PersonCorrespondence } from './PersonCorrespondence';
 import { RelationshipReading } from './RelationshipReading';
 import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
@@ -207,6 +208,8 @@ export function PersonPage({
 
             <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-3.5 workspace:px-6 workspace:py-4.5">
                 <RelationshipReading lastCorrespondedAt={lastCorrespondedAt} reading={correspondence.reading} />
+
+                <ContactDetails contact={contact} />
 
                 <PersonCorrespondence
                     reading={correspondence}

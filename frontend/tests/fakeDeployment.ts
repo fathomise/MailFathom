@@ -904,6 +904,7 @@ export class FakeDeployment {
                 addresses: stated['addresses'],
                 preferredAddress: stated['preferredAddress'],
                 note: stated['note'] ?? null,
+                phoneNumbers: stated['phoneNumbers'] ?? standing['phoneNumbers'] ?? [],
             };
 
             this.contactsAmended.set(id, contact);
@@ -1051,6 +1052,7 @@ export class FakeDeployment {
             addresses: stated['addresses'],
             preferredAddress: stated['preferredAddress'],
             note: stated['note'] ?? null,
+            phoneNumbers: stated['phoneNumbers'] ?? [],
         };
 
         this.contactsWritten.push(contact);

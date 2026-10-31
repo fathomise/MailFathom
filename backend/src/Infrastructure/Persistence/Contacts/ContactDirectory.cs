@@ -63,8 +63,7 @@ internal sealed class ContactDirectory(MailFathomDbContext readContext) : IConta
 
         var contactValue = contactId.Value;
 
-        var entity = await this.VisibleIn(scope)
-            .Include(record => record.Addresses)
+        var entity = await ContactMapping.WithRecordRows(this.VisibleIn(scope))
             .FirstOrDefaultAsync(record => record.Id == contactValue, cancellationToken);
 
         return entity is null ? null : ContactMapping.ToContact(entity);
@@ -94,8 +93,7 @@ internal sealed class ContactDirectory(MailFathomDbContext readContext) : IConta
 
         var contactValues = contactIds.Select(contactId => contactId.Value).Distinct().ToArray();
 
-        var entities = await this.VisibleIn(scope)
-            .Include(record => record.Addresses)
+        var entities = await ContactMapping.WithRecordRows(this.VisibleIn(scope))
             .Where(record => contactValues.Contains(record.Id))
             .ToArrayAsync(cancellationToken);
 
@@ -121,12 +119,11 @@ internal sealed class ContactDirectory(MailFathomDbContext readContext) : IConta
         //
         // The book is stated inside the address subquery as well as outside it, so the correlated read leads with the
         // unique index the book and the address form rather than probing the addresses of every contact in the scope.
-        var entity = await readContext.Contacts.AsNoTracking()
+        var entity = await ContactMapping.WithRecordRows(readContext.Contacts.AsNoTracking())
             .Where(record => books.Contains(record.BookHolderId)
                 && record.Addresses.Any(held =>
                     books.Contains(held.BookHolderId) && held.NormalizedAddress == normalizedAddress))
             .OrderBy(record => Array.IndexOf(books, record.BookHolderId))
-            .Include(record => record.Addresses)
             .FirstOrDefaultAsync(cancellationToken);
 
         return entity is null ? null : ContactMapping.ToContact(entity);
@@ -297,8 +294,7 @@ internal sealed class ContactDirectory(MailFathomDbContext readContext) : IConta
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentNullException.ThrowIfNull(query);
 
-        var entities = await this.Filter(scope, query)
-            .Include(record => record.Addresses)
+        var entities = await ContactMapping.WithRecordRows(this.Filter(scope, query))
             .OrderBy(record => record.DisplayNameSortKey)
             .ThenBy(record => record.Id)
 
@@ -415,8 +411,7 @@ internal sealed class ContactDirectory(MailFathomDbContext readContext) : IConta
             return new Dictionary<string, ContactEntity[]>(StringComparer.Ordinal);
         }
 
-        var entities = await this.VisibleIn(scope)
-            .Include(record => record.Addresses)
+        var entities = await ContactMapping.WithRecordRows(this.VisibleIn(scope))
             .Where(record => sortKeys.Contains(record.DisplayNameSortKey))
             .ToArrayAsync(cancellationToken);
 

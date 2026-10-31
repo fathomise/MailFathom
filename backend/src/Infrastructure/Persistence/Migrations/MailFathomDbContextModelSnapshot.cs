@@ -550,6 +550,30 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.ContactPhoneNumberEntity", b =>
+                {
+                    b.Property<Guid>("ContactId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("ContactId", "Position")
+                        .HasName("PK_contact_phone_numbers");
+
+                    b.ToTable("contact_phone_numbers", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.ContentMoveRunEntity", b =>
                 {
                     b.Property<string>("Name")
@@ -4741,6 +4765,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.ContactPhoneNumberEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.ContactEntity", null)
+                        .WithMany("PhoneNumbers")
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.DefaultAdministratorEntity", b =>
                 {
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.UserAccountEntity", null)
@@ -5533,6 +5566,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.ContactEntity", b =>
                 {
                     b.Navigation("Addresses");
+
+                    b.Navigation("PhoneNumbers");
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailChunkEntity", b =>
