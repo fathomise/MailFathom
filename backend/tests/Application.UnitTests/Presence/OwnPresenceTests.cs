@@ -45,6 +45,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
     {
         // Act
         var outcome = await this.Presence().RenewAsync(Laptop, ClientActivity.Active, TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
         await this.signals.DrainAsync();
 
         // Assert
@@ -66,6 +67,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
 
         // Act
         await this.Presence().RenewAsync(Laptop, ClientActivity.Active, TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
         await this.signals.DrainAsync();
 
         // Assert
@@ -168,6 +170,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
 
         // Act
         await this.Presence().CloseAsync(Laptop, TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
         await this.signals.DrainAsync();
 
         // Assert
@@ -185,6 +188,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
 
         // Act
         await this.Presence().CloseAsync(Laptop, TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
         await this.signals.DrainAsync();
 
         // Assert
@@ -200,6 +204,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
 
         // Act
         var reading = await this.Presence().ChooseAsync(PresenceState.Busy, PresenceDuration.OneHour, TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
         await this.signals.DrainAsync();
 
         // Assert
