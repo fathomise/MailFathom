@@ -521,7 +521,10 @@ describe('App', () => {
         await screen.findByText('Nothing was drafted');
         fireEvent.click(screen.getByRole('button', { name: 'Close the message' }));
 
-        const handedBackTo = await screen.findByRole('button', { name: aiButton });
+        // The longest wait in the test — the composer leaving, the reading column drawn again, and the button under the
+        // message — has outlasted the suite's five-second ceiling on a machine shared with other suites, so it takes a
+        // ceiling of its own. A ceiling only: the wait still ends the moment the button is there.
+        const handedBackTo = await screen.findByRole('button', { name: aiButton }, { timeout: 15_000 });
 
         await waitFor(() => {
             expect(document.activeElement).toBe(handedBackTo);
