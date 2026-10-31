@@ -73,9 +73,11 @@ function failedSaid(failure: ClientFailure): MessageKey {
 // the book being listed at all, which is a person opened in one book and taken out after the reader moved to the other.
 function nextAfter(contacts: readonly Contact[], leaving: string, erased: readonly string[]): Contact | null {
     const at = contacts.findIndex((contact) => contact.id === leaving);
-    const rest = contacts.filter((contact) => !erased.includes(contact.id));
+    const kept = (listed: readonly Contact[]) => listed.filter((contact) => !erased.includes(contact.id));
+    const rest = kept(contacts);
 
-    return at < 0 ? null : (rest[Math.min(at, rest.length - 1)] ?? null);
+    // Counted among those kept, because a batch may also take out people listed above the one who was open.
+    return at < 0 ? null : (rest[Math.min(kept(contacts.slice(0, at)).length, rest.length - 1)] ?? null);
 }
 
 // What a question about taking several people out says will happen, in the forms a language has for the noun — one

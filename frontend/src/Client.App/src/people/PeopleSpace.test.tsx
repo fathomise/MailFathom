@@ -394,6 +394,31 @@ describe('PeopleSpace', () => {
         }
     });
 
+    it('opens whoever stands where the open person stood after a batch that also took out somebody above them', async () => {
+        const { transport } = deployment({
+            own: [
+                personCalled('anna', 'Anna Kowalska'),
+                personCalled('bartek', 'Bartek Nowak'),
+                personCalled('celina', 'Celina Wrona'),
+                personCalled('dawid', 'Dawid Lis'),
+            ],
+        });
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('option', { name: /Bartek Nowak/u }));
+        expect(await screen.findByRole('heading', { name: 'Bartek Nowak' })).toBeDefined();
+        fireEvent.click(screen.getByRole('option', { name: /Anna Kowalska/u }), { ctrlKey: true });
+        fireEvent.click(screen.getByRole('option', { name: /Bartek Nowak/u }), { ctrlKey: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Delete contacts?' })).getByRole('button', {
+                name: 'Delete',
+            }),
+        );
+
+        expect(await screen.findByRole('heading', { name: 'Celina Wrona' })).toBeDefined();
+    });
+
     // The page stays open while the reader moves to the other book, and the next person is read off the book the
     // deleted one was listed in rather than off a book they were never in.
     it('opens nobody after deleting somebody whose book is no longer the one listed', async () => {
