@@ -1872,7 +1872,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     closeCtxMenuFocus = () => {
       const t = this.state.ctxMenu && this.state.ctxMenu.kind === "composeMore" ? this._ctxTrigger : null;
       this.setState({ ctxMenu: null });
-      if (t && t.isConnected) setTimeout(() => t.focus(), 0);
+      // The line above the foot goes once both requests are off, so focus then falls back to the foot's control.
+      if (t) setTimeout(() => { const el = t.isConnected ? t : document.querySelector("[data-compose-more]"); if (el) el.focus(); }, 0);
     };
 
     /* *Sending options* — the three-dot control at the end of the composer's foot. The same context menu, standing
@@ -4727,6 +4728,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               e.preventDefault();
               if (!mi.checked) this.closeCtxMenuFocus();
               if (mi.run) mi.run();
+            } else if (e.key === "Tab") {
+              // Tab leaves the menu as a menu is left: it closes, and focus goes back to what opened it.
+              e.preventDefault();
+              this.closeCtxMenuFocus();
             }
           },
           style: "display:flex;align-items:center;gap:11px;border-radius:8px;padding:0 12px;color:" + (mi.danger ? "var(--err-text)" : "var(--text)") +

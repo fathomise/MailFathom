@@ -1606,7 +1606,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div title="Attach" style="{{ composeAttachStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ composeAttachIconStyle }}">attach_file</span><sc-if value="{{ composeAttachLabel }}" hint-placeholder-val="{{ true }}">Attach</sc-if></div>
                 <div onClick="{{ saveDraftNow }}" title="{{ composeSaveTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSaveStyle }}" style-hover="cursor:pointer;color:var(--text)">Save draft</div>
                 <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div style="margin-left:auto;font-size:11px;color:var(--faint)">Ctrl+Enter sends</div></sc-if>
-                <div role="button" tabindex="0" title="{{ composeMoreTitle }}" aria-label="{{ composeMoreTitle }}" aria-haspopup="menu" onClick="{{ openComposeMore }}" onKeyDown="{{ openComposeMore }}" style="{{ composeMoreStyle }}" style-hover="cursor:pointer;background:var(--hover)">more_vert</div>
+                <div data-compose-more role="button" tabindex="0" title="{{ composeMoreTitle }}" aria-label="{{ composeMoreTitle }}" aria-haspopup="menu" onClick="{{ openComposeMore }}" onKeyDown="{{ openComposeMore }}" style="{{ composeMoreStyle }}" style-hover="cursor:pointer;background:var(--hover)">more_vert</div>
               </div>
             </div>
           </sc-if>
