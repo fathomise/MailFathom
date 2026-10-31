@@ -3732,9 +3732,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const tall = h >= 960;
       /* The framed previews are the three touch devices; anything else asks the pointer, as the client does. */
       const touch = FR ? true : mode === "desktop" ? false : !!st.coarse;
-      /* The one rule that reads the window's aspect: under a finger, a window in the narrow two-pane band held upright —
-         the fold and the small tablet — carries its navigation at the bottom, as the phone does, under the thumb. */
-      const navBottom = isMobile || (narrow && touch && h > w);
+      /* The one rule that reads the window's aspect: under a finger, a window in the narrow two-pane band that is upright
+         or near square — the fold and the small tablet — carries its navigation at the bottom, as the phone does, under
+         the thumb. Near square counts because a fold's inner screen is: a browser's own bars take enough height to leave
+         the upright fold a little wider than tall, and it is still held upright. */
+      const navBottom = isMobile || (narrow && touch && w <= h * 1.15);
       const railW = navBottom ? 0 : compact ? 66 : 96;
       this._low = low;
       this._isMobile = isMobile;

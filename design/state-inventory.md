@@ -44,10 +44,13 @@ one width band combined with one height band. All of it is decided once, in `ren
 | `compact` | `700 ≤ w < 1180` | The 66 px rail with a 30 px mark, the list at 284 px until a mouse drags it, toolbar controls without labels once their words no longer fit the strip — each still naming itself in a bubble, *A control's name* under § *What every artboard shares* — and the folder list folded rather than standing as a column |
 | `wide` | `w ≥ 1920` | The folder column at 240 px and the list at 420 px |
 
-**The navigation is the one rule that reads the aspect.** `navBottom` is `isMobile || (narrow && touch && h > w)`: the
-phone, and under a finger a window in the `narrow` band held upright — the fold and the small tablet — carry the
-navigation as a bar along the bottom rather than as the rail, so it stands under the thumb and the panes take the whole
-width. The same window on its side keeps the 66 px rail, because there the height is what is short and the width is not;
+**The navigation is the one rule that reads the aspect.** `navBottom` is `isMobile || (narrow && touch && w <= h * 1.15)`:
+the phone, and under a finger a window in the `narrow` band that is upright or near square — the fold and the small
+tablet — carry the navigation as a bar along the bottom rather than as the rail, so it stands under the thumb and the
+panes take the whole width. Near square counts because a fold's inner screen is near square: a browser's address bar
+and the system's own bars take enough height that the fold held upright reaches the page a little wider than tall, and
+it is still held upright. A window more than 1.15 times as wide as it is tall — the fold, the small tablet and the phone
+on their side — keeps the 66 px rail, because there the height is what is short and the width is not;
 a mouse keeps the rail at every size, having no thumb to reach with; and a tablet of 1020 px and wider keeps it upright as
 well. The phone's bar holds five places and puts *Tasks*, *Calendar* and *People* in *More*; the fold's and the
 tablet's bar holds all six spaces, the bell and *More* — § *What every touch composition holds to*.
@@ -143,7 +146,7 @@ Mail with a thread open. Each was captured from the design and reads as intended
 | `phone_430x932` | 430 × 932 | touch | regular | bottom bar | drawer | one pane | 430 |
 | `phone_844x390` | 844 × 390 | touch | low | 66 | drawer | 248 | 530 |
 | `fold_832x884` | 832 × 884 | touch | regular | bottom bar | drawer | 248 | 584 |
-| `fold` | 884 × 832 | touch | regular | 66 | drawer | 248 | 570 |
+| `fold` | 884 × 832 | touch | regular | bottom bar | drawer | 248 | 636 |
 | `tablet_744x1133` | 744 × 1133 | touch | tall | bottom bar | drawer | one pane | 744 |
 | `tablet_1133x744` | 1133 × 744 | touch | regular | 66 | drawer | 284 | 783 |
 | `tablet_820x1180` | 820 × 1180 | touch | tall | bottom bar | drawer | 248 | 572 |
