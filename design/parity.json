@@ -769,7 +769,24 @@
             "role": "button",
             "name": "New message",
             "exact": true
-          }
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Fathom - ask or act on what is on screen",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "menuitem",
+            "name": "New message",
+            "exact": true
+          },
+          "optional": true
         },
         {
           "expect": {
