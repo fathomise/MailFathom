@@ -66,6 +66,9 @@ export interface MoveDestinationGroup {
      */
     readonly ordinal: number;
 
+    /** Whether the mailbox is shared, which the group carries beside its name as everywhere a mailbox is chosen. */
+    readonly shared: boolean;
+
     readonly destinations: readonly MoveDestination[];
 }
 
@@ -251,6 +254,7 @@ export function destinationsFor(
             // one, and counts its groups from that row. Counted the same way here so that a mailbox keeps its hue
             // across the two screens.
             ordinal: directory.accounts.length > 1 ? at + 1 : at,
+            shared: entry.account.shared,
             destinations: entry.folders
                 .filter(admits)
                 .map((folder) => ({ folderId: folder.id, name: nameOf(folder), role: folder.role }))

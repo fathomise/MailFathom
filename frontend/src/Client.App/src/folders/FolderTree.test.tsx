@@ -44,6 +44,7 @@ const tree = {
                 lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
                 behind: false,
                 filesJunk: false,
+                shared: false,
             },
             folders: [
                 {
@@ -96,6 +97,7 @@ const tree = {
                 lastSynchronizedAt: '2026-08-30T21:00:00+00:00',
                 behind: false,
                 filesJunk: false,
+                shared: false,
             },
             folders: [
                 {
@@ -442,6 +444,34 @@ describe('FolderTree', () => {
         expect(row(/^Work/)).toBeDefined();
         expect(row(/^Personal/)).toBeDefined();
         expect(row(/^Archiwum/).getAttribute('aria-level')).toBe('2');
+    });
+
+    it('marks a shared mailbox as shared on its own row, and on no other', async () => {
+        // A folder nested under a level its server declares no folder at, so the tree draws a row for the level itself:
+        // that row belongs to the mailbox and is no heading of it.
+        const nested = {
+            id: 'PROJECTS/2026',
+            role: null,
+            path: ['Projects', '2026'],
+            storedEmailCount: 8,
+            unreadEmailCount: 0,
+            synchronizationState: 'Synchronized',
+            lastSynchronizedAt: '2026-08-30T21:00:00+00:00',
+            behind: false,
+        };
+        const accounts = tree.accounts.map((entry) =>
+            entry.account.id === 'personal'
+                ? { ...entry, account: { ...entry.account, shared: true }, folders: [...entry.folders, nested] }
+                : entry,
+        );
+        renderTree(answering(JSON.stringify({ ...tree, accounts })));
+
+        await drawn();
+
+        expect(row(/^Personal/).textContent).toContain('Shared');
+        expect(row(/^Projects/).textContent).not.toContain('Shared');
+        expect(row(/^Work/).textContent).not.toContain('Shared');
+        expect(row(/^Archiwum/).textContent).not.toContain('Shared');
     });
 
     // The design opens a mailbox and shuts what nests inside a folder, which is the only reading that scales:
@@ -1108,6 +1138,7 @@ describe('FolderTree, under a drag carrying messages', () => {
             accountId: 'work',
             accountName: 'Work',
             ordinal: 1,
+            shared: false,
             destinations: [
                 { folderId: 'INBOX', name: 'INBOX', role: 'Inbox' },
                 { folderId: 'ARCHIWUM', name: 'Archiwum', role: null },

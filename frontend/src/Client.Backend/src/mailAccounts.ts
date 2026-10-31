@@ -24,6 +24,9 @@ export interface MailAccount {
 
     /** Whether marking a message spam moves it into this account's Spam folder, and not spam moves it out again. */
     readonly filesJunk: boolean;
+
+    /** Whether the account is assigned to more than one person, so others read what arrives there. */
+    readonly shared: boolean;
 }
 
 /** The user's accounts, beside the deployment-wide switch that says whether any of them is being refreshed at all. */
@@ -123,12 +126,13 @@ export function parseMailAccount(value: unknown): MailAccount | null {
     const lastSynchronizedAt = record['lastSynchronizedAt'] ?? null;
     const behind = record['behind'];
     const filesJunk = record['filesJunk'];
+    const shared = record['shared'];
 
     if (typeof id !== 'string' || typeof displayName !== 'string' || typeof behind !== 'boolean') {
         return null;
     }
 
-    if (typeof filesJunk !== 'boolean') {
+    if (typeof filesJunk !== 'boolean' || typeof shared !== 'boolean') {
         return null;
     }
 
@@ -147,6 +151,7 @@ export function parseMailAccount(value: unknown): MailAccount | null {
         lastSynchronizedAt,
         behind,
         filesJunk,
+        shared,
     };
 }
 

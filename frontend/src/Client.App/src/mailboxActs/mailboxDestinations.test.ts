@@ -43,6 +43,7 @@ function directoryOf(accounts: Record<string, readonly MailFolder[]>): MailFolde
                 lastSynchronizedAt: null,
                 behind: false,
                 filesJunk: false,
+                shared: false,
             },
             folders,
         })),
@@ -98,6 +99,7 @@ describe('destinationsFor', () => {
                 accountId: 'work',
                 accountName: 'work',
                 ordinal: 1,
+                shared: false,
                 destinations: [
                     { folderId: 'work-inbox', name: 'INBOX', role: 'Inbox' },
                     { folderId: 'work-archive', name: 'Archive', role: 'Archive' },
@@ -112,6 +114,15 @@ describe('destinationsFor', () => {
         const oneAccount = directoryOf({ work: [folder('work-inbox', 'Inbox', ['INBOX'])] });
 
         expect(destinationsFor(oneAccount, [inWork('message-1')])[0]?.ordinal).toBe(0);
+    });
+
+    it('says the group belongs to a shared mailbox where the account is shared', () => {
+        const shared: MailFolderDirectory = {
+            ...wholeMailbox,
+            accounts: wholeMailbox.accounts.map((entry) => ({ ...entry, account: { ...entry.account, shared: true } })),
+        };
+
+        expect(destinationsFor(shared, [inWork('message-1')])[0]?.shared).toBe(true);
     });
 
     it('offers nothing across two accounts, a folder belonging to the account it is in', () => {

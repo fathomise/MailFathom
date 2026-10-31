@@ -25,6 +25,7 @@ function mailbox(id: string, displayName: string): MailAccount {
         lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
         behind: false,
         filesJunk: false,
+        shared: false,
     };
 }
 
@@ -356,6 +357,15 @@ describe('AccountMenu', () => {
         expect(screen.getAllByRole('listitem', { hidden: true }).map((row) => row.textContent)).toStrictEqual([
             'Work',
             'Board',
+        ]);
+    });
+
+    it('marks a shared mailbox as shared beside its name, and no other', () => {
+        renderMenu({ accounts: [mailbox('work', 'Work'), { ...mailbox('board', 'Board'), shared: true }] });
+
+        expect(screen.getAllByRole('listitem', { hidden: true }).map((row) => row.textContent)).toStrictEqual([
+            'Work',
+            'BoardShared',
         ]);
     });
 

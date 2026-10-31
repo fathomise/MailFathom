@@ -24,6 +24,7 @@ export const pl: Catalogue = {
     'shell.moreDisconnected': 'Więcej - brak połączenia z serwerem',
     'shell.spaceWithCounts': '{space} - {counts}',
     'shell.mailboxes': 'Skrzynki',
+    'shell.shared': 'Wspólna',
     'shell.tabMode': 'Tryb zakładek',
     'shell.tabModeTooNarrow': 'dostępne na szerszym ekranie',
     'control.notBuiltYet': '{control} – jeszcze niezbudowane',

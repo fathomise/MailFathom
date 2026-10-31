@@ -326,6 +326,11 @@ export function FolderTree({
             .map((visibleRow, ordinal) => [visibleRow.row.key, ordinal] as const),
     );
 
+    // The mailboxes whose group heading carries the shared mark, which only an account's own row draws.
+    const sharedAccounts = new Set(
+        directory.accounts.filter(({ account }) => account.shared).map(({ account }) => account.id),
+    );
+
     // The mark an account's Sent row carries while its Outbox holds anything. Only the account's own Sent folder, never
     // the row standing for every sent folder at once: an Outbox is one account's.
     function outboxMarkingOf(row: FolderTreeRow): OutboxMarking | undefined {
@@ -618,6 +623,11 @@ export function FolderTree({
                         focusable={visibleRow.row.key === carryingFocus?.row.key}
                         folded={workspace.mailboxesFolded}
                         groupOrdinal={groupOrdinals.get(visibleRow.row.key) ?? null}
+                        shared={
+                            groupOrdinals.has(visibleRow.row.key) &&
+                            visibleRow.row.accountId !== null &&
+                            sharedAccounts.has(visibleRow.row.accountId)
+                        }
                         onSelect={() => {
                             setFocused(visibleRow.row.key);
 

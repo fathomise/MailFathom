@@ -104,9 +104,15 @@ export const workAccount = {
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
     filesJunk: false,
+    shared: false,
 };
 
-/** A mailbox whose synchronization is failing, which is what a screen draws its own failure sentence from. */
+/**
+ * A mailbox whose synchronization is failing, which is what a screen draws its own failure sentence from.
+ *
+ * It is shared as well — the club's members all read it — because a shared mailbox is a mark every place an account is
+ * drawn has to carry, and this is the corpus's only reading with more than one mailbox to carry it beside one that is not.
+ */
 export const failingAccount = {
     id: '0198f3a2-5c41-7b6e-9a12-4d8e6f0c2b32',
     displayName: 'Club',
@@ -114,6 +120,7 @@ export const failingAccount = {
     lastSynchronizedAt: '2026-08-30T18:12:00+00:00',
     behind: true,
     filesJunk: false,
+    shared: true,
 };
 
 /**
@@ -129,6 +136,7 @@ export const accountBehind = {
     lastSynchronizedAt: '2026-08-31T06:02:00+00:00',
     behind: true,
     filesJunk: false,
+    shared: false,
 };
 
 /** What the accounts route answers at rest: one mailbox, up to date, with nothing to report. */

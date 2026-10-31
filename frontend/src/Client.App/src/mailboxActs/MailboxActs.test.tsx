@@ -83,6 +83,7 @@ const folders = JSON.stringify({
                 lastSynchronizedAt: null,
                 behind: false,
                 filesJunk: false,
+                shared: false,
             },
             folders: [
                 {

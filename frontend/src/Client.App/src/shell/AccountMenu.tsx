@@ -7,6 +7,7 @@ import type { MailAccount } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { MailboxMark } from '../controls/MailboxMark';
 import { PersonAvatar } from '../controls/PersonAvatar';
+import { SharedMark } from '../controls/SharedMark';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
 import { useLocalization } from '../localization/useLocalization';
 import type { ClientPreferencesInForce } from '../preferences/useClientPreferences';
@@ -290,6 +291,7 @@ function Mailboxes({ accounts }: { readonly accounts: readonly MailAccount[] }) 
                         >
                             <MailboxMark ordinal={ordinal + 1} className="size-1.5" />
                             <span className="min-w-0 flex-1 truncate text-xs">{account.displayName}</span>
+                            {account.shared ? <SharedMark /> : null}
 
                             {account.id === inScope ? (
                                 <Icon name="check" className="size-icon-xs shrink-0 text-accent-strong" />

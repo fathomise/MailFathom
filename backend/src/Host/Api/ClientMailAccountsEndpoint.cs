@@ -5,6 +5,7 @@
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -51,19 +52,22 @@ internal static class ClientMailAccountsEndpoint
     /// <summary>Reports the acting user's accounts and their synchronization freshness.</summary>
     /// <param name="reader">Reads the user's accounts and reduces each one's folders to a single reading.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
+    /// <param name="assignments">Reads which of the accounts more than one user is assigned.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the user's accounts, empty where they own none, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>It speaks to no mail server, so a client request cannot wait on IMAP and cannot set the remote <c>\Seen</c> flag.</remarks>
     internal static async Task<Ok<ClientMailAccountsResponse>> ReadAccountsAsync(
         [FromServices] MailAccountFreshnessReader reader,
         [FromServices] ISpamActionSettingsReader spamActions,
+        [FromServices] IMailAccountAssignments assignments,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(reader);
+        ArgumentNullException.ThrowIfNull(assignments);
 
         var accounts = await reader.ReadAsync(MailboxReaderKind.Person, cancellationToken);
 
-        return TypedResults.Ok(ClientMailAccountsResponse.For(accounts, spamActions));
+        return TypedResults.Ok(await ClientMailAccountsResponse.ForAsync(accounts, spamActions, assignments, cancellationToken));
     }
 }
 
@@ -79,21 +83,47 @@ internal sealed record ClientMailAccountsResponse(
     bool SynchronizationEnabled,
     IReadOnlyList<ClientMailAccountResponse> Accounts)
 {
+    /// <summary>Describes the user's accounts on the wire, reading which of them are shared from the assignments.</summary>
+    /// <param name="accounts">What the use case answered.</param>
+    /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
+    /// <param name="assignments">Reads which of the accounts more than one user is assigned.</param>
+    /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
+    internal static async Task<ClientMailAccountsResponse> ForAsync(
+        MailAccountFreshnessDirectory accounts,
+        ISpamActionSettingsReader spamActions,
+        IMailAccountAssignments assignments,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(accounts);
+        ArgumentNullException.ThrowIfNull(assignments);
+
+        var sharedAccounts = await assignments.ReadSharedAmongAsync(
+            accounts.Accounts.Select(static account => account.Account.Id),
+            cancellationToken);
+
+        return For(accounts, spamActions, sharedAccounts);
+    }
+
     /// <summary>Describes the user's accounts on the wire.</summary>
     /// <param name="accounts">What the use case answered.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
+    /// <param name="sharedAccounts">The accounts among these that more than one user is assigned.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accounts" /> or <paramref name="spamActions" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accounts" />, <paramref name="spamActions" />, or <paramref name="sharedAccounts" /> is <see langword="null" />.</exception>
     internal static ClientMailAccountsResponse For(
         MailAccountFreshnessDirectory accounts,
-        ISpamActionSettingsReader spamActions)
+        ISpamActionSettingsReader spamActions,
+        IReadOnlySet<MailAccountId> sharedAccounts)
     {
         ArgumentNullException.ThrowIfNull(accounts);
         ArgumentNullException.ThrowIfNull(spamActions);
+        ArgumentNullException.ThrowIfNull(sharedAccounts);
 
         return new ClientMailAccountsResponse(
             accounts.SynchronizationEnabled,
-            [.. accounts.Accounts.Select(account => ClientMailAccountResponse.For(account, spamActions))]);
+            [.. accounts.Accounts.Select(account => ClientMailAccountResponse.For(account, spamActions, sharedAccounts))]);
     }
 }
 
@@ -104,6 +134,7 @@ internal sealed record ClientMailAccountsResponse(
 /// <param name="LastSynchronizedAt">When the account last durably took anything in, or <see langword="null" /> where it never has.</param>
 /// <param name="Behind">Whether any of the account's folders ended its last attempt with mail it had not yet taken in.</param>
 /// <param name="FilesJunk">Whether a spam verdict on the account's mail moves it into the junk folder, and the person's not-spam verdict moves it out to the inbox.</param>
+/// <param name="Shared">Whether the account is assigned to more than one user, so others read what arrives there.</param>
 /// <remarks>
 /// <para>
 /// The three answer different parts of one question and are published apart for that reason. The timestamp says how old
@@ -117,6 +148,10 @@ internal sealed record ClientMailAccountsResponse(
 /// the press whether a mark will move the message — a not-spam mark that moves mail out of the junk folder is confirmed,
 /// and one that moves nothing is not. It is read from the same reader the mark route decides its moves from.
 /// </para>
+/// <para>
+/// Being shared is published so a client can mark the mailbox wherever it is drawn or chosen. It is one fact about the
+/// assignment and names none of the other users.
+/// </para>
 /// </remarks>
 internal sealed record ClientMailAccountResponse(
     string Id,
@@ -124,17 +159,23 @@ internal sealed record ClientMailAccountResponse(
     string SynchronizationState,
     DateTimeOffset? LastSynchronizedAt,
     bool Behind,
-    bool FilesJunk)
+    bool FilesJunk,
+    bool Shared)
 {
     /// <summary>Describes one account on the wire.</summary>
     /// <param name="account">The account's freshness.</param>
     /// <param name="spamActions">Reads whether the account's spam verdicts move its mail.</param>
+    /// <param name="sharedAccounts">The accounts that more than one user is assigned.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="account" /> or <paramref name="spamActions" /> is <see langword="null" />.</exception>
-    internal static ClientMailAccountResponse For(MailAccountFreshness account, ISpamActionSettingsReader spamActions)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="account" />, <paramref name="spamActions" />, or <paramref name="sharedAccounts" /> is <see langword="null" />.</exception>
+    internal static ClientMailAccountResponse For(
+        MailAccountFreshness account,
+        ISpamActionSettingsReader spamActions,
+        IReadOnlySet<MailAccountId> sharedAccounts)
     {
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(spamActions);
+        ArgumentNullException.ThrowIfNull(sharedAccounts);
 
         return new(
             account.Account.Id.Value,
@@ -142,6 +183,7 @@ internal sealed record ClientMailAccountResponse(
             account.State.ToString(),
             account.LastSynchronizedAt,
             account.IsBehind,
-            spamActions.ActionsFor(account.Account.Id).FilesJunk);
+            spamActions.ActionsFor(account.Account.Id).FilesJunk,
+            sharedAccounts.Contains(account.Account.Id));
     }
 }
