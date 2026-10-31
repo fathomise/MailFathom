@@ -99,7 +99,8 @@ updates:
 It keeps the split the directory is built on: sample content goes in `data/`, behaviour in `logic/`, styles in
 `styles/`, and the page holds the template alone. Sample data is made up — no real mail, person, address, or credential,
 and nothing from a signed-in client — because this directory is public. A changed artboard is checked by opening it at
-the compositions it reaches, in both themes, before the change is finished. Every file carries the licensing header
+the compositions it reaches before the change is finished, and in the second theme when it adds or changes a colour
+or a surface. Every file carries the licensing header
 except `design/runtime/support.js`, which is generated and replaced whole rather than edited.
 
 ## What this skill does not do
