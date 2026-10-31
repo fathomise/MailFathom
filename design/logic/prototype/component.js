@@ -3887,7 +3887,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           convWhoShown: !!who,
           convSnippet: this.mdPlain((pick.paras || []).map(p => p.md || p.text || "").join(" ")).slice(0, 260),
           convSnippetStyle: "margin-top:2px;padding-left:8px;border-left:2px solid var(--border2);font-size:13px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:" +
-            (standing || standingStale ? 1 : 2) + ";-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere",
+            "2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere",
         };
       };
       const threadSpam = this.spamOf(thread.id);
