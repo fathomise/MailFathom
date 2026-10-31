@@ -75,24 +75,13 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
       <div style="{{ railLabelStyle }}">{{ railLabelAgent }}</div>
     </div>
-    <sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">
+    <sc-if value="{{ navSide }}" hint-placeholder-val="{{ true }}">
       <div aria-hidden="true" style="{{ railSepStyle }}"></div>
     </sc-if>
     <div onClick="{{ goMail }}" style="{{ railMailStyle }}" style-hover="background:var(--hover);cursor:pointer">
       <div style="{{ railIconStyle }}">mail</div>
       <div style="{{ railLabelStyle }}">{{ railLabelMail }}</div>
     </div>
-    <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
-      <div onClick="{{ toggleNotifCenter }}" style="{{ railNotifStyle }}" style-hover="background:var(--hover);cursor:pointer">
-        <div style="position:relative;display:flex;align-items:center;justify-content:center">
-          <div style="{{ railIconStyle }}">{{ railBellIcon }}</div>
-          <sc-if value="{{ notifHasUnread }}" hint-placeholder-val="{{ true }}">
-            <span style="{{ notifDotStyle }}">{{ notifCountLabel }}</span>
-          </sc-if>
-        </div>
-        <div style="{{ railLabelStyle }}">Alerts</div>
-      </div>
-    </sc-if>
     <div onClick="{{ goTasks }}" style="{{ railTasksStyle }}" style-hover="background:var(--hover);cursor:pointer">
       <div style="{{ railIconStyle }}">task_alt</div>
       <div style="{{ railLabelStyle }}">{{ railLabelTasks }}</div>
@@ -105,7 +94,18 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="{{ railIconStyle }}">group</div>
       <div style="{{ railLabelStyle }}">{{ railLabelPeople }}</div>
     </div>
-    <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+    <sc-if value="{{ navBottom }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ toggleNotifCenter }}" style="{{ railNotifStyle }}" style-hover="background:var(--hover);cursor:pointer">
+        <div style="position:relative;display:flex;align-items:center;justify-content:center">
+          <div style="{{ railIconStyle }}">{{ railBellIcon }}</div>
+          <sc-if value="{{ notifHasUnread }}" hint-placeholder-val="{{ true }}">
+            <span style="{{ notifDotStyle }}">{{ notifCountLabel }}</span>
+          </sc-if>
+        </div>
+        <div style="{{ railLabelStyle }}">Alerts</div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ navBottom }}" hint-placeholder-val="{{ false }}">
       <div role="button" tabindex="0" aria-label="{{ moreTileLabel }}" onClick="{{ toggleMore }}" style="{{ railMoreStyle }}" style-hover="background:var(--hover);cursor:pointer">
         <div style="{{ railIconWrapStyle }}">
           <div style="{{ railIconStyle }}">more_horiz</div>
@@ -117,7 +117,7 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </sc-if>
     </div>
-    <sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">
+    <sc-if value="{{ navSide }}" hint-placeholder-val="{{ true }}">
       <div ref="{{ userMenuRef }}" style="margin-top:auto;padding-top:10px;flex:0 0 auto;position:relative;display:flex;flex-direction:column;align-items:center;gap:14px">
         <sc-if value="{{ railCaptionShown }}" hint-placeholder-val="{{ true }}"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);text-align:center;line-height:1.4;font-weight:600">Prototype</div></sc-if>
         <sc-if value="{{ userMenuOpen }}" hint-placeholder-val="{{ false }}">
@@ -561,9 +561,6 @@ Project repository: https://github.com/fathomise/MailFathom
     <sc-if value="{{ showMailToolbar }}" hint-placeholder-val="{{ true }}">
       <div ref="{{ tbRef }}" style="{{ toolbarStyle }}">
         <sc-if value="{{ viewLeadShown }}" hint-placeholder-val="{{ true }}">
-          <sc-if value="{{ listToggleShown }}" hint-placeholder-val="{{ false }}">
-            <div tabIndex="0" data-hold="true" onClick="{{ toggleList }}" onContextMenu="{{ keepList }}" title="{{ listToggleTitle }}" aria-label="{{ listToggleLabel }}" style="{{ listToggleStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ listToggleIcon }}</div>
-          </sc-if>
           <sc-if value="{{ sideToggleShown }}" hint-placeholder-val="{{ true }}">
             <div onClick="{{ toggleSide }}" title="{{ sideToggleTitle }}" aria-label="{{ sideToggleTitle }}" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ sideToggleIcon }}</div>
           </sc-if>
@@ -861,17 +858,6 @@ Project repository: https://github.com/fathomise/MailFathom
 
       <sc-if value="{{ showThreadList }}" hint-placeholder-val="{{ true }}">
         <div data-motion="{{ moMailList }}" style="{{ threadListStyle }}">
-          <sc-if value="{{ listStrip }}" hint-placeholder-val="{{ false }}">
-            <div style="{{ stripScrollStyle }}">
-              <sc-for list="{{ threads }}" as="t" hint-placeholder-count="5">
-                <div onClick="{{ t.select }}" onContextMenu="{{ t.longPress }}" onTouchStart="{{ t.stripTouchStart }}" onTouchEnd="{{ t.stripTouchEnd }}" onTouchMove="{{ t.stripTouchEnd }}" data-tip-hover title="{{ t.stripLabel }}" style="{{ t.stripStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-                  <span style="{{ t.stripAvatarStyle }}">{{ t.stripInitials }}</span>
-                  <sc-if value="{{ t.stripMarkShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ t.stripMarkStyle }}">{{ t.markGlyph }}</span></sc-if>
-                  <sc-if value="{{ t.isUnread }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:7px;right:7px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--sub)"></span></sc-if>
-                </div>
-              </sc-for>
-            </div>
-          </sc-if>
           <sc-if value="{{ listFull }}" hint-placeholder-val="{{ true }}">
           <sc-if value="{{ showFab }}" hint-placeholder-val="{{ false }}">
             <div role="button" tabIndex="0" onClick="{{ openCompose }}" title="New message" aria-label="New message" style="{{ mailFabStyle }}" style-hover="cursor:pointer;opacity:0.92"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;line-height:1">edit_square</span></div>
@@ -963,7 +949,7 @@ Project repository: https://github.com/fathomise/MailFathom
               </sc-if>
               <sc-if value="{{ t.unfolded }}" hint-placeholder-val="{{ true }}">
               <div onClick="{{ t.select }}" draggable="{{ true }}" onDragStart="{{ t.dragStart }}" onDragEnd="{{ t.dragEnd }}" onContextMenu="{{ t.longPress }}" onTouchStart="{{ t.touchStart }}" onTouchEnd="{{ t.touchEnd }}" onTouchMove="{{ t.touchMove }}" style="{{ t.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-                <div style="display:flex;align-items:center;gap:9px;min-width:0"><sc-if value="{{ t.selected }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if><span style="position:relative;flex:0 0 auto;display:inline-flex"><sc-if value="{{ t.hasAvatar }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarImgStyle }}"></span></sc-if><sc-if value="{{ t.noAvatar }}" hint-placeholder-val="{{ true }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarStyle }}">{{ t.initials }}</span></sc-if><sc-if value="{{ t.fromMember }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ t.fromDotStyle }}"></span></sc-if></span><span style="{{ t.fromStyle }}">{{ t.from }}</span><sc-if value="{{ t.markShown }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" data-sender-mark data-tip-hover title="{{ t.markName }}" onClick="{{ t.openMark }}" style="{{ t.markBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.markGlyphStyle }}">{{ t.markGlyph }}</span></span></sc-if><span style="{{ t.orgStyle }}">{{ t.org }}</span><span style="margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:7px"><sc-if value="{{ t.rcptShown }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.rcptName }}</span><span aria-hidden="true" data-receipt-mark data-tip-hover title="{{ t.rcptName }}" onClick="{{ t.openRcpt }}" style="{{ t.rcptBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.rcptGlyphStyle }}">{{ t.rcptGlyph }}</span></span></sc-if><sc-if value="{{ t.flagged }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Flagged" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--warn)">flag</span></sc-if><sc-if value="{{ t.multi }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--text2);background:var(--rail);border:1px solid var(--line2);border-radius:8px;padding:1px 6px">{{ t.count }}</span></sc-if><sc-if value="{{ t.aiBtnShown }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.openAiSum }}" title="AI summary" style="{{ t.aiBtnStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">auto_awesome</span></sc-if><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ t.time }}</span></span></div>
+                <div style="display:flex;align-items:center;gap:9px;min-width:0"><sc-if value="{{ t.selected }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if><span style="position:relative;flex:0 0 auto;display:inline-flex"><sc-if value="{{ t.hasAvatar }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarImgStyle }}"></span></sc-if><sc-if value="{{ t.noAvatar }}" hint-placeholder-val="{{ true }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarStyle }}">{{ t.initials }}</span></sc-if><sc-if value="{{ t.fromMember }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ t.fromDotStyle }}"></span></sc-if></span><span style="{{ t.fromStyle }}">{{ t.from }}</span><sc-if value="{{ t.markShown }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" data-sender-mark data-tip-hover title="{{ t.markName }}" onClick="{{ t.openMark }}" style="{{ t.markBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.markGlyphStyle }}">{{ t.markGlyph }}</span></span></sc-if><span style="{{ t.orgStyle }}">{{ t.org }}</span><span style="margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:7px"><sc-if value="{{ t.iconsInline }}" hint-placeholder-val="{{ true }}"><sc-if value="{{ t.rcptShown }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.rcptName }}</span><span aria-hidden="true" data-receipt-mark data-tip-hover title="{{ t.rcptName }}" onClick="{{ t.openRcpt }}" style="{{ t.rcptBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.rcptGlyphStyle }}">{{ t.rcptGlyph }}</span></span></sc-if><sc-if value="{{ t.flagged }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Flagged" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--warn)">flag</span></sc-if><sc-if value="{{ t.multi }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--text2);background:var(--rail);border:1px solid var(--line2);border-radius:8px;padding:1px 6px">{{ t.count }}</span></sc-if><sc-if value="{{ t.aiBtnShown }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.openAiSum }}" title="AI summary" style="{{ t.aiBtnStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">auto_awesome</span></sc-if></sc-if><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ t.time }}</span></span></div>
                 <div style="{{ t.subjStyle }}">{{ t.subject }}</div>
                 <sc-if value="{{ t.showMoved }}" hint-placeholder-val="{{ false }}">
                   <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">folder</span>{{ t.movedTo }}</div>
@@ -973,6 +959,9 @@ Project repository: https://github.com/fathomise/MailFathom
                 </sc-if>
                 <sc-if value="{{ t.showAi }}" hint-placeholder-val="{{ false }}">
                   <div style="{{ t.aiStyle }}"><span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);border:1px solid var(--border2);border-radius:4px;padding:1px 5px">AI</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.ai }}</span></div>
+                </sc-if>
+                <sc-if value="{{ t.iconLineShown }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ t.iconLineStyle }}"><sc-if value="{{ t.rcptShown }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.rcptName }}</span><span aria-hidden="true" data-receipt-mark data-tip-hover title="{{ t.rcptName }}" onClick="{{ t.openRcpt }}" style="{{ t.rcptBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.rcptGlyphStyle }}">{{ t.rcptGlyph }}</span></span></sc-if><sc-if value="{{ t.flagged }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Flagged" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--warn)">flag</span></sc-if><sc-if value="{{ t.multi }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--text2);background:var(--rail);border:1px solid var(--line2);border-radius:8px;padding:1px 6px">{{ t.count }}</span></sc-if><sc-if value="{{ t.aiBtnShown }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.openAiSum }}" title="AI summary" style="{{ t.aiBtnStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">auto_awesome</span></sc-if></div>
                 </sc-if>
               </div>
               </sc-if>
@@ -2236,7 +2225,7 @@ Project repository: https://github.com/fathomise/MailFathom
 
   <sc-if value="{{ moreOpen }}" hint-placeholder-val="{{ false }}">
     <div data-motion="scrim" data-phase="{{ mo.more }}" onClick="{{ closeMore }}" style="position:fixed;inset:0;z-index:94;display:flex;flex-direction:column;justify-content:flex-end;background:var(--scrim)">
-      <div data-motion="sheet" data-phase="{{ mo.more }}" onClick="{{ stopProp }}" style="display:flex;flex-direction:column;gap:2px;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding:10px 12px calc(12px + env(safe-area-inset-bottom)) 12px;box-shadow:0 -8px 30px var(--sh-3)">
+      <div data-motion="sheet" data-phase="{{ mo.more }}" onClick="{{ stopProp }}" style="display:flex;flex-direction:column;gap:2px;width:100%;max-width:560px;box-sizing:border-box;align-self:center;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding:10px 12px calc(12px + env(safe-area-inset-bottom)) 12px;box-shadow:0 -8px 30px var(--sh-3)">
         <div style="align-self:center;width:38px;height:4px;border-radius:4px;background:var(--border2);margin:2px 0 6px 0"></div>
         <sc-if value="{{ meStatusShown }}" hint-placeholder-val="{{ true }}">
           <div onClick="{{ openStatusMenu }}" role="button" aria-label="Your status" style="{{ moreStatusStyle }}" style-hover="background:var(--hover)">
