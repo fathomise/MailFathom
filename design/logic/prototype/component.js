@@ -7,7 +7,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     me: { name: ME, address: MY_MAIL },
     app: { version: APP_VERSION, build: APP_BUILD },
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI, organization: ORGANIZATION,
-    threads: THREADS, earlierMessages, threadMailBodies, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
+    threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, newInThread: NEW_IN_THREAD, sentLast: SENT_LAST, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO, sendLater: SEND_LATER,
     accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
@@ -283,6 +283,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     const prior = [M(t.from || "Sender", "earlier", [{ text: "Following up on what we agreed earlier: " + lowerFirst(s1 || "the thread topic") + "." }])];
     if (s2 && s2 !== "None") prior.push(M(ME, "earlier", [{ text: "Thank you. Still open: " + lowerFirst(s2) + "." }]));
     return prior.concat([last]);
+  };
+  /* Read by thread, a thread may end in the user's own reply (`sentLast`). */
+  const convMsgsFor = (t) => {
+    const own = SENT_LAST[t.id];
+    return own ? msgsFor(t).concat([M(ME, own.when, [{ text: own.text }])]) : msgsFor(t);
   };
 
   /* THE SENDER MARK — what the service publishes about who sent a received message (data/prototype/sender-marks.js),
@@ -946,11 +951,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const sel = Array.isArray(this.state.sel) ? this.state.sel : [];
       if ((e && (e.ctrlKey || e.metaKey || e.shiftKey)) || sel.length) { this.toggleSelect(id); return; }
       const unread = Object.assign({}, this.state.unread || DEFAULT_UNREAD);
+      const wasUnread = !!unread[id];
       delete unread[id];
       /* Some threads have an unread message from the middle of the history —
-         we open exactly that one, not the newest. */
-      const entry = { piotr: 2 };
+         we open exactly that one, not the newest. Listed by thread, opening one reads the whole of it at once: what
+         arrived since it was last read is marked new for as long as it stays open, and never again. */
+      const convMail = !!this.state.convMail;
+      const entry = convMail ? {} : { piotr: 2 };
       const patch = Object.assign(this.leaveOutbox(), { threadId: id, mailAnswer: false, replyDock: null, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+        newOnOpen: convMail && wasUnread ? { [id]: NEW_IN_THREAD[id] || 1 } : {},
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) }, this.composeCtxPatch([id]));
       patch.msgLoading = true;
@@ -1441,7 +1450,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     askDel = (o) => this.setState({ confirmDel: o });
 
-    inTrash = () => /·Trash$/.test(this.state.folderKey || "acc1·Inbox");
+    inTrash = () => !this.state.convMail && /·Trash$/.test(this.state.folderKey || "acc1·Inbox");
 
     deleteThreads = (ids) => {
       const t = this.opTargets(ids);
@@ -1690,7 +1699,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (moved) return moved === "Spam";
       return (THREADS.find(x => x.id === id) || {}).box === "spam";
     };
-    inSpamFolder = () => /·Spam$/.test(this.state.folderKey || "acc1·Inbox");
+    inSpamFolder = () => !this.state.convMail && /·Spam$/.test(this.state.folderKey || "acc1·Inbox");
     /* Whether *Spam* and *Not spam* also move a message is its account's own setting, off unless the account says so. */
     accountOf = (id) => (THREADS.find(x => x.id === id) || {}).acc || "acc1";
     movesSpam = (id) => !!(ACCOUNTS.find(a => a.key === this.accountOf(id)) || {}).movesSpam;
@@ -3838,10 +3847,53 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const thread = THREADS.find(t => t.id === st.threadId) || THREADS[0];
       /* An account's Spam folder lists what sits in it, badged by kind; every other list leaves it out and folds the
          spam that sits elsewhere. The prototype's lists are otherwise one list under every folder. */
-      const inSpamBox = this.inSpamFolder();
+      /* Listed by conversation there are no folders: a conversation gathers its messages from every folder, Spam and
+         Trash included, and is listed under its account as long as one of them is neither spam nor in Trash. The
+         prototype keeps a whole thread in one place and under one verdict, so a thread judged spam - wherever it sits -
+         one in Spam, and one in Trash are the ones left out. */
+      const convMail = !!st.convMail;
+      const convAcc = st.convAcc || "all";
+      const inSpamBox = !convMail && this.inSpamFolder();
       const spamBoxAcc = (st.folderKey || "").split("·")[0];
-      const listedThreads = THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 &&
-        this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc));
+      const convOnlySpamOrTrash = (t) => this.spamOf(t.id).spam || this.sitsInSpam(t.id) ||
+        (st.moved || {})[t.id] === "Trash" || (st.deleted || []).indexOf(t.id) >= 0;
+      const listedThreads = convMail
+        ? THREADS.filter(t => !convOnlySpamOrTrash(t) && (convAcc === "all" || this.accountOf(t.id) === convAcc))
+        : THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 &&
+          this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc));
+      const convFirst = (n) => n === ME ? "me" : n.split(" ")[0];
+      const convRowOf = (t) => {
+        const ms = convMsgsFor(t);
+        const pick = ms[ms.length - 1];
+        const people = ms.map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
+        const others = people.filter(n => n !== ME);
+        const named = (list) => list.length === 1 ? (list[0] === ME ? "me" : list[0]) : list.map(convFirst).join(", ");
+        /* The title is a topic kept as replies arrive and a standing written again with each of them. A thread that
+           changed since it was read keeps its topic and holds its standing back, as the thread's own state does. */
+        const title = aiHints && !this.spamOf(t.id).spam ? CONV_TITLES[t.id] : null;
+        const standingStale = !!title && !!t.stateStale;
+        const standing = title && !standingStale ? title.standing || "" : "";
+        const who = pick.mine ? "You:" : (people.length === 1 ? pick.from : convFirst(pick.from)) + ":";
+        return {
+          convPeople: named(people),
+          convTitled: !!title,
+          convTitle: title ? title.topic : t.subject,
+          convStanding: standing,
+          convStandingShown: !!standing,
+          /* What a model wrote stands in a light frame of its own, so it is never read as the sender's words. */
+          convAiBoxStyle: title
+            ? "display:flex;flex-direction:column;gap:1px;min-width:0;margin:2px 0 3px;padding:6px 10px 7px 8px;border:1px solid var(--accent-line);border-radius:8px;background:color-mix(in oklch, var(--accent-soft) 40%, transparent)"
+            : "display:flex;flex-direction:column;gap:1px;min-width:0",
+          convStandingStale: standingStale,
+          convStandingStyle: "padding-left:21px;font-size:13px;line-height:1.35;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+          convStaleStyle: "padding-left:21px;display:flex;align-items:center;gap:5px;font-size:13px;line-height:1.35;color:var(--faint);overflow:hidden;white-space:nowrap",
+          convWho: who,
+          convWhoShown: !!who,
+          convSnippet: this.mdPlain((pick.paras || []).map(p => p.md || p.text || "").join(" ")).slice(0, 260),
+          convSnippetStyle: "margin-top:2px;padding-left:8px;border-left:2px solid var(--border2);font-size:13px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:" +
+            "2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere",
+        };
+      };
       const threadSpam = this.spamOf(thread.id);
       /* The opened message's warning. Every spam message says it is spam and a security risk, and who judged it; a
          dangerous kind takes the strong form and says, from the record's closed values, what it asks for and whom it is written to
@@ -3899,7 +3951,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const selected = sel.indexOf(t.id) >= 0;
         return Object.assign(row, {
           folded, unfolded: !folded,
-          aiBtnShown: !sp.spam,
+          aiBtnShown: !sp.spam && !convMail,
           showAi: row.showAi && !sp.spam,
           spamBadge: badged,
           spamBadgeDanger: badged && k.danger,
@@ -3924,7 +3976,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          is exactly what someone unsure of a verdict wants to judge; rows that draw recipients - Sent and Drafts - carry
          none. On a row it is the glyph alone, beside a sender it is a badge naming the state, and a neutral badge is
          the glyph alone too. Either opens the same details. */
-      const recipientList = /·(Sent|Drafts)$/.test(st.folderKey || "");
+      const recipientList = !convMail && /·(Sent|Drafts)$/.test(st.folderKey || "");
       const markGlyph = (px) => "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + px + "px";
       const markOf = (threadId, from) => {
         const r = senderRecord(threadId, from);
@@ -3962,7 +4014,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const inSent = /·Sent$/.test(st.folderKey || "");
       const rcptOpen = (id) => !!(st.receiptPop && st.receiptPop.id === id);
       const withReceipt = (t, row) => {
-        const R = inSent ? receiptOf(t.id) : null;
+        const R = convMail ? (convMsgsFor(t).slice(-1)[0].mine ? receiptOf(t.id) : null) : inSent ? receiptOf(t.id) : null;
         if (!R || R.k === "waiting") return Object.assign(row, { rcptShown: false });
         return Object.assign(row, {
           rcptShown: true, rcptGlyph: R.glyph, rcptName: R.name, rcptOpen: rcptOpen(t.id),
@@ -4088,7 +4140,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         fullscreen: () => this.setState({ stateBarOff: true }),
         fullscreen_exit: () => this.setState({ stateBarOff: false }),
       };
-      const msgs = msgsFor(thread);
+      const msgs = convMail ? convMsgsFor(thread) : msgsFor(thread);
+      /* Where each message is kept, said at its foot in either mode: the user's own in Sent, a received one wherever
+         the thread was moved, archived, deleted, or judged to, else the folder the list stands for. The account is the
+         one the list was opened under, or the thread's own under All accounts and by thread. */
+      const [listAcc, listFolder] = (st.folderKey || "acc1·Inbox").split("·");
+      const placeAcc = ACCOUNTS.find(a => a.key === (!convMail && listAcc !== "all" ? listAcc : this.accountOf(thread.id))) || ACCOUNTS[0];
+      const receivedFolder = (st.deleted || []).indexOf(thread.id) >= 0 ? "Trash"
+        : (st.moved || {})[thread.id] || ((st.archived || []).indexOf(thread.id) >= 0 ? "Archive"
+        : this.sitsInSpam(thread.id) ? "Spam"
+        : convMail || /^(Sent|Drafts|Outbox)$/.test(listFolder) ? "Inbox" : listFolder);
+      const placeOf = (m) => (m.mine ? "Sent" : receivedFolder) + " · " + placeAcc.label;
       const htmlViewMode = st.msgView === "html";
       const lastIdx = msgs.length - 1;
       const openMap = st.msgOpen || {};
@@ -4098,10 +4160,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* The message picked from the list; the newest in the thread by default. */
       const rawActive = (st.activeMsg || {})[thread.id];
       const activeIdx = Math.max(0, Math.min(typeof rawActive === "number" ? rawActive : lastIdx, lastIdx));
-      const activeIsNewest = activeIdx === lastIdx;
-      const hiddenCount = histOpen ? 0 : lastIdx;
+      /* Opened by thread with news in it, every message from the first new one on stands open, and only what was read
+         before folds behind the pill. The user's own messages among them are shown but are not news. */
+      const newCount = convMail ? ((st.newOnOpen || {})[thread.id] || 0) : 0;
+      const firstNew = (() => {
+        if (!newCount) return null;
+        let left = newCount;
+        for (let i = lastIdx; i >= 0; i--) if (!msgs[i].mine && --left === 0) return i;
+        return 0;
+      })();
+      const shownFolded = (i) => firstNew != null ? i >= firstNew : i === activeIdx;
+      const activeIsNewest = firstNew != null || activeIdx === lastIdx;
+      const hiddenCount = histOpen ? 0 : firstNew != null ? firstNew : lastIdx;
       const items = [];
-      if (msgs.length > 1) {
+      if (msgs.length > 1 && firstNew !== 0) {
         items.push({
           isPill: true, isMsg: false, key: "pill",
           pillLabel: !hiddenCount
@@ -4120,11 +4192,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       msgs.forEach((m, i) => {
         /* A collapsed thread shows only the message picked from the list — even when it is not
            the newest; the pill then reveals both earlier and newer ones. */
-        if (hiddenCount && i !== activeIdx) return;
+        if (hiddenCount && !shownFolded(i)) return;
         const k = mKey(i);
         const open = true;
         const flash = st.msgFlash === k;
-        const isActive = i === activeIdx && msgs.length > 1 && !hiddenCount;
+        /* Read by thread, the row was the conversation, so what it opened at is its newest message, whichever folder
+           holds it; the mark shows wherever more than that one message stands open. */
+        const shownCount = !hiddenCount ? msgs.length : firstNew != null ? lastIdx - firstNew + 1 : 1;
+        const isActive = convMail
+          ? i === lastIdx && shownCount > 1
+          : i === activeIdx && msgs.length > 1 && !hiddenCount;
+        const isNew = firstNew != null && i >= firstNew && !m.mine;
         const remoteRefs = m.remoteRefs != null ? m.remoteRefs
           : m.mine || thread.report ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
@@ -4137,7 +4215,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The sample data states a verdict per thread, which is every one of its messages' verdict, so each message of
            a spam thread carries its own warning, as each message the client opens is warned from its own. */
         items.push({
-          isMsg: true, isPill: false, key: k, isActive,
+          isMsg: true, isPill: false, key: k, isActive, newShown: isNew,
+          place: placeOf(m),
+          placeStyle: "display:flex;align-items:center;gap:6px;min-width:0;margin-top:-4px;font-size:12px;line-height:1.35;color:var(--faint);white-space:nowrap",
+          /* The thread's AI summary, wherever the list is read, on its newest received message - never on spam. */
+          aiBtnShown: !m.mine && !threadSpam.spam && i === msgs.map(x => x.mine).lastIndexOf(false),
+          openAiSum: () => this.openAiSum(thread.id),
+          openAiSumKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.openAiSum(thread.id); } },
+          aiBtnStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" + (touch ? "width:44px;height:44px;margin:-12px -8px;font-size:20px" : "width:26px;height:26px;margin:-5px -3px;font-size:17px"),
           ...(m.mine ? { rptShown: false } : reportLine(thread)),
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
           // What came back belongs to the newest message the account sent in the conversation.
@@ -4158,8 +4243,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           changeLetGo: (e) => this.decideChange(thread.id, false, e),
           changeAgainStyle: chgBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)",
           changeQuietStyle: chgBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
-          unfoldMotion: i !== activeIdx && (folding || st.histUnfolded === thread.id) ? "unfold" : "none",
-          unfoldPhase: folding && i !== activeIdx ? "out" : "in",
+          unfoldMotion: !shownFolded(i) && (folding || st.histUnfolded === thread.id) ? "unfold" : "none",
+          unfoldPhase: folding && !shownFolded(i) ? "out" : "in",
           remoteBlocked: remoteRefs > 0 && !remoteOn && !threadSpam.spam,
           remoteLoaded: remoteRefs > 0 && remoteOn && !threadSpam.spam,
           remoteCountLabel: "Removed references: " + remoteRefs,
@@ -5821,6 +5906,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         listHeadStyle: "display:flex;align-items:center;gap:" + (touch ? 8 : 9) + "px;padding:" + (touch ? "8px 12px" : "10px 12px") + ";border-bottom:1px solid var(--line)",
         listIconBtnStyle: "flex:0 0 auto;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted)",
         toggleFilters: () => this.setState(s2 => ({ filtersOpen: !s2.filtersOpen })),
+        toggleConvList: () => this.setState(s2 => ({ convMail: !s2.convMail })),
+        convListTitle: convMail ? "Threads - switch to single messages" : "Messages - switch to threads",
+        listModeLabel: convMail ? "Threads" : "Messages",
+        listModeAria: (convMail ? "Threads" : "Messages") + ", switch to " + (convMail ? "messages" : "threads"),
+        listModeIcon: convMail ? "forum" : "mail",
+        listModeWrapStyle: "flex:0 0 auto;padding:" + (sideCollapsed ? "10px 9px 6px" : "10px 10px 6px"),
+        listModeBtnStyle: "box-sizing:border-box;display:flex;align-items:center;gap:10px;border-radius:10px;font-size:15px;font-weight:600;" +
+          "border:1px solid var(--line);background:var(--panel);color:var(--text);box-shadow:0 1px 2px var(--sh-1);" +
+          (sideCollapsed ? "width:40px;height:40px;justify-content:center;padding:0;margin:0 auto" : "width:100%;min-height:" + (touch ? 48 : 44) + "px;padding:0 12px"),
+        listModeIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--accent-d)",
         filtersOpen: !!st.filtersOpen,
         filtersActive: filterCount > 0,
         filtersCount: filterCount,
@@ -5884,6 +5979,33 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         sideGroups: [{ key: "all", label: UNIFIED_ACCOUNTS.label, title: UNIFIED_ACCOUNTS.title, dot: UNIFIED_ACCOUNTS.dot, folders: STD_FOLDERS(UNIFIED_ACCOUNTS.counts, true) }]
           .concat(ACCOUNTS.map(a => ({ key: a.key, label: a.label, title: a.address + (a.shared ? " - shared mailbox" : ""), dot: a.dot, shared: !!a.shared, folders: STD_FOLDERS(a.counts) })))
           .map(g => {
+          if (convMail) {
+            const active = convAcc === g.key;
+            const icon = g.key === "all" ? "all_inbox" : g.shared ? "group" : "account_circle";
+            return {
+              label: g.label, title: null, open: true, chevron: "expand_more", shared: false, sharedStyle: SHARED_MARK,
+              showHeader: false, showDot: sideCollapsed,
+              ctxOpen: noop, pressDown: noop, pressUp: noop, toggle: noop,
+              wrapStyle: sideCollapsed ? "display:flex;flex-direction:column;gap:3px;padding-bottom:4px" : "display:flex;flex-direction:column;gap:2px;padding-bottom:2px",
+              headStyle: "display:none",
+              dotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:" + g.dot,
+              folders: [{
+                ctxOpen: noop, pressDown: noop, pressUp: noop,
+                icon, label: g.label, count: "", expanded: !sideCollapsed,
+                outboxMark: false, outboxStrip: false, ob: {},
+                title: sideCollapsed ? g.label : null,
+                pick: () => this.setState({ convAcc: g.key, sel: [], sideDrawer: false }),
+                dragOver: noop, dragLeave: noop, drop: noop,
+                twisty: "chevron_right", hasKids: false, twistyTitle: "", twistyStyle: "display:none", toggleKids: noop,
+                style: (sideCollapsed
+                  ? "display:flex;align-items:center;justify-content:center;height:34px;border-radius:8px;font-size:14px;"
+                  : "display:flex;align-items:center;gap:10px;font-size:14px;padding:7px 11px;border-radius:8px;") +
+                  (active ? "background:var(--accent-soft);color:var(--accent-d);font-weight:600;" : ""),
+                iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;text-align:center;" + (sideCollapsed ? "font-size:24px;width:24px;" : "font-size:18px;width:20px;flex:0 0 20px;") + (active ? "" : "color:var(--muted);"),
+                countStyle: "font-size:13px;color:var(--faint)",
+              }],
+            };
+          }
           const open = (st.accOpen || {})[g.key] !== false;
           const press = g.key === "all" ? null : this.pressFor("account", g.key, g.label, this.accountMenu(g.key, g.label), undefined, g.title);
           return {
@@ -7228,6 +7350,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         fromCitation: st.fromCite || "",
         backToResult: () => this.setState({ screen: "discover", cameFrom: false }),
         threads: listedThreads.map(t => withReceipt(t, withMark(t, spamRowOf(t, {
+          ...(convMail ? convRowOf(t) : {}),
+          msgShown: !convMail,
+          convShown: convMail,
+          convPeopleStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px" : "flex:0 1 auto;min-width:0;font-size:14px") + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap" +
+            (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          convTitleRowStyle: "display:flex;align-items:center;gap:6px;min-width:0",
+          convGlyphStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1;color:var(--muted)",
+          convTitleStyle: "flex:1 1 auto;min-width:0;font-size:" + (isMobile ? 15 : 14) + "px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" +
+            (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:600;color:var(--text)"),
+          convWhoStyle: "font-weight:600;color:var(--text2);margin-right:4px",
+          /* The attachment mark: by message, where this message has one; by thread, where any message in it has. */
+          ...(() => {
+            const n = convMail ? convMsgsFor(t).reduce((sum, m) => sum + (m.atts || []).length, 0) : (t.attachments || []).length;
+            return { attShown: n > 0, attLabel: n === 1 ? "1 attachment" + (convMail ? " in this thread" : "") : n + " attachments" + (convMail ? " in this thread" : "") };
+          })(),
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
           movedTo: movedMap[t.id] || "",
@@ -7248,7 +7385,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
              mark, the flag and the time keep the one line every row has. */
           iconsInline: !listCompact,
           aiStyle: isMobile ? "display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);line-height:1.35" : "display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)",
-          from: t.from, org: t.org, time: t.time, subject: t.subject, ai: t.ai,
+          from: t.from, org: t.org, time: convMail && SENT_LAST[t.id] ? SENT_LAST[t.id].time : t.time, subject: t.subject, ai: t.ai,
           hasAvatar: !!avatarOf(t.from), noAvatar: !avatarOf(t.from), initials: initialsOf(t.from),
           // A colleague's row carries their presence on the avatar, as every list that draws a member does.
           fromMember: !!isMemberName(t.from), fromDotStyle: presenceDot(seenPresence((isMemberName(t.from) || {}).presence), isMobile ? 11 : 8),
@@ -7257,10 +7394,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* Unread is the weight and the ink of the words, as every mail client draws it: the sender and the subject
              in 700 and the full text colour, a read row in 400 and the secondary one. 600 against 400 alone read as
              the same row at a glance. No dot. */
-          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;" : listCompact ? "flex:0 1 auto;min-width:0;font-size:14px;" : "flex:0 0 auto;max-width:60%;font-size:14px;") + "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;" : listCompact ? "flex:0 1 auto;min-width:0;font-size:14px;" : "flex:0 1 auto;min-width:0;max-width:60%;font-size:14px;") + "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           subjStyle: (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
-          orgStyle: isMobile || compact ? "display:none" : "flex:0 1 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
-          showAi: aiHints && !!t.ai,
+          orgStyle: isMobile || compact ? "display:none" : "flex:0 100 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+          showAi: aiHints && !!t.ai && !convMail,
           openAiSum: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.openAiSum(t.id); },
           aiBtnStyle: "width:" + (touch ? 32 : 24) + "px;height:" + (touch ? 32 : 24) + "px;flex:0 0 " + (touch ? 32 : 24) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
           selected: sel.indexOf(t.id) >= 0,

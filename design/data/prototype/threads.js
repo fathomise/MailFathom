@@ -1031,3 +1031,43 @@ MailFathomDesign.data.threadStateSources = { contoso: [5, 4, 5, 3] };
 /* Reply-To and CC appear only where they make sense. */
 MailFathomDesign.data.replyTo = { contoso: "Frida Iversen <frida.iversen@contoso.example>", audyt1: "Jacek Wrona <j.wrona@company.example>" };
 MailFathomDesign.data.cc = { contoso: ["Marta Nowak"], marta: ["Jacek Wrona"], klient3: ["Anna Kowalska"] };
+
+/* The title a model writes for each conversation, from the whole of it rather than from its first subject line, so the
+   list can be read by conversation. It has two parts: `topic`, what the conversation is about, which is set early and
+   kept as replies arrive, and `standing`, where it is now, which is written again with every new message. A title
+   with no standing — `devops1`, `travel1` — is one where nothing is left open. Spam never gets one, and a conversation
+   missing here — `jacek`, `bank1` — has not been given one yet and is listed under its subject. */
+MailFathomDesign.data.conversationTitles = {
+  contoso: { topic: "Contoso SLA addendum", standing: "Sign by 28.08 · CPI cap still open" },
+  finanse: { topic: "August hosting invoice", standing: "€1,452 net, due 29.08" },
+  piotr: { topic: "Phase two rollout", standing: "UAT test users owed by Thursday" },
+  marta: { topic: "2027 CPI indexation", standing: "Our reply due 27.08" },
+  anna2: { topic: "Contoso 2027 terms", standing: "Waiting on our counter-proposal" },
+  hr1: { topic: "Staff satisfaction survey", standing: "Closes 05.09" },
+  north1: { topic: "Northwind reporting module quote", standing: "We asked for a revised quote" },
+  fabrikam1: { topic: "Fabrikam Q4 deliveries", standing: "Slipped to November · we asked for October dates" },
+  audyt1: { topic: "Contract register for the audit", standing: "Data owed by 03.09" },
+  prawnik2: { topic: "Northwind NDA", standing: "Draft ready to sign" },
+  travel1: { topic: "Kraków-Berlin trip on 12.09", standing: "" },
+  marketing1: { topic: "Trade show materials for 24.09", standing: "Files due 10.09" },
+  klient3: { topic: "Weekend SLA cover for Adventure", standing: "Needs our reply" },
+  devops1: { topic: "Nightly build #2418", standing: "" },
+  rekrutacja1: { topic: "Frontend hiring", standing: "3 candidates awaiting our decision" },
+};
+
+/* How many of an unread thread's received messages arrived since it was last read, counted back from the newest. The
+   user's own messages between them are context rather than news. A thread unread but missing here has one. */
+MailFathomDesign.data.newInThread = { contoso: 2, piotr: 2, marta: 1, finanse: 1, jacek: 1 };
+
+/* Threads whose newest message is the user's own reply, drawn only when the list is read by thread: its row then
+   carries what came back for that reply (receipts.js), as a Sent row does. */
+MailFathomDesign.data.sentLast = {
+  north1: {
+    when: "today 07:40", time: "07:40",
+    text: "Thank you, Robert. Before we decide, could you send a revised quote with the export to Power BI included and the licence priced per user?",
+  },
+  fabrikam1: {
+    when: "yesterday 17:30", time: "yest.",
+    text: "Tomasz, November does not work for our rollout. Please confirm which items can still ship in October and the new dates for the rest.",
+  },
+};
