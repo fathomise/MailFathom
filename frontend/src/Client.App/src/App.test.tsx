@@ -521,6 +521,9 @@ describe('App', () => {
         await screen.findByText('Nothing was drafted');
         fireEvent.click(screen.getByRole('button', { name: 'Close the message' }));
 
+        // The reading column reads the message again before it draws the button under it, so each is waited for on a
+        // budget of its own rather than both on one.
+        await screen.findByText('A drawn message.');
         const handedBackTo = await screen.findByRole('button', { name: aiButton });
 
         await waitFor(() => {

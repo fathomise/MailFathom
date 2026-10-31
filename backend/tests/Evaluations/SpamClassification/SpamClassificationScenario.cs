@@ -178,7 +178,7 @@ internal static class SpamClassificationScenario
             consultation);
 
         var recorded = await stage.DecideAsync(
-            new ClassifiableEmail(scenario.Id, Account, Inbox, Inbox, NoKeywords),
+            new ClassifiableEmail(scenario.Id, Account, Inbox, Inbox, NoKeywords, IsSettled: false),
             content,
             reading,
             Settings,

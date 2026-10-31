@@ -12,11 +12,11 @@ using Microsoft.EntityFrameworkCore;
 namespace MailFathom.Infrastructure.Persistence.Spam;
 
 /// <summary>
-/// Reads the account, the folder a stored occurrence was stored from and the folder it is in now, and its keywords, and
-/// nothing else about it.
+/// Reads the account, the folder a stored occurrence was stored from and the folder it is in now, its keywords, and
+/// whether it has settled, and nothing else about it.
 /// </summary>
 /// <remarks>
-/// A bounded projection rather than the entity, for the reason every read model here is one: classification needs five
+/// A bounded projection rather than the entity, for the reason every read model here is one: classification needs six
 /// values, and loading a whole email row would put its subject and its participants into memory to answer a question
 /// about where it lives and how it is marked.
 /// </remarks>
@@ -45,6 +45,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 email.MailFolderBinding.Alias,
                 CurrentAlias = email.Folder.Alias,
                 email.RemoteKeywords,
+                IsSettled = email.SettledAt != null,
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -55,7 +56,8 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 MailAccountId.Create(row.MailboxAccountId),
                 MailFolderAlias.Create(row.Alias),
                 CurrentFolderAliasOf(row.CurrentAlias),
-                RemoteEmailKeywords.Create(row.RemoteKeywords));
+                RemoteEmailKeywords.Create(row.RemoteKeywords),
+                row.IsSettled);
     }
 
     /// <inheritdoc />
@@ -136,6 +138,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 email.MailFolderBinding.Alias,
                 CurrentAlias = email.Folder.Alias,
                 email.RemoteKeywords,
+                IsSettled = email.SettledAt != null,
             })
             .ToArrayAsync(cancellationToken);
 
@@ -146,7 +149,8 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 account,
                 MailFolderAlias.Create(row.Alias),
                 CurrentFolderAliasOf(row.CurrentAlias),
-                RemoteEmailKeywords.Create(row.RemoteKeywords))),
+                RemoteEmailKeywords.Create(row.RemoteKeywords),
+                row.IsSettled)),
         ];
     }
 

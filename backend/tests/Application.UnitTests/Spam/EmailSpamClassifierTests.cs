@@ -9,6 +9,7 @@ using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Signals;
@@ -231,6 +232,70 @@ public sealed class EmailSpamClassifierTests
         Assert.Empty(this.gateTelemetry.DiscardedPassageCounts);
     }
 
+    /// <summary>A settled message is one a client may already draw, so a verdict that moved on it is said; one still settling is drawn first when it settles.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ClassifyAsync_AFirstVerdict_SignalsTheMessageOnlyWhereItHasSettled(bool settled)
+    {
+        // Arrange
+        var email = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, settled);
+
+        // Act
+        var published = await this.SignalledWhenClassifyingAsync(email, SpamClassificationMode.FirstTimeOnly);
+
+        // Assert
+        Assert.Equal(settled, published.Count == 1);
+        Assert.All(published, signal =>
+        {
+            Assert.Equal(ClientSignalKind.MailChanged, signal.Kind);
+            Assert.Equal(Account, signal.Account);
+            Assert.Equal([Occurrence], signal.Emails);
+        });
+    }
+
+    /// <summary>A message released past its placement wait while its verdict was being reached was drawn without one, so the verdict is said.</summary>
+    [Fact]
+    public async Task ClassifyAsync_AMessageThatSettledWhileItWasClassified_SignalsTheVerdict()
+    {
+        // Arrange
+        var settling = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: false);
+
+        // Act
+        var published = await this.SignalledWhenClassifyingAsync(
+            settling,
+            SpamClassificationMode.FirstTimeOnly,
+            readAgain: settling with { IsSettled = true });
+
+        // Assert
+        Assert.Equal([Occurrence], Assert.Single(published).Emails);
+    }
+
+    /// <summary>A rescoring is said where it changed what a client would draw, and only there.</summary>
+    [Theory]
+    [InlineData(SpamVerdict.NotSpam, null, true)]
+    [InlineData(SpamVerdict.Spam, SpamSubcategory.Marketing, true)]
+    [InlineData(SpamVerdict.Spam, null, false)]
+    public async Task ClassifyAsync_ARescoringOfASettledMessage_SignalsOnlyAVerdictThatMoved(
+        SpamVerdict recordedBefore,
+        SpamSubcategory? subcategoryBefore,
+        bool signalled)
+    {
+        // Arrange
+        this.store.Hold(Recorded(recordedBefore, subcategoryBefore));
+        var email = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true);
+
+        // Act
+        var published = await this.SignalledWhenClassifyingAsync(email, SpamClassificationMode.Reclassify);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamVerdict.Spam, saved.Verdict);
+        Assert.Null(saved.Subcategory);
+        Assert.Equal(signalled, published.Count == 1);
+    }
+
     /// <summary>An arrival trigger fires per message, so a repeat has to leave an existing record alone.</summary>
     [Fact]
     public async Task ClassifyAsync_AnOccurrenceAlreadyClassified_LeavesTheRecordAlone()
@@ -397,7 +462,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -428,7 +493,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Inbox),
             FactsSaying("X-Spam-Flag", "NO"),
-            email: new ClassifiableEmail(Occurrence, Account, Inbox, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Inbox, Junk, RemoteEmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -454,7 +519,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Inbox, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Inbox, RemoteEmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -489,7 +554,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -517,7 +582,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Inbox),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.Create(["$Junk"])));
+            email: new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.Create(["$Junk"]), IsSettled: true));
 
         // Act
         await classifier.ClassifyAsync(
@@ -543,7 +608,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -589,7 +654,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SpamClassificationSettings.Create(true, [Junk], SpamModelStageSettings.Consulted(true, 0.5)),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)),
             modelStage: SpamModelStages.Over(judge));
 
@@ -626,7 +691,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             FactsSaying("X-Spam-Flag", "NO"),
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -673,13 +738,13 @@ public sealed class EmailSpamClassifierTests
         var inTheArchive = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Archive, Inbox, Inbox, RemoteEmailKeywords.None),
+            new ClassifiableEmail(Occurrence, Archive, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true),
             classifying: Account);
 
         var inTheClassifiedMailbox = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None),
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true),
             classifying: Account);
 
         // Act
@@ -712,14 +777,23 @@ public sealed class EmailSpamClassifierTests
         return new StoredEmailContent(rawMime, rawMime.Length, SHA256.HashData(rawMime));
     }
 
-    private static SpamClassification Recorded(SpamVerdict verdict) => SpamClassification.Create(
-        Occurrence,
-        verdict,
-        SpamClassificationStage.Deterministic,
-        assessment: null,
-        SpamClassificationProfile.Create(),
-        [],
-        EvaluatedAt.AddDays(-1));
+    /// <summary>A record made a day earlier; one naming a subcategory carries the model judgement only that could name it.</summary>
+    private static SpamClassification Recorded(SpamVerdict verdict, SpamSubcategory? subcategory = null) =>
+        SpamClassification.Create(
+            Occurrence,
+            verdict,
+            SpamClassificationStage.Deterministic,
+            assessment: null,
+            SpamClassificationProfile.Create(),
+            subcategory is null
+                ? []
+                : [SpamSignal.Create(
+                    SpamSignalKind.ModelJudgement,
+                    "spam_kind",
+                    "marketing",
+                    SpamSignalProvenance.FromModel("example-provider/spam-model", "0123456789ab"))],
+            EvaluatedAt.AddDays(-1),
+            subcategory);
 
     /// <summary>Builds the classifier over one mailbox's settings, every other mailbox classifying nothing.</summary>
     /// <param name="settings">What the classified mailbox asked for.</param>
@@ -730,6 +804,8 @@ public sealed class EmailSpamClassifierTests
     /// <param name="withContent">Whether the content store holds its mail.</param>
     /// <param name="classifying">Whose mailbox <paramref name="settings" /> belong to, defaulting to the one the message is in.</param>
     /// <param name="modelStage">The model stage the classification is composed through, defaulting to one nobody expects to ask.</param>
+    /// <param name="signals">Where a changed verdict is said, defaulting to a publisher that reaches nobody.</param>
+    /// <param name="readAgain">What a second read of the message answers, defaulting to what the first one did.</param>
     /// <returns>The classifier under test.</returns>
     /// <remarks>
     /// The settings are answered for one account rather than for whichever one is asked about, because that is what the
@@ -744,12 +820,15 @@ public sealed class EmailSpamClassifierTests
         bool withEmail = true,
         bool withContent = true,
         MailAccountId? classifying = null,
-        SpamModelStage? modelStage = null)
+        SpamModelStage? modelStage = null,
+        ClientSignals? signals = null,
+        ClassifiableEmail? readAgain = null)
     {
+        var found = withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true) : null;
         var emailReader = Substitute.For<IClassifiableEmailReader>();
         emailReader
             .FindAsync(Arg.Any<MailAccountId>(), Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
-            .Returns(withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None) : null);
+            .Returns(found, readAgain ?? found);
 
         this.contentStore
             .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
@@ -785,7 +864,31 @@ public sealed class EmailSpamClassifierTests
                 sessionFactory,
                 new PersistenceConcurrencyOptions(),
                 timeProvider),
+            signals ?? ClientSignalPublishers.ReachingNobody,
             timeProvider);
+    }
+
+    /// <summary>Classifies the occurrence over a recording channel and hands back what reached it once the folding window has passed.</summary>
+    private async Task<IReadOnlyList<ClientSignal>> SignalledWhenClassifyingAsync(
+        ClassifiableEmail email,
+        SpamClassificationMode mode,
+        ClassifiableEmail? readAgain = null)
+    {
+        var clock = new FakeTimeProvider(EvaluatedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var classifier = this.Classifier(
+            SettingsCovering(Inbox),
+            FactsSaying("X-Spam-Flag", "YES"),
+            email,
+            signals: signals,
+            readAgain: readAgain);
+
+        await classifier.ClassifyAsync(Account, Occurrence, mode, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        return channel.Published;
     }
 
     private sealed class CommittingSession : IPersistenceSession

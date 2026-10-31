@@ -146,6 +146,7 @@ internal sealed class SpamClassificationHarness
             Substitute.For<IStoredEmailAttachmentTextStore>(),
             new RecordingDerivedWorkGateTelemetry(),
             commitPolicy,
+            ClientSignalPublishers.ReachingNobody,
             this.Clock);
     }
 

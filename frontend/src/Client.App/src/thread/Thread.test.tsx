@@ -15,6 +15,12 @@ import {
     type ReadMarking,
 } from '../readMarking/useReadMarking';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
+import {
+    SignalledChangesContext,
+    type SignalListener,
+    type SignalledChange,
+    type SignalledChanges,
+} from '../signals/signalledChanges';
 import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import type { OpenConversation } from '../workspace/openConversation';
@@ -219,6 +225,16 @@ function pageOf(
 /** What the deployment says about a message nobody has read yet. */
 const unread = { unread: true };
 
+/** A verdict the model reached on a message, naming it a scam. */
+const scam = {
+    verdict: 'Spam',
+    decidedBy: 'Model',
+    spamSubcategory: 'Scam',
+    spamSubcategoryNamedBy: 'Model',
+    phishingRequest: null,
+    impersonatedParty: null,
+};
+
 /** One message's whole text served on its own, which is a route nothing under a conversation reaches any more. */
 function bodyAsWords(path: string): string {
     return JSON.stringify(saying(path.split('/messages/')[1]?.split('/')[0] ?? ''));
@@ -395,15 +411,6 @@ describe('Thread', () => {
     });
 
     // A conversation standing on spam is read-only: nothing derives where it stands, and nothing hands it to the agent.
-    const scam = {
-        verdict: 'Spam',
-        decidedBy: 'Model',
-        spamSubcategory: 'Scam',
-        spamSubcategoryNamedBy: 'Model',
-        phishingRequest: null,
-        impersonatedParty: null,
-    };
-
     it('draws neither where it stands nor the AI button under a conversation opened on a spam message', async () => {
         drawing(
             deploymentAnswering(pageOf(['one'], {}, { one: { spam: scam } })),
@@ -1127,3 +1134,295 @@ describe('Thread arriving', () => {
         });
     });
 });
+
+/** A deployment whose signals a test speaks, to every screen listening for them. */
+function deploymentSaying(): { changes: SignalledChanges; say: (signal: SignalledChange) => void } {
+    const listeners = new Set<SignalListener>();
+
+    return {
+        changes: {
+            refresh: () => undefined,
+            listen: (listener) => {
+                listeners.add(listener);
+
+                return () => {
+                    listeners.delete(listener);
+                };
+            },
+        },
+        say: (signal) => {
+            for (const listener of [...listeners]) {
+                listener(signal);
+            }
+        },
+    };
+}
+
+/** A deployment that has derived nothing about the conversation until a test says it has. */
+function deploymentDerivingLater(): { transport: MailFathomTransport; derive: () => void } {
+    let derived = false;
+
+    return {
+        derive: () => {
+            derived = true;
+        },
+        transport: (request) => {
+            asked.push(request);
+
+            if (request.path.endsWith('/state')) {
+                return Promise.resolve(
+                    derived
+                        ? {
+                              status: 200,
+                              body: JSON.stringify({
+                                  threadId,
+                                  coverage: 'WholeThread',
+                                  derivedAt: '2026-09-08T09:00:00+00:00',
+                                  current: true,
+                                  entries: [
+                                      {
+                                          aspect: 'Agreement',
+                                          text: 'The response time stays at two hours.',
+                                          owedBy: null,
+                                          dueAt: null,
+                                          sources: [{ kind: 'email', email: 'one' }],
+                                      },
+                                  ],
+                              }),
+                              headers: {},
+                          }
+                        : { status: 404, body: '', headers: {} },
+                );
+            }
+
+            return Promise.resolve({ status: 200, body: pageOf(['one', 'two']), headers: {} });
+        },
+    };
+}
+
+/** How many times the conversation's pages, rather than its state, were asked for. */
+function pagesAsked(): number {
+    return asked.filter((request) => !request.path.endsWith('/state') && !request.path.includes('/body')).length;
+}
+
+function statesAsked(): number {
+    return asked.filter((request) => request.path.endsWith('/state')).length;
+}
+
+function drawingSaid(transport: MailFathomTransport, changes: SignalledChanges) {
+    return render(
+        <SignalledChangesContext value={changes}>
+            {inTheFrame(transport, { threadId, openAt: null }, true)}
+        </SignalledChangesContext>,
+    );
+}
+
+// Where a conversation stands is derived behind an account run, after the arrival that made a client read it, so an
+// open conversation reads it again when the deployment names one of its messages rather than when it is reopened.
+describe('Thread against a deployment that says what changed', () => {
+    it('draws where the conversation stands once the deployment says a message of it changed', async () => {
+        // Arrange
+        theColumnStandsBesideTheList();
+        const signalling = deploymentSaying();
+        const deployment = deploymentDerivingLater();
+        drawingSaid(deployment.transport, signalling.changes);
+        await screen.findByText('The whole of what two says.');
+        await waitFor(() => {
+            expect(statesAsked()).toBe(1);
+        });
+
+        // Act
+        deployment.derive();
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['one'] });
+        });
+
+        // Assert
+        expect(await screen.findByText('The response time stays at two hours.')).toBeDefined();
+        await waitFor(() => {
+            expect(pagesAsked()).toBe(2);
+        });
+    });
+
+    it('reads its pages and where it stands again on a refresh', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        drawingSaid(deploymentAnswering(pageOf(['one', 'two'])), signalling.changes);
+        await screen.findByText('The whole of what two says.');
+        await waitFor(() => {
+            expect(statesAsked()).toBe(1);
+        });
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'refresh' });
+        });
+
+        // Assert
+        await waitFor(() => {
+            expect(pagesAsked()).toBe(2);
+            expect(statesAsked()).toBe(2);
+        });
+    });
+
+    it('reads nothing again when the deployment says another conversation changed', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        drawingSaid(deploymentAnswering(pageOf(['one', 'two'])), signalling.changes);
+        await screen.findByText('The whole of what two says.');
+        await waitFor(() => {
+            expect(statesAsked()).toBe(1);
+        });
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['elsewhere'] });
+        });
+
+        // Assert
+        await act(() => Promise.resolve());
+        expect(pagesAsked()).toBe(1);
+        expect(statesAsked()).toBe(1);
+    });
+
+    it('keeps the conversation on the screen while it is read again', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        const answering = deploymentAnswering(pageOf(['one', 'two']));
+        const pagesAnsweredOnce: MailFathomTransport = (request) =>
+            request.path.endsWith('/state') || pagesAsked() === 0 ? answering(request) : answersNothing(request);
+        drawingSaid(pagesAnsweredOnce, signalling.changes);
+        await screen.findByText('The whole of what two says.');
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['two'] });
+        });
+
+        // Assert
+        await act(() => Promise.resolve());
+        expect(screen.getByText('The whole of what two says.')).toBeDefined();
+    });
+
+    it('keeps what it drew when reading it again fails', async () => {
+        // Arrange
+        theColumnStandsBesideTheList();
+        const signalling = deploymentSaying();
+        const deployment = deploymentDerivingLater();
+        deployment.derive();
+        let failing = false;
+        const failingOnceDrawn: MailFathomTransport = (request) => {
+            if (!failing) {
+                return deployment.transport(request);
+            }
+
+            asked.push(request);
+
+            return Promise.resolve({ status: 503, body: '', headers: {} });
+        };
+        drawingSaid(failingOnceDrawn, signalling.changes);
+        await screen.findByText('The response time stays at two hours.');
+        await screen.findByText('The whole of what two says.');
+
+        // Act
+        failing = true;
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['one'] });
+        });
+        await waitFor(() => {
+            expect(pagesAsked()).toBe(2);
+            expect(statesAsked()).toBe(2);
+        });
+        await act(() => Promise.resolve());
+
+        // Assert
+        expect(screen.getByText('The response time stays at two hours.')).toBeDefined();
+        expect(screen.getByText('The whole of what two says.')).toBeDefined();
+    });
+
+    it('draws what reading it again answered, ending where the conversation now ends', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        const conversation = conversationReadAgainAs(pageOf(['one', 'two'], {}, { two: { spam: scam } }));
+        drawingSaid(conversation.transport, signalling.changes);
+        fireEvent.click(await screen.findByRole('button', { name: 'Read more of this conversation' }));
+        await screen.findByText('The whole of what four says.');
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['two'] });
+        });
+        conversation.answer();
+
+        // Assert
+        expect(await screen.findByText(/^Scam\. This message is spam/u)).toBeDefined();
+        expect(screen.queryByText('The whole of what four says.')).toBeNull();
+    });
+
+    it('keeps a page the reader asked for while the conversation was being read again', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        const conversation = conversationReadAgainAs(
+            pageOf(['one', 'two'], { nextCursor: 'onwards', messageCount: 4 }, { two: { spam: scam } }),
+        );
+        drawingSaid(conversation.transport, signalling.changes);
+        await screen.findByText('The whole of what two says.');
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['two'] });
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Read more of this conversation' }));
+        await screen.findByText('The whole of what four says.');
+
+        // Act
+        conversation.answer();
+
+        // Assert
+        expect(await screen.findByText(/^Scam\. This message is spam/u)).toBeDefined();
+        expect(screen.getByText('The whole of what four says.')).toBeDefined();
+    });
+});
+
+/**
+ * A conversation of two pages whose first page, read a second time, answers only when a test says so and with what it
+ * named — which is what lets a test reach for the next page, or change what the reading says, while it is on the wire.
+ */
+function conversationReadAgainAs(again: string): { transport: MailFathomTransport; answer: () => void } {
+    let firstPagesAsked = 0;
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => {
+        answer = resolve;
+    });
+
+    return {
+        answer: () => {
+            act(() => {
+                answer();
+            });
+        },
+        transport: (request) => {
+            asked.push(request);
+
+            if (request.path.endsWith('/state')) {
+                return Promise.resolve({ status: 404, body: '', headers: {} });
+            }
+
+            if (request.path.includes('cursor=onwards')) {
+                return Promise.resolve({
+                    status: 200,
+                    body: pageOf(['three', 'four'], { messageCount: 4 }),
+                    headers: {},
+                });
+            }
+
+            firstPagesAsked += 1;
+
+            return firstPagesAsked === 1
+                ? Promise.resolve({
+                      status: 200,
+                      body: pageOf(['one', 'two'], { nextCursor: 'onwards', messageCount: 4 }),
+                      headers: {},
+                  })
+                : answered.then(() => ({ status: 200, body: again, headers: {} }));
+        },
+    };
+}

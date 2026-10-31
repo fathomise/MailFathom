@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.TestSupport;
@@ -123,6 +124,46 @@ public sealed class ThreadStateDerivationPassTests
             Arg.Is<EmailThreadState>(state =>
                 state!.Coverage == ThreadStateCoverage.ThreadTooLarge && state.Entries.Count == 0),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>An open client knows a conversation by the messages it holds, so each committed state names the messages it was derived from.</summary>
+    [Fact]
+    public async Task RunAsync_ConversationsAwaitingAState_SignalsTheMessagesOfEachCommittedOne()
+    {
+        // Arrange
+        var first = Derivable();
+        var second = Derivable();
+        var store = StoreReturning([first, second]);
+
+        // Act
+        var published = await SignalledByAsync(store, DeriverAnswering(_ => ThreadStateDerivation.Settled([])));
+
+        // Assert
+        var signal = Assert.Single(published);
+        Assert.Equal(ClientSignalKind.MailChanged, signal.Kind);
+        Assert.Equal(Account, signal.Account);
+        Assert.Equal(
+            [.. new[] { first, second }.SelectMany(static thread => thread.Messages).Select(static message => message.StoredEmailId)],
+            signal.Emails);
+    }
+
+    /// <summary>A withheld derivation committed nothing, and a conversation past the bound was shown no message to name.</summary>
+    [Fact]
+    public async Task RunAsync_NothingCommittedOrNothingToName_SignalsNothing()
+    {
+        // Arrange
+        var withheld = StoreReturning([Derivable()]);
+        var tooLarge = StoreReturning([Derivable() with { Messages = [], ExceedsBound = true }]);
+
+        // Act
+        var afterWithholding = await SignalledByAsync(
+            withheld,
+            DeriverAnswering(_ => ThreadStateDerivation.Withholding(ThreadStateWithholding.ProviderUnavailable)));
+        var afterTooLarge = await SignalledByAsync(tooLarge, DeriverAnswering(_ => ThreadStateDerivation.TooLarge()));
+
+        // Assert
+        Assert.Empty(afterWithholding);
+        Assert.Empty(afterTooLarge);
     }
 
     /// <summary>
@@ -359,7 +400,8 @@ public sealed class ThreadStateDerivationPassTests
     private static ThreadStateDerivationPass CreatePass(
         IStoredThreadStateStore store,
         IThreadStateDeriver deriver,
-        MailAccountLanguage language = MailAccountLanguage.English)
+        MailAccountLanguage language = MailAccountLanguage.English,
+        ClientSignals? signals = null)
     {
         var timeProvider = new FakeTimeProvider(DerivedAt);
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
@@ -376,6 +418,23 @@ public sealed class ThreadStateDerivationPassTests
                 sessionFactory,
                 new PersistenceConcurrencyOptions(),
                 timeProvider),
+            signals ?? ClientSignalPublishers.ReachingNobody,
             timeProvider);
+    }
+
+    /// <summary>Publishes through a recording channel and hands back what reached it once the folding window has passed.</summary>
+    private static async Task<IReadOnlyList<ClientSignal>> SignalledByAsync(
+        IStoredThreadStateStore store,
+        IThreadStateDeriver deriver)
+    {
+        var clock = new FakeTimeProvider(DerivedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+
+        await CreatePass(store, deriver, signals: signals).RunAsync(Account, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        return channel.Published;
     }
 }

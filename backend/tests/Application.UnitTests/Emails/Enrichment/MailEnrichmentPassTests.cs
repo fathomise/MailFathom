@@ -8,6 +8,7 @@ using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -141,6 +142,145 @@ public sealed class MailEnrichmentPassTests
             Arg.Any<IPersistenceSession>(),
             Arg.Is<EmailEnrichment>(enrichment => enrichment!.StoredEmailId == first.StoredEmailId),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>An open client drew the messages before their marks existed, so it is told once which of them now carry one.</summary>
+    [Fact]
+    public async Task RunAsync_MailAwaitingADerivation_SignalsEveryCommittedMessageOnce()
+    {
+        // Arrange
+        var first = Enrichable();
+        var second = Enrichable();
+        var clock = new FakeTimeProvider(DerivedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var pass = CreatePass(
+            StoreReturning([first, second]),
+            EnricherAnswering(_ => EmailEnrichmentDerivation.Settled([Sense()])),
+            signals: signals);
+
+        // Act
+        await pass.RunAsync(Account, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        var signal = Assert.Single(channel.Published);
+        Assert.Equal(ClientSignalKind.MailChanged, signal.Kind);
+        Assert.Equal(Account, signal.Account);
+        Assert.Null(signal.Folder);
+        Assert.Equal([first.StoredEmailId, second.StoredEmailId], signal.Emails);
+    }
+
+    /// <summary>A pass a withholding stopped still says what it committed before it stopped, and nothing it did not.</summary>
+    [Fact]
+    public async Task RunAsync_ThePassStoppingHalfWayThrough_SignalsOnlyWhatItCommitted()
+    {
+        // Arrange
+        var first = Enrichable();
+        var second = Enrichable();
+        var clock = new FakeTimeProvider(DerivedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var pass = CreatePass(
+            StoreReturning([first, second]),
+            EnricherAnswering(email => email.StoredEmailId == first.StoredEmailId
+                ? EmailEnrichmentDerivation.Settled([])
+                : EmailEnrichmentDerivation.Withholding(EmailEnrichmentWithholding.ProviderUnavailable)),
+            signals: signals);
+
+        // Act
+        await pass.RunAsync(Account, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal([first.StoredEmailId], Assert.Single(channel.Published).Emails);
+    }
+
+    /// <summary>A pass that fails part-way through still says what it committed before the failure, which travels on unchanged.</summary>
+    [Fact]
+    public async Task RunAsync_ThePassFailingHalfWayThrough_SignalsWhatItCommittedAndRethrows()
+    {
+        // Arrange
+        var first = Enrichable();
+        var second = Enrichable();
+        var clock = new FakeTimeProvider(DerivedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var pass = CreatePass(
+            StoreReturning([first, second]),
+            EnricherAnswering(email => email.StoredEmailId == first.StoredEmailId
+                ? EmailEnrichmentDerivation.Settled([])
+                : throw new InvalidOperationException("The derivation failed.")),
+            signals: signals);
+
+        // Act
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => pass.RunAsync(Account, TestContext.Current.CancellationToken));
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal([first.StoredEmailId], Assert.Single(channel.Published).Emails);
+    }
+
+    /// <summary>A message whose record committed is said even where announcing the dates it proposed fails afterwards.</summary>
+    [Fact]
+    public async Task RunAsync_AnnouncingProposalsFailingAfterTheCommit_StillSignalsTheCommittedMessage()
+    {
+        // Arrange
+        var email = Enrichable();
+        var clock = new FakeTimeProvider(DerivedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var assignments = Substitute.For<IMailAccountAssignments>();
+        assignments
+            .ReadUsersAssignedToAsync(Account, Arg.Any<CancellationToken>())
+            .Returns(
+                _ => Task.FromResult<IReadOnlyList<UserId>>([Owner]),
+                _ => throw new InvalidOperationException("The assignments could not be read."));
+        var pass = CreatePass(
+            StoreReturning([email]),
+            EnricherAnswering(_ => EmailEnrichmentDerivation.Settled([Sense()])),
+            proposals: ProposalsOver(
+                ExtractorAnswering(CalendarEventExtraction.Settled([Proposed()])),
+                Substitute.For<ICalendarEventStore>(),
+                assignments),
+            signals: signals);
+
+        // Act
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => pass.RunAsync(Account, TestContext.Current.CancellationToken));
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal([email.StoredEmailId], Assert.Single(channel.Published).Emails);
+    }
+
+    /// <summary>A pass that committed nothing — none awaiting, or the first derivation withheld — has nothing to tell anybody.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsync_APassThatCommittedNothing_SignalsNothing(bool mailAwaits)
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(DerivedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var pass = CreatePass(
+            StoreReturning(mailAwaits ? [Enrichable()] : []),
+            EnricherAnswering(_ => EmailEnrichmentDerivation.Withholding(EmailEnrichmentWithholding.AllowanceExhausted)),
+            signals: signals);
+
+        // Act
+        await pass.RunAsync(Account, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Empty(channel.Published);
     }
 
     [Fact]
@@ -507,7 +647,8 @@ public sealed class MailEnrichmentPassTests
         IEmailEnricher enricher,
         MailAccountLanguage language = MailAccountLanguage.English,
         MailCalendarProposals? proposals = null,
-        IPersonalTaskStore? taskStore = null)
+        IPersonalTaskStore? taskStore = null,
+        ClientSignals? signals = null)
     {
         var timeProvider = new FakeTimeProvider(DerivedAt);
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
@@ -530,6 +671,7 @@ public sealed class MailEnrichmentPassTests
                 sessionFactory,
                 new PersistenceConcurrencyOptions(),
                 timeProvider),
+            signals ?? ClientSignalPublishers.ReachingNobody,
             timeProvider);
     }
 
@@ -540,10 +682,14 @@ public sealed class MailEnrichmentPassTests
     /// </remarks>
     private static MailCalendarProposals ProposalsOver(
         ICalendarEventExtractor extractor,
-        ICalendarEventStore events)
+        ICalendarEventStore events,
+        IMailAccountAssignments? assignments = null)
     {
-        var assignments = Substitute.For<IMailAccountAssignments>();
-        assignments.ReadUsersAssignedToAsync(Account, Arg.Any<CancellationToken>()).Returns([Owner]);
+        if (assignments is null)
+        {
+            assignments = Substitute.For<IMailAccountAssignments>();
+            assignments.ReadUsersAssignedToAsync(Account, Arg.Any<CancellationToken>()).Returns([Owner]);
+        }
 
         return new MailCalendarProposals(extractor, events, assignments, new FakeTimeProvider(DerivedAt), ClientSignalPublishers.ReachingNobody);
     }

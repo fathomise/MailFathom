@@ -8,6 +8,7 @@ using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Signals;
@@ -43,6 +44,13 @@ namespace MailFathom.Application.Spam;
 /// an on-demand run over an existing mailbox produces and the arrival path never does.
 /// </para>
 /// <para>
+/// <b>An open client is told when a verdict it may already have drawn changes</b>: the verdict or its subcategory moved
+/// on a message that has settled, which is a verdict landing after the message was released past its placement wait or
+/// a rescoring that asked nothing of the mailbox. Whether it has settled is asked once the verdict commits rather than
+/// taken from the read before the evaluation, which a model call can outlast. A message still settling then is not
+/// said, because no read serves it yet and the arrival signal that settles it carries the verdict with it.
+/// </para>
+/// <para>
 /// Nothing it reads is loggable. The occurrence identifier, the folder alias, the outcome, and the verdict are safe to
 /// report; a header value, an authentication detail, and a subject are not, and none of the three reaches a log line
 /// from here.
@@ -64,6 +72,7 @@ public sealed class EmailSpamClassifier
     private readonly IStoredEmailAttachmentTextStore attachmentTextStore;
     private readonly IDerivedWorkGateTelemetry gateTelemetry;
     private readonly OptimisticConcurrencyRetryPolicy retryPolicy;
+    private readonly ClientSignals signals;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the use case.</summary>
@@ -81,6 +90,7 @@ public sealed class EmailSpamClassifier
     /// <param name="attachmentTextStore">Removes the attachment readings of a message the verdict calls junk.</param>
     /// <param name="gateTelemetry">Counts what a junk verdict had to remove, without describing any of it.</param>
     /// <param name="retryPolicy">Commits the record from a fresh read when a concurrent write conflicts.</param>
+    /// <param name="signals">Tells an open client that a settled message's verdict changed.</param>
     /// <param name="timeProvider">Stamps the evaluation time.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public EmailSpamClassifier(
@@ -98,6 +108,7 @@ public sealed class EmailSpamClassifier
         IStoredEmailAttachmentTextStore attachmentTextStore,
         IDerivedWorkGateTelemetry gateTelemetry,
         OptimisticConcurrencyRetryPolicy retryPolicy,
+        ClientSignals signals,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(emailReader);
@@ -114,6 +125,7 @@ public sealed class EmailSpamClassifier
         ArgumentNullException.ThrowIfNull(attachmentTextStore);
         ArgumentNullException.ThrowIfNull(gateTelemetry);
         ArgumentNullException.ThrowIfNull(retryPolicy);
+        ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.emailReader = emailReader;
@@ -130,6 +142,7 @@ public sealed class EmailSpamClassifier
         this.attachmentTextStore = attachmentTextStore;
         this.gateTelemetry = gateTelemetry;
         this.retryPolicy = retryPolicy;
+        this.signals = signals;
         this.timeProvider = timeProvider;
     }
 
@@ -253,8 +266,30 @@ public sealed class EmailSpamClassifier
             this.gateTelemetry.RecordDiscardedPassages(discardedPassageCount);
         }
 
+        if (VerdictMoved(existing, classification) && await this.HasSettledAsync(account, email, cancellationToken))
+        {
+            this.signals.Publish(ClientSignal.MailChanged(account, folder: null, [emailId]));
+        }
+
         return SpamClassificationResult.Classified(classification);
     }
+
+    /// <summary>Answers whether a client may already draw the message now that its verdict is committed.</summary>
+    /// <remarks>
+    /// A message still settling when it was read is read again: the model call can outlast the placement wait, so a
+    /// message released while it ran was drawn with no verdict, and the snapshot taken before it would say nothing.
+    /// One settling after this read is settled by an arrival that already carries the committed verdict.
+    /// </remarks>
+    private async Task<bool> HasSettledAsync(
+        MailAccountId account,
+        ClassifiableEmail email,
+        CancellationToken cancellationToken) =>
+        email.IsSettled
+        || await this.emailReader.FindAsync(account, email.Id, cancellationToken) is { IsSettled: true };
+
+    /// <summary>Answers whether a client reading the message would now be shown a different verdict than before.</summary>
+    private static bool VerdictMoved(SpamClassification? before, SpamClassification after) =>
+        before is null || before.Verdict != after.Verdict || before.Subcategory != after.Subcategory;
 
     /// <summary>Reads what this deployment's verdicts already did to the message, so none of it is taken as evidence.</summary>
     /// <remarks>

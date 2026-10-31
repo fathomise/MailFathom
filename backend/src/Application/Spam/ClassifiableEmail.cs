@@ -17,6 +17,10 @@ namespace MailFathom.Application.Spam;
 /// mapped. It differs from <paramref name="FolderAlias" /> where a held or restoring account moved the message locally.
 /// </param>
 /// <param name="Keywords">The keywords the message carries in its mailbox, which is where a junk marking made in any client is read from.</param>
+/// <param name="IsSettled">
+/// Whether the message has settled and is therefore served to every read. A verdict changing on such a message is one a
+/// client may already have drawn, while one reached before settlement is drawn for the first time when it settles.
+/// </param>
 /// <remarks>
 /// The account, the folders, and the keywords are here because the decisions resting on them are not in the content:
 /// whether the configured scope covers the folder the message was stored from, whether the folder it is in now is the
@@ -28,4 +32,5 @@ public sealed record ClassifiableEmail(
     MailAccountId AccountId,
     MailFolderAlias FolderAlias,
     MailFolderAlias? CurrentFolderAlias,
-    RemoteEmailKeywords Keywords);
+    RemoteEmailKeywords Keywords,
+    bool IsSettled);

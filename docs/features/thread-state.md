@@ -199,6 +199,11 @@ which.
 the conversation it sits above may already be on the screen — so the block draws the offline sentence rather than
 looking like a read still in flight. It reads once the network comes back.
 
+**An open conversation is told when its state lands.** The pass derives it behind the arrival that made the client read
+the conversation, so each committed state is announced as `mail.changed` naming the messages it was shown, and a
+conversation on the screen holding any of them reads its pages and its state again without blanking what it draws —
+[the signal channel](../operations/client-endpoint.md#the-signal-channel) states what that covers.
+
 ## What is not here
 
 - **Acting on a commitment.** Nothing reminds, schedules, files, or replies. A commitment is a reading of the
