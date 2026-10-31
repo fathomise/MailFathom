@@ -3875,12 +3875,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           convStanding: standing,
           convStandingShown: !!standing,
           convStandingStale: standingStale,
-          convStandingStyle: "font-size:13px;line-height:1.35;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
-          convStaleStyle: "display:flex;align-items:center;gap:5px;font-size:13px;line-height:1.35;color:var(--faint);overflow:hidden;white-space:nowrap",
+          convStandingStyle: "padding-left:21px;font-size:13px;line-height:1.35;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+          convStaleStyle: "padding-left:21px;display:flex;align-items:center;gap:5px;font-size:13px;line-height:1.35;color:var(--faint);overflow:hidden;white-space:nowrap",
           convWho: who,
           convWhoShown: !!who,
           convSnippet: this.mdPlain((pick.paras || []).map(p => p.md || p.text || "").join(" ")).slice(0, 260),
-          convSnippetStyle: "font-size:13px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:" +
+          convSnippetStyle: "margin-top:2px;padding-left:8px;border-left:2px solid var(--border2);font-size:13px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:" +
             (standing || standingStale ? 1 : 2) + ";-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere",
         };
       };
