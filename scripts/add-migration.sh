@@ -18,13 +18,9 @@ set -euo pipefail
 #
 # Nothing here starts the orchestration, and nothing here touches a database. Generating a migration compares the EF
 # Core model against the committed model snapshot and writes files, which is a question about the checkout and has the
-# same answer whether or not PostgreSQL is running. Applying the result is a separate, deliberate step against the
-# orchestrated database, because that is the step whose outcome depends on what the database already holds:
-#
-#     aspire resource mailfathom-migrations ef-database-update --apphost backend/src/AppHost/AppHost.csproj --non-interactive
-#
-# That separation is the point rather than an optimization. A migration that generates cleanly and fails to apply is
-# the case worth seeing, and folding the two together hides which of them a failure came from.
+# same answer whether or not PostgreSQL is running. Applying the result is the pull request's: the `Apply migrations`
+# job applies the schema artifact to a real database, empty and over the newest release's schema, so a migration that
+# generates cleanly and fails to apply is seen there, apart from this step.
 #
 # The script is deliberately not a substitute for reading the result. It stops after generating the migration and
 # leaves the review to a human; nothing here decides that a migration is correct.
@@ -126,7 +122,5 @@ dotnet ef migrations add "$migration_name" \
 report 'Writing the copyright and license header into the generated files.'
 dotnet format backend/MailFathom.slnx --no-restore --include "$migrations_directory"/*.cs
 
-report 'Generated. Review it as SQL, then apply it to the orchestrated database:'
-printf '\n    scripts/script-migration.sh %s\n' "$migration_this_one_follows"
-printf '    aspire resource mailfathom-migrations ef-database-update --apphost backend/src/AppHost/AppHost.csproj --non-interactive\n'
-printf '    scripts/dump-local-schema.sh\n\n'
+report 'Generated. Review it as SQL; the pull request applies it:'
+printf '\n    scripts/script-migration.sh %s\n\n' "$migration_this_one_follows"

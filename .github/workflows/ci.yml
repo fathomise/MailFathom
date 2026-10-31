@@ -99,6 +99,7 @@ jobs:
       build: ${{ github.event_name != 'pull_request' || steps.filter.outputs.build == 'true' }}
       format: ${{ github.event_name != 'pull_request' || steps.filter.outputs.format == 'true' }}
       model: ${{ github.event_name != 'pull_request' || steps.filter.outputs.model == 'true' }}
+      migrations: ${{ github.event_name != 'pull_request' || steps.filter.outputs.migrations == 'true' }}
       frontend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.frontend == 'true' }}
       helm: ${{ github.event_name != 'pull_request' || steps.filter.outputs.helm == 'true' }}
       reuse: ${{ steps.earned.outputs.reuse == 'true' }}
@@ -229,8 +230,20 @@ jobs:
               - '.github/workflows/build-test-format-and-migrations.yml'
               - '.github/workflows/ci.yml'
               - 'backend/Directory.Packages.props'
+            # What decides the SQL a migration becomes and the database it is applied to: the migrations themselves,
+            # the app model that declares how the artifact is generated and which PostgreSQL image it runs on, the
+            # script that generates it, and the pins of the EF Core and Aspire tooling that write it. A model change
+            # with no migration is the job above's to catch; this one applies the migration that change brought.
+            migrations:
+              - 'backend/src/Infrastructure/Persistence/Migrations/**'
+              - 'backend/src/AppHost/**'
+              - 'scripts/build-schema-artifact.sh'
+              - '.config/dotnet-tools.json'
+              - '.github/workflows/build-test-format-and-migrations.yml'
+              - '.github/workflows/ci.yml'
+              - 'backend/Directory.Packages.props'
             # The client stack, which shares no solution, no build contract, and no package pins with the server —
-            # so this filter names nothing under `backend/` and the three above name nothing under `frontend/`, which
+            # so this filter names nothing under `backend/` and the four above name nothing under `frontend/`, which
             # is what makes a change to one stack cost nothing in the other. Beside `frontend/**` it names exactly the
             # files above both stacks that a client run actually reads: `Version.props`, which the bundle stamps its
             # version from, and `scripts/read-declared-version.sh`, which is how `vite.config.ts` reads it; and
@@ -302,6 +315,7 @@ jobs:
       run-build: ${{ needs.detect-changes.outputs.build == 'true' }}
       run-format: ${{ github.event_name != 'push' && needs.detect-changes.outputs.format == 'true' }}
       run-model: ${{ needs.detect-changes.outputs.model == 'true' }}
+      run-migrations: ${{ needs.detect-changes.outputs.migrations == 'true' }}
 
   # The client stack's build and unit suite, in `build-test-frontend.yml` for the reason the server's work is in a
   # called workflow: the definition is one thing whatever comes to call it. What is here is the same pair of questions
