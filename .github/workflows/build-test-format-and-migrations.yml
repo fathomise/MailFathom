@@ -4,18 +4,18 @@
 
 name: Build, test, format, and migrations
 
-# The build, the unit-test and coverage gate, `dotnet format`, and the check that no model change outran its
-# migration, defined once. `CI` calls it for a pull request and the publishing pipeline calls it for the commit it is
+# The build, the unit-test and coverage gate, `dotnet format`, the check that no model change outran its migration, and
+# the run that applies the migrations to a real database, defined once. `CI` calls it for a pull request and the publishing pipeline calls it for the commit it is
 # about to release, so "this passed CI" is one claim about one definition rather than two sets of steps that agree
 # until somebody edits one of them.
 #
-# The last of the four is why a publication runs this at all rather than only a build: an image whose committed model
+# The model check is why a publication runs this at all rather than only a build: an image whose committed model
 # snapshot describes a schema no migration produces would start against a database it cannot have, and a nightly is
 # installable long before any tag.
 #
 # What is deliberately *not* here is the decision about whether to run. A pull request skips work its changed files
 # cannot affect, and that decision needs the pull request the caller has and this workflow does not, so it arrives as
-# the three switches below rather than as a second changed-file query. A publication skips nothing on those grounds —
+# the switches below rather than as a second changed-file query. A publication skips nothing on those grounds —
 # it never asks what a change touched — and turns exactly one switch off for a reason of its own: formatting is a
 # property of the files a change wrote, so the pull request that wrote them has already answered it, and it is the one
 # verdict here that two changes merging without seeing each other cannot break. `CI` exempts a push to `main` on the
@@ -40,6 +40,11 @@ on:
         default: true
       run-model:
         description: 'Whether to verify that every model change carries a migration.'
+        required: false
+        type: boolean
+        default: true
+      run-migrations:
+        description: 'Whether to apply the schema artifact to a real PostgreSQL, empty and over the newest release''s schema.'
         required: false
         type: boolean
         default: true
@@ -193,3 +198,134 @@ jobs:
           --startup-project backend/src/Host/Host.csproj
           --configuration Release
           --no-build
+
+  # The one place a migration is applied before it merges. Nobody applies one on their own machine: `$add-migration`
+  # generates it and reviews its SQL, and this job is what proves PostgreSQL accepts it. What it applies is the schema
+  # artifact `scripts/build-schema-artifact.sh` produces — the file an operator runs — rather than a `dotnet ef database
+  # update`, so the path proven here is the released one.
+  #
+  # Three applications, each answering a question of its own. An empty database is a fresh installation. The same
+  # artifact a second time is the idempotency guard every operator relies on, since they apply one file whatever their
+  # database already holds. A database carrying the newest release's schema, with the rows that release seeded, is the
+  # upgrade an existing installation takes, and the only one of the three that runs a migration over data. The fresh and
+  # the upgraded schema are then compared, because an upgrade that ends somewhere a fresh installation does not is a
+  # deployment that differs from every test.
+  #
+  # The host is not started. Its startup gate compares the migration history against the migrations the build defines,
+  # and an artifact generated from the same build carries every one of them by construction.
+  apply-migrations:
+    name: Apply migrations
+    if: inputs.run-migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      NUGET_XMLDOC_MODE: skip
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # The same install `Build the schema artifact` makes, version read from the pinned hosting packages.
+      - name: Install the pinned Aspire CLI
+        run: |
+          set -euo pipefail
+
+          aspire_version="$(
+            sed -n 's:.*<PackageVersion Include="Aspire.Hosting.AppHost" Version="\([^"]*\)".*:\1:p' \
+              backend/Directory.Packages.props | head -n 1
+          )"
+
+          dotnet tool install --global Aspire.Cli --version "$aspire_version"
+          printf '%s\n' "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Build the schema artifact
+        run: bash scripts/build-schema-artifact.sh "$RUNNER_TEMP/schema" head > "$RUNNER_TEMP/schema-artifact.env"
+
+      - name: Download the newest release's schema artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern 'mailfathom-schema-*.sql*' --dir "$RUNNER_TEMP/release"
+          (cd "$RUNNER_TEMP/release" && sha256sum --check ./*.sha256)
+
+      # The image the app model declares, read out of it rather than restated, so this applies to the PostgreSQL and
+      # pgvector every other topology runs.
+      - name: Start PostgreSQL
+        run: |
+          set -euo pipefail
+
+          image="$(sed -n 's:.*\.WithImage("\([^"]*\)").*:\1:p' backend/src/AppHost/Program.cs | head -n 1)"
+          tag="$(sed -n 's:.*\.WithImageTag("\([^"]*\)").*:\1:p' backend/src/AppHost/Program.cs | head -n 1)"
+          [[ -n "$image" && -n "$tag" ]] || { printf 'No PostgreSQL image found in the app model.\n' >&2; exit 1; }
+
+          docker run --detach --name postgres --env POSTGRES_PASSWORD=postgres "$image:$tag" > /dev/null
+
+          for _ in $(seq 60); do
+            docker exec postgres pg_isready --host 127.0.0.1 --username postgres > /dev/null 2>&1 && exit 0
+            sleep 2
+          done
+
+          docker logs postgres >&2
+          exit 1
+
+      - name: Apply the migrations
+        run: |
+          set -euo pipefail
+
+          head_artifact="$(sed -n 's/^artifact=//p' "$RUNNER_TEMP/schema-artifact.env")"
+          release_artifact="$(find "$RUNNER_TEMP/release" -name 'mailfathom-schema-*.sql' -type f)"
+
+          psql_in() {
+            docker exec --interactive postgres \
+              psql --username postgres --dbname "$1" --set ON_ERROR_STOP=on --quiet > /dev/null
+          }
+
+          # `\restrict` carries a random key on every dump, so it is the one line two dumps of one schema differ in.
+          dump_schema() {
+            docker exec postgres pg_dump --username postgres --schema-only --no-owner --no-privileges "$1" |
+              grep --invert-match --extended-regexp '^\\(un)?restrict '
+          }
+
+          for database in fresh upgraded; do
+            psql_in postgres <<< "CREATE DATABASE $database"
+          done
+
+          printf 'Applying %s to an empty database, twice.\n' "$(basename "$head_artifact")"
+          psql_in fresh < "$head_artifact"
+          psql_in fresh < "$head_artifact"
+
+          printf 'Applying %s, then %s over it.\n' "$(basename "$release_artifact")" "$(basename "$head_artifact")"
+          psql_in upgraded < "$release_artifact"
+          psql_in upgraded < "$head_artifact"
+
+          mkdir --parents artifacts/applied-schema
+          dump_schema fresh > artifacts/applied-schema/schema.sql
+          dump_schema upgraded > "$RUNNER_TEMP/upgraded-schema.sql"
+
+          if ! diff --unified artifacts/applied-schema/schema.sql "$RUNNER_TEMP/upgraded-schema.sql"; then
+            printf 'The upgraded schema differs from a fresh installation of the same artifact.\n' >&2
+            exit 1
+          fi
+
+      # What PostgreSQL holds after the migrations, for a review to read beside `scripts/script-migration.sh`. Schema
+      # only, never a row, so it carries no personal data.
+      - name: Upload the applied schema
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: applied-schema
+          path: artifacts/applied-schema/
+          if-no-files-found: ignore

@@ -9,7 +9,8 @@ metadata:
 
 # Add Migration
 
-Appends one EF Core migration for the current model, reviews it as SQL, and applies it to the orchestrated database.
+Appends one EF Core migration for the current model and reviews it as SQL. Applying it is the pipeline's: nothing here
+starts Docker, the orchestration, or a database.
 
 **Every migration in this repository is permanent.** Nothing regenerates, renames, reorders, or deletes one, and no
 command here does either. A migration identifier is written into `__EFMigrationsHistory` on every database that applies
@@ -25,7 +26,7 @@ aspire resource mailfathom-migrations ef-database-reset --apphost backend/src/Ap
 
 ## Preconditions
 
-- The model change is saved. Docker is required only from step 3 onward, not to generate a migration.
+- The model change is saved. Docker is not required at any step.
 - A deployment that configures a non-default `Persistence:TextSearchConfiguration` exports it first, because the value
   is compiled into the search vector's stored generated column and a migration is generated for exactly one
   configuration:
@@ -81,47 +82,30 @@ every value in the column; the PostgreSQL types, nullability, and defaults each 
 constraints the documented query shapes need; `ON DELETE` behavior on each foreign key; the generated `tsvector` column
 and its text search configuration; and the lock and duration a statement implies on a table that already holds mail.
 
-Fix the model and regenerate rather than hand-editing the generated migration — but once a migration has been applied
-anywhere but your own machine, it is fixed forward by another migration instead.
+Fix the model and regenerate rather than hand-editing the generated migration — but once a migration has merged, it is
+fixed forward by another migration instead.
 
-### 3. Apply it to the orchestrated database
-
-```bash
-aspire resource mailfathom-migrations ef-database-update --apphost backend/src/AppHost/AppHost.csproj --non-interactive
-```
-
-This is where a database is required and therefore where Aspire is: the command runs against the server the
-orchestration issues a connection string for. Apply it to a database that already holds data rather than an empty one,
-because applying only what the history says is missing, without losing what is there, is the behavior a released
-installation gets and the only part of this workflow a clean database cannot demonstrate.
-
-```bash
-scripts/dump-local-schema.sh
-```
-
-Read the dump to confirm the schema PostgreSQL now holds is the one the migration described.
-
-### 4. Prove the host accepts the schema
-
-```bash
-aspire stop  --apphost backend/src/AppHost/AppHost.csproj --non-interactive
-aspire start --apphost backend/src/AppHost/AppHost.csproj --non-interactive
-aspire describe --apphost backend/src/AppHost/AppHost.csproj --non-interactive
-```
-
-`mailfathom-host` must reach `Running` and `Healthy`. The host verifies the migration history and the lexical index's
-text search configuration at startup and refuses to run against a schema it does not recognize, so a healthy host is
-the evidence that the migration and the model agree. A host stuck in `Waiting` with `mailfathom-migrations` in
-`FailedToStart` means the migration did not apply; read `aspire logs mailfathom-migrations`.
-
-### 5. Commit it with the model change
+### 3. Commit it with the model change
 
 Update `docs/architecture/stored-email-schema.md` when the change is visible to a reader of the schema, and commit the
 migration together with the model change that caused it. A migration committed on its own cannot be reviewed, because
 the reason for it is in the other commit.
 
-CI runs `dotnet ef migrations has-pending-model-changes` on any pull request touching `backend/src/`, so a model change that
-reaches `main` without its migration fails before merge rather than at a host's startup.
+### 4. Let the pipeline apply it
+
+Nothing here applies the migration to a database: the pull request does. Two `Backend` jobs answer for it.
+
+- `Pending model changes` runs `dotnet ef migrations has-pending-model-changes` on any pull request touching
+  `backend/src/`, so a model change that reaches `main` without its migration fails before merge rather than at a
+  host's startup.
+- `Apply migrations` runs on any pull request touching a migration, the app model, or the tooling that generates the
+  schema artifact. It builds the artifact an operator applies, applies it to an empty PostgreSQL twice and over the
+  newest release's schema and the rows that release seeded, and fails when the upgraded schema differs from the fresh
+  one. The schema PostgreSQL ended up holding is the run's `applied-schema` artifact — read it beside the SQL from
+  step 2.
+
+A local orchestration still applies pending migrations when it starts, which is how a developer's own database keeps
+up; that is a convenience of `aspire start`, not a step this workflow asks for.
 
 ## When something is stuck
 
@@ -130,26 +114,13 @@ reaches `main` without its migration fails before merge rather than at a host's 
   still moves the snapshot, so the fix is a migration whose `Up` is empty by design or a regenerated snapshot as part
   of the next real migration.
 
-- **`postgres` stays `Unhealthy` with `password authentication failed`.** The data volume was initialized with a
-  different generated password. Find this checkout's volume, stop the orchestration, remove it, and start again:
+- **`Apply migrations` fails on the upgrade but not on the empty database.** The migration assumes a table holds
+  nothing, or holds only what a fresh installation seeds: a `NOT NULL` column with no default, a constraint the
+  release's seeded rows violate. Fix the model and regenerate, as step 2 says.
 
-  ```bash
-  docker volume ls --filter name=-postgres-data
-  aspire stop --apphost backend/src/AppHost/AppHost.csproj --non-interactive
-  docker rm -f $(docker ps -aq --filter volume=<volume>)
-  docker volume rm <volume>
-  ```
-
-  Aspire names the volume after the AppHost project's path, so each worktree owns its own and the name is read rather
-  than assumed. Removing another worktree's volume destroys a database this repair was not about.
-
-- **`dotnet build` hangs at "Determining projects to restore".** A previous orchestration is still holding the build
-  output. `aspire stop` does not always reap it; `pkill -9 -f "$HOME/.aspire/versions"` and
-  `pkill -9 -f aspire.hosting.orchestration` clear it. Orphaned `aspire-managed` helpers from a failed start do the
-  same by starving the machine — `pkill -9 -f aspire-managed`.
-
-- **`Another command is already running on this resource`.** The startup migration run has not finished. Wait for
-  `mailfathom-migrations` to reach `Finished` in `aspire describe`.
+- **`Apply migrations` reports that the upgraded schema differs.** The diff in its log is what an existing installation
+  would carry and a fresh one would not. A migration whose effect depends on what the database already holds is the
+  usual cause; make it produce the same schema either way.
 
 - **`error IDE0073` on a generated migration.** The formatter did not reach it. `--include` has to name the files
   rather than their directory, and the scope has to be the solution: these files belong to `Infrastructure`, and an
