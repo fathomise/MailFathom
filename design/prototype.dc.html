@@ -570,9 +570,6 @@ Project repository: https://github.com/fathomise/MailFathom
           <sc-if value="{{ drawerOpenerShown }}" hint-placeholder-val="{{ false }}">
             <div role="button" tabindex="0" onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">menu</div>
           </sc-if>
-          <sc-if value="{{ convListTbShown }}" hint-placeholder-val="{{ true }}">
-            <div role="button" tabindex="0" aria-pressed="{{ convListOn }}" onClick="{{ toggleConvList }}" title="{{ convListTitle }}" aria-label="Conversations" style="{{ convListTbStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">forum</div>
-          </sc-if>
           <div style="width:1px;align-self:stretch;background:var(--line);margin:0 8px 0 6px"></div>
         </sc-if>
         <sc-if value="{{ tbPrimaryShown }}" hint-placeholder-val="{{ true }}">
@@ -796,6 +793,15 @@ Project repository: https://github.com/fathomise/MailFathom
               <div onClick="{{ closeDrawer }}" title="Close folders" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
             </div>
           </sc-if>
+          <div style="{{ listModeWrapStyle }}">
+            <div role="button" tabindex="0" onClick="{{ toggleConvList }}" title="{{ convListTitle }}" aria-label="{{ listModeAria }}" style="{{ listModeBtnStyle }}" style-hover="cursor:pointer;border-color:var(--border2);background:var(--hover)">
+              <span aria-hidden="true" style="{{ listModeIconStyle }}">{{ listModeIcon }}</span>
+              <sc-if value="{{ sideExpanded }}" hint-placeholder-val="{{ true }}">
+                <span style="flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ listModeLabel }}</span>
+                <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">swap_vert</span>
+              </sc-if>
+            </div>
+          </div>
           <div style="{{ sideScrollStyle }}">
           <div style="{{ filtersWrapStyle }}">
             <sc-if value="{{ sideExpanded }}" hint-placeholder-val="{{ true }}">
@@ -890,9 +896,6 @@ Project repository: https://github.com/fathomise/MailFathom
               <div onClick="{{ openListSearch }}" style="{{ searchFieldStyle }}" style-hover="cursor:pointer;border-color:var(--border2)">{{ listSearchPlaceholder }}</div>
             </sc-if>
             <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div onClick="{{ openListSearch }}" title="Search" style="{{ listIconBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">search</span></div></sc-if>
-            <sc-if value="{{ convListHeadShown }}" hint-placeholder-val="{{ false }}">
-              <div role="button" tabindex="0" aria-pressed="{{ convListOn }}" onClick="{{ toggleConvList }}" title="{{ convListTitle }}" aria-label="Conversations" style="{{ convListBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">forum</span></div>
-            </sc-if>
             <div data-filters-toggle onClick="{{ toggleFilters }}" title="{{ filtersTitle }}" style="{{ filtersBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ filtersIcon }}</span><sc-if value="{{ filtersActive }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;font-weight:600">{{ filtersCount }}</span></sc-if></div>
           </div>
           <sc-if value="{{ filtersOpen }}" hint-placeholder-val="{{ false }}">
