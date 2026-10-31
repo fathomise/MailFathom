@@ -258,7 +258,8 @@ public sealed class OrganizationBookPrecedenceTests
             JobTitle: null,
             "Nordwind",
             Portrait: null,
-            TimeZone: null);
+            TimeZone: null,
+            WorkingHours: null);
 
     private ContactBookOwnership Ownership(AccessAuthorization authorization) =>
         ContactBookOwnerships.For(

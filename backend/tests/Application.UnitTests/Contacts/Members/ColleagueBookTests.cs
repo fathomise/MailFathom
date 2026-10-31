@@ -341,7 +341,8 @@ public sealed class ColleagueBookTests
             JobTitle: null,
             "Nordwind",
             Portrait: null,
-            TimeZone: null);
+            TimeZone: null,
+            WorkingHours: null);
     }
 
     private static Contact ContactOf(string displayName, string address) =>

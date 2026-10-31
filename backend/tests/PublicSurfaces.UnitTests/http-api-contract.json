@@ -5673,6 +5673,16 @@
               "null",
               "string"
             ]
+          },
+          "workingHours": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkingHoursResponse"
+              }
+            ]
           }
         },
         "required": [
@@ -5685,6 +5695,7 @@
           "jobTitle",
           "organizationName",
           "timeZone",
+          "workingHours",
           "photo"
         ],
         "type": "object"
@@ -13084,6 +13095,28 @@
         },
         "required": [
           "type"
+        ],
+        "type": "object"
+      },
+      "WorkingHoursResponse": {
+        "properties": {
+          "days": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "end": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "days",
+          "start",
+          "end"
         ],
         "type": "object"
       }

@@ -41,6 +41,7 @@ function colleagueCalled(id: string, displayName: string): Colleague {
         jobTitle: null,
         organizationName: 'Nordwind',
         timeZone: null,
+        workingHours: null,
         photo: null,
     };
 }

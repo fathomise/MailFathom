@@ -172,10 +172,88 @@ public sealed class MemberDirectoryTests
         Assert.Null(member);
     }
 
+    /// <summary>
+    /// The organization's default reaches a member stating no hours, and a member stating their own hours keeps the
+    /// organization's days: each key of the block resolves on its own.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_AnOrganizationDefaultingWorkingHours_ReachesEveryMemberAndYieldsToTheirOwnHours()
+    {
+        // Arrange
+        var zofia = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d003"));
+        this.ReadingUnder(
+            """{"Users":{"Defaults":{"WorkingHours":{"Days":["Monday","Tuesday","Wednesday","Thursday","Friday"],"Start":"08:00","End":"17:00"}}}}""",
+            new OrganizationMember(Piotr, "Piotr Zieliński", JobTitle: null, """{"Language": "English"}""", []),
+            new OrganizationMember(
+                zofia,
+                "Zofia Krawczyk",
+                JobTitle: null,
+                """{"Language": "English", "WorkingHours": {"Start": "10:00", "End": "18:30"}}""",
+                []));
+
+        // Act
+        var members = await this.Directory().ReadAsync(Organization, TestContext.Current.CancellationToken);
+
+        // Assert
+        var piotrs = members.Single(member => member.Member == Piotr).WorkingHours!;
+        var zofias = members.Single(member => member.Member == zofia).WorkingHours!;
+        DayOfWeek[] weekdays = [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday];
+        Assert.Equal(weekdays, piotrs.Days);
+        Assert.Equal((new TimeOnly(8, 0), new TimeOnly(17, 0)), (piotrs.Start, piotrs.End));
+        Assert.Equal(weekdays, zofias.Days);
+        Assert.Equal((new TimeOnly(10, 0), new TimeOnly(18, 30)), (zofias.Start, zofias.End));
+    }
+
+    /// <summary>A value the organization forces outranks the member's own, which stays in their record for when the force is lifted.</summary>
+    [Fact]
+    public async Task ReadAsync_AnOrganizationForcingWorkingHours_OutranksTheMembersOwn()
+    {
+        // Arrange
+        this.ReadingUnder(
+            """{"Users":{"Forced":{"WorkingHours":{"Days":["Monday"],"Start":"07:00","End":"15:00"}}}}""",
+            new OrganizationMember(
+                Piotr,
+                "Piotr Zieliński",
+                JobTitle: null,
+                """{"Language": "English", "WorkingHours": {"Days": ["Saturday"], "Start": "10:00", "End": "12:00"}}""",
+                []));
+
+        // Act
+        var hours = Assert.Single(await this.Directory().ReadAsync(Organization, TestContext.Current.CancellationToken)).WorkingHours!;
+
+        // Assert
+        Assert.Equal([DayOfWeek.Monday], hours.Days);
+        Assert.Equal((new TimeOnly(7, 0), new TimeOnly(15, 0)), (hours.Start, hours.End));
+    }
+
+    /// <summary>Nothing states working hours until somebody does, so a member under no policy stating none shows none.</summary>
+    [Fact]
+    public async Task ReadAsync_AMemberNobodyStatedWorkingHoursFor_ShowsNone()
+    {
+        // Arrange
+        this.Reading(new OrganizationMember(Piotr, "Piotr Zieliński", JobTitle: null, """{"Language": "English"}""", []));
+
+        // Act
+        var member = Assert.Single(await this.Directory().ReadAsync(Organization, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Null(member.WorkingHours);
+    }
+
     private void Reading(params OrganizationMember[] members) =>
         this.reader
             .ReadAsync(Organization, Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new OrganizationMembers("Nordwind", GoverningSettingsPolicies.Unwritten, members));
+
+    private void ReadingUnder(string organizationPolicy, params OrganizationMember[] members) =>
+        this.reader
+            .ReadAsync(Organization, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(new OrganizationMembers(
+                "Nordwind",
+                new GoverningSettingsPolicies(
+                    SettingsPolicyDocument.Unwritten(organizationId: null),
+                    new SettingsPolicyDocument(Organization, organizationPolicy, Version: 1)),
+                members));
 
     private MemberDirectory Directory() =>
         new(

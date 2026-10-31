@@ -29,6 +29,7 @@ export const iconNames = [
     'auto_awesome',
     'badge',
     'autorenew',
+    'bedtime',
     'block',
     'bolt',
     'calendar_month',
@@ -140,6 +141,7 @@ export const iconNames = [
     'verified_user',
     'visibility',
     'warning',
+    'work_history',
 ] as const;
 
 export type IconName = (typeof iconNames)[number];

@@ -17,15 +17,16 @@ namespace MailFathom.Host.Configuration.UserSettings;
 /// <remarks>
 /// <para>
 /// Here rather than in the store because what a member's record states is what the configuration layer resolves: the
-/// phone numbers, the preferred address, the portrait, and the zone are read from the record each member is served
-/// with, through the binder every other reading of a user's record goes through. Nothing composes a served user for
+/// phone numbers, the preferred address, the portrait, the zone, and the working hours are read from the record each
+/// member is served with, through the binder every other reading of a user's record goes through — so an organization's
+/// default working hours reach every member stating none of their own. Nothing composes a served user for
 /// it, which would resolve every member's secrets to show their colleagues a name.
 /// </para>
 /// <para>
 /// A record that does not bind — one past the bound, one somebody wrote by hand — still yields the member, with what
 /// their row holds and nothing their record states, so nobody drops out of their colleagues' directory over what their
 /// own record says. Under a policy this build cannot read, the record is read as it stands: every property the
-/// directory shows but the zone is one no policy defaults or forces. A member whose label carries a
+/// directory shows but the zone and the working hours is one no policy defaults or forces. A member whose label carries a
 /// character no contact name may is left out, because no contact could carry their name.
 /// </para>
 /// </remarks>
@@ -94,7 +95,8 @@ internal sealed class MemberDirectory(IOrganizationMemberReader members, UserAcc
             member.JobTitle,
             organizationName,
             record?.Portrait is { } portrait && portrait != Guid.Empty ? StoredFileId.Create(portrait) : null,
-            record?.ReadingTimeZone);
+            record?.ReadingTimeZone,
+            record?.ReadingWorkingHours);
     }
 
     /// <summary>Binds the record a member is served with, or nothing where it does not bind.</summary>

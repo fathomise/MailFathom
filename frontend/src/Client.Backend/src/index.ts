@@ -61,8 +61,11 @@ export {
     readColleague,
     readColleaguePhoto,
     readColleagues,
+    weekdays,
     type Colleague,
     type ColleaguePage,
+    type ColleagueWorkingHours,
+    type Weekday,
 } from './colleagues';
 export {
     contactCorrespondenceRoute,

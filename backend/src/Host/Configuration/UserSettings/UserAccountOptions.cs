@@ -176,6 +176,14 @@ internal sealed class UserAccountOptions : IValidatableObject
     [SettingsPolicyClass(SettingsPolicyPropertyClass.Identity)]
     public string? PreferredAddress { get; set; }
 
+    /// <summary>Gets when this user works: the days, and one range of hours those days share on the user's own wall clock.</summary>
+    /// <remarks>
+    /// Shown on the user's member contact to the other members of their organization, read in the zone
+    /// <see cref="TimeZone" /> states, and nothing else reads it. A record stating none shows none, and an organization
+    /// states a default for its members, or forces one, through its settings policy like any other ordinary property.
+    /// </remarks>
+    public UserWorkingHoursOptions WorkingHours { get; } = new();
+
     /// <summary>Gets which of the two mail-serving endpoints this user is served on.</summary>
     /// <remarks>
     /// Always present and on in both switches, so a record written before this block existed serves its user where it
@@ -237,14 +245,19 @@ internal sealed class UserAccountOptions : IValidatableObject
         }
     }
 
+    /// <summary>Gets when this record states its user works, or <see langword="null" /> where it states none or breaks a rule the hours are held to.</summary>
+    /// <remarks>Read only where the record has already been judged, which leaves the empty answer for a record held from before a rule it now breaks.</remarks>
+    internal WorkingHours? ReadingWorkingHours => this.WorkingHours.Read(out _);
+
     /// <summary>Gets the phone numbers as the drafts the contact book's rule reads.</summary>
     private ContactPhoneNumberDraft[] PhoneDrafts =>
         [.. this.PhoneNumbers.Select(phoneNumber => new ContactPhoneNumberDraft(phoneNumber.Number, phoneNumber.Label))];
 
     /// <inheritdoc />
-    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) => this.FindRefusals();
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
+        this.FindRefusals().Concat(this.FindUnusableWorkingHoursError());
 
-    /// <summary>Judges this record by every rule it is written under that needs no clock.</summary>
+    /// <summary>Judges this record by every rule it is written under that needs no clock and asks about one stated value alone.</summary>
     /// <returns>One result per refusal, empty when the record could be this user's.</returns>
     /// <remarks>
     /// <para>
@@ -254,6 +267,11 @@ internal sealed class UserAccountOptions : IValidatableObject
     /// among them is the one that cannot be: <see cref="FindSynchronizationWindowErrors" /> asks a question about the
     /// current date, so it is supplied a clock by whoever runs it.
     /// </para>
+    /// <para>
+    /// A settings policy asks these of each value it states, bound on its own, so a rule reading several keys together
+    /// is not among them: whether <see cref="WorkingHours" /> states its three keys together and in order is asked by
+    /// <see cref="Validate" /> of the whole record a user is served, where a policy may have supplied some of the keys.
+    /// </para>
     /// </remarks>
     internal IEnumerable<ValidationResult> FindRefusals() =>
         this.FindUnwritableLanguageError()
@@ -261,6 +279,7 @@ internal sealed class UserAccountOptions : IValidatableObject
             .Concat(this.FindUnrecordableClientTelemetryLevelError())
             .Concat(this.FindUnusablePhoneNumberError())
             .Concat(this.FindUnusablePreferredAddressError())
+            .Concat(this.FindMiswrittenWorkingHoursError())
             .Concat(UserMailAccountRules.FindRefusals(this.MailAccounts, nameof(this.MailAccounts)));
 
     /// <summary>Finds every declared earliest received date that could not mean anything on the supplied date.</summary>
@@ -417,6 +436,36 @@ internal sealed class UserAccountOptions : IValidatableObject
             yield return new ValidationResult(
                 $"{nameof(this.PreferredAddress)} is not an address. State the address of one of this user's mail accounts, at most {Contact.MaximumAddressLength} characters, or state none.",
                 [nameof(this.PreferredAddress)]);
+        }
+    }
+
+    /// <summary>Reports a working day or time written in a form no day or time has.</summary>
+    /// <returns>One result naming the key's form, empty where every stated key is well written.</returns>
+    private IEnumerable<ValidationResult> FindMiswrittenWorkingHoursError()
+    {
+        if (this.WorkingHours.FindMiswrittenKey() is { } refusal)
+        {
+            yield return new ValidationResult(
+                $"{nameof(this.WorkingHours)} cannot be this user's: {refusal}",
+                [nameof(this.WorkingHours)]);
+        }
+    }
+
+    /// <summary>Reports working hours whose keys are each well written and together make no working hours.</summary>
+    /// <returns>One result where the block states only some of its keys or a range that ends before it starts, empty otherwise.</returns>
+    /// <remarks>
+    /// Asked of the record as the settings policies resolve it, so a member stating only their own hours beside the
+    /// days an organization defaults is judged on the whole they are served.
+    /// </remarks>
+    private IEnumerable<ValidationResult> FindUnusableWorkingHoursError()
+    {
+        this.WorkingHours.Read(out var refusal);
+
+        if (refusal is not null && this.WorkingHours.FindMiswrittenKey() is null)
+        {
+            yield return new ValidationResult(
+                $"{nameof(this.WorkingHours)} cannot be this user's: {refusal}",
+                [nameof(this.WorkingHours)]);
         }
     }
 

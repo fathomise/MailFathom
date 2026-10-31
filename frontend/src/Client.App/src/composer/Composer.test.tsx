@@ -455,6 +455,14 @@ function lastDrafting(asked: readonly ClientRequest[]): {
     };
 }
 
+/**
+ * What the composer last asked of the user's drafts. The To field holds the focus from the start and asks the address
+ * book after its wait, so the last request overall may be one of those reads rather than the draft.
+ */
+function lastDraftRequest(asked: readonly ClientRequest[]): ClientRequest | undefined {
+    return asked.filter((request) => request.path.includes('/api/client/drafts')).at(-1);
+}
+
 // The composer itself. Under jsdom the window reads narrow, where the composer stands over the whole screen and is
 // therefore a dialog rather than a region — so this names it by the label it carries in either shape.
 function composerFrame(): HTMLElement {
@@ -716,10 +724,9 @@ describe('Composer, a message of its own', () => {
 
         expect(await screen.findByText('Draft filed in your own drafts.')).toBeDefined();
 
-        const save = asked.at(-1);
+        const save = lastDraftRequest(asked);
 
         expect(save?.method).toBe('POST');
-        expect(save?.path).toBe('https://mail.example.invalid/api/client/drafts');
         expect(JSON.parse(save?.body ?? '{}')).toMatchObject({ account: 'work', subject: 'Invoice' });
     });
 
@@ -732,10 +739,10 @@ describe('Composer, a message of its own', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
 
         await waitFor(() => {
-            expect(asked.at(-1)?.method).toBe('PUT');
+            expect(lastDraftRequest(asked)?.method).toBe('PUT');
         });
 
-        expect(asked.at(-1)?.path).toBe('https://mail.example.invalid/api/client/drafts/d1');
+        expect(lastDraftRequest(asked)?.path).toBe('https://mail.example.invalid/api/client/drafts/d1');
     });
 
     it('sends nothing until the send is confirmed', () => {
@@ -1582,7 +1589,7 @@ describe('Composer, a message of its own', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
 
         await waitFor(() => {
-            expect(asked.at(-1)?.method).toBe('DELETE');
+            expect(lastDraftRequest(asked)?.method).toBe('DELETE');
         });
 
         expect(closed).toHaveBeenCalledTimes(1);
@@ -1861,10 +1868,10 @@ describe('Composer, an answer', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
 
         await waitFor(() => {
-            expect(asked.at(-1)?.method).toBe('POST');
+            expect(lastDraftRequest(asked)?.method).toBe('POST');
         });
 
-        expect(JSON.parse(asked.at(-1)?.body ?? '{}')).toMatchObject({
+        expect(JSON.parse(lastDraftRequest(asked)?.body ?? '{}')).toMatchObject({
             answeredEmailId: messageId,
             answers: 'everyone',
         });

@@ -129,6 +129,7 @@ function colleague(
     jobTitle: string | null,
     addresses: readonly string[],
     timeZone: string | null,
+    workingHours: { readonly days: readonly string[]; readonly start: string; readonly end: string },
     phoneNumbers: readonly { readonly number: string; readonly label: string }[] = [],
 ) {
     return {
@@ -141,8 +142,15 @@ function colleague(
         jobTitle,
         organizationName,
         timeZone,
+        workingHours,
         photo: null,
     };
+}
+
+const mondayToFriday = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+function hoursOn(days: readonly string[], start: string, end: string) {
+    return { days, start, end };
 }
 
 /**
@@ -159,30 +167,53 @@ export const colleaguePage = {
             'Finance Director',
             ['a.lewandowski@nordwind.example'],
             'Europe/Warsaw',
+            hoursOn(mondayToFriday, '08:00', '16:00'),
             [{ number: '+48 22 555 01 10', label: 'Work' }],
         ),
-        colleague('member-hanna', 'Hanna Mazur', 'QA Lead', ['h.mazur@nordwind.example'], null),
-        colleague('member-igor', 'Igor Pawlak', 'Systems Engineer', ['i.pawlak@nordwind.example'], 'Europe/Warsaw'),
+        colleague(
+            'member-hanna',
+            'Hanna Mazur',
+            'QA Lead',
+            ['h.mazur@nordwind.example'],
+            null,
+            hoursOn(['Monday', 'Tuesday', 'Wednesday', 'Thursday'], '07:00', '15:00'),
+        ),
+        colleague(
+            'member-igor',
+            'Igor Pawlak',
+            'Systems Engineer',
+            ['i.pawlak@nordwind.example'],
+            'Europe/Warsaw',
+            hoursOn(mondayToFriday, '08:00', '16:00'),
+        ),
         colleague(
             'member-marta',
             'Marta Nowak',
             'Controller',
             ['m.nowak@nordwind.example', 'm.nowak@company.example'],
             'Europe/Warsaw',
+            hoursOn(mondayToFriday, '08:00', '16:00'),
             [
                 { number: '+48 22 555 01 14', label: 'Work' },
                 { number: '+48 601 555 014', label: 'Mobile' },
             ],
         ),
-        colleague('member-oliver', 'Oliver Grant', 'Delivery Engineer', ['o.grant@nordwind.example'], 'Europe/London', [
-            { number: '+44 20 7946 0321', label: 'Work' },
-        ]),
+        colleague(
+            'member-oliver',
+            'Oliver Grant',
+            'Delivery Engineer',
+            ['o.grant@nordwind.example'],
+            'Europe/London',
+            hoursOn(mondayToFriday, '09:00', '17:30'),
+            [{ number: '+44 20 7946 0321', label: 'Work' }],
+        ),
         colleague(
             'member-piotr',
             'Piotr Zieliński',
             'Head of Delivery',
             ['p.zielinski@nordwind.example', 'p.zielinski@company.example'],
             'Europe/Warsaw',
+            hoursOn(mondayToFriday, '09:00', '17:00'),
             [{ number: '+48 603 555 207', label: 'Mobile' }],
         ),
         colleague(
@@ -191,6 +222,7 @@ export const colleaguePage = {
             'Managing Director',
             ['z.krawczyk@nordwind.example'],
             'America/New_York',
+            hoursOn(mondayToFriday, '09:00', '17:00'),
             [{ number: '+1 212 555 0148', label: 'Work' }],
         ),
     ],

@@ -2301,6 +2301,12 @@ export const en = {
     'people.clockBehind': '{time}, {difference} behind you',
     'people.clockAhead': '{time}, {difference} ahead of you',
     'people.clockSame': '{time}, same time as you',
+    'people.workingHours': '{days} {hours}',
+    'people.workingHoursYours': '({hours} your time)',
+    'people.workingRun': '{first}–{last}',
+    'people.outsideWorkingHours': 'Outside working hours',
+    'people.workingHoursNoZone':
+        "No time zone is stated, so these hours are {name}'s own and are not converted to yours.",
     'people.writeReadOnly': 'That contact is kept by your organization, so it cannot be changed here.',
 
     'person.relationship': 'Relationship state',

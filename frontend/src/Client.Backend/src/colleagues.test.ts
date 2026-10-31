@@ -22,6 +22,7 @@ const member = {
     jobTitle: 'Controller',
     organizationName: 'Nordwind',
     timeZone: 'Europe/Warsaw',
+    workingHours: null,
     photo: 'revision-1',
 };
 
@@ -163,6 +164,34 @@ describe('parseColleague', () => {
         expect(parseColleague({ ...member, preferredAddress: 'someone@else.example' })).toBeNull();
         expect(parseColleague({ ...member, preferredAddress: null })).toBeNull();
         expect(parseColleague({ ...member, addresses: [], preferredAddress: member.preferredAddress })).toBeNull();
+    });
+
+    it('reads working hours as the days Monday first and the range as minutes after midnight', () => {
+        const hours = { days: ['Friday', 'Monday'], start: '08:00', end: '16:30' };
+
+        expect(parseColleague({ ...member, workingHours: hours })?.workingHours).toEqual({
+            days: ['Monday', 'Friday'],
+            start: 8 * 60,
+            end: 16 * 60 + 30,
+        });
+    });
+
+    it('reads a member the service states no working hours for as one with none', () => {
+        expect(parseColleague({ ...member, workingHours: undefined })?.workingHours).toBeNull();
+    });
+
+    it.each([
+        ['no day', { days: [], start: '08:00', end: '16:00' }],
+        ['a day the service never names', { days: ['Mon'], start: '08:00', end: '16:00' }],
+        ['a time not written HH:mm', { days: ['Monday'], start: '8:00', end: '16:00' }],
+        ['a time past the clock', { days: ['Monday'], start: '08:00', end: '24:00' }],
+        ['an end not after the start', { days: ['Monday'], start: '16:00', end: '08:00' }],
+        [
+            'more days than a week has',
+            { days: Array.from({ length: 8 }, () => 'Monday'), start: '08:00', end: '16:00' },
+        ],
+    ])('refuses a member whose working hours carry %s', (_, workingHours) => {
+        expect(parseColleague({ ...member, workingHours })).toBeNull();
     });
 
     it('refuses a record that is not a member of the directory', () => {

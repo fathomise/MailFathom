@@ -280,7 +280,11 @@ export function PersonPage({
                     // other where it has not.
                     <div className="flex flex-col gap-3 roomy:flex-row roomy:*:flex-1">
                         <ContactDetails contact={contact} />
-                        {contact.timeZone === null ? null : <ColleagueTime timeZone={contact.timeZone} />}
+                        <ColleagueTime
+                            timeZone={contact.timeZone}
+                            workingHours={contact.workingHours}
+                            displayName={contact.displayName}
+                        />
                     </div>
                 ) : (
                     <>

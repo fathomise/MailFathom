@@ -42,8 +42,15 @@ const piotr: Colleague = {
     jobTitle: 'Head of Delivery',
     organizationName: 'Nordwind',
     timeZone: 'Europe/London',
+    workingHours: null,
     photo: null,
 };
+
+const officeHours = {
+    days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+    start: 9 * 60,
+    end: 17 * 60 + 30,
+} as const;
 
 afterEach(() => {
     vi.useRealTimers();
@@ -335,10 +342,46 @@ describe('PersonPage', () => {
             expect(screen.getByText('8:41 AM, 1h behind you')).toBeDefined();
         });
 
-        it('draws no time at all for a member who states no zone', () => {
+        it('draws no time at all for a member who states neither a zone nor working hours', () => {
             drawPage({ contact: { ...piotr, timeZone: null } });
 
             expect(screen.queryByRole('heading', { name: 'Time and working hours' })).toBeNull();
+        });
+
+        it("says their working hours on their clock and on the reader's, and that it is outside them", () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-28T08:41:00Z'));
+            drawPage({ contact: { ...piotr, workingHours: officeHours }, readerZone: 'Europe/Warsaw' });
+
+            expect(screen.getByText('Mon–Fri 9:00 AM–5:30 PM')).toBeDefined();
+            expect(screen.getByText('(10:00 AM–6:30 PM your time)')).toBeDefined();
+            expect(screen.getByText('Outside working hours')).toBeDefined();
+        });
+
+        it('marks nothing while it is inside their working hours', () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-28T10:00:00Z'));
+            drawPage({ contact: { ...piotr, workingHours: officeHours }, readerZone: 'Europe/Warsaw' });
+
+            expect(screen.getByText('Mon–Fri 9:00 AM–5:30 PM')).toBeDefined();
+            expect(screen.queryByText('Outside working hours')).toBeNull();
+        });
+
+        it('shows the hours of a member who states no zone as stated, says they are not converted, and marks nothing', () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-31T08:41:00Z'));
+            drawPage({ contact: { ...piotr, timeZone: null, workingHours: officeHours }, readerZone: 'Europe/Warsaw' });
+
+            expect(screen.getByRole('heading', { name: 'Time and working hours' })).toBeDefined();
+            expect(screen.getByText('Mon–Fri 9:00 AM–5:30 PM')).toBeDefined();
+            expect(
+                screen.getByText(
+                    "No time zone is stated, so these hours are Piotr's own and are not converted to yours.",
+                ),
+            ).toBeDefined();
+            expect(screen.queryByText(/your time/u)).toBeNull();
+            expect(screen.queryByText(/behind you/u)).toBeNull();
+            expect(screen.queryByText('Outside working hours')).toBeNull();
         });
 
         it('draws neither the relationship reading nor the correspondence, which the directory serves none of', () => {

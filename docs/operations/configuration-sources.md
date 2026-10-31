@@ -171,7 +171,7 @@ No count bounds how many users may be recorded. A replica reads a user's record 
 anybody writing a line of it — and provisions the empty record instead where
 [a settings policy](#how-a-settings-policy-resolves-a-users-record) of their organization or of the deployment
 supplies the language, because one written on the record would stand in front of the default they were recorded
-under. What it can carry is six keys, and everything else about how their mail is read belongs
+under. What it can carry is seven keys, and everything else about how their mail is read belongs
 to the mail accounts they are assigned:
 
 | Key | Required | What it is |
@@ -182,6 +182,7 @@ to the mail accounts they are assigned:
 | `Portrait` | No | The identifier of the stored file this person is drawn by. [The portrait routes](client-endpoint.md#the-portrait-routes) write it; a record naming a file that is not a stored file of this same user is refused |
 | `PhoneNumbers` | No | The numbers this person's colleagues read in [the member directory](../features/contacts.md#the-organizations-member-directory): a list of at most 16, each `Number` and `Label`, the first being the one to call by default. Each is held to [the rules a contact's phone number obeys](../features/contacts.md#phone-numbers) — at most 32 characters of digits, `+`, spaces, `-`, `(`, `)`, and `.`, under `Mobile`, `Work`, `Home`, or `Other` — and a list breaking one is refused under `PhoneNumbers` with the rule, never the number. A record stating none shows no number |
 | `PreferredAddress` | No | The address this person's colleagues write to by default, at most 320 characters. It is judged only as an address: text that is no address is refused, and whether it is one of this person's own mailboxes is not asked, because which accounts are theirs alone changes without the record being written. The member directory resolves it each time it is read — the stated address while it is one of theirs, otherwise their first — so a record naming a mailbox they no longer hold alone is not refused, and answers again if that mailbox comes back |
+| `WorkingHours` | No | When this person works, as their colleagues read it on [their member contact](../features/contacts.md#the-organizations-member-directory): `Days`, `Start`, and `End`, on this person's own wall clock. [When this person works](#when-this-person-works--workinghours) holds the rules and the organization's default; a record stating none, under no policy stating any, shows none |
 
 `PhoneNumbers` and `PreferredAddress`, like `Portrait`, are of the identity class under
 [a settings policy](#how-a-settings-policy-resolves-a-users-record): a policy may restrict who edits them and never
@@ -264,6 +265,59 @@ TimeZone states 'Europe/Warszawa', which is not a time zone this deployment know
 **A record stating none is read in `UTC`**, which is the one answer every replica agrees on. That is an ordinary state
 rather than an unfinished one: a record committed before this release states no zone, is served without being refused,
 and reads in `UTC` until somebody states theirs.
+
+### When this person works — `WorkingHours`
+
+`WorkingHours` is a set of weekdays and one range of hours those days share. It is shown on this person's member
+contact to the other members of their organization, as the days and hours in this person's own time beside the same
+hours in the reader's, and as *Outside working hours* while it is outside them where this person is. **Nothing else
+reads it**: it changes no presence, no notification, no automatic reply, and no MCP tool's answer.
+
+```json
+{
+  "WorkingHours": {
+    "Days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    "Start": "08:00",
+    "End": "17:00"
+  }
+}
+```
+
+`Days` names weekdays in English, read however they were capitalized, and a day named twice is one day. `Start` and
+`End` are times of day written `HH:mm` — `8:00` is read too — and `End` is after `Start` on the same day. A range across
+midnight and different hours on different days are not supported.
+
+**The hours carry no zone.** They are always read in [`TimeZone`](#the-zone-this-persons-days-are-read-in--timezone):
+eight to five means eight to five in Warsaw for a person in Warsaw and eight to five in London for a person in London.
+Where the record states no zone, a colleague is shown the hours as written, with a note that they are not converted.
+
+**There is no built-in value**, so nothing states working hours until somebody does. A person writes their own through
+[their record](client-endpoint.md#the-record-routes) and an administrator through `mfctl user edit`.
+**An organization states a default for its members** — or forces one — through
+[its settings policy](#how-a-settings-policy-resolves-a-users-record), where `WorkingHours` is an ordinary property:
+
+```json
+{
+  "Users": {
+    "Defaults": {
+      "WorkingHours": { "Days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], "Start": "08:00", "End": "17:00" }
+    }
+  }
+}
+```
+
+A member's own value overrides the default, and each of the three keys resolves on its own, so a member stating only
+`Start` and `End` keeps the organization's `Days`. The rules below are therefore judged on the record as the policies
+resolve it — a layer stating part of the block is ordinary — and a write leaving the whole incomplete or out of order is
+refused under `WorkingHours`, naming the rule it breaks. A policy is held to the second and third of these when it is
+saved, whichever of the keys it states, and to the first and fourth only through the records it resolves:
+
+```
+WorkingHours cannot be this user's: Days, Start, and End are stated together, or none of them is.
+WorkingHours cannot be this user's: Each of Days names a weekday in English, such as 'Monday'.
+WorkingHours cannot be this user's: Start and End are times of day written as 'HH:mm', such as '08:00'.
+WorkingHours cannot be this user's: Working hours end after they start on the same day; a range across midnight is not supported.
+```
 
 ### The level this person's client records at — `ClientTelemetryLevel`
 

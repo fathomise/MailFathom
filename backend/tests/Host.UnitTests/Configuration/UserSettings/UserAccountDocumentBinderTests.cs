@@ -1123,6 +1123,66 @@ public sealed class UserAccountDocumentBinderTests
         Assert.Equal(bound, binding.IsBound);
     }
 
+    /// <summary>Days are read by their English names however they were capitalized, and a time of day in either written form.</summary>
+    [Fact]
+    public void Bind_ARecordStatingWorkingHours_ReadsTheDaysAndTheRange()
+    {
+        // Arrange
+        var binder = CreateBinder();
+
+        // Act
+        var binding = binder.Bind(
+            """{"Language": "English", "WorkingHours": {"Days": ["wednesday", "Monday"], "Start": "8:00", "End": "17:30"}}""",
+            UserRecordArrival.BeingWritten);
+
+        // Assert
+        Assert.True(binding.IsBound);
+        var hours = binding.User!.ReadingWorkingHours!;
+        Assert.Equal([DayOfWeek.Monday, DayOfWeek.Wednesday], hours.Days);
+        Assert.Equal((new TimeOnly(8, 0), new TimeOnly(17, 30)), (hours.Start, hours.End));
+    }
+
+    /// <summary>A record stating no working hours is an ordinary one, and reads as none rather than as a built-in default.</summary>
+    [Fact]
+    public void Bind_ARecordStatingNoWorkingHours_ReadsNone()
+    {
+        // Arrange
+        var binder = CreateBinder();
+
+        // Act
+        var binding = binder.Bind("""{"Language": "English"}""", UserRecordArrival.BeingWritten);
+
+        // Assert
+        Assert.True(binding.IsBound);
+        Assert.Null(binding.User!.ReadingWorkingHours);
+    }
+
+    /// <summary>Every way a block can fail to be working hours is refused under the key with the rule it breaks.</summary>
+    [Theory]
+    [InlineData("""{"Days": ["Monday"], "Start": "08:00"}""", "Days, Start, and End are stated together")]
+    [InlineData("""{"Start": "08:00", "End": "17:00"}""", "Days, Start, and End are stated together")]
+    [InlineData("""{"Days": [], "Start": "08:00", "End": "17:00"}""", "Days, Start, and End are stated together")]
+    [InlineData("""{"Days": ["Mon"], "Start": "08:00", "End": "17:00"}""", "Each of Days names a weekday in English")]
+    [InlineData("""{"Days": ["1"], "Start": "08:00", "End": "17:00"}""", "Each of Days names a weekday in English")]
+    [InlineData("""{"Days": ["Monday"], "Start": "8am", "End": "17:00"}""", "Start and End are times of day written as 'HH:mm'")]
+    [InlineData("""{"Days": ["Monday"], "Start": "17:00", "End": "08:00"}""", "Working hours end after they start")]
+    [InlineData("""{"Days": ["Monday"], "Start": "22:00", "End": "06:00"}""", "Working hours end after they start")]
+    public void Bind_WorkingHoursBreakingARule_AreRefusedNamingTheRule(string block, string rule)
+    {
+        // Arrange
+        var binder = CreateBinder();
+
+        // Act
+        var binding = binder.Bind(
+            $$"""{"Language": "English", "WorkingHours": {{block}}}""",
+            UserRecordArrival.BeingWritten);
+
+        // Assert
+        Assert.False(binding.IsBound);
+        var refusal = Assert.Single(binding.Refusals);
+        Assert.StartsWith($"WorkingHours cannot be this user's: {rule}", refusal, StringComparison.Ordinal);
+    }
+
     /// <summary>Builds the binder, over a deployment that scans nothing and declares no decision model unless a test says otherwise.</summary>
     /// <param name="deployment">The deployment's own scanning section, which a record's scanning block is judged against.</param>
     /// <param name="decisions">The deployment's decision models, which a record's spam model stage is judged against.</param>

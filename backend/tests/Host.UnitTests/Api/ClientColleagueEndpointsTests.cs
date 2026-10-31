@@ -50,7 +50,7 @@ public sealed class ClientColleagueEndpointsTests
         Assert.Equal("/contacts/colleagues/{userId:guid}/promotion", ClientColleagueEndpoints.ColleaguePromotionRoute);
     }
 
-    /// <summary>A colleague is drawn as a member contact: the preferred address first, the portrait's identifier, and the zone by its IANA name.</summary>
+    /// <summary>A colleague is drawn as a member contact: the preferred address first, the portrait's identifier, the zone by its IANA name, and the working hours on their own wall clock.</summary>
     [Fact]
     public async Task ReadPageAsync_AColleague_IsDescribedAsAMemberContact()
     {
@@ -65,7 +65,8 @@ public sealed class ClientColleagueEndpointsTests
             "Controller",
             "Nordwind",
             StoredFileId.Create(PiotrsPortrait),
-            zone));
+            zone,
+            WorkingHours.Create([DayOfWeek.Friday, DayOfWeek.Monday], new TimeOnly(8, 0), new TimeOnly(16, 30))));
 
         // Act
         var result = await ClientColleagueEndpoints.ReadPageAsync(
@@ -86,6 +87,9 @@ public sealed class ClientColleagueEndpointsTests
         Assert.Equal("Controller", colleague.JobTitle);
         Assert.Equal("Nordwind", colleague.OrganizationName);
         Assert.Equal("Europe/Warsaw", colleague.TimeZone);
+        Assert.Equal(["Monday", "Friday"], colleague.WorkingHours!.Days);
+        Assert.Equal("08:00", colleague.WorkingHours.Start);
+        Assert.Equal("16:30", colleague.WorkingHours.End);
         Assert.Equal(PiotrsPortrait, colleague.Photo);
         Assert.Null(page.Value.NextCursor);
     }
@@ -138,7 +142,8 @@ public sealed class ClientColleagueEndpointsTests
             JobTitle: null,
             "Nordwind",
             Portrait: null,
-            TimeZone: null));
+            TimeZone: null,
+            WorkingHours: null));
 
         // Act
         var result = await ClientColleagueEndpoints.PromoteAsync(Piotr.Value, this.Colleagues(), TestContext.Current.CancellationToken);
