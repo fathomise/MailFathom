@@ -128,7 +128,8 @@ public sealed class OccurrenceSpamClassificationHandlerTests
             Account,
             Inbox,
             Inbox,
-            RemoteEmailKeywords.None));
+            RemoteEmailKeywords.None,
+            IsSettled: false));
 
         this.harness.Emails.AddOccurrence(Occurrence, emailId);
 

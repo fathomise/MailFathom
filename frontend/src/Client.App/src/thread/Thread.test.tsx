@@ -15,6 +15,12 @@ import {
     type ReadMarking,
 } from '../readMarking/useReadMarking';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
+import {
+    SignalledChangesContext,
+    type SignalListener,
+    type SignalledChange,
+    type SignalledChanges,
+} from '../signals/signalledChanges';
 import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import type { OpenConversation } from '../workspace/openConversation';
@@ -1125,5 +1131,175 @@ describe('Thread arriving', () => {
         await waitFor(() => {
             expect(scrolled).toHaveBeenCalledWith({ block: 'start' });
         });
+    });
+});
+
+/** A deployment whose signals a test speaks, to every screen listening for them. */
+function deploymentSaying(): { changes: SignalledChanges; say: (signal: SignalledChange) => void } {
+    const listeners = new Set<SignalListener>();
+
+    return {
+        changes: {
+            refresh: () => undefined,
+            listen: (listener) => {
+                listeners.add(listener);
+
+                return () => {
+                    listeners.delete(listener);
+                };
+            },
+        },
+        say: (signal) => {
+            for (const listener of [...listeners]) {
+                listener(signal);
+            }
+        },
+    };
+}
+
+/** A deployment that has derived nothing about the conversation until a test says it has. */
+function deploymentDerivingLater(): { transport: MailFathomTransport; derive: () => void } {
+    let derived = false;
+
+    return {
+        derive: () => {
+            derived = true;
+        },
+        transport: (request) => {
+            asked.push(request);
+
+            if (request.path.endsWith('/state')) {
+                return Promise.resolve(
+                    derived
+                        ? {
+                              status: 200,
+                              body: JSON.stringify({
+                                  threadId,
+                                  coverage: 'WholeThread',
+                                  derivedAt: '2026-09-08T09:00:00+00:00',
+                                  current: true,
+                                  entries: [
+                                      {
+                                          aspect: 'Agreement',
+                                          text: 'The response time stays at two hours.',
+                                          owedBy: null,
+                                          dueAt: null,
+                                          sources: [{ kind: 'email', email: 'one' }],
+                                      },
+                                  ],
+                              }),
+                              headers: {},
+                          }
+                        : { status: 404, body: '', headers: {} },
+                );
+            }
+
+            return Promise.resolve({ status: 200, body: pageOf(['one', 'two']), headers: {} });
+        },
+    };
+}
+
+/** How many times the conversation's pages, rather than its state, were asked for. */
+function pagesAsked(): number {
+    return asked.filter((request) => !request.path.endsWith('/state') && !request.path.includes('/body')).length;
+}
+
+function statesAsked(): number {
+    return asked.filter((request) => request.path.endsWith('/state')).length;
+}
+
+function drawingSaid(transport: MailFathomTransport, changes: SignalledChanges) {
+    return render(
+        <SignalledChangesContext value={changes}>
+            {inTheFrame(transport, { threadId, openAt: null }, true)}
+        </SignalledChangesContext>,
+    );
+}
+
+// Where a conversation stands is derived behind an account run, after the arrival that made a client read it, so an
+// open conversation reads it again when the deployment names one of its messages rather than when it is reopened.
+describe('Thread against a deployment that says what changed', () => {
+    it('draws where the conversation stands once the deployment says a message of it changed', async () => {
+        // Arrange
+        theColumnStandsBesideTheList();
+        const signalling = deploymentSaying();
+        const deployment = deploymentDerivingLater();
+        drawingSaid(deployment.transport, signalling.changes);
+        await screen.findByText('The whole of what two says.');
+        await waitFor(() => {
+            expect(statesAsked()).toBe(1);
+        });
+
+        // Act
+        deployment.derive();
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['one'] });
+        });
+
+        // Assert
+        expect(await screen.findByText('The response time stays at two hours.')).toBeDefined();
+        await waitFor(() => {
+            expect(pagesAsked()).toBe(2);
+        });
+    });
+
+    it('reads its pages and where it stands again on a refresh', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        drawingSaid(deploymentAnswering(pageOf(['one', 'two'])), signalling.changes);
+        await screen.findByText('The whole of what two says.');
+        await waitFor(() => {
+            expect(statesAsked()).toBe(1);
+        });
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'refresh' });
+        });
+
+        // Assert
+        await waitFor(() => {
+            expect(pagesAsked()).toBe(2);
+            expect(statesAsked()).toBe(2);
+        });
+    });
+
+    it('reads nothing again when the deployment says another conversation changed', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        drawingSaid(deploymentAnswering(pageOf(['one', 'two'])), signalling.changes);
+        await screen.findByText('The whole of what two says.');
+        await waitFor(() => {
+            expect(statesAsked()).toBe(1);
+        });
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['elsewhere'] });
+        });
+
+        // Assert
+        await act(() => Promise.resolve());
+        expect(pagesAsked()).toBe(1);
+        expect(statesAsked()).toBe(1);
+    });
+
+    it('keeps the conversation on the screen while it is read again', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        const answering = deploymentAnswering(pageOf(['one', 'two']));
+        const pagesAnsweredOnce: MailFathomTransport = (request) =>
+            request.path.endsWith('/state') || pagesAsked() === 0 ? answering(request) : answersNothing(request);
+        drawingSaid(pagesAnsweredOnce, signalling.changes);
+        await screen.findByText('The whole of what two says.');
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['two'] });
+        });
+
+        // Assert
+        await act(() => Promise.resolve());
+        expect(screen.getByText('The whole of what two says.')).toBeDefined();
     });
 });

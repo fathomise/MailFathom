@@ -903,6 +903,13 @@ Every value is a closed set's member name, so no text a model wrote crosses to t
 egress guard. It reads the record that exists and derives nothing: a message whose record names no subcategory is
 published with none rather than with one inferred. The MCP surface publishes none of it.
 
+A verdict that moves on a message the client may already draw is announced. Mail still settling is served nowhere, and
+its arrival carries its verdict; but a message released past its placement wait before a verdict existed, and a
+rescoring that changed the verdict or its subcategory without asking anything of the mailbox, would otherwise stay drawn
+as they were until a refresh. So the classification names such a message in a `mail.changed` once the record commits,
+and only where the verdict or the subcategory differs from the one recorded before —
+[the signal channel](../operations/client-endpoint.md#the-signal-channel) states what that covers.
+
 ## Privacy
 
 A classification is derived from mail content and inherits its classification, retention, and deletion constraints: the

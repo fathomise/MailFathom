@@ -368,7 +368,8 @@ public sealed class SpamClassificationPassTests
             accountId ?? Account,
             folderAlias ?? Inbox,
             folderAlias ?? Inbox,
-            RemoteEmailKeywords.None));
+            RemoteEmailKeywords.None,
+            IsSettled: true));
 
     private SpamClassificationRun RequestedRun(
         SpamActionPosture posture = SpamActionPosture.Acting,

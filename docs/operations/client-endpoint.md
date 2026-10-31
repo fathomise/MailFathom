@@ -4799,6 +4799,26 @@ re-reading on it reads a folder that does not hold the message yet. The run that
 naming the messages it carried, and that is the read that finds them. A client holding none of the named rows reads its
 folder's leading page again, as it would for an arrival.
 
+**A reading MailFathom derives after the mail arrived is said as `mail.changed`.** Three of them land behind the
+arrival that made a client read the message, and each says so once it is committed, naming the messages a client would
+now be answered differently about:
+
+- **A message's marks** — what [the mail list route](#the-mail-list-route) returns as `enrichment`. An account run's
+  enrichment pass derives them up to 64 messages at a time and, however the pass ends, names every message it
+  committed a reading for in one statement once it stops, so a backfill is one statement per run rather than one per
+  message.
+- **Where a conversation stands** — what [the conversation state route](#the-conversation-state-route) returns. Each
+  conversation whose state the run committed is named by the messages the reading was shown. A conversation too long
+  to read is shown none and named by none, and reaches an open client on its next refresh.
+- **A spam verdict on mail that has settled** — the `spam` the list and the message routes return. A verdict reached,
+  or replaced by a rescoring, on a message every route already returns names that message when its verdict or its
+  subcategory moved; a verdict on mail still settling says nothing, because its arrival carries it.
+
+Every name the statement carries is one a client may hold, so an open conversation reads its pages and its state again
+when any message it holds is named, a list reads again the pages holding them — or its leading page where it holds
+none, which is how a list filtered by a mark gains a message that just earned it — and the open message is read again
+where it is named.
+
 **Statements are folded per user, per kind, and per place over half a second.** A run settling a mailbox's worth of
 mail is one arrival to the person who was away from the screen rather than one statement per message, and two accounts'
 arrivals stay two statements.
@@ -4816,7 +4836,8 @@ to the front or the browser reports its network back.
 a gap in the channel is a gap in what the client heard — a dropped socket, a rolling upgrade, a network that went and
 came back, and, above one replica with no backplane configured, a statement lost behind a connection that stayed open. So the client refreshes: it
 reads again everything it draws — the folder tree and its counts, the pages of the list it holds, the open message, the
-accounts, the notification centre, the calendar, the task list, and the contact book — whenever a connection stands again after one stood for the same sign-in, and
+open conversation and where it stands, the accounts, the notification centre, the calendar, the task list, and the
+contact book — whenever a connection stands again after one stood for the same sign-in, and
 every five minutes while its window is visible, counted from the last refresh rather than on a fixed clock. It never
 refreshes while the window is hidden, and refreshes at once when a window hidden past those five minutes comes back. A
 refresh is the act the client's *Refresh* control performs, it keeps what the person is in the middle of — the

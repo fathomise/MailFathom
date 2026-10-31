@@ -21,6 +21,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { drawnSpam, useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
+import { useSignalledChanges } from '../signals/signalledChanges';
 import { MessageWaiting } from '../messageBody/Message';
 import { MessageHeaders } from '../readingPane/MessageHeaders';
 import { animationsReported, departureFinished } from '../shell/departure';
@@ -138,6 +139,14 @@ export function Thread({
     const [failure, setFailure] = useState<ClientFailure | null>(null);
     const [asked, setAsked] = useState(false);
     const [connected, setConnected] = useState(online);
+
+    // The conversation read again because something said it changed, and how many of its pages were held when it did.
+    // A counter rather than a flag, so that two signals in a row are two reads rather than one.
+    const [reread, setReread] = useState<{ readonly attempt: number; readonly pages: number }>({
+        attempt: 0,
+        pages: 0,
+    });
+    const signalledChanges = useSignalledChanges();
 
     // Where the reader arrived, once the conversation has decided it, and `null` until then. It is what focus is
     // placed on and what the mark is decided from, and it never moves afterwards.
@@ -278,10 +287,14 @@ export function Thread({
         };
     }, [session, transport, conversation.threadId, reading, wantedCursor]);
 
-    // Where the conversation stands is read once per conversation, because that is what it is: a record the deployment
-    // wrote behind an account run rather than something composed while this screen waits. A machine with no network
-    // reads nothing, and the block says so itself: the frame's offline sentence is drawn only where there is no
-    // conversation to draw instead, so once the messages are in hand this block is the only thing left waiting.
+    // Where the conversation stands is a record the deployment wrote behind an account run rather than something composed
+    // while this screen waits, so it is read on opening and again whenever the conversation is read again below. A
+    // machine with no network reads nothing, and the block says so itself: the frame's offline sentence is drawn only
+    // where there is no conversation to draw instead, so once the messages are in hand this block is the only thing left
+    // waiting.
+    //
+    // A read again that the deployment did not answer keeps the state already drawn, for the reason the reading pane
+    // keeps a message: it is still the truest thing anybody has, and the next signal or refresh asks again.
     useEffect(() => {
         if (!online) {
             return;
@@ -291,14 +304,58 @@ export function Thread({
 
         void readMailThreadState(session, transport, conversation.threadId).then((result) => {
             if (listening) {
-                setDerivation(result);
+                setDerivation((current) =>
+                    result.outcome === 'failed' && current?.outcome === 'read' ? current : result,
+                );
             }
         });
 
         return () => {
             listening = false;
         };
-    }, [session, transport, conversation.threadId, online]);
+    }, [session, transport, conversation.threadId, online, reread.attempt]);
+
+    // A conversation the deployment says has changed is read again where it stands, quietly: the pages already held are
+    // read from the start and replace what is drawn only once every one of them has answered, so a reader part-way
+    // through a message never sees it blank. One that did not answer leaves the conversation as it is. A page the reader
+    // asked for while this was in flight is kept behind the ones it read, rather than read away.
+    useEffect(() => {
+        if (!online || reread.pages === 0) {
+            return;
+        }
+
+        let listening = true;
+
+        void readPagesAgain(session, transport, conversation.threadId, reread.pages).then((answered) => {
+            if (listening && answered !== null) {
+                setPages((current) =>
+                    answered.at(-1)?.nextCursor === null ? answered : [...answered, ...current.slice(answered.length)],
+                );
+            }
+        });
+
+        return () => {
+            listening = false;
+        };
+    }, [session, transport, conversation.threadId, online, reread]);
+
+    // What reads the conversation again: a refresh, which is every screen's business, and a change the deployment names
+    // about any message this conversation holds — a verdict, or the state derived from it. A change about other mail is
+    // the list's business, and reads nothing here.
+    useEffect(
+        () =>
+            signalledChanges.listen((signal) => {
+                const holding = new Set(messagesOf(pages).map((message) => message.email.id));
+
+                if (
+                    signal.kind === 'refresh' ||
+                    (signal.kind === 'mail.changed' && signal.emails.some((email) => holding.has(email)))
+                ) {
+                    setReread((current) => ({ attempt: current.attempt + 1, pages: pages.length }));
+                }
+            }),
+        [signalledChanges, pages],
+    );
 
     // Following a statement's source is a view change, so focus goes to the message it named. It is placed here rather
     // than in the press because the message may be one the history was hiding, and the element does not exist until
@@ -643,6 +700,36 @@ function pageWanted(
     }
 
     return latest.nextCursor !== null && continuing ? { cursor: latest.nextCursor } : null;
+}
+
+/**
+ * Reads a conversation again from its first page, as far as it had been read, or answers `null` where any page did not
+ * answer — a conversation read again is replaced whole or not at all, so what is drawn is never half old and half new.
+ *
+ * @param pageCount How many pages were held when the conversation was asked to be read again.
+ * @returns The pages read, which may be fewer where the conversation now ends sooner.
+ */
+async function readPagesAgain(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    threadId: string,
+    pageCount: number,
+): Promise<readonly MailThreadPage[] | null> {
+    const pages: MailThreadPage[] = [];
+    let cursor: string | null = null;
+
+    do {
+        const result = await readMailThread(session, transport, threadId, cursor, true);
+
+        if (result.outcome === 'failed') {
+            return null;
+        }
+
+        pages.push(result.value);
+        cursor = result.value.nextCursor;
+    } while (cursor !== null && pages.length < pageCount);
+
+    return pages;
 }
 
 /**

@@ -218,6 +218,9 @@ everything a held account files locally, which no synchronization stores.
 What it hands a client and the person is said on settlement rather than on the commit: `mail.arrived` carries how many
 messages one run settled, and the arrival notification is raised for those of them
 [the person is told about](../features/imap-synchronization.md#what-a-run-tells-the-person-whose-mailbox-it-is).
+What the stages behind settlement derive — a message's marks, where its conversation stands, and a verdict reached
+after the message was released — lands after that signal, so each of them is said again as `mail.changed` once it
+commits; [the signal channel](../operations/client-endpoint.md#the-signal-channel) states which messages each one names.
 
 The [automatic reply](../features/automatic-reply.md) answers on settlement as well, after the announcement and only
 for the messages the run itself settled, so a message a competing replica settled first is not answered from here a

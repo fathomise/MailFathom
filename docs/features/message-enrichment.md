@@ -235,6 +235,10 @@ empty list** for one a derivation settled with nothing to say. That is how a cli
 *nothing to say* without a third field saying which, and both are renderable states rather than failures — a deployment
 with enrichment off draws every row exactly as it did before.
 
+The marks land after the arrival that listed the message, so the pass announces them: once it stops, it names every
+message it committed a reading for in one `mail.changed`, and an open list reads its pages again —
+[the signal channel](../operations/client-endpoint.md#the-signal-channel) states what that covers.
+
 It reaches a conversation's rows the same way, because a message is one shape across that surface and a list row and a
 message inside a conversation are drawn from the same fields. A conversation answering `null` for a message the list
 beside it shows marks for would be stating that no derivation has reached it, which is the one thing that field is for.

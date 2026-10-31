@@ -6,8 +6,10 @@ using MailFathom.Application.Accounts;
 using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Application.Signals;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Emails.Enrichment;
 
@@ -59,6 +61,13 @@ namespace MailFathom.Application.Emails.Enrichment;
 /// the alternative being worse: a commit carrying the enrichment alone takes the message out of the selection forever,
 /// and the dates it named would never be offered to anybody.
 /// </para>
+/// <para>
+/// <b>An open client is told once the pass ends</b>, naming every message whose record it committed, because the marks
+/// land after the arrival signal that made a client read the message. Once per pass rather than once per message,
+/// because each derivation is a provider call and a backfill told message by message would have every open list read
+/// itself again every few seconds for hours. It is said however the pass ends — finished, withheld, or failed — since
+/// what it committed before stopping is served from then on either way.
+/// </para>
 /// </remarks>
 public sealed class MailEnrichmentPass
 {
@@ -91,6 +100,7 @@ public sealed class MailEnrichmentPass
     private readonly MailDerivedTaskProposals taskProposals;
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
+    private readonly ClientSignals signals;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the pass from the state it walks and the two readings it asks.</summary>
@@ -101,6 +111,7 @@ public sealed class MailEnrichmentPass
     /// <param name="taskProposals">Offers what a message asked for to the people the mailbox is assigned to.</param>
     /// <param name="egressGuard">Holds the posture the passages are scanned under while the pass runs.</param>
     /// <param name="commitPolicy">Commits one message's record, retrying a conflict with a competing writer.</param>
+    /// <param name="signals">Tells an open client which messages now carry a derived reading.</param>
     /// <param name="timeProvider">Reads when a derivation ran.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailEnrichmentPass(
@@ -111,6 +122,7 @@ public sealed class MailEnrichmentPass
         MailDerivedTaskProposals taskProposals,
         SensitiveContentEgressGuard egressGuard,
         OptimisticConcurrencyRetryPolicy commitPolicy,
+        ClientSignals signals,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(enrichmentStore);
@@ -120,6 +132,7 @@ public sealed class MailEnrichmentPass
         ArgumentNullException.ThrowIfNull(taskProposals);
         ArgumentNullException.ThrowIfNull(egressGuard);
         ArgumentNullException.ThrowIfNull(commitPolicy);
+        ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.enrichmentStore = enrichmentStore;
@@ -129,6 +142,7 @@ public sealed class MailEnrichmentPass
         this.taskProposals = taskProposals;
         this.egressGuard = egressGuard;
         this.commitPolicy = commitPolicy;
+        this.signals = signals;
         this.timeProvider = timeProvider;
     }
 
@@ -174,7 +188,29 @@ public sealed class MailEnrichmentPass
             MaximumPassagesPerEmail,
             cancellationToken);
 
-        var derivedCount = 0;
+        List<StoredEmailId> committed = [];
+
+        try
+        {
+            return await this.DeriveAsync(account, language, batch, committed, cancellationToken);
+        }
+        finally
+        {
+            if (committed.Count > 0)
+            {
+                this.signals.Publish(ClientSignal.MailChanged(account, folder: null, committed));
+            }
+        }
+    }
+
+    /// <summary>Derives from each message of the batch in turn, adding each one whose record committed to <paramref name="committed" />.</summary>
+    private async Task<MailEnrichmentPassReport> DeriveAsync(
+        MailAccountId account,
+        MailAccountLanguage language,
+        IReadOnlyList<EnrichableEmail> batch,
+        List<StoredEmailId> committed,
+        CancellationToken cancellationToken)
+    {
         var markedCount = 0;
         var proposedCount = 0;
 
@@ -185,7 +221,7 @@ public sealed class MailEnrichmentPass
             if (derivation.Withheld is { } withholding)
             {
                 return new MailEnrichmentPassReport(
-                    derivedCount,
+                    committed.Count,
                     markedCount,
                     proposedCount,
                     withholding,
@@ -198,7 +234,7 @@ public sealed class MailEnrichmentPass
             if (proposal.Withheld is { } proposalWithholding)
             {
                 return new MailEnrichmentPassReport(
-                    derivedCount,
+                    committed.Count,
                     markedCount,
                     proposedCount,
                     StoppedBy: null,
@@ -235,7 +271,7 @@ public sealed class MailEnrichmentPass
                 await this.calendarProposals.AnnounceAsync(account, cancellationToken);
             }
 
-            derivedCount++;
+            committed.Add(email.StoredEmailId);
 
             if (derivation.Marks.Count > 0)
             {
@@ -255,7 +291,7 @@ public sealed class MailEnrichmentPass
         }
 
         return new MailEnrichmentPassReport(
-            derivedCount,
+            committed.Count,
             markedCount,
             proposedCount,
             StoppedBy: null,

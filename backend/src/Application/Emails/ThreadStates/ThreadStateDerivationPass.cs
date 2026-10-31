@@ -5,6 +5,7 @@
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Accounts;
 
 namespace MailFathom.Application.Emails.ThreadStates;
@@ -40,6 +41,14 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// that was read and carried nothing usable — an empty object, or statements that every one cited no message the turn
 /// published — is the other case, and settles like any other answer, because asking again buys the same nothing.
 /// </para>
+/// <para>
+/// <b>An open client is told as each state commits</b>, naming the messages the derivation was shown, because a client
+/// knows a conversation by the messages it holds of it and the state lands long after the arrival signal that made it
+/// read them. One statement per conversation rather than per pass, because the pass is a handful of conversations and
+/// one statement naming all of them could outgrow <see cref="ClientSignal.MostNamedEmails" /> and drop a conversation
+/// from the list. A conversation past the bound was shown no messages and is named by none; the client's periodic
+/// refresh is what reaches it.
+/// </para>
 /// </remarks>
 public sealed class ThreadStateDerivationPass
 {
@@ -74,6 +83,7 @@ public sealed class ThreadStateDerivationPass
     private readonly IMailAccountLanguages accountLanguages;
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
+    private readonly ClientSignals signals;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the pass from the state it walks and the derivation it asks.</summary>
@@ -82,6 +92,7 @@ public sealed class ThreadStateDerivationPass
     /// <param name="accountLanguages">Answers which language the account's mail is read in.</param>
     /// <param name="egressGuard">Holds the posture the conversation is scanned under while the pass runs.</param>
     /// <param name="commitPolicy">Commits one conversation's record, retrying a conflict with a competing writer.</param>
+    /// <param name="signals">Tells an open client which conversations now carry a derived state.</param>
     /// <param name="timeProvider">Reads when a derivation ran.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public ThreadStateDerivationPass(
@@ -90,6 +101,7 @@ public sealed class ThreadStateDerivationPass
         IMailAccountLanguages accountLanguages,
         SensitiveContentEgressGuard egressGuard,
         OptimisticConcurrencyRetryPolicy commitPolicy,
+        ClientSignals signals,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(stateStore);
@@ -97,6 +109,7 @@ public sealed class ThreadStateDerivationPass
         ArgumentNullException.ThrowIfNull(accountLanguages);
         ArgumentNullException.ThrowIfNull(egressGuard);
         ArgumentNullException.ThrowIfNull(commitPolicy);
+        ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.stateStore = stateStore;
@@ -104,6 +117,7 @@ public sealed class ThreadStateDerivationPass
         this.accountLanguages = accountLanguages;
         this.egressGuard = egressGuard;
         this.commitPolicy = commitPolicy;
+        this.signals = signals;
         this.timeProvider = timeProvider;
     }
 
@@ -184,6 +198,14 @@ public sealed class ThreadStateDerivationPass
                     state,
                     attemptCancellationToken),
                 cancellationToken);
+
+            if (thread.Messages.Count > 0)
+            {
+                this.signals.Publish(ClientSignal.MailChanged(
+                    account,
+                    folder: null,
+                    thread.Messages.Select(static message => message.StoredEmailId)));
+            }
 
             derivedCount++;
 
