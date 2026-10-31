@@ -46,6 +46,7 @@ const reading: ClientResult<DeploymentSession> = {
         telemetryLevel: 'info',
         revision: null,
         organization: null,
+        organizationName: null,
     },
 };
 
@@ -202,6 +203,7 @@ describe('ConnectionSummary', () => {
                     telemetryLevel: 'info',
                     revision: null,
                     organization: null,
+                    organizationName: null,
                 },
             },
         });

@@ -692,6 +692,31 @@
         }
       ]
     },
+    "person-organization": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "people",
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Own"
+          }
+        },
+        {
+          "click": {
+            "text": "Globe Travel desk"
+          }
+        },
+        {
+          "expect": {
+            "text": "Kept by Nordwind - read-only"
+          }
+        }
+      ]
+    },
     "tasks": {
       "file": "prototype.dc.html",
       "properties": {

@@ -24,6 +24,7 @@ function personCalled(origin: Contact['origin'], id = 'anna', displayName = 'Ann
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
+        organization: null,
     };
 }
 
@@ -40,6 +41,7 @@ function composingWhere(offered: boolean, compose = vi.fn()): Composing {
 
 function pageOf({
     contact = personCalled('Asserted'),
+    organizationName = 'Nordwind',
     writable = true,
     promoting = false,
     recordSaid = null,
@@ -50,6 +52,7 @@ function pageOf({
     onAskErasure = vi.fn(),
 }: {
     contact?: Contact;
+    organizationName?: string | null;
     writable?: boolean;
     promoting?: boolean;
     recordSaid?: 'people.written' | null;
@@ -65,6 +68,7 @@ function pageOf({
                 <ComposingContext value={composing}>
                     <PersonPage
                         contact={contact}
+                        organizationName={organizationName}
                         correspondence={nothingCorrelated}
                         writable={writable}
                         promoting={promoting}
@@ -119,6 +123,31 @@ describe('PersonPage', () => {
         rerender(pageOf({ promoting: true }));
 
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Delete contact' }));
+    });
+
+    // A member reads the organization's book and changes nothing in it, so the page names whose book the contact is in
+    // and offers neither act that writes to it — however much the credential could write to the reader's own.
+    it('names the organization that keeps a contact and offers no edit and no deletion of it', () => {
+        drawPage({ contact: { ...personCalled('Asserted'), organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' } });
+
+        expect(screen.getByText('Nordwind')).toBeDefined();
+        expect(screen.getByText('Kept by Nordwind - read-only')).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Edit contact' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Write' })).toBeDefined();
+    });
+
+    // The session may answer no name — the organization deleted since — and the page then says whose book it is in
+    // words rather than by the identifier the contact carries.
+    it('names the organization in words where the session answered no name for it', () => {
+        drawPage({
+            contact: { ...personCalled('Asserted'), organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' },
+            organizationName: null,
+        });
+
+        expect(screen.getByText('Organization')).toBeDefined();
+        expect(screen.getByText('Kept by your organization - read-only')).toBeDefined();
+        expect(screen.queryByText(/0197f0c4/)).toBeNull();
     });
 
     it('says a collected record is not the reader’s to amend, and offers taking it on', () => {

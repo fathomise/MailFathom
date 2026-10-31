@@ -79,6 +79,12 @@ public interface IOrganizationStore
     /// <returns><see langword="true" /> when the organization exists.</returns>
     Task<bool> ExistsAsync(Guid organizationId, CancellationToken cancellationToken);
 
+    /// <summary>Reads the name an organization is shown by, for a member's own client to name the organization they belong to.</summary>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>Its current display name, or <see langword="null" /> where the deployment no longer holds it.</returns>
+    Task<string?> ReadDisplayNameAsync(Guid organizationId, CancellationToken cancellationToken);
+
     /// <summary>Removes an organization that has neither members nor mail accounts, together with its contact book.</summary>
     /// <param name="organizationId">The organization.</param>
     /// <param name="cancellationToken">Cancels the write.</param>

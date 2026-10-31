@@ -22,6 +22,7 @@ function personCalled(id: string, displayName: string): Contact {
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
+        organization: null,
     };
 }
 

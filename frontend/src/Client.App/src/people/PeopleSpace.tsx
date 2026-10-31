@@ -54,6 +54,11 @@ import { useScreenStep } from '../shell/screenLayers';
 // **A photo is stored after the record it belongs to, and read back with it.** The photo is a file the deployment keeps
 // under a contact, so the contact is written first and the photo second, and the record is then read again — what
 // names the photo is the record, and that name is what every avatar of the person draws from.
+//
+// **A contact the reader's organization keeps is never taken out or corrected here.** It is listed among the reader's own
+// and marked as the organization's, and a selection holding some of them takes out only the reader's own beside them,
+// saying how many stay — the organization's book is read-only to a member, and a selection of nothing else offers no
+// deletion at all.
 
 // What one write to the book said, worded as what happened to the person rather than as an outcome name. Exhaustive by
 // its own type, so an outcome added to the surface does not compile until this says what a reader is told about it.
@@ -86,6 +91,16 @@ function nextAfter(contacts: readonly Contact[], leaving: string, erased: readon
     // Counted among those kept, because a batch may also take out people listed above the one who was open.
     return at < 0 ? null : (rest[Math.min(kept(contacts.slice(0, at)).length, rest.length - 1)] ?? null);
 }
+
+// How many of the organization's contacts a deletion leaves where they are, in the forms a language has for the noun.
+const keptCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'people.keptReadOnly.other',
+    one: 'people.keptReadOnly.one',
+    two: 'people.keptReadOnly.other',
+    few: 'people.keptReadOnly.few',
+    many: 'people.keptReadOnly.many',
+    other: 'people.keptReadOnly.other',
+};
 
 // What a question about taking several people out says will happen, in the forms a language has for the noun — one
 // table per book, because deleting somebody written down and removing somebody collected are different sentences.
@@ -157,6 +172,7 @@ export function PeopleSpace({
     transport,
     contactPhotos,
     writable,
+    organizationName,
     onOpenThread,
     onOpenDocument,
 }: {
@@ -170,6 +186,9 @@ export function PeopleSpace({
 
     /** Whether this credential may change the book at all, which every act below is behind. */
     readonly writable: boolean;
+
+    /** The name the reader's organization is shown by, which its contacts are marked with, or `null` where none is known. */
+    readonly organizationName: string | null;
 
     /** Opens one conversation, which is the Mail space's to draw and therefore the frame's to perform. */
     readonly onOpenThread: (thread: {
@@ -189,6 +208,7 @@ export function PeopleSpace({
     const [opened, setOpened] = useState<Contact | null>(null);
     const [selected, setSelected] = useState<readonly string[]>([]);
     const [erasing, setErasing] = useState<readonly Contact[]>([]);
+    const [kept, setKept] = useState(0);
     const [said, setSaid] = useState<WriteSaid | null>(null);
     const [promoting, setPromoting] = useState(false);
 
@@ -251,6 +271,7 @@ export function PeopleSpace({
     // The people picked out, read back out of the book rather than held as records: the list holds identities and the
     // book holds what each of them is, so a selection cannot outlive a read that no longer names one of them.
     const picked = reading.contacts.filter((contact) => selected.includes(contact.id));
+    const pickedOwn = picked.filter((contact) => contact.organization === null);
 
     function record({ statement, photo }: ContactSave): void {
         if (session === null) {
@@ -399,12 +420,13 @@ export function PeopleSpace({
         });
     }
 
-    function askErasure(contacts: readonly Contact[]): void {
+    function askErasure(contacts: readonly Contact[], keptBeside = 0): void {
         if (contacts.length === 0) {
             return;
         }
 
         setErasing(contacts);
+        setKept(keptBeside);
         asked.current?.showModal();
     }
 
@@ -429,7 +451,7 @@ export function PeopleSpace({
                     <ContactSelectionBar
                         book={book}
                         selected={picked}
-                        erasable={writable}
+                        erasable={writable && pickedOwn.length > 0}
                         onClear={() => {
                             setSelected([]);
                         }}
@@ -437,7 +459,7 @@ export function PeopleSpace({
                             setSelected(reading.contacts.map((contact) => contact.id));
                         }}
                         onAskErasure={() => {
-                            askErasure(picked);
+                            askErasure(pickedOwn, picked.length - pickedOwn.length);
                         }}
                     />
                 ) : wide ? (
@@ -486,6 +508,7 @@ export function PeopleSpace({
                             key={book}
                             book={book}
                             reading={reading}
+                            organizationName={organizationName}
                             opened={opened?.id ?? null}
                             selected={selected}
                             erasable={writable}
@@ -516,6 +539,7 @@ export function PeopleSpace({
                         <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${paneArrival(paneMoved, true)}`}>
                             <PersonPage
                                 contact={opened}
+                                organizationName={organizationName}
                                 correspondence={correspondence}
                                 writable={writable}
                                 promoting={promoting}
@@ -562,7 +586,7 @@ export function PeopleSpace({
 
                 {/* Keyed by the person and by what their record says, so the form opens on whoever is open now as their
                     record now stands — a correction just saved included — rather than on whatever it was first drawn for. */}
-                {writable && opened !== null && opened.origin === 'Asserted' ? (
+                {writable && opened !== null && opened.origin === 'Asserted' && opened.organization === null ? (
                     <ContactAmendment
                         key={`${opened.id} ${opened.displayName} ${opened.preferredAddress} ${opened.addresses.join(' ')} ${JSON.stringify(opened.phoneNumbers)} ${opened.photo ?? ''}`}
                         contact={opened}
@@ -585,6 +609,12 @@ export function PeopleSpace({
                                       erasingCounted[erasedFrom][new Intl.PluralRules(locale).select(erasing.length)],
                                       { count: new Intl.NumberFormat(locale).format(erasing.length) },
                                   )}
+                            {kept === 0
+                                ? null
+                                : ` ${translate(keptCounted[new Intl.PluralRules(locale).select(kept)], {
+                                      count: new Intl.NumberFormat(locale).format(kept),
+                                      organization: organizationName ?? translate('people.yourOrganization'),
+                                  })}`}
                         </p>
                     }
                     reversal={{ kind: 'permanent', said: translate(erasingQuestion.afterwards) }}

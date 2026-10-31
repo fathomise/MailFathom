@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Access.Organizations;
 using MailFathom.Domain.Access;
 using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Configuration.UserSettings;
@@ -177,11 +178,16 @@ internal static class ClientApiEndpoints
         // The served users are named as a service rather than left to inference: it is a concrete type, so a deployment or a
         // test that maps this route without registering it would have the binder read it as a request body instead of
         // refusing, which is a GET route acquiring one.
-        api.MapGet(SessionRoute, (
+        // The organization's name is read per request rather than held with the served user, because renaming an
+        // organization composes nobody again: a name held there would be the one it had when its member was composed.
+        api.MapGet(SessionRoute, async (
                 IAuthorizedPrincipalSource principals,
-                [FromServices] ServedUsers servedUsers) =>
+                [FromServices] ServedUsers servedUsers,
+                [FromServices] IOrganizationStore organizations,
+                CancellationToken cancellationToken) =>
             {
                 var principal = principals.Current;
+                var organization = OrganizationOf(servedUsers, principal);
 
                 return TypedResults.Ok(ClientSessionResponse.For(
                     principal,
@@ -189,7 +195,10 @@ internal static class ClientApiEndpoints
                     deploymentTelemetryLevel,
                     StatedTelemetryLevelOf(servedUsers, principal),
                     TakesNoTelemetryFrom(servedUsers, principal),
-                    OrganizationOf(servedUsers, principal)));
+                    organization,
+                    organization is { } organizationId
+                        ? await organizations.ReadDisplayNameAsync(organizationId, cancellationToken)
+                        : null));
             })
             .RequireNoPermission();
 
@@ -296,6 +305,7 @@ internal static class ClientApiEndpoints
 /// <param name="Permissions">The published names of what this caller's grant carries, in the order this repository publishes them, and empty for a credential granted nothing.</param>
 /// <param name="Revision">The source revision the running build was stamped with, <c>unknown</c> where the build stamped none, which is what names the image a deployment runs more precisely than its version.</param>
 /// <param name="Organization">The organization the caller's user belongs to, or <see langword="null" /> where they belong to none or the request names no user.</param>
+/// <param name="OrganizationName">The name that organization is shown by as it reads now, which is how a client names it beside the contacts its book holds, or <see langword="null" /> wherever <paramref name="Organization" /> is, and where the organization was deleted since its member was composed.</param>
 /// <param name="Telemetry">The least severe log record this deployment asks this caller's client to write, <c>none</c> where it asks for no log record and still takes the client's traces and metrics, or <c>off</c> where it forwards nothing at all or a settings policy holds this person's telemetry off — configuration rather than a grant, and the deployment's own answer unless this person's record raised or lowered it for them alone.</param>
 /// <remarks>
 /// <para>
@@ -337,6 +347,7 @@ internal sealed record ClientSessionResponse(
     string Version,
     string Revision,
     Guid? Organization,
+    string? OrganizationName,
     IReadOnlyList<string> Permissions,
     string Telemetry)
 {
@@ -350,6 +361,7 @@ internal sealed record ClientSessionResponse(
     /// <param name="statedTelemetryLevel">The level this person's own record asks their client for, or <see langword="null" /> where it states none and where the request is served for nobody in particular.</param>
     /// <param name="telemetryRefused">Whether the telemetry routes take nothing from this person whatever they answered themselves: a settings policy forces their switch off, or this replica holds no composition of them.</param>
     /// <param name="organization">The organization this person belongs to, or <see langword="null" /> where they belong to none and where the request is served for nobody in particular.</param>
+    /// <param name="organizationName">The name <paramref name="organization" /> is shown by now, or <see langword="null" /> where there is no organization or the deployment no longer holds it.</param>
     /// <returns>The response body.</returns>
     /// <remarks>
     /// <para>
@@ -373,11 +385,13 @@ internal sealed record ClientSessionResponse(
         ClientTelemetryLevel deploymentTelemetryLevel,
         ClientTelemetryLevel? statedTelemetryLevel = null,
         bool telemetryRefused = false,
-        Guid? organization = null) => new(
+        Guid? organization = null,
+        string? organizationName = null) => new(
         "MailFathom",
         StampedBuild.Version,
         StampedBuild.Revision,
         organization,
+        organization is null ? null : organizationName,
         GrantOf(principal),
         forwardsTelemetry && !telemetryRefused
             ? (statedTelemetryLevel ?? deploymentTelemetryLevel).Published()

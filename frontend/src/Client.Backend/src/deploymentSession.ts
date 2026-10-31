@@ -79,6 +79,13 @@ export interface DeploymentSession {
 
     /** The organization the caller's user belongs to, or `null` where they belong to none. */
     readonly organization: string | null;
+
+    /**
+     * The name that organization is shown by, as it read when this answer was given, or `null` wherever `organization`
+     * is and where the organization has since been deleted. It is what the client names the organization by beside
+     * what its book keeps.
+     */
+    readonly organizationName: string | null;
 }
 
 // The most names one answer may carry. The published set is smaller than this by a wide margin and may grow; what the
@@ -96,6 +103,9 @@ const longestSessionBody = 4096;
 // The longest revision or organization identifier read. A revision is a short commit hash and an organization a UUID;
 // anything longer is not either, and is read as absent rather than refusing an answer over a diagnostic field.
 const longestIdentifier = 64;
+
+// The longest organization name a deployment records; anything longer is not one and is read as absent.
+const longestOrganizationName = 128;
 
 /**
  * Reads what the deployment says about itself and about the credential presented to it.
@@ -193,6 +203,7 @@ export function parseDeploymentSession(body: string): DeploymentSession | null {
         telemetryLevel: isDeploymentTelemetryLevel(level) ? level : 'off',
         revision: identifierOf(answered['revision']),
         organization: identifierOf(answered['organization']),
+        organizationName: organizationNameOf(answered['organizationName']),
     };
 }
 
@@ -200,6 +211,12 @@ export function parseDeploymentSession(body: string): DeploymentSession | null {
 // both are read by a developer's tool and neither is worth refusing a sign-in over.
 function identifierOf(value: unknown): string | null {
     return typeof value === 'string' && value.length > 0 && value.length <= longestIdentifier ? value : null;
+}
+
+// Lenient for the same reason: a name the client cannot read leaves the organization's contacts unnamed rather than
+// refusing a sign-in over a label.
+function organizationNameOf(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() !== '' && value.length <= longestOrganizationName ? value : null;
 }
 
 function isClientPermission(value: string): value is MailFathomPermission {

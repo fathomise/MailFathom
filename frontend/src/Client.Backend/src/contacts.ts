@@ -79,6 +79,12 @@ export interface Contact {
      * whenever the photo does, so a screen reads the photo again exactly when this differs from what it last read.
      */
     readonly photo: string | null;
+
+    /**
+     * The organization whose book keeps them, or `null` where the reader's own book or one of their mailboxes does.
+     * A member reads such a contact and cannot change it.
+     */
+    readonly organization: string | null;
 }
 
 /** One bounded page of one book, and where the walk continues. */
@@ -538,6 +544,7 @@ export function parseContact(value: unknown): Contact | null {
     const recordedAt = record['recordedAt'];
     const amendedAt = record['amendedAt'];
     const photo = record['photo'];
+    const organization = record['organization'] ?? null;
 
     if (typeof id !== 'string' || typeof displayName !== 'string' || typeof preferredAddress !== 'string') {
         return null;
@@ -552,6 +559,10 @@ export function parseContact(value: unknown): Contact | null {
     }
 
     if (note !== null && typeof note !== 'string') {
+        return null;
+    }
+
+    if (organization !== null && (typeof organization !== 'string' || organization === '')) {
         return null;
     }
 
@@ -582,6 +593,7 @@ export function parseContact(value: unknown): Contact | null {
         recordedAt,
         amendedAt,
         photo,
+        organization,
     };
 }
 

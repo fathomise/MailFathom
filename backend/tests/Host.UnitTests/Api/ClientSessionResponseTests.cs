@@ -124,6 +124,31 @@ public sealed class ClientSessionResponseTests
         Assert.Null(outside.Organization);
     }
 
+    /// <summary>The organization's name travels with the organization it names, so a name handed in without one is answered as nothing.</summary>
+    [Fact]
+    public void For_AnOrganizationsName_IsAnsweredOnlyBesideTheOrganization()
+    {
+        // Arrange
+        var organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f");
+
+        // Act
+        var within = ClientSessionResponse.For(
+            principal: null,
+            forwardsTelemetry: true,
+            ClientTelemetryLevel.Info,
+            organization: organization,
+            organizationName: "Nordwind");
+        var outside = ClientSessionResponse.For(
+            principal: null,
+            forwardsTelemetry: true,
+            ClientTelemetryLevel.Info,
+            organizationName: "Nordwind");
+
+        // Assert
+        Assert.Equal("Nordwind", within.OrganizationName);
+        Assert.Null(outside.OrganizationName);
+    }
+
     /// <summary>
     /// What lets a client say there is nothing behind its telemetry switch, and how much this deployment asks of it.
     /// Both follow the deployment rather than the grant, so a credential granted nothing is told the same thing as one

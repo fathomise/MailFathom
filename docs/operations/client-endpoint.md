@@ -225,14 +225,17 @@ unreachable one: it falls back to what the session route's challenge says about 
 
 ### The session route
 
-It answers with six fields: `service`, which is always `MailFathom`; `version`, the running release; `revision`, the
+It answers with seven fields: `service`, which is always `MailFathom`; `version`, the running release; `revision`, the
 source revision the running build was stamped with, or `unknown` where it was stamped with none, which names the image a
 deployment runs more precisely than its version; `organization`, the identifier of the organization the caller's user
-belongs to, or `null` where they belong to none or the request names no user; `permissions`, the
+belongs to, or `null` where they belong to none or the request names no user; `organizationName`, that organization's
+display name as it reads at this request — read per request, so a rename reaches the next session read — or `null`
+wherever `organization` is and where the organization was deleted since; `permissions`, the
 published names the caller holds — its user's grant, kept to what the credential it presented names — in the order this
 project publishes them; and `telemetry`, how much of a client's own telemetry this deployment wants forwarded.
 `revision` and `organization` are what MailFathom's own client shows in its developer mode, so that a session can be
-found in the deployment's own records, and neither names anybody else.
+found in the deployment's own records, and neither names anybody else. `organizationName` is what the client names the
+caller's own organization by wherever it draws something that organization keeps, such as a contact in its book.
 `permissions` is computed on every read rather than copied from the credential, so a role assigned or revoked since the
 sign-in is already in it, and a credential naming no permission reports exactly what its user's roles grant. The one
 change a session meets only at its next sign-in is a user-facing permission a later release publishes: a session records what

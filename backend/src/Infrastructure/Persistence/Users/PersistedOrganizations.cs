@@ -247,6 +247,14 @@ internal sealed class PersistedOrganizations(
         dbContext.Organizations.AsNoTracking().AnyAsync(organization => organization.Id == organizationId, cancellationToken);
 
     /// <inheritdoc />
+    public Task<string?> ReadDisplayNameAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        dbContext.Organizations
+            .AsNoTracking()
+            .Where(organization => organization.Id == organizationId)
+            .Select(organization => (string?)organization.DisplayName)
+            .SingleOrDefaultAsync(cancellationToken);
+
+    /// <inheritdoc />
     /// <remarks>
     /// The organization row is locked before its members and its mail accounts are counted, and the counts and the delete
     /// commit together. A move of a user or an account into it checks the restricting foreign key, which waits on that

@@ -18,6 +18,9 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 // because the Calendar space is a placeholder and a menu item that opens nothing is worse than no item at all. It
 // arrives with that screen rather than being drawn ahead of it.
 //
+// **A contact the reader's organization keeps offers no erasure**, because the organization's book is read-only to a
+// member and the press would answer as a contact the books do not hold.
+//
 // **Nothing here performs the erasure.** The question it stands behind outlives the menu — the menu is gone the moment
 // an item is chosen — so what this does is ask the screen to raise it.
 
@@ -66,7 +69,7 @@ export function ContactRowMenu({
 
     items.push({ icon: 'person', label: translate('people.openContact'), choose: onOpen });
 
-    if (erasable) {
+    if (erasable && contact.organization === null) {
         // Said as the person's page says it: a contact somebody wrote down is deleted, and one their mail collected is
         // removed from the collected book. Either writes, so while the server is out of reach it stays here saying why
         // it cannot act.

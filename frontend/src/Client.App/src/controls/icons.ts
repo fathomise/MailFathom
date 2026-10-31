@@ -43,6 +43,7 @@ export const iconNames = [
     'cloud_off',
     'create_new_folder',
     'code',
+    'corporate_fare',
     'dark_mode',
     'data_object',
     'delete',

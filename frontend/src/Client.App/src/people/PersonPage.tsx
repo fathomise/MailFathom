@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 import type { Contact } from '@mailfathom/client-backend';
 import { useComposing } from '../composer/useComposing';
 import { useContactPhoto } from '../contactBook/contactPhotos';
+import { OrganizationChip } from '../contactBook/OrganizationChip';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
@@ -26,7 +27,9 @@ import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 // rather than leaving somebody to discover it from a refusal. Taking them out is offered either way, because somebody
 // asking to be taken out of a book is not answered with which book they happen to be in — but it is said as what it
 // is: a contact somebody wrote down is deleted, and one their mail collected is removed from the collected book, which
-// gathers them again the next time they write.
+// gathers them again the next time they write. A contact the reader's organization keeps admits neither: the member reads
+// the organization's book and changes nothing in it, so the page names whose book it is and offers no edit and no
+// deletion rather than a press the books would answer as a contact they do not hold.
 //
 // **The way back is part of the page rather than of the frame**, and it is drawn only where the list and the person
 // cannot stand together: at that width the two are one pane the reader moves between, so the control that returns is on
@@ -42,6 +45,7 @@ import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 
 export function PersonPage({
     contact,
+    organizationName,
     correspondence,
     writable,
     promoting,
@@ -54,6 +58,10 @@ export function PersonPage({
     onOpenDocument,
 }: {
     readonly contact: Contact;
+
+    /** The name the reader's organization is shown by, or `null` where the session answered none. */
+    readonly organizationName: string | null;
+
     readonly correspondence: ContactCorrespondenceInForce;
 
     /** Whether this credential may change the book at all, which is what the two acts on the record are behind. */
@@ -84,6 +92,8 @@ export function PersonPage({
     const picture = useContactPhoto(contact);
     const composing = useComposing();
     const collected = contact.origin === 'Collected';
+    const keptByOrganization = contact.organization !== null;
+    const changeable = writable && !keptByOrganization;
 
     // Deleting and taking somebody on write to the book, so while the server is out of reach both are drawn as
     // controls that cannot act; the one with no room for a name of its own says why on the line under the person.
@@ -139,6 +149,10 @@ export function PersonPage({
                                 {translate('people.collected')}
                             </span>
                         ) : null}
+
+                        {keptByOrganization ? (
+                            <OrganizationChip organizationName={organizationName} place="page" />
+                        ) : null}
                     </div>
 
                     <p className="truncate text-sm text-accent-deep">{contact.preferredAddress}</p>
@@ -149,10 +163,19 @@ export function PersonPage({
                             {translate('people.collectedReadOnly')}
                         </p>
                     ) : null}
+
+                    {keptByOrganization ? (
+                        <p className="flex items-center gap-1.5 text-sm text-muted text-pretty">
+                            <Icon name="lock" className="size-icon-sm" />
+                            {translate('people.organizationReadOnly', {
+                                organization: organizationName ?? translate('people.yourOrganization'),
+                            })}
+                        </p>
+                    ) : null}
                 </div>
 
                 <div className="ms-auto flex shrink-0 items-center gap-2.25">
-                    {writable ? (
+                    {changeable ? (
                         <Control
                             label={erasure}
                             icon="delete"
@@ -163,7 +186,7 @@ export function PersonPage({
                         />
                     ) : null}
 
-                    {writable && !collected ? (
+                    {changeable && !collected ? (
                         <Control
                             label={translate('people.editContact')}
                             icon="edit_note"

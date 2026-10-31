@@ -9,6 +9,7 @@ import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { useContactPhoto } from './contactPhotos';
+import { OrganizationChip } from './OrganizationChip';
 
 // One person on the list, which is its own component for the reason a message row is: it is what carries the press,
 // the keyboard path, and a test.
@@ -23,10 +24,12 @@ import { useContactPhoto } from './contactPhotos';
 //
 // What it draws is the record and nothing derived: the name the book holds and the address to write to. The design
 // draws a company and a last-contact date beside them, and this deployment's contact record carries neither —
-// which is a correction owed to the design rather than a field to invent here.
+// which is a correction owed to the design rather than a field to invent here. A contact the reader's organization keeps
+// carries the chip naming it at the end of the address line, which is how the design tells it from one of their own.
 
 export function ContactRow({
     contact,
+    organizationName,
     selected,
     open,
     focusable,
@@ -38,6 +41,9 @@ export function ContactRow({
     onElement,
 }: {
     readonly contact: Contact;
+
+    /** The name the reader's organization is shown by, or `null` where the session answered none. */
+    readonly organizationName: string | null;
 
     /** Whether this row is one of those picked out. */
     readonly selected: boolean;
@@ -132,9 +138,14 @@ export function ContactRow({
                 place="contact"
             />
 
-            <span className="flex min-w-0 flex-col gap-0.75">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.75">
                 <span className="truncate text-base font-semibold">{contact.displayName}</span>
-                <span className="truncate text-sm text-muted">{contact.preferredAddress}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm text-muted">{contact.preferredAddress}</span>
+                    {contact.organization === null ? null : (
+                        <OrganizationChip organizationName={organizationName} place="row" />
+                    )}
+                </span>
             </span>
         </li>
     );
