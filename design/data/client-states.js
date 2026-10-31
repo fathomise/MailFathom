@@ -61,10 +61,12 @@ MailFathomDesign.data.clientStatesSample = {
     imageQuote: "“Response within 4 hours on weekends.”",
   },
 
-  askedBefore: [
-    { question: "What SLA commitments do we have to clients?" },
-    { question: "Who owns Q4 renewals?" },
-    { question: "Which invoices from August are unpaid?" },
+  // One watched question per state a row can be in.
+  watched: [
+    { question: "What is still open with Contoso before 28 August?", state: "changed", note: "1 new message from Anna Kowalska since Tuesday" },
+    { question: "Which invoices from August are unpaid?", state: "same", note: "no change since yesterday" },
+    { question: "Who owns the Q4 renewals?", state: "paused", note: "paused until 1 September - the allowance is spent" },
+    { question: "What SLA commitments do we have to clients?", state: "failed", note: "could not refresh - the mailbox was unreachable", action: "Try again" },
   ],
 
   mail: {
