@@ -363,14 +363,17 @@ function presentedBy(page: Page): string[] {
 }
 
 /**
- * What the page presented from the first request carrying the renewed credential onwards, once the frame has read
- * again everything it draws — which is every request the client makes on its own, asked after the renewal rather than
- * inferred from one of them.
+ * What the page presented on the refresh it was asked for once the renewed credential had been presented — which is
+ * every request the client makes on its own, asked after the renewal rather than inferred from one of them.
+ *
+ * From that refresh rather than from the first request carrying the renewed credential: a read the client started
+ * before the renewal answered goes on under the credential it started with, which the deployment still accepts, and
+ * the next read of a chain — the accounts after the session — can reach the wire after the first renewed request on a
+ * slow machine. What the renewal owes is every read begun after it.
  */
 async function presentedSinceRenewing(page: Page, presented: readonly string[], renewed: string): Promise<string[]> {
     await expect.poll(() => presented.includes(renewed)).toBe(true);
 
-    const from = presented.indexOf(renewed);
     const before = presented.length;
 
     await page.clock.runFor(refreshInterval);
@@ -378,7 +381,7 @@ async function presentedSinceRenewing(page: Page, presented: readonly string[], 
     // assumed to be there once it has.
     await expect.poll(() => presented.length).toBeGreaterThan(before);
 
-    return presented.slice(from);
+    return presented.slice(before);
 }
 
 // Start one tick before renewal is due, so signing in does not itself bring it due.
