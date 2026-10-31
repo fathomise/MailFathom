@@ -463,6 +463,11 @@ function lastDraftRequest(asked: readonly ClientRequest[]): ClientRequest | unde
     return asked.filter((request) => request.path.includes('/api/client/drafts')).at(-1);
 }
 
+/** What the composer asked of the deployment besides the address book, which the To field reads on that same wait. */
+function beyondTheBook(asked: readonly ClientRequest[]): readonly ClientRequest[] {
+    return asked.filter((request) => !request.path.includes('/api/client/contacts'));
+}
+
 // The composer itself. Under jsdom the window reads narrow, where the composer stands over the whole screen and is
 // therefore a dialog rather than a region — so this names it by the label it carries in either shape.
 function composerFrame(): HTMLElement {
@@ -1227,7 +1232,7 @@ describe('Composer, a message of its own', () => {
 
         expect(staged.textContent).toContain('invoice.pdf');
         expect(within(staged).getByRole('button', { name: 'Remove invoice.pdf' })).toBeDefined();
-        expect(asked).toHaveLength(0);
+        expect(beyondTheBook(asked)).toHaveLength(0);
     });
 
     it('asks the deployment nothing until the message is filed, and then puts every file up against one draft', async () => {
@@ -1269,7 +1274,7 @@ describe('Composer, a message of its own', () => {
 
         expect(await screen.findByRole('list', { name: 'Attached files' })).toBeDefined();
         expect(stagedAgainst).toHaveLength(0);
-        expect(asked).toHaveLength(0);
+        expect(beyondTheBook(asked)).toHaveLength(0);
 
         fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
 
@@ -1431,7 +1436,7 @@ describe('Composer, a message of its own', () => {
         });
 
         expect(screen.queryByRole('list', { name: 'Attached files' })).toBeNull();
-        expect(asked).toHaveLength(0);
+        expect(beyondTheBook(asked)).toHaveLength(0);
     });
 
     it('takes a file the deployment already holds off there as well', async () => {
@@ -1565,7 +1570,7 @@ describe('Composer, a message of its own', () => {
             expect(closed).toHaveBeenCalledTimes(1);
         });
 
-        expect(asked).toHaveLength(0);
+        expect(beyondTheBook(asked)).toHaveLength(0);
     });
 
     it('closes without asking where nothing has been written', async () => {
