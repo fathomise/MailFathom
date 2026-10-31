@@ -7172,7 +7172,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         convReturnLabel: "Back to the conversation",
         backToConv: this.backToConv,
         backToConvKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.backToConv(); } },
-        convReturnStyle: "position:fixed;z-index:120;left:50%;transform:translateX(-50%);" + (isMobile ? "bottom:78px;" : "bottom:22px;") +
+        convReturnStyle: "position:fixed;z-index:120;left:50%;transform:translateX(-50%);" + (navBottom ? "bottom:78px;" : "bottom:22px;") +
           "display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border-radius:24px;font-size:14px;font-weight:600;color:var(--onaccent);background:var(--accent);border:1px solid var(--accent);box-shadow:0 6px 20px var(--sh-1)",
         convReturnIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1",
         closeThreadSheet: () => this.setState({ threadSheet: false }),
