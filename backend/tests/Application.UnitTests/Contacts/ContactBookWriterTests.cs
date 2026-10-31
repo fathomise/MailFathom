@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Failures;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -551,6 +552,7 @@ public sealed class ContactBookWriterTests
             new ContactBook(
                 book,
                 book,
+                Substitute.For<IStoredFileStore>(),
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), timeProvider),
                 timeProvider,
                 authorization),

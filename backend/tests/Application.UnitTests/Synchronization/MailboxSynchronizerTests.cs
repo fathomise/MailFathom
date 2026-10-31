@@ -19,6 +19,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.Synchronization.Reconciliation;
@@ -2320,6 +2321,7 @@ public sealed class MailboxSynchronizerTests
             new ContactBook(
                 book,
                 book,
+                Substitute.For<IStoredFileStore>(),
                 new OptimisticConcurrencyRetryPolicy(
                     persistenceSessionFactory,
                     new PersistenceConcurrencyOptions(),
@@ -2373,6 +2375,7 @@ public sealed class MailboxSynchronizerTests
             new ContactBook(
                 book,
                 book,
+                Substitute.For<IStoredFileStore>(),
                 new OptimisticConcurrencyRetryPolicy(
                     persistenceSessionFactory,
                     new PersistenceConcurrencyOptions(),

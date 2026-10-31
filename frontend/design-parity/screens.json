@@ -1197,6 +1197,27 @@
       ]
     },
     {
+      "id": "contact-new",
+      "route": "/#/people",
+      "signIn": true,
+      "classes": ["desktop"],
+      "narrowedBecause": "The design opens the form from a toolbar button that names itself in words only at the desktop's widths; below them it is a symbol carrying a title, which no step can name.",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "New contact"
+          }
+        },
+        {
+          "expect": {
+            "role": "dialog",
+            "name": "New contact"
+          }
+        }
+      ]
+    },
+    {
       "id": "tasks",
       "route": "/#/tasks",
       "signIn": true,

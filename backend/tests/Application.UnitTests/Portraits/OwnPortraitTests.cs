@@ -129,7 +129,7 @@ public sealed class OwnPortraitTests
         var portraits = ReachedBy(files, links, MailFathomPermission.ProfileRead, MailFathomPermission.ProfileWrite);
 
         // Act
-        var replaced = await portraits.ReplaceAsync(UserPortrait.Of(Png)!, TestContext.Current.CancellationToken);
+        var replaced = await portraits.ReplaceAsync(Portrait.Of(Png)!, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(PortraitChange.Landed, replaced);
@@ -153,7 +153,7 @@ public sealed class OwnPortraitTests
         var portraits = ReachedBy(files, links, MailFathomPermission.ProfileRead, MailFathomPermission.ProfileWrite);
 
         // Act
-        var replaced = await portraits.ReplaceAsync(UserPortrait.Of(Png)!, TestContext.Current.CancellationToken);
+        var replaced = await portraits.ReplaceAsync(Portrait.Of(Png)!, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(PortraitChange.Landed, replaced);
@@ -174,7 +174,7 @@ public sealed class OwnPortraitTests
 
         // Act
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => portraits.ReplaceAsync(UserPortrait.Of(Png)!, TestContext.Current.CancellationToken));
+            () => portraits.ReplaceAsync(Portrait.Of(Png)!, TestContext.Current.CancellationToken));
 
         // Assert
         await files.DidNotReceive().RemoveAsync(Arg.Any<UserId>(), Arg.Any<StoredFileId>(), Arg.Any<CancellationToken>());
@@ -193,7 +193,7 @@ public sealed class OwnPortraitTests
         var portraits = ReachedBy(files, links, MailFathomPermission.ProfileRead, MailFathomPermission.ProfileWrite);
 
         // Act
-        var replaced = await portraits.ReplaceAsync(UserPortrait.Of(Png)!, TestContext.Current.CancellationToken);
+        var replaced = await portraits.ReplaceAsync(Portrait.Of(Png)!, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(PortraitChange.NoSuchUser, replaced);
@@ -211,7 +211,7 @@ public sealed class OwnPortraitTests
         var portraits = ReachedBy(FilesWriting(Written), links, MailFathomPermission.ProfileRead, MailFathomPermission.ProfileWrite);
 
         // Act
-        var replaced = await portraits.ReplaceAsync(UserPortrait.Of(Png)!, TestContext.Current.CancellationToken);
+        var replaced = await portraits.ReplaceAsync(Portrait.Of(Png)!, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(PortraitChange.NoSuchUser, replaced);
@@ -227,7 +227,7 @@ public sealed class OwnPortraitTests
 
         // Assert
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
-            () => portraits.ReplaceAsync(UserPortrait.Of(Png)!, TestContext.Current.CancellationToken));
+            () => portraits.ReplaceAsync(Portrait.Of(Png)!, TestContext.Current.CancellationToken));
 
         await files.DidNotReceive().WriteAsync(Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>());
     }
@@ -254,7 +254,7 @@ public sealed class OwnPortraitTests
 
         // Assert
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
-            () => portraits.ReplaceAsync(UserPortrait.Of(Png)!, TestContext.Current.CancellationToken));
+            () => portraits.ReplaceAsync(Portrait.Of(Png)!, TestContext.Current.CancellationToken));
 
         await files.DidNotReceive().WriteAsync(Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>());
     }
@@ -328,7 +328,7 @@ public sealed class OwnPortraitTests
         var portraits = ReachedBy(files, links, MailFathomPermission.ProfileRead, MailFathomPermission.ProfileWrite);
 
         // Act
-        var replaced = await portraits.ReplaceAsync(UserPortrait.Of(Png)!, TestContext.Current.CancellationToken);
+        var replaced = await portraits.ReplaceAsync(Portrait.Of(Png)!, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(new PortraitChange(UserHeld: true, "Portrait is held by the organization."), replaced);

@@ -24,6 +24,7 @@ function answering(addresses: readonly string[], preferredAddress: string): Mail
                 origin: 'Asserted',
                 recordedAt: '2026-03-01T08:00:00+00:00',
                 amendedAt: '2026-03-01T08:00:00+00:00',
+                photo: null,
             },
         ],
         nextCursor: null,

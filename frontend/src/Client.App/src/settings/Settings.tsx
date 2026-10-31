@@ -28,7 +28,7 @@ import { chooseSystemNotifications, useSystemNotificationsChosen } from '../pref
 import { LanguageSegments } from '../shell/Preferences';
 import { useSystemNotifier } from '../shellOperations/systemNotifier';
 import { useTelemetry } from '../telemetry/clientTelemetry';
-import { chosenPortrait, type PortraitChoice } from './chosenPortrait';
+import { chosenPortrait, type PortraitChoice } from '../controls/chosenPortrait';
 import { MessageView, MessageViewWarning } from './MessageView';
 import { DepartureContext } from '../shell/departure';
 import { useTwoPanes } from '../shell/useWideWorkspace';

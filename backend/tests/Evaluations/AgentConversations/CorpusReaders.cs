@@ -23,7 +23,9 @@ using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Retrieval;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Tasks;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Delivery;
@@ -319,5 +321,8 @@ internal static class CorpusReaders
 
         public Task<ContactPage> ReadPageAsync(ContactBookScope scope, ContactQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException("The Agent never lists the contact book.");
+
+        public Task<IReadOnlySet<StoredFileId>> FindPhotosOfAsync(UserId user, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlySet<StoredFileId>>(new HashSet<StoredFileId>());
     }
 }

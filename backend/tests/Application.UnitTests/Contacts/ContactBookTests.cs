@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -353,6 +354,36 @@ public sealed class ContactBookTests
         Assert.Equal(
             ["ANNA@EXAMPLE.TEST", "ANNA@PERSONAL.TEST"],
             export.Contact.Addresses.Select(address => address.NormalizedAddress).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>A photo the user supplied is something the deployment holds about the person, so the export hands it back.</summary>
+    [Fact]
+    public async Task ExportAsync_AContactWithAPhoto_CarriesThePhoto()
+    {
+        // Arrange
+        var photo = StoredFileId.Create(Guid.Parse("0197a3c0-0000-7000-8000-000000000001"));
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x0D, 0x0A];
+        var book = new InMemoryContactBookStore();
+        var contact = Contact.Create(
+            ContactId.Create(Guid.CreateVersion7(Now)),
+            ContactDisplayName.Create("Anna Kowalska"),
+            [Address("anna@example.test")],
+            Address("anna@example.test"),
+            note: null,
+            ContactOrigin.Asserted,
+            Now,
+            Now,
+            photo: photo.Value);
+        book.Hold(User, contact);
+        var files = Substitute.For<IStoredFileStore>();
+        files.ReadAsync(User, photo, Arg.Any<CancellationToken>()).Returns(new ReadOnlyMemory<byte>(png));
+
+        // Act
+        var export = await BookOver(book, files: files).ExportAsync(Scope, contact.Id, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("image/png", export!.Photo!.Type.MediaType);
+        Assert.Equal(png, export.Photo.Content.ToArray());
     }
 
     /// <summary>Nothing is exported for a person the book does not hold.</summary>
@@ -869,7 +900,8 @@ public sealed class ContactBookTests
     private static ContactBook BookOver(
         InMemoryContactBookStore book,
         FakeTimeProvider? clock = null,
-        AccessAuthorization? authorization = null)
+        AccessAuthorization? authorization = null,
+        IStoredFileStore? files = null)
     {
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
@@ -879,6 +911,7 @@ public sealed class ContactBookTests
         return new ContactBook(
             book,
             book,
+            files ?? Substitute.For<IStoredFileStore>(),
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), timeProvider),
             timeProvider,
             authorization ?? AccessAuthorizations.ForCallerGranted(

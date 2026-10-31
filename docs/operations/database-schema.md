@@ -273,7 +273,9 @@ already serving:
   `AddOrganizationContactBook` replaces `ck_contacts_book_holder` once more, for the organization's book beside the
   other two, and adds a nullable `OrganizationId` column with an index and a foreign key onto `organizations`: the
   constraint, the index, and the key's validation each scan `contacts` once, and adding the column is a catalog change.
-  Every one of those is again sized by the contact book rather than by the mail.
+  `AddContactPhoto` does the same for a contact's photo: a nullable `PhotoFileId` column, a partial index over the rows
+  carrying one, `ck_contacts_photo_holder`, and a foreign key onto `stored_files` — each a scan of `contacts` once, and
+  the column a catalog change. Every one of those is again sized by the contact book rather than by the mail.
 
 - **A foreign key added to a table that already holds rows is validated by scanning it.** `AddLocalMailFolders` adds
   `FK_stored_emails_local_mail_folders_LocalMailFolderId` to `stored_emails`, so the message table is read once under a

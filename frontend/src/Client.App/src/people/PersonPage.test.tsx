@@ -21,6 +21,7 @@ function personCalled(origin: Contact['origin'], id = 'anna', displayName = 'Ann
         origin,
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
+        photo: null,
     };
 }
 

@@ -95,6 +95,25 @@ internal sealed class ContactConfiguration : IEntityTypeConfiguration<ContactEnt
             .HasForeignKey(contact => contact.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // A photo is a file of the user whose book holds the contact, so it may sit only on a row a user holds, and
+        // the origin a user's book holds is asserted by the constraint above.
+        entity.ToTable(table => table.HasCheckConstraint(
+            PersistenceConstraintNames.ContactPhotoHolderCheckConstraintName,
+            $"""
+             "{nameof(ContactEntity.PhotoFileId)}" IS NULL OR "{nameof(ContactEntity.UserId)}" IS NOT NULL
+             """));
+
+        // A file removed by any path leaves the contact without a photo rather than linking one that is gone, and the
+        // index is what the sweep's question about a candidate and that unlinking both read.
+        entity.HasOne<StoredFileEntity>()
+            .WithMany()
+            .HasForeignKey(contact => contact.PhotoFileId)
+            .HasConstraintName(PersistenceConstraintNames.ContactPhotoFileForeignKeyName)
+            .OnDelete(DeleteBehavior.SetNull);
+        entity.HasIndex(contact => contact.PhotoFileId)
+            .HasDatabaseName(PersistenceConstraintNames.ContactPhotoFileIndexName)
+            .HasFilter($"\"{nameof(ContactEntity.PhotoFileId)}\" IS NOT NULL");
+
         // An organization's book hangs on the organization, so deleting it takes the people its administrators wrote
         // down.
         entity.HasOne<OrganizationEntity>()

@@ -3,7 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Contacts;
+using MailFathom.Application.StoredFiles;
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
@@ -313,6 +315,20 @@ internal sealed class ContactDirectory(MailFathomDbContext readContext) : IConta
             entities.Length > query.PageSize && contacts.Length > 0
                 ? ContactCursor.After(contacts[^1].DisplayName, contacts[^1].Id)
                 : null);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlySet<StoredFileId>> FindPhotosOfAsync(UserId user, CancellationToken cancellationToken)
+    {
+        var bookHolderId = ContactBookHolder.Of(user).Key;
+
+        var photos = await readContext.Contacts
+            .AsNoTracking()
+            .Where(record => record.BookHolderId == bookHolderId && record.PhotoFileId != null)
+            .Select(record => record.PhotoFileId!.Value)
+            .ToArrayAsync(cancellationToken);
+
+        return photos.Select(StoredFileId.Create).ToHashSet();
     }
 
     /// <summary>States what a name resolved to, from the count of its carriers and the ones actually read.</summary>

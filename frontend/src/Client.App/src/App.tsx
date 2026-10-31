@@ -40,7 +40,7 @@ import {
     type ClientDeployment,
     type ConfigurationRefusal,
 } from './deployment/adoptedDeployment';
-import type { PortraitExchange } from './deployment/portraitExchange';
+import type { ContactPhotoExchange, PortraitExchange } from './deployment/portraitExchange';
 import type { DeploymentTransport } from './deployment/sendToDeployment';
 import { telemetryForwardedBy } from './deployment/telemetryForwarding';
 import { agentReport } from './agent/agentReport';
@@ -152,6 +152,7 @@ export function App({
     redirectAnswer,
     send,
     portraits,
+    contactPhotos,
     openSignals,
     signalSchedule,
 }: {
@@ -172,6 +173,9 @@ export function App({
 
     /** How the picture the signed-in person is drawn by is read and written, octets not being what a transport speaks. */
     readonly portraits: PortraitExchange;
+
+    /** How the photo of a person in the book is read and written, for the same reason the portrait is an adapter. */
+    readonly contactPhotos: ContactPhotoExchange;
 
     /** How a connection to the deployment's signal channel is opened, which is the composition root's for the reason the transport is. */
     readonly openSignals: MailFathomSignalChannel;
@@ -1583,6 +1587,9 @@ export function App({
                                                                                                                 }
                                                                                                                 transport={
                                                                                                                     readMail
+                                                                                                                }
+                                                                                                                contactPhotos={
+                                                                                                                    contactPhotos
                                                                                                                 }
                                                                                                                 writable={
                                                                                                                     writesContacts

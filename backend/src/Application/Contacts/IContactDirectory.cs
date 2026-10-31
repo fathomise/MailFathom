@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.StoredFiles;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 
@@ -180,4 +182,14 @@ public interface IContactDirectory
         ContactBookScope scope,
         ContactQuery query,
         CancellationToken cancellationToken);
+
+    /// <summary>Reads every file the contacts of one user's own book link as their photos.</summary>
+    /// <param name="user">The user whose own book is read.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The linked files, empty when the book links none or this deployment holds no such user.</returns>
+    /// <remarks>
+    /// It names a user rather than a scope because it answers about files rather than people: what the sweep of stored
+    /// files asks before removing one of that user's is whether anything of theirs still links it.
+    /// </remarks>
+    Task<IReadOnlySet<StoredFileId>> FindPhotosOfAsync(UserId user, CancellationToken cancellationToken);
 }

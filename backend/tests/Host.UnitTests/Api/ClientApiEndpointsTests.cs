@@ -170,6 +170,9 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientContactEndpoints.ContactRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientContactEndpoints.ContactRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientContactCorrespondenceEndpoint.ContactCorrespondenceRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientContactPhotoEndpoint.ContactPhotoRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientContactPhotoEndpoint.ContactPhotoRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientContactPhotoEndpoint.ContactPhotoRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientContactEndpoints.ContactPromotionRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientContactRelationshipEndpoint.ContactRelationshipRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientDiscoveryRunEndpoints.DiscoveryRunsRoute}",
@@ -301,6 +304,7 @@ public sealed class ClientApiEndpointsTests
                 $"DELETE {prefix}{ClientAgentConversationEndpoints.RunRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"DELETE {prefix}{ClientCalendarEndpoints.CalendarEventRoute} -> {MailFathomPermission.CalendarWrite.Name}",
                 $"DELETE {prefix}{ClientContactEndpoints.ContactRoute} -> {MailFathomPermission.ContactsWrite.Name}",
+                $"DELETE {prefix}{ClientContactPhotoEndpoint.ContactPhotoRoute} -> {MailFathomPermission.ContactsWrite.Name}",
                 $"DELETE {prefix}{ClientDiscoveryRunEndpoints.DiscoveryRunRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"DELETE {prefix}{ClientDraftEndpoints.DraftRoute} -> {MailFathomPermission.MailDraftsWrite.Name}",
                 $"DELETE {prefix}{ClientDraftEndpoints.DraftAttachmentRoute} -> {MailFathomPermission.MailDraftsWrite.Name}",
@@ -316,6 +320,7 @@ public sealed class ClientApiEndpointsTests
                 $"GET {prefix}{ClientContactEndpoints.CollectedContactsRoute} -> {MailFathomPermission.ContactsRead.Name}",
                 $"GET {prefix}{ClientContactEndpoints.ContactRoute} -> {MailFathomPermission.ContactsRead.Name}",
                 $"GET {prefix}{ClientContactCorrespondenceEndpoint.ContactCorrespondenceRoute} -> {MailFathomPermission.MailRead.Name}",
+                $"GET {prefix}{ClientContactPhotoEndpoint.ContactPhotoRoute} -> {MailFathomPermission.ContactsRead.Name}",
                 $"GET {prefix}{ClientContactRelationshipEndpoint.ContactRelationshipRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"GET {prefix}{ClientDiscoveryRunEndpoints.DiscoveryRunRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"GET {prefix}{ClientDisplayNameEndpoint.DisplayNameRoute} -> {MailFathomPermission.ProfileRead.Name}",
@@ -359,6 +364,7 @@ public sealed class ClientApiEndpointsTests
                 $"POST {prefix}{ClientCalendarEndpoints.CalendarEventAcceptanceRoute} -> {MailFathomPermission.CalendarWrite.Name}",
                 $"POST {prefix}{ClientCitationEndpoint.CitationResolutionRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"POST {prefix}{ClientContactEndpoints.ContactsRoute} -> {MailFathomPermission.ContactsWrite.Name}",
+                $"POST {prefix}{ClientContactPhotoEndpoint.ContactPhotoRoute} -> {MailFathomPermission.ContactsWrite.Name}",
                 $"POST {prefix}{ClientContactEndpoints.ContactPromotionRoute} -> {MailFathomPermission.ContactsWrite.Name}",
                 $"POST {prefix}{ClientDiscoveryRunEndpoints.DiscoveryRunsRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"POST {prefix}{ClientDisplayNameEndpoint.DisplayNameRoute} -> {MailFathomPermission.ProfileWrite.Name}",
@@ -782,6 +788,29 @@ public sealed class ClientApiEndpointsTests
             .Single(endpoint =>
                 $"/{endpoint.RoutePattern.RawText?.TrimStart('/')}"
                     == $"{ClientEndpointOptions.RoutePrefix}{ClientPortraitEndpoint.PortraitRoute}"
+                && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("POST"));
+
+        Assert.Equal(
+            ClientPortraitEndpoint.MaxPortraitBytes,
+            upload.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
+    }
+
+    /// <summary>A contact's photo is a picture of the same kind and is held to the portrait's bound, before its handler runs.</summary>
+    [Fact]
+    public void MapClientApi_TheContactPhotoUpload_CarriesThePortraitsRequestBodyBound()
+    {
+        // Arrange
+        var endpoints = BuildRouteBuilder();
+
+        // Act
+        endpoints.MapClientApi();
+
+        // Assert
+        var upload = endpoints.Materialize()
+            .OfType<RouteEndpoint>()
+            .Single(endpoint =>
+                $"/{endpoint.RoutePattern.RawText?.TrimStart('/')}"
+                    == $"{ClientEndpointOptions.RoutePrefix}{ClientContactPhotoEndpoint.ContactPhotoRoute}"
                 && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("POST"));
 
         Assert.Equal(

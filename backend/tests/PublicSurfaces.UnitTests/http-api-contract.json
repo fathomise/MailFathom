@@ -5768,6 +5768,16 @@
               }
             ]
           },
+          "photo": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContactPhotoResponse"
+              }
+            ]
+          },
           "producedAt": {
             "format": "date-time",
             "type": [
@@ -5778,7 +5788,8 @@
         },
         "required": [
           "contact",
-          "producedAt"
+          "producedAt",
+          "photo"
         ],
         "type": "object"
       },
@@ -5818,6 +5829,21 @@
         "required": [
           "contacts",
           "nextCursor"
+        ],
+        "type": "object"
+      },
+      "ContactPhotoResponse": {
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/ReadOnlyMemoryOfbyte"
+          },
+          "mediaType": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mediaType",
+          "content"
         ],
         "type": "object"
       },
@@ -5894,6 +5920,13 @@
           "origin": {
             "type": "string"
           },
+          "photo": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "preferredAddress": {
             "type": "string"
           },
@@ -5911,7 +5944,8 @@
           "origin",
           "recordedAt",
           "amendedAt",
-          "organization"
+          "organization",
+          "photo"
         ],
         "type": "object"
       },
@@ -11173,6 +11207,9 @@
           }
         },
         "type": "object"
+      },
+      "ReadOnlyMemoryOfbyte": {
+        "type": "string"
       },
       "RoleAssignmentListResponse": {
         "properties": {
@@ -19035,6 +19072,136 @@
             "description": "OK"
           },
           "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/contacts/{contactId}/photo": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "$ref": "#/components/schemas/Stream"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "$ref": "#/components/schemas/Stream"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
             "description": "Not Found"
           }
         },

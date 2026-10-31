@@ -472,14 +472,12 @@ internal static class OrganizationContactEndpoints
 
         if (!await Covers(authorization, MailFathomPermission.AdminAuditRead, organizationId, cancellationToken))
         {
-            return TypedResults.Ok(new ContactExportResponse(Contact: null, ProducedAt: null));
+            return TypedResults.Ok(ContactExportResponse.None);
         }
 
         var export = await book.ExportAsync(ScopeOf(organizationId), identity, cancellationToken);
 
-        return TypedResults.Ok(export is null
-            ? new ContactExportResponse(Contact: null, ProducedAt: null)
-            : new ContactExportResponse(ContactResponse.For(export.Contact), export.ProducedAt));
+        return TypedResults.Ok(ContactExportResponse.For(export));
     }
 
     /// <summary>Refuses a write naming an organization the caller's scope does not cover or the deployment does not hold, answering both alike.</summary>

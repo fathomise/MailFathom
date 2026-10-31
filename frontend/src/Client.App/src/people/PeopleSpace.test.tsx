@@ -6,6 +6,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@te
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
+import type { ContactPhotoExchange } from '../deployment/portraitExchange';
 import { LocalizationProvider } from '../localization/Localization';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from '../shell/screenLayers';
@@ -65,6 +66,7 @@ function personCalled(
         origin,
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
+        photo: null,
     };
 }
 
@@ -151,6 +153,13 @@ const notWriting: Composing = {
     close: () => undefined,
 };
 
+// Nobody in the book has a photo unless a test says so, and a photo written is stored.
+const photographsNobody: ContactPhotoExchange = {
+    read: () => Promise.resolve({ outcome: 'none' }),
+    replace: () => Promise.resolve({ outcome: 'stored' }),
+    remove: () => Promise.resolve({ outcome: 'stored' }),
+};
+
 function drawSpace(
     transport: MailFathomTransport,
     {
@@ -158,7 +167,14 @@ function drawSpace(
         composing = notWriting,
         layers = null,
         lostServer = false,
-    }: { writable?: boolean; composing?: Composing; layers?: ScreenLayers | null; lostServer?: boolean } = {},
+        photos = photographsNobody,
+    }: {
+        writable?: boolean;
+        composing?: Composing;
+        layers?: ScreenLayers | null;
+        lostServer?: boolean;
+        photos?: ContactPhotoExchange;
+    } = {},
 ): void {
     render(
         <LocalizationProvider>
@@ -168,6 +184,7 @@ function drawSpace(
                         <PeopleSpace
                             session={session}
                             transport={transport}
+                            contactPhotos={photos}
                             writable={writable}
                             onOpenThread={vi.fn()}
                             onOpenDocument={vi.fn()}
@@ -246,6 +263,124 @@ describe('PeopleSpace', () => {
             preferredAddress: 'bartek@contoso.example',
             note: null,
         });
+    });
+
+    // The photo is a file kept under a contact, so it is stored under the one the book just wrote rather than before it.
+    it('stores a photo chosen for somebody new under the contact the book wrote for them', async () => {
+        const { transport } = deployment({
+            write: { outcome: 'Written', contact: personCalled('bartek', 'Bartek Nowak'), addressHolder: null },
+        });
+        const replaced: string[] = [];
+        drawSpace(transport, {
+            photos: {
+                ...photographsNobody,
+                replace: (_, contactId) => {
+                    replaced.push(contactId);
+
+                    return Promise.resolve({ outcome: 'stored' });
+                },
+            },
+        });
+
+        expect(await screen.findByRole('option', { name: /Anna Kowalska/u })).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'New contact' }));
+        fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Bartek Nowak' } });
+        fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'bartek@contoso.example' } });
+        fireEvent.change(screen.getByLabelText('Choose photo'), {
+            target: { files: [new File([new Uint8Array([0x89, 0x50])], 'bartek.png', { type: 'image/png' })] },
+        });
+        expect(await screen.findByRole('img', { name: 'Contact photo' })).toBeDefined();
+        fireEvent.click(screen.getByRole('button', { name: 'Save contact' }));
+
+        expect(await screen.findByText('Contact added.')).toBeDefined();
+        expect(replaced).toEqual(['bartek']);
+    });
+
+    // Nothing answering is not a refusal: the photo may well be stored, so the screen says it does not know.
+    it('says it does not know whether a photo nobody answered for was stored under somebody new', async () => {
+        const { transport } = deployment({
+            write: { outcome: 'Written', contact: personCalled('bartek', 'Bartek Nowak'), addressHolder: null },
+        });
+        drawSpace(transport, {
+            photos: {
+                ...photographsNobody,
+                replace: () => Promise.resolve({ outcome: 'refused', reason: 'unavailable' }),
+            },
+        });
+
+        expect(await screen.findByRole('option', { name: /Anna Kowalska/u })).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'New contact' }));
+        fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Bartek Nowak' } });
+        fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'bartek@contoso.example' } });
+        fireEvent.change(screen.getByLabelText('Choose photo'), {
+            target: { files: [new File([new Uint8Array([0x89, 0x50])], 'bartek.png', { type: 'image/png' })] },
+        });
+        expect(await screen.findByRole('img', { name: 'Contact photo' })).toBeDefined();
+        fireEvent.click(screen.getByRole('button', { name: 'Save contact' }));
+
+        expect(
+            await screen.findByText(
+                'The server did not answer, so it is not known whether that change to the photo was stored.',
+            ),
+        ).toBeDefined();
+    });
+
+    // Removing the photo alone changes nothing else about the person, so the record is not written for it.
+    it('removes the photo alone without amending the record, and says so where the server refused it', async () => {
+        const withPhoto = { ...(personCalled('anna', 'Anna Kowalska') as object), photo: 'stored-file' };
+        const { transport, sent } = deployment({ own: [withPhoto] });
+        const removed: string[] = [];
+        drawSpace(transport, {
+            photos: {
+                ...photographsNobody,
+                read: () => Promise.resolve({ outcome: 'drawn', picture: 'data:image/png;base64,iVBORw0KGgo=' }),
+                remove: (_, contactId) => {
+                    removed.push(contactId);
+
+                    return Promise.resolve({ outcome: 'refused', reason: 'unauthorized' });
+                },
+            },
+        });
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Edit contact' }));
+
+        const correction = screen.getByRole('dialog', { name: 'Edit contact' });
+        fireEvent.click(await within(correction).findByRole('button', { name: 'Remove photo' }));
+        fireEvent.click(within(correction).getByRole('button', { name: 'Save changes' }));
+
+        expect(await screen.findByText('The server did not store that change to the photo.')).toBeDefined();
+        expect(removed).toEqual(['anna']);
+        expect(sent().some((request) => request.method === 'PUT')).toBe(false);
+    });
+
+    it('draws a person by the photo the book names for them, and by their initials otherwise', async () => {
+        const { transport } = deployment({
+            own: [
+                { ...(personCalled('anna', 'Anna Kowalska') as object), photo: 'stored-file' },
+                personCalled('bea', 'Bea Lind'),
+            ],
+        });
+        drawSpace(transport, {
+            photos: {
+                ...photographsNobody,
+                read: (_, contactId) =>
+                    Promise.resolve(
+                        contactId === 'anna'
+                            ? { outcome: 'drawn', picture: 'data:image/png;base64,iVBORw0KGgo=' }
+                            : { outcome: 'none' },
+                    ),
+            },
+        });
+
+        const anna = await screen.findByRole('option', { name: /Anna Kowalska/u });
+
+        await waitFor(() => {
+            expect(anna.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,iVBORw0KGgo=');
+        });
+        expect(screen.getByRole('option', { name: /Bea Lind/u }).querySelector('img')).toBeNull();
     });
 
     it('says what the book did about a write rather than leaving the screen unchanged', async () => {

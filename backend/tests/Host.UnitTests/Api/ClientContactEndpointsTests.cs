@@ -5,6 +5,7 @@
 using System.Globalization;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
@@ -562,6 +563,7 @@ public sealed class ClientContactEndpointsTests
             new ContactBook(
                 this.store,
                 this.directory,
+                Substitute.For<IStoredFileStore>(),
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
                 this.clock,
                 authorization),

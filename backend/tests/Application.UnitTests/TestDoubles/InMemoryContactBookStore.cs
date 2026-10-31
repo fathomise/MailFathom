@@ -3,7 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Contacts;
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
@@ -156,6 +158,40 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
             writer);
 
         return Task.FromResult(true);
+    }
+
+    /// <inheritdoc />
+    public Task<ContactPhotoRelinking> RelinkPhotoAsync(
+        IPersistenceSession session,
+        UserId user,
+        ContactId contactId,
+        StoredFileId? photo,
+        CancellationToken cancellationToken)
+    {
+        var holder = ContactBookHolder.Of(user);
+
+        if (this.HeldIn(holder, contactId) is not { } held)
+        {
+            return Task.FromResult(ContactPhotoRelinking.NoSuchContact);
+        }
+
+        this.heldById[contactId] = new HeldContact(
+            holder,
+            Contact.Create(
+                held.Id,
+                held.DisplayName,
+                held.Addresses,
+                held.PreferredAddress,
+                held.Note,
+                held.Origin,
+                held.RecordedAt,
+                held.AmendedAt,
+                held.Organization,
+                photo?.Value));
+
+        var replaced = held.Photo is { } linked ? StoredFileId.Create(linked) : (StoredFileId?)null;
+
+        return Task.FromResult(new ContactPhotoRelinking(ContactHeld: true, replaced));
     }
 
     /// <inheritdoc />
@@ -380,6 +416,14 @@ internal sealed class InMemoryContactBookStore : IContactStore, IContactDirector
                 ? ContactCursor.After(page[^1].DisplayName, page[^1].Id)
                 : null));
     }
+
+    /// <inheritdoc />
+    public Task<IReadOnlySet<StoredFileId>> FindPhotosOfAsync(UserId user, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlySet<StoredFileId>>(
+            this.BookOf(ContactBookHolder.Of(user))
+                .Where(contact => contact.Photo is not null)
+                .Select(contact => StoredFileId.Create(contact.Photo!.Value))
+                .ToHashSet());
 
     private static bool IsBeyond(Contact contact, ContactCursor cursor)
     {

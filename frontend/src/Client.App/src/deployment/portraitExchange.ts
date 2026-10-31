@@ -5,8 +5,11 @@
 import {
     failureReasonForStatus,
     largestPortraitOctets,
+    readContactPhoto,
     readOwnPortrait,
+    removeContactPhoto,
     removeOwnPortrait,
+    replaceContactPhoto,
     replaceOwnPortrait,
     type ClientFailureReason,
     type ClientRequest,
@@ -21,8 +24,9 @@ import { deploymentCredentials } from './sendToDeployment';
 // The third module in this directory that calls `fetch`, and the third for the same reason: `Client.Backend` declares
 // no DOM, so a `Blob`, a `File`, and a `FileReader` can only be named on this side of the boundary. What that package
 // still owns is the part that is the contract — the routes, the credential, the kinds, the bound, and the span each
-// request is recorded under — so each of the three below is reached through that package's own operation, which hands
-// the composed request down to the `fetch` here and keeps the record around it.
+// request is recorded under — so each request below, three for the signed-in person's portrait and three for a
+// contact's photo, is reached through that package's own operation, which hands the composed request down to the
+// `fetch` here and keeps the record around it.
 //
 // A read answers an address the client may draw rather than the octets themselves, so nothing above holds a picture.
 // `dataUrl.ts` beside it composes that address and holds why it is a data URL rather than a blob one.
@@ -41,7 +45,8 @@ export type PortraitWrite =
  * What the client may do with the picture the signed-in person is drawn by.
  *
  * It is an interface rather than three loose functions because the three are one boundary: a screen proving what it
- * does about a removal that was refused hands over one object, and the application supplies one at its edge.
+ * does about a removal that was refused hands over one object, and the application supplies one at its edge. A
+ * contact's photo is the same boundary over other routes, and `ContactPhotoExchange` below is its interface.
  */
 export interface PortraitExchange {
     /**
@@ -66,6 +71,34 @@ export const portraitExchange: PortraitExchange = {
         replaceOwnPortrait(session, type, (request) => stated(request, picture), refusalOf),
 
     remove: (session) => removeOwnPortrait(session, (request) => stated(request, null), refusalOf),
+};
+
+/**
+ * What the client may do with the photo of a person the signed-in user wrote down in their own book.
+ *
+ * It answers exactly as the portrait does, because it is stored, bounded, and served exactly as that is; what differs
+ * is only which contact each request names.
+ */
+export interface ContactPhotoExchange {
+    /** Fetches a contact's photo, answering an address it may be drawn at, that there is none, or why it could not be read. */
+    read(session: ClientSession, contactId: string, abandoned: AbortSignal): Promise<PortraitRead>;
+
+    /** Replaces a contact's photo with a file somebody chose, under the kind it was found to be. */
+    replace(session: ClientSession, contactId: string, picture: Blob, type: PortraitImageType): Promise<PortraitWrite>;
+
+    /** Removes a contact's photo, leaving the rest of the contact as it was. */
+    remove(session: ClientSession, contactId: string): Promise<PortraitWrite>;
+}
+
+export const contactPhotoExchange: ContactPhotoExchange = {
+    read: (session, contactId, abandoned) =>
+        readContactPhoto(session, contactId, (request) => readPicture(request, abandoned), refusalOf),
+
+    replace: (session, contactId, picture, type) =>
+        replaceContactPhoto(session, contactId, type, (request) => stated(request, picture), refusalOf),
+
+    remove: (session, contactId) =>
+        removeContactPhoto(session, contactId, (request) => stated(request, null), refusalOf),
 };
 
 /**

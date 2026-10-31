@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Contacts;
 using MailFathom.Application.Coordination;
 
 namespace MailFathom.Application.StoredFiles;
@@ -13,6 +14,10 @@ namespace MailFathom.Application.StoredFiles;
 /// A file is written before the record links to it, so a failure between the two leaves a file nothing links to. The
 /// age floor is what separates that from a write whose link has not committed yet: a file younger than it is never a
 /// candidate, whatever its record says.
+/// </para>
+/// <para>
+/// A file is linked from one of two places: the owner's user record, which links their own portrait, and the contacts
+/// of the owner's own book, each of which may link its photo. A candidate either of them links is left alone.
 /// </para>
 /// <para>
 /// The sweep is one run for the whole deployment, so it runs only under the lease on its scope, as
@@ -34,13 +39,15 @@ public sealed class UnlinkedStoredFileSweep
     private readonly AccessAuthorization authorization;
     private readonly IStoredFileStore files;
     private readonly IUserRecordFileLinks links;
+    private readonly IContactDirectory contacts;
     private readonly IWorkLeaseRunner leases;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the sweep.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <param name="files">Names the candidates and removes what nothing links to.</param>
-    /// <param name="links">Reads which files each candidate's owner links to.</param>
+    /// <param name="links">Reads which files each candidate's owner's record links to.</param>
+    /// <param name="contacts">Reads which files the contacts of each candidate's owner's own book link to.</param>
     /// <param name="leases">Holds the sweep's scope for the length of one run.</param>
     /// <param name="timeProvider">Reads the instant the age floor is measured from.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
@@ -48,18 +55,21 @@ public sealed class UnlinkedStoredFileSweep
         AccessAuthorization authorization,
         IStoredFileStore files,
         IUserRecordFileLinks links,
+        IContactDirectory contacts,
         IWorkLeaseRunner leases,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(links);
+        ArgumentNullException.ThrowIfNull(contacts);
         ArgumentNullException.ThrowIfNull(leases);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.authorization = authorization;
         this.files = files;
         this.links = links;
+        this.contacts = contacts;
         this.leases = leases;
         this.timeProvider = timeProvider;
     }
@@ -95,9 +105,11 @@ public sealed class UnlinkedStoredFileSweep
         // own: a run cancelled part-way has removed exactly what it counted.
         foreach (var owned in candidates.GroupBy(candidate => candidate.Owner))
         {
-            var linked = await this.links.ReadLinkedFilesAsync(owned.Key, cancellationToken);
+            var linkedByRecord = await this.links.ReadLinkedFilesAsync(owned.Key, cancellationToken);
+            var linkedByContacts = await this.contacts.FindPhotosOfAsync(owned.Key, cancellationToken);
 
-            foreach (var unlinked in owned.Where(candidate => !linked.Contains(candidate.File)))
+            foreach (var unlinked in owned.Where(candidate =>
+                !linkedByRecord.Contains(candidate.File) && !linkedByContacts.Contains(candidate.File)))
             {
                 await this.files.RemoveAsync(owned.Key, unlinked.File, cancellationToken);
                 removed++;

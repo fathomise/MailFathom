@@ -7,6 +7,7 @@ using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Governance;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
@@ -126,6 +127,9 @@ internal static class AuthoredSendGovernors
             ContactQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult(new ContactPage([], null));
+
+        public Task<IReadOnlySet<StoredFileId>> FindPhotosOfAsync(UserId user, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlySet<StoredFileId>>(new HashSet<StoredFileId>());
     }
 
     /// <summary>A user owning no account, which vouches for no address of their own.</summary>

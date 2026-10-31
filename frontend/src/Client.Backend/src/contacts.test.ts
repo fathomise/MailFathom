@@ -31,6 +31,7 @@ const asserted = {
     origin: 'Asserted',
     recordedAt: '2026-03-01T08:00:00+00:00',
     amendedAt: '2026-03-04T09:01:12+00:00',
+    photo: null,
 };
 
 const pageBody = JSON.stringify({ contacts: [asserted], nextCursor: 'page-two' });
@@ -124,6 +125,7 @@ describe('readOwnContacts', () => {
                         origin: 'Asserted',
                         recordedAt: '2026-03-01T08:00:00+00:00',
                         amendedAt: '2026-03-04T09:01:12+00:00',
+                        photo: null,
                     },
                 ],
                 nextCursor: 'page-two',
@@ -198,6 +200,28 @@ describe('readContact', () => {
             headers: { Accept: 'application/json', Authorization: 'Basic dGVzdA==' },
             longestAnswer: 32768,
         });
+    });
+
+    it('reads the photo a contact names by its stored file', async () => {
+        const result = await readContact(
+            session,
+            answering({
+                status: 200,
+                body: JSON.stringify({ ...asserted, photo: '0198f4a1-0000-7000-8000-00000000f001' }),
+            }),
+            asserted.id,
+        );
+
+        expect(result).toMatchObject({ outcome: 'read', value: { photo: '0198f4a1-0000-7000-8000-00000000f001' } });
+    });
+
+    it.each([
+        ['a photo that is not an identifier', { ...asserted, photo: 42 }],
+        ['a contact that does not say whether it has a photo', { ...asserted, photo: undefined }],
+    ])('refuses %s', async (_, body) => {
+        const result = await readContact(session, answering({ status: 200, body: JSON.stringify(body) }), asserted.id);
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('reads a contact the books no longer hold as something to let go of', async () => {
@@ -353,6 +377,7 @@ describe('recordContact', () => {
                     origin: 'Asserted',
                     recordedAt: '2026-03-01T08:00:00+00:00',
                     amendedAt: '2026-03-04T09:01:12+00:00',
+                    photo: null,
                 },
                 addressHolder: null,
             },

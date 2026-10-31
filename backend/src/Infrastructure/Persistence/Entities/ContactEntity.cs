@@ -108,6 +108,13 @@ internal sealed class ContactEntity
     /// <summary>Gets or sets what the user wrote about this person, or <see langword="null" /> when they wrote nothing.</summary>
     public string? Note { get; set; }
 
+    /// <summary>Gets or sets the stored file this person's photo is, or <see langword="null" /> when they have none.</summary>
+    /// <remarks>
+    /// Present only on a contact a user wrote down in their own book, whose user owns the file. It is never written by an
+    /// amendment, which states the person rather than their picture: the photo is replaced and removed on its own.
+    /// </remarks>
+    public Guid? PhotoFileId { get; set; }
+
     /// <summary>Gets or sets how this contact came to be in the book, which decides who may amend it.</summary>
     public ContactOrigin Origin { get; set; }
 

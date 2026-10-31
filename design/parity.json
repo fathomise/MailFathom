@@ -672,6 +672,26 @@
         }
       ]
     },
+    "contact-new": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "people",
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "New contact"
+          }
+        },
+        {
+          "expect": {
+            "text": "JPEG or PNG, up to 1 MB. Without a photo the initials stand in."
+          }
+        }
+      ]
+    },
     "tasks": {
       "file": "prototype.dc.html",
       "properties": {

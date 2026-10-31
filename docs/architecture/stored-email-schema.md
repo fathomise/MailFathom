@@ -643,9 +643,11 @@ it keys onto the user row and records no mail account, so nothing has to know th
 ## Files a user record links to
 
 `stored_files` holds binary files a user supplied and a record links to rather than holds — today the picture the
-client draws them by on [the portrait routes](../operations/client-endpoint.md#the-portrait-routes). The user record
-carries the link as `Portrait`, the file's identifier; the octets are held the way a mail payload's are, so a megabyte
-of image never rides along with a read of the record.
+client draws them by on [the portrait routes](../operations/client-endpoint.md#the-portrait-routes), and the photo
+they gave a person in their own book on [the contact photo routes](../operations/client-endpoint.md#the-contact-photo-routes).
+The user record carries the first link as `Portrait`, and a row of `contacts` the second as `PhotoFileId`, each the
+file's identifier; the octets are held the way a mail payload's are, so a megabyte of image never rides along with a
+read of the record.
 
 | Column of `stored_files` | What it records |
 |---|---|
@@ -656,11 +658,12 @@ of image never rides along with a read of the record.
 | `Backend`, `Content`, `ObjectLocator`, `ObjectVerifiedAt` | Where the octets are held, under the same check constraint and the same partial unique index on the locator as every content table: in `Content` when the database holds them, in the object `ObjectLocator` names when the object backend does. The move of stored content carries a file like a mail payload, and a release frees its retained copy the same way |
 | `CreatedAt` | When the file was written, which the sweep's age floor is measured from |
 
-**A file is written once and removed, never rewritten.** Replacing a portrait writes a new file, links it, and then
-removes the file it displaced, so a failure between any two steps leaves at most a file nothing links to. A sweep
-removes those once they are an hour old, at most a hundred a run, on whichever replica holds its lease; a file its
-owner's record links to is left alone however it was found. Erasing a user reads the object keys of their files
-before the cascade takes the rows, so the objects go with them.
+**A file is written once and removed, never rewritten.** Replacing a portrait or a contact's photo writes a new file,
+links it, and then removes the file it displaced, so a failure between any two steps leaves at most a file nothing
+links to. A sweep removes those once they are an hour old, at most a hundred a run, on whichever replica holds its
+lease; a file its owner's record or a contact of their own book links to is left alone however it was found. Erasing a
+user reads the object keys of their files before the cascade takes the rows, so the objects go with them, and erasing a
+contact deletes its photo's row in the same transaction and releases its object once that commits.
 
 ## What happened while nobody was looking
 
@@ -1892,6 +1895,7 @@ the schema itself decides is below.
 | `Note` | What the user wrote about the person, or null |
 | `Origin` | `Asserted` where somebody wrote the person down, `Collected` where an address merely appeared in arriving mail. Held as its own name for the reason every bounded value on this page is |
 | `RecordedAt`, `AmendedAt` | When the contact entered the book, and when it was last changed |
+| `PhotoFileId` | The [stored file](#files-a-user-record-links-to) of the photo the user gave this person, or null. `ck_contacts_photo_holder` admits one only on a row of a user's own book, which is the only book with a user to own the file; the foreign key onto `stored_files` sets it null should the file go first, and a partial index over the rows carrying one serves the sweep's question of whether a file is linked |
 | `ConcurrencyVersion` | The `xmin` token, because a contact is amended in place. What it settles is a row that changed or disappeared between the read an amendment is applied to and the commit — above all an amendment racing an erasure, which then writes nothing rather than putting the person back |
 
 **The holder columns cannot disagree.** A check constraint requires exactly one of `UserId`, `OrganizationId`, and

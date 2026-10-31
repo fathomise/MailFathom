@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Contacts;
 using MailFathom.Application.Coordination;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
@@ -37,6 +38,27 @@ public sealed class UnlinkedStoredFileSweepTests
             .Returns(new HashSet<StoredFileId> { Linked });
 
         var sweep = Sweeping(files, links, new GrantingLeaseRunner());
+
+        // Act
+        var removed = await sweep.RunAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(1, removed);
+        await files.Received(1).RemoveAsync(SyntheticUser.Deployment, Unlinked, Arg.Any<CancellationToken>());
+        await files.DidNotReceive().RemoveAsync(Arg.Any<UserId>(), Linked, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A contact's photo is a file of the user its record never mentions, so the contacts' own links are what keep it.</summary>
+    [Fact]
+    public async Task RunAsync_ACandidateAContactOfItsOwnersBookLinks_IsLeftAloneWhileTheUnlinkedOneIsRemoved()
+    {
+        // Arrange
+        var files = FilesNaming(new HeldStoredFile(Linked, SyntheticUser.Deployment), new HeldStoredFile(Unlinked, SyntheticUser.Deployment));
+        var contacts = Substitute.For<IContactDirectory>();
+        contacts.FindPhotosOfAsync(SyntheticUser.Deployment, Arg.Any<CancellationToken>())
+            .Returns(new HashSet<StoredFileId> { Linked });
+
+        var sweep = Sweeping(files, Substitute.For<IUserRecordFileLinks>(), new GrantingLeaseRunner(), contacts);
 
         // Act
         var removed = await sweep.RunAsync(TestContext.Current.CancellationToken);
@@ -92,6 +114,7 @@ public sealed class UnlinkedStoredFileSweepTests
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
             FilesNaming(),
             Substitute.For<IUserRecordFileLinks>(),
+            Substitute.For<IContactDirectory>(),
             new GrantingLeaseRunner(),
             new FakeTimeProvider(Now));
 
@@ -112,11 +135,13 @@ public sealed class UnlinkedStoredFileSweepTests
     private static UnlinkedStoredFileSweep Sweeping(
         IStoredFileStore files,
         IUserRecordFileLinks links,
-        IWorkLeaseRunner leases) =>
+        IWorkLeaseRunner leases,
+        IContactDirectory? contacts = null) =>
         new(
             AccessAuthorizations.ForPrincipal(AuthorizedPrincipal.Process),
             files,
             links,
+            contacts ?? Substitute.For<IContactDirectory>(),
             leases,
             new FakeTimeProvider(Now));
 

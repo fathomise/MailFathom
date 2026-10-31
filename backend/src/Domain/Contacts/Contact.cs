@@ -61,7 +61,8 @@ public sealed class Contact
         ContactOrigin origin,
         DateTimeOffset recordedAt,
         DateTimeOffset amendedAt,
-        Guid? organization)
+        Guid? organization,
+        Guid? photo)
     {
         this.Id = id;
         this.DisplayName = displayName;
@@ -72,6 +73,7 @@ public sealed class Contact
         this.RecordedAt = recordedAt;
         this.AmendedAt = amendedAt;
         this.Organization = organization;
+        this.Photo = photo;
     }
 
     /// <summary>Gets what addresses this person, which no amendment and no promotion ever changes.</summary>
@@ -111,6 +113,14 @@ public sealed class Contact
     /// </remarks>
     public Guid? Organization { get; }
 
+    /// <summary>Gets the stored file this person's photo is, or <see langword="null" /> when they have none.</summary>
+    /// <remarks>
+    /// The identifier of a file the user supplied rather than anything about the person, linked from the record the way a
+    /// user's own portrait is linked from theirs. Only a contact a user wrote down in their own book carries one: a stored
+    /// file belongs to a user, so a collected contact and an organization's contact have nobody to own it.
+    /// </remarks>
+    public Guid? Photo { get; }
+
     /// <summary>Builds a contact from what a user or collection supplied, enforcing every invariant the book rests on.</summary>
     /// <param name="id">The identity this contact keeps for as long as it is held.</param>
     /// <param name="displayName">The name to record.</param>
@@ -121,9 +131,10 @@ public sealed class Contact
     /// <param name="recordedAt">When this contact entered the book.</param>
     /// <param name="amendedAt">When it was last amended, which is <paramref name="recordedAt" /> for a new contact.</param>
     /// <param name="organization">The organization whose book holds it, or <see langword="null" /> when a person or a mailbox holds it.</param>
+    /// <param name="photo">The stored file this person's photo is, or <see langword="null" /> when they have none.</param>
     /// <returns>A contact whose addresses are deduplicated and ordered, with the preferred one first.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="addresses" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when no address is supplied, when more than <see cref="MaximumAddressCount" /> remain after two spellings of one address are merged, when <paramref name="preferredAddress" /> is not among them, or when an organization's contact is not asserted.</exception>
+    /// <exception cref="ArgumentException">Thrown when no address is supplied, when more than <see cref="MaximumAddressCount" /> remain after two spellings of one address are merged, when <paramref name="preferredAddress" /> is not among them, when an organization's contact is not asserted, or when a photo is linked from anything but an asserted contact outside an organization's book.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> names no declared value.</exception>
     /// <remarks>
     /// Two spellings of one address inside one record are one address, so they are merged rather than refused: they name
@@ -140,7 +151,8 @@ public sealed class Contact
         ContactOrigin origin,
         DateTimeOffset recordedAt,
         DateTimeOffset amendedAt,
-        Guid? organization = null)
+        Guid? organization = null,
+        Guid? photo = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
 
@@ -152,6 +164,11 @@ public sealed class Contact
         if (organization is { } holder && (holder == Guid.Empty || origin != ContactOrigin.Asserted))
         {
             throw new ArgumentException("An organization's contact names its organization and is asserted.", nameof(organization));
+        }
+
+        if (photo is { } file && (file == Guid.Empty || origin != ContactOrigin.Asserted || organization is not null))
+        {
+            throw new ArgumentException("A photo names its stored file and belongs to a contact a user wrote down in their own book.", nameof(photo));
         }
 
         if (addresses.Count == 0)
@@ -184,7 +201,8 @@ public sealed class Contact
             origin,
             recordedAt,
             amendedAt,
-            organization);
+            organization,
+            photo);
     }
 
     /// <summary>Answers whether this person uses the given address.</summary>
@@ -211,7 +229,7 @@ public sealed class Contact
     /// </remarks>
     public bool IsPromotableBy(ContactOrigin writer) => writer == ContactOrigin.Asserted;
 
-    /// <summary>Produces this contact with the parts an amendment replaced, keeping its identity, origin, organization, and arrival.</summary>
+    /// <summary>Produces this contact with the parts an amendment replaced, keeping its identity, origin, organization, photo, and arrival.</summary>
     /// <param name="displayName">The name to record instead.</param>
     /// <param name="addresses">Every address this person uses after the amendment.</param>
     /// <param name="preferredAddress">The address to use by default after the amendment.</param>
@@ -240,7 +258,8 @@ public sealed class Contact
             this.Origin,
             this.RecordedAt,
             amendedAt,
-            this.Organization);
+            this.Organization,
+            this.Photo);
 
     /// <summary>Keeps the addr-spec alone, because the person's name is the contact's rather than one sender's spelling of it.</summary>
     /// <remarks>

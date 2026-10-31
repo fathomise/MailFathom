@@ -1,6 +1,6 @@
 # Contacts
 
-<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
+<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
 
 MailFathom holds a contact book of its own: people, the addresses they use, and what a user recorded about them, in
 the same PostgreSQL database the mail is in. This page describes the record and the rules every writer of it obeys —
@@ -12,7 +12,8 @@ removes.
 full. An agent reads and writes it over the MCP endpoint, under two grants of its own; [MCP tools §
 `list_contacts`](mcp-tools.md#list_contacts) holds those six tools and what each of them answers. A person reads and
 writes their own over the client endpoint, under the same two grants the agent holds; [the client endpoint § The contact
-routes](../operations/client-endpoint.md#the-contact-routes) holds those seven routes and the two the administrative
+routes](../operations/client-endpoint.md#the-contact-routes) holds those seven routes, the three [that hold a contact's
+photo](../operations/client-endpoint.md#the-contact-photo-routes), and the two the administrative
 surface keeps to itself. A fourth writer is the
 deployment itself: [§ Collecting contacts from arriving mail](#collecting-contacts-from-arriving-mail) describes what an
 account records on its own, and it is off until a user switches it on, so an instance nobody has written to and nobody
@@ -136,6 +137,7 @@ person and the addresses hang off them.
 | Note | Optional free text, at most 4000 characters, in which line breaks and tabs are kept and every other character that renders as nothing is refused |
 | Origin | How the contact came to be in the book — see [§ Two origins](#two-origins-and-who-may-write-which) |
 | Recorded, amended | When the contact entered the book, and when it was last changed |
+| Photo | Optional: the stored file a user gave a person they wrote down in their own book — see [§ A contact's photo](#a-contacts-photo) |
 
 The identity is the book's own and is never an address, because an address is a thing a person has rather than a thing
 they are: they give one up, gain another, and stay the same person. It is also the only part of a contact that may
@@ -154,6 +156,29 @@ inside ordinary words and refusing them would refuse names people actually have.
 a surrogate with no partner, which is no character and has no category — is refused for a different reason: the first
 thing to reject it otherwise would be the encoder writing the row, so a value somebody typed would come back as an
 encoding failure rather than as a value that was not accepted.
+
+## A contact's photo
+
+**A user may give a photo to a person they wrote down in their own book, and to nobody else.** It is the same kind of
+thing as the portrait a user is drawn by, and it is stored the same way: a stored file the contact's record links to,
+held wherever [`ContentStorage:Backend`](../operations/configuration-runtime.md#contentstorage) places content, owned
+by the user whose book holds the contact. A collected contact belongs to a mailbox rather than to a user, and an
+organization's to the organization, so neither has a user to own the file and neither takes a photo; the record refuses
+one, and so does the database, which holds a photo link only on a row of a user's own book. Nothing is ever fetched
+from outside to supply one — not from a sender's domain, not from a public avatar service, not from the mail — so a
+contact has a photo exactly when the user chose a file for them.
+
+**A photo is at most 1 MB and is a JPEG or a PNG**, judged by the signature its octets open with, and it is served back
+exactly as it was supplied. A replacement writes the new file, links it, and only then removes the one it displaced, so
+the record never links to a file that is gone; a step that fails leaves the previous photo in force, or at worst a file
+nothing links to. **The sweep that removes a stored file nothing links to reads a contact's link as well as a user
+record's**, so a contact's photo is never taken for an unlinked file, and one left behind by a failed step is removed
+once it is an hour old. An amendment of the record keeps the photo; the photo changes only through its own routes,
+[the contact photo routes](../operations/client-endpoint.md#the-contact-photo-routes), which are the client endpoint's.
+
+A contact read over the client endpoint or the administrative endpoint names its photo by the stored file's identifier,
+`photo`, which changes whenever the photo does and carries nothing about the picture. The tools over the book publish
+no photo: an agent has nothing to do with a picture somebody chose for a person.
 
 ## When two addresses are the same address
 
@@ -493,7 +518,9 @@ than as a later addition, and both are proven by test rather than described.
 address outlives its person, rather than a second statement somebody remembers to write; the erasure takes those rows
 first inside the same transaction so it can answer with what it removed — the contact and how many addresses went with
 it — and a user asking for one gets an answer rather than a call that returned without complaint. Erasing somebody the books do not hold is a completed erasure, not
-a failure: the state the user asked for is the state the books are in.
+a failure: the state the user asked for is the state the books are in. **A photo goes with its contact**: the stored
+file is deleted in the same transaction as the record, and its octets are released from the object store once that
+transaction commits, exactly as a message's content is.
 
 **It reaches every book the caller reads except an organization's, not only their own.** That is the one act over the
 books that does, and it is what a person asking to be taken out of a contact book is owed: neither asserted nor collected
@@ -508,12 +535,15 @@ book](#the-organizations-book).
 **Erasing a user erases their own book.** It is the cascade rather than an erasure of its own, and it runs in two
 hops: the asserted half of `contacts` keys onto the user record and `contact_addresses` keys onto `contacts` through
 `(ContactId, BookHolderId)`. So a data-subject request against the user discharges the people they wrote down and every
-address beneath them along with the mail. What it leaves is what their mailboxes collected, which belongs to those
+address beneath them along with the mail, and every photo they gave one of them, which is a stored file of theirs and
+goes with their other stored files. What it leaves is what their mailboxes collected, which belongs to those
 mailboxes and to whoever is still assigned them; a mailbox nobody is left assigned is erased with them, and its
 collected book goes with it.
 
 **Exporting a contact produces everything held about them** as of the instant it was taken: the name, every address,
-which is preferred, the note, the origin, and both timestamps. What a user reads is left to the surface that asks for
+which is preferred, the note, the origin, both timestamps, and the photo where one is held — its kind and its octets,
+encoded as Base64, so the document carries the picture itself rather than an identifier nobody outside the deployment
+can resolve. What a user reads is left to the surface that asks for
 it, so no surface can choose which parts of a person to hand back.
 
 Both are commands rather than seams something else is expected to reach: `mfctl contact delete` erases and

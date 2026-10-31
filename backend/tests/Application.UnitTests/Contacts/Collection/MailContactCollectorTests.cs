@@ -8,6 +8,7 @@ using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
@@ -463,6 +464,7 @@ public sealed class MailContactCollectorTests
             new ContactBook(
                 book,
                 book,
+                Substitute.For<IStoredFileStore>(),
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), timeProvider),
                 timeProvider,
                 new AccessAuthorization(principals)),

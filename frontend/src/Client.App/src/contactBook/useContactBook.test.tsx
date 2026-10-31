@@ -24,6 +24,7 @@ function contact(id: string, displayName: string): unknown {
         origin: 'Asserted',
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
+        photo: null,
     };
 }
 
