@@ -9,6 +9,7 @@ import {
     useDesktopComposition,
     useLowWindow,
     useMonitorComposition,
+    useNavigationRail,
     useTallWindow,
     useTwoPanes,
     useWideWorkspace,
@@ -163,5 +164,43 @@ describe('the heights a composition changes at', () => {
         const band = renderHook(() => ({ low: useLowWindow(), tall: useTallWindow() }));
 
         expect(band.result.current).toEqual({ low, tall });
+    });
+});
+
+// The navigation's query, answered for a window of a given size under a given pointer. It reads its bounds out of the
+// query the hook builds, so a token that moved moves the answer here too.
+function atWindow(width: number, height: number, finger: boolean): void {
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => {
+            const workspace = Number(/\(min-width: ([\d.]+)rem\)/.exec(query)?.[1]) * 16;
+            const roomy = Number(/\(width < ([\d.]+)rem\)/.exec(query)?.[1]) * 16;
+            const [, across, down] = /aspect-ratio <= ([\d.]+) \/ ([\d.]+)/.exec(query) ?? [];
+            const upright = width * Number(down) <= height * Number(across);
+
+            return {
+                media: query,
+                matches: width >= workspace && !(width < roomy && finger && upright),
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+            };
+        },
+    });
+}
+
+describe('where the navigation stands', () => {
+    it.each([
+        ['the phone', 390, 844, true, false],
+        ['the fold held upright', 832, 884, true, false],
+        ['the fold a browser bar leaves slightly wider than tall', 884, 832, true, false],
+        ['a small tablet held upright', 820, 1180, true, false],
+        ['a small tablet on its side', 1180, 820, true, true],
+        ['the tablet the design frames', 1024, 768, true, true],
+        ['the fold-sized window under a mouse', 884, 832, false, true],
+        ['an upright window under a mouse', 960, 1040, false, true],
+    ])('stands it for %s as the design draws it', (_, width, height, finger, rail) => {
+        atWindow(width, height, finger);
+
+        expect(renderHook(() => useNavigationRail()).result.current).toBe(rail);
     });
 });

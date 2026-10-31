@@ -284,9 +284,9 @@
     --breakpoint-monitor: 120rem;
 
     /* The two heights a composition changes at, which are a second axis beside the widths above rather than a
-       refinement of any of them: width decides which surfaces stand, height how dense they are, and nothing reads the
-       window's orientation or aspect, so a device upright and on its side is one width band beside one height band
-       rather than a case of its own. A height rule may be scoped to a surface a width put there — `workspace:low:` is
+       refinement of any of them: width decides which surfaces stand, height how dense they are, and one rule alone reads
+       the window's aspect — where the navigation stands, the token after these two — so a device upright and on its
+       side is otherwise one width band beside one height band rather than a case of its own. A height rule may be scoped to a surface a width put there — `workspace:low:` is
        the rail's, there being no rail below the workspace width — and still decide only density. Not `--breakpoint-*`
        names, which Tailwind reads as widths;
        a stylesheet asks them as `low:` and `tall:`, declared under this block, and a component through
@@ -299,6 +299,13 @@
        composition drawn everywhere else, which every framed size the design shows sits in. */
     --window-height-low: 30rem;
     --window-height-tall: 60rem;
+
+    /* The one aspect a composition reads. Under a finger, a window below the roomy width that is no more than this much
+       wider than it is tall — the fold and the small tablet held upright — carries its navigation along the bottom as
+       the phone does, under the thumb, rather than as the rail. Near square counts as upright because a fold's inner
+       screen is near square: a browser's own bars take enough height that the fold held upright reaches the page a
+       little wider than tall. Asked as `rail:`, declared under this block, and through `useNavigationRail`. */
+    --window-aspect-upright: 23 / 20;
 
     /* One row of the message list, in the heights the design draws it. Declared here rather than in the
        list because it is a density decision like any other — and because the list is arithmetic over it: the window
@@ -373,8 +380,9 @@
        the choice to change anything but the message beside it. */
     --spacing-list-tablet: 17.75rem;
 
-    /* The same list folded to a strip of senders at the fold while a message is open beside it. */
-    --spacing-list-strip: 4.75rem;
+    /* The same list in two panes below the roomy width — the fold and the small tablet — where it stays a list beside
+       the message at a narrower width rather than folding away. */
+    --spacing-list-narrow: 15.5rem;
 
     /* The side padding a conversation's messages stand inside, which holds them to the design's 880-pixel column
        centred in a pane wider than 924 and leaves them the design's 22 pixels from either edge in a narrower one. The
@@ -460,6 +468,11 @@
        second the cards stand in one column and the head's acts are drawn as their symbols. */
     --container-pane-compact: 47.5rem;
     --container-pane-narrow: 35rem;
+
+    /* The width of the message list below which a row stops carrying the conversation's count and the readings mark,
+       so the sender, the marks and the time keep one line at the row's one height. The list column's own width rather
+       than the window's, asked as `@max-list-compact:` of a row inside it. */
+    --container-list-compact: 16.875rem;
 
     /* The widest one tab in the strip above the content pane is drawn, which is a ceiling in the same sense: a tab
        takes the room its title needs and stops here, so a long subject is cut rather than pushing every other tab off
@@ -910,6 +923,12 @@
    are declared rather than generated. */
 @custom-variant low (@media (height < theme(--window-height-low)));
 @custom-variant tall (@media (height >= theme(--window-height-tall)));
+
+/* Where the navigation stands as the rail rather than as the bar along the bottom: from the workspace width, except
+   under a finger in a window below the roomy width that is upright or near square. It is the one variant that reads
+   the window's aspect, and it is what every part of the navigation and the frame around it asks instead of
+   `workspace:`. */
+@custom-variant rail (@media (width >= theme(--breakpoint-workspace)) and (not ((width < theme(--breakpoint-roomy)) and (pointer: coarse) and (aspect-ratio <= theme(--window-aspect-upright)))));
 
 /* The disclosed band's two tokens, inlined into the utilities rather than resolved on the root: which frames the band
    plays is the `disclosure` utility's to say on the band itself, because only an engine interpolating a height to

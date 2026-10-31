@@ -1262,7 +1262,7 @@ export function App({
                         length of the motion, so the focus placed in the arriving space would scroll the whole frame —
                         the navigation with it — up by that much and back. `clip` rather than `hidden`, so nothing can
                         scroll the frame itself either. */}
-                                                                                <div className="flex h-dvh flex-col overflow-clip bg-rail pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left workspace:flex-row">
+                                                                                <div className="flex h-dvh flex-col overflow-clip bg-rail pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left rail:flex-row">
                                                                                     {/* Positioned because every space stays on the screen while
                         one of them is in front, each aside one laid out over this region rather than beside it —
                         `shell/Space.tsx` holds why a space is stood aside instead of taken down. */}

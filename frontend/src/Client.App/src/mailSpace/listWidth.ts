@@ -9,7 +9,7 @@ import { deviceStore, listWidthKey } from '../device/deviceStore';
 // the component: the bounds, the reset, the clamp a narrower window forces, and where the chosen width is written are
 // each testable without rendering three columns.
 //
-// The four widths below are the design's and are written here rather than in `styles.css` because nothing in
+// The widths below are the design's and are written here rather than in `styles.css` because nothing in
 // the markup spells them: what reads them is the drag arithmetic, the keyboard step, and the position the grip reports
 // as a separator. A token would be a second copy of each number that only the stylesheet could see.
 
@@ -23,10 +23,15 @@ export const widestList = 560;
 export const startingListWidth = 340;
 
 /**
- * What the list opens at in this window before anybody drags it, and what a reset returns to: 284 below the desktop
- * composition, 340 in it, and 420 past the monitor width — the design's widths for each band.
+ * What the list opens at in this window before anybody drags it, and what a reset returns to: 248 below the roomy
+ * composition, 284 from it to the desktop composition, 340 in that, and 420 past the monitor width — the design's widths
+ * for each band.
  */
-export function startingListWidthIn(desktop: boolean, monitor: boolean): number {
+export function startingListWidthIn(desktop: boolean, monitor: boolean, roomy: boolean): number {
+    if (!roomy) {
+        return 248;
+    }
+
     if (!desktop) {
         return 284;
     }

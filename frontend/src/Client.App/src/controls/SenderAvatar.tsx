@@ -23,15 +23,13 @@ import { initialsOf } from './initials';
 // that instead of the letters — the same circle in the same place, as `PersonAvatar.tsx` does for the signed-in person.
 
 /**
- * Where the avatar stands: a row of a list or that row folded to a strip, the head of a message drawn as a card, an opened person's own page, or one
- * of the two places a block of an AI answer draws somebody, or a person a recipient field suggests.
+ * Where the avatar stands: a row of a list, the head of a message drawn as a card, an opened person's own page, one of
+ * the two places a block of an AI answer draws somebody, or a person a recipient field suggests.
  */
-export type SenderAvatarPlace =
-    'row' | 'strip' | 'card' | 'contact' | 'person' | 'answerRow' | 'answerStack' | 'suggestion';
+export type SenderAvatarPlace = 'row' | 'card' | 'contact' | 'person' | 'answerRow' | 'answerStack' | 'suggestion';
 
 const places: Readonly<Record<SenderAvatarPlace, string>> = {
     row: 'size-8.5 text-sm workspace:size-5.5 workspace:text-xs',
-    strip: 'size-9 text-sm',
     card: 'size-7.5 text-xs',
     contact: 'size-8 text-xs',
     person: 'size-13 text-lg',

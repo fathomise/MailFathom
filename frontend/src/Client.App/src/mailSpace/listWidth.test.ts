@@ -92,8 +92,9 @@ describe('readListWidth', () => {
 
 describe('startingListWidthIn', () => {
     it('opens the list at the width each band draws it at before anybody drags it', () => {
-        expect(startingListWidthIn(false, false)).toBe(284);
-        expect(startingListWidthIn(true, false)).toBe(startingListWidth);
-        expect(startingListWidthIn(true, true)).toBe(420);
+        expect(startingListWidthIn(false, false, false)).toBe(248);
+        expect(startingListWidthIn(false, false, true)).toBe(284);
+        expect(startingListWidthIn(true, false, true)).toBe(startingListWidth);
+        expect(startingListWidthIn(true, true, true)).toBe(420);
     });
 });

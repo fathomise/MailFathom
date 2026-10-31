@@ -265,8 +265,13 @@ thing — the width which surfaces stand, the height how dense they are, the poi
 gestures exist — and none of them is the window's orientation or aspect, so a device upright and the same device on its
 side need no rules of their own: each is one width band beside one height band. A rule may be scoped to a surface
 another axis put there and still decide only its own kind of thing: the rail stands only where the width gave one, so
-what a low window does to it is a height rule about the rail, and how large its targets are then is still the pointer's. A half-width window on a desktop gets the composition a
-phone-width viewport gets — a stack, not a wide layout that stopped fitting — and the same desktop maximized gets the
+what a low window does to it is a height rule about the rail, and how large its targets are then is still the pointer's.
+**The navigation is the one exception that reads the aspect**, and only where the other two axes already narrowed it to
+a finger below the roomy width: there an upright window, or one no more than `--window-aspect-upright` wider than it is
+tall, takes the navigation to the bottom edge rather than the side, because the design draws a fold's and a small
+tablet's inner screen that way and a browser's own bar can leave the same screen slightly wider than tall. The rule is
+the `rail` variant in `Client.App/src/styles.css` and `useNavigationRail` beside the other composition hooks, and no
+other surface reads the aspect. A half-width window on a desktop gets the composition a phone-width viewport gets — a stack, not a wide layout that stopped fitting — and the same desktop maximized gets the
 wide one, out of the same tree at the same breakpoint. `pointer: coarse` is asked where a target has to be big enough
 for a finger and `hover` where an affordance would otherwise exist only under one; neither is a question about the
 operating system, and a touch screen on a desktop answers both the way a phone does.
@@ -411,9 +416,9 @@ so this is written to be mechanically visible in a diff rather than remembered.
   control that acts or taps on one that does not; the lint rule refuses a `title` on any element but a frame, whose
   `title` is its accessible name. **One gesture opens one surface**: the hold that reads a control's name takes the
   press away from the row it sits in, its menu included, and a fact inside a row whose hold already opens a menu —
-  a sender folded to an avatar, the instant behind a relative age — is a mouse's hover there and a line under that
-  menu's header (`ContextMenu`'s `detail`) for a finger. A control whose words narrow away keeps its name in the bubble;
-  one no symbol names, such as _Select all_, keeps its words.
+  the instant behind a relative age — is a mouse's hover there and a line under that menu's header (`ContextMenu`'s
+  `detail`) for a finger. A control whose words narrow away keeps its name in the bubble; one no symbol names, such as
+  _Select all_, keeps its words.
 - **`prefers-reduced-motion` is honoured**, and that is an accessibility obligation rather than a nicety: motion is
   removed under it, not merely shortened, and any transition conveying meaning still conveys it without the movement.
 - **Everything a screen draws comes out of the bundle, and no screen reaches an external origin for it.** The typeface

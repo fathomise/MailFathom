@@ -62,6 +62,11 @@ describe('useMailboxesForm', () => {
         expect(formAt(390, true)).toBe('drawer');
     });
 
+    it('keeps them in a drawer wherever one pane stands, under a mouse as under a finger', () => {
+        expect(formAt(760, false)).toBe('drawer');
+        expect(formAt(760, true)).toBe('drawer');
+    });
+
     it('folds them into a drawer below the desktop composition under a finger', () => {
         expect(formAt(1024, true)).toBe('drawer');
     });

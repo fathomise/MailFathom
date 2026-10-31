@@ -9,8 +9,9 @@ import { useMemo, useSyncExternalStore } from 'react';
 // *which* of two screens is in the document, or whether a control is one a person may operate at all.
 //
 // Every query is built from the tokens in `styles.css` rather than from a second copy of the number, so each
-// breakpoint stays one decision. Width and height are separate axes and no query here reads both, or the window's
-// orientation or aspect: upright and on its side are each one width band beside one height band.
+// breakpoint stays one decision. Width and height are separate axes and only one query here reads both — where the
+// navigation stands, which is the window's aspect and the one rule that reads it: upright and on its side are otherwise
+// each one width band beside one height band.
 
 function windowSize(
     token: string,
@@ -83,6 +84,48 @@ const lowHeight = windowSize('--window-height-low', '30rem', (height) => `(heigh
 const tallHeight = windowSize('--window-height-tall', '60rem', (height) => `(height >= ${height})`, false);
 const coarsePointer = pointerIsCoarse();
 
+// The `rail:` variant in `styles.css`, asked of script: the workspace width, except under a finger in a window below
+// the roomy width that is upright or near square. Three tokens in one condition, so it is built here rather than by
+// `windowSize`, which reads one.
+function navigationRail() {
+    function query(): MediaQueryList | null {
+        if (typeof window.matchMedia !== 'function') {
+            return null;
+        }
+
+        const style = getComputedStyle(document.documentElement);
+        const token = (name: string, fallback: string) => {
+            const value = style.getPropertyValue(name).trim();
+
+            return value === '' ? fallback : value;
+        };
+        const workspace = token('--breakpoint-workspace', '43.75rem');
+        const roomy = token('--breakpoint-roomy', '63.75rem');
+        const upright = token('--window-aspect-upright', '23 / 20');
+
+        return window.matchMedia(
+            `(min-width: ${workspace}) and (not ((width < ${roomy}) and (pointer: coarse) and (aspect-ratio <= ${upright})))`,
+        );
+    }
+
+    return {
+        /** Whether the navigation stands as the rail. A runtime that cannot answer is read as wide, so as the rail. */
+        matches: (): boolean => query()?.matches ?? true,
+
+        watch: (changed: () => void): (() => void) => {
+            const watched = query();
+
+            watched?.addEventListener('change', changed);
+
+            return () => {
+                watched?.removeEventListener('change', changed);
+            };
+        },
+    };
+}
+
+const navigationRailQuery = navigationRail();
+
 /**
  * Whether the window is at or above the width the phone shape stops at, kept current as it is resized across that
  * breakpoint.
@@ -93,6 +136,19 @@ const coarsePointer = pointerIsCoarse();
  */
 export function useWideWorkspace(): boolean {
     return useSyncExternalStore(workspaceWidth.watch, workspaceWidth.matches);
+}
+
+/**
+ * Whether the navigation stands as the rail down the side rather than as the bar along the bottom, kept current as the
+ * window or the pointer changes.
+ *
+ * It is the workspace width with one exception, and the exception is the one rule that reads the window's aspect:
+ * under a finger, a window below the roomy width that is upright or near square — the fold and the small tablet held
+ * upright — carries the bar the phone carries, so the navigation stands under the thumb and the panes take the width.
+ * What the bar holds there is still the width's question: a wide window's bar has room for every space.
+ */
+export function useNavigationRail(): boolean {
+    return useSyncExternalStore(navigationRailQuery.watch, navigationRailQuery.matches);
 }
 
 /**
@@ -110,8 +166,8 @@ export function useTwoPanes(): boolean {
 /**
  * Whether the window is at or above the width where the tablet composition stops being cramped.
  *
- * Below it, and with two panes, is the fold: the one composition where the list beside an open message leaves the
- * message too little to read, so Mail folds the list to a strip of senders while something is open.
+ * Below it, and with two panes, is the fold and the small tablet: the list stands beside the message at a narrower
+ * width than the tablet's, and a window there held upright carries its navigation along the bottom.
  */
 export function useRoomyComposition(): boolean {
     return useSyncExternalStore(roomyWidth.watch, roomyWidth.matches);

@@ -17,7 +17,6 @@ import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { actsDrawn } from '../mailboxActs/drawnActs';
-import { useListFold } from './listFold';
 import {
     actPending,
     changesAFlag,
@@ -251,10 +250,7 @@ export function MessageRow({
     const marking = useReadMarking();
     const acts = useMailboxActs();
     const press = useRowPress(onPress);
-    const folded = useListFold()?.folded === true;
-
-    // A strip of senders is too narrow to carry a row across, so folded it answers a tap and its menu alone.
-    const swipe = useRowSwipe(press, folded ? {} : { leftward: onAnswer, rightward: onArchive });
+    const swipe = useRowSwipe(press, { leftward: onAnswer, rightward: onArchive });
     // What spam classification concluded, with the person's own mark from this session counted first. A row of spam
     // offers nothing that reads it for the person, so it carries no reading and no AI line.
     const spam = drawnSpam(acts, email);
@@ -321,17 +317,6 @@ export function MessageRow({
             </>
         );
 
-    const stripSubject = {
-        sender: correspondent(email) ?? translate('list.senderUnknown'),
-        subject: email.subject ?? translate('list.noSubject'),
-    };
-    const stripName =
-        markName === null
-            ? translate('list.stripRow', stripSubject)
-            : translate('list.stripRowMarked', { ...stripSubject, mark: markName });
-    // Folded, the sender is an avatar: a mouse resting on it reads who it is, and a finger reads it in the row's menu,
-    // since a tap on the strip opens the message and holding it opens that menu.
-    const stripSaid = useTip({ says: stripName, tapReveals: false });
     const readingsName = useTip({
         says: translate('list.readings'),
         describes: true,
@@ -510,65 +495,10 @@ export function MessageRow({
             // just been drawn has nothing to have changed from, so washing it as well would be marking it against a
             // version of itself the reader never saw. All three are the design's, and `styles.css` holds why
             // neither the arrival nor the going here carries the height a flowing list's does.
-            className={`relative touch-pan-y overflow-hidden ${
-                folded
-                    ? 'flex h-14 items-center justify-center'
-                    : 'h-message-row-narrow border-b border-b-sunken workspace:h-message-row'
-            } ${
+            className={`relative h-message-row-narrow touch-pan-y overflow-hidden border-b border-b-sunken workspace:h-message-row ${
                 going ?? (arrived === true ? 'animate-row-landing' : changed === true ? 'animate-row-changed' : '')
             } ${carried ? 'opacity-45' : ''}`}
         >
-            {folded ? (
-                // Folded to a strip at the fold, the row is its sender alone: a target a finger takes, the open one
-                // ringed, an unread one dotted. Its name is the one the whole row would have read out, so the list is
-                // the same list to a screen reader either way.
-                <span
-                    {...stripSaid.anchor}
-                    className={`relative flex size-13 cursor-pointer items-center justify-center rounded-xl transition ${
-                        selected || open ? 'bg-accent-soft ring-2 ring-accent-line ring-inset' : 'hover:bg-hover'
-                    }`}
-                >
-                    {spamName === null ? (
-                        <SenderAvatar
-                            displayName={email.senderDisplayName}
-                            address={email.senderAddress}
-                            place="strip"
-                        />
-                    ) : (
-                        <span className="flex size-9 items-center justify-center rounded-full bg-rail text-faint">
-                            <Icon name="report" className="size-icon-md" />
-                        </span>
-                    )}
-
-                    <span className="sr-only">{spamName === null ? stripName : `${spamName} ${stripName}`}</span>
-
-                    {unread ? (
-                        <>
-                            <span
-                                aria-hidden="true"
-                                className="absolute end-1.75 top-1.75 size-2.5 rounded-full bg-accent ring-2 ring-sunken"
-                            />
-                            <span className="sr-only">{translate('list.unread')}</span>
-                        </>
-                    ) : null}
-
-                    {/* The mark rides on the avatar where it says something, which is the design's own; the neutral
-                        one would be a badge on every strip, and its name is in the strip's own all the same. */}
-                    {markDrawn === null || mark === 'neutral' ? null : (
-                        <span
-                            aria-hidden="true"
-                            className={`absolute end-1.5 bottom-1.5 flex size-4.5 items-center justify-center rounded-full bg-panel ring-2 ring-sunken ${
-                                senderMarkInk[markDrawn.tone]
-                            }`}
-                        >
-                            <Icon name={markDrawn.icon} className="size-3.25" />
-                        </span>
-                    )}
-
-                    {stripSaid.tip}
-                </span>
-            ) : null}
-
             {carrying === undefined ? null : (
                 // What the row is being carried off is showing: the act, named and drawn, against the edge the finger
                 // has uncovered. Hidden from the accessibility tree because it says what a gesture is about to do, and
@@ -595,7 +525,7 @@ export function MessageRow({
                 // The row that is open, and the rows picked out for a question, are marked at the edge rather than by
                 // a ring around them, which is the design's mark and keeps the row's own lines where they
                 // were.
-                className={`${folded ? 'hidden' : 'flex'} h-full cursor-pointer flex-col justify-center gap-1.5 overflow-hidden border-s-4 ps-3 pe-4 workspace:gap-1.25 workspace:ps-2.5 workspace:pe-3.5 ${
+                className={`flex h-full cursor-pointer flex-col justify-center gap-1.5 overflow-hidden border-s-4 ps-3 pe-4 workspace:gap-1.25 workspace:ps-2.5 workspace:pe-3.5 ${
                     wash ?? ''
                 } ${swipe.carried === 0 ? 'transition' : ''} ${
                     selected
@@ -621,9 +551,11 @@ export function MessageRow({
 
                             {/* Who wrote is read before where they wrote from, so the name keeps up to half the line and the
                         host is what gives way. Half rather than more because the marks and the time hold their own
-                        width: a name allowed past it would push the time out of a row that clips rather than wraps. */}
+                        width: a name allowed past it would push the time out of a row that clips rather than wraps. In
+                        a list narrower than the design's compact width even half leaves the time no room, so there the
+                        name gives way as well. */}
                             <span
-                                className={`max-w-1/2 shrink-0 truncate text-lg workspace:text-md ${unreadInk(unread)}`}
+                                className={`max-w-1/2 shrink-0 truncate text-lg workspace:text-md @max-list-compact:shrink ${unreadInk(unread)}`}
                             >
                                 {correspondent(email) ?? translate('list.senderUnknown')}
                             </span>
@@ -645,9 +577,10 @@ export function MessageRow({
                         every row already is. The number is the deployment's count over the whole conversation — a
                         client counting the rows it holds would answer differently depending on where the page was
                         cut — and the words beside it are for a reader who is not looking at it, which the design has
-                        no way to draw. */}
+                        no way to draw. A list narrower than the compact width draws no pill, as the design does not,
+                        and keeps the words. */}
                             {email.threadMessageCount !== null && email.threadMessageCount > 1 ? (
-                                <span className="shrink-0 rounded-md border border-line-soft bg-rail px-1.5 py-px text-xs text-text-soft">
+                                <span className="shrink-0 @max-list-compact:sr-only rounded-md border border-line-soft bg-rail px-1.5 py-px text-xs text-text-soft">
                                     <span aria-hidden="true">{email.threadMessageCount}</span>
 
                                     <span className="sr-only">
@@ -664,7 +597,8 @@ export function MessageRow({
                         no focusable descendant, so a button here would take the keyboard path off the list. The
                         announced path to the same surface is the row's own menu, which a pointer, a finger and a
                         keyboard each reach — this is the pointer's shortcut to it and is hidden from everything that
-                        would otherwise announce a second, unreachable copy of it. */}
+                        would otherwise announce a second, unreachable copy of it. A list narrower than the compact
+                        width leaves it to the menu, as the design does. */}
                             {onReadings === undefined || spamName !== null ? null : (
                                 <>
                                     {/* Its own press stops at it rather than reaching the row, so holding it reads its name
@@ -672,7 +606,7 @@ export function MessageRow({
                                     <span
                                         {...readingsName.anchor}
                                         aria-hidden="true"
-                                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-accent-soft hover:text-accent-deep pointer-coarse:size-8"
+                                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-accent-soft hover:text-accent-deep pointer-coarse:size-8 @max-list-compact:hidden"
                                         onPointerDown={(event) => {
                                             event.stopPropagation();
                                             readingsName.anchor.onPointerDown(event);

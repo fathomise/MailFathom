@@ -20,7 +20,7 @@ export function NavigationMark({
 }) {
     return (
         <span
-            className={`${className} flex h-8 w-14 items-center justify-center rounded-xl transition workspace:h-auto workspace:w-auto workspace:rounded-none workspace:bg-transparent ${
+            className={`${className} flex h-8 w-14 items-center justify-center rounded-xl transition rail:h-auto rail:w-auto rail:rounded-none rail:bg-transparent ${
                 current ? 'bg-accent-soft' : ''
             }`}
         >

@@ -3963,10 +3963,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const rcptOpen = (id) => !!(st.receiptPop && st.receiptPop.id === id);
       const withReceipt = (t, row) => {
         const R = inSent ? receiptOf(t.id) : null;
-        /* A tall row draws neither the count nor the AI summary button: its own line carries the receipt mark and the flag alone. */
-        if (!R || R.k === "waiting") return Object.assign(row, { rcptShown: false, iconLineShown: listTall && !!row.flagged });
+        if (!R || R.k === "waiting") return Object.assign(row, { rcptShown: false });
         return Object.assign(row, {
-          rcptShown: true, rcptGlyph: R.glyph, rcptName: R.name, rcptOpen: rcptOpen(t.id), iconLineShown: listTall,
+          rcptShown: true, rcptGlyph: R.glyph, rcptName: R.name, rcptOpen: rcptOpen(t.id),
           openRcpt: (e) => this.openReceipt(t.id, e),
           rcptBtnStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:" + RECEIPT_INK[R.tone] + ";" +
             (touch ? "width:44px;height:44px;margin:-12px -10px;" : "width:24px;height:24px;margin:-4px -3px;"),
@@ -4387,9 +4386,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* The list's width is the width band's until a mouse drags it: 248 below 1020, 284 below 1180, 340 on a desktop,
          420 from 1920. Below 1020 it stays a list beside the thread rather than folding away. */
       const listW = Math.max(232, Math.min(st.listW || (narrow ? 248 : compact ? 284 : wide ? 420 : 340), w - railW - sideW - (narrow ? 300 : 420)));
-      /* A list too narrow for one line of sender, marks, buttons and time draws each row taller: the marks and the
-         buttons stand on a line of their own under the subject. Read from the list's own width, not the window's. */
-      const listTall = !singlePane && listW < 270;
+      /* A list too narrow for one line of sender, marks, buttons and time keeps the row's one height and draws less on
+         it. Read from the list's own width, not the window's. */
+      const listCompact = !singlePane && listW < 270;
       this._listW = listW;
       const composeTabActive = tabsMode && st.activeTab === "compose" && !!st.compose;
       const docInPane = tabsMode && (st.activeTab || "").indexOf("doc:") === 0 && !!st.doc;
@@ -7245,8 +7244,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           swipeLabel: (st.swipeDx || 0) < 0 ? "Reply" : "Archive",
           swipeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;margin-right:8px" + (Math.abs(st.swipeDx || 0) >= 96 ? ";font-variation-settings:'wght' 500" : ""),
           swipeTextStyle: "font-size:13px;font-weight:600;opacity:" + (Math.abs(st.swipeDx || 0) >= 96 ? "1" : "0.55"),
-          iconsInline: !listTall,
-          iconLineStyle: "display:flex;align-items:center;gap:" + (touch ? 10 : 9) + "px;min-height:" + (touch ? 32 : 24) + "px",
+          /* A compact list draws neither the count nor the AI summary button, and its sender gives way so the receipt
+             mark, the flag and the time keep the one line every row has. */
+          iconsInline: !listCompact,
           aiStyle: isMobile ? "display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);line-height:1.35" : "display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)",
           from: t.from, org: t.org, time: t.time, subject: t.subject, ai: t.ai,
           hasAvatar: !!avatarOf(t.from), noAvatar: !avatarOf(t.from), initials: initialsOf(t.from),
@@ -7257,7 +7257,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* Unread is the weight and the ink of the words, as every mail client draws it: the sender and the subject
              in 700 and the full text colour, a read row in 400 and the secondary one. 600 against 400 alone read as
              the same row at a glance. No dot. */
-          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "flex:0 0 auto;max-width:60%;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;" : listCompact ? "flex:0 1 auto;min-width:0;font-size:14px;" : "flex:0 0 auto;max-width:60%;font-size:14px;") + "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           subjStyle: (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           orgStyle: isMobile || compact ? "display:none" : "flex:0 1 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
           showAi: aiHints && !!t.ai,

@@ -13,17 +13,20 @@ import { NavigationMark } from './NavigationMark';
 import { SpacePeek, type PeekAnchor } from './SpacePeek';
 import type { SpaceReport } from './spaceReport';
 import { SpaceOverflow } from './SpaceOverflow';
-import { useWideWorkspace } from './useWideWorkspace';
+import { useNavigationRail, useWideWorkspace } from './useWideWorkspace';
 
-// One list of links, laid out two ways by the width it is given: a rail down the side of a wide window, and bottom
-// navigation across a narrow one. Nothing here asks which head it is running on, and nothing is dropped at either
+// One list of links, laid out two ways: a rail down the side of a wide window, and bottom navigation across a narrow
+// one — or across a fold or a small tablet held upright under a finger, which is where `rail:` and `useNavigationRail`
+// carry the one exception to the width deciding it. Nothing here asks which head it is running on, and nothing is dropped at either
 // width — everything the rail offers is reachable from the bar too, which is what makes the two shapes one navigation.
 //
 // **The two shapes hold a different number of things, and that is the one part CSS cannot lay out.** A rail has room
 // for all six spaces, the bell, and the account down the side of the window. A bar has five places across the foot
-// of it, and the design spends them on three spaces, the bell, and an overflow — so what the bar has no room
+// of a phone, and the design spends them on three spaces, the bell, and an overflow — so what the bar has no room
 // for stands in a sheet behind that fifth item rather than being hidden by width, which is what the width question is
-// asked for. Which three the bar carries is `routing/spaces.ts`, beside the order they are drawn in.
+// asked for. Which three the bar carries is `routing/spaces.ts`, beside the order they are drawn in. A bar across a
+// wider window — the upright fold and tablet — has room for every space, so only the account and what stands at the
+// rail's foot go behind the overflow there.
 //
 // Which destinations there are at all is the session's answer rather than this component's: a space this credential
 // may not open is absent from both shapes, because offering it would offer an action the deployment is going to refuse.
@@ -85,6 +88,7 @@ export function SpaceNavigation({
 }) {
     const { translate } = useLocalization();
     const wide = useWideWorkspace();
+    const rail = useNavigationRail();
 
     // The rail draws everything it was offered in the order it was offered; the bar draws the three it has room for,
     // and the overflow draws the rest in its own order. Every one of the three is what the session offered filtered
@@ -97,11 +101,11 @@ export function SpaceNavigation({
         <Fragment key={space}>
             {/* A hairline between the spaces that ask and the spaces that hold, drawn in the rail alone: the bar's places
                 are counted, and a rule there would read as one more. */}
-            {wide && index > 0 && index === firstHolding ? (
+            {rail && index > 0 && index === firstHolding ? (
                 <hr aria-hidden="true" className="mx-4 my-1 border-line" />
             ) : null}
 
-            <SpaceLink space={space} current={space === current} report={reports[space] ?? null} peeks={wide} />
+            <SpaceLink space={space} current={space === current} report={reports[space] ?? null} peeks={rail} />
         </Fragment>
     ));
 
@@ -111,7 +115,7 @@ export function SpaceNavigation({
             // The bar is `pan-x` so a finger moving up it is this navigation's rather than the page's, which is what a
             // gesture that has to be followed one to one needs; the rail above the workspace breakpoint has no such
             // gesture and is unaffected by it.
-            className="flex shrink-0 touch-pan-x justify-around gap-0.75 border-t border-line bg-rail px-1.5 pt-1.5 pb-2 workspace:order-first workspace:min-h-0 workspace:w-rail-narrow workspace:touch-auto desktop:w-rail workspace:flex-col workspace:justify-start workspace:gap-0.5 roomy:gap-1 workspace:overflow-y-auto workspace:border-t-0 workspace:border-e workspace:px-0 workspace:pt-4 workspace:pb-3 min-h-navigation"
+            className="flex shrink-0 touch-pan-x justify-center gap-0.75 border-t border-line bg-rail px-1.5 pt-1.5 pb-2 rail:order-first rail:min-h-0 rail:w-rail-narrow rail:touch-auto desktop:w-rail rail:flex-col rail:justify-start rail:gap-0.5 roomy:gap-1 rail:overflow-y-auto rail:border-t-0 rail:border-e rail:px-0 rail:pt-4 rail:pb-3 min-h-navigation"
             onPointerDown={onPointerDown}
             onClickCapture={onClickCapture}
         >
@@ -120,7 +124,7 @@ export function SpaceNavigation({
                 window gives its height to them for the same reason. */}
             <BrandMark
                 label={translate('shell.title')}
-                className="mb-3 hidden size-10 self-center workspace:block low:hidden"
+                className="mb-3 hidden size-10 self-center rail:block low:hidden"
             />
 
             {/* In the rail the destinations scroll between its top and its foot, so the bell and the account stay where
@@ -129,7 +133,7 @@ export function SpaceNavigation({
                 gives the same room back outside, which leaves the rail laid out as it was. It stands in both shapes,
                 drawing no box of its own in the bar, so a window crossing the workspace width keeps the same tree and
                 remounts no destination — a remount there is a render the list keeping its place would have to race. */}
-            <div className="contents workspace:-my-1 workspace:flex workspace:min-h-0 workspace:flex-col workspace:gap-0.5 workspace:overflow-y-auto workspace:py-1 roomy:gap-1">
+            <div className="contents rail:-my-1 rail:flex rail:min-h-0 rail:flex-col rail:gap-0.5 rail:overflow-y-auto rail:py-1 roomy:gap-1">
                 {destinations}
             </div>
 
@@ -137,7 +141,7 @@ export function SpaceNavigation({
                 beside who is looking. In the rail that is the foot of it, with the bell above the account; in the bar
                 the bell is the fourth place and the account has moved behind the fifth, which is what the design
                 draws and what leaves the bar five items wide however many spaces the session offers. */}
-            {wide ? (
+            {rail ? (
                 <div className="mt-auto flex flex-none flex-col items-center justify-center gap-3.5 pt-3">
                     {developer}
                     <ConnectionAlarm />
@@ -252,27 +256,27 @@ function SpaceLink({
                 // A low window draws the symbol alone, the name staying the link's, in a target the design sizes by the
                 // pointer: 36 under a mouse and 44 under a finger, stated here because the touch floor reaches controls
                 // and a link is not one.
-                className={`group relative flex flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition workspace:mx-1.75 workspace:flex-none workspace:px-0 workspace:gap-1 workspace:rounded-lg workspace:py-2 desktop:py-2.25 workspace:low:min-h-9 workspace:low:justify-center workspace:low:py-1 workspace:low:pointer-coarse:min-h-11 workspace:low:pointer-coarse:py-0 ${
+                className={`group relative flex max-w-30 flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition rail:mx-1.75 rail:flex-none rail:px-0 rail:gap-1 rail:rounded-lg rail:py-2 desktop:py-2.25 rail:low:min-h-9 rail:low:justify-center rail:low:py-1 rail:low:pointer-coarse:min-h-11 rail:low:pointer-coarse:py-0 ${
                     current
-                        ? 'font-semibold text-accent-deep workspace:bg-accent-soft'
+                        ? 'font-semibold text-accent-deep rail:bg-accent-soft'
                         : 'text-muted hover:bg-hover hover:text-text'
                 }`}
             >
-                <NavigationMark current={current} className="relative workspace:static">
-                    <Icon name={spaceIcons[space]} className="size-icon-2xl workspace:size-icon-xl" />
+                <NavigationMark current={current} className="relative rail:static">
+                    <Icon name={spaceIcons[space]} className="size-icon-2xl rail:size-icon-xl" />
 
                     {/* In the corner of the bar's pill, and of the rail's tile, inset so the pulse's ring never crosses the
                     edge it sits in. */}
                     {report?.dot == null ? null : (
                         <span
                             aria-hidden="true"
-                            className={`pointer-events-none absolute top-1.5 end-1.5 size-2 rounded-full bg-error workspace:top-2 workspace:end-2 ${
+                            className={`pointer-events-none absolute top-1.5 end-1.5 size-2 rounded-full bg-error rail:top-2 rail:end-2 ${
                                 report.dot === 'working' ? 'animate-rail-ring' : ''
                             }`}
                         />
                     )}
                 </NavigationMark>
-                <span className="max-w-full truncate workspace:overflow-visible workspace:low:sr-only">{name}</span>
+                <span className="max-w-full truncate rail:overflow-visible rail:low:sr-only">{name}</span>
             </a>
 
             {anchor === null || report === null ? null : (

@@ -22,7 +22,7 @@ import { ConnectionStatusLine } from './ConnectionStatusLine';
 import { disconnected, useConnectionStatus } from './connectionStatus';
 import { TabModeSwitch, ThemeSegments } from './Preferences';
 import { useScreenLayer } from './screenLayers';
-import { useWideWorkspace } from './useWideWorkspace';
+import { useNavigationRail } from './useWideWorkspace';
 import { Departing } from './Departing';
 
 // The menu at the foot of the rail, which is where the design puts everything that is about the person rather
@@ -86,7 +86,7 @@ export function AccountMenu({
     readonly onSignOut: () => void;
 }) {
     const { translate } = useLocalization();
-    const wide = useWideWorkspace();
+    const inRail = useNavigationRail();
     const preferencesRefused = disconnected(useConnectionStatus()) ? translate('preferences.noConnection') : null;
     const refusalSaid = useFocusKeptWhenWithdrawn<HTMLParagraphElement>(preferencesRefused !== null);
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -95,10 +95,10 @@ export function AccountMenu({
     const settingsRow = useRef<HTMLButtonElement>(null);
 
     // The member's presence, drawn on the circle in the rail and named to whoever reaches it there: the dot is the only
-    // telling the circle carries, so it describes the control rather than standing beside words. On a phone the row
+    // telling the circle carries, so it describes the control rather than standing beside words. Where the bar stands the row
     // leading to the status menu heads the *More* sheet instead of standing in this menu.
     const presenceNamed = useId();
-    const presenceDrawn = wide ? presence : null;
+    const presenceDrawn = inRail ? presence : null;
 
     // The menu is folded away while the screen behind it is open, which is what the design draws, and put back
     // when it closes so that focus returns to the row it was opened from rather than to the rail. The platform's own
@@ -141,10 +141,10 @@ export function AccountMenu({
             <button
                 type="button"
                 popoverTarget="account-menu"
-                aria-label={wide ? translate('shell.account') : undefined}
+                aria-label={inRail ? translate('shell.account') : undefined}
                 aria-describedby={presenceDrawn === null ? undefined : presenceNamed}
                 className={
-                    wide
+                    inRail
                         ? `flex size-10 shrink-0 items-center justify-center rounded-full text-text-soft shadow-raised transition hover:-translate-y-px hover:shadow-overlay ${standing ? 'outline-2 outline-offset-2 outline-accent-line' : ''}`
                         : 'flex min-h-13 w-full items-center gap-3.5 rounded-md px-2.5 text-start text-text transition hover:bg-hover'
                 }
@@ -155,7 +155,7 @@ export function AccountMenu({
                         <PresenceDot presence={presenceDrawn} place="rail" id={presenceNamed} />
                     )}
                 </span>
-                {wide ? null : <span className="truncate">{translate('shell.account')}</span>}
+                {inRail ? null : <span className="truncate">{translate('shell.account')}</span>}
             </button>
 
             {/* No display utility on the popover itself: the platform hides a closed popover with `display: none` from
@@ -168,7 +168,7 @@ export function AccountMenu({
                     setStanding(event.newState === 'open');
                 }}
                 aria-label={translate('shell.accountMenu')}
-                className="surface-pop inset-x-4 top-auto bottom-22 m-0 overflow-hidden rounded-lg border border-line bg-panel p-0 text-base text-text shadow-overlay workspace:inset-x-auto workspace:bottom-4.5 workspace:left-26.5 workspace:w-54"
+                className="surface-pop inset-x-4 top-auto bottom-22 m-0 overflow-hidden rounded-lg border border-line bg-panel p-0 text-base text-text shadow-overlay rail:inset-x-auto rail:bottom-4.5 rail:left-26.5 rail:w-54"
             >
                 <ConnectionStatusLine place="menu" />
 

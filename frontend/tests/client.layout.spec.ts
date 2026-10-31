@@ -259,11 +259,13 @@ test.describe('driven by a finger', () => {
 
     // The three compositions a finger drives, each at the design's own frame. What sets them apart is which of
     // three regions stands beside which: the phone draws the list or the message and no toolbar, while the fold and the
-    // tablet draw both panes under the toolbar. All three keep the mailboxes behind a drawer.
+    // tablet draw both panes under the toolbar. All three keep the mailboxes behind a drawer. The phone and the fold —
+    // whose inner screen a browser's own bar leaves slightly wider than tall — carry the navigation along the foot,
+    // and the tablet on its side carries it down the side.
     const touchCompositions = [
-        { name: 'phone', window: phoneWindow, twoPanes: false },
-        { name: 'fold', window: foldWindow, twoPanes: true },
-        { name: 'tablet', window: tabletWindow, twoPanes: true },
+        { name: 'phone', window: phoneWindow, twoPanes: false, navigationAtTheFoot: true },
+        { name: 'fold', window: foldWindow, twoPanes: true, navigationAtTheFoot: true },
+        { name: 'tablet', window: tabletWindow, twoPanes: true, navigationAtTheFoot: false },
     ] as const;
 
     for (const composition of touchCompositions) {
@@ -276,6 +278,15 @@ test.describe('driven by a finger', () => {
             const list = page.getByRole('listbox', { name: 'Messages' });
 
             await expect(list.getByRole('option').first()).toBeVisible();
+
+            const navigation = await boxOf(page.getByRole('navigation', { name: 'Spaces' }));
+            const space = await boxOf(page.getByRole('main'));
+
+            if (composition.navigationAtTheFoot) {
+                expect(navigation.y).toBeGreaterThanOrEqual(space.y + space.height);
+            } else {
+                expect(navigation.x + navigation.width).toBeLessThanOrEqual(space.x);
+            }
 
             // The mailboxes stand behind a drawer at every one of the three, opened from the toolbar where one stands
             // and from the list's own head on the phone, and closed again from inside it. The drawer is the platform's modal dialog, so closing it is what hands focus
@@ -460,8 +471,8 @@ test.describe('driven by a finger', () => {
         }
 
         // Unfolded, which is known by the toolbar only the two-pane compositions draw: the list stands beside the
-        // message again, on the row that is open and where the reader left it — although its rows are now the strip's,
-        // half the height of the phone's.
+        // message again, on the row that is open and where the reader left it — although its rows are now the two-pane
+        // list's, shorter than the phone's.
         await page.setViewportSize(foldWindow);
         await expect(page.getByRole('toolbar', { name: 'Mail actions' })).toBeVisible();
         await holdsTheMessage();

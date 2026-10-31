@@ -29,9 +29,9 @@ import { useRefreshUnderWay } from './useRefreshUnderWay';
 // ground, its line, and its glyph. A pointer over it draws the hover ground and the text colour over either look,
 // leaving the line it stands in, which is the order the design draws them in.
 const resting =
-    'text-muted hover:bg-hover hover:text-text workspace:border-line workspace:bg-panel workspace:text-muted workspace:hover:bg-hover workspace:hover:text-text';
+    'text-muted hover:bg-hover hover:text-text rail:border-line rail:bg-panel rail:text-muted rail:hover:bg-hover rail:hover:text-text';
 const underWay =
-    'bg-accent-soft text-accent-deep hover:bg-hover hover:text-text workspace:border-accent-line workspace:bg-accent-soft workspace:text-accent-deep workspace:hover:bg-hover workspace:hover:text-text';
+    'bg-accent-soft text-accent-deep hover:bg-hover hover:text-text rail:border-accent-line rail:bg-accent-soft rail:text-accent-deep rail:hover:bg-hover rail:hover:text-text';
 
 export function Refresh() {
     const { translate } = useLocalization();
@@ -46,7 +46,7 @@ export function Refresh() {
             // Refused while one is under way, which is the design's rule: a second press would read everything
             // again under reads that have not landed yet.
             aria-disabled={working}
-            className={`flex flex-1 cursor-pointer flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition workspace:size-8.5 workspace:flex-none workspace:justify-center workspace:gap-0 workspace:rounded-lg workspace:border workspace:px-0 workspace:py-0 ${working ? underWay : resting}`}
+            className={`flex flex-1 cursor-pointer flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition rail:size-8.5 rail:flex-none rail:justify-center rail:gap-0 rail:rounded-lg rail:border rail:px-0 rail:py-0 ${working ? underWay : resting}`}
             onClick={() => {
                 if (working) {
                     return;
@@ -65,7 +65,7 @@ export function Refresh() {
 
             {/* The name is under the symbol wherever the navigation carries names, and gone in the rail, where the
                 design draws this control as the symbol alone. */}
-            <span className="max-w-full truncate workspace:hidden">{translate('shell.refresh')}</span>
+            <span className="max-w-full truncate rail:hidden">{translate('shell.refresh')}</span>
         </button>
     );
 }
