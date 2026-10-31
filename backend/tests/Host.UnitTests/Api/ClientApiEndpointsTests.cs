@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Access.Organizations;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Rendering;
@@ -996,6 +997,62 @@ public sealed class ClientApiEndpointsTests
             ResolvedServedUsers.Serving(
                 new ServedUser(SyntheticUser.Deployment, "alex", []) { Organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f") }),
             AuthorizedPrincipal.Caller("reader", [MailFathomPermission.MailRead])));
+
+    /// <summary>A member's client names their organization by what the store holds for it at this read.</summary>
+    [Fact]
+    public async Task OrganizationNameOfAsync_AMemberOfAnOrganization_AnswersTheNameTheStoreHolds()
+    {
+        // Arrange
+        var organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f");
+        var organizations = Substitute.For<IOrganizationStore>();
+        organizations.ReadDisplayNameAsync(organization, Arg.Any<CancellationToken>()).Returns("Nordwind");
+
+        // Act
+        var named = await ClientApiEndpoints.OrganizationNameOfAsync(
+            organizations,
+            organization,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("Nordwind", named);
+    }
+
+    /// <summary>An organization deleted since its member was composed is answered as unnamed rather than as a fault.</summary>
+    [Fact]
+    public async Task OrganizationNameOfAsync_AnOrganizationTheStoreNoLongerHolds_AnswersNothing()
+    {
+        // Arrange
+        var organizations = Substitute.For<IOrganizationStore>();
+        organizations.ReadDisplayNameAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((string?)null);
+
+        // Act
+        var named = await ClientApiEndpoints.OrganizationNameOfAsync(
+            organizations,
+            Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(named);
+    }
+
+    /// <summary>Somebody in no organization costs the session read no query, which every client and every liveness probe makes.</summary>
+    [Fact]
+    public async Task OrganizationNameOfAsync_APersonInNoOrganization_AsksTheStoreNothing()
+    {
+        // Arrange
+        var organizations = Substitute.For<IOrganizationStore>();
+
+        // Act
+        var named = await ClientApiEndpoints.OrganizationNameOfAsync(
+            organizations,
+            organization: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(named);
+        await organizations.DidNotReceiveWithAnyArgs()
+            .ReadDisplayNameAsync(default, TestContext.Current.CancellationToken);
+    }
 
     /// <summary>A request that established no principal reads its grant as empty, and its level as the deployment's.</summary>
     [Fact]

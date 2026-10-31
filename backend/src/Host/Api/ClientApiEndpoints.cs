@@ -196,9 +196,7 @@ internal static class ClientApiEndpoints
                     StatedTelemetryLevelOf(servedUsers, principal),
                     TakesNoTelemetryFrom(servedUsers, principal),
                     organization,
-                    organization is { } organizationId
-                        ? await organizations.ReadDisplayNameAsync(organizationId, cancellationToken)
-                        : null));
+                    await OrganizationNameOfAsync(organizations, organization, cancellationToken)));
             })
             .RequireNoPermission();
 
@@ -270,6 +268,18 @@ internal static class ClientApiEndpoints
         ServedUsers servedUsers,
         AuthorizedPrincipal? principal) => principal?.User is { } user
         ? servedUsers.Peek(user)?.Organization
+        : null;
+
+    /// <summary>Reads the name the acting person's organization is shown by.</summary>
+    /// <param name="organizations">The store the name is read from, asked only where there is an organization to name.</param>
+    /// <param name="organization">The organization <see cref="OrganizationOf" /> answered, or <see langword="null" /> for none.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>Its display name, or <see langword="null" /> where the person belongs to none and where the organization has since been deleted.</returns>
+    internal static async Task<string?> OrganizationNameOfAsync(
+        IOrganizationStore organizations,
+        Guid? organization,
+        CancellationToken cancellationToken) => organization is { } organizationId
+        ? await organizations.ReadDisplayNameAsync(organizationId, cancellationToken)
         : null;
 
     /// <summary>Reports whether the telemetry routes take nothing from the acting person whatever they answered themselves.</summary>

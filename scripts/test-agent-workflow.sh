@@ -11757,6 +11757,7 @@ changes.ts signals - -
 contacts.ts person GET /api/client/contacts
 contacts.ts assertedContact GET /api/client/contacts/{contactId}
 contacts.ts collectedContact GET /api/client/contacts/{contactId}
+contacts.ts organizationContact GET /api/client/contacts/{contactId}
 contacts.ts assertedContactPage GET /api/client/contacts
 contacts.ts collectedContactPage GET /api/client/contacts/collected
 contacts.ts emptyContactPage GET /api/client/contacts

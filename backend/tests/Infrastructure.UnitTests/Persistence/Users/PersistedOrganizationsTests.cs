@@ -113,6 +113,21 @@ public sealed class PersistedOrganizationsTests
         Assert.Matches(@"\w+\.""OrganizationId"" <> @\w+ OR \w+\.""OrganizationId"" IS NULL", sql);
     }
 
+    /// <summary>A member's client names their organization from this read, so it must read that one organization's name and nothing beside it.</summary>
+    [Fact]
+    public void DisplayNameOf_AnOrganization_ReadsOnlyItsNameByItsKey()
+    {
+        // Arrange
+        using var context = DesignTimeContext();
+
+        // Act
+        var sql = PersistedOrganizations.DisplayNameOf(context, Organization).ToQueryString();
+
+        // Assert
+        Assert.Matches(@"SELECT \w+\.""DisplayName""\s+FROM", sql);
+        Assert.Matches(@"WHERE \w+\.""Id"" = @\w+", sql);
+    }
+
     private static MailFathomDbContext DesignTimeContext() => new(
         MailFathomDbContextDesignTimeFactory.BuildOptions(
             orchestratedConnectionString: null,

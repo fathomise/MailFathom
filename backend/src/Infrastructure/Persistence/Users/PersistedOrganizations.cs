@@ -248,11 +248,7 @@ internal sealed class PersistedOrganizations(
 
     /// <inheritdoc />
     public Task<string?> ReadDisplayNameAsync(Guid organizationId, CancellationToken cancellationToken) =>
-        dbContext.Organizations
-            .AsNoTracking()
-            .Where(organization => organization.Id == organizationId)
-            .Select(organization => (string?)organization.DisplayName)
-            .SingleOrDefaultAsync(cancellationToken);
+        DisplayNameOf(dbContext, organizationId).SingleOrDefaultAsync(cancellationToken);
 
     /// <inheritdoc />
     /// <remarks>
@@ -669,6 +665,17 @@ internal sealed class PersistedOrganizations(
                 && dbContext.MailAccountAssignments.Any(assignment => assignment.UserId == user.Id
                     && assignment.MailAccountId == mailAccountId))
             .Select(user => user.Id);
+
+    /// <summary>Composes the display name of one organization, read without tracking.</summary>
+    /// <param name="dbContext">The context the query is composed over.</param>
+    /// <param name="organizationId">The organization whose name is read.</param>
+    /// <returns>Its display name, as nullable so a deleted organization reads as no row rather than as an empty name.</returns>
+    /// <remarks>Composed apart so its translation — one organization, by its key, and its name alone — is assertable without a server.</remarks>
+    internal static IQueryable<string?> DisplayNameOf(MailFathomDbContext dbContext, Guid organizationId) =>
+        dbContext.Organizations
+            .AsNoTracking()
+            .Where(organization => organization.Id == organizationId)
+            .Select(organization => (string?)organization.DisplayName);
 
     private static OrganizationWriteResult WrittenOrUnknown(int written) => OrganizationWriteResult.Of(
         written == 1 ? OrganizationWriteOutcome.Written : OrganizationWriteOutcome.UnknownOrganization);
