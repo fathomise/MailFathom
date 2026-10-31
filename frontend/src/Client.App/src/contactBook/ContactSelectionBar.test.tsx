@@ -69,16 +69,16 @@ function drawBar({
     render(
         <LocalizationProvider>
             <ToastContext value={{ raise: vi.fn(), raiseOperation: () => () => undefined }}>
-            <ComposingContext value={composing}>
-                <ContactSelectionBar
-                    book={book}
-                    selected={selected}
-                    erasable={erasable}
-                    onClear={onClear}
-                    onSelectAll={onSelectAll}
-                    onAskErasure={onAskErasure}
-                />
-            </ComposingContext>
+                <ComposingContext value={composing}>
+                    <ContactSelectionBar
+                        book={book}
+                        selected={selected}
+                        erasable={erasable}
+                        onClear={onClear}
+                        onSelectAll={onSelectAll}
+                        onAskErasure={onAskErasure}
+                    />
+                </ComposingContext>
             </ToastContext>
         </LocalizationProvider>,
     );

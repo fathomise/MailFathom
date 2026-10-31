@@ -274,7 +274,7 @@ describe('readContact', () => {
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
-    it('reads a contact the organization keeps as one in the organization\'s book', async () => {
+    it("reads a contact the organization keeps as one in the organization's book", async () => {
         const kept = { ...asserted, book: 'Organization', organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' };
 
         const result = await readContact(session, answering({ status: 200, body: JSON.stringify(kept) }), 'anna');
@@ -283,8 +283,11 @@ describe('readContact', () => {
     });
 
     it.each([
-        ['the organization\'s book naming no organization', { book: 'Organization', organization: null }],
-        ['the reader\'s own book naming an organization', { book: 'Own', organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' }],
+        ["the organization's book naming no organization", { book: 'Organization', organization: null }],
+        [
+            "the reader's own book naming an organization",
+            { book: 'Own', organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' },
+        ],
     ])('refuses a contact whose book and organization disagree: %s', async (_, held) => {
         const result = await readContact(
             session,

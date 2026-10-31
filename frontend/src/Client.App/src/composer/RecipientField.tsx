@@ -124,7 +124,10 @@ export function RecipientField({
     const fromTheBook = lookup?.answer.groups ?? [];
     const suggested = searchable ? suggestionsFor(term, participants, fromTheBook, addresses) : null;
     // The list as the arrows walk it: the conversation's people, then each group in turn.
-    const offered = suggested === null ? [] : [...suggested.participants, ...suggested.groups.flatMap((group) => group.suggestions)];
+    const offered =
+        suggested === null
+            ? []
+            : [...suggested.participants, ...suggested.groups.flatMap((group) => group.suggestions)];
     const unsearchable = searchable && lookup?.term === term && lookup.answer.incomplete;
     const open = focused && !dismissed && (offered.length > 0 || unsearchable);
     // The popup can hold the note alone, and the combobox names only a listbox that is drawn.

@@ -298,7 +298,10 @@ export function ContactBook({
                         )}
                     </p>
                     <p className="ms-auto truncate text-xs text-faint">
-                        {translate(hint.key, hint.organization === undefined ? {} : { organization: hint.organization })}
+                        {translate(
+                            hint.key,
+                            hint.organization === undefined ? {} : { organization: hint.organization },
+                        )}
                     </p>
                 </div>
             </div>

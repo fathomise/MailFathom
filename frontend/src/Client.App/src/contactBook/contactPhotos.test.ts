@@ -66,7 +66,7 @@ describe('contactPhotoReader', () => {
     });
 
     // A member's portrait is their own record's, read at the directory, and its revision names nothing in the books.
-    it('reads a colleague\'s portrait at the directory, apart from a contact\'s photo of the same name', async () => {
+    it("reads a colleague's portrait at the directory, apart from a contact's photo of the same name", async () => {
         const { exchange, read, readColleague } = exchangeAnswering({ outcome: 'drawn', picture: drawn });
         const reader = contactPhotoReader(session, exchange);
 

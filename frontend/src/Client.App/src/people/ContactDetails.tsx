@@ -106,7 +106,10 @@ export function ContactDetails({ contact }: { readonly contact: Person }) {
                 ) : null}
 
                 {facts.map((fact) => (
-                    <li key={fact.name} className="flex min-w-0 items-baseline gap-2.5 border-t border-line-soft pt-2.25">
+                    <li
+                        key={fact.name}
+                        className="flex min-w-0 items-baseline gap-2.5 border-t border-line-soft pt-2.25"
+                    >
                         <span className="w-contact-fact shrink-0 text-sm leading-natural text-muted">
                             {translate(fact.name)}
                         </span>

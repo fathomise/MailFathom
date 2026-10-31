@@ -75,7 +75,9 @@ function offsetAt(zone: string | null, at: number): number | null {
     let parts: Intl.DateTimeFormatPart[];
 
     try {
-        parts = new Intl.DateTimeFormat('en-US', zone === null ? fields : { ...fields, timeZone: zone }).formatToParts(at);
+        parts = new Intl.DateTimeFormat('en-US', zone === null ? fields : { ...fields, timeZone: zone }).formatToParts(
+            at,
+        );
     } catch {
         return null;
     }

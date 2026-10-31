@@ -419,9 +419,7 @@ export function PeopleSpace({
                 answer.outcome === 'read' && answer.value === 'OrganizationContactReadOnly';
             const notErased = answers.filter((settled) => settled.answer.outcome === 'failed' || readOnly(settled));
             const refused = notErased.map(({ contact }) => contact);
-            const erased = answers
-                .filter((settled) => !notErased.includes(settled))
-                .map(({ contact }) => contact.id);
+            const erased = answers.filter((settled) => !notErased.includes(settled)).map(({ contact }) => contact.id);
 
             // An erasure nobody answered is not known to have failed, so it is never named among those refused.
             const unknown = answers.some(({ answer }) => answer.outcome === 'failed' && wentUnanswered(answer.failure));
@@ -432,7 +430,10 @@ export function PeopleSpace({
                     : unknown
                       ? { where: 'book', said: 'people.writeUnknown' }
                       : erased.length === 0
-                        ? { where: 'book', said: notErased.every(readOnly) ? 'people.writeReadOnly' : 'people.writeFailed' }
+                        ? {
+                              where: 'book',
+                              said: notErased.every(readOnly) ? 'people.writeReadOnly' : 'people.writeFailed',
+                          }
                         : {
                               where: 'book',
                               said: erasingAsked[contacts[0]?.origin ?? 'Asserted'].someRefused,

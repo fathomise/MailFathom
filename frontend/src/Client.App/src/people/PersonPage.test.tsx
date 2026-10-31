@@ -88,26 +88,26 @@ function pageOf({
     return (
         <LocalizationProvider>
             <ToastContext value={{ raise: vi.fn(), raiseOperation: () => () => undefined }}>
-            <ReadingZoneContext value={readerZone}>
-            <LinkOpenerContext value={() => Promise.resolve()}>
-                <ComposingContext value={composing}>
-                    <PersonPage
-                        contact={contact}
-                        organizationName={organizationName}
-                        correspondence={nothingCorrelated}
-                        writable={writable}
-                        promoting={promoting}
-                        recordSaid={recordSaid}
-                        onBack={onBack}
-                        onPromote={onPromote}
-                        onAskAmendment={onAskAmendment}
-                        onAskErasure={onAskErasure}
-                        onOpenThread={vi.fn()}
-                        onOpenDocument={vi.fn()}
-                    />
-                </ComposingContext>
-            </LinkOpenerContext>
-            </ReadingZoneContext>
+                <ReadingZoneContext value={readerZone}>
+                    <LinkOpenerContext value={() => Promise.resolve()}>
+                        <ComposingContext value={composing}>
+                            <PersonPage
+                                contact={contact}
+                                organizationName={organizationName}
+                                correspondence={nothingCorrelated}
+                                writable={writable}
+                                promoting={promoting}
+                                recordSaid={recordSaid}
+                                onBack={onBack}
+                                onPromote={onPromote}
+                                onAskAmendment={onAskAmendment}
+                                onAskErasure={onAskErasure}
+                                onOpenThread={vi.fn()}
+                                onOpenDocument={vi.fn()}
+                            />
+                        </ComposingContext>
+                    </LinkOpenerContext>
+                </ReadingZoneContext>
             </ToastContext>
         </LocalizationProvider>
     );

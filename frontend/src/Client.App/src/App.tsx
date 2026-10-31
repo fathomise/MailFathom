@@ -1599,7 +1599,8 @@ export function App({
                                                                                                                     null
                                                                                                                 }
                                                                                                                 inOrganization={
-                                                                                                                    deploymentSession.organization !== null
+                                                                                                                    deploymentSession.organization !==
+                                                                                                                    null
                                                                                                                 }
                                                                                                                 onOpenThread={(
                                                                                                                     thread,

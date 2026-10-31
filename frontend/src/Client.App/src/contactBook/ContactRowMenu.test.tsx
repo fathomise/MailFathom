@@ -73,17 +73,17 @@ function menuUnder({
     render(
         <LocalizationProvider>
             <ToastContext value={{ raise, raiseOperation: () => () => undefined }}>
-            <ComposingContext value={composing}>
-                <ContactRowMenu
-                    contact={contact}
-                    at={{ x: 20, y: 30 }}
-                    erasable={erasable}
-                    onSelect={onSelect}
-                    onOpen={onOpen}
-                    onAskErasure={onAskErasure}
-                    onClose={vi.fn()}
-                />
-            </ComposingContext>
+                <ComposingContext value={composing}>
+                    <ContactRowMenu
+                        contact={contact}
+                        at={{ x: 20, y: 30 }}
+                        erasable={erasable}
+                        onSelect={onSelect}
+                        onOpen={onOpen}
+                        onAskErasure={onAskErasure}
+                        onClose={vi.fn()}
+                    />
+                </ComposingContext>
             </ToastContext>
         </LocalizationProvider>,
     );
@@ -121,7 +121,7 @@ describe('ContactRowMenu', () => {
 
     // Nobody here may change a colleague or a contact the organization keeps, so their address stands where deleting
     // them would.
-    it('offers a colleague\'s address to copy and nothing that would change them', () => {
+    it("offers a colleague's address to copy and nothing that would change them", () => {
         menuUnder({ contact: piotr });
 
         expect(drawn()).toStrictEqual(['Select contacts', 'Write an email', 'Open contact', 'Copy address']);
@@ -141,7 +141,7 @@ describe('ContactRowMenu', () => {
         expect(drawn()).toStrictEqual(['Select contacts', 'Open contact']);
     });
 
-    it('puts the colleague\'s address on the clipboard and says it did', async () => {
+    it("puts the colleague's address on the clipboard and says it did", async () => {
         const writeText = vi.fn(() => Promise.resolve());
         Object.defineProperty(window.navigator, 'clipboard', { configurable: true, value: { writeText } });
         const raise = vi.fn();

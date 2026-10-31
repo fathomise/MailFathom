@@ -11,7 +11,7 @@ const autumn = Date.parse('2026-10-31T08:41:00Z');
 const summer = Date.parse('2026-07-15T08:41:00Z');
 
 describe('colleagueClock', () => {
-    it('reads the colleague\'s own clock and stands it behind the reader\'s by the zones\' offsets at that instant', () => {
+    it("reads the colleague's own clock and stands it behind the reader's by the zones' offsets at that instant", () => {
         expect(colleagueClock('Europe/London', 'Europe/Warsaw', autumn, 'en')).toEqual({
             time: '8:41 AM',
             minutesAhead: -60,

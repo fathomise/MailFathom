@@ -148,7 +148,11 @@ describe('ContactBook', () => {
     });
 
     it('counts the directory in colleagues and names it after the organization its members read', () => {
-        drawBook({ books: ['own', 'colleagues', 'collected'], book: 'colleagues', reading: { ...nothingRead, contacts: [piotr] } });
+        drawBook({
+            books: ['own', 'colleagues', 'collected'],
+            book: 'colleagues',
+            reading: { ...nothingRead, contacts: [piotr] },
+        });
 
         expect(screen.getByText('1 colleague')).toBeDefined();
         expect(screen.getByText("Nordwind's directory")).toBeDefined();
@@ -162,7 +166,7 @@ describe('ContactBook', () => {
         expect(screen.getByText("your organization's directory")).toBeDefined();
     });
 
-    it('marks a contact the organization keeps on its row, beside the reader\'s own', () => {
+    it("marks a contact the organization keeps on its row, beside the reader's own", () => {
         drawBook({ reading: { ...nothingRead, contacts: [anna, { ...bartek, book: 'Organization' }] } });
 
         expect(screen.getByRole('option', { name: /Bartek Nowak/u }).textContent).toContain('Organization');

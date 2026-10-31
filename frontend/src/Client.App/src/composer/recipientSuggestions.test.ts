@@ -42,7 +42,9 @@ function answering(addresses: readonly string[], preferredAddress: string): Mail
     return (request) =>
         Promise.resolve({
             status: 200,
-            body: request.path.includes('/contacts/colleagues') ? JSON.stringify({ contacts: [], nextCursor: null }) : body,
+            body: request.path.includes('/contacts/colleagues')
+                ? JSON.stringify({ contacts: [], nextCursor: null })
+                : body,
             headers: {},
         });
 }
@@ -130,20 +132,25 @@ describe('searchContacts', () => {
 describe('searchContacts across the directory', () => {
     // The design's groups: the organization's members, then the contacts it keeps, then the reader's own, with what
     // their mail collected after the reader's own in that last group.
-    it('offers colleagues, the organization\'s contacts, and the reader\'s own with the collected, each under its group', async () => {
+    it("offers colleagues, the organization's contacts, and the reader's own with the collected, each under its group", async () => {
         const transport: MailFathomTransport = (request) => {
             const body = request.path.includes('/contacts/colleagues')
                 ? page([colleagueCalled('piotr', 'Piotr Zieliński')])
                 : request.path.includes('/contacts/collected')
                   ? page([contactCalled('celina', 'Celina Wrona', 'Collected')])
-                  : page([contactCalled('anna', 'Anna Kowalska', 'Own'), contactCalled('globe', 'Globe Travel', 'Organization')]);
+                  : page([
+                        contactCalled('anna', 'Anna Kowalska', 'Own'),
+                        contactCalled('globe', 'Globe Travel', 'Organization'),
+                    ]);
 
             return Promise.resolve({ status: 200, body, headers: {} });
         };
 
         const found = await searchContacts(session, transport, 'example');
 
-        expect(found.groups.map((group) => [group.name, group.suggestions.map((suggestion) => suggestion.name)])).toEqual([
+        expect(
+            found.groups.map((group) => [group.name, group.suggestions.map((suggestion) => suggestion.name)]),
+        ).toEqual([
             ['colleagues', ['Piotr Zieliński']],
             ['organization', ['Globe Travel']],
             ['own', ['Anna Kowalska', 'Celina Wrona']],

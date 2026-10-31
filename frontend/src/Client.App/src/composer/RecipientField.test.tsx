@@ -438,7 +438,7 @@ describe('RecipientField', () => {
         );
     });
 
-    it('draws the book in the design\'s groups, the organization\'s under its name, and walks them as one list', async () => {
+    it("draws the book in the design's groups, the organization's under its name, and walks them as one list", async () => {
         const member = {
             id: 'member-piotr',
             book: 'Member',
@@ -459,7 +459,11 @@ describe('RecipientField', () => {
                 own: {
                     status: 200,
                     contacts: [
-                        { ...contact('000000000001', 'Globe Travel', ['globe@nordwind.example']), book: 'Organization', organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' },
+                        {
+                            ...contact('000000000001', 'Globe Travel', ['globe@nordwind.example']),
+                            book: 'Organization',
+                            organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f',
+                        },
                         contact('000000000002', 'Anna Kowalska', ['anna@nordwind.example']),
                     ],
                 },
@@ -472,7 +476,11 @@ describe('RecipientField', () => {
         const list = await screen.findByRole('listbox', { name: 'Suggested recipients for To' });
 
         await waitFor(() => {
-            expect(within(list).getAllByRole('group').map((group) => group.getAttribute('aria-labelledby'))).toHaveLength(3);
+            expect(
+                within(list)
+                    .getAllByRole('group')
+                    .map((group) => group.getAttribute('aria-labelledby')),
+            ).toHaveLength(3);
         });
         expect(
             within(list)

@@ -903,7 +903,7 @@ export function Composer({
                                 addresses={composition.cc}
                                 participants={participants}
                                 session={session}
-                        organizationName={organizationName}
+                                organizationName={organizationName}
                                 transport={transport}
                                 onChanged={(cc) => {
                                     revise({ cc });
@@ -925,7 +925,7 @@ export function Composer({
                                 addresses={composition.bcc}
                                 participants={participants}
                                 session={session}
-                        organizationName={organizationName}
+                                organizationName={organizationName}
                                 transport={transport}
                                 onChanged={(bcc) => {
                                     revise({ bcc });

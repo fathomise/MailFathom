@@ -108,7 +108,7 @@ describe('readColleague', () => {
 });
 
 describe('promoteColleague', () => {
-    it('asks the member\'s promotion route for a copy, stating no record', async () => {
+    it("asks the member's promotion route for a copy, stating no record", async () => {
         const { transport, requests } = recording({
             status: 200,
             body: JSON.stringify({ outcome: 'Written', contact: null, addressHolder: null }),
@@ -125,7 +125,7 @@ describe('promoteColleague', () => {
 });
 
 describe('readColleaguePhoto', () => {
-    it('composes the read of the member\'s portrait for the adapter to deliver', async () => {
+    it("composes the read of the member's portrait for the adapter to deliver", async () => {
         const delivered: ClientRequest[] = [];
 
         await readColleaguePhoto(
@@ -178,6 +178,14 @@ describe('parseColleague', () => {
         expect(parseColleague({ ...member, timeZone: 7 })).toBeNull();
         expect(parseColleague({ ...member, organizationName: null })).toBeNull();
         expect(parseColleague({ ...member, phoneNumbers: [{ number: '1', label: 'Fax' }] })).toBeNull();
-        expect(parseColleague({ ...member, addresses: [member.preferredAddress, ...Array.from({ length: 64 }, (_, at) => `a${String(at)}@b.example`)] })).toBeNull();
+        expect(
+            parseColleague({
+                ...member,
+                addresses: [
+                    member.preferredAddress,
+                    ...Array.from({ length: 64 }, (_, at) => `a${String(at)}@b.example`),
+                ],
+            }),
+        ).toBeNull();
     });
 });

@@ -221,24 +221,24 @@ function drawSpace(
     render(
         <LocalizationProvider>
             <ToastContext value={{ raise: vi.fn(), raiseOperation: () => () => undefined }}>
-            <LinkOpenerContext value={() => Promise.resolve()}>
-                <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
-                    <ScreenLayersContext value={layers}>
-                        <ComposingContext value={composing}>
-                            <PeopleSpace
-                                session={session}
-                                transport={transport}
-                                contactPhotos={photos}
-                                writable={writable}
-                                organizationName="Nordwind"
-                                inOrganization={inOrganization}
-                                onOpenThread={vi.fn()}
-                                onOpenDocument={vi.fn()}
-                            />
-                        </ComposingContext>
-                    </ScreenLayersContext>
-                </ConnectionStatusContext>
-            </LinkOpenerContext>
+                <LinkOpenerContext value={() => Promise.resolve()}>
+                    <ConnectionStatusContext value={lostServer ? serverLost : serverAnswering}>
+                        <ScreenLayersContext value={layers}>
+                            <ComposingContext value={composing}>
+                                <PeopleSpace
+                                    session={session}
+                                    transport={transport}
+                                    contactPhotos={photos}
+                                    writable={writable}
+                                    organizationName="Nordwind"
+                                    inOrganization={inOrganization}
+                                    onOpenThread={vi.fn()}
+                                    onOpenDocument={vi.fn()}
+                                />
+                            </ComposingContext>
+                        </ScreenLayersContext>
+                    </ConnectionStatusContext>
+                </LinkOpenerContext>
             </ToastContext>
         </LocalizationProvider>,
     );
@@ -954,7 +954,7 @@ describe('PeopleSpace', () => {
         });
     });
 
-    it('opens on the reader\'s own book, with no Colleagues segment, outside an organization', async () => {
+    it("opens on the reader's own book, with no Colleagues segment, outside an organization", async () => {
         const { transport, sent } = deployment();
         drawSpace(transport);
 
@@ -963,7 +963,7 @@ describe('PeopleSpace', () => {
         expect(sent().some((request) => request.path.includes('/contacts/colleagues'))).toBe(false);
     });
 
-    it('says an erasure the service refused as the organization\'s is read-only rather than an unknown failure', async () => {
+    it("says an erasure the service refused as the organization's is read-only rather than an unknown failure", async () => {
         const { transport } = deployment({ keptByOrganization: ['anna'] });
         drawSpace(transport);
 

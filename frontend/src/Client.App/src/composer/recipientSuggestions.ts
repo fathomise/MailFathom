@@ -88,7 +88,9 @@ export async function searchContacts(
         // The reader's own route answers two groups, the organization's contacts and their own.
         readOwnContacts(session, transport, { search: term, pageSize: most * 2 }),
         readColleagues(session, transport, { search: term, pageSize: most }).then((answer) =>
-            answer.outcome === 'failed' ? answer : { outcome: 'read' as const, value: { contacts: answer.value.colleagues } },
+            answer.outcome === 'failed'
+                ? answer
+                : { outcome: 'read' as const, value: { contacts: answer.value.colleagues } },
         ),
         readCollectedContacts(session, transport, { search: term, pageSize: most }),
     ]);

@@ -174,14 +174,9 @@ export const colleaguePage = {
                 { number: '+48 601 555 014', label: 'Mobile' },
             ],
         ),
-        colleague(
-            'member-oliver',
-            'Oliver Grant',
-            'Delivery Engineer',
-            ['o.grant@nordwind.example'],
-            'Europe/London',
-            [{ number: '+44 20 7946 0321', label: 'Work' }],
-        ),
+        colleague('member-oliver', 'Oliver Grant', 'Delivery Engineer', ['o.grant@nordwind.example'], 'Europe/London', [
+            { number: '+44 20 7946 0321', label: 'Work' },
+        ]),
         colleague(
             'member-piotr',
             'Piotr Zieliński',

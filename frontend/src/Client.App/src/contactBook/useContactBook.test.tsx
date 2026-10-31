@@ -161,7 +161,7 @@ describe('useContactBook', () => {
         expect(await screen.findByText('Celina Wrona')).toBeDefined();
     });
 
-    it('reads the organization\'s members out of the directory, as the book of colleagues', async () => {
+    it("reads the organization's members out of the directory, as the book of colleagues", async () => {
         const { transport, asked } = answering({
             own: [pageOf([contact('anna', 'Anna Kowalska')], null)],
             colleagues: [pageOf([colleague('piotr', 'Piotr Zieliński')], null)],
