@@ -13,6 +13,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
+using MailFathom.Infrastructure.Persistence.Folders;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using MailFathom.Infrastructure.Persistence.Spam;
 using Microsoft.EntityFrameworkCore;
@@ -80,12 +81,14 @@ internal sealed class StoredThreadStateStore(
             MailFolderSelection.GeneratingEmbeddings,
             [account],
             cancellationToken);
+        var trashedFolderIds = await StoredTrashedFolders.ReadAsync(dbContext.MailFolders, mailboxAccountId, cancellationToken);
 
         var counted = Selecting(
             dbContext.StoredEmails.AsNoTracking(),
             mailboxAccountId,
             foldersGeneratingEmbeddings,
-            terms);
+            terms,
+            trashedFolderIds);
 
         var awaiting = await Awaiting(counted, dbContext.EmailThreadStates.AsNoTracking())
             .Take(batchSize)
@@ -107,7 +110,8 @@ internal sealed class StoredThreadStateStore(
                     dbContext.StoredEmails.AsNoTracking(),
                     mailboxAccountId,
                     foldersGeneratingEmbeddings,
-                    terms)
+                    terms,
+                    trashedFolderIds)
                 .Where(email => readable.Contains(email.EmailThreadId!.Value))
                 .OrderBy(email => email.SentAt)
                 .ThenBy(email => email.Id)
@@ -191,6 +195,7 @@ internal sealed class StoredThreadStateStore(
     /// <param name="mailboxAccountId">The configured account this pass belongs to.</param>
     /// <param name="embeddedFolders">The folders a mapping admits to derived work.</param>
     /// <param name="terms">The classification terms the whole batch is decided under.</param>
+    /// <param name="trashedFolderIds">The account's folders in Trash, as <see cref="StoredTrashedFolders" /> reads them.</param>
     /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
     /// <remarks>
     /// Written as a composable predicate rather than inline, so what counts towards a conversation is one statement
@@ -198,14 +203,16 @@ internal sealed class StoredThreadStateStore(
     /// through the same clause rather than through two that could drift apart.
     /// <para>
     /// A message in Trash is one somebody deleted, so it says nothing about where the conversation stands and does not
-    /// name it either. Moving one there changes the count, and the conversation is derived again without it.
+    /// name it either. That covers a folder beneath Trash as well, which is where deleting a kept folder puts it. Moving
+    /// one there changes the count, and the conversation is derived again without it.
     /// </para>
     /// </remarks>
     internal static IQueryable<StoredEmailEntity> Selecting(
         IQueryable<StoredEmailEntity> emails,
         string mailboxAccountId,
         IReadOnlyList<MailFolderIdentity> embeddedFolders,
-        DerivedWorkAdmissionTerms terms) => DerivedWorkAdmittedEmails.Admitting(
+        DerivedWorkAdmissionTerms terms,
+        Guid[] trashedFolderIds) => DerivedWorkAdmittedEmails.Admitting(
         AccountScopedMailFolders.Admitting(
             emails
                 .Where(StoredEmailTombstone.IsNotTombstoned)
@@ -213,7 +220,7 @@ internal sealed class StoredThreadStateStore(
                     && email.EmailThreadId != null
                     && email.SearchDocument != null
                     && email.SearchDocument.BodyText != null
-                    && email.Folder.Role != MailFolderSpecialUse.Trash)
+                    && !trashedFolderIds.Contains(email.FolderId))
                 .Where(MailAwaitingRuleEvaluation.IsFinishedWith)
                 .Where(MailAwaitingRelocation.IsSettledWhereItIs),
             embeddedFolders),

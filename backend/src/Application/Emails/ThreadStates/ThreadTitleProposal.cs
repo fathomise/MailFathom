@@ -24,6 +24,13 @@ public sealed record ThreadTitleProposal(string? Topic, bool StatesSubjectChange
     /// </remarks>
     public const int YoungConversationMessageCount = 3;
 
+    /// <summary>What an answer carrying no title stands for: the kept topic stays, and nothing is said to be left open.</summary>
+    /// <remarks>
+    /// An answer that names no title did not ask for the conversation to lose its name, so settling it as an absence
+    /// would take the row's name away on the strength of an omission.
+    /// </remarks>
+    public static ThreadTitleProposal KeepingTheTopic { get; } = new(Topic: null, StatesSubjectChange: false, string.Empty);
+
     /// <summary>Settles the proposal against the conversation it was derived from.</summary>
     /// <param name="thread">The conversation, carrying the topic its stored state kept and the shape it was read at.</param>
     /// <returns>

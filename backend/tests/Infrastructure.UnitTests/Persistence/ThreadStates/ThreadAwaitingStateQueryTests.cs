@@ -48,7 +48,8 @@ public sealed class ThreadAwaitingStateQueryTests
             context.StoredEmails.AsNoTracking(),
             "work",
             [new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("INBOX"))],
-            new DerivedWorkAdmissionTerms([], [], [], Now));
+            new DerivedWorkAdmissionTerms([], [], [], Now),
+            [Guid.CreateVersion7()]);
 
         // Act
         var sql = StoredThreadStateStore.Awaiting(counted, context.EmailThreadStates.AsNoTracking())
@@ -69,8 +70,9 @@ public sealed class ThreadAwaitingStateQueryTests
         // The topic the stored state kept travels with the batch, so the derivation can be asked to keep it.
         Assert.Contains("\"Topic\"", sql, StringComparison.Ordinal);
 
-        // A message in Trash counts towards nothing, so it neither shapes the state nor names the conversation.
-        Assert.Contains("\"Role\"", sql, StringComparison.Ordinal);
+        // A message in Trash, or in a folder beneath it, counts towards nothing, so it neither shapes the state nor
+        // names the conversation.
+        Assert.Contains("trashedFolderIds", sql, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -86,20 +88,27 @@ public sealed class ThreadAwaitingStateQueryTests
             designTimeConnectionString: null);
         using var context = new MailFathomDbContext(options, PostgresTextSearchConfiguration.Default);
 
+        var conversation = Guid.CreateVersion7();
+        var counted = StoredThreadStateReader.Counted(
+            context.StoredEmails.AsNoTracking(),
+            conversation,
+            "work",
+            [new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("INBOX"))],
+            new DerivedWorkAdmissionTerms([], [], [], Now),
+            []);
+
         // Act
-        var sql = StoredThreadStateReader.OwedADerivation(
-                context.StoredEmails.AsNoTracking(),
-                context.EmailThreadStates.AsNoTracking(),
-                Guid.CreateVersion7(),
-                "work",
-                [new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("INBOX"))],
-                new DerivedWorkAdmissionTerms([], [], [], Now))
+        var sql = StoredThreadStateReader.OwedADerivation(counted, context.EmailThreadStates.AsNoTracking(), conversation)
             .ToQueryString();
+        var leftTheSelection = counted.Select(static email => email.Id).Take(1).ToQueryString();
 
         // Assert
         Assert.Contains("GROUP BY", sql, StringComparison.Ordinal);
         Assert.Contains("LEFT JOIN", sql, StringComparison.Ordinal);
         Assert.Contains("\"DerivedFromMessageCount\"", sql, StringComparison.Ordinal);
         Assert.Contains("\"DerivedFromLatestArrival\"", sql, StringComparison.Ordinal);
+
+        // Whether the conversation still has a message the pass counts is asked of the same narrowing on its own.
+        Assert.Contains("LIMIT", leftTheSelection, StringComparison.Ordinal);
     }
 }

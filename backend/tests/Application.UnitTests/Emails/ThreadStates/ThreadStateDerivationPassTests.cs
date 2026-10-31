@@ -348,6 +348,25 @@ public sealed class ThreadStateDerivationPassTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>An answer that names no title leaves the conversation the topic it had rather than taking its name away.</summary>
+    [Fact]
+    public async Task RunAsync_ADerivationCarryingNoTitleForATitledConversation_StoresTheKeptTopicWithNoStanding()
+    {
+        // Arrange
+        var conversation = Derivable() with { KeptTopic = "Racking quotation" };
+        var store = StoreReturning([conversation]);
+        var pass = CreatePass(store, DeriverAnswering(_ => ThreadStateDerivation.Settled([Agreement()])));
+
+        // Act
+        await pass.RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        await store.Received(1).SaveAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Is<EmailThreadState>(state => state!.Title == ThreadTitle.Create("Racking quotation", string.Empty)),
+            Arg.Any<CancellationToken>());
+    }
+
     private static DerivableThread Derivable() =>
         new(
             EmailThreadId.Create(Guid.CreateVersion7()),

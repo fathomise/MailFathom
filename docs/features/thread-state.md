@@ -57,7 +57,7 @@ statement:
 Each is one line of plain text, with no markup and no link. **An answer whose title breaks that is withheld as
 unreadable** rather than shortened, because a title is drawn where a sender's words are not, and a line carrying a tag
 or a link would be a sender's text reaching a place the deployment writes. An answer carrying no title at all settles
-without one.
+proposing none: the conversation keeps the topic it had, with no standing beside it.
 
 **The standing is a reading of the statements beside it, never a sentence of its own.** It is kept only beside an open
 question or a commitment; written beside nothing still open, it is stored empty, because it would be stating something
@@ -91,7 +91,10 @@ nothing to put beside the correspondence — two messages arranging a time, a re
 storing it is what stops the same nothing being paid for again.
 
 A message in Trash is somebody's deletion rather than part of where the conversation stands, so it is in no count and
-in no turn, and moving one there puts the conversation back in front of the derivation without it.
+in no turn, and moving one there puts the conversation back in front of the derivation without it. A folder beneath
+Trash counts as Trash, because deleting a folder the account keeps moves it there. A conversation whose every message
+has gone is never derived again, so the state it kept is served as not current rather than as a reading of mail nobody
+reads it from any more.
 
 A conversation longer than one derivation may take in is the other case, and it is stored as a coverage of its own
 rather than as an absence:

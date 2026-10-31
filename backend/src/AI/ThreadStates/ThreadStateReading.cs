@@ -82,7 +82,7 @@ internal static class ThreadStateReading
     /// A refusal rather than a repair, unlike a statement that runs long. A title is the line a row is recognized by,
     /// so a topic with markup, a link, or a second line in it is a model not answering what it was asked, and the
     /// answer is withheld exactly as one that does not parse is. An answer carrying no title at all is the other case
-    /// and settles without one, as an answer of no statements settles without any.
+    /// and settles proposing none, which leaves the conversation the topic it already had.
     /// </para>
     /// <para>
     /// The standing is kept only beside a statement it can be reading: an open question or a commitment. A standing

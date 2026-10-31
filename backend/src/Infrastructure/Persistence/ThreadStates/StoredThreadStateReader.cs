@@ -13,6 +13,7 @@ using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Emails.Threads;
 using MailFathom.Infrastructure.Persistence.Entities;
+using MailFathom.Infrastructure.Persistence.Folders;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.ThreadStates;
@@ -33,6 +34,8 @@ namespace MailFathom.Infrastructure.Persistence.ThreadStates;
 /// Whether the state still describes the conversation is asked of the mail as well, and in the derivation pass's own
 /// terms — see <see cref="OwedADerivation" />. A stored state is written against the shape the conversation had, and
 /// a reply that arrived since changes the conversation without changing the record, so the record alone cannot say.
+/// A conversation with no message left that the pass counts is the one case the comparison cannot see, and
+/// <see cref="Counted" /> answers it.
 /// </para>
 /// </remarks>
 [RequiresIntegrationCoverage]
@@ -93,15 +96,22 @@ internal sealed class StoredThreadStateReader(
             [MailAccountId.Create(stored.MailboxAccountId)],
             cancellationToken);
         var terms = await derivedWorkGate.ReadTermsAsync(cancellationToken);
+        var trashedFolderIds = await StoredTrashedFolders.ReadAsync(
+            dbContext.MailFolders,
+            stored.MailboxAccountId,
+            cancellationToken);
 
-        var owed = await OwedADerivation(
-                dbContext.StoredEmails.AsNoTracking(),
-                dbContext.EmailThreadStates.AsNoTracking(),
-                surviving,
-                stored.MailboxAccountId,
-                foldersGeneratingEmbeddings,
-                terms)
-            .AnyAsync(cancellationToken);
+        var counted = Counted(
+            dbContext.StoredEmails.AsNoTracking(),
+            surviving,
+            stored.MailboxAccountId,
+            foldersGeneratingEmbeddings,
+            terms,
+            trashedFolderIds);
+
+        var owed = !await counted.AnyAsync(cancellationToken)
+            || await OwedADerivation(counted, dbContext.EmailThreadStates.AsNoTracking(), surviving)
+                .AnyAsync(cancellationToken);
 
         return new EmailThreadState(
             EmailThreadId.Create(surviving),
@@ -120,13 +130,37 @@ internal sealed class StoredThreadStateReader(
             stored.Topic is { } topic ? ThreadTitle.Create(topic, stored.Standing ?? string.Empty) : null);
     }
 
-    /// <summary>Asks the derivation pass's own question of one conversation: whether it is owed a derivation now.</summary>
+    /// <summary>Narrows stored mail to the messages of one conversation the derivation pass counts.</summary>
     /// <param name="emails">The stored mail to count the conversation from.</param>
-    /// <param name="states">The states already stored.</param>
     /// <param name="survivingThreadId">The conversation, as the surviving thread of any merge.</param>
     /// <param name="mailboxAccountId">The configured account the conversation belongs to.</param>
     /// <param name="embeddedFolders">The folders a mapping admits to derived work.</param>
     /// <param name="terms">The classification terms in force.</param>
+    /// <param name="trashedFolderIds">The account's folders in Trash.</param>
+    /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
+    /// <remarks>
+    /// Empty is an answer of its own: a conversation none of whose messages the pass still counts — every one moved to
+    /// Trash, say — is one no pass will derive again, so the state it kept describes mail nobody reads it from any more
+    /// and is never current.
+    /// </remarks>
+    internal static IQueryable<StoredEmailEntity> Counted(
+        IQueryable<StoredEmailEntity> emails,
+        Guid survivingThreadId,
+        string mailboxAccountId,
+        IReadOnlyList<MailFolderIdentity> embeddedFolders,
+        DerivedWorkAdmissionTerms terms,
+        Guid[] trashedFolderIds) =>
+        StoredThreadStateStore.Selecting(
+            emails.Where(email => email.EmailThreadId == survivingThreadId),
+            mailboxAccountId,
+            embeddedFolders,
+            terms,
+            trashedFolderIds);
+
+    /// <summary>Asks the derivation pass's own question of one conversation: whether it is owed a derivation now.</summary>
+    /// <param name="counted">The conversation's messages the pass counts, as <see cref="Counted" /> narrows them.</param>
+    /// <param name="states">The states already stored.</param>
+    /// <param name="survivingThreadId">The conversation, as the surviving thread of any merge.</param>
     /// <returns>One row where the stored state no longer describes the conversation, and none where it still does.</returns>
     /// <remarks>
     /// The selection and the comparison are the store's, composed rather than restated, so a read calls a state current
@@ -135,19 +169,10 @@ internal sealed class StoredThreadStateReader(
     /// had already queued to replace — or be told a state was stale that no pass would ever derive again.
     /// </remarks>
     internal static IQueryable<ThreadAwaitingStateRow> OwedADerivation(
-        IQueryable<StoredEmailEntity> emails,
+        IQueryable<StoredEmailEntity> counted,
         IQueryable<EmailThreadStateEntity> states,
-        Guid survivingThreadId,
-        string mailboxAccountId,
-        IReadOnlyList<MailFolderIdentity> embeddedFolders,
-        DerivedWorkAdmissionTerms terms) =>
-        StoredThreadStateStore.Awaiting(
-            StoredThreadStateStore.Selecting(
-                emails.Where(email => email.EmailThreadId == survivingThreadId),
-                mailboxAccountId,
-                embeddedFolders,
-                terms),
-            states.Where(state => state.EmailThreadId == survivingThreadId));
+        Guid survivingThreadId) =>
+        StoredThreadStateStore.Awaiting(counted, states.Where(state => state.EmailThreadId == survivingThreadId));
 
     /// <summary>Narrows one conversation's messages to the mail the scope admits.</summary>
     /// <remarks>
