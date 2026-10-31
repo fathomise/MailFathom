@@ -2562,11 +2562,11 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="display:contents">
           <sc-if value="{{ cm.groupShown }}" hint-placeholder-val="{{ false }}"><div role="separator" aria-label="{{ cm.group }}" style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--muted);border-top:1px solid var(--line);margin:4px 6px 0;padding:9px 6px 5px"><span aria-hidden="true">{{ cm.group }}</span></div></sc-if>
           <div data-ctx-item role="{{ cm.role }}" aria-checked="{{ cm.ariaChecked }}" tabindex="-1" onClick="{{ cm.run }}" onKeyDown="{{ cm.key }}" style="{{ cm.style }}" style-hover="cursor:pointer;background:var(--hover)">
-            <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;width:24px;text-align:center">{{ cm.icon }}</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ cm.label }}</span>
-            <span style="margin-left:auto;padding-left:10px;flex:0 0 auto;display:flex;align-items:center;gap:8px">
+            <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;width:24px;text-align:center">{{ cm.icon }}</span>{{ cm.label }}
+            <sc-if value="{{ cm.trailShown }}" hint-placeholder-val="{{ false }}"><span style="margin-left:auto;padding-left:10px;flex:0 0 auto;display:flex;align-items:center;gap:8px">
               <sc-if value="{{ cm.hintShown }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap">{{ cm.hint }}</span></sc-if>
               <sc-if value="{{ cm.checkSlot }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ cm.checkStyle }}">check</span></sc-if>
-            </span>
+            </span></sc-if>
           </div>
           </div>
         </sc-for>

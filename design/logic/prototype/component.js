@@ -4810,6 +4810,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           checkShown: !!(mi.checked && mi.checked()),
           /* A radio item keeps the check's room when it is not the one taken, so the times stand in one column. */
           checkSlot: !!(mi.radio || (mi.checked && mi.checked())),
+          /* Only an item with a hint or a check draws the trailing slot, so every other menu keeps its label's room. */
+          trailShown: !!(mi.hint || mi.radio || (mi.checked && mi.checked())),
           checkStyle: "width:20px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:var(--accent-d)" +
             (mi.checked && mi.checked() ? "" : ";visibility:hidden"),
           run: () => { if (!this.ctxArmed()) return; if (!mi.checked || mi.radio) this.closeCtxMenuFocus(); if (mi.run) mi.run(); },
@@ -8005,8 +8007,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (touch ? "min-height:44px;padding:0 10px;font-size:13px" : "padding:3px 8px;font-size:12px"),
       };
       /* What back calls for a surface whose own close does more than empty its key: asking before a draft is thrown
-         away, and closing the tab the surface stands in. */
-      this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml };
+         away, closing the tab the surface stands in, and handing focus back to what opened the picker. */
+      this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml, sendLaterAsk: this.closeSendLater };
       return vals;
     }
   }
