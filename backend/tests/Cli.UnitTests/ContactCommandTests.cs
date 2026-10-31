@@ -833,6 +833,26 @@ public sealed class ContactCommandTests : IDisposable
         Assert.Contains("producedAt", document, StringComparison.Ordinal);
     }
 
+    /// <summary>The photo is part of what the book holds about the person, so the document carries it exactly as the deployment answered.</summary>
+    [Fact]
+    public async Task Export_AContactWithAPhoto_CarriesItsKindAndItsOctetsUnchanged()
+    {
+        // Arrange
+        using var deployment = FakeContactDeployment.Holding(
+            export: FakeContactDeployment.Export(photo: """{"mediaType":"image/png","content":"iVBORw0KGgo="}"""));
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "contact", "export", "--id", Identity, "--endpoint", Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+
+        using var document = JsonDocument.Parse(Assert.Single(this.harness.Console.Lines));
+        var photo = document.RootElement.GetProperty("photo");
+        Assert.Equal("image/png", photo.GetProperty("mediaType").GetString());
+        Assert.Equal("iVBORw0KGgo=", photo.GetProperty("content").GetString());
+    }
+
     /// <summary>A contact the book does not hold has nothing to export, and the failure carries only the identifier.</summary>
     [Fact]
     public async Task Export_AContactTheBookDoesNotHold_FailsWithoutWritingADocument()

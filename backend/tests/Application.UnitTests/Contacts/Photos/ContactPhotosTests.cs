@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Portraits;
@@ -93,6 +94,33 @@ public sealed class ContactPhotosTests
         await files.DidNotReceive().RemoveAsync(Arg.Any<UserId>(), Written, Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A link that failed leaves the new file unlinked for the sweep, and must never have taken the displaced one with it.</summary>
+    [Fact]
+    public async Task ReplaceAsync_ALinkThatFails_LeavesThePhotoInForceWhereItWas()
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var contact = OwnContact(Linked);
+        book.Hold(User, contact);
+        var store = Substitute.For<IContactStore>();
+        store.RelinkPhotoAsync(
+                Arg.Any<IPersistenceSession>(),
+                Arg.Any<UserId>(),
+                Arg.Any<ContactId>(),
+                Arg.Any<StoredFileId?>(),
+                Arg.Any<CancellationToken>())
+            .Returns<ContactPhotoRelinking>(_ => throw new InvalidOperationException("The record refused the link."));
+        var files = FilesWriting(Written);
+
+        // Act
+        var refusal = await Record.ExceptionAsync(
+            () => PhotosOver(book, store, files).ReplaceAsync(contact.Id, Portrait.Of(Png)!, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(refusal);
+        await files.DidNotReceive().RemoveAsync(Arg.Any<UserId>(), Linked, Arg.Any<CancellationToken>());
+    }
+
     /// <summary>A collected contact has no user to own a file, so a photo for one is refused and the file written for it removed again.</summary>
     [Fact]
     public async Task ReplaceAsync_AContactOutsideTheUsersOwnBook_IsRefusedAndStoresNothing()
@@ -169,6 +197,26 @@ public sealed class ContactPhotosTests
     }
 
     [Fact]
+    public async Task RemoveAsync_ACallerGrantedOnlyReading_IsRefusedBeforeAnythingIsRemoved()
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var contact = OwnContact(Linked);
+        book.Hold(User, contact);
+        var files = Substitute.For<IStoredFileStore>();
+        var photos = PhotosOver(book, files, MailFathomPermission.ContactsRead);
+
+        // Act
+        var refusal = await Record.ExceptionAsync(
+            () => photos.RemoveAsync(contact.Id, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.IsType<PrincipalNotAuthorizedException>(refusal);
+        Assert.Equal(Linked.Value, book.ContactsOf(User).Single().Photo);
+        await files.DidNotReceive().RemoveAsync(Arg.Any<UserId>(), Arg.Any<StoredFileId>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ReadAsync_ACallerGrantedOnlyWriting_IsRefused()
     {
         // Arrange
@@ -182,6 +230,13 @@ public sealed class ContactPhotosTests
     private static ContactPhotos PhotosOver(
         InMemoryContactBookStore book,
         IStoredFileStore files,
+        params MailFathomPermission[] permissions) =>
+        PhotosOver(book, book, files, permissions);
+
+    private static ContactPhotos PhotosOver(
+        InMemoryContactBookStore book,
+        IContactStore store,
+        IStoredFileStore files,
         params MailFathomPermission[] permissions)
     {
         var authorization = AccessAuthorizations.ForCallerGranted(
@@ -194,7 +249,7 @@ public sealed class ContactPhotosTests
             authorization,
             ContactBookOwnerships.For(authorization, SyntheticMailAccount.Deployment),
             book,
-            book,
+            store,
             files,
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), new FakeTimeProvider(Now)));
     }
