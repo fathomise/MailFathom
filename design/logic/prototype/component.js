@@ -7505,7 +7505,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             sourceMotion: full ? "sheet" : "pop",
             sourceGrabber: full,
             sourceSubject: src.named ? th.subject || "Message" : "",
-            sourceOverlayStyle: isMobile
+            sourceOverlayStyle: full && navBottom
               ? "position:fixed;top:0;left:0;right:0;bottom:" + this.barH() + "px;z-index:89;display:flex;background:var(--sub)"
               : full
               ? "position:fixed;inset:0;z-index:89;display:flex;background:var(--sub)"
@@ -7543,7 +7543,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeHtml: () => (htmlInPane ? this.closeTab(st.activeTab) : this.setState({ htmlDoc: null })),
         htmlOverlayStyle: htmlInPane
           ? "flex:1;display:flex;min-height:0;min-width:0;background:var(--sub)"
-          : isMobile
+          : singlePane && navBottom
           ? "position:fixed;top:0;left:0;right:0;bottom:" + this.barH() + "px;z-index:88;display:flex;background:var(--sub)"
           : singlePane
           ? "position:fixed;inset:0;z-index:88;display:flex;background:var(--sub)"
