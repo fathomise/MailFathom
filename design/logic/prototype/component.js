@@ -2301,7 +2301,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const wasActive = s.activeTab === key;
         const nextTab = wasActive ? (tabs.length ? tabs[tabs.length - 1] : null) : null;
         const patch = { tabs, activeTab: wasActive ? (nextTab ? nextTab.key : null) : s.activeTab };
-        if (key === "compose") Object.assign(patch, { compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null });
+        if (key === "compose") Object.assign(patch, { compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, replyThreadId: null });
         if (key.indexOf("doc:") === 0) patch.doc = null;
         if (key.indexOf("html:") === 0) patch.htmlDoc = null;
         if (wasActive && nextTab) Object.assign(patch, this.tabPatch(nextTab));
@@ -7748,7 +7748,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeAllInfo: "Open tabs: " + (st.closeAllAsk ? st.closeAllAsk.count : 0) + ". An unsent draft will be discarded.",
         askCloseAll: () => this.setState({ closeAllAsk: { count: tabItems.length } }),
         cancelCloseAll: () => this.setState({ closeAllAsk: false }),
-        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null, closeAllAsk: false }),
+        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, replyThreadId: null, closeAllAsk: false }),
         tabItems,
         workModeLabel: tabsMode ? "Mode: tabs" : "Mode: classic",
         toggleWorkMode: () => this.setState(s => ({
