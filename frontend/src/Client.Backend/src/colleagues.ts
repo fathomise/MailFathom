@@ -142,7 +142,7 @@ const longestColleaguePage = 512 * 1024;
 const longestColleagueAnswer = 32 * 1024;
 
 // The service composes a structure out of a directory of at most a thousand members, so neither side of it is longer.
-const mostColleaguesInStructure = 1000;
+export const mostColleaguesInStructure = 1000;
 const longestColleagueStructure = 2 * 1024 * 1024;
 
 /** Reads one page of the members of the reader's organization, which is an empty one for a reader in none. */

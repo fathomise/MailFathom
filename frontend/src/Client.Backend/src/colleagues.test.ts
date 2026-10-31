@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+    mostColleaguesInStructure,
     parseColleague,
     promoteColleague,
     readColleague,
@@ -155,6 +156,28 @@ describe('readColleagueStructure', () => {
         const mixed = await readColleagueStructure(session, answering({ status: 200, body: foreign }), member.id);
 
         expect([unnamed, mixed]).toEqual([
+            { outcome: 'failed', failure: { reason: 'unreadable', status: 200 } },
+            { outcome: 'failed', failure: { reason: 'unreadable', status: 200 } },
+        ]);
+    });
+
+    it('refuses a structure holding more managers or more direct reports than a directory can', async () => {
+        const tooMany = Array.from({ length: mostColleaguesInStructure + 1 }, () => report);
+        const managersPastTheBound = JSON.stringify({ managers: tooMany, directReports: [], readerId: report.id });
+        const reportsPastTheBound = JSON.stringify({ managers: [], directReports: tooMany, readerId: report.id });
+
+        const managers = await readColleagueStructure(
+            session,
+            answering({ status: 200, body: managersPastTheBound }),
+            member.id,
+        );
+        const reports = await readColleagueStructure(
+            session,
+            answering({ status: 200, body: reportsPastTheBound }),
+            member.id,
+        );
+
+        expect([managers, reports]).toEqual([
             { outcome: 'failed', failure: { reason: 'unreadable', status: 200 } },
             { outcome: 'failed', failure: { reason: 'unreadable', status: 200 } },
         ]);
