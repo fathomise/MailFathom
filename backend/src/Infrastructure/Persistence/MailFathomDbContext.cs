@@ -8,6 +8,7 @@ using MailFathom.Infrastructure.Persistence.Agent.Configurations;
 using MailFathom.Infrastructure.Persistence.AiProviders.Configurations;
 using MailFathom.Infrastructure.Persistence.Answering.Configurations;
 using MailFathom.Infrastructure.Persistence.Authentication.Configurations;
+using MailFathom.Infrastructure.Persistence.AutomaticReplies.Configurations;
 using MailFathom.Infrastructure.Persistence.Calendar.Configurations;
 using MailFathom.Infrastructure.Persistence.ClientAssertions.Configurations;
 using MailFathom.Infrastructure.Persistence.ClientSessions.Configurations;
@@ -113,6 +114,8 @@ internal sealed class MailFathomDbContext : DbContext
     internal DbSet<DefaultAdministratorEntity> DefaultAdministrator => this.Set<DefaultAdministratorEntity>();
 
     internal DbSet<ClientPreferencesEntity> ClientPreferences => this.Set<ClientPreferencesEntity>();
+
+    internal DbSet<AutomaticReplyEntity> AutomaticReplies => this.Set<AutomaticReplyEntity>();
 
     internal DbSet<StoredFileEntity> StoredFiles => this.Set<StoredFileEntity>();
 
@@ -314,6 +317,8 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new RoleAssignmentConfiguration());
         modelBuilder.ApplyConfiguration(new DefaultAdministratorConfiguration());
         modelBuilder.ApplyConfiguration(new ClientPreferencesConfiguration());
+        modelBuilder.ApplyConfiguration(new AutomaticReplyConfiguration());
+        modelBuilder.ApplyConfiguration(new AutomaticReplyAnswerConfiguration());
         modelBuilder.ApplyConfiguration(new StoredFileConfiguration());
         modelBuilder.ApplyConfiguration(new SpentClientAssertionConfiguration());
         modelBuilder.ApplyConfiguration(new ClientSignalTicketConfiguration());

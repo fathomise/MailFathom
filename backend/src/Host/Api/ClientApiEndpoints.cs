@@ -205,6 +205,7 @@ internal static class ClientApiEndpoints
         api.MapClientDisplayName();
         api.MapClientTimeZone();
         api.MapClientPreferences();
+        api.MapClientAutomaticReply();
         api.MapClientPortrait();
         api.MapClientMailAccounts();
         api.MapClientMailFolders();

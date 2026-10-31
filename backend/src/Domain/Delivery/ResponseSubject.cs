@@ -41,6 +41,9 @@ public static partial class ResponseSubject
     /// <summary>The prefix this system writes on a forward.</summary>
     private const string ForwardMarker = "Fwd";
 
+    /// <summary>The prefix RFC 3834 suggests for an automatic reply.</summary>
+    private const string AutomaticReplyMarker = "Auto";
+
     /// <summary>Writes the subject of a reply to the given subject.</summary>
     /// <param name="answeredSubject">The subject the answered message carried, or <see langword="null" /> when it carried none.</param>
     /// <returns>The subject the reply carries.</returns>
@@ -52,6 +55,12 @@ public static partial class ResponseSubject
     /// <returns>The subject the forward carries.</returns>
     public static string ForForward(string? forwardedSubject) =>
         Prefixed(ForwardMarker, ForwardPrefix(), forwardedSubject);
+
+    /// <summary>Writes the subject of an automatic reply to the given subject.</summary>
+    /// <param name="answeredSubject">The subject the answered message carried, or <see langword="null" /> when it carried none.</param>
+    /// <returns>The subject the automatic reply carries, which RFC 3834 asks to open with <c>Auto:</c>.</returns>
+    public static string ForAutomaticReply(string? answeredSubject) =>
+        Prefixed(AutomaticReplyMarker, AutomaticReplyPrefix(), answeredSubject);
 
     /// <summary>Adds the prefix, unless the subject already opens with one the ecosystem writes.</summary>
     /// <remarks>
@@ -92,4 +101,8 @@ public static partial class ResponseSubject
         @"^(?:fwd?|wg|tr|doorst|enc|rv|vb|vl|pd|转发|轉寄|轉發)[ \t]*(?:[\[(]\d{1,3}[\])])?[ \t]*:",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ForwardPrefix();
+
+    /// <summary>Matches the prefix an automatic reply already carries.</summary>
+    [GeneratedRegex(@"^auto[ \t]*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex AutomaticReplyPrefix();
 }

@@ -299,6 +299,7 @@ public sealed class MailOutbox(
 
             case OutgoingEmailOrigin.Rule:
             case OutgoingEmailOrigin.Schedule:
+            case OutgoingEmailOrigin.AutomaticReply:
                 authorization.RequireProcessIdentity();
 
                 break;

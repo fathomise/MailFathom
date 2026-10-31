@@ -54,6 +54,30 @@ public sealed class MimeKitAuthoredEmailComposerTests
         Assert.Equal("MailFathom", sender.Name);
     }
 
+    /// <summary>
+    /// An automatic reply carries <c>Auto-Submitted: auto-replied</c>, which is what stops the other side's responder
+    /// answering it, and a message somebody wrote carries no such claim.
+    /// </summary>
+    [Theory]
+    [InlineData(true, "auto-replied")]
+    [InlineData(false, null)]
+    public void Compose_AnAutomaticReplyOrNot_StatesAutoSubmittedOnTheAutomaticReplyAlone(bool isAutomaticReply, string? expected)
+    {
+        // Arrange
+        var composer = CreateComposer();
+
+        // Act
+        var composition = composer.Compose(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            Authored() with { IsAutomaticReply = isAutomaticReply },
+            Capabilities());
+
+        // Assert
+        Assert.Equal(expected, Parse(composition).Headers[HeaderId.AutoSubmitted]);
+    }
+
     /// <summary>An endpoint configured without an address to send from composes nothing, and says so as itself.</summary>
     [Fact]
     public void Compose_AccountConfiguringNoSendingAddress_IsRefusedNamingTheSender()

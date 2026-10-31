@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam.Gating;
@@ -22,6 +23,10 @@ namespace MailFathom.Application.Emails.Settlement;
 /// <para>
 /// It runs after the rule pass, in every custody phase, and reads no phase: where a move is committed differs by phase,
 /// and the store reads that from the move's own record rather than from the account.
+/// </para>
+/// <para>
+/// It is also where an automatic reply answers: a message settled here is answered once announced, on the same terms
+/// as the announcement — only by the replica that settled it, and not again if answering it failed.
 /// </para>
 /// <para>
 /// Nothing is held forever. A message waits at most the verdict's own wait and then
@@ -48,6 +53,7 @@ public sealed class MailSettlementPass
     private readonly ClientSignals signals;
     private readonly SynchronizationNotifications notifications;
     private readonly IMailSettlementTelemetry telemetry;
+    private readonly AutomaticReplyResponder responder;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the pass.</summary>
@@ -56,6 +62,7 @@ public sealed class MailSettlementPass
     /// <param name="signals">Tells an open client that mail arrived.</param>
     /// <param name="notifications">Tells the account's users about mail that reached them.</param>
     /// <param name="telemetry">Counts how messages settled.</param>
+    /// <param name="responder">Answers what settled while the account's user's automatic reply runs.</param>
     /// <param name="timeProvider">Reads the instant the waits are measured against and the settlement is written at.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailSettlementPass(
@@ -64,6 +71,7 @@ public sealed class MailSettlementPass
         ClientSignals signals,
         SynchronizationNotifications notifications,
         IMailSettlementTelemetry telemetry,
+        AutomaticReplyResponder responder,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -71,6 +79,7 @@ public sealed class MailSettlementPass
         ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(notifications);
         ArgumentNullException.ThrowIfNull(telemetry);
+        ArgumentNullException.ThrowIfNull(responder);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.store = store;
@@ -78,6 +87,7 @@ public sealed class MailSettlementPass
         this.signals = signals;
         this.notifications = notifications;
         this.telemetry = telemetry;
+        this.responder = responder;
         this.timeProvider = timeProvider;
     }
 
@@ -114,6 +124,10 @@ public sealed class MailSettlementPass
             stillSettlingCount += decided.Length - settling.Length;
             settledCount += settled.Length;
             announcedCount += await this.AnnounceAsync(account, settled, cancellationToken);
+            await this.responder.AnswerAsync(
+                account,
+                [.. settled.Where(static email => email.IsAnswerable()).Select(static email => email.Id)],
+                cancellationToken);
 
             if (batch.Count < BatchSize)
             {

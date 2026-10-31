@@ -153,6 +153,8 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientAgentConversationEndpoints.ReadRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientAgentConversationEndpoints.RunRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientAgentConversationEndpoints.RunMessagesRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientAutomaticReplyEndpoint.AutomaticReplyRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientAutomaticReplyEndpoint.AutomaticReplyRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientCalendarEndpoints.CalendarRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientCalendarEndpoints.CalendarRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientCalendarEventDraftEndpoint.CalendarEventDraftRoute}",
@@ -318,6 +320,7 @@ public sealed class ClientApiEndpointsTests
                 $"GET {prefix}{ClientMailAccountsEndpoint.MailAccountsRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientAgentConversationEndpoints.ConversationsRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"GET {prefix}{ClientAgentConversationEndpoints.ConversationRoute} -> {MailFathomPermission.AssistantUse.Name}",
+                $"GET {prefix}{ClientAutomaticReplyEndpoint.AutomaticReplyRoute} -> {MailFathomPermission.ProfileRead.Name}",
                 $"GET {prefix}{ClientCalendarEndpoints.CalendarRoute} -> {MailFathomPermission.CalendarRead.Name}",
                 $"GET {prefix}{ClientCalendarEventDraftEndpoint.CalendarEventDraftRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"GET {prefix}{ClientCalendarEndpoints.CalendarEventRoute} -> {MailFathomPermission.CalendarRead.Name}",
@@ -365,6 +368,7 @@ public sealed class ClientApiEndpointsTests
                 $"POST {prefix}{ClientAgentConversationEndpoints.SearchRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"POST {prefix}{ClientAgentConversationEndpoints.MessagesRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"POST {prefix}{ClientAgentConversationEndpoints.RunMessagesRoute} -> {MailFathomPermission.AssistantUse.Name}",
+                $"POST {prefix}{ClientAutomaticReplyEndpoint.AutomaticReplyRoute} -> {MailFathomPermission.ProfileWrite.Name}",
                 $"POST {prefix}{ClientCalendarEndpoints.CalendarRoute} -> {MailFathomPermission.CalendarWrite.Name}",
                 $"POST {prefix}{ClientCalendarEventDraftEndpoint.CalendarEventDraftRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"POST {prefix}{ClientCalendarImportEndpoints.CalendarImportRoute} -> {MailFathomPermission.CalendarWrite.Name}",
@@ -698,6 +702,29 @@ public sealed class ClientApiEndpointsTests
 
         Assert.Equal(
             ClientPreferencesEndpoint.MaxWriteRequestBytes,
+            write.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
+    }
+
+    /// <summary>The automatic reply write carries a bound sized for its two texts and its accounts rather than the server's default.</summary>
+    [Fact]
+    public void MapClientApi_TheAutomaticReplyWrite_CarriesItsOwnRequestBodyBound()
+    {
+        // Arrange
+        var endpoints = BuildRouteBuilder();
+
+        // Act
+        endpoints.MapClientApi();
+
+        // Assert
+        var write = endpoints.Materialize()
+            .OfType<RouteEndpoint>()
+            .Single(endpoint =>
+                $"/{endpoint.RoutePattern.RawText?.TrimStart('/')}"
+                    == $"{ClientEndpointOptions.RoutePrefix}{ClientAutomaticReplyEndpoint.AutomaticReplyRoute}"
+                && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("POST"));
+
+        Assert.Equal(
+            ClientAutomaticReplyEndpoint.MaxWriteRequestBytes,
             write.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
     }
 

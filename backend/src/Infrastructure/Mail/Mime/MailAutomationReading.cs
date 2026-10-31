@@ -38,19 +38,24 @@ internal static class MailAutomationReading
     /// <summary>Reads what one message claimed about itself.</summary>
     /// <param name="message">The parsed message.</param>
     /// <returns>The claim it carried, or <see cref="EmailAutomation.None" /> when it carried none.</returns>
-    public static EmailAutomation Read(MimeMessage message)
+    public static EmailAutomation Read(MimeMessage message) => Read(message.Headers);
+
+    /// <summary>Reads what one header block claimed about the message it opens.</summary>
+    /// <param name="headers">The parsed header block.</param>
+    /// <returns>The claim it carried, or <see cref="EmailAutomation.None" /> when it carried none.</returns>
+    public static EmailAutomation Read(HeaderList headers)
     {
-        if (MailingListHeaders.Any(header => HasValue(message, header)))
+        if (MailingListHeaders.Any(header => HasValue(headers, header)))
         {
             return EmailAutomation.MailingList;
         }
 
-        if (ReadValue(message, HeaderId.AutoSubmitted) is { } autoSubmitted && IsAutomaticallySubmitted(autoSubmitted))
+        if (ReadValue(headers, HeaderId.AutoSubmitted) is { } autoSubmitted && IsAutomaticallySubmitted(autoSubmitted))
         {
             return EmailAutomation.AutomaticallySubmitted;
         }
 
-        return ReadValue(message, HeaderId.Precedence) is { } precedence
+        return ReadValue(headers, HeaderId.Precedence) is { } precedence
             && BulkPrecedences.Contains(precedence.ToUpperInvariant(), StringComparer.Ordinal)
                 ? EmailAutomation.BulkPrecedence
                 : EmailAutomation.None;
@@ -70,12 +75,12 @@ internal static class MailAutomationReading
         return keyword.Length > 0 && !string.Equals(keyword, "no", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool HasValue(MimeMessage message, HeaderId headerId) => ReadValue(message, headerId) is not null;
+    private static bool HasValue(HeaderList headers, HeaderId headerId) => ReadValue(headers, headerId) is not null;
 
     /// <summary>Reads one header's value, treating a blank one as absent.</summary>
-    private static string? ReadValue(MimeMessage message, HeaderId headerId)
+    private static string? ReadValue(HeaderList headers, HeaderId headerId)
     {
-        var value = message.Headers[headerId];
+        var value = headers[headerId];
 
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }

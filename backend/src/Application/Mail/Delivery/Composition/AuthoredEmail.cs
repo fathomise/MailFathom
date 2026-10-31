@@ -58,4 +58,11 @@ public sealed record AuthoredEmail
     /// <c>In-Reply-To</c> to a composed message would be a second answer to the question this one settles.
     /// </remarks>
     public OutgoingThreadPlacement Threading { get; init; } = OutgoingThreadPlacement.None;
+
+    /// <summary>Gets whether MailFathom composed the message as an automatic reply rather than somebody writing it.</summary>
+    /// <remarks>
+    /// Such a message carries <c>Auto-Submitted: auto-replied</c>, which RFC 3834 defines so that the other side's
+    /// responder does not answer it — the one header that stops two mailboxes answering each other forever.
+    /// </remarks>
+    public bool IsAutomaticReply { get; init; }
 }

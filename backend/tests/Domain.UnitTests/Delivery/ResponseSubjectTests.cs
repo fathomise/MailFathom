@@ -13,6 +13,20 @@ namespace MailFathom.Domain.UnitTests.Delivery;
 /// </summary>
 public sealed class ResponseSubjectTests
 {
+    /// <summary>An automatic reply opens its subject with <c>Auto:</c>, once, as RFC 3834 suggests.</summary>
+    [Theory]
+    [InlineData("Quarterly report", "Auto: Quarterly report")]
+    [InlineData("AUTO: Quarterly report", "AUTO: Quarterly report")]
+    [InlineData(null, "Auto:")]
+    public void ForAutomaticReply_AnySubject_OpensWithOneAutoPrefix(string? answered, string expected)
+    {
+        // Act
+        var subject = ResponseSubject.ForAutomaticReply(answered);
+
+        // Assert
+        Assert.Equal(expected, subject);
+    }
+
     /// <summary>A subject carrying no prefix takes this system's own.</summary>
     [Fact]
     public void ForReply_SubjectWithoutAPrefix_TakesTheReplyPrefix()

@@ -642,6 +642,37 @@ and then collide on the key.
 **Erasing a user takes it with the cascade**, like the user's own half of the contact book and unlike the tables the erasure names by hand:
 it keys onto the user row and records no mail account, so nothing has to know this table exists.
 
+## What a person answers while they are away
+
+`automatic_replies` holds one row per user: the [automatic reply](../features/automatic-reply.md) they set, and
+`automatic_reply_answers` beside it holds one row per sender that reply has already answered.
+
+| Column of `automatic_replies` | What it records |
+|---|---|
+| `UserId` | Whose reply it is, and the primary key. It is the foreign key onto `settings_accounts` with `ON DELETE CASCADE`, for the reason `client_preferences` keys the same way |
+| `Revision` | A version 7 UUID minted by every save. It is what a sender's answer row is recorded against, so a save starts the once-per-sender rule over |
+| `InsideText` | The text for senders inside the person's organization, at most 8000 characters, or `NULL` where they get the other one |
+| `OutsideText` | The text for every other sender, at most 8000 characters |
+| `AccountIds` | The accounts the reply answers on, as a `text[]` of at most 64 account identifiers. Nothing references them: an account removed later is an entry no arrival matches, and a shared mailbox is refused again whenever mail arrives |
+| `StartsAt`, `EndsAt` | The period, half-open: answering starts at the first instant and stops at the second |
+| `IsOn` | Whether the reply is switched on, which is how a person ends it before its period does |
+| `UpdatedAt` | When it was last saved |
+
+| Column of `automatic_reply_answers` | What it records |
+|---|---|
+| `UserId`, `Revision`, `SenderAddress` | The primary key: whose reply, which save of it, and the normalized address of the sender it answered, at most 320 characters. `UserId` is the foreign key onto `automatic_replies` with `ON DELETE CASCADE` |
+| `AnsweredAt` | When the claim was taken |
+
+**The answer row is the once-per-sender guarantee, not a log.** A replica answering an arrival first inserts the row,
+`INSERT … SELECT` from the reply row whose revision is still the one it read, with `ON CONFLICT DO NOTHING`; the
+replica whose insert affected no row did not claim the sender and writes nothing. Two replicas settling one sender's
+mail at once therefore send one reply between them, and a reply saved again between the read and the claim is
+claimed against nothing rather than against the revision it replaced.
+
+**A save replaces the answers it outlived in the same statement.** The upsert on `automatic_replies` and the delete of
+every answer row under another revision are one common table expression, so no instant exists in which a new
+revision stands beside the old one's answers.
+
 ## Files a user record links to
 
 `stored_files` holds binary files a user supplied and a record links to rather than holds — today the picture the
@@ -2237,7 +2268,7 @@ withdrawn from the mailbox it reached.
 |---|---|
 | `Id` | The record's identity, and what the stored message and the recipients hang on. A UUIDv7 generated from the instant the intent was written, so the outbox's own order is the identifier's |
 | `MailboxAccountId`, `UserId` | The account the message is submitted through and sent as, and the user who authored it. The account is the owner and the user is the author, which is why both are here where every other reference to an account carries the identifier alone. Plain columns rather than a foreign key: the account row is created by the first folder binding synchronization writes, and an account configured only to send need never have synchronized anything |
-| `RequesterOrigin`, `RequesterIdentity` | The authored act that asked, by kind and by the text two requests are compared by. A rule answers with its name, the revision it was evaluated at, and the email it acted on; somebody present answers with a key of their own |
+| `RequesterOrigin`, `RequesterIdentity` | The authored act that asked, by kind and by the text two requests are compared by. A rule answers with its name, the revision it was evaluated at, and the email it acted on; an automatic reply with the stored email it answers; somebody present answers with a key of their own |
 | `PrincipalFingerprint` | A fixed-width digest of the identity the caller was admitted under, written by the outbox rather than stated by a caller. It is what confines a read or a withdrawal of a send to the caller that queued it, and a digest rather than the identity so the comparison is possible without a second copy of whatever a token asserted living at rest. A send a rule asked for carries the process identity's digest and is additionally excluded by its origin, so no caller reaches one; a row written before the column existed carries null and therefore matches nobody |
 | `Stage` | How far the submission has durably got, in the vocabulary below |
 | `MimeByteLength` | How many bytes of MIME were stored. Kept beside the record as well as on the message, so the size bound a submission server advertised can be compared against it — and the outbox listed — without reading a single queued message's `bytea` |
@@ -2647,6 +2678,12 @@ The same holds for `email_chunks`, and one thing about it is deliberate: a chunk
 `email_embeddings` is the same again, one step further out. A vector is derived from mail content and inherits the source message's classification, retention, access, export, and erasure obligations whole; nothing about being a list of numbers makes it a lesser copy of the words it stands for, and it is not anonymous because it cannot be read back by eye. It carries no text and no coordinates of its own — the chunk it hangs on answers both — and the cascade from that chunk is what makes erasure structural rather than a rule somebody has to remember. No vector, no chunk text, and no digest reaches a log, a metric, a trace, or an error message.
 
 `email_attachment_texts` is the most content-bearing derived table on this page, and it is read exactly as the search document is. A whole document's extracted text, a model's description of a picture, and the file name a sender chose are mail content, and none of them is a lesser copy for having been read out of an attachment rather than out of a body — the `tsvector` built over them is derived from the same words and carries the same classification. All of it inherits the source message's retention, access, export, and erasure obligations, and the cascade from `stored_emails` is what makes that structural. Two things bound it further. The row records the sensitive-content configuration it was written under, so text written under an older posture is answerable rather than silently unredacted, and a scanner switched on afterwards is the case [Sensitive-content scanning](../features/sensitive-content-scanning.md#derived-data-is-written-redacted-and-stamped) qualifies. And nothing in the table reaches a log, a metric, a trace, or an error message: the walk position, the declared media type, the outcome, and the page count are what a failure is allowed to name, and the text and the file name are not.
+
+`automatic_replies` and `automatic_reply_answers` are personal data the person wrote and personal data about who wrote
+to them. The texts are the person's own words and the answer rows name their correspondents, so neither reaches a
+log, a metric, a trace, or an error message, and both go with the user record through the cascade. The answer rows are
+also bounded by the reply itself: every save deletes the ones it outlived, so a correspondent is remembered for as long
+as one period runs and no longer.
 
 `embedding_spend_periods` holds no personal data either, and its shape is what makes that true rather than a claim about it: a character count, an instant, and a generated user identifier say how much a deployment spent, for whom, and when, and none of them names a message, a passage, or a vector. That is also why it outlives what it recorded — nothing cascades into it, not even from the user record, and erasing the mail a period paid to embed leaves the record that the period was paid for.
 

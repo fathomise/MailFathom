@@ -102,6 +102,13 @@ public sealed record OutgoingEmailRequester
             CultureInfo.InvariantCulture,
             $"{declaration.Value:D}@{occurrence.ToUniversalTime():yyyy-MM-ddTHH:mm:ssZ}"));
 
+    /// <summary>Names the automatic reply to one arrival, which is the arrival rather than a key anybody supplied.</summary>
+    /// <param name="answered">The stored email the reply answers.</param>
+    /// <returns>A requester naming the answer to that email.</returns>
+    public static OutgoingEmailRequester AutomaticReply(StoredEmailId answered) => new(
+        OutgoingEmailOrigin.AutomaticReply,
+        string.Create(CultureInfo.InvariantCulture, $"reply@{answered}"));
+
     /// <summary>Names one act somebody asked for, by the key they supplied for it.</summary>
     /// <param name="invocationIdentity">The key that decides whether asking again is the same request: the same for a retry of one act and different for a second act.</param>
     /// <returns>A requester naming that act.</returns>

@@ -105,9 +105,20 @@ public sealed record SettlingEmail(
     /// and no reader has seen the message yet to move it — so an inbox arrival settled elsewhere is one the user's own
     /// rule filed.
     /// </remarks>
-    public bool IsAnnounced() =>
+    public bool IsAnnounced() => !this.IsSeen && this.IsAnswerable();
+
+    /// <summary>Reports whether the message is one the user's automatic reply may answer once it settles.</summary>
+    /// <returns>
+    /// <see langword="true" /> for the mail <see cref="IsAnnounced" /> tells the user about, read or not; never for junk,
+    /// for mail in junk or trash, or for mail that arrived elsewhere.
+    /// </returns>
+    /// <remarks>
+    /// Whether the message was read does not matter here: another client having opened it first says nothing about
+    /// whether the sender should be told the user is away. What keeps a backfill of read history unanswered is the
+    /// responder's own test of when the message was received, not this one.
+    /// </remarks>
+    public bool IsAnswerable() =>
         !this.IsTombstoned
-        && !this.IsSeen
         && this.Verdict is not SpamVerdict.Spam
         && (this.FolderRole is MailFolderSpecialUse.Inbox
             || (this.ArrivedInInbox && this.FolderRole is not (MailFolderSpecialUse.Junk or MailFolderSpecialUse.Trash)));
