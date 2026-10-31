@@ -66,10 +66,11 @@ The four sizes the design frames keep the names it gives them, shown in brackets
 `<class>_<width>x<height>` — never with a hyphen, which is what separates the screen from the size in a capture's file
 name. They sit where the width, height, and pointer bands combine and on both sides of every width breakpoint, so a
 layout that breaks on an upright tablet, a half-screen window or a low laptop viewport breaks in a capture. Upright and
-on its side are separate sizes because each is a different combination of bands, not because anything in the client
-reads orientation. A phone on its side — which the Android head never draws, since it keeps a phone upright, and a
-phone's browser does — is held to _usable_ rather than to the design: nothing cut off, overlapping, or out of reach,
-which the manifest states as `usableOnly` and the comparison prints on that row.
+on its side are separate sizes because each is a different combination of bands — and, under a finger below `roomy`, a
+different place for the navigation, which is the one thing in the client that reads the window's aspect. A phone on
+its side — which the Android head never draws, since it keeps a phone upright, and a phone's browser does — is held to
+_usable_ rather than to the design: nothing cut off, overlapping, or out of reach, which the manifest states as
+`usableOnly` and the comparison prints on that row.
 
 Every screen is captured at the whole matrix unless it narrows itself, with `compositions` naming sizes, `classes`
 naming classes, or both, and `narrowedBecause` saying why — both capture scripts refuse a narrowing with no reason,
