@@ -207,13 +207,17 @@ public sealed class ColleagueBook
         return byName > 0 || (byName == 0 && colleague.Member.Value.CompareTo(cursor.ContactId.Value) > 0);
     }
 
-    /// <summary>Reads one colleague of the caller's, without asking for a grant.</summary>
+    /// <summary>Reads one colleague of the caller's, without asking for a grant, and without composing anybody else.</summary>
     private async Task<MemberContact?> FindColleagueAsync(UserId member, CancellationToken cancellationToken)
     {
         var scope = await this.ownership.ReadScopeAsync(cancellationToken);
 
-        return (await this.ReadColleaguesAsync(scope, cancellationToken))
-            .FirstOrDefault(colleague => colleague.Member == member);
+        if (scope.OrganizationBook?.Organization is not { } organization || member == scope.User)
+        {
+            return null;
+        }
+
+        return await this.members.FindAsync(organization, member, cancellationToken);
     }
 
     /// <summary>Reads every member of the reader's organization but the reader.</summary>

@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
+
 namespace MailFathom.Application.Contacts.Members;
 
 /// <summary>Reads an organization's member directory: every person in it, as a contact derived from their user record.</summary>
@@ -37,4 +39,11 @@ public interface IMemberDirectory
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>Every member whose type is a person, at most <see cref="MaximumMemberCount" /> of them, in no particular order; empty for an organization this deployment does not hold.</returns>
     Task<IReadOnlyList<MemberContact>> ReadAsync(Guid organization, CancellationToken cancellationToken);
+
+    /// <summary>Reads one person of one organization, composing nobody else.</summary>
+    /// <param name="organization">The organization the member belongs to.</param>
+    /// <param name="member">The member's user.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The member, or <see langword="null" /> where they belong to another organization or none, are not a person, or are not held at all.</returns>
+    Task<MemberContact?> FindAsync(Guid organization, UserId member, CancellationToken cancellationToken);
 }

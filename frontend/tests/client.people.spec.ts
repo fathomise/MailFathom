@@ -33,7 +33,7 @@ test('offers a person it wrote down to a message, opens their page, and lets the
 
     await openSignedIn(page, '/#/people');
     // A member of an organization arrives at its directory, so the reader's own book is one press away.
-    await page.getByRole('radio', { name: 'Own' }).click();
+    await page.getByRole('radio', { name: 'Own' }).press('Space');
 
     const book = page.getByRole('listbox', { name: 'Contacts' });
 
@@ -65,7 +65,7 @@ test('offers a person it wrote down to a message, opens their page, and lets the
     await expect(page.getByRole('button', { name: `Remove ${address} from To` })).toBeVisible();
 
     await page.getByRole('link', { name: 'People' }).click();
-    await page.getByRole('radio', { name: 'Own' }).click();
+    await page.getByRole('radio', { name: 'Own' }).press('Space');
     await book.getByRole('option', { name: new RegExp(name, 'u') }).click();
 
     const person = page.getByRole('region', { name });
@@ -127,7 +127,7 @@ test('corrects a person it wrote down from their page, and the book and the page
 
     await openSignedIn(page, '/#/people');
     // A member of an organization arrives at its directory, so the reader's own book is one press away.
-    await page.getByRole('radio', { name: 'Own' }).click();
+    await page.getByRole('radio', { name: 'Own' }).press('Space');
 
     const book = page.getByRole('listbox', { name: 'Contacts' });
 

@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
+
 namespace MailFathom.Infrastructure.Persistence.Users;
 
 /// <summary>Reads what an organization's member directory is composed from: its people, their records, and the addresses that are each one's own.</summary>
@@ -20,4 +22,12 @@ public interface IOrganizationMemberReader
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="limit" /> is not positive.</exception>
     /// <exception cref="UserSettingsUnreadableException">Thrown when the database declined the read.</exception>
     Task<OrganizationMembers?> ReadAsync(Guid organization, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Reads one person of one organization, under the rules <see cref="ReadAsync" /> reads every one of them by.</summary>
+    /// <param name="organization">The organization the member belongs to.</param>
+    /// <param name="member">The member's user.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The organization's name, the policies governing its members, and the member where they belong to it and their type is a person, otherwise no member; <see langword="null" /> for an organization this deployment does not hold.</returns>
+    /// <exception cref="UserSettingsUnreadableException">Thrown when the database declined the read.</exception>
+    Task<OrganizationMembers?> ReadMemberAsync(Guid organization, UserId member, CancellationToken cancellationToken);
 }

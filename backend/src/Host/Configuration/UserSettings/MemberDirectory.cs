@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.StoredFiles;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Host.Configuration.Policies;
@@ -42,6 +43,17 @@ internal sealed class MemberDirectory(IOrganizationMemberReader members, UserAcc
         var layers = SettingsPolicyLayers.Read(read.Policies, SettingsPolicySection.Users, out _);
 
         return [.. read.Members.Select(member => this.ContactOf(member, read.OrganizationName, layers)).OfType<MemberContact>()];
+    }
+
+    /// <inheritdoc />
+    public async Task<MemberContact?> FindAsync(Guid organization, UserId member, CancellationToken cancellationToken)
+    {
+        if (await members.ReadMemberAsync(organization, member, cancellationToken) is not { Members: [var held] } read)
+        {
+            return null;
+        }
+
+        return this.ContactOf(held, read.OrganizationName, SettingsPolicyLayers.Read(read.Policies, SettingsPolicySection.Users, out _));
     }
 
     /// <summary>Reads the name a member's label gives their contact, or nothing where no contact could carry it.</summary>

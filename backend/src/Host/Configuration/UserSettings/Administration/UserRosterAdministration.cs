@@ -348,6 +348,8 @@ internal sealed partial class UserRosterAdministration(
             return UserRowWriteOutcome.NoSuchUser;
         }
 
+        this.LogUserJobTitleWritten(title is not null);
+
         return UserRowWriteOutcome.Written;
     }
 
@@ -385,6 +387,8 @@ internal sealed partial class UserRosterAdministration(
         {
             return UserRowWriteOutcome.NoSuchUser;
         }
+
+        this.LogUserTypeWritten(type);
 
         return UserRowWriteOutcome.Written;
     }
@@ -602,6 +606,21 @@ internal sealed partial class UserRosterAdministration(
         Level = LogLevel.Information,
         Message = "A user this deployment holds was relabelled. Which user, and under what label, is read from the roster rather than from here.")]
     private partial void LogUserRelabelled();
+
+    /// <remarks>
+    /// Whether a title is now stated, and neither the user nor the title, as a relabel names neither: the roster is where
+    /// an operator reads which person sits where.
+    /// </remarks>
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "A user this deployment holds had their job title written. A title is now stated: {TitleStated}.")]
+    private partial void LogUserJobTitleWritten(bool titleStated);
+
+    /// <remarks>The type alone, a closed value naming nobody; a service account leaves its organization's member directory on the next read.</remarks>
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "A user this deployment holds is now of type {UserType}.")]
+    private partial void LogUserTypeWritten(UserType userType);
 
     /// <remarks>The record names no user at all: a person's whole record was disposed of, and a log line naming them would outlive the erasure it reports.</remarks>
     [LoggerMessage(

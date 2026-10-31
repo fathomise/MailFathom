@@ -110,6 +110,48 @@ public sealed class MemberDirectoryTests
         Assert.Empty(members);
     }
 
+    /// <summary>One member is composed from the one row the reader returns, through the same composition as a listing.</summary>
+    [Fact]
+    public async Task FindAsync_AMemberTheReaderReturns_IsComposedFromTheirRow()
+    {
+        // Arrange
+        this.reader
+            .ReadMemberAsync(Organization, Piotr, Arg.Any<CancellationToken>())
+            .Returns(new OrganizationMembers(
+                "Nordwind",
+                GoverningSettingsPolicies.Unwritten,
+                [new OrganizationMember(Piotr, "Piotr Zieliński", "Controller", Json: null, ["piotr@nordwind.example"])]));
+
+        // Act
+        var member = await this.Directory().FindAsync(Organization, Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("Piotr Zieliński", member?.DisplayName.Value);
+        Assert.Equal("piotr@nordwind.example", member?.PreferredAddress?.Address);
+        await this.reader.DidNotReceiveWithAnyArgs().ReadAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// A user the reader returns no row for — one of another organization, a service account, or nobody — is no member,
+    /// and so is any user of an organization the store does not hold.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FindAsync_AUserTheReaderReturnsNoRowFor_IsNoMember(bool organizationHeld)
+    {
+        // Arrange
+        this.reader
+            .ReadMemberAsync(Organization, Piotr, Arg.Any<CancellationToken>())
+            .Returns(organizationHeld ? new OrganizationMembers("Nordwind", GoverningSettingsPolicies.Unwritten, []) : null);
+
+        // Act
+        var member = await this.Directory().FindAsync(Organization, Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(member);
+    }
+
     private void Reading(params OrganizationMember[] members) =>
         this.reader
             .ReadAsync(Organization, Arg.Any<int>(), Arg.Any<CancellationToken>())

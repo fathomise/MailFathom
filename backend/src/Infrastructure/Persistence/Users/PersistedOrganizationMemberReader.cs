@@ -9,6 +9,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Persistence.Policies;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace MailFathom.Infrastructure.Persistence.Users;
 
@@ -48,7 +49,9 @@ internal sealed class PersistedOrganizationMemberReader(
             member."JobTitle",
             CASE WHEN octet_length(member."Document"::text) <= @maximumOctets THEN member."Document"::text END AS "Document"
         FROM settings_accounts AS member
-        WHERE member."OrganizationId" = @organization AND member."Type" = @person
+        WHERE member."OrganizationId" = @organization
+          AND member."Type" = @person
+          AND (@member IS NULL OR member."Id" = @member)
         ORDER BY member."Id"
         LIMIT @limit;
         """;
@@ -70,10 +73,23 @@ internal sealed class PersistedOrganizationMemberReader(
     private int CommandTimeoutSeconds => (int)commandTimeout.Value.TotalSeconds;
 
     /// <inheritdoc />
-    public async Task<OrganizationMembers?> ReadAsync(Guid organization, int limit, CancellationToken cancellationToken)
+    public Task<OrganizationMembers?> ReadAsync(Guid organization, int limit, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
 
+        return this.ReadAsync(organization, member: null, limit, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<OrganizationMembers?> ReadMemberAsync(Guid organization, UserId member, CancellationToken cancellationToken) =>
+        this.ReadAsync(organization, member, limit: 1, cancellationToken);
+
+    private async Task<OrganizationMembers?> ReadAsync(
+        Guid organization,
+        UserId? member,
+        int limit,
+        CancellationToken cancellationToken)
+    {
         NpgsqlConnection connection;
 
         try
@@ -96,7 +112,7 @@ internal sealed class PersistedOrganizationMemberReader(
                     return null;
                 }
 
-                var members = await this.ReadMembersAsync(connection, organization, limit, cancellationToken);
+                var members = await this.ReadMembersAsync(connection, organization, member, limit, cancellationToken);
                 var addresses = await this.ReadOwnAddressesAsync(
                     connection,
                     organization,
@@ -150,6 +166,7 @@ internal sealed class PersistedOrganizationMemberReader(
     private async Task<List<OrganizationMember>> ReadMembersAsync(
         NpgsqlConnection connection,
         Guid organization,
+        UserId? member,
         int limit,
         CancellationToken cancellationToken)
     {
@@ -157,6 +174,7 @@ internal sealed class PersistedOrganizationMemberReader(
 
         command.CommandTimeout = this.CommandTimeoutSeconds;
         command.Parameters.AddWithValue("organization", organization);
+        command.Parameters.Add(new NpgsqlParameter("member", NpgsqlDbType.Uuid) { Value = (object?)member?.Value ?? DBNull.Value });
         command.Parameters.AddWithValue("person", (int)UserType.User);
         command.Parameters.AddWithValue("maximumOctets", UserSettingsDocument.MaximumOctets);
         command.Parameters.AddWithValue("limit", limit);

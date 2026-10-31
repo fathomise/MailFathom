@@ -170,6 +170,55 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.Null(found);
+        await this.members.DidNotReceiveWithAnyArgs().FindAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>One colleague is read as one member, so finding them never composes the rest of the organization.</summary>
+    [Fact]
+    public async Task FindAsync_AColleague_ReadsThatMemberAlone()
+    {
+        // Arrange
+        this.Holding(
+            MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example"),
+            MemberOf(Zofia, "Zofia Nowak", "zofia@nordwind.example"));
+
+        // Act
+        var found = await this.BookFor(Organization).FindAsync(Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(Piotr, found?.Member);
+        await this.members.DidNotReceiveWithAnyArgs().ReadAsync(default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// A member is looked up within the reader's own organization only, so a user of another one — or a service account,
+    /// which the directory never composes — answers as nobody.
+    /// </summary>
+    [Fact]
+    public async Task FindAsync_AUserTheReadersOrganizationDoesNotCompose_IsNoColleague()
+    {
+        // Arrange
+        this.Holding(MemberOf(Zofia, "Zofia Nowak", "zofia@nordwind.example"));
+
+        // Act
+        var found = await this.BookFor(Organization).FindAsync(Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(found);
+        await this.members.Received(1).FindAsync(Organization, Piotr, Arg.Any<CancellationToken>());
+        await this.members.DidNotReceive().FindAsync(Arg.Is<Guid>(organization => organization != Organization), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A reader in no organization has no colleague to find, and no directory is asked.</summary>
+    [Fact]
+    public async Task FindAsync_AReaderInNoOrganization_IsNoColleague()
+    {
+        // Act
+        var found = await this.BookFor(organization: null).FindAsync(Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(found);
+        await this.members.DidNotReceiveWithAnyArgs().FindAsync(default, default, TestContext.Current.CancellationToken);
     }
 
     /// <summary>A colleague's portrait is read from their own files, under their identity rather than the reader's.</summary>
@@ -294,8 +343,16 @@ public sealed class ColleagueBookTests
             ? parsed
             : throw new InvalidOperationException($"The test address '{address}' names no mailbox.");
 
-    private void Holding(params MemberContact[] composed) =>
+    /// <summary>Arranges the directory the way the host composes it: the whole organization on a listing, and one member on a lookup.</summary>
+    private void Holding(params MemberContact[] composed)
+    {
         this.members.ReadAsync(Organization, Arg.Any<CancellationToken>()).Returns(composed);
+
+        foreach (var member in composed)
+        {
+            this.members.FindAsync(Organization, member.Member, Arg.Any<CancellationToken>()).Returns(member);
+        }
+    }
 
     private ColleagueBook BookFor(Guid? organization, params MailFathomPermission[] granted)
     {

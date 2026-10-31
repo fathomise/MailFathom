@@ -159,6 +159,12 @@ public sealed class ClientColleagueEndpointsTests
     private void Holding(params MemberContact[] composed)
     {
         this.members.ReadAsync(Organization, Arg.Any<CancellationToken>()).Returns(composed);
+
+        foreach (var member in composed)
+        {
+            this.members.FindAsync(Organization, member.Member, Arg.Any<CancellationToken>()).Returns(member);
+        }
+
         this.directory
             .FindHoldersOfAsync(Arg.Any<ContactBookHolder>(), Arg.Any<IReadOnlyCollection<EmailAddress>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<EmailAddress, ContactId>());
