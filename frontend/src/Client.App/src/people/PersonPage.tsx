@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useRef } from 'react';
+import type { Colleague } from '@mailfathom/client-backend';
 import { useComposing } from '../composer/useComposing';
 import { useContactPhoto } from '../contactBook/contactPhotos';
 import { OrganizationChip } from '../contactBook/OrganizationChip';
@@ -17,8 +18,10 @@ import { useLocalization } from '../localization/useLocalization';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { ColleagueTime } from './ColleagueTime';
 import { ContactDetails } from './ContactDetails';
+import { OrganizationCard } from './OrganizationCard';
 import { PersonCorrespondence } from './PersonCorrespondence';
 import { RelationshipReading } from './RelationshipReading';
+import type { ColleagueStructureInForce } from './useColleagueStructure';
 import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 
 // One person as the design draws them: who they are and how to reach them, the acts that belong to the record
@@ -29,7 +32,7 @@ import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 // rather than leaving somebody to discover it from a refusal. A colleague and a contact the organization keeps are
 // nobody's to change here at all, so neither page draws a control that would change them, and each says whose they
 // are under `lock` instead; what a colleague's page offers is the two quick acts, copying their address and writing to
-// them, and the time where they are. What MailFathom reads out of mail about a person is a book contact's alone — the
+// them, the time where they are, and where they sit in the organization. What MailFathom reads out of mail about a person is a book contact's alone — the
 // directory serves no correspondence for a member — so a colleague's page draws neither the reading nor the threads. Taking them out is offered either way, because somebody
 // asking to be taken out of a book is not answered with which book they happen to be in — but it is said as what it
 // is: a contact somebody wrote down is deleted, and one their mail collected is removed from the collected book, which
@@ -73,6 +76,7 @@ export function PersonPage({
     contact,
     organizationName,
     correspondence,
+    structure,
     writable,
     promoting,
     recordSaid,
@@ -80,6 +84,7 @@ export function PersonPage({
     onPromote,
     onAskAmendment,
     onAskErasure,
+    onOpenColleague,
     onOpenThread,
     onOpenDocument,
 }: {
@@ -89,6 +94,9 @@ export function PersonPage({
     readonly organizationName: string | null;
 
     readonly correspondence: ContactCorrespondenceInForce;
+
+    /** Where a colleague sits in the organization, which only a colleague's page draws. */
+    readonly structure: ColleagueStructureInForce;
 
     /** Whether this credential may change the book at all, which is what the two acts on the record are behind. */
     readonly writable: boolean;
@@ -105,6 +113,9 @@ export function PersonPage({
     readonly onPromote: () => void;
     readonly onAskAmendment: () => void;
     readonly onAskErasure: () => void;
+
+    /** Opens another member of the organization in this one's place. */
+    readonly onOpenColleague: (colleague: Colleague) => void;
 
     readonly onOpenThread: (thread: {
         readonly threadId: string;
@@ -276,16 +287,20 @@ export function PersonPage({
 
             <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-3.5 workspace:px-6 workspace:py-4.5">
                 {member ? (
-                    // The two cards side by side where the page has room, as the design draws them, and one under the
-                    // other where it has not.
-                    <div className="flex flex-col gap-3 roomy:flex-row roomy:*:flex-1">
-                        <ContactDetails contact={contact} />
-                        <ColleagueTime
-                            timeZone={contact.timeZone}
-                            workingHours={contact.workingHours}
-                            displayName={contact.displayName}
-                        />
-                    </div>
+                    <>
+                        {/* The two cards side by side where the page has room, as the design draws them, and one under
+                            the other where it has not. */}
+                        <div className="flex flex-col gap-3 roomy:flex-row roomy:*:flex-1">
+                            <ContactDetails contact={contact} />
+                            <ColleagueTime
+                                timeZone={contact.timeZone}
+                                workingHours={contact.workingHours}
+                                displayName={contact.displayName}
+                            />
+                        </div>
+
+                        <OrganizationCard colleague={contact} reading={structure} onOpen={onOpenColleague} />
+                    </>
                 ) : (
                     <>
                         <RelationshipReading lastCorrespondedAt={lastCorrespondedAt} reading={correspondence.reading} />

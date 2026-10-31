@@ -1123,6 +1123,112 @@ public sealed class UserRosterAdministrationTests
         Assert.Empty(harness.Provisioning.ReceivedCalls());
     }
 
+    [Fact]
+    public async Task SetManagerAsync_AManagerTheStoreAccepts_IsWritten()
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "alex"));
+
+        // Act
+        var outcome = await harness.Roster.SetManagerAsync(SyntheticUser.Deployment, SyntheticUser.Another, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(outcome.IsWritten);
+        await harness.Provisioning.Received(1).SetManagerAsync(SyntheticUser.Deployment, SyntheticUser.Another, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Each rule the store refused on is named to the administrator, so they know what to change rather than only that something was wrong.</summary>
+    [Theory]
+    [InlineData(ManagerAssignmentResult.OwnManager, "never their own manager")]
+    [InlineData(ManagerAssignmentResult.UserInNoOrganization, "belongs to no organization")]
+    [InlineData(ManagerAssignmentResult.UnknownManager, "not a member of this user's organization")]
+    [InlineData(ManagerAssignmentResult.ManagerOutsideOrganization, "not a member of this user's organization")]
+    [InlineData(ManagerAssignmentResult.ManagerNotAPerson, "service account")]
+    [InlineData(ManagerAssignmentResult.ReportingCycle, "already reports to this user")]
+    public async Task SetManagerAsync_AManagerTheStoreRefuses_IsRefusedNamingTheRule(ManagerAssignmentResult refused, string rule)
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "alex"));
+        harness.Provisioning
+            .SetManagerAsync(Arg.Any<UserId>(), Arg.Any<UserId?>(), Arg.Any<CancellationToken>())
+            .Returns(refused);
+
+        // Act
+        var outcome = await harness.Roster.SetManagerAsync(SyntheticUser.Deployment, SyntheticUser.Another, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(outcome.UserHeld);
+        Assert.Contains(rule, outcome.RefusalMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SetManagerAsync_AUserTheStoreNoLongerHolds_ReportsTheUserAsUnheld()
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "alex"));
+        harness.Provisioning
+            .SetManagerAsync(Arg.Any<UserId>(), Arg.Any<UserId?>(), Arg.Any<CancellationToken>())
+            .Returns(ManagerAssignmentResult.UnknownUser);
+
+        // Act
+        var outcome = await harness.Roster.SetManagerAsync(SyntheticUser.Deployment, manager: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(UserRowWriteOutcome.NoSuchUser, outcome);
+    }
+
+    /// <summary>A user outside the administrator's scope is answered as one the deployment does not hold, as a title is.</summary>
+    [Theory]
+    [MemberData(nameof(ScopesOutsideTheUser))]
+    public async Task SetManagerAsync_AUserOutsideTheCallersScope_ReportsTheUserAsUnheldWithoutTouchingTheRow(AssignmentScope scope)
+    {
+        // Arrange
+        var harness = HarnessScopedAt(scope, MailFathomPermission.AdminConfigurationWrite);
+        harness.Holding(new UserRecord(AccessAuthorizations.ScopedHolder, "alexandra"));
+
+        // Act
+        var outcome = await harness.Roster.SetManagerAsync(AccessAuthorizations.ScopedHolder, manager: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(UserRowWriteOutcome.NoSuchUser, outcome);
+        Assert.Empty(harness.Provisioning.ReceivedCalls());
+    }
+
+    /// <summary>Who reports to whom is configuration an administrator states, so the reading grant does not reach it.</summary>
+    [Fact]
+    public async Task SetManagerAsync_ACallerWithoutTheConfigurationGrant_IsRefused()
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminRead);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "alex"));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
+            () => harness.Roster.SetManagerAsync(SyntheticUser.Deployment, SyntheticUser.Another, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.AdminConfigurationWrite, refusal.RequiredPermission);
+        Assert.Empty(harness.Provisioning.ReceivedCalls());
+    }
+
+    /// <summary>The roster lists the manager each user names, so an administrator reads the structure where they write it.</summary>
+    [Fact]
+    public async Task ReadRosterAsync_AUserNamingAManager_ReportsTheManager()
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminRead);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "alex") { Manager = SyntheticUser.Another });
+
+        // Act
+        var roster = await harness.Roster.ReadRosterAsync(FirstPage, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SyntheticUser.Another, Assert.Single(roster.Entries).Manager);
+    }
+
     /// <summary>Writing a title is configuration, so the reading grant does not reach it.</summary>
     [Fact]
     public async Task SetJobTitleAsync_ACallerWithoutTheConfigurationGrant_IsRefused()

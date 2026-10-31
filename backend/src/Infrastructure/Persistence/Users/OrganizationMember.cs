@@ -17,4 +17,8 @@ public sealed record OrganizationMember(
     string DisplayName,
     string? JobTitle,
     string? Json,
-    IReadOnlyList<string> Addresses);
+    IReadOnlyList<string> Addresses)
+{
+    /// <summary>Gets the member of the same organization this member reports to, or <see langword="null" /> for nobody.</summary>
+    public UserId? Manager { get; init; }
+}

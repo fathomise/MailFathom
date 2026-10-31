@@ -6,7 +6,7 @@ using MailFathom.Domain.Access;
 
 namespace MailFathom.Application.Access;
 
-/// <summary>Gives a user the row the mail graph hangs on, and keeps the label, the title, and the type on it the ones an administrator last wrote.</summary>
+/// <summary>Gives a user the row the mail graph hangs on, and keeps the label, the title, the type, and the manager on it the ones an administrator last wrote.</summary>
 /// <remarks>
 /// <para>
 /// The envelope is all this writes: the row exists because <c>mailbox_accounts.UserId</c> is a foreign key and the
@@ -14,10 +14,10 @@ namespace MailFathom.Application.Access;
 /// until a write to the user's record fills it.
 /// </para>
 /// <para>
-/// All four operations are idempotent, because two writers may reach one row at once and the one that lost has to be
+/// All five operations are idempotent, because two writers may reach one row at once and the one that lost has to be
 /// answered with what the deployment holds rather than with a failure. Provisioning a user the deployment already
-/// holds writes nothing, and relabelling one already carrying the label, or giving one the title or the type they
-/// already carry, leaves them as they were.
+/// holds writes nothing, and relabelling one already carrying the label, or giving one the title, the type, or the
+/// manager they already carry, leaves them as they were.
 /// </para>
 /// </remarks>
 public interface IUserProvisioning
@@ -87,4 +87,21 @@ public interface IUserProvisioning
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="type" /> names no declared value.</exception>
     /// <remarks>Answered as <see cref="RelabelAsync" /> is, and for the same race.</remarks>
     Task<bool> SetTypeAsync(UserId user, UserType type, CancellationToken cancellationToken);
+
+    /// <summary>Names the member of the same organization a user this deployment holds reports to, or names nobody.</summary>
+    /// <param name="user">The user whose row is written.</param>
+    /// <param name="manager">The manager from now on, or <see langword="null" /> to name nobody.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>
+    /// <see cref="ManagerAssignmentResult.Assigned" /> when the row names the manager once the write has run, or the
+    /// rule the write would have broken: the user named as their own manager, a manager who is not a person of the
+    /// user's organization, or a manager who already reports to the user. Naming nobody refuses nothing but an unknown user.
+    /// </returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> or <paramref name="manager" /> names nobody.</exception>
+    /// <remarks>
+    /// Unlike the other writes here, this one is judged against other rows, so it is judged and written under locks that
+    /// make two concurrent writes in one organization see each other; naming the manager already named is still a write
+    /// that leaves the row as it was.
+    /// </remarks>
+    Task<ManagerAssignmentResult> SetManagerAsync(UserId user, UserId? manager, CancellationToken cancellationToken);
 }

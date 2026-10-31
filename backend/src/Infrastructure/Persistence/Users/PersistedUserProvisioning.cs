@@ -126,6 +126,106 @@ internal sealed class PersistedUserProvisioning(MailFathomDbContext dbContext, T
         return written > 0;
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// <para>
+    /// Every write naming a manager in one organization takes that organization's row first, so two of them are read and
+    /// judged one after the other: each sees the line the other committed, and two writes that would each close half a
+    /// cycle cannot both pass. The manager's row is held shared from then on, which a move, a retyping, and an erasure
+    /// of the manager each wait for, so the manager stays a person of the organization until the write commits.
+    /// </para>
+    /// <para>
+    /// The user's own row is not held, because a move of the user takes it before it takes anything else and holding
+    /// it here as well would order the two writes' locks against each other. The update states the organization it was
+    /// judged against instead, so a user who left it in the meantime is written nothing and answered as outside it.
+    /// </para>
+    /// </remarks>
+    public async Task<ManagerAssignmentResult> SetManagerAsync(
+        UserId user,
+        UserId? manager,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireNamed(user);
+
+        if (manager is not { } named)
+        {
+            var cleared = await dbContext.UserAccounts
+                .Where(record => record.Id == userId)
+                .ExecuteUpdateAsync(record => record.SetProperty(held => held.ManagerId, (Guid?)null), cancellationToken);
+
+            return cleared > 0 ? ManagerAssignmentResult.Assigned : ManagerAssignmentResult.UnknownUser;
+        }
+
+        var managerId = RequireNamed(named);
+
+        if (managerId == userId)
+        {
+            return ManagerAssignmentResult.OwnManager;
+        }
+
+        await using var assignment = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var organizationOfUser = await dbContext.UserAccounts
+            .Where(record => record.Id == userId)
+            .Select(record => new { record.OrganizationId })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (organizationOfUser is null)
+        {
+            return ManagerAssignmentResult.UnknownUser;
+        }
+
+        if (organizationOfUser.OrganizationId is not { } organizationId)
+        {
+            return ManagerAssignmentResult.UserInNoOrganization;
+        }
+
+        await dbContext.Database.ExecuteSqlAsync(
+            $"""SELECT 1 FROM organizations WHERE "Id" = {organizationId} FOR NO KEY UPDATE""",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlAsync(
+            $"""SELECT 1 FROM settings_accounts WHERE "Id" = {managerId} FOR SHARE""",
+            cancellationToken);
+
+        var heldManager = await dbContext.UserAccounts
+            .Where(record => record.Id == managerId)
+            .Select(record => new { record.OrganizationId, record.Type })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (heldManager is null)
+        {
+            return ManagerAssignmentResult.UnknownManager;
+        }
+
+        if (heldManager.OrganizationId != organizationId)
+        {
+            return ManagerAssignmentResult.ManagerOutsideOrganization;
+        }
+
+        if (heldManager.Type != UserType.User)
+        {
+            return ManagerAssignmentResult.ManagerNotAPerson;
+        }
+
+        var managers = await dbContext.UserAccounts
+            .Where(record => record.OrganizationId == organizationId && record.ManagerId != null)
+            .Select(record => new { record.Id, ManagerId = record.ManagerId!.Value })
+            .ToDictionaryAsync(record => UserId.Create(record.Id), record => UserId.Create(record.ManagerId), cancellationToken);
+
+        if (ReportingLine.WouldCycle(user, named, managers))
+        {
+            return ManagerAssignmentResult.ReportingCycle;
+        }
+
+        var written = await dbContext.UserAccounts
+            .Where(record => record.Id == userId && record.OrganizationId == organizationId)
+            .ExecuteUpdateAsync(record => record.SetProperty(held => held.ManagerId, managerId), cancellationToken);
+
+        await assignment.CommitAsync(cancellationToken);
+
+        return written > 0 ? ManagerAssignmentResult.Assigned : ManagerAssignmentResult.ManagerOutsideOrganization;
+    }
+
     private static Guid RequireNamed(UserId user) =>
         user.IsSpecified
             ? user.Value

@@ -38,6 +38,7 @@ internal sealed record UserRosterResponse(IReadOnlyList<UserRosterEntryResponse>
 /// <param name="ClientEndpoint">Whether they are served on the client endpoint, whichever credential or session they present there.</param>
 /// <param name="Type">Whether they are a person, <c>User</c>, or a technical account, <c>ServiceAccount</c>, which has no member contact.</param>
 /// <param name="JobTitle">The title their colleagues read them by, or nothing where an administrator stated none.</param>
+/// <param name="ManagerId">The member of their organization they report to, or nothing where an administrator named nobody.</param>
 internal sealed record UserRosterEntryResponse(
     Guid Id,
     string DisplayName,
@@ -45,7 +46,8 @@ internal sealed record UserRosterEntryResponse(
     bool McpEndpoint,
     bool ClientEndpoint,
     string Type,
-    string? JobTitle)
+    string? JobTitle,
+    Guid? ManagerId)
 {
     /// <summary>Describes one user.</summary>
     /// <param name="entry">The user as the roster reported them.</param>
@@ -62,7 +64,8 @@ internal sealed record UserRosterEntryResponse(
             entry.EndpointAccess.McpEndpoint,
             entry.EndpointAccess.ClientEndpoint,
             entry.Type.ToString(),
-            entry.JobTitle);
+            entry.JobTitle,
+            entry.Manager?.Value);
     }
 }
 
@@ -92,6 +95,10 @@ internal sealed record UserRelabelRequest(string? DisplayName);
 /// <summary>The title a user's colleagues read them by from now on.</summary>
 /// <param name="JobTitle">The title, at most 256 characters, or nothing or blank to state none.</param>
 internal sealed record UserJobTitleRequest(string? JobTitle);
+
+/// <summary>The member of the same organization a user reports to from now on.</summary>
+/// <param name="ManagerId">The manager's user identifier, or nothing to name nobody.</param>
+internal sealed record UserManagerRequest(Guid? ManagerId);
 
 /// <summary>Whether a user is a person or a technical account from now on.</summary>
 /// <param name="Type"><c>User</c> or <c>ServiceAccount</c>, compared without regard to case.</param>

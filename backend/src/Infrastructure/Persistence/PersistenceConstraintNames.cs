@@ -735,6 +735,15 @@ internal static class PersistenceConstraintNames
     /// <summary>The index a count of one organization's members is answered from.</summary>
     internal const string UserAccountOrganizationIndexName = "ix_settings_accounts_organization";
 
+    /// <summary>The foreign key that clears a user's manager when the manager is erased.</summary>
+    internal const string UserAccountManagerForeignKeyName = "fk_settings_accounts_manager";
+
+    /// <summary>The index a user's direct reports are read from.</summary>
+    internal const string UserAccountManagerIndexName = "ix_settings_accounts_manager";
+
+    /// <summary>The check that refuses a user who is their own manager.</summary>
+    internal const string UserAccountNotOwnManagerCheckConstraintName = "ck_settings_accounts_not_own_manager";
+
     /// <summary>The index a count of one organization's mail accounts is answered from.</summary>
     internal const string MailAccountRecordOrganizationIndexName = "ix_settings_mail_accounts_organization";
 

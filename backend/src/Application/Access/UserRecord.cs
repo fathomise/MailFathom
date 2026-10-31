@@ -37,4 +37,7 @@ public sealed record UserRecord(UserId User, string DisplayName)
 
     /// <summary>Gets the title the user's colleagues read them by, or <see langword="null" /> where an administrator stated none.</summary>
     public string? JobTitle { get; init; }
+
+    /// <summary>Gets the member of the same organization the user reports to, or <see langword="null" /> where an administrator named nobody.</summary>
+    public UserId? Manager { get; init; }
 }

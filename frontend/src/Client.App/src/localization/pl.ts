@@ -2347,6 +2347,18 @@ export const pl: Catalogue = {
         'Nie podano strefy czasowej, więc to godziny pracy według zegara tej osoby, nieprzeliczone na Twój czas.',
     'people.workingHoursUnknownZone':
         'To urządzenie nie zna podanej strefy czasowej, więc to godziny pracy według zegara tej osoby, nieprzeliczone na Twój czas.',
+    'people.organizationCard': 'Organizacja',
+    'people.directReports': 'Bezpośredni podwładni',
+    'people.noDirectReports': 'Brak bezpośrednich podwładnych',
+    'people.structureReading': 'Czytamy…',
+    'people.structureAgain': 'Spróbuj ponownie',
+    'people.structureUnauthenticated':
+        'Twoja sesja nie jest już przyjmowana, więc nie udało się tego odczytać. Zaloguj się ponownie.',
+    'people.structureUnauthorized': 'To poświadczenie nie może czytać, kto komu podlega.',
+    'people.structureUnavailable': 'Serwer nie odpowiedział.',
+    'people.structureUnreadable':
+        'Serwer odpowiedział czymś, czego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
+    'people.structureMissing': 'Ta osoba nie należy już do Twojej organizacji.',
     'people.writeReadOnly': 'Ten kontakt prowadzi Twoja organizacja, więc nie można go tu zmienić.',
 
     'person.relationship': 'Stan relacji',

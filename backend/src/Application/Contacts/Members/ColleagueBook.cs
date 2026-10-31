@@ -133,6 +133,57 @@ public sealed class ColleagueBook
         return await this.FindColleagueAsync(member, cancellationToken);
     }
 
+    /// <summary>Reads where one colleague sits in the reader's organization: the managers above them and their direct reports.</summary>
+    /// <param name="member">The member whose structure is read.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The structure, or <see langword="null" /> where the reader's organization holds no such person, or the identifier is the reader's own.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the reading grant.</exception>
+    /// <remarks>
+    /// Composed out of the whole directory rather than one member, because who reports to a member is every member naming
+    /// them. The reader is not left out of it: they may be the colleague's manager or report to them, and leaving them out
+    /// would cut the line. Nothing about the structure reaches MCP, which reads the directory as a contact book alone.
+    /// </remarks>
+    public async Task<ColleagueStructure?> ReadStructureAsync(UserId member, CancellationToken cancellationToken)
+    {
+        this.authorization.RequirePermission(MailFathomPermission.ContactsRead);
+
+        var scope = await this.ownership.ReadScopeAsync(cancellationToken);
+
+        if (scope.OrganizationBook?.Organization is not { } organization || member == scope.User)
+        {
+            return null;
+        }
+
+        var directory = (await this.members.ReadAsync(organization, cancellationToken))
+            .ToDictionary(colleague => colleague.Member);
+
+        if (!directory.ContainsKey(member))
+        {
+            return null;
+        }
+
+        var managers = directory.Values
+            .Where(colleague => colleague.Manager is not null)
+            .ToDictionary(colleague => colleague.Member, colleague => colleague.Manager!.Value);
+
+        MemberContact[] above =
+        [
+            .. ReportingLine.ManagersAbove(member, managers)
+                .TakeWhile(directory.ContainsKey)
+                .Select(manager => directory[manager])
+                .Reverse(),
+        ];
+        MemberContact[] reports =
+        [
+            .. directory.Values
+                .Where(colleague => colleague.Manager == member)
+                .OrderBy(colleague => colleague.DisplayName.SortKey, StringComparer.Ordinal)
+                .ThenBy(colleague => colleague.Member.Value),
+        ];
+
+        return new ColleagueStructure(above, reports, scope.User);
+    }
+
     /// <summary>Reads the portrait one colleague is drawn by.</summary>
     /// <param name="member">The member whose portrait is read.</param>
     /// <param name="cancellationToken">Cancels the read.</param>

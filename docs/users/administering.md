@@ -817,6 +817,9 @@ the portrait, the phone numbers and the time zone they state — and two fields 
 `mfctl user set-job-title --job-title Controller` is the title they read somebody by, and `--none` takes it off.
 `mfctl user set-type --type ServiceAccount` marks a technical account, which leaves that directory and is never
 suggested as a recipient; every user starts as `User`, so mark each automation account once after upgrading.
+`mfctl user set-manager --manager <id>` names the colleague somebody reports to, by the identifier `mfctl user list`
+prints, and `--none` names nobody; their colleagues then see the line of managers above them and who reports to them.
+Nobody reports to themselves, to a service account, to somebody outside their organization, or to their own report.
 [Contacts](../features/contacts.md#the-organizations-member-directory) states what the directory shows and to whom.
 
 **Mailboxes are `mfctl account`, and they are records of their own.** `mfctl account add` creates one from a file and

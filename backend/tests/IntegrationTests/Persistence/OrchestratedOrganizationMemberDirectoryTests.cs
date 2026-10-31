@@ -160,6 +160,107 @@ public sealed class OrchestratedOrganizationMemberDirectoryTests(MailFathomOrche
     }
 
     /// <summary>
+    /// A manager is a person of the user's own organization who does not already report to them: the store accepts one
+    /// such manager and refuses the user themselves, a service account, a user of another organization, and the user's
+    /// own report, each naming its rule — and the member directory reads the one it accepted.
+    /// </summary>
+    [Fact]
+    public async Task SetManagerAsync_EachKindOfManager_WritesAPersonOfTheOrganizationAndRefusesTheRest()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var arrangement = new Arrangement(services);
+
+        try
+        {
+            var people = await arrangement.HoldAsync(cancellationToken);
+            var anna = UserId.Create(people.Anna);
+            var piotr = UserId.Create(people.Piotr);
+
+            // Act
+            var answers = await services.InScopeAsync(
+                async (scope, token) =>
+                {
+                    var provisioning = scope.GetRequiredService<IUserProvisioning>();
+
+                    return (
+                        Accepted: await provisioning.SetManagerAsync(piotr, anna, token),
+                        Cycle: await provisioning.SetManagerAsync(anna, piotr, token),
+                        Own: await provisioning.SetManagerAsync(anna, anna, token),
+                        Robot: await provisioning.SetManagerAsync(anna, UserId.Create(people.Robot), token),
+                        Outsider: await provisioning.SetManagerAsync(anna, UserId.Create(people.Outsider), token),
+                        Nobody: await provisioning.SetManagerAsync(anna, UserId.Create(Guid.CreateVersion7()), token));
+                },
+                cancellationToken);
+            var piotrRead = await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IOrganizationMemberReader>().ReadMemberAsync(people.Organization, piotr, token),
+                cancellationToken);
+
+            // Assert
+            Assert.Equal(ManagerAssignmentResult.Assigned, answers.Accepted);
+            Assert.Equal(ManagerAssignmentResult.ReportingCycle, answers.Cycle);
+            Assert.Equal(ManagerAssignmentResult.OwnManager, answers.Own);
+            Assert.Equal(ManagerAssignmentResult.ManagerNotAPerson, answers.Robot);
+            Assert.Equal(ManagerAssignmentResult.ManagerOutsideOrganization, answers.Outsider);
+            Assert.Equal(ManagerAssignmentResult.UnknownManager, answers.Nobody);
+            Assert.Equal(anna, Assert.Single(piotrRead!.Members).Manager);
+        }
+        finally
+        {
+            await arrangement.RemoveAsync();
+        }
+    }
+
+    /// <summary>
+    /// A manager who leaves the organization is nobody's manager there any more, and neither is their own manager theirs:
+    /// moving Anna out clears both her line and Piotr's, and erasing a manager clears the line of whoever named them.
+    /// </summary>
+    [Fact]
+    public async Task SetUserOrganizationAsync_AManagerLeavingOrErased_ClearsTheLinesThatNamedThem()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var arrangement = new Arrangement(services);
+
+        try
+        {
+            var people = await arrangement.HoldAsync(cancellationToken);
+            var anna = UserId.Create(people.Anna);
+            var piotr = UserId.Create(people.Piotr);
+            var otherOrganization = await arrangement.HoldOrganizationAsync(cancellationToken);
+            await services.InScopeAsync(
+                async (scope, token) =>
+                {
+                    var provisioning = scope.GetRequiredService<IUserProvisioning>();
+                    Assert.Equal(ManagerAssignmentResult.Assigned, await provisioning.SetManagerAsync(piotr, anna, token));
+                    Assert.Equal(ManagerAssignmentResult.Assigned, await provisioning.SetManagerAsync(UserId.Create(people.Robot), piotr, token));
+
+                    return true;
+                },
+                cancellationToken);
+
+            // Act
+            var moved = await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(anna, otherOrganization, token),
+                cancellationToken);
+            var piotrsAfterTheMove = await ManagerOfAsync(services, people.Piotr, cancellationToken);
+            await OrchestratedForeignUser.EraseAsync(services, people.Piotr);
+            var robotsAfterTheErasure = await ManagerOfAsync(services, people.Robot, cancellationToken);
+
+            // Assert
+            Assert.Equal(OrganizationWriteOutcome.Written, moved.Outcome);
+            Assert.Null(piotrsAfterTheMove);
+            Assert.Null(robotsAfterTheErasure);
+        }
+        finally
+        {
+            await arrangement.RemoveAsync();
+        }
+    }
+
+    /// <summary>
     /// A colleague's address hides an organization's record of it from a page read beside the directory, and never the
     /// reader's own record of it, which the filter keeps by the book it is in.
     /// </summary>
@@ -224,6 +325,15 @@ public sealed class OrchestratedOrganizationMemberDirectoryTests(MailFathomOrche
             await arrangement.RemoveAsync();
         }
     }
+
+    private static Task<Guid?> ManagerOfAsync(OrchestratedMailFathomServices services, Guid user, CancellationToken cancellationToken) =>
+        services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().UserAccounts
+                .AsNoTracking()
+                .Where(account => account.Id == user)
+                .Select(account => account.ManagerId)
+                .SingleAsync(token),
+            cancellationToken);
 
     private static Contact ContactOf(string displayName, string address, Guid? organization) => Contact.Create(
         ContactId.Create(Guid.CreateVersion7(RecordedAt)),

@@ -454,6 +454,17 @@ internal sealed class PersistedOrganizations(
                     },
                     cancellationToken);
 
+            // A manager and their reports are members of one organization, so leaving it ends the line upward and
+            // downward at once. Under the user's own lock, which a write naming them a manager waits on.
+            if (held.OrganizationId != organizationId)
+            {
+                await dbContext.UserAccounts
+                    .Where(record => record.Id == userId || record.ManagerId == userId)
+                    .ExecuteUpdateAsync(
+                        setters => setters.SetProperty(record => record.ManagerId, (Guid?)null),
+                        cancellationToken);
+            }
+
             await dbContext.UserCredentials
                 .Where(credential => credential.UserId == userId && credential.Method == password)
                 .ExecuteUpdateAsync(

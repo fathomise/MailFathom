@@ -26,6 +26,11 @@ internal sealed record UserRelabelRequest(
 internal sealed record UserJobTitleRequest(
     [property: JsonPropertyName("jobTitle")] string? JobTitle);
 
+/// <summary>The member of the same organization a user reports to from now on.</summary>
+/// <param name="ManagerId">The manager's user identifier, or <see langword="null" /> to name nobody.</param>
+internal sealed record UserManagerRequest(
+    [property: JsonPropertyName("managerId")] Guid? ManagerId);
+
 /// <summary>Whether a user is a person or a technical account from now on.</summary>
 /// <param name="Type"><c>User</c> or <c>ServiceAccount</c>.</param>
 internal sealed record UserTypeRequest(

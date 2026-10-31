@@ -45,6 +45,11 @@ internal static class UserOutput
             {
                 console.WriteLine($"    job title: {user.JobTitle}");
             }
+
+            if (user.ManagerId is { } manager)
+            {
+                console.WriteLine($"    manager: {manager:D}");
+            }
         }
     }
 

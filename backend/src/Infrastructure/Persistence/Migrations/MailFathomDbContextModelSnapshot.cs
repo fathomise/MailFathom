@@ -4527,6 +4527,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<Guid?>("ManagerId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("McpEndpointEnabled")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -4549,10 +4552,16 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ManagerId")
+                        .HasDatabaseName("ix_settings_accounts_manager");
+
                     b.HasIndex("OrganizationId")
                         .HasDatabaseName("ix_settings_accounts_organization");
 
-                    b.ToTable("settings_accounts", (string)null);
+                    b.ToTable("settings_accounts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_settings_accounts_not_own_manager", "\"ManagerId\" <> \"Id\"");
+                        });
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.UserCredentialEntity", b =>
@@ -5600,6 +5609,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.UserAccountEntity", b =>
                 {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.UserAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ManagerId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_settings_accounts_manager");
+
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", null)
                         .WithMany()
                         .HasForeignKey("OrganizationId")

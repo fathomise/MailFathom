@@ -2312,6 +2312,17 @@ export const en = {
         "No time zone is stated, so these hours are {name}'s own and are not converted to yours.",
     'people.workingHoursUnknownZone':
         "The time zone {name} states is not one this device knows, so these hours are {name}'s own and are not converted to yours.",
+    'people.organizationCard': 'Organization',
+    'people.directReports': 'Direct reports',
+    'people.noDirectReports': 'No direct reports',
+    'people.structureReading': 'Reading…',
+    'people.structureAgain': 'Try again',
+    'people.structureUnauthenticated': 'Your session is no longer accepted, so this could not be read. Sign in again.',
+    'people.structureUnauthorized': 'This credential may not read who reports to whom.',
+    'people.structureUnavailable': 'The server did not answer.',
+    'people.structureUnreadable':
+        'The server answered with something this client could not read. This is worth reporting as a defect.',
+    'people.structureMissing': 'This person is no longer a member of your organization.',
     'people.writeReadOnly': 'That contact is kept by your organization, so it cannot be changed here.',
 
     'person.relationship': 'Relationship state',

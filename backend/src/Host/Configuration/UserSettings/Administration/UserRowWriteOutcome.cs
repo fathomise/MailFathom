@@ -4,7 +4,7 @@
 
 namespace MailFathom.Host.Configuration.UserSettings.Administration;
 
-/// <summary>What writing one column of a user's row did — the label, the title, or the type: nothing at all, nothing this deployment holds, or the value.</summary>
+/// <summary>What writing one column of a user's row did — the label, the title, the type, or the manager: nothing at all, nothing this deployment holds, or the value.</summary>
 /// <param name="UserHeld">Whether this deployment holds a user under that identifier.</param>
 /// <param name="RefusalMessage">The sentence naming what has to change first, or <see langword="null" /> where the row carries the value.</param>
 /// <remarks>

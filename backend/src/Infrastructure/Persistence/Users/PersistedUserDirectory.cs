@@ -43,6 +43,7 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                 user.ClientEndpointEnabled,
                 user.Type,
                 user.JobTitle,
+                user.ManagerId,
             })
             .Take(limit)
             .ToArrayAsync(cancellationToken);
@@ -54,6 +55,7 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                 EndpointAccess = new UserEndpointAccess(user.McpEndpointEnabled, user.ClientEndpointEnabled),
                 Type = user.Type,
                 JobTitle = user.JobTitle,
+                Manager = user.ManagerId is { } manager ? UserId.Create(manager) : null,
             }),
         ];
     }
@@ -86,6 +88,7 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                 user.ClientEndpointEnabled,
                 user.Type,
                 user.JobTitle,
+                user.ManagerId,
             })
             .ToArrayAsync(cancellationToken);
 
@@ -96,6 +99,7 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                     EndpointAccess = new UserEndpointAccess(user.McpEndpointEnabled, user.ClientEndpointEnabled),
                     Type = user.Type,
                     JobTitle = user.JobTitle,
+                    Manager = user.ManagerId is { } manager ? UserId.Create(manager) : null,
                 }),
             ],
             record => record.User.Value);
@@ -123,6 +127,7 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                 record.ClientEndpointEnabled,
                 record.Type,
                 record.JobTitle,
+                record.ManagerId,
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -133,6 +138,7 @@ internal sealed class PersistedUserDirectory(MailFathomDbContext dbContext) : IU
                 EndpointAccess = new UserEndpointAccess(envelope.McpEndpointEnabled, envelope.ClientEndpointEnabled),
                 Type = envelope.Type,
                 JobTitle = envelope.JobTitle,
+                Manager = envelope.ManagerId is { } manager ? UserId.Create(manager) : null,
             };
     }
 }

@@ -47,6 +47,7 @@ internal sealed class PersistedOrganizationMemberReader(
             member."Id",
             member."DisplayName",
             member."JobTitle",
+            member."ManagerId",
             CASE WHEN octet_length(member."Document"::text) <= @maximumOctets THEN member."Document"::text END AS "Document"
         FROM settings_accounts AS member
         WHERE member."OrganizationId" = @organization
@@ -189,8 +190,11 @@ internal sealed class PersistedOrganizationMemberReader(
                 UserId.Create(reader.GetGuid(0)),
                 reader.GetString(1),
                 await reader.IsDBNullAsync(2, cancellationToken) ? null : reader.GetString(2),
-                await reader.IsDBNullAsync(3, cancellationToken) ? null : reader.GetString(3),
-                []));
+                await reader.IsDBNullAsync(4, cancellationToken) ? null : reader.GetString(4),
+                [])
+            {
+                Manager = await reader.IsDBNullAsync(3, cancellationToken) ? null : UserId.Create(reader.GetGuid(3)),
+            });
         }
 
         return members;
