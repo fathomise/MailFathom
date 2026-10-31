@@ -16,7 +16,8 @@ import { allDrawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { MoreActions } from '../messageSource/MoreActions';
 import { SpamControl } from '../spamMarking/SpamControl';
 import { actedMessages, useListedMail } from '../messageList/useListedMail';
-import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
+import { useCoarsePointer, useTwoPanes } from '../shell/useWideWorkspace';
+import { useMailboxesForm } from '../workspace/mailboxesForm';
 import { useWorkspace } from '../workspace/useWorkspace';
 import type { StripFitting } from './useStripFit';
 
@@ -48,7 +49,7 @@ export function MailToolbar({
     openMailboxes,
     listFold,
 }: StripFitting & {
-    /** Opens the mailboxes drawer, or `null` where the mailbox column is docked beside the list instead. */
+    /** Opens the mailboxes drawer, or `null` where the mailbox column stands beside the list instead, open or folded. */
     readonly openMailboxes: (() => void) | null;
 
     /** The fold's list, or `null` where the composition draws the list whole. */
@@ -59,9 +60,10 @@ export function MailToolbar({
     const composing = useComposing();
     const listed = useListedMail();
     const twoPanes = useTwoPanes();
-    const docked = useDesktopComposition();
+    const coarse = useCoarsePointer();
+    const mailboxes = useMailboxesForm();
     const open = workspace.selection;
-    const folded = workspace.mailboxesFolded;
+    const folded = mailboxes === 'strip';
     const panelsHidden = workspace.panelsHidden;
     const actShape: ControlShape = fit === 'symbols' ? 'symbol' : 'labelled';
 
@@ -82,13 +84,13 @@ export function MailToolbar({
             className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-line bg-panel px-3 py-2 shadow-raised"
         >
             {/* The controls that change the view rather than a message lead the strip: the mailbox column's own show
-                and hide where it is docked beside the list, and otherwise — on the fold, with something open — the
-                list's own fold, followed by the drawer's opener. Here rather than in the list, so a long tree or a long list never
-                scrolls them away. The rule after them keeps them apart from composing, so a press meant for one never
-                lands on the other. They and their rule are one child of the strip, which is what the fitting reads
-                ahead of composing. */}
+                and hide wherever it stands beside the list, open or folded to its strip, and otherwise the drawer's
+                opener — with the list's own fold, below the roomy width with something open, between the two. Here
+                rather than in the list, so a long tree or a long list never scrolls them away. The rule after them
+                keeps them apart from composing, so a press meant for one never lands on the other. They and their rule
+                are one child of the strip, which is what the fitting reads ahead of composing. */}
             <span className="flex shrink-0 items-center self-stretch">
-                {docked ? (
+                {mailboxes === 'drawer' ? null : (
                     <Control
                         label={translate(folded ? 'mailboxes.unfold' : 'mailboxes.fold')}
                         icon={folded ? 'left_panel_open' : 'left_panel_close'}
@@ -97,7 +99,7 @@ export function MailToolbar({
                             revise({ mailboxesFolded: !folded });
                         }}
                     />
-                ) : null}
+                )}
 
                 {listFold === null ? null : <ListFoldControl fold={listFold} />}
 
@@ -162,11 +164,10 @@ export function MailToolbar({
                 says so rather than being left out, for the reason the three answers above are drawn either way. */}
             {outboxOpen ? null : <MailboxActControls messages={openMessages} shape={actShape} spam="toolbar" />}
 
-            {/* Where two panes stand below the desktop composition the head leaves its acts to this strip, and where
-                the panels are hidden there is no head at all, so *More actions* follows the spam control here instead,
-                and every composition reaches it once. The strip holds no subject, so its menu is headed by its own
-                name. */}
-            {outboxOpen || !twoPanes || (docked && !panelsHidden) ? null : (
+            {/* Where two panes stand under a finger the head leaves its acts to this strip, and where the panels are
+                hidden there is no head at all, so *More actions* follows the spam control here instead, and every
+                composition reaches it once. The strip holds no subject, so its menu is headed by its own name. */}
+            {outboxOpen || !twoPanes || (!coarse && !panelsHidden) ? null : (
                 <MoreActions storedEmailId={open} subject={null} />
             )}
 

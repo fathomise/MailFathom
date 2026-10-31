@@ -37,8 +37,11 @@ export interface Workspace {
      * composition, which decides how wide the column is, and the tree inside it, which decides whether a row is a name
      * or a symbol. It is a second axis rather than the same one — folding a mailbox away hides its folders, and folding
      * the column narrows every row that is still there — which is why neither value is derivable from the other.
+     *
+     * `null` until somebody folds or opens the column, which leaves it to the width: open where the desktop composition
+     * stands it as a column, folded where a narrower one would not — `mailboxesForm.ts` reads both.
      */
-    readonly mailboxesFolded: boolean;
+    readonly mailboxesFolded: boolean | null;
 
     /**
      * Whether the panels the design draws around a conversation are hidden, leaving the correspondence alone.
@@ -201,7 +204,7 @@ export type WorkspaceChange = Partial<Workspace> | ((current: Workspace) => Part
 export const emptyWorkspace: Workspace = {
     scope: { kind: 'role', role: 'Inbox' },
     foldsToggled: [],
-    mailboxesFolded: false,
+    mailboxesFolded: null,
     panelsHidden: false,
     outbox: null,
     selection: null,

@@ -18,6 +18,11 @@
 // `primarySymbol` what `primary` narrows to. `named` is the words alone, which is how the design draws the acts in
 // the head of a message beside its subject.
 //
+// `paneNamed` is `named` in a head that stands in the thread pane, and it narrows to the symbol alone where that pane is
+// narrow — not where the window is, since the same window gives the pane more or less as the list beside it folds. That
+// is a container query rather than a measurement, so the shape draws both the symbol and the words and the pane's width
+// decides which one shows; the words stay the control's name either way, and its bubble says them over the symbol.
+//
 // `outlined` is a control drawn inside a rule of its own rather than on the surface it stands on, which is how the
 // design draws the control that shows the Agent's history beside the conversation; `outlinedSymbol` is what it narrows
 // to on a phone.
@@ -37,6 +42,7 @@
 export type ControlShape =
     | 'labelled'
     | 'named'
+    | 'paneNamed'
     | 'symbol'
     | 'primary'
     | 'primarySymbol'
@@ -51,6 +57,8 @@ export type ControlShape =
 export const controlShapes: Readonly<Record<ControlShape, string>> = {
     labelled: 'gap-1.75 rounded-md px-2.75 py-1.75 text-base text-text-soft hover:bg-hover',
     named: 'rounded-md px-2 py-1.25 text-base text-muted hover:bg-hover hover:text-text',
+    paneNamed:
+        'rounded-md px-2 py-1.25 text-base text-muted hover:bg-hover hover:text-text @max-pane-narrow:size-8.5 @max-pane-narrow:justify-center @max-pane-narrow:p-0 @max-pane-narrow:text-text-soft',
     symbol: 'size-9.5 justify-center rounded-md text-text-soft hover:bg-hover',
     primary: 'gap-1.75 rounded-md bg-accent px-3.25 py-2 text-base font-semibold text-on-accent shadow-raised',
     primarySymbol: 'size-9.5 justify-center rounded-md bg-accent text-on-accent shadow-raised',
@@ -69,6 +77,7 @@ export function labelledShape(shape: ControlShape): boolean {
     return (
         shape === 'labelled' ||
         shape === 'named' ||
+        shape === 'paneNamed' ||
         shape === 'primary' ||
         shape === 'selected' ||
         shape === 'link' ||
@@ -80,4 +89,14 @@ export function labelledShape(shape: ControlShape): boolean {
 /** Whether a control of that shape draws its symbol at all: the words-only shape carries its name and nothing else. */
 export function symbolShown(shape: ControlShape): boolean {
     return shape !== 'named' && shape !== 'link';
+}
+
+/**
+ * The classes a control of that shape draws its symbol and its words with: both shown where the shape says so, and
+ * traded by the pane's width where the shape is one that narrows in a pane.
+ */
+export function partsOf(shape: ControlShape): { readonly symbol: string; readonly words: string } {
+    return shape === 'paneNamed'
+        ? { symbol: 'hidden @max-pane-narrow:block', words: '@max-pane-narrow:sr-only' }
+        : { symbol: '', words: '' };
 }

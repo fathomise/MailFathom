@@ -10,6 +10,7 @@ import {
     narrowestList,
     readListWidth,
     startingListWidth,
+    startingListWidthIn,
     storeListWidth,
     widestList,
 } from './listWidth';
@@ -47,8 +48,8 @@ describe('listWidthWithin', () => {
 });
 
 describe('readListWidth', () => {
-    it('opens at the starting width where this person has chosen none', () => {
-        expect(readListWidth(reader)).toBe(startingListWidth);
+    it('reads nothing chosen where this person has chosen none', () => {
+        expect(readListWidth(reader)).toBeNull();
     });
 
     it('opens at the width this person last settled on', () => {
@@ -57,27 +58,35 @@ describe('readListWidth', () => {
         expect(readListWidth(reader)).toBe(420);
     });
 
-    it('opens at the starting width for somebody else on the same machine', () => {
+    it('reads nothing chosen for somebody else on the same machine', () => {
         storeListWidth(reader, 420);
 
-        expect(readListWidth('marta')).toBe(startingListWidth);
+        expect(readListWidth('marta')).toBeNull();
     });
 
-    it('opens at the starting width where nobody is named, and keeps nothing under one', () => {
+    it('reads nothing chosen where nobody is named, and keeps nothing under one', () => {
         storeListWidth(null, 420);
 
-        expect(readListWidth(null)).toBe(startingListWidth);
+        expect(readListWidth(null)).toBeNull();
     });
 
     it.each(['', 'wide', '0', '-1'])('reads a stored %s as nothing chosen rather than as a width', (stored) => {
         window.localStorage.setItem(listWidthKey(reader), stored);
 
-        expect(readListWidth(reader)).toBe(startingListWidth);
+        expect(readListWidth(reader)).toBeNull();
     });
 
     it('holds a stored width to the bounds, so an edited store cannot draw a column off the screen', () => {
         window.localStorage.setItem(listWidthKey(reader), '4000');
 
         expect(readListWidth(reader)).toBe(widestList);
+    });
+});
+
+describe('startingListWidthIn', () => {
+    it('opens the list at the width each band draws it at before anybody drags it', () => {
+        expect(startingListWidthIn(false, false)).toBe(284);
+        expect(startingListWidthIn(true, false)).toBe(startingListWidth);
+        expect(startingListWidthIn(true, true)).toBe(420);
     });
 });

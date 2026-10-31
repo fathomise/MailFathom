@@ -12,7 +12,7 @@ import { useAgentHandOver, type AgentHandOver } from '../routing/agentHandOver';
 import { Departing } from '../shell/Departing';
 import { DepartureContext } from '../shell/departure';
 import { useScreenLayer } from '../shell/screenLayers';
-import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
+import { useTwoPanes } from '../shell/useWideWorkspace';
 import { fragmentBeingRead } from '../workspace/selectedFragment';
 import { useWorkspace } from '../workspace/useWorkspace';
 
@@ -73,7 +73,6 @@ export function ThreadAgentField({
     const composing = useContext(ComposingContext);
     const handToAgent = useAgentHandOver();
     const twoPanes = useTwoPanes();
-    const desktop = useDesktopComposition();
     const choices = useId();
     const chooser = useRef<HTMLDivElement | null>(null);
     const [choosing, setChoosing] = useState(false);
@@ -288,7 +287,6 @@ export function ThreadAgentField({
                         passageChosen={passage !== null}
                         passageText={passage?.text}
                         twoPanes={twoPanes}
-                        desktop={desktop}
                         onType={setTyped}
                         onDraft={draftAReply}
                         onClose={() => {
@@ -312,7 +310,6 @@ function DrafterCard({
     passageChosen,
     passageText,
     twoPanes,
-    desktop,
     onType,
     onDraft,
     onClose,
@@ -321,7 +318,6 @@ function DrafterCard({
     readonly passageChosen: boolean;
     readonly passageText: string | undefined;
     readonly twoPanes: boolean;
-    readonly desktop: boolean;
     readonly onType: (typed: string) => void;
     readonly onDraft: () => void;
     readonly onClose: () => void;
@@ -390,27 +386,26 @@ function DrafterCard({
                 </button>
             </div>
 
-            {desktop ? (
-                <div className="flex flex-wrap items-center gap-2 px-0.5">
-                    <span className="rounded-full bg-accent-soft px-2.75 py-1.25 text-sm text-accent-deep">
-                        {translate('threadAgent.scope')}
-                    </span>
+            {/* The scope a draft is written from, which a pane narrower than 760 pixels has no room to say. */}
+            <div className="flex flex-wrap items-center gap-2 px-0.5 @max-pane-compact:hidden">
+                <span className="rounded-full bg-accent-soft px-2.75 py-1.25 text-sm text-accent-deep">
+                    {translate('threadAgent.scope')}
+                </span>
 
-                    {/* The passage is not chosen here — it is whatever the reader selected in the message above — so the
-                        chip is a statement rather than a control, and it reads as taken in once there is one. */}
-                    <span
-                        {...(passageText === undefined ? {} : passageSaid.anchor)}
-                        className={`rounded-full px-2.75 py-1.25 text-sm ${
-                            passageChosen ? 'bg-accent-soft text-accent-deep' : 'border border-line bg-rail'
-                        }`}
-                    >
-                        {translate('threadAgent.passage')}
-                    </span>
-                    {passageText === undefined ? null : passageSaid.tip}
+                {/* The passage is not chosen here — it is whatever the reader selected in the message above — so the
+                    chip is a statement rather than a control, and it reads as taken in once there is one. */}
+                <span
+                    {...(passageText === undefined ? {} : passageSaid.anchor)}
+                    className={`rounded-full px-2.75 py-1.25 text-sm ${
+                        passageChosen ? 'bg-accent-soft text-accent-deep' : 'border border-line bg-rail'
+                    }`}
+                >
+                    {translate('threadAgent.passage')}
+                </span>
+                {passageText === undefined ? null : passageSaid.tip}
 
-                    <span className="ms-auto text-sm text-muted">{translate('threadAgent.staysLocal')}</span>
-                </div>
-            ) : null}
+                <span className="ms-auto text-sm text-muted">{translate('threadAgent.staysLocal')}</span>
+            </div>
         </form>
     );
 }

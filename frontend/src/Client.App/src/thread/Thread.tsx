@@ -722,7 +722,7 @@ function Conversation({
 
             {state}
 
-            <div className="flex flex-col gap-3 px-5.5 py-4.5">{children}</div>
+            <div className="flex flex-col gap-3 px-reading-gutter py-4.5">{children}</div>
 
             {foot}
         </section>

@@ -108,25 +108,29 @@ function drawing(
 // over jsdom's missing one that answers `false` to every query, so the head composes as it does at the phone.
 const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
 
-/** Two panes stand side by side and the window is narrower than the desktop composition, the tablet and the fold. */
-function atTwoPanesNarrowerThanTheDesktop(): void {
+/**
+ * Two panes stand side by side and the window is narrower than the desktop composition, the tablet and the fold —
+ * under a finger, as the design frames both, unless a mouse is named.
+ */
+function atTwoPanesNarrowerThanTheDesktop(finger = true): void {
     Object.defineProperty(window, 'matchMedia', {
         configurable: true,
         value: (query: string) => ({
             media: query,
-            matches: !query.includes('73.75rem'),
+            matches: query.includes('pointer: coarse') ? finger : !query.includes('73.75rem'),
             addEventListener: () => undefined,
             removeEventListener: () => undefined,
         }),
     });
 }
 
-function atWorkspaceWidth(wideEnough: boolean): void {
+/** Every width answers the same way, and the pointer is a mouse's unless a finger is named. */
+function atWorkspaceWidth(wideEnough: boolean, finger = false): void {
     Object.defineProperty(window, 'matchMedia', {
         configurable: true,
         value: (query: string) => ({
             media: query,
-            matches: wideEnough,
+            matches: query.includes('pointer: coarse') ? finger : wideEnough,
             addEventListener: () => undefined,
             removeEventListener: () => undefined,
         }),
@@ -350,13 +354,29 @@ describe('MessageHeaders at the width its column has', () => {
         expect(screen.getByText('Flag')).toBeDefined();
     });
 
-    it('leaves the three acts to the toolbar above it at two panes narrower than the desktop', () => {
+    it('leaves the three acts to the toolbar above it at two panes under a finger', () => {
         atTwoPanesNarrowerThanTheDesktop();
         drawing();
 
         expect(screen.queryByText('Reply')).toBeNull();
         expect(screen.queryByText('Forward')).toBeNull();
         expect(screen.queryByText('Flag')).toBeNull();
+    });
+
+    it('leaves them to the toolbar under a finger at a desktop width as well, which is the pointer’s rule', () => {
+        atWorkspaceWidth(true, true);
+        drawing();
+
+        expect(screen.queryByText('Reply')).toBeNull();
+    });
+
+    it('keeps the three acts beside the toolbar’s under a mouse at two panes narrower than the desktop', () => {
+        atTwoPanesNarrowerThanTheDesktop(false);
+        drawing();
+
+        expect(screen.getByText('Reply')).toBeDefined();
+        expect(screen.getByText('Forward')).toBeDefined();
+        expect(screen.getByText('Flag')).toBeDefined();
     });
 
     it('draws the three acts again there while a selection has taken the toolbar’s place', () => {

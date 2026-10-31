@@ -83,13 +83,13 @@ function actsOffering(performed: MailboxActs['perform']): MailboxActs {
 
 // jsdom evaluates no media query, so the setup answers every one of them with `false` and this strip is drawn in the
 // single-pane composition unless a test says otherwise. Stating a width is stating what `useTwoPanes` reads, which is
-// a `min-width` query built from the token — so what is answered here is that query and nothing else.
-function theCompositionHasTwoPanes(): void {
+// a `min-width` query built from the token — so what is answered here is that query, and the pointer as the test says.
+function theCompositionHasTwoPanes(finger = false): void {
     Object.defineProperty(window, 'matchMedia', {
         configurable: true,
         value: (query: string) => ({
             media: query,
-            matches: query.includes('min-width'),
+            matches: query.includes('pointer: coarse') ? finger : query.includes('min-width'),
             addEventListener: () => undefined,
             removeEventListener: () => undefined,
         }),
@@ -224,6 +224,15 @@ describe('MailToolbar', () => {
         expect(screen.queryByRole('button', { name: /^More actions/u })).toBeNull();
 
         fireEvent.click(screen.getByRole('button', { name: 'Hide the panels - the correspondence alone' }));
+
+        expect(screen.getByRole('button', { name: /^More actions/u })).toBeDefined();
+    });
+
+    // Two panes under a finger leave the head's acts to this strip, so it carries More actions there whatever the
+    // panels do; a mouse keeps it in the head, as the test above shows.
+    it('takes More actions over from the head at two panes under a finger', () => {
+        theCompositionHasTwoPanes(true);
+        drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled');
 
         expect(screen.getByRole('button', { name: /^More actions/u })).toBeDefined();
     });

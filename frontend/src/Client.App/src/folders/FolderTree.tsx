@@ -27,6 +27,7 @@ import { useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs
 import { useReadMarking } from '../readMarking/useReadMarking';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { scopeKey } from '../workspace/mailScope';
+import { useMailboxesForm } from '../workspace/mailboxesForm';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { FolderRow } from './FolderRow';
 import { FolderRowMenu } from './FolderRowMenu';
@@ -58,7 +59,7 @@ import { Departing } from '../shell/Departing';
 // Two things fold here and they are different questions. A row folds away what is under it, which is this tree's own
 // and is what `workspace.foldsToggled` holds — the rows whose fold somebody moved away from what the row opens at,
 // rather than the rows that are folded, because a mailbox opens expanded and a subfolder opens collapsed. The column
-// folds to a rail, which is the composition's and is what `workspace.mailboxesFolded` holds — read here rather than
+// folds to a rail, which is the composition's and is what `workspace/mailboxesForm.ts` answers — read here rather than
 // handed in because the composition that owns it renders this tree as a region it was given rather than as a child it
 // built. Neither touches the other: a rail draws the same rows a column would, each as a symbol.
 //
@@ -99,6 +100,7 @@ export function FolderTree({
 }) {
     const { locale, translate } = useLocalization();
     const { workspace, revise } = useWorkspace();
+    const folded = useMailboxesForm() === 'strip';
     const { marked } = useReadMarking();
     const maintenance = useFolderMaintenance();
     const acts = useMailboxActs();
@@ -621,7 +623,7 @@ export function FolderTree({
                         // While an Outbox stands in place of the list, no folder is what the list shows.
                         selected={visibleRow.row.key === inScope && workspace.outbox === null}
                         focusable={visibleRow.row.key === carryingFocus?.row.key}
-                        folded={workspace.mailboxesFolded}
+                        folded={folded}
                         groupOrdinal={groupOrdinals.get(visibleRow.row.key) ?? null}
                         shared={
                             groupOrdinals.has(visibleRow.row.key) &&

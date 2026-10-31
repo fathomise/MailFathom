@@ -362,14 +362,18 @@ describe('ThreadAgentField', () => {
         expect(screen.getByText('Draft stays local until confirmed')).toBeDefined();
     });
 
-    it('draws none of that below the desktop composition', () => {
+    // Whether there is room for it is the pane's width rather than the window's, which a container query on the
+    // reading column answers — jsdom evaluates none, so what is asserted is that the query reaches the chips.
+    it('leaves that to the pane’s width, which has no room for it below 760 pixels', () => {
         theTabletComposition();
 
         drawing();
         openingTheDrafter();
 
-        expect(screen.queryByText('Scope: this thread')).toBeNull();
-        expect(screen.queryByText('Draft stays local until confirmed')).toBeNull();
+        expect(screen.getByText('Scope: this thread').closest('.\\@max-pane-compact\\:hidden')).not.toBeNull();
+        expect(
+            screen.getByText('Draft stays local until confirmed').closest('.\\@max-pane-compact\\:hidden'),
+        ).not.toBeNull();
     });
 
     // The two fields hold separate sentences: what is typed under a correspondence is about that correspondence, and

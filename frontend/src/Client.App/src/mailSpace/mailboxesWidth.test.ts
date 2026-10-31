@@ -9,6 +9,7 @@ import {
     narrowestMailboxes,
     readMailboxesWidth,
     startingMailboxesWidth,
+    startingMailboxesWidthIn,
     storeMailboxesWidth,
     widestMailboxes,
 } from './mailboxesWidth';
@@ -38,8 +39,8 @@ describe('mailboxesWidthWithin', () => {
 });
 
 describe('readMailboxesWidth', () => {
-    it('opens at the starting width where this person has chosen none', () => {
-        expect(readMailboxesWidth(reader)).toBe(startingMailboxesWidth);
+    it('reads nothing chosen where this person has chosen none', () => {
+        expect(readMailboxesWidth(reader)).toBeNull();
     });
 
     it('opens at the width this person settled on last time', () => {
@@ -51,7 +52,7 @@ describe('readMailboxesWidth', () => {
     it('keeps one person’s width apart from another’s on the same machine', () => {
         storeMailboxesWidth(reader, 320);
 
-        expect(readMailboxesWidth('tomasz')).toBe(startingMailboxesWidth);
+        expect(readMailboxesWidth('tomasz')).toBeNull();
     });
 
     it('brings a stored width outside the bounds back inside them, a store being somewhere a person can write', () => {
@@ -60,14 +61,14 @@ describe('readMailboxesWidth', () => {
         expect(readMailboxesWidth(reader)).toBe(widestMailboxes);
     });
 
-    it('opens at the starting width where what is stored is not a width at all', () => {
+    it('reads nothing chosen where what is stored is not a width at all', () => {
         window.localStorage.setItem(mailboxesWidthKey(reader), 'wide');
 
-        expect(readMailboxesWidth(reader)).toBe(startingMailboxesWidth);
+        expect(readMailboxesWidth(reader)).toBeNull();
     });
 
-    it('opens at the starting width where nobody is signed in, there being nobody to have chosen one', () => {
-        expect(readMailboxesWidth(null)).toBe(startingMailboxesWidth);
+    it('reads nothing chosen where nobody is signed in, there being nobody to have chosen one', () => {
+        expect(readMailboxesWidth(null)).toBeNull();
     });
 });
 
@@ -76,5 +77,12 @@ describe('storeMailboxesWidth', () => {
         storeMailboxesWidth(null, 320);
 
         expect(window.localStorage.length).toBe(0);
+    });
+});
+
+describe('startingMailboxesWidthIn', () => {
+    it('opens the column wider past the monitor width, before anybody drags it', () => {
+        expect(startingMailboxesWidthIn(false)).toBe(startingMailboxesWidth);
+        expect(startingMailboxesWidthIn(true)).toBe(240);
     });
 });

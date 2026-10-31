@@ -23,6 +23,18 @@ describe('Control', () => {
         expect(control.getAttribute('aria-label')).toBe('Reply');
     });
 
+    // A head in the thread pane draws its acts as words and narrows them to symbols where the pane is narrow, which is a
+    // container query rather than a tree: both stand in the document, and the words stay the name either way.
+    it('draws both its symbol and its words where the pane decides between them, and is named by its words', () => {
+        render(<Control label="Reply" icon="reply" shape="paneNamed" onPress={() => undefined} />);
+
+        const control = screen.getByRole('button', { name: 'Reply' });
+
+        expect(control.querySelector('svg')?.getAttribute('class')).toContain('@max-pane-narrow:block');
+        expect(screen.getByText('Reply').className).toContain('@max-pane-narrow:sr-only');
+        expect(control.hasAttribute('aria-label')).toBe(false);
+    });
+
     it.each([
         ['on', true, 'true'],
         ['off', false, 'false'],

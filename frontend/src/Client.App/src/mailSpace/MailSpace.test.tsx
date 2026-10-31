@@ -567,6 +567,7 @@ describe('MailSpace, narrow', () => {
     // would have closed by fires: the element is simply gone. What must not be left behind is the shell's record of
     // it, which is a step the back gesture would spend on a surface nobody can see.
     it('leaves nothing standing over the screen once the window widens to a mailbox column', () => {
+        fingered = true;
         const shell = renderSpace(tablet);
 
         fireEvent.click(screen.getByRole('button', { name: 'Folders and filters' }));
@@ -648,7 +649,8 @@ describe('MailSpace, in the four compositions', () => {
         expect(screen.queryByRole('button', { name: 'Back to the list' })).toBeNull();
     });
 
-    it('keeps the mailboxes behind a control at the fold, there being no room for a column of them', () => {
+    it('keeps the mailboxes behind a control at the fold under a finger, there being no room for a column of them', () => {
+        fingered = true;
         renderSpace(fold);
 
         expect(within(screen.getByRole('toolbar')).getByRole('button', { name: 'Folders and filters' })).toBeDefined();
@@ -657,6 +659,7 @@ describe('MailSpace, in the four compositions', () => {
     });
 
     it('keeps the mailboxes behind a control at a tablet width as well, which is the same composition', () => {
+        fingered = true;
         renderSpace(tablet);
 
         expect(screen.getByText(handedTheList)).toBeDefined();
@@ -668,6 +671,7 @@ describe('MailSpace, in the four compositions', () => {
         ['the fold', fold],
         ['a tablet width', tablet],
     ])('keeps the way into the drawer in the list’s head at %s while messages are picked out', (_name, pixels) => {
+        fingered = true;
         renderSpace(pixels, { selection: 'stored-1', selected: ['stored-1', 'stored-2'] });
 
         expect(screen.queryByRole('toolbar', { name: 'Mail actions' })).toBeNull();
@@ -821,9 +825,52 @@ describe('MailSpace, at the fold under a finger', () => {
         expect(screen.queryByText(listFoldedToAStrip)).toBeNull();
     });
 
-    it('keeps the whole list at the fold under a mouse', () => {
+    it('folds the list to a strip at the fold under a mouse as well, the width being what is short', () => {
         renderSpace(fold, { selection: 'stored-1' });
 
-        expect(screen.queryByText(listFoldedToAStrip)).toBeNull();
+        expect(screen.getByText(listFoldedToAStrip)).toBeDefined();
+    });
+});
+
+describe('MailSpace, where the pointer decides', () => {
+    it('folds the mailbox column to its strip below the desktop composition under a mouse, and opens it from the toolbar', () => {
+        renderSpace(tablet);
+
+        expect(screen.getByRole('complementary', { name: 'Folders and filters' }).className).toContain(
+            'w-mailboxes-folded',
+        );
+        expect(screen.queryByRole('button', { name: 'Folders and filters' })).toBeNull();
+
+        fireEvent.click(
+            within(screen.getByRole('toolbar', { name: 'Mail actions' })).getByRole('button', {
+                name: 'Show folders and filters',
+            }),
+        );
+
+        expect(screen.getByRole('complementary').style.width).toBe('210px');
+        expect(screen.getByRole('separator', { name: 'Mailbox column width' })).toBeDefined();
+    });
+
+    it('stands the list at the tablet’s width below the desktop composition, with a grip a mouse drags it by', () => {
+        renderSpace(tablet, {}, 'marta');
+
+        expect(screen.getByRole('separator', { name: 'Message list width' }).getAttribute('aria-valuenow')).toBe('284');
+    });
+
+    it('draws no grip under a finger, at a desktop width as at any other', () => {
+        fingered = true;
+        renderSpace(desktop);
+
+        expect(screen.getByRole('complementary', { name: 'Folders and filters' })).toBeDefined();
+        expect(screen.queryByRole('separator')).toBeNull();
+    });
+
+    it('opens both columns wider past the monitor width', () => {
+        renderSpace(2560, {}, 'marta');
+
+        expect(screen.getByRole('separator', { name: 'Message list width' }).getAttribute('aria-valuenow')).toBe('420');
+        expect(screen.getByRole('separator', { name: 'Mailbox column width' }).getAttribute('aria-valuenow')).toBe(
+            '240',
+        );
     });
 });

@@ -4,7 +4,7 @@
 
 import { Icon } from './Icon';
 import type { IconName } from './icons';
-import { controlShapes, labelledShape, symbolShown, type ControlShape } from './controlShapes';
+import { controlShapes, labelledShape, partsOf, symbolShown, type ControlShape } from './controlShapes';
 import { useLocalization } from '../localization/useLocalization';
 import { useTip } from './useTip';
 
@@ -52,9 +52,12 @@ export function PlannedControl({
                 className={`flex shrink-0 cursor-not-allowed items-center whitespace-nowrap opacity-60 transition ${controlShapes[shape]} ${className ?? ''}`}
             >
                 {icon === undefined || !symbolShown(shape) ? null : (
-                    <Icon name={icon} className={shape === 'floating' ? 'size-icon-2xl' : 'size-icon-md'} />
+                    <Icon
+                        name={icon}
+                        className={`${shape === 'floating' ? 'size-icon-2xl' : 'size-icon-md'} ${partsOf(shape).symbol}`}
+                    />
                 )}
-                {labelled ? <span>{label}</span> : null}
+                {labelled ? <span className={partsOf(shape).words}>{label}</span> : null}
             </button>
             {tip}
         </>

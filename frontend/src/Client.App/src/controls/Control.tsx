@@ -4,7 +4,7 @@
 
 import { Icon } from './Icon';
 import type { IconName } from './icons';
-import { controlShapes, labelledShape, symbolShown, type ControlShape } from './controlShapes';
+import { controlShapes, labelledShape, partsOf, symbolShown, type ControlShape } from './controlShapes';
 import { useTip } from './useTip';
 
 // A control that does something, in the shapes the design draws one. It is `PlannedControl`'s counterpart and
@@ -66,7 +66,8 @@ export function Control({
         onPress: pressedUnlessHeld,
         onHold,
     });
-    const spoken = !labelled || hint !== undefined;
+    // A shape that narrows to its symbol in a narrow pane needs its bubble for that form, and keeps it for the words.
+    const spoken = !labelled || shape === 'paneNamed' || hint !== undefined;
 
     return (
         <>
@@ -79,9 +80,12 @@ export function Control({
                 className={`flex shrink-0 items-center whitespace-nowrap transition aria-disabled:cursor-default aria-disabled:opacity-60 ${controlShapes[shape]} ${className ?? ''}`}
             >
                 {icon === undefined || !symbolShown(shape) ? null : (
-                    <Icon name={icon} className={shape === 'floating' ? 'size-icon-2xl' : 'size-icon-md'} />
+                    <Icon
+                        name={icon}
+                        className={`${shape === 'floating' ? 'size-icon-2xl' : 'size-icon-md'} ${partsOf(shape).symbol}`}
+                    />
                 )}
-                {labelled ? <span>{label}</span> : null}
+                {labelled ? <span className={partsOf(shape).words}>{label}</span> : null}
             </button>
             {spoken ? tip : null}
         </>
