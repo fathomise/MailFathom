@@ -146,21 +146,74 @@ public sealed class OwnAutomaticReplyTests : IAsyncDisposable
         });
     }
 
-    /// <summary>A reply that has not begun yet, or one saved again unchanged, changes nothing a colleague sees and tells nobody.</summary>
-    [Fact]
-    public async Task SaveAsync_NothingAColleagueSeesMoved_TellsNobody()
+    /// <summary>Switching a running reply off, or moving when it ends, changes what colleagues see and tells the organization.</summary>
+    /// <param name="isOn">Whether the reply saved over the running one is switched on.</param>
+    /// <param name="daysUntilItEnds">How many days after its start the reply saved over the running one ends.</param>
+    [Theory]
+    [InlineData(false, 7)]
+    [InlineData(true, 3)]
+    public async Task SaveAsync_ARunningReplySwitchedOffOrItsEndMoved_TellsTheOrganization(bool isOn, int daysUntilItEnds)
     {
         // Arrange
-        var replies = this.Replies(organization: Organization);
-        var nextWeek = StartsAt.AddDays(7);
+        await this.store.SaveAsync(SyntheticUser.Deployment, Reply([Work]), TestContext.Current.CancellationToken);
 
         // Act
-        await replies.SaveAsync(Reply([Work], startsAt: nextWeek), TestContext.Current.CancellationToken);
-        await replies.SaveAsync(Reply([Work], insideText: "Ask Ewa.", startsAt: nextWeek), TestContext.Current.CancellationToken);
+        await this.Replies(organization: Organization).SaveAsync(
+            Reply([Work], endsAt: StartsAt.AddDays(daysUntilItEnds), isOn: isOn),
+            TestContext.Current.CancellationToken);
         this.clock.Advance(ClientSignals.FoldingWindow);
         await this.signals.DrainAsync();
 
         // Assert
+        Assert.Equal(
+            [SyntheticUser.Deployment, SyntheticUser.Another],
+            this.channel.Published.Select(signal => signal.User!.Value).OrderBy(user => user.Value));
+    }
+
+    /// <summary>A running reply saved again with the same end, only its text changed, changes nothing a colleague sees and tells nobody.</summary>
+    [Fact]
+    public async Task SaveAsync_ARunningReplySavedAgainWithTheSameEnd_TellsNobody()
+    {
+        // Arrange
+        await this.store.SaveAsync(SyntheticUser.Deployment, Reply([Work]), TestContext.Current.CancellationToken);
+
+        // Act
+        await this.Replies(organization: Organization).SaveAsync(
+            Reply([Work], insideText: "Ask Ewa."),
+            TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
+        await this.signals.DrainAsync();
+
+        // Assert
+        Assert.Empty(this.channel.Published);
+    }
+
+    /// <summary>A reply that has not begun yet changes nothing a colleague sees now and tells nobody.</summary>
+    [Fact]
+    public async Task SaveAsync_AReplyThatHasNotBegun_TellsNobody()
+    {
+        // Act
+        await this.Replies(organization: Organization).SaveAsync(
+            Reply([Work], startsAt: StartsAt.AddDays(7)),
+            TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
+        await this.signals.DrainAsync();
+
+        // Assert
+        Assert.Empty(this.channel.Published);
+    }
+
+    /// <summary>A user in no organization has no colleagues, so a running reply is saved and nobody is told.</summary>
+    [Fact]
+    public async Task SaveAsync_AReplyRunningNowFromAUserInNoOrganization_IsSavedAndTellsNobody()
+    {
+        // Act
+        var write = await this.Replies(organization: null).SaveAsync(Reply([Work]), TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
+        await this.signals.DrainAsync();
+
+        // Assert
+        Assert.Equal(AutomaticReplyWriteOutcome.Saved, write.Outcome);
         Assert.Empty(this.channel.Published);
     }
 
@@ -178,15 +231,22 @@ public sealed class OwnAutomaticReplyTests : IAsyncDisposable
         Assert.Equal(AutomaticReplyWriteOutcome.UserUnknown, write.Outcome);
     }
 
-    private static AutomaticReply Reply(MailAccountId[] accounts, string? insideText = null, DateTimeOffset? startsAt = null)
+    private static AutomaticReply Reply(
+        MailAccountId[] accounts,
+        string? insideText = null,
+        DateTimeOffset? startsAt = null,
+        DateTimeOffset? endsAt = null,
+        bool isOn = true)
     {
+        var start = startsAt ?? StartsAt;
+
         Assert.True(AutomaticReply.TryCreate(
             insideText,
             "I am away.",
             accounts,
-            startsAt ?? StartsAt,
-            (startsAt ?? StartsAt).AddDays(7),
-            isOn: true,
+            start,
+            endsAt ?? start.AddDays(7),
+            isOn,
             out var reply,
             out _));
 
