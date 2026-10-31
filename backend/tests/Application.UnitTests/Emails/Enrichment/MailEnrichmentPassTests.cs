@@ -225,6 +225,40 @@ public sealed class MailEnrichmentPassTests
         Assert.Equal([first.StoredEmailId], Assert.Single(channel.Published).Emails);
     }
 
+    /// <summary>A message whose record committed is said even where announcing the dates it proposed fails afterwards.</summary>
+    [Fact]
+    public async Task RunAsync_AnnouncingProposalsFailingAfterTheCommit_StillSignalsTheCommittedMessage()
+    {
+        // Arrange
+        var email = Enrichable();
+        var clock = new FakeTimeProvider(DerivedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var assignments = Substitute.For<IMailAccountAssignments>();
+        assignments
+            .ReadUsersAssignedToAsync(Account, Arg.Any<CancellationToken>())
+            .Returns(
+                _ => Task.FromResult<IReadOnlyList<UserId>>([Owner]),
+                _ => throw new InvalidOperationException("The assignments could not be read."));
+        var pass = CreatePass(
+            StoreReturning([email]),
+            EnricherAnswering(_ => EmailEnrichmentDerivation.Settled([Sense()])),
+            proposals: ProposalsOver(
+                ExtractorAnswering(CalendarEventExtraction.Settled([Proposed()])),
+                Substitute.For<ICalendarEventStore>(),
+                assignments),
+            signals: signals);
+
+        // Act
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => pass.RunAsync(Account, TestContext.Current.CancellationToken));
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal([email.StoredEmailId], Assert.Single(channel.Published).Emails);
+    }
+
     /// <summary>A pass that committed nothing — none awaiting, or the first derivation withheld — has nothing to tell anybody.</summary>
     [Theory]
     [InlineData(false)]
@@ -648,10 +682,14 @@ public sealed class MailEnrichmentPassTests
     /// </remarks>
     private static MailCalendarProposals ProposalsOver(
         ICalendarEventExtractor extractor,
-        ICalendarEventStore events)
+        ICalendarEventStore events,
+        IMailAccountAssignments? assignments = null)
     {
-        var assignments = Substitute.For<IMailAccountAssignments>();
-        assignments.ReadUsersAssignedToAsync(Account, Arg.Any<CancellationToken>()).Returns([Owner]);
+        if (assignments is null)
+        {
+            assignments = Substitute.For<IMailAccountAssignments>();
+            assignments.ReadUsersAssignedToAsync(Account, Arg.Any<CancellationToken>()).Returns([Owner]);
+        }
 
         return new MailCalendarProposals(extractor, events, assignments, new FakeTimeProvider(DerivedAt), ClientSignalPublishers.ReachingNobody);
     }

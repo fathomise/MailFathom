@@ -265,13 +265,13 @@ public sealed class MailEnrichmentPass
                 },
                 cancellationToken);
 
+            committed.Add(email.StoredEmailId);
+
             if (staged > 0)
             {
                 proposedCount += staged;
                 await this.calendarProposals.AnnounceAsync(account, cancellationToken);
             }
-
-            committed.Add(email.StoredEmailId);
 
             if (derivation.Marks.Count > 0)
             {
