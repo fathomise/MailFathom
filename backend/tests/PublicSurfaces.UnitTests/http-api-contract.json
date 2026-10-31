@@ -5700,6 +5700,32 @@
         ],
         "type": "object"
       },
+      "ColleagueStructureResponse": {
+        "properties": {
+          "directReports": {
+            "items": {
+              "$ref": "#/components/schemas/ColleagueResponse"
+            },
+            "type": "array"
+          },
+          "managers": {
+            "items": {
+              "$ref": "#/components/schemas/ColleagueResponse"
+            },
+            "type": "array"
+          },
+          "readerId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "managers",
+          "directReports",
+          "readerId"
+        ],
+        "type": "object"
+      },
       "CollectedContactErasureResponse": {
         "properties": {
           "addressesErased": {
@@ -12787,6 +12813,21 @@
         ],
         "type": "object"
       },
+      "UserManagerRequest": {
+        "properties": {
+          "managerId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "managerId"
+        ],
+        "type": "object"
+      },
       "UserOrganizationRequest": {
         "properties": {
           "none": {
@@ -13042,6 +13083,13 @@
               "string"
             ]
           },
+          "managerId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "mcpEndpoint": {
             "type": "boolean"
           },
@@ -13059,7 +13107,8 @@
           "mcpEndpoint",
           "clientEndpoint",
           "type",
-          "jobTitle"
+          "jobTitle",
+          "managerId"
         ],
         "type": "object"
       },
@@ -17991,6 +18040,54 @@
         ]
       }
     },
+    "/api/admin/users/{userId}/manager": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserManagerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
     "/api/admin/users/{userId}/organization": {
       "put": {
         "parameters": [
@@ -19514,6 +19611,44 @@
               }
             },
             "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/contacts/colleagues/{userId}/structure": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColleagueStructureResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
           }
         },
         "security": [

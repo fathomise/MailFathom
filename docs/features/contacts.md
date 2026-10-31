@@ -164,6 +164,18 @@ under `mailfathom.contacts.read`, and the promotion under `mailfathom.contacts.w
 contact routes](../operations/client-endpoint.md#the-contact-routes) holds the routes. A user's job title and type are an
 administrator's to write, through `mfctl user set-job-title` and `mfctl user set-type`.
 
+**Where a colleague sits is read from one manager per person.** An administrator names, with `mfctl user set-manager`,
+the member of the same organization a user reports to, and that one upward edge is the only fact stored: a colleague's
+direct reports are every member naming them, derived on each read and never written. A colleague's page shows the chain
+of managers from the top of the organization down to them, then their direct reports by name, each leading to that
+member's own page. The reader stands in the structure like anybody else and leads nowhere, being nobody's colleague to
+themselves, and a manager the directory does not list — a service account — ends the chain above it rather than leaving a
+gap. The deployment refuses a manager who is the user, who is not a person of the user's organization, or who already
+reports to the user directly or through others, and each refusal names its rule. A manager who leaves the organization,
+or is erased, stops being anybody's manager there, and a user who moves to another organization leaves their own manager
+behind. The structure is read beneath `/contacts/colleagues/{userId}/structure` under `mailfathom.contacts.read`, for the
+client alone: no MCP tool reads it.
+
 ## A contact is a person, not an address
 
 One person uses a work address, a personal one, and an old one they still receive on. A book keyed on the address could

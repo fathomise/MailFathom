@@ -4,6 +4,8 @@
 
 using System.Text.Json;
 using MailFathom.Cli.Administration;
+using MailFathom.Cli.Administration.Users;
+using MailFathom.Cli.Commands.Users;
 using MailFathom.Cli.Editing;
 using MailFathom.TestSupport;
 using Xunit;
@@ -966,6 +968,101 @@ public sealed class UserCommandTests : IDisposable
         // Assert
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Empty(deployment.UserRequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserJobTitlePath(User)));
+    }
+
+    /// <summary>The manager is sent by the identifier the roster lists them under, and the command says who the user now reports to.</summary>
+    [Fact]
+    public async Task SetManager_AManager_SendsTheIdentifierAndReportsIt()
+    {
+        // Arrange
+        using var deployment = FakeUserRecordDeployment.Holding(User);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "user",
+            "set-manager",
+            "--user",
+            $"{User:D}",
+            "--manager",
+            $"{AnotherUser:D}",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+
+        var write = Assert.Single(deployment.UserRequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserManagerPath(User)));
+
+        Assert.Equal($"{AnotherUser:D}", ReadField(write.ContentAsUtf8String(), "managerId"));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains($"now reports to user {AnotherUser:D}", StringComparison.Ordinal));
+    }
+
+    /// <summary>The listing names each user's manager by the identifier the listing itself names users by, and says nothing for a user naming nobody.</summary>
+    [Fact]
+    public void WriteRoster_AUserNamingAManager_PrintsTheManagerBesideThem()
+    {
+        // Arrange
+        var console = new RecordingCliConsole();
+
+        // Act
+        UserOutput.WriteRoster(
+            console,
+            [
+                new UserRosterEntry(User, "alex", Served: true, McpEndpoint: true, ClientEndpoint: true, ManagerId: AnotherUser),
+                new UserRosterEntry(AnotherUser, "sam", Served: true, McpEndpoint: true, ClientEndpoint: true),
+            ]);
+
+        // Assert
+        Assert.Equal([$"    manager: {AnotherUser:D}"], console.Lines.Where(line => line.Contains("manager:", StringComparison.Ordinal)));
+    }
+
+    /// <summary>Naming nobody is its own flag, so clearing the manager is never an identifier somebody left out.</summary>
+    [Fact]
+    public async Task SetManager_None_SendsNoManager()
+    {
+        // Arrange
+        using var deployment = FakeUserRecordDeployment.Holding(User);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "user",
+            "set-manager",
+            "--user",
+            $"{User:D}",
+            "--none",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+
+        var write = Assert.Single(deployment.UserRequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserManagerPath(User)));
+
+        Assert.Equal(
+            JsonValueKind.Null,
+            JsonDocument.Parse(write.ContentAsUtf8String()).RootElement.GetProperty("managerId").ValueKind);
+    }
+
+    /// <summary>A manager beside the flag naming nobody, and neither of them, are both refused before anything is sent.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SetManager_BothOrNeither_IsRefusedBeforeAnythingIsSent(bool both)
+    {
+        // Arrange
+        using var deployment = FakeUserRecordDeployment.Holding(User);
+        string[] named = both ? ["--manager", $"{AnotherUser:D}", "--none"] : [];
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            ["user", "set-manager", "--user", $"{User:D}", .. named, "--endpoint", Endpoint]);
+
+        // Assert
+        Assert.Equal(CliExitCode.Failure, exitCode);
+        Assert.Empty(deployment.UserRequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserManagerPath(User)));
     }
 
     /// <summary>A technical account leaves the member directory, so the command sends the type by name and reports it.</summary>

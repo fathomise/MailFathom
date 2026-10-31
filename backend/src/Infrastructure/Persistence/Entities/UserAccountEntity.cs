@@ -72,6 +72,10 @@ internal sealed class UserAccountEntity
     /// <remarks>A column for the reason <see cref="Type" /> is one.</remarks>
     public string? JobTitle { get; set; }
 
+    /// <summary>The member of the same organization this user reports to, or <see langword="null" /> for nobody.</summary>
+    /// <remarks>A column for the reason <see cref="Type" /> is one. Who reports to a user is never stored: it is every row naming them here.</remarks>
+    public Guid? ManagerId { get; set; }
+
     /// <summary>The user's configurable record, as one <c>jsonb</c> document.</summary>
     /// <remarks>
     /// Held as text because nothing here reads into it: what the document contains — the user's mail-account

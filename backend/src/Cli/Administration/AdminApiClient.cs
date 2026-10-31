@@ -1678,6 +1678,31 @@ internal sealed class AdminApiClient
             NoSuchUser);
     }
 
+    /// <summary>Names the member of the same organization one user reports to, or names nobody.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="userId">The user whose manager is written.</param>
+    /// <param name="request">The manager from now on, or nobody.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>A task that completes once the deployment has accepted the manager.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> or <paramref name="request" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the request, naming the rule the manager broke, or refused the credential, could not be reached, or holds no such user.</exception>
+    internal Task SetUserManagerAsync(
+        string token,
+        Guid userId,
+        UserManagerRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return this.RequestAsync(
+            HttpMethod.Put,
+            AdminEndpointRoutes.UserManagerPath(userId),
+            token,
+            cancellationToken,
+            JsonContent.Create(request, CliJsonContext.Default.UserManagerRequest),
+            NoSuchUser);
+    }
+
     /// <summary>Marks one user a person or a technical account.</summary>
     /// <param name="token">The bearer credential to present.</param>
     /// <param name="userId">The user whose type is written.</param>

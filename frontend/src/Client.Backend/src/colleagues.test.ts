@@ -3,7 +3,15 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { parseColleague, promoteColleague, readColleague, readColleaguePhoto, readColleagues } from './colleagues';
+import {
+    mostColleaguesInStructure,
+    parseColleague,
+    promoteColleague,
+    readColleague,
+    readColleaguePhoto,
+    readColleagues,
+    readColleagueStructure,
+} from './colleagues';
 import type { ClientSession } from './session';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
 
@@ -103,6 +111,80 @@ describe('readColleague', () => {
 
     it('reads a member who left the organization as somebody to let go of', async () => {
         const result = await readColleague(session, answering({ status: 404, body: '' }), member.id);
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
+    });
+});
+
+describe('readColleagueStructure', () => {
+    const manager = { ...member, id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91', displayName: 'Zofia Krawczyk' };
+    const report = { ...member, id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92', displayName: 'Hanna Mazur' };
+
+    it("asks for the member's structure the user identity names", async () => {
+        const { transport, requests } = recording({
+            status: 200,
+            body: JSON.stringify({ managers: [], directReports: [], readerId: report.id }),
+        });
+
+        await readColleagueStructure(session, transport, member.id);
+
+        expect(requests[0]?.path).toBe(
+            'https://mail.example.invalid/api/client/contacts/colleagues/0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90/structure',
+        );
+    });
+
+    it('reads the managers above the member and the members reporting to them', async () => {
+        const body = JSON.stringify({ managers: [manager], directReports: [report], readerId: report.id });
+
+        const result = await readColleagueStructure(session, answering({ status: 200, body }), member.id);
+
+        expect(result).toEqual({
+            outcome: 'read',
+            value: { managers: [manager], directReports: [report], readerId: report.id },
+        });
+    });
+
+    it('refuses a structure naming no reader, or holding a row that is not a member', async () => {
+        const nameless = JSON.stringify({ managers: [], directReports: [] });
+        const foreign = JSON.stringify({
+            managers: [{ ...manager, book: 'Own' }],
+            directReports: [],
+            readerId: report.id,
+        });
+
+        const unnamed = await readColleagueStructure(session, answering({ status: 200, body: nameless }), member.id);
+        const mixed = await readColleagueStructure(session, answering({ status: 200, body: foreign }), member.id);
+
+        expect([unnamed, mixed]).toEqual([
+            { outcome: 'failed', failure: { reason: 'unreadable', status: 200 } },
+            { outcome: 'failed', failure: { reason: 'unreadable', status: 200 } },
+        ]);
+    });
+
+    it('refuses a structure holding more managers or more direct reports than a directory can', async () => {
+        const tooMany = Array.from({ length: mostColleaguesInStructure + 1 }, () => report);
+        const managersPastTheBound = JSON.stringify({ managers: tooMany, directReports: [], readerId: report.id });
+        const reportsPastTheBound = JSON.stringify({ managers: [], directReports: tooMany, readerId: report.id });
+
+        const managers = await readColleagueStructure(
+            session,
+            answering({ status: 200, body: managersPastTheBound }),
+            member.id,
+        );
+        const reports = await readColleagueStructure(
+            session,
+            answering({ status: 200, body: reportsPastTheBound }),
+            member.id,
+        );
+
+        expect([managers, reports]).toEqual([
+            { outcome: 'failed', failure: { reason: 'unreadable', status: 200 } },
+            { outcome: 'failed', failure: { reason: 'unreadable', status: 200 } },
+        ]);
+    });
+
+    it('reads a member who left the organization as somebody to let go of', async () => {
+        const result = await readColleagueStructure(session, answering({ status: 404, body: '' }), member.id);
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
     });

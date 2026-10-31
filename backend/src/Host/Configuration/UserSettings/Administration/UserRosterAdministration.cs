@@ -112,6 +112,7 @@ internal sealed partial class UserRosterAdministration(
                 {
                     Type = record.Type,
                     JobTitle = record.JobTitle,
+                    Manager = record.Manager,
                 }),
             ],
             page.ContinuesAfter);
@@ -393,6 +394,56 @@ internal sealed partial class UserRosterAdministration(
         return UserRowWriteOutcome.Written;
     }
 
+    /// <summary>Names the member of the same organization a user this deployment already holds reports to, or names nobody.</summary>
+    /// <param name="user">The user whose manager is written.</param>
+    /// <param name="manager">The manager from now on, or <see langword="null" /> to name nobody.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>Whether the deployment holds this user at all, and the sentence naming the rule the manager broke where it holds them and refused.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> or <paramref name="manager" /> names nobody.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller's grant omits <see cref="MailFathomPermission.AdminConfigurationWrite" /> at every scope.</exception>
+    /// <remarks>
+    /// <para>
+    /// The manager is the organization's statement about where a person sits, as the title is, so it is an
+    /// administrator's to write and no settings policy governs it. Direct reports are never written: they are read from
+    /// whoever names a member here.
+    /// </para>
+    /// <para>
+    /// A manager this deployment does not hold and one belonging to another organization are refused in one sentence, so
+    /// an administrator scoped to one organization learns nothing about who exists beyond it.
+    /// </para>
+    /// </remarks>
+    internal async Task<UserRowWriteOutcome> SetManagerAsync(
+        UserId user,
+        UserId? manager,
+        CancellationToken cancellationToken)
+    {
+        if (!user.IsSpecified)
+        {
+            throw new ArgumentException("A manager is written for a named user.", nameof(user));
+        }
+
+        if (manager is { IsSpecified: false })
+        {
+            throw new ArgumentException("A manager is named by a user's identifier.", nameof(manager));
+        }
+
+        authorization.RequirePermissionAtAnyScope(MailFathomPermission.AdminConfigurationWrite);
+
+        if (!await this.IsHeldWithinWriteScopeAsync(user, cancellationToken))
+        {
+            return UserRowWriteOutcome.NoSuchUser;
+        }
+
+        var outcome = ManagerAssignmentOutcome(await provisioning.SetManagerAsync(user, manager, cancellationToken));
+
+        if (outcome.IsWritten)
+        {
+            this.LogUserManagerWritten(manager is not null);
+        }
+
+        return outcome;
+    }
+
     /// <summary>Erases one user and everything this deployment recorded for them, once their own work has stopped.</summary>
     /// <param name="user">The user to remove.</param>
     /// <param name="cancellationToken">Cancels the erasure before it commits.</param>
@@ -586,6 +637,24 @@ internal sealed partial class UserRosterAdministration(
             : null;
     }
 
+    /// <summary>Says what naming a manager did, as the sentence naming the rule where it was refused.</summary>
+    private static UserRowWriteOutcome ManagerAssignmentOutcome(ManagerAssignmentResult result) => result switch
+    {
+        ManagerAssignmentResult.Assigned => UserRowWriteOutcome.Written,
+        ManagerAssignmentResult.UnknownUser => UserRowWriteOutcome.NoSuchUser,
+        ManagerAssignmentResult.OwnManager => UserRowWriteOutcome.Refused(
+            "A user is never their own manager. Name somebody else, or nobody."),
+        ManagerAssignmentResult.UserInNoOrganization => UserRowWriteOutcome.Refused(
+            "This user belongs to no organization, and a manager is always a member of the user's own. Move them into one first, or name nobody."),
+        ManagerAssignmentResult.UnknownManager or ManagerAssignmentResult.ManagerOutsideOrganization => UserRowWriteOutcome.Refused(
+            "The manager named is not a member of this user's organization, and a manager is always one. List the users to read who is, or name nobody."),
+        ManagerAssignmentResult.ManagerNotAPerson => UserRowWriteOutcome.Refused(
+            "The manager named is a service account, and a manager is always a person. Name a person of the organization, or nobody."),
+        ManagerAssignmentResult.ReportingCycle => UserRowWriteOutcome.Refused(
+            "The manager named already reports to this user, directly or through others, and nobody is their own manager through a chain. Change that manager's own first, or name somebody else."),
+        _ => throw new ArgumentOutOfRangeException(nameof(result), result, "A manager assignment answers a declared result."),
+    };
+
     /// <summary>Says that the organization a user was to be recorded into is not one this deployment holds.</summary>
     /// <remarks>Also what an organization outside the caller's scope is answered with, so a refusal never tells a scoped administrator which organizations exist beyond their own.</remarks>
     private static string NoSuchOrganization(Guid organizationId) =>
@@ -615,6 +684,12 @@ internal sealed partial class UserRosterAdministration(
         Level = LogLevel.Information,
         Message = "A user this deployment holds had their job title written. A title is now stated: {TitleStated}.")]
     private partial void LogUserJobTitleWritten(bool titleStated);
+
+    /// <remarks>Whether a manager is now named, and neither the user nor the manager, for the reason the title's line names neither.</remarks>
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "A user this deployment holds had their manager written. A manager is now named: {ManagerNamed}.")]
+    private partial void LogUserManagerWritten(bool managerNamed);
 
     /// <remarks>The type alone, a closed value naming nobody; a service account leaves its organization's member directory on the next read.</remarks>
     [LoggerMessage(

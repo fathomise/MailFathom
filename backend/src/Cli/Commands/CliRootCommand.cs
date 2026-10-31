@@ -233,6 +233,7 @@ internal static class CliRootCommand
             EditUserRecordCommand.Create(context),
             RenameUserCommand.Create(context),
             SetUserJobTitleCommand.Create(context),
+            SetUserManagerCommand.Create(context),
             SetUserTypeCommand.Create(context),
             SetUserEndpointsCommand.Create(context),
             SetUserOrganizationCommand.Create(context),

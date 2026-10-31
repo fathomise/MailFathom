@@ -198,6 +198,7 @@ internal static class FakeUserRecordDeployment
 
         if (path.EndsWith("/display-name", StringComparison.Ordinal)
             || path.EndsWith("/job-title", StringComparison.Ordinal)
+            || path.EndsWith("/manager", StringComparison.Ordinal)
             || path.EndsWith("/type", StringComparison.Ordinal))
         {
             // Acceptance is the whole answer, so the deployment sends no body and the command has nothing to read.

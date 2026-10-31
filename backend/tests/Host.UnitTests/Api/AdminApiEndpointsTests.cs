@@ -284,6 +284,7 @@ public sealed class AdminApiEndpointsTests
                 $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserDisplayNameRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserEndpointAccessRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserJobTitleRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserManagerRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{OrganizationEndpoints.UserOrganizationRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{GrantEndpoints.UserPermissionsRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{UserRecordEndpoints.UserRecordRoute}",
@@ -401,6 +402,7 @@ public sealed class AdminApiEndpointsTests
                 $"PUT {prefix}{UserRecordEndpoints.UserDisplayNameRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
                 $"PUT {prefix}{UserRecordEndpoints.UserEndpointAccessRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
                 $"PUT {prefix}{UserRecordEndpoints.UserJobTitleRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"PUT {prefix}{UserRecordEndpoints.UserManagerRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
                 $"PUT {prefix}{UserRecordEndpoints.UserTypeRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
                 $"GET {prefix}{UserRecordEndpoints.UserRecordRoute} -> {MailFathomPermission.AdminRead.Name} over its target",
                 $"POST {prefix}{UserRecordEndpoints.UserRecordRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
@@ -546,6 +548,7 @@ public sealed class AdminApiEndpointsTests
     [InlineData("PUT", UserRecordEndpoints.UserDisplayNameRoute)]
     [InlineData("PUT", UserRecordEndpoints.UserEndpointAccessRoute)]
     [InlineData("PUT", UserRecordEndpoints.UserJobTitleRoute)]
+    [InlineData("PUT", UserRecordEndpoints.UserManagerRoute)]
     [InlineData("PUT", UserRecordEndpoints.UserTypeRoute)]
     [InlineData("POST", UserRecordEndpoints.UserRecordRoute)]
     [InlineData("POST", MailAccountEndpoints.MailAccountsRoute)]

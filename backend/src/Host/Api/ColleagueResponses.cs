@@ -84,6 +84,31 @@ internal sealed record WorkingHoursResponse(IReadOnlyList<string> Days, string S
             hours.End.ToString("HH:mm", CultureInfo.InvariantCulture));
 }
 
+/// <summary>Where one colleague sits in the reader's organization.</summary>
+/// <param name="Managers">The managers above the colleague, from the top of the organization down to the colleague's own.</param>
+/// <param name="DirectReports">The members reporting to the colleague, ordered by name.</param>
+/// <param name="ReaderId">The reader's own user identity, which either list may hold and which leads to no colleague.</param>
+/// <remarks>Personal data about colleagues, travelling as <see cref="ColleagueResponse" /> does and nowhere else.</remarks>
+internal sealed record ColleagueStructureResponse(
+    IReadOnlyList<ColleagueResponse> Managers,
+    IReadOnlyList<ColleagueResponse> DirectReports,
+    Guid ReaderId)
+{
+    /// <summary>Describes one colleague's structure for the reader.</summary>
+    /// <param name="structure">The structure as the directory derived it.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="structure" /> is <see langword="null" />.</exception>
+    internal static ColleagueStructureResponse For(ColleagueStructure structure)
+    {
+        ArgumentNullException.ThrowIfNull(structure);
+
+        return new ColleagueStructureResponse(
+            [.. structure.Managers.Select(ColleagueResponse.For)],
+            [.. structure.DirectReports.Select(ColleagueResponse.For)],
+            structure.Reader.Value);
+    }
+}
+
 /// <summary>One bounded page of the reader's colleagues, and where the walk continues.</summary>
 /// <param name="Contacts">The colleagues this page holds, ordered by name and then by identity.</param>
 /// <param name="NextCursor">The cursor the following page is asked with, or nothing at the end of the directory.</param>

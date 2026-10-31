@@ -169,6 +169,18 @@ function deployment({
                         });
                     });
                 }
+            } else if (path.endsWith('/structure')) {
+                // Every colleague reports to the first one listed, who reports to nobody.
+                const [head, ...rest] = colleagues as readonly { readonly id: string }[];
+                const opened = path.split('/').at(-2);
+                answer = {
+                    ...answered,
+                    body: JSON.stringify({
+                        managers: opened === head?.id ? [] : [head],
+                        directReports: opened === head?.id ? rest : [],
+                        readerId: 'reader',
+                    }),
+                };
             } else if (path.includes('/correspondence')) {
                 answer = { ...answered, body: JSON.stringify({ contactId: 'anna', threads: [], documents: [] }) };
             } else if (path.includes('/contacts/colleagues')) {
@@ -951,6 +963,24 @@ describe('PeopleSpace', () => {
             expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull();
             // The directory serves no correspondence for a member, so none is asked for.
             expect(sent().some((request) => request.path.includes('/correspondence'))).toBe(false);
+        });
+
+        it("opens a colleague's manager from where they sit in the organization, in the colleague's place", async () => {
+            const { transport } = deployment({
+                colleagues: [colleagueCalled('zofia', 'Zofia Nowak'), colleagueCalled('piotr', 'Piotr Zieliński')],
+            });
+            drawSpace(transport, { inOrganization: true });
+
+            fireEvent.click(await screen.findByRole('option', { name: /Piotr Zieliński/u }));
+            const organization = await screen.findByRole('region', { name: 'Organization' });
+            fireEvent.click(await within(organization).findByRole('button', { name: /Zofia Nowak/u }));
+
+            expect(await screen.findByRole('heading', { name: 'Zofia Nowak' })).toBeDefined();
+            expect(
+                await within(screen.getByRole('region', { name: 'Organization' })).findByRole('button', {
+                    name: /Piotr Zieliński/u,
+                }),
+            ).toBeDefined();
         });
     });
 

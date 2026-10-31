@@ -43,6 +43,10 @@ public sealed record MemberContact(
     UserTimeZone? TimeZone,
     WorkingHours? WorkingHours)
 {
+    /// <summary>Gets the member of the same organization this member reports to, or <see langword="null" /> where an administrator named nobody.</summary>
+    /// <remarks>The one fact about the organization's structure that is stored; who reports to a member is every member naming them here.</remarks>
+    public UserId? Manager { get; init; }
+
     /// <summary>Resolves which of a member's current addresses answers as their preferred one.</summary>
     /// <param name="addresses">The member's current addresses, in the ordinal order of their accounts' identifiers.</param>
     /// <param name="stated">The preferred address the member's record states, or <see langword="null" /> where it states none.</param>

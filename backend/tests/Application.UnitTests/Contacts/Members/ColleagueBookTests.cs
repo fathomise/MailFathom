@@ -328,6 +328,86 @@ public sealed class ColleagueBookTests
         Assert.Equal(0, this.store.ContactCount);
     }
 
+    /// <summary>The chain runs from the top of the organization down to the colleague's own manager, and the reports are every member naming the colleague, by name.</summary>
+    [Fact]
+    public async Task ReadStructureAsync_AColleagueInTheMiddleOfTheLine_DerivesTheManagersAboveAndTheReportsBelow()
+    {
+        // Arrange
+        var marta = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000c004"));
+        var adam = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000c005"));
+        this.Holding(
+            MemberOf(Zofia, "Zofia Nowak"),
+            MemberOf(Piotr, "Piotr Zieliński") with { Manager = Zofia },
+            MemberOf(marta, "Marta Nowak") with { Manager = Piotr },
+            MemberOf(adam, "Adam Lewandowski") with { Manager = Piotr },
+            MemberOf(Reader, "Anna Kowalska") with { Manager = marta });
+
+        // Act
+        var structure = await this.BookFor(Organization).ReadStructureAsync(Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(structure);
+        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Member));
+        Assert.Equal([adam, marta], structure.DirectReports.Select(colleague => colleague.Member));
+        Assert.Equal(Reader, structure.Reader);
+    }
+
+    /// <summary>The reader stands in the line like anybody else, so a colleague the reader manages reads the reader above them.</summary>
+    [Fact]
+    public async Task ReadStructureAsync_AColleagueTheReaderManages_ListsTheReaderAboveThem()
+    {
+        // Arrange
+        this.Holding(
+            MemberOf(Zofia, "Zofia Nowak"),
+            MemberOf(Reader, "Anna Kowalska") with { Manager = Zofia },
+            MemberOf(Piotr, "Piotr Zieliński") with { Manager = Reader });
+
+        // Act
+        var structure = await this.BookFor(Organization).ReadStructureAsync(Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(structure);
+        Assert.Equal([Zofia, Reader], structure.Managers.Select(colleague => colleague.Member));
+        Assert.Empty(structure.DirectReports);
+    }
+
+    /// <summary>A manager the directory no longer lists — a service account — ends the line rather than leaving a hole in it.</summary>
+    [Fact]
+    public async Task ReadStructureAsync_AManagerTheDirectoryDoesNotList_EndsTheLineBelowThem()
+    {
+        // Arrange
+        var serviceAccount = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000c006"));
+        this.Holding(
+            MemberOf(Zofia, "Zofia Nowak") with { Manager = serviceAccount },
+            MemberOf(Piotr, "Piotr Zieliński") with { Manager = Zofia });
+
+        // Act
+        var structure = await this.BookFor(Organization).ReadStructureAsync(Piotr, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(structure);
+        Assert.Equal([Zofia], structure.Managers.Select(colleague => colleague.Member));
+    }
+
+    /// <summary>The structure is read only for a colleague: the reader themselves and a member of no organization the reader shares are nobody here.</summary>
+    [Fact]
+    public async Task ReadStructureAsync_TheReaderOrAUserTheDirectoryDoesNotList_IsNothing()
+    {
+        // Arrange
+        this.Holding(MemberOf(Reader, "Anna Kowalska"), MemberOf(Zofia, "Zofia Nowak"));
+        var book = this.BookFor(Organization);
+
+        // Act
+        var own = await book.ReadStructureAsync(Reader, TestContext.Current.CancellationToken);
+        var stranger = await book.ReadStructureAsync(Piotr, TestContext.Current.CancellationToken);
+        var outside = await this.BookFor(organization: null).ReadStructureAsync(Zofia, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(own);
+        Assert.Null(stranger);
+        Assert.Null(outside);
+    }
+
     private static MemberContact MemberOf(UserId member, string displayName, params string[] addresses)
     {
         EmailAddress[] held = [.. addresses.Select(Address)];

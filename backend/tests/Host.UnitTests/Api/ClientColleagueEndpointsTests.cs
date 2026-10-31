@@ -47,6 +47,7 @@ public sealed class ClientColleagueEndpointsTests
         Assert.Equal("/contacts/colleagues", ClientColleagueEndpoints.ColleaguesRoute);
         Assert.Equal("/contacts/colleagues/{userId:guid}", ClientColleagueEndpoints.ColleagueRoute);
         Assert.Equal("/contacts/colleagues/{userId:guid}/photo", ClientColleagueEndpoints.ColleaguePhotoRoute);
+        Assert.Equal("/contacts/colleagues/{userId:guid}/structure", ClientColleagueEndpoints.ColleagueStructureRoute);
         Assert.Equal("/contacts/colleagues/{userId:guid}/promotion", ClientColleagueEndpoints.ColleaguePromotionRoute);
     }
 
@@ -128,6 +129,44 @@ public sealed class ClientColleagueEndpointsTests
         Assert.IsType<NotFound>(result.Result);
     }
 
+    /// <summary>The structure names the managers top-down, the reports below, and the reader, so the client knows which row leads nowhere.</summary>
+    [Fact]
+    public async Task ReadStructureAsync_AColleagueWithAManagerAndAReport_DescribesBothAndTheReader()
+    {
+        // Arrange
+        var report = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000e1ab"));
+        this.Holding(
+            ColleagueNamed(SyntheticUser.Deployment, "Anna Kowalska"),
+            ColleagueNamed(Piotr, "Piotr Zieliński") with { Manager = SyntheticUser.Deployment },
+            ColleagueNamed(report, "Oliver Brandt") with { Manager = Piotr });
+
+        // Act
+        var result = await ClientColleagueEndpoints.ReadStructureAsync(Piotr.Value, this.Colleagues(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var structure = Assert.IsType<Ok<ColleagueStructureResponse>>(result.Result).Value!;
+        Assert.Equal([SyntheticUser.Deployment.Value], structure.Managers.Select(colleague => colleague.Id));
+        Assert.Equal([report.Value], structure.DirectReports.Select(colleague => colleague.Id));
+        Assert.Equal(SyntheticUser.Deployment.Value, structure.ReaderId);
+    }
+
+    /// <summary>The structure is answered as one colleague is: nobody, a stranger, and the reader all find no such colleague.</summary>
+    [Theory]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("0198f0aa-0000-7000-8000-00000000e1aa")]
+    [InlineData("11111111-1111-1111-1111-111111111111")]
+    public async Task ReadStructureAsync_NoSuchColleague_AnswersNotFound(string userId)
+    {
+        // Arrange
+        this.Holding(ColleagueNamed(SyntheticUser.Deployment, "Anna Kowalska"));
+
+        // Act
+        var result = await ClientColleagueEndpoints.ReadStructureAsync(Guid.Parse(userId), this.Colleagues(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound>(result.Result);
+    }
+
     /// <summary>A contact needs an address, so promoting a colleague with no mailbox of their own is a request the client reports.</summary>
     [Fact]
     public async Task PromoteAsync_AColleagueWithNoAddress_IsRefused()
@@ -153,6 +192,18 @@ public sealed class ClientColleagueEndpointsTests
         Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
         Assert.Empty(this.store.ReceivedCalls());
     }
+
+    private static MemberContact ColleagueNamed(UserId member, string displayName) => new(
+        member,
+        ContactDisplayName.Create(displayName),
+        [],
+        PreferredAddress: null,
+        [],
+        JobTitle: null,
+        "Nordwind",
+        Portrait: null,
+        TimeZone: null,
+        WorkingHours: null);
 
     private static EmailAddress Mailbox(string address)
     {

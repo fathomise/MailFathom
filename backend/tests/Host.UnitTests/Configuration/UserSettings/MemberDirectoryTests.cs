@@ -10,6 +10,7 @@ using MailFathom.Host.Configuration.UserSettings;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Users;
+using MailFathom.TestSupport;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -42,7 +43,10 @@ public sealed class MemberDirectoryTests
                "PreferredAddress": "P.Zielinski@nordwind.example",
                "PhoneNumbers": [{"Number": "+48 600 100 200", "Label": "Mobile"}]}
               """,
-            ["piotr@nordwind.example", "p.zielinski@nordwind.example"]));
+            ["piotr@nordwind.example", "p.zielinski@nordwind.example"])
+        {
+            Manager = SyntheticUser.Third,
+        });
 
         // Act
         var member = Assert.Single(await this.Directory().ReadAsync(Organization, TestContext.Current.CancellationToken));
@@ -57,6 +61,7 @@ public sealed class MemberDirectoryTests
         Assert.Equal("Nordwind", member.OrganizationName);
         Assert.Equal(PiotrsPortrait, member.Portrait?.Value);
         Assert.Equal("Europe/Warsaw", member.TimeZone?.Id);
+        Assert.Equal(SyntheticUser.Third, member.Manager);
     }
 
     /// <summary>

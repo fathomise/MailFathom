@@ -96,7 +96,10 @@ internal sealed class MemberDirectory(IOrganizationMemberReader members, UserAcc
             organizationName,
             record?.Portrait is { } portrait && portrait != Guid.Empty ? StoredFileId.Create(portrait) : null,
             record?.ReadingTimeZone,
-            record?.ReadingWorkingHours);
+            record?.ReadingWorkingHours)
+        {
+            Manager = member.Manager,
+        };
     }
 
     /// <summary>Binds the record a member is served with, or nothing where it does not bind.</summary>

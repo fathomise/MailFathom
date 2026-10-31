@@ -66,6 +66,9 @@ internal static class UserRecordEndpoints
     /// <summary>The route one user is marked a person or a technical account at.</summary>
     internal const string UserTypeRoute = $"{UserRoute}/type";
 
+    /// <summary>The route the member one user reports to is named at.</summary>
+    internal const string UserManagerRoute = $"{UserRoute}/manager";
+
     /// <summary>The route one user's two endpoint switches are written at.</summary>
     /// <remarks>Beneath the user for the reason the label's route is: it changes one user's row, and the roster is where both switches are read back.</remarks>
     internal const string UserEndpointAccessRoute = $"{UserRoute}/endpoint-access";
@@ -112,6 +115,10 @@ internal static class UserRecordEndpoints
             .RequirePermissionOverTarget(MailFathomPermission.AdminConfigurationWrite);
 
         api.MapPut(UserTypeRoute, SetTypeAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
+            .RequirePermissionOverTarget(MailFathomPermission.AdminConfigurationWrite);
+
+        api.MapPut(UserManagerRoute, SetManagerAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
             .RequirePermissionOverTarget(MailFathomPermission.AdminConfigurationWrite);
 
@@ -324,6 +331,41 @@ internal static class UserRecordEndpoints
         }
 
         return Answered(await roster.SetTypeAsync(user, type, cancellationToken));
+    }
+
+    /// <summary>Names the member of the same organization one user reports to, or names nobody.</summary>
+    /// <param name="userId">The user whose manager is written.</param>
+    /// <param name="roster">The roster administration.</param>
+    /// <param name="request">The manager from now on; absent names nobody.</param>
+    /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
+    /// <returns><c>204</c> when the row names the manager, <c>404</c> when this deployment holds no such user, or <c>400</c> naming the rule the manager broke.</returns>
+    /// <remarks>
+    /// Answered as a relabel is, including a user outside the caller's scope answering <c>404</c>. A manager is refused
+    /// when it is the user, is not a person of the user's organization, or already reports to the user; their direct
+    /// reports are read from this and never written.
+    /// </remarks>
+    internal static async Task<Results<NoContent, NotFound<ProblemDetails>, ProblemHttpResult>> SetManagerAsync(
+        Guid userId,
+        [FromServices] UserRosterAdministration roster,
+        [FromBody] UserManagerRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!TryReadUser(userId, out var user))
+        {
+            return EmptyUser();
+        }
+
+        if (request.ManagerId == Guid.Empty)
+        {
+            return Refusal("A manager is named by the identifier the roster lists them under, or omitted to name nobody.");
+        }
+
+        UserId? manager = request.ManagerId is { } named ? UserId.Create(named) : null;
+
+        return Answered(await roster.SetManagerAsync(user, manager, cancellationToken));
     }
 
     /// <summary>Keeps one user off either mail-serving endpoint, or lets them back on.</summary>

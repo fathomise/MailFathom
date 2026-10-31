@@ -14,6 +14,7 @@ import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { ToastContext } from '../toasts/useToasts';
 import { PersonPage } from './PersonPage';
 import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
+import type { ColleagueStructureInForce } from './useColleagueStructure';
 
 function personCalled(origin: Contact['origin'], id = 'anna', displayName = 'Anna Kowalska'): Contact {
     return {
@@ -63,6 +64,13 @@ const nothingCorrelated: ContactCorrespondenceInForce = {
     readAgain: () => undefined,
 };
 
+const nothingStructured: ColleagueStructureInForce = {
+    structure: null,
+    reading: false,
+    failure: null,
+    readAgain: () => undefined,
+};
+
 function composingWhere(offered: boolean, compose = vi.fn()): Composing {
     return { offered, drafts: false, opening: null, compose, close: vi.fn() };
 }
@@ -79,6 +87,8 @@ function pageOf({
     onAskAmendment = vi.fn(),
     onAskErasure = vi.fn(),
     readerZone = null,
+    structure = nothingStructured,
+    onOpenColleague = vi.fn(),
 }: {
     contact?: Person;
     readerZone?: string | null;
@@ -91,6 +101,8 @@ function pageOf({
     onPromote?: () => void;
     onAskAmendment?: () => void;
     onAskErasure?: () => void;
+    structure?: ColleagueStructureInForce;
+    onOpenColleague?: (colleague: Colleague) => void;
 } = {}): ReactNode {
     return (
         <LocalizationProvider>
@@ -102,6 +114,8 @@ function pageOf({
                                 contact={contact}
                                 organizationName={organizationName}
                                 correspondence={nothingCorrelated}
+                                structure={structure}
+                                onOpenColleague={onOpenColleague}
                                 writable={writable}
                                 promoting={promoting}
                                 recordSaid={recordSaid}
@@ -138,6 +152,13 @@ describe('PersonPage', () => {
         expect(screen.getByRole('heading', { name: 'Anna Kowalska' })).toBeDefined();
         expect(screen.getByRole('heading', { name: 'Contact details' })).toBeDefined();
         expect(screen.getAllByText('anna@contoso.example')).toHaveLength(2);
+    });
+
+    // Only a member of the organization has a place in it, so a contact of any book draws no structure.
+    it('draws no organization for somebody who is not a colleague', () => {
+        drawPage();
+
+        expect(screen.queryByRole('region', { name: 'Organization' })).toBeNull();
     });
 
     // A record a mailbox collected is nobody's to amend, and the page says so on the record rather than leaving
@@ -296,6 +317,25 @@ describe('PersonPage', () => {
             expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull();
             expect(screen.queryByRole('button', { name: 'Remove from collected' })).toBeNull();
             expect(screen.queryByRole('button', { name: 'Add to my contacts' })).toBeNull();
+        });
+
+        it('draws where they sit in the organization, and opens a member of it in their place', () => {
+            const zofia: Colleague = { ...piotr, id: 'zofia', displayName: 'Zofia Nowak', jobTitle: null };
+            const onOpenColleague = vi.fn();
+            drawPage({
+                contact: piotr,
+                structure: {
+                    ...nothingStructured,
+                    structure: { managers: [zofia], directReports: [], readerId: 'anna' },
+                },
+                onOpenColleague,
+            });
+
+            expect(screen.getByRole('region', { name: 'Organization' })).toBeDefined();
+
+            fireEvent.click(screen.getByRole('button', { name: /Zofia Nowak/u }));
+
+            expect(onOpenColleague).toHaveBeenCalledWith(zofia);
         });
 
         it('offers the two quick acts: copying the address, and an email addressed to them', () => {

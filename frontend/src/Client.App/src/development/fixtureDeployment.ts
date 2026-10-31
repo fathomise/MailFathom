@@ -635,6 +635,14 @@ function contactAnswer(
         );
     }
 
+    if (route.startsWith('/contacts/colleagues/') && route.endsWith('/structure')) {
+        const userId = route.slice('/contacts/colleagues/'.length, -'/structure'.length);
+
+        return contacts.colleaguePage.contacts.some(({ id }) => id === userId)
+            ? answering(contacts.colleagueStructureOf(userId))
+            : { status: 404, body: '', headers: {} };
+    }
+
     if (route.startsWith('/contacts/colleagues/')) {
         const member = contacts.colleaguePage.contacts.find(({ id }) => route.endsWith(id));
 

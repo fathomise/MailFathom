@@ -6557,7 +6557,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         personNoZone: personIsMember && !person.clock,
         personNoZoneNote: "No time zone is stated, so these hours are " + (person.name || "").split(" ")[0] + "'s own and are not converted to yours.",
         personTimeCardShown: personIsMember && (!!person.clock || !!person.hours),
-        // The organization's structure: the chain of managers upward to the member, then the member's direct reports.
+        // The organization's structure: the chain of managers upward to the member, then the member's direct reports by name.
         personOrgCardShown: personIsMember,
         personChain: personIsMember ? (() => {
           const up = [];
@@ -6565,7 +6565,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           while (m && up.length < 8) { up.unshift(m); m = memberById(m.manager); }
           return up.concat([person]).map((m2, i, all) => orgPersonRow(m2, i, m2.id === person.id));
         })() : [],
-        personReports: personIsMember ? memberContacts.filter(m => m.manager === person.id).map(m => orgPersonRow(m, 0, false)) : [],
+        personReports: personIsMember ? memberContacts.filter(m => m.manager === person.id).sort((a, b) => a.name.localeCompare(b.name)).map(m => orgPersonRow(m, 0, false)) : [],
         personNoReports: personIsMember && !memberContacts.some(m => m.manager === person.id),
         personThreads: person.threads.map(t3 => ({
           label: t3.label, meta: t3.meta,

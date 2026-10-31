@@ -45,6 +45,11 @@ export function colleaguePhotoRoute(userId: string): string {
     return `${colleagueRoute(userId)}/photo`;
 }
 
+/** The route where a member sits in the organization is read at, relative to the client prefix. */
+export function colleagueStructureRoute(userId: string): string {
+    return `${colleagueRoute(userId)}/structure`;
+}
+
 /** The route a member is copied into the reader's own book at, relative to the client prefix. */
 export function colleaguePromotionRoute(userId: string): string {
     return `${colleagueRoute(userId)}/promotion`;
@@ -109,6 +114,23 @@ export interface ColleaguePage {
     readonly nextCursor: string | null;
 }
 
+/**
+ * Where one member sits in the organization: the managers above them and the members reporting to them, which the
+ * service derives from the one manager an administrator names on each member and never stores the other way round.
+ */
+export interface ColleagueStructure {
+    /** The managers above the member, from the top of the organization down to the member's own. */
+    readonly managers: readonly Colleague[];
+
+    readonly directReports: readonly Colleague[];
+
+    /**
+     * The reader's own user identity, which the structure may hold like anybody else's: they are nobody's colleague to
+     * themselves, so their row leads to no contact.
+     */
+    readonly readerId: string;
+}
+
 // The service's own bound on a title, and a zone longer than any IANA identifier by a wide margin.
 const longestJobTitle = 256;
 const longestTimeZone = 64;
@@ -118,6 +140,10 @@ const mostAddressesPerColleague = 64;
 // A member carries what a contact carries less the note, so the arithmetic is the book's.
 const longestColleaguePage = 512 * 1024;
 const longestColleagueAnswer = 32 * 1024;
+
+// The service composes a structure out of a directory of at most a thousand members, so neither side of it is longer.
+export const mostColleaguesInStructure = 1000;
+const longestColleagueStructure = 2 * 1024 * 1024;
 
 /** Reads one page of the members of the reader's organization, which is an empty one for a reader in none. */
 export function readColleagues(
@@ -181,6 +207,38 @@ export function readColleague(
     });
 }
 
+/** Reads where one member sits in the reader's organization; one who left it, or was erased, is `missing`. */
+export function readColleagueStructure(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    userId: string,
+): Promise<ClientResult<ColleagueStructure>> {
+    return spanned(`GET ${colleaguesRoute}/{userId}/structure`, async () => {
+        const response = await send(transport, {
+            method: 'GET',
+            path: routeFor(session, colleagueStructureRoute(userId)),
+            headers: headersFor(session),
+            longestAnswer: longestColleagueStructure,
+        });
+
+        if (response === null) {
+            return failed('unavailable', null);
+        }
+
+        if (response.status === 404) {
+            return failed('missing', response.status);
+        }
+
+        if (response.status !== 200) {
+            return failed(failureReasonForStatus(response.status), response.status);
+        }
+
+        const structure = parseColleagueStructure(bodyOf(response));
+
+        return structure === null ? failed('unreadable', response.status) : read(structure);
+    });
+}
+
 /** Writes a copy of a member — their name, addresses, and numbers — into the reader's own book. */
 export function promoteColleague(
     session: ClientSession,
@@ -238,6 +296,20 @@ function parseColleaguePage(value: unknown, asked: number): ColleaguePage | null
     const colleagues = parseEach(record['contacts'], asked, parseColleague);
 
     return colleagues === null ? null : { colleagues, nextCursor };
+}
+
+function parseColleagueStructure(value: unknown): ColleagueStructure | null {
+    const record = asRecord(value);
+    const readerId = record?.['readerId'];
+
+    if (record === null || typeof readerId !== 'string') {
+        return null;
+    }
+
+    const managers = parseEach(record['managers'], mostColleaguesInStructure, parseColleague);
+    const directReports = parseEach(record['directReports'], mostColleaguesInStructure, parseColleague);
+
+    return managers === null || directReports === null ? null : { managers, directReports, readerId };
 }
 
 /** Reads one member off a response body, or answers `null` where any field of it is missing or of the wrong shape. */

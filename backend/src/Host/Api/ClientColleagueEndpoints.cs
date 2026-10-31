@@ -39,6 +39,9 @@ internal static class ClientColleagueEndpoints
     /// <summary>The route one colleague's portrait is read at, relative to the client prefix.</summary>
     internal const string ColleaguePhotoRoute = "/contacts/colleagues/{userId:guid}/photo";
 
+    /// <summary>The route where one colleague sits in the organization is read at, relative to the client prefix.</summary>
+    internal const string ColleagueStructureRoute = "/contacts/colleagues/{userId:guid}/structure";
+
     /// <summary>The route a copy of one colleague is written into the reader's own book at, relative to the client prefix.</summary>
     internal const string ColleaguePromotionRoute = "/contacts/colleagues/{userId:guid}/promotion";
 
@@ -53,6 +56,9 @@ internal static class ClientColleagueEndpoints
             .RequirePermission(MailFathomPermission.ContactsRead);
 
         api.MapGet(ColleagueRoute, FindAsync)
+            .RequirePermission(MailFathomPermission.ContactsRead);
+
+        api.MapGet(ColleagueStructureRoute, ReadStructureAsync)
             .RequirePermission(MailFathomPermission.ContactsRead);
 
         api.MapGet(ColleaguePhotoRoute, ReadPhotoAsync)
@@ -125,6 +131,29 @@ internal static class ClientColleagueEndpoints
 
         return await colleagues.FindAsync(member, cancellationToken) is { } colleague
             ? TypedResults.Ok(ColleagueResponse.For(colleague))
+            : TypedResults.NotFound();
+    }
+
+    /// <summary>Serves where one colleague sits in the reader's organization.</summary>
+    /// <param name="userId">The member whose structure is read.</param>
+    /// <param name="colleagues">Reads the reader's organization.</param>
+    /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
+    /// <returns><c>200</c> with the managers above the colleague and their direct reports, or <c>404</c> where the reader's organization holds no such person.</returns>
+    /// <remarks>Answered as one colleague is, so a user of another organization, the reader themselves, and nobody at all answer identically.</remarks>
+    internal static async Task<Results<Ok<ColleagueStructureResponse>, NotFound>> ReadStructureAsync(
+        [FromRoute] Guid userId,
+        [FromServices] ColleagueBook colleagues,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(colleagues);
+
+        if (NamedMember(userId) is not { } member)
+        {
+            return TypedResults.NotFound();
+        }
+
+        return await colleagues.ReadStructureAsync(member, cancellationToken) is { } structure
+            ? TypedResults.Ok(ColleagueStructureResponse.For(structure))
             : TypedResults.NotFound();
     }
 

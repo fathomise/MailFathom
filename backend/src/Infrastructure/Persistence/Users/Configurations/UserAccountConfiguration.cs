@@ -51,6 +51,22 @@ internal sealed class UserAccountConfiguration : IEntityTypeConfiguration<UserAc
 
         entity.Property(user => user.JobTitle).HasMaxLength(UserRecord.MaximumJobTitleLength);
 
+        // Cleared rather than cascaded or restricted, so erasing a manager leaves their reports with no manager by
+        // construction instead of by a write the erasure would have to remember. The index answers who reports to a
+        // user, and the check refuses the one cycle a single row can state.
+        entity.HasOne<UserAccountEntity>()
+            .WithMany()
+            .HasForeignKey(user => user.ManagerId)
+            .HasConstraintName(PersistenceConstraintNames.UserAccountManagerForeignKeyName)
+            .OnDelete(DeleteBehavior.SetNull);
+        entity.HasIndex(user => user.ManagerId)
+            .HasDatabaseName(PersistenceConstraintNames.UserAccountManagerIndexName);
+        entity.ToTable(table => table.HasCheckConstraint(
+            PersistenceConstraintNames.UserAccountNotOwnManagerCheckConstraintName,
+            $"""
+            "{nameof(UserAccountEntity.ManagerId)}" <> "{nameof(UserAccountEntity.Id)}"
+            """));
+
         // A document rather than a schema, for the reason the job payload is one: nothing here queries into it, and
         // what it holds is decided by the configuration layer that writes it.
         entity.Property(user => user.Document).HasColumnType("jsonb").IsRequired();

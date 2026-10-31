@@ -30,6 +30,7 @@ import { useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
 import { ContactDialog, type ContactPhotoChange, type ContactSave } from './ContactDialog';
 import { rowsOf } from './contactAddresses';
 import { PersonPage } from './PersonPage';
+import { useColleagueStructure } from './useColleagueStructure';
 import { useContactCorrespondence } from './useContactCorrespondence';
 import { paneArrival, usePaneMotion } from '../shell/paneMotion';
 import { useScreenStep } from '../shell/screenLayers';
@@ -255,6 +256,7 @@ export function PeopleSpace({
         transport,
         opened === null || opened.book === 'Member' ? null : opened.id,
     );
+    const structure = useColleagueStructure(session, transport, opened?.book === 'Member' ? opened.id : null);
 
     // One reader per session, because what it keeps is the photos that session drew: kept across renders so a book
     // read again does not ask again for a photo that did not change.
@@ -576,6 +578,7 @@ export function PeopleSpace({
                                 contact={opened}
                                 organizationName={organizationName}
                                 correspondence={correspondence}
+                                structure={structure}
                                 writable={writable}
                                 promoting={promoting}
                                 recordSaid={said?.where === 'person' ? said.said : null}
@@ -593,6 +596,10 @@ export function PeopleSpace({
                                 }}
                                 onAskErasure={() => {
                                     askErasure(inOwnBooks(opened) ? [opened] : []);
+                                }}
+                                onOpenColleague={(colleague) => {
+                                    setSaid(null);
+                                    open(colleague);
                                 }}
                                 onOpenThread={onOpenThread}
                                 onOpenDocument={onOpenDocument}

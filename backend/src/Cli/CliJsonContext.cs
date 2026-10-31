@@ -108,6 +108,7 @@ namespace MailFathom.Cli;
 [JsonSerializable(typeof(UserProvisioningRequest))]
 [JsonSerializable(typeof(UserRelabelRequest))]
 [JsonSerializable(typeof(UserJobTitleRequest))]
+[JsonSerializable(typeof(UserManagerRequest))]
 [JsonSerializable(typeof(UserTypeRequest))]
 [JsonSerializable(typeof(UserEndpointAccessRequest))]
 [JsonSerializable(typeof(UserEndpointAccess))]

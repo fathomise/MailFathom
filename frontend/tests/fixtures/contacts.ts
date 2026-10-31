@@ -229,6 +229,40 @@ export const colleaguePage = {
     nextCursor: null,
 };
 
+/** Whom each of those members reports to, as an administrator named it — the design's own sample structure. */
+const reportsTo = new Map([
+    ['member-adam', 'member-zofia'],
+    ['member-marta', 'member-adam'],
+    ['member-piotr', 'member-zofia'],
+    ['member-oliver', 'member-piotr'],
+    ['member-hanna', 'member-piotr'],
+    ['member-igor', 'member-piotr'],
+]);
+
+/**
+ * Where one member sits in the organization: the managers above them from the top down, and their direct reports by
+ * name, as the directory derives both from the one manager each member names. The reader is somebody none of the
+ * members reports to, so the structure names them without any row being theirs.
+ */
+export function colleagueStructureOf(userId: string) {
+    const members = colleaguePage.contacts;
+    const above = [];
+
+    for (let manager = reportsTo.get(userId); manager !== undefined; manager = reportsTo.get(manager)) {
+        const found = members.find(({ id }) => id === manager);
+
+        if (found !== undefined) {
+            above.unshift(found);
+        }
+    }
+
+    return {
+        managers: above,
+        directReports: members.filter(({ id }) => reportsTo.get(id) === userId),
+        readerId: 'member-reader',
+    };
+}
+
 /** A book with nobody in it, which is a state neither of the two above can be scrolled into. */
 export const emptyContactPage = { contacts: [], nextCursor: null };
 

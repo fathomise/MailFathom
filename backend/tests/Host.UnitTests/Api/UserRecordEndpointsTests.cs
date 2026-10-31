@@ -424,6 +424,74 @@ public sealed class UserRecordEndpointsTests
         Assert.IsType<NotFound<ProblemDetails>>(result.Result);
     }
 
+    /// <summary>The manager the request named, or nobody where it named none, is the whole of what changed.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SetManagerAsync_AUserThisDeploymentHolds_AnswersWithNoContent(bool namingAManager)
+    {
+        // Arrange
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminConfigurationWrite]);
+        deployment.Held(new UserRecord(SyntheticUser.Deployment, "alexandra"));
+        UserId? manager = namingAManager ? SyntheticUser.Another : null;
+
+        // Act
+        var result = await UserRecordEndpoints.SetManagerAsync(
+            SyntheticUser.Deployment.Value,
+            deployment.Roster,
+            new UserManagerRequest(manager?.Value),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NoContent>(result.Result);
+        await deployment.Provisioning.Received(1)
+            .SetManagerAsync(SyntheticUser.Deployment, manager, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The empty identifier names nobody the roster lists, so it is refused rather than read as clearing the manager.</summary>
+    [Fact]
+    public async Task SetManagerAsync_TheEmptyIdentifier_IsRefusedWithoutWriting()
+    {
+        // Arrange
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminConfigurationWrite]);
+        deployment.Held(new UserRecord(SyntheticUser.Deployment, "alexandra"));
+
+        // Act
+        var result = await UserRecordEndpoints.SetManagerAsync(
+            SyntheticUser.Deployment.Value,
+            deployment.Roster,
+            new UserManagerRequest(Guid.Empty),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertRefusal(result.Result, StatusCodes.Status400BadRequest);
+        await deployment.Provisioning.DidNotReceiveWithAnyArgs().SetManagerAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A rule the manager broke is answered as a refusal naming it, rather than as an absence.</summary>
+    [Fact]
+    public async Task SetManagerAsync_AManagerClosingTheLineOnItself_IsRefusedNamingTheRule()
+    {
+        // Arrange
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminConfigurationWrite]);
+        deployment.Held(new UserRecord(SyntheticUser.Deployment, "alexandra"));
+        deployment.Provisioning
+            .SetManagerAsync(Arg.Any<UserId>(), Arg.Any<UserId?>(), Arg.Any<CancellationToken>())
+            .Returns(ManagerAssignmentResult.ReportingCycle);
+
+        // Act
+        var result = await UserRecordEndpoints.SetManagerAsync(
+            SyntheticUser.Deployment.Value,
+            deployment.Roster,
+            new UserManagerRequest(SyntheticUser.Another.Value),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = AssertRefusal(result.Result, StatusCodes.Status400BadRequest);
+
+        Assert.Contains("already reports to this user", refusal, StringComparison.Ordinal);
+    }
+
     /// <summary>The type is written by name, so a request carrying the member's name in another case is the same request.</summary>
     [Fact]
     public async Task SetTypeAsync_ATypeNamedInAnotherCase_WritesThatType()

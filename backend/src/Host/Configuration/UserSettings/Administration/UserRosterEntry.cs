@@ -36,4 +36,7 @@ internal sealed record UserRosterEntry(
 
     /// <summary>Gets the title an administrator gave the user, or <see langword="null" /> for none.</summary>
     public string? JobTitle { get; init; }
+
+    /// <summary>Gets the member of the same organization the user reports to, or <see langword="null" /> for nobody.</summary>
+    public UserId? Manager { get; init; }
 }

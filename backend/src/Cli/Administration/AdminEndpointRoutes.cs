@@ -254,6 +254,11 @@ internal static class AdminEndpointRoutes
     /// <returns>The path.</returns>
     internal static string UserTypePath(Guid userId) => $"{UserPath(userId)}/type";
 
+    /// <summary>Where the member one user reports to is named.</summary>
+    /// <param name="userId">The user the path names.</param>
+    /// <returns>The path.</returns>
+    internal static string UserManagerPath(Guid userId) => $"{UserPath(userId)}/manager";
+
     /// <summary>Where one user's two endpoint switches are written.</summary>
     /// <param name="userId">The user the path names.</param>
     /// <returns>The path.</returns>
