@@ -431,6 +431,7 @@ internal sealed record ImageDescriptionScenario(
         await using var scenarioRun = await reporting.CreateScenarioRunAsync(
             this.Name,
             iterationName,
+            additionalTags: EvaluationStore.TagsFor(this.Name, modelName),
             cancellationToken: cancellationToken);
 
         var cachedModel = await EvaluationStore.CacheOverAsync(reporting, model, plan, this.Name, iterationName, repetition, cancellationToken);

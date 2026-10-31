@@ -162,6 +162,7 @@ internal static class StructuredAnswerScenario
         await using var scenarioRun = await reporting.CreateScenarioRunAsync(
             request.ScenarioName,
             iterationName,
+            additionalTags: EvaluationStore.TagsFor(request.ScenarioName, modelName),
             cancellationToken: cancellationToken);
 
         var cachedModel = await EvaluationStore.CacheOverAsync(
