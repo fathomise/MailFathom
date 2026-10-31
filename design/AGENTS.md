@@ -29,8 +29,9 @@ repeated actions, the smallest text — and a rule for small screens is added to
 - A value drawn under `touch` meets that table rather than repeating the desktop's. The 44 px target matters most: the
   client lifts every control under a coarse pointer to it, so a design drawing less is a difference the parity loop
   reports on every pair rather than a choice the client follows.
-- A change that adds or reshapes a screen is opened at the compositions it reaches before it is finished — the four
-  sizes are `frontend/AGENTS.md`'s — and in the second theme only when it adds or changes a colour or a surface.
+- A change that adds or reshapes a screen is opened at all three touch compositions, in both themes, before it is
+  finished — the four sizes are `frontend/AGENTS.md`'s — and the desktop composition is checked to be unchanged
+  unless the change is about it.
 
 ## Nothing only under a hover
 
