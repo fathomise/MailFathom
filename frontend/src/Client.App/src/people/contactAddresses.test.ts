@@ -66,6 +66,23 @@ describe('contact address rows', () => {
         });
     });
 
+    it('saves an address written on several rows once, in any case, keeping the default spelling', () => {
+        expect(
+            savedAddresses({
+                addresses: [
+                    'bartek@contoso.example',
+                    'Anna@Contoso.example',
+                    'anna@contoso.example',
+                    'BARTEK@contoso.example',
+                ],
+                preferred: 2,
+            }),
+        ).toEqual({
+            addresses: ['anna@contoso.example', 'bartek@contoso.example'],
+            preferredAddress: 'anna@contoso.example',
+        });
+    });
+
     it('saves nothing where no row holds an address, or one holds something that is not one', () => {
         expect(savedAddresses({ addresses: ['', ' '], preferred: 0 })).toBeNull();
         expect(savedAddresses({ addresses: ['anna@contoso.example', 'anna'], preferred: 0 })).toBeNull();

@@ -69,12 +69,13 @@ function failedSaid(failure: ClientFailure): MessageKey {
 }
 
 // Who is opened once the person who was open has been taken out of the book: whoever the list draws in their place, or
-// the one before where they were the last — and nobody where the book is left empty.
+// the one before where they were the last — and nobody where the book is left empty, or where the person was not in
+// the book being listed at all, which is a person opened in one book and taken out after the reader moved to the other.
 function nextAfter(contacts: readonly Contact[], leaving: string, erased: readonly string[]): Contact | null {
     const at = contacts.findIndex((contact) => contact.id === leaving);
     const rest = contacts.filter((contact) => !erased.includes(contact.id));
 
-    return rest[Math.min(Math.max(at, 0), rest.length - 1)] ?? null;
+    return at < 0 ? null : (rest[Math.min(at, rest.length - 1)] ?? null);
 }
 
 // What a question about taking several people out says will happen, in the forms a language has for the noun — one
@@ -110,6 +111,7 @@ const erasingAsked: Readonly<
             readonly afterwards: MessageKey;
             readonly act: MessageKey;
             readonly done: MessageKey;
+            readonly someRefused: MessageKey;
         }
     >
 > = {
@@ -120,6 +122,7 @@ const erasingAsked: Readonly<
         afterwards: 'people.erasePermanent',
         act: 'people.eraseAct',
         done: 'people.erased',
+        someRefused: 'people.eraseSomeRefused',
     },
     Collected: {
         one: 'people.removeOne',
@@ -128,6 +131,7 @@ const erasingAsked: Readonly<
         afterwards: 'people.removeReturns',
         act: 'people.removeFromCollected',
         done: 'people.removed',
+        someRefused: 'people.removeSomeRefused',
     },
 };
 
@@ -311,7 +315,7 @@ export function PeopleSpace({
                         ? { where: 'book', said: 'people.writeFailed' }
                         : {
                               where: 'book',
-                              said: 'people.eraseSomeRefused',
+                              said: erasingAsked[contacts[0]?.origin ?? 'Asserted'].someRefused,
                               names: {
                                   names: new Intl.ListFormat(locale, { type: 'conjunction' }).format(
                                       refused.map((contact) => contact.displayName),

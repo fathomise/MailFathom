@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useRef } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import { ContactDialog, type ContactDraft, type ContactStatement } from './ContactDialog';
@@ -133,6 +133,29 @@ describe('ContactDialog', () => {
         expect(addressRows().map((row) => row.value)).toEqual(['a.kowalska@fabrikam.example']);
         expect(screen.getByRole('radio', { name: 'Default address' })).toBeDefined();
         expect(screen.queryByRole('button', { name: 'Remove address' })).toBeNull();
+    });
+
+    it('puts focus on the row standing where a removed one was, or on the one above where it was the last', async () => {
+        drawForm({
+            displayName: 'Anna Kowalska',
+            rows: {
+                addresses: ['anna@contoso.example', 'a.kowalska@fabrikam.example', 'anna@home.example'],
+                preferred: 0,
+            },
+        });
+
+        fireEvent.click(nth(screen.getAllByRole('button', { name: 'Remove address' }), 2));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(nth(addressRows(), 1));
+        });
+
+        fireEvent.click(nth(screen.getAllByRole('button', { name: 'Remove address' }), 0));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(nth(addressRows(), 0));
+        });
+        expect(nth(addressRows(), 0).value).toBe('a.kowalska@fabrikam.example');
     });
 
     it('records nothing at all where the question was left rather than answered', () => {

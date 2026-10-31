@@ -360,6 +360,84 @@ describe('PeopleSpace', () => {
         expect(sent().some((request) => request.method === 'DELETE')).toBe(true);
     });
 
+    it.each([
+        {
+            leaving: 'the last one listed, and opens the one before',
+            own: [personCalled('anna', 'Anna Kowalska'), personCalled('bartek', 'Bartek Nowak')],
+            deleted: 'Bartek Nowak',
+            opened: 'Anna Kowalska',
+        },
+        {
+            leaving: 'the only one listed, and opens nobody',
+            own: [personCalled('anna', 'Anna Kowalska')],
+            deleted: 'Anna Kowalska',
+            opened: null,
+        },
+    ])('deletes $leaving', async ({ own, deleted, opened }) => {
+        const { transport } = deployment({ own });
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('option', { name: new RegExp(deleted, 'u') }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Delete contact' }));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Delete contact?' })).getByRole('button', {
+                name: 'Delete',
+            }),
+        );
+
+        expect(await screen.findByText('Deleted.')).toBeDefined();
+
+        if (opened === null) {
+            expect(await screen.findByText('Open somebody to read their page.')).toBeDefined();
+        } else {
+            expect(await screen.findByRole('heading', { name: opened })).toBeDefined();
+        }
+    });
+
+    // The page stays open while the reader moves to the other book, and the next person is read off the book the
+    // deleted one was listed in rather than off a book they were never in.
+    it('opens nobody after deleting somebody whose book is no longer the one listed', async () => {
+        const { transport } = deployment({
+            own: [personCalled('anna', 'Anna Kowalska'), personCalled('bartek', 'Bartek Nowak')],
+        });
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }));
+        fireEvent.click(screen.getByRole('radio', { name: 'Collected' }));
+        expect(await screen.findByRole('option', { name: /Celina Wrona/u })).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Delete contact' }));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Delete contact?' })).getByRole('button', {
+                name: 'Delete',
+            }),
+        );
+
+        expect(await screen.findByText('Open somebody to read their page.')).toBeDefined();
+        expect(screen.queryByRole('heading', { name: 'Celina Wrona' })).toBeNull();
+    });
+
+    // Where the book and the person are one pane, the list comes back rather than the next person, as the design does.
+    it('brings the book back after deleting somebody from their page where the two cannot stand together', async () => {
+        atWidth(phone);
+
+        const { transport } = deployment({
+            own: [personCalled('anna', 'Anna Kowalska'), personCalled('bartek', 'Bartek Nowak')],
+        });
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Delete contact' }));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Delete contact?' })).getByRole('button', {
+                name: 'Delete',
+            }),
+        );
+
+        expect(await screen.findByRole('listbox', { name: 'Contacts' })).toBeDefined();
+        expect(screen.queryByRole('heading', { name: 'Bartek Nowak' })).toBeNull();
+    });
+
     // A collected person fills the collected book again the next time they write, so they are removed from it rather
     // than deleted, and the question says what that means.
     it('asks before removing a collected person from the collected book, in that book’s own words', async () => {
@@ -479,6 +557,32 @@ describe('PeopleSpace', () => {
 
         expect(await screen.findByText('Could not delete Bartek Nowak. Everybody else was deleted.')).toBeDefined();
         expect(screen.getByRole('toolbar', { name: 'Selected contacts' })).toBeDefined();
+    });
+
+    it('names whoever a batch removal from collected did not remove, in that book’s own words', async () => {
+        const { transport } = deployment({
+            collected: [
+                personCalled('celina', 'Celina Wrona', 'Collected'),
+                personCalled('dawid', 'Dawid Lis', 'Collected'),
+            ],
+            refuses: ['dawid'],
+        });
+        drawSpace(transport);
+
+        expect(await screen.findByRole('option', { name: /Anna Kowalska/u })).toBeDefined();
+        fireEvent.click(screen.getByRole('radio', { name: 'Collected' }));
+        fireEvent.click(await screen.findByRole('option', { name: /Celina Wrona/u }), { ctrlKey: true });
+        fireEvent.click(screen.getByRole('option', { name: /Dawid Lis/u }), { ctrlKey: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Remove contacts from collected?' })).getByRole('button', {
+                name: 'Remove from collected',
+            }),
+        );
+
+        expect(
+            await screen.findByText('Could not remove Dawid Lis from collected. Everybody else was removed.'),
+        ).toBeDefined();
     });
 
     // An erasure nobody answered may have been made, so it is never named among those the server would not delete.

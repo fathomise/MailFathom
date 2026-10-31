@@ -2230,6 +2230,7 @@ export const en = {
     'people.erased': 'Deleted.',
     'people.removed': 'Removed from collected.',
     'people.eraseSomeRefused': 'Could not delete {names}. Everybody else was deleted.',
+    'people.removeSomeRefused': 'Could not remove {names} from collected. Everybody else was removed.',
     'people.written': 'Contact added.',
     'people.amended': 'Contact saved.',
     'people.writeNotFound': 'That contact is no longer in the address book.',

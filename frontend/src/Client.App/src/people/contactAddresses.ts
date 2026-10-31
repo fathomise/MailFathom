@@ -78,7 +78,13 @@ export function savedAddresses(
         return null;
     }
 
-    const others = kept.filter((address) => address !== preferredAddress);
+    // An address written twice, in any case, is one address, and the record keeps the default's spelling of it.
+    const seen = new Set<string>();
+    const addresses = [preferredAddress, ...kept].filter((address) => {
+        const folded = address.toLowerCase();
 
-    return { addresses: [preferredAddress, ...others], preferredAddress };
+        return !seen.has(folded) && seen.add(folded);
+    });
+
+    return { addresses, preferredAddress };
 }

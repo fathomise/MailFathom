@@ -111,15 +111,19 @@ export function ContactDialog({
     const refused = useWriteRefusal()(saying);
 
     // A row somebody added is where they are about to type, so focus goes into it once it is drawn rather than staying
-    // on the control that added it. Set by the press and read once the row exists, which is the one moment both hold.
+    // on the control that added it; a row removed takes its remove control with it, so focus goes to the row that
+    // stands in its place, or to the one above where it was the last. Set by the press and read once the rows are
+    // drawn, which is the one moment both hold.
     const rowsDrawn = useRef<HTMLFieldSetElement>(null);
-    const rowAdded = useRef(false);
+    const rowToFocus = useRef<number | null>(null);
     const rowCount = draft.rows.addresses.length;
 
     useEffect(() => {
-        if (rowAdded.current) {
-            rowAdded.current = false;
-            [...(rowsDrawn.current?.querySelectorAll<HTMLInputElement>('input[type="email"]') ?? [])].at(-1)?.focus();
+        if (rowToFocus.current !== null) {
+            const rows = [...(rowsDrawn.current?.querySelectorAll<HTMLInputElement>('input[type="email"]') ?? [])];
+
+            rows[Math.min(rowToFocus.current, rows.length - 1)]?.focus();
+            rowToFocus.current = null;
         }
     }, [rowCount]);
 
@@ -253,6 +257,7 @@ export function ContactDialog({
                                             icon="close"
                                             shape="symbol"
                                             onPress={() => {
+                                                rowToFocus.current = at;
                                                 revised(withAddressRemoved(draft.rows, at));
                                             }}
                                         />
@@ -267,7 +272,7 @@ export function ContactDialog({
                             shape="outlined"
                             className="self-start"
                             onPress={() => {
-                                rowAdded.current = true;
+                                rowToFocus.current = rowCount;
                                 revised(withAddressAdded(draft.rows));
                             }}
                         />

@@ -2264,6 +2264,7 @@ export const pl: Catalogue = {
     'people.erased': 'Usunięto.',
     'people.removed': 'Usunięto z zebranych.',
     'people.eraseSomeRefused': 'Nie udało się usunąć: {names}. Pozostałe osoby zostały usunięte.',
+    'people.removeSomeRefused': 'Nie udało się usunąć z zebranych: {names}. Pozostałe osoby zostały usunięte.',
     'people.amended': 'Kontakt zapisany.',
     'people.written': 'Dodano kontakt.',
     'people.writeNotFound': 'Tego kontaktu nie ma już w książce adresowej.',
