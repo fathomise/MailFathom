@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Contacts.Failures;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Portraits;
+using MailFathom.Application.Signals;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
@@ -39,6 +40,7 @@ public sealed class ContactPhotos
     private readonly IContactStore store;
     private readonly IStoredFileStore files;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
+    private readonly ClientSignals signals;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="authorization">Reports the grant the caller holds.</param>
@@ -47,6 +49,7 @@ public sealed class ContactPhotos
     /// <param name="store">Rewrites the link from the contact to its photo.</param>
     /// <param name="files">Holds the file the photo is.</param>
     /// <param name="commitPolicy">Commits each relinking, retrying a lost race from a fresh read.</param>
+    /// <param name="signals">Announces a committed relinking to the open clients of the user whose book it is.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public ContactPhotos(
         AccessAuthorization authorization,
@@ -54,7 +57,8 @@ public sealed class ContactPhotos
         IContactDirectory directory,
         IContactStore store,
         IStoredFileStore files,
-        OptimisticConcurrencyRetryPolicy commitPolicy)
+        OptimisticConcurrencyRetryPolicy commitPolicy,
+        ClientSignals signals)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(ownership);
@@ -62,6 +66,7 @@ public sealed class ContactPhotos
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(commitPolicy);
+        ArgumentNullException.ThrowIfNull(signals);
 
         this.authorization = authorization;
         this.ownership = ownership;
@@ -69,6 +74,7 @@ public sealed class ContactPhotos
         this.store = store;
         this.files = files;
         this.commitPolicy = commitPolicy;
+        this.signals = signals;
     }
 
     /// <summary>Reads the photo of one contact the caller sees.</summary>
@@ -169,12 +175,21 @@ public sealed class ContactPhotos
         }
     }
 
-    private Task<ContactPhotoRelinking> RelinkAsync(
+    private async Task<ContactPhotoRelinking> RelinkAsync(
         UserId user,
         ContactId contactId,
         StoredFileId? photo,
-        CancellationToken cancellationToken) =>
-        this.commitPolicy.CommitAsync(
+        CancellationToken cancellationToken)
+    {
+        var relinked = await this.commitPolicy.CommitAsync(
             (session, token) => this.store.RelinkPhotoAsync(session, user, contactId, photo, token),
             cancellationToken);
+
+        if (relinked.ContactHeld)
+        {
+            this.signals.Publish(ClientSignal.ContactsChanged(ContactBookHolder.Of(user)));
+        }
+
+        return relinked;
+    }
 }

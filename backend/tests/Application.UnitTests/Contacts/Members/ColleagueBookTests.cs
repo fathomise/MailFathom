@@ -532,7 +532,8 @@ public sealed class ColleagueBookTests
                 Substitute.For<IStoredFileStore>(),
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), timeProvider),
                 timeProvider,
-                authorization),
+                authorization,
+                ClientSignalPublishers.ReachingNobody),
             this.store,
             ownership,
             authorization);

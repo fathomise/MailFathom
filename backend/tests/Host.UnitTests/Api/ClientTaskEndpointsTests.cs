@@ -647,12 +647,13 @@ public sealed class ClientTaskEndpointsTests
 
         return new TodayLayout(
             authorization,
-            new OwnTasks(authorization, store, clock),
+            new OwnTasks(authorization, store, clock, ClientSignalPublishers.ReachingNobody),
             new OwnCalendar(
                 authorization,
                 calendar,
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), clock),
-                clock),
+                clock,
+                ClientSignalPublishers.ReachingNobody),
             planner,
             SensitiveContentEgressGuards.Inactive());
     }
@@ -660,7 +661,8 @@ public sealed class ClientTaskEndpointsTests
     private static OwnTasks SignedIn(IPersonalTaskStore store) => new(
         AccessAuthorizations.ForUserGranted(User, MailFathomPermission.TasksRead, MailFathomPermission.TasksWrite),
         store,
-        new FakeTimeProvider(Stamped));
+        new FakeTimeProvider(Stamped),
+        ClientSignalPublishers.ReachingNobody);
 
     /// <summary>
     /// The presets the design draws for a due date, written whole and answered with the instants they fall at — which

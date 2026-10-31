@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Contacts;
 using MailFathom.Application.Discovery.Streaming;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -12,7 +13,7 @@ using MailFathom.Domain.Notifications;
 
 namespace MailFathom.Application.Signals;
 
-/// <summary>One statement that something changed for one mailbox or one user, carrying no mail.</summary>
+/// <summary>One statement that something changed for one mailbox, one user, or one organization's members, carrying no mail.</summary>
 /// <remarks>
 /// <para>
 /// A signal is an instruction to look again rather than a payload to keep. It names what changed and for whom, and the
@@ -66,7 +67,8 @@ public sealed class ClientSignal
         Guid? run,
         AgentConversationId? conversation,
         long sequence,
-        IReadOnlyList<UserId>? members = null)
+        IReadOnlyList<UserId>? members = null,
+        Guid? organization = null)
     {
         this.Kind = kind;
         this.User = user;
@@ -82,9 +84,10 @@ public sealed class ClientSignal
         this.Conversation = conversation;
         this.Sequence = sequence;
         this.Members = members ?? [];
+        this.Organization = organization;
     }
 
-    /// <summary>Gets which of the nine kinds this is.</summary>
+    /// <summary>Gets which of the twelve kinds this is.</summary>
     public ClientSignalKind Kind { get; }
 
     /// <summary>Gets the user whose connections this reaches, or nothing when the account decides who it reaches.</summary>
@@ -139,8 +142,17 @@ public sealed class ClientSignal
     /// <remarks>Empty on a presence change means more changed than one signal names, which a client answers by re-reading every colleague it draws.</remarks>
     public IReadOnlyList<UserId> Members { get; }
 
+    /// <summary>Gets the organization whose members a change reaches, where the change is to that organization's contact book.</summary>
+    /// <remarks>
+    /// Named rather than resolved into its members here, for the reason <see cref="User" /> is not named for a mailbox:
+    /// who belongs to an organization is read when the signal is delivered, so somebody who joined between the write and
+    /// the delivery is told. It never crosses to a client — the connection already belongs to one member.
+    /// </remarks>
+    public Guid? Organization { get; }
+
     /// <summary>Gets the scope two signals must share before one folds into the other.</summary>
-    internal ClientSignalScope Scope => new(this.User, this.Kind, this.Account, this.Folder, this.Run, this.Conversation);
+    internal ClientSignalScope Scope =>
+        new(this.User, this.Kind, this.Account, this.Folder, this.Run, this.Conversation, this.Organization);
 
     /// <summary>States that a run settled newly arrived mail, which every read now returns.</summary>
     /// <param name="account">The account the run was over.</param>
@@ -421,7 +433,8 @@ public sealed class ClientSignal
             this.Run,
             this.Conversation,
             later.Sequence,
-            FoldedMembers(this.Members, later.Members));
+            FoldedMembers(this.Members, later.Members),
+            this.Organization);
     }
 
     /// <summary>States that how one member of the reader's organization reads to the others may have changed.</summary>
@@ -452,6 +465,48 @@ public sealed class ClientSignal
             sequence: 0,
             members: [member]);
 
+    /// <summary>States that something on one person's calendar was written, amended, accepted, or deleted.</summary>
+    /// <param name="owner">Whose calendar it is, which is whose connections are told.</param>
+    /// <returns>The signal.</returns>
+    /// <remarks>It names nothing about the event: a title and a time are what a person wrote, and the client reads them back over the calendar's own route.</remarks>
+    public static ClientSignal CalendarChanged(UserId owner) => OnesOwn(ClientSignalKind.CalendarChanged, owner);
+
+    /// <summary>States that something on one person's task list was written, revised, accepted, completed, or erased.</summary>
+    /// <param name="user">Whose list it is, which is whose connections are told.</param>
+    /// <returns>The signal.</returns>
+    /// <remarks>It names nothing about the task, for the reason <see cref="CalendarChanged" /> names nothing about an event.</remarks>
+    public static ClientSignal TasksChanged(UserId user) => OnesOwn(ClientSignalKind.TasksChanged, user);
+
+    /// <summary>States that one contact book was written, which every person reading that book is told.</summary>
+    /// <param name="book">The book written: a user's own, a mail account's collected book, or an organization's.</param>
+    /// <returns>The signal.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="book" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// It names the book's holder and nothing about any person in it — no name, address, or note, each of which is
+    /// personal data about a third party. A user's book reaches that user, a collected book everybody assigned the
+    /// account, and an organization's book every member, each resolved when the signal is delivered.
+    /// </remarks>
+    public static ClientSignal ContactsChanged(ContactBookHolder book)
+    {
+        ArgumentNullException.ThrowIfNull(book);
+
+        return new ClientSignal(
+            ClientSignalKind.ContactsChanged,
+            book.User,
+            book.Account,
+            folder: null,
+            count: 0,
+            emails: [],
+            flags: [],
+            notificationKind: null,
+            headline: null,
+            secondLine: null,
+            run: null,
+            conversation: null,
+            sequence: 0,
+            organization: book.Organization);
+    }
+
     /// <summary>Joins two windows' named members, or names none once more changed than one signal names, which a client reads as everybody.</summary>
     /// <remarks>A presence change always names a member, so an empty side is one that already named everybody, and the fold keeps naming everybody.</remarks>
     private static UserId[] FoldedMembers(IReadOnlyList<UserId> earlier, IReadOnlyList<UserId> later)
@@ -465,6 +520,22 @@ public sealed class ClientSignal
 
         return joined.Length > MostNamedMembers ? [] : joined;
     }
+
+    private static ClientSignal OnesOwn(ClientSignalKind kind, UserId user) =>
+        new(
+            kind,
+            user,
+            account: null,
+            folder: null,
+            count: 0,
+            emails: [],
+            flags: [],
+            notificationKind: null,
+            headline: null,
+            secondLine: null,
+            run: null,
+            conversation: null,
+            sequence: 0);
 
     private static ClientSignal RunAdvanced(UserId user, Guid? run, AgentConversationId? conversation, long sequence) =>
         new(
@@ -506,11 +577,12 @@ public sealed class ClientSignal
 
 /// <summary>What two signals must share before one folds into the other: whose it is, what kind it is, and where it happened.</summary>
 /// <param name="User">Whose the statement is, where it is one person's rather than one mailbox's.</param>
-/// <param name="Kind">Which of the nine kinds it is.</param>
+/// <param name="Kind">Which of the twelve kinds it is.</param>
 /// <param name="Account">The account it names, where the kind names one.</param>
 /// <param name="Folder">The folder it names, where the kind names one.</param>
 /// <param name="Run">The Discover run or Agent answer it names, where the kind names one.</param>
 /// <param name="Conversation">The Agent conversation it names, where it names one.</param>
+/// <param name="Organization">The organization whose contact book it names, where it names one.</param>
 /// <remarks>Declared once and read from both sides of the fold — the buffer keys on it and <see cref="ClientSignal.FoldedWith" /> refuses a pair that does not share it — so the two can never come to disagree about what one scope is. The place is part of it deliberately: folding two folders' arrivals into one would leave a client told that mail arrived without being told where to look, and folding two of one person's runs into one would leave a client told to re-read a run at a sequence the other one reached.</remarks>
 internal readonly record struct ClientSignalScope(
     UserId? User,
@@ -518,4 +590,5 @@ internal readonly record struct ClientSignalScope(
     MailAccountId? Account,
     MailFolderId? Folder,
     Guid? Run,
-    AgentConversationId? Conversation);
+    AgentConversationId? Conversation,
+    Guid? Organization);

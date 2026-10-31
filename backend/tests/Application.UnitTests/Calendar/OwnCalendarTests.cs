@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Calendar;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Calendar;
@@ -23,7 +24,7 @@ namespace MailFathom.Application.UnitTests.Calendar;
 /// this deployment answers is refused rather than narrowed, that what a person types reaches the calendar asserted,
 /// that an amendment keeps everything an amendment keeps, and that accepting a proposal happens once.
 /// </summary>
-public sealed class OwnCalendarTests
+public sealed class OwnCalendarTests : IAsyncDisposable
 {
     private static readonly UserId Person = SyntheticUser.Deployment;
     private static readonly UserId SomebodyElse = SyntheticUser.Another;
@@ -32,6 +33,10 @@ public sealed class OwnCalendarTests
 
     private readonly InMemoryCalendarEventStore store = new();
     private readonly FakeTimeProvider clock = new(Now);
+    private readonly RecordingClientSignalChannel channel = new();
+    private readonly ClientSignals signals;
+
+    public OwnCalendarTests() => this.signals = new ClientSignals([this.channel], this.clock);
 
     [Fact]
     public async Task ReadWindowAsync_ACalendarWithEventsInIt_AnswersTheirOwnEarliestFirst()
@@ -691,6 +696,59 @@ public sealed class OwnCalendarTests
         Assert.Equal(expected, written.Event!.Notes?.Value);
     }
 
+    /// <summary>Each write that changed the calendar tells the owner's other clients, once it has committed, and names nothing about the event.</summary>
+    [Fact]
+    public async Task CreateAcceptAndDelete_EachChangingTheCalendar_AnnounceItToTheOwner()
+    {
+        // Arrange
+        var proposed = Proposal(Monday, "Interview");
+        var dismissed = Proposal(Monday.AddHours(2), "Lunch");
+        this.store.Hold(Person, proposed);
+        this.store.Hold(Person, dismissed);
+        var calendar = this.SignedIn();
+
+        // Act
+        foreach (var write in new Func<Task>[]
+        {
+            () => calendar.CreateAsync("Standup", null, Monday, null, false, [], null, TestContext.Current.CancellationToken),
+            () => calendar.AcceptAsync(proposed.Id, TestContext.Current.CancellationToken),
+            () => calendar.DeleteAsync(dismissed.Id, TestContext.Current.CancellationToken),
+        })
+        {
+            await write();
+            this.clock.Advance(ClientSignals.FoldingWindow);
+            await this.signals.DrainAsync();
+        }
+
+        // Assert
+        Assert.Equal(3, this.channel.Published.Count);
+        Assert.All(
+            this.channel.Published,
+            signal => Assert.Equal(ClientSignal.CalendarChanged(Person).Scope, signal.Scope));
+    }
+
+    /// <summary>A write that changed nothing — refused, or naming an event the calendar does not hold — tells nobody anything.</summary>
+    [Fact]
+    public async Task WritesThatChangedNothing_AnnounceNothing()
+    {
+        // Arrange
+        var theirs = EventAt(Monday, "theirs");
+        this.store.Hold(SomebodyElse, theirs);
+        var calendar = this.SignedIn();
+
+        // Act
+        await calendar.CreateAsync("   ", null, Monday, null, false, [], null, TestContext.Current.CancellationToken);
+        await calendar.AcceptAsync(theirs.Id, TestContext.Current.CancellationToken);
+        await calendar.DeleteAsync(theirs.Id, TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
+        await this.signals.DrainAsync();
+
+        // Assert
+        Assert.Empty(this.channel.Published);
+    }
+
+    public ValueTask DisposeAsync() => this.signals.DisposeAsync();
+
     private static CalendarEvent EventAt(DateTimeOffset start, string title) =>
         Compose(start, title, CalendarEventOrigin.Asserted);
 
@@ -724,7 +782,8 @@ public sealed class OwnCalendarTests
             AccessAuthorizations.ForUserGranted(Person, granted),
             this.store,
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
-            this.clock);
+            this.clock,
+            this.signals);
     }
 
     /// <summary>A session that commits whatever was staged in it, which is what a write's ordinary path needs.</summary>

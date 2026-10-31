@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Calendar;
 
@@ -69,6 +70,7 @@ public sealed class CalendarFileImport
     private readonly IUserTimeZones zones;
     private readonly OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy;
     private readonly TimeProvider timeProvider;
+    private readonly ClientSignals signals;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="authorization">Reports the grant the caller holds and the person it acts for.</param>
@@ -77,6 +79,7 @@ public sealed class CalendarFileImport
     /// <param name="zones">Answers which zone the acting person's own days are read in.</param>
     /// <param name="concurrencyRetryPolicy">Commits the write, deciding again from a fresh read when another write won.</param>
     /// <param name="timeProvider">Supplies the instant an imported event is identified and recorded by.</param>
+    /// <param name="signals">Announces a committed import to the owner's open clients.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public CalendarFileImport(
         AccessAuthorization authorization,
@@ -84,7 +87,8 @@ public sealed class CalendarFileImport
         ICalendarEventStore store,
         IUserTimeZones zones,
         OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ClientSignals signals)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(reader);
@@ -92,6 +96,7 @@ public sealed class CalendarFileImport
         ArgumentNullException.ThrowIfNull(zones);
         ArgumentNullException.ThrowIfNull(concurrencyRetryPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(signals);
 
         this.authorization = authorization;
         this.reader = reader;
@@ -99,6 +104,7 @@ public sealed class CalendarFileImport
         this.zones = zones;
         this.concurrencyRetryPolicy = concurrencyRetryPolicy;
         this.timeProvider = timeProvider;
+        this.signals = signals;
     }
 
     /// <summary>Reports what a file would put on the acting person's calendar, writing nothing.</summary>
@@ -154,7 +160,7 @@ public sealed class CalendarFileImport
             return nothingToWrite;
         }
 
-        return await this.concurrencyRetryPolicy.CommitAsync(
+        var imported = await this.concurrencyRetryPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
             {
                 // Which of these the calendar already holds is decided inside the attempt rather than once above it,
@@ -178,6 +184,13 @@ public sealed class CalendarFileImport
                 return summary;
             },
             cancellationToken);
+
+        if (imported.Events > 0)
+        {
+            this.signals.Publish(ClientSignal.CalendarChanged(owner));
+        }
+
+        return imported;
     }
 
     /// <summary>Reads the file into the entries it offers, or into why the whole of it is refused.</summary>

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.Enrichment;
+using MailFathom.Application.Signals;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -193,9 +194,42 @@ public sealed class MailDerivedTaskProposalsTests
         Assert.Null(proposed.AnchorsRemindersAt);
     }
 
+    /// <summary>Each person proposed to is told their list moved, since nobody else's list did.</summary>
+    [Fact]
+    public async Task ProposeAsync_AMailboxTwoPeopleAreAssigned_TellsEachOfThemTheirListMoved()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(Stamped);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var proposals = Compose(
+            Substitute.For<IPersonalTaskStore>(),
+            assignedTo: [SyntheticUser.Deployment, SyntheticUser.Another],
+            signals);
+
+        // Act
+        await proposals.ProposeAsync(
+            Account,
+            Message,
+            [EmailTaskProposal.Create("Answer the supplier", dueOn: null)],
+            TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equivalent(
+            new[]
+            {
+                ClientSignal.TasksChanged(SyntheticUser.Deployment).Scope,
+                ClientSignal.TasksChanged(SyntheticUser.Another).Scope,
+            },
+            channel.Published.Select(signal => signal.Scope).ToArray());
+    }
+
     private static MailDerivedTaskProposals Compose(
         IPersonalTaskStore store,
-        IReadOnlyList<UserId> assignedTo)
+        IReadOnlyList<UserId> assignedTo,
+        ClientSignals? signals = null)
     {
         var assignments = new StubMailAccountAssignments();
 
@@ -204,6 +238,10 @@ public sealed class MailDerivedTaskProposalsTests
             assignments.Assigning(user, Account);
         }
 
-        return new MailDerivedTaskProposals(assignments, store, new FakeTimeProvider(Stamped));
+        return new MailDerivedTaskProposals(
+            assignments,
+            store,
+            new FakeTimeProvider(Stamped),
+            signals ?? ClientSignalPublishers.ReachingNobody);
     }
 }

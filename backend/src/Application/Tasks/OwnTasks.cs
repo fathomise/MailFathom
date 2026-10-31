@@ -5,6 +5,7 @@
 using System.Globalization;
 using MailFathom.Application.Access;
 using MailFathom.Application.Paging;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Reminders;
@@ -34,6 +35,10 @@ namespace MailFathom.Application.Tasks;
 /// whose mail accounts an administrator maintains keeps their own list under a grant that says nothing about those
 /// accounts.
 /// </para>
+/// <para>
+/// A write that changed the list is announced to the person's open clients once it is durable, so a second device
+/// draws it without being reopened.
+/// </para>
 /// </remarks>
 public sealed class OwnTasks
 {
@@ -53,21 +58,29 @@ public sealed class OwnTasks
     private readonly AccessAuthorization authorization;
     private readonly IPersonalTaskStore store;
     private readonly TimeProvider clock;
+    private readonly ClientSignals signals;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="authorization">Reports the grant the caller holds and the user it acts for.</param>
     /// <param name="store">Holds what a person owes.</param>
     /// <param name="clock">Stamps the identity a new task is addressed under.</param>
+    /// <param name="signals">Announces a durable write to the person's open clients.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
-    public OwnTasks(AccessAuthorization authorization, IPersonalTaskStore store, TimeProvider clock)
+    public OwnTasks(
+        AccessAuthorization authorization,
+        IPersonalTaskStore store,
+        TimeProvider clock,
+        ClientSignals signals)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(signals);
 
         this.authorization = authorization;
         this.store = store;
         this.clock = clock;
+        this.signals = signals;
     }
 
     /// <summary>Reads one page of the signed-in person's tasks of one origin, soonest due first.</summary>
@@ -171,6 +184,8 @@ public sealed class OwnTasks
 
         await this.store.AddAsync(task, cancellationToken);
 
+        this.signals.Publish(ClientSignal.TasksChanged(task.User));
+
         return task;
     }
 
@@ -213,9 +228,14 @@ public sealed class OwnTasks
 
         var revision = held.Revise(title, dueOn, announcement);
 
-        return await this.store.ReviseAsync(revision, cancellationToken) is PersonalTaskChangeOutcome.Applied
-            ? revision
-            : null;
+        if (await this.store.ReviseAsync(revision, cancellationToken) is not PersonalTaskChangeOutcome.Applied)
+        {
+            return null;
+        }
+
+        this.signals.Publish(ClientSignal.TasksChanged(revision.User));
+
+        return revision;
     }
 
     /// <summary>Turns one of the signed-in person's proposals into a task they owe.</summary>
@@ -269,11 +289,20 @@ public sealed class OwnTasks
     /// something mail suggested leave the same list behind, and a second name for the same erasure would be a route
     /// whose only difference was the word a screen puts on the button.
     /// </remarks>
-    public Task<bool> EraseAsync(PersonalTaskId task, CancellationToken cancellationToken)
+    public async Task<bool> EraseAsync(PersonalTaskId task, CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.TasksWrite);
 
-        return this.store.EraseAsync(this.authorization.RequireUser(), task, cancellationToken);
+        var user = this.authorization.RequireUser();
+
+        if (!await this.store.EraseAsync(user, task, cancellationToken))
+        {
+            return false;
+        }
+
+        this.signals.Publish(ClientSignal.TasksChanged(user));
+
+        return true;
     }
 
     /// <summary>Reduces the reading's own narrowing to the fingerprint its cursors carry.</summary>
@@ -328,10 +357,17 @@ public sealed class OwnTasks
         UserId user,
         PersonalTaskId task,
         Task<PersonalTaskChangeOutcome> change,
-        CancellationToken cancellationToken) =>
-        await change is PersonalTaskChangeOutcome.Applied
-            ? await this.store.FindAsync(user, task, cancellationToken)
-            : null;
+        CancellationToken cancellationToken)
+    {
+        if (await change is not PersonalTaskChangeOutcome.Applied)
+        {
+            return null;
+        }
+
+        this.signals.Publish(ClientSignal.TasksChanged(user));
+
+        return await this.store.FindAsync(user, task, cancellationToken);
+    }
 
     /// <summary>Reduces what a caller asked for to a page size this deployment serves.</summary>
     private static int Bounded(int? pageSize) => pageSize switch

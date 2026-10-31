@@ -191,7 +191,8 @@ public sealed class ClientContactPhotoEndpointTests
             this.directory,
             this.store,
             this.files,
-            new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), new FakeTimeProvider(Now)));
+            new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), new FakeTimeProvider(Now)),
+            ClientSignalPublishers.ReachingNobody);
     }
 
     private Contact Holding(StoredFileId? photo)

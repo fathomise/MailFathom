@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Portraits;
+using MailFathom.Application.Signals;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -73,6 +74,10 @@ namespace MailFathom.Application.Contacts;
 /// of a grant. A permission there would make writing into a collected book reachable by whoever an operator granted
 /// that name to, which is the authority the origin rule exists to keep away from a caller.
 /// </para>
+/// <para>
+/// Every write that changed a book is announced once it has committed, to whoever reads that book — whichever surface
+/// performed it — so an open client draws it without being reopened.
+/// </para>
 /// </remarks>
 public sealed class ContactBook
 {
@@ -82,6 +87,7 @@ public sealed class ContactBook
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly TimeProvider timeProvider;
     private readonly AccessAuthorization authorization;
+    private readonly ClientSignals signals;
 
     /// <summary>Initializes the book over the store it writes to and the directory it reads from.</summary>
     /// <param name="store">Keeps the records.</param>
@@ -90,6 +96,7 @@ public sealed class ContactBook
     /// <param name="commitPolicy">Commits each write, retrying a lost race from a fresh read.</param>
     /// <param name="timeProvider">Stamps when a contact was recorded, amended, promoted, or exported.</param>
     /// <param name="authorization">Answers which principal reached each act.</param>
+    /// <param name="signals">Announces a committed write to whoever reads the book it changed.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public ContactBook(
         IContactStore store,
@@ -97,7 +104,8 @@ public sealed class ContactBook
         IStoredFileStore files,
         OptimisticConcurrencyRetryPolicy commitPolicy,
         TimeProvider timeProvider,
-        AccessAuthorization authorization)
+        AccessAuthorization authorization,
+        ClientSignals signals)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(directory);
@@ -105,6 +113,7 @@ public sealed class ContactBook
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(authorization);
+        ArgumentNullException.ThrowIfNull(signals);
 
         this.store = store;
         this.directory = directory;
@@ -112,6 +121,7 @@ public sealed class ContactBook
         this.commitPolicy = commitPolicy;
         this.timeProvider = timeProvider;
         this.authorization = authorization;
+        this.signals = signals;
     }
 
     /// <summary>Reads one bounded page of the books a scope reads.</summary>
@@ -369,7 +379,7 @@ public sealed class ContactBook
         var holder = scope.OwnBook;
         var reach = await this.ReachOfAsync(MailFathomPermission.AdminOperate, scope, cancellationToken);
 
-        return await this.commitPolicy.CommitAsync(
+        var amended = await this.commitPolicy.CommitAsync(
             async (session, token) =>
             {
                 var held = await this.directory.FindAsync(reach, amendment.ContactId, token);
@@ -402,6 +412,8 @@ public sealed class ContactBook
                     : ContactWriteResult.NotFound();
             },
             cancellationToken);
+
+        return this.Announced(holder, amended);
     }
 
     /// <summary>Takes a collected contact on, by writing the user's own copy of it.</summary>
@@ -462,7 +474,7 @@ public sealed class ContactBook
 
         var reach = await this.ReachOfAsync(MailFathomPermission.AdminOperate, scope, cancellationToken);
 
-        return await this.commitPolicy.CommitAsync(
+        var promoted = await this.commitPolicy.CommitAsync(
             async (session, token) =>
             {
                 var held = await this.directory.FindAsync(reach, contactId, token);
@@ -497,6 +509,8 @@ public sealed class ContactBook
                     token);
             },
             cancellationToken);
+
+        return this.Announced(scope.OwnBook, promoted);
     }
 
     /// <summary>Erases one person and everything the book derived from them.</summary>
@@ -531,9 +545,22 @@ public sealed class ContactBook
 
         var reach = await this.ReachOfAsync(MailFathomPermission.AdminErase, scope, cancellationToken);
 
-        return await this.commitPolicy.CommitAsync(
+        var erasure = await this.commitPolicy.CommitAsync(
             (session, token) => this.store.EraseAsync(session, reach, contactId, token),
             cancellationToken);
+
+        // Every book the erasure could reach is announced rather than the one that held the person, which the store
+        // does not say: a re-read of a book that did not change costs a request, and a collected book left unannounced
+        // leaves everybody else assigned that mailbox drawing somebody who was erased.
+        if (erasure.WasHeld)
+        {
+            foreach (var book in reach.Accounts.Select(ContactBookHolder.Of).Prepend(reach.OwnBook))
+            {
+                this.signals.Publish(ClientSignal.ContactsChanged(book));
+            }
+        }
+
+        return erasure;
     }
 
     /// <summary>Erases the whole of one mail account's collected book, leaving every user's own book where it is.</summary>
@@ -561,9 +588,16 @@ public sealed class ContactBook
     {
         await this.authorization.RequirePermissionOverAsync(MailFathomPermission.AdminErase, account, cancellationToken);
 
-        return await this.commitPolicy.CommitAsync(
+        var erasure = await this.commitPolicy.CommitAsync(
             (session, token) => this.store.EraseCollectedAsync(session, account, token),
             cancellationToken);
+
+        if (erasure.ContactsErased > 0)
+        {
+            this.signals.Publish(ClientSignal.ContactsChanged(ContactBookHolder.Of(account)));
+        }
+
+        return erasure;
     }
 
     /// <summary>Produces everything the books hold about one person.</summary>
@@ -724,14 +758,29 @@ public sealed class ContactBook
     /// Shared by the two acts that add a contact, because who may add one and what adding one does are different
     /// questions and only the first of them differs between a caller and collection.
     /// </remarks>
-    private Task<ContactWriteResult> WriteNewContactAsync(
+    private async Task<ContactWriteResult> WriteNewContactAsync(
         ContactBookHolder holder,
         NewContact newContact,
         ContactAddressWriter statedBy,
-        CancellationToken cancellationToken) =>
-        this.commitPolicy.CommitAsync(
+        CancellationToken cancellationToken)
+    {
+        var written = await this.commitPolicy.CommitAsync(
             (session, token) => this.StageNewContactAsync(session, holder, newContact, statedBy, token),
             cancellationToken);
+
+        return this.Announced(holder, written);
+    }
+
+    /// <summary>Announces a write that changed one book, once it has committed, and hands its result back.</summary>
+    private ContactWriteResult Announced(ContactBookHolder book, ContactWriteResult result)
+    {
+        if (result.Outcome == ContactWriteOutcome.Written)
+        {
+            this.signals.Publish(ClientSignal.ContactsChanged(book));
+        }
+
+        return result;
+    }
 
     /// <summary>Stages one new record into one book, inside a commit somebody else opened.</summary>
     /// <remarks>

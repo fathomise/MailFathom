@@ -585,7 +585,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         taskStore
             .ReadAsync(SyntheticUser.Deployment, PersonalTaskOrigin.Proposed, null, Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns([]);
-        this.tools = this.Tools(authorization, egress.Guard, tasks: new OwnTasks(authorization, taskStore, this.clock));
+        this.tools = this.Tools(authorization, egress.Guard, tasks: new OwnTasks(authorization, taskStore, this.clock, ClientSignalPublishers.ReachingNobody));
         var tool = this.CreatedTool("read_tasks");
 
         // Act
@@ -757,7 +757,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             authorization,
             calendarStore,
             new OptimisticConcurrencyRetryPolicy(Substitute.For<IPersistenceSessionFactory>(), new PersistenceConcurrencyOptions(), this.clock),
-            this.clock);
+            this.clock,
+            ClientSignalPublishers.ReachingNobody);
         this.tools = this.Tools(authorization, egress.Guard, calendar: calendar);
         var tool = this.CreatedTool("read_calendar");
 

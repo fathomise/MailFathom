@@ -118,6 +118,34 @@ function Book({
     );
 }
 
+// A channel a test speaks into, standing in for the deployment and the refresh control.
+function told(): { readonly say: SignalListener; readonly listen: (listener: SignalListener) => () => void } {
+    const listeners = new Set<SignalListener>();
+
+    return {
+        say: (change) => {
+            for (const listener of listeners) {
+                listener(change);
+            }
+        },
+        listen: (listener) => {
+            listeners.add(listener);
+
+            return () => {
+                listeners.delete(listener);
+            };
+        },
+    };
+}
+
+function drawBook(transport: MailFathomTransport, channel: ReturnType<typeof told>, book: ContactBookName) {
+    render(
+        <SignalledChangesContext value={{ listen: channel.listen, refresh: () => undefined }}>
+            <Book transport={transport} book={book} />
+        </SignalledChangesContext>,
+    );
+}
+
 describe('useContactBook', () => {
     it('reads the book it was asked for and holds the people it named', async () => {
         const { transport, asked } = answering({
@@ -242,43 +270,12 @@ describe('useContactBook', () => {
             };
         }
 
-        function told(): { readonly say: SignalListener; readonly listen: (listener: SignalListener) => () => void } {
-            const listeners = new Set<SignalListener>();
-
-            return {
-                say: (change) => {
-                    for (const listener of listeners) {
-                        listener(change);
-                    }
-                },
-                listen: (listener) => {
-                    listeners.add(listener);
-
-                    return () => {
-                        listeners.delete(listener);
-                    };
-                },
-            };
-        }
-
-        function drawDirectory(
-            transport: MailFathomTransport,
-            channel: ReturnType<typeof told>,
-            book: ContactBookName,
-        ) {
-            render(
-                <SignalledChangesContext value={{ listen: channel.listen, refresh: () => undefined }}>
-                    <Book transport={transport} book={book} />
-                </SignalledChangesContext>,
-            );
-        }
-
         it('reads again each member a presence change names, and only them', async () => {
             const presence: Record<string, string> = { marta: 'Busy', piotr: 'Active' };
             const { transport, asked } = directory(presence);
             const channel = told();
 
-            drawDirectory(transport, channel, 'colleagues');
+            drawBook(transport, channel, 'colleagues');
             expect(await screen.findByText('Busy')).toBeDefined();
 
             presence['piotr'] = 'Away';
@@ -295,7 +292,7 @@ describe('useContactBook', () => {
             const { transport } = directory(presence);
             const channel = told();
 
-            drawDirectory(transport, channel, 'colleagues');
+            drawBook(transport, channel, 'colleagues');
             expect(await screen.findByText('Busy')).toBeDefined();
 
             presence['marta'] = 'Offline';
@@ -310,11 +307,60 @@ describe('useContactBook', () => {
             const { transport, asked } = answering({ own: [pageOf([contact('anna', 'Anna Kowalska')], null)] });
             const channel = told();
 
-            drawDirectory(transport, channel, 'own');
+            drawBook(transport, channel, 'own');
             expect(await screen.findByText('Anna Kowalska')).toBeDefined();
 
             act(() => {
                 channel.say({ kind: 'presence.changed', members: [] });
+            });
+
+            expect(asked()).toHaveLength(1);
+        });
+    });
+
+    describe('a book written somewhere else', () => {
+        it.each(['own', 'collected'] as const)(
+            'reads the %s book again in place when the deployment says a book was written, and on a refresh',
+            async (book) => {
+                const { transport, asked } = answering({
+                    [book]: [
+                        pageOf([contact('anna', 'Anna Kowalska')], null),
+                        pageOf([contact('anna', 'Anna Kowalska'), contact('bartek', 'Bartek Nowak')], null),
+                        pageOf([contact('celina', 'Celina Wrona')], null),
+                    ],
+                });
+                const channel = told();
+
+                drawBook(transport, channel, book);
+                expect(await screen.findByText('Anna Kowalska')).toBeDefined();
+
+                act(() => {
+                    channel.say({ kind: 'contacts.changed' });
+                });
+
+                expect(await screen.findByText('Bartek Nowak')).toBeDefined();
+                expect(screen.getByText('Anna Kowalska')).toBeDefined();
+
+                act(() => {
+                    channel.say({ kind: 'refresh' });
+                });
+
+                expect(await screen.findByText('Celina Wrona')).toBeDefined();
+                expect(asked()).toHaveLength(3);
+            },
+        );
+
+        it('reads the directory nothing again for a book written, since colleagues are not a book', async () => {
+            const { transport, asked } = answering({
+                colleagues: [pageOf([colleague('piotr', 'Piotr Zieliński')], null)],
+            });
+            const channel = told();
+
+            drawBook(transport, channel, 'colleagues');
+            expect(await screen.findByText('Piotr Zieliński')).toBeDefined();
+
+            act(() => {
+                channel.say({ kind: 'contacts.changed' });
             });
 
             expect(asked()).toHaveLength(1);

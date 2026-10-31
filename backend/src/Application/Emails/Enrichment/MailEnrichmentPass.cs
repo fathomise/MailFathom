@@ -215,7 +215,7 @@ public sealed class MailEnrichmentPass
             // already been paid for: holding it until the last of the batch had answered would lose every one of them
             // to a provider that stopped answering half way through. The proposals join the same statement, so the
             // record saying this message has been read and the dates it named become durable together.
-            proposedCount += await this.commitPolicy.CommitAsync(
+            var staged = await this.commitPolicy.CommitAsync(
                 async (session, attemptCancellationToken) =>
                 {
                     await this.enrichmentStore.SaveAsync(session, enrichment, attemptCancellationToken);
@@ -228,6 +228,12 @@ public sealed class MailEnrichmentPass
                         attemptCancellationToken);
                 },
                 cancellationToken);
+
+            if (staged > 0)
+            {
+                proposedCount += staged;
+                await this.calendarProposals.AnnounceAsync(account, cancellationToken);
+            }
 
             derivedCount++;
 

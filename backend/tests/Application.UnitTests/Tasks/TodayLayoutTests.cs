@@ -359,12 +359,13 @@ public sealed class TodayLayoutTests
 
         return new TodayLayout(
             authorization,
-            new OwnTasks(authorization, tasks, clock),
+            new OwnTasks(authorization, tasks, clock, ClientSignalPublishers.ReachingNobody),
             new OwnCalendar(
                 authorization,
                 events,
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), clock),
-                clock),
+                clock,
+                ClientSignalPublishers.ReachingNobody),
             planner,
             SensitiveContentEgressGuards.Inactive());
     }

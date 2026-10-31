@@ -180,7 +180,8 @@ public sealed class ClientCalendarImportEndpointsTests
             this.store,
             zones,
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), clock),
-            clock);
+            clock,
+            ClientSignalPublishers.ReachingNobody);
     }
 
     /// <summary>A body the routing pipeline has already refused, which is how an oversized upload reaches a handler.</summary>

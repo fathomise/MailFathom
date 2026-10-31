@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Calendar;
 using MailFathom.Application.Calendar.Import;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Calendar;
@@ -23,7 +24,7 @@ namespace MailFathom.Application.UnitTests.Calendar.Import;
 /// that what is written is asserted and keeps the identifier it was imported under, and that the calendar reached is
 /// the one the credential authenticated.
 /// </summary>
-public sealed class CalendarFileImportTests
+public sealed class CalendarFileImportTests : IAsyncDisposable
 {
     private static readonly UserId Person = SyntheticUser.Deployment;
     private static readonly UserId SomebodyElse = SyntheticUser.Another;
@@ -34,7 +35,11 @@ public sealed class CalendarFileImportTests
     private readonly FakeTimeProvider clock = new(Now);
     private readonly ICalendarFileReader reader = Substitute.For<ICalendarFileReader>();
     private readonly Queue<PersistenceCommitResult> commits = new();
+    private readonly RecordingClientSignalChannel channel = new();
+    private readonly ClientSignals signals;
     private UserTimeZone zone = UserTimeZone.Coordinated;
+
+    public CalendarFileImportTests() => this.signals = new ClientSignals([this.channel], this.clock);
 
     [Fact]
     public async Task SummariseAsync_AFileWithEntriesInIt_ReportsWhatItWouldCreateAndWritesNothing()
@@ -233,6 +238,27 @@ public sealed class CalendarFileImportTests
             () => import.ImportAsync(File(), TestContext.Current.CancellationToken));
     }
 
+    /// <summary>An import that wrote events tells the owner's clients once, and one that wrote nothing tells nobody.</summary>
+    [Fact]
+    public async Task ImportAsync_AFileThatWroteEventsAndOneThatWroteNone_AnnouncesOnlyTheFirst()
+    {
+        // Arrange
+        this.Reads(Entry("one", Monday), Entry("two", Monday.AddHours(2)));
+
+        // Act
+        await this.SignedIn().ImportAsync(File(), TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
+        await this.signals.DrainAsync();
+        await this.SignedIn().ImportAsync(File(), TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
+        await this.signals.DrainAsync();
+
+        // Assert
+        Assert.Equal(ClientSignal.CalendarChanged(Person).Scope, Assert.Single(this.channel.Published).Scope);
+    }
+
+    public ValueTask DisposeAsync() => this.signals.DisposeAsync();
+
     private static CalendarFileEntry Entry(string uid, DateTimeOffset start) =>
         new(
             ImportedCalendarEventUid.Create(uid),
@@ -311,7 +337,8 @@ public sealed class CalendarFileImportTests
             this.store,
             zones,
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
-            this.clock);
+            this.clock,
+            this.signals);
     }
 
     /// <summary>A session that ends the way the test arranged, which is how a lost race is expressed here.</summary>

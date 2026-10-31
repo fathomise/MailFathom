@@ -263,7 +263,8 @@ public sealed class OrganizationContactEndpointsTests
             Substitute.For<IStoredFileStore>(),
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
             this.clock,
-            authorization);
+            authorization,
+            ClientSignalPublishers.ReachingNobody);
     }
 
     /// <summary>A session that commits whatever was staged in it.</summary>

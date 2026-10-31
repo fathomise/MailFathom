@@ -25,10 +25,14 @@ namespace MailFathom.Infrastructure.Persistence.Presence;
 /// Every instant is the caller's, read from the application's clock, so the expiry a row is written with and the
 /// instant a read leaves it out at come from one source.
 /// </para>
+/// <para>
+/// The pool arrives behind a delegate because the signal channel, which asks who belongs to an organization, is composed
+/// before startup has composed the connection string the pool is built from.
+/// </para>
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this store.")]
 [RequiresIntegrationCoverage]
-internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStore
+internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresenceStore
 {
     private const string ReadClientsStatement = $"""
         SELECT "{PresenceClientEntity.UserIdColumnName}", "{PresenceClientEntity.ActivityColumnName}", "{PresenceClientEntity.ExpiresAtColumnName}"
@@ -122,7 +126,7 @@ internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStor
         var clients = new Dictionary<Guid, List<OpenPresenceClient>>();
         var held = new Dictionary<Guid, (PresenceChoice? Choice, DateTimeOffset? LastSeen)>();
 
-        await using var batch = dataSource.CreateBatch();
+        await using var batch = dataSource().CreateBatch();
         batch.BatchCommands.Add(WithMembers(new NpgsqlBatchCommand(ReadClientsStatement), identifiers));
         batch.BatchCommands.Add(WithMembers(new NpgsqlBatchCommand(ReadMembersStatement), identifiers));
 
@@ -183,7 +187,7 @@ internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStor
         DateTimeOffset? lastSeen,
         CancellationToken cancellationToken)
     {
-        await using var batch = dataSource.CreateBatch();
+        await using var batch = dataSource().CreateBatch();
 
         var removal = new NpgsqlBatchCommand(RemoveOwnExpiredStatement);
         removal.Parameters.AddWithValue("member", member.Value);
@@ -207,7 +211,7 @@ internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStor
 
         if (lastSeen is { } seen)
         {
-            await using var command = dataSource.CreateCommand(RecordLastSeenStatement);
+            await using var command = dataSource().CreateCommand(RecordLastSeenStatement);
             command.Parameters.AddWithValue("member", member.Value);
             command.Parameters.AddWithValue("lastSeen", seen.ToUniversalTime());
             await command.ExecuteNonQueryAsync(cancellationToken);
@@ -219,7 +223,7 @@ internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStor
     /// <inheritdoc />
     public async Task RemoveClientAsync(UserId member, Guid client, CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand(RemoveClientStatement);
+        await using var command = dataSource().CreateCommand(RemoveClientStatement);
         command.Parameters.AddWithValue("member", member.Value);
         command.Parameters.AddWithValue("client", client);
         await command.ExecuteNonQueryAsync(cancellationToken);
@@ -228,7 +232,7 @@ internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStor
     /// <inheritdoc />
     public async Task ChooseAsync(UserId member, PresenceChoice? choice, CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand(ChooseStatement);
+        await using var command = dataSource().CreateCommand(ChooseStatement);
         command.Parameters.AddWithValue("member", member.Value);
         command.Parameters.Add(new NpgsqlParameter("chosenState", NpgsqlDbType.Integer)
         {
@@ -251,7 +255,7 @@ internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStor
         int mostRemoved,
         CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand(RemoveExpiredStatement);
+        await using var command = dataSource().CreateCommand(RemoveExpiredStatement);
         command.Parameters.AddWithValue("removableFrom", removableFrom.ToUniversalTime());
         command.Parameters.AddWithValue("mostRemoved", mostRemoved);
         await command.ExecuteNonQueryAsync(cancellationToken);
@@ -260,7 +264,7 @@ internal sealed class PresenceStore(NpgsqlDataSource dataSource) : IPresenceStor
     /// <inheritdoc />
     public async Task<IReadOnlyList<UserId>> ReadOrganizationUsersAsync(Guid organization, CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand(ReadOrganizationUsersStatement);
+        await using var command = dataSource().CreateCommand(ReadOrganizationUsersStatement);
         command.Parameters.AddWithValue("organization", organization);
         command.Parameters.AddWithValue("person", (int)UserType.User);
         command.Parameters.AddWithValue("most", IPresenceStore.MostReadMembers);

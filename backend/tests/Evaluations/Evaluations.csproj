@@ -50,6 +50,7 @@
     <Compile Include="..\shared\SyntheticUser.cs" Link="SyntheticUser.cs" />
     <!-- The grant a scenario states for the Agent's tools, which decides which of them are offered. -->
     <Compile Include="..\shared\AccessAuthorizations.cs" Link="AccessAuthorizations.cs" />
+    <Compile Include="..\shared\ClientSignalPublishers.cs" Link="ClientSignalPublishers.cs" />
     <!-- The one account and one inbox the Agent's readers resolve their scope over, and the thread reader that assembles
          each corpus conversation as a deployment's does. -->
     <Compile Include="..\shared\AssignedMailAccountCatalogs.cs" Link="AssignedMailAccountCatalogs.cs" />

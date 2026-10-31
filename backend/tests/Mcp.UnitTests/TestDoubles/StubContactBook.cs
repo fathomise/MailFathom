@@ -95,7 +95,8 @@ internal sealed class StubContactBook
             Substitute.For<IStoredFileStore>(),
             this.CommitPolicy(),
             this.timeProvider,
-            this.authorization),
+            this.authorization,
+            ClientSignalPublishers.ReachingNobody),
         this.Directory,
         this.Ownership(),
         this.authorization);

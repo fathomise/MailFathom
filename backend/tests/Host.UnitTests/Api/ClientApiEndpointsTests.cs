@@ -946,7 +946,8 @@ public sealed class ClientApiEndpointsTests
         services.AddScoped(_ => new OwnTasks(
             granted,
             Substitute.For<IPersonalTaskStore>(),
-            new FakeTimeProvider()));
+            new FakeTimeProvider(),
+            ClientSignalPublishers.ReachingNobody));
         services.AddScoped(_ => new MailFolderDirectoryReader(
             UnreachedFreshnessReader(granted),
             UnreachedScopeResolver(),

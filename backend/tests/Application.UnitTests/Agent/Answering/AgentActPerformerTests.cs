@@ -160,8 +160,9 @@ public sealed class AgentActPerformerTests
                 authorization,
                 this.calendar,
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
-                this.clock),
-            new OwnTasks(authorization, this.tasks, this.clock));
+                this.clock,
+                ClientSignalPublishers.ReachingNobody),
+            new OwnTasks(authorization, this.tasks, this.clock, ClientSignalPublishers.ReachingNobody));
     }
 
     private sealed class CommittingSession : IPersistenceSession

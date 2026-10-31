@@ -3,6 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Contacts;
+using MailFathom.Application.Presence;
 using MailFathom.Application.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
@@ -132,9 +134,40 @@ public sealed class SignalRClientSignalChannelTests
         Assert.Empty(group.ReceivedCalls());
     }
 
+    /// <summary>A change to an organization's contact book reaches every member's group, read when the signal is delivered, and carries no organization on the wire.</summary>
+    [Fact]
+    public async Task PublishAsync_AnOrganizationsContactsChanged_ReachesEveryMembersGroup()
+    {
+        // Arrange
+        var organization = Guid.Parse("0199c1a2-0000-7000-8000-0000000000a1");
+        var group = Substitute.For<IClientProxy>();
+        var clients = Substitute.For<IHubClients>();
+        clients.Group(Arg.Any<string>()).Returns(group);
+        var organizations = Substitute.For<IPresenceStore>();
+        organizations.ReadOrganizationUsersAsync(organization, Arg.Any<CancellationToken>())
+            .Returns([SyntheticUser.Deployment, SyntheticUser.Another]);
+        var channel = ChannelOver(clients, organizations: organizations);
+
+        // Act
+        await channel.PublishAsync(
+            ClientSignal.ContactsChanged(ContactBookHolder.OfOrganization(organization)),
+            CancellationToken.None);
+
+        // Assert
+        clients.Received(1).Group(ClientSignalHub.GroupOf(SyntheticUser.Deployment));
+        clients.Received(1).Group(ClientSignalHub.GroupOf(SyntheticUser.Another));
+        await group.Received(2).SendCoreAsync(
+            ClientSignalHub.SignalMethod,
+            Arg.Is<object?[]>(sent => sent.Length == 1
+                && ((ClientSignalPayload)sent[0]!).Kind == ClientSignalKind.ContactsChanged.Name
+                && ((ClientSignalPayload)sent[0]!).Account == null),
+            Arg.Any<CancellationToken>());
+    }
+
     private static SignalRClientSignalChannel ChannelOver(
         IHubClients clients,
-        IMailAccountAssignments? assignments = null)
+        IMailAccountAssignments? assignments = null,
+        IPresenceStore? organizations = null)
     {
         var hub = Substitute.For<IHubContext<ClientSignalHub>>();
         hub.Clients.Returns(clients);
@@ -142,6 +175,7 @@ public sealed class SignalRClientSignalChannelTests
         return new SignalRClientSignalChannel(
             hub,
             assignments ?? new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
+            organizations ?? Substitute.For<IPresenceStore>(),
             NullLogger<SignalRClientSignalChannel>.Instance);
     }
 }

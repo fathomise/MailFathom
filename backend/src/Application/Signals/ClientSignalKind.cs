@@ -78,6 +78,18 @@ public readonly record struct ClientSignalKind
     /// </remarks>
     public static ClientSignalKind PresenceChanged { get; } = new("presence.changed");
 
+    /// <summary>Gets the kind raised when an event on one person's calendar was written, amended, accepted, or deleted.</summary>
+    /// <remarks>It names nothing about the event — no title, time, or identity — so the client re-reads the span it draws, which is the guarantee; the signal only says when.</remarks>
+    public static ClientSignalKind CalendarChanged { get; } = new("calendar.changed");
+
+    /// <summary>Gets the kind raised when a task on one person's list was written, revised, accepted, completed, or erased.</summary>
+    /// <remarks>It names nothing about the task, so the client re-reads the list it draws.</remarks>
+    public static ClientSignalKind TasksChanged { get; } = new("tasks.changed");
+
+    /// <summary>Gets the kind raised when a contact book a person reads was written: their own, their organization's, or the collected book of an account assigned to them.</summary>
+    /// <remarks>It names the account where the book is a mailbox's, and nothing about any person in it, so the client re-reads the book it draws.</remarks>
+    public static ClientSignalKind ContactsChanged { get; } = new("contacts.changed");
+
     /// <summary>Gets every kind this deployment publishes.</summary>
     /// <remarks>Declared last so the members it lists are already initialized when this initializer runs.</remarks>
     public static IReadOnlyList<ClientSignalKind> All { get; } =
@@ -91,6 +103,9 @@ public readonly record struct ClientSignalKind
         RunAdvanced,
         OutboxChanged,
         PresenceChanged,
+        CalendarChanged,
+        TasksChanged,
+        ContactsChanged,
     ];
 
     /// <summary>Gets whether this value names a kind rather than the unusable struct default.</summary>

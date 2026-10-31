@@ -888,6 +888,7 @@ public sealed class AdminApiEndpointsTests
                 new PersistenceConcurrencyOptions(),
                 timeProvider),
             timeProvider,
-            Authorization));
+            Authorization,
+            ClientSignalPublishers.ReachingNobody));
     }
 }

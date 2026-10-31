@@ -7,6 +7,7 @@ using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Portraits;
+using MailFathom.Application.Signals;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
@@ -227,6 +228,53 @@ public sealed class ContactPhotosTests
             () => photos.ReadAsync(AContactId(), TestContext.Current.CancellationToken));
     }
 
+    /// <summary>A photo removed from a contact nobody holds changed no book, so it tells nobody anything.</summary>
+    [Fact]
+    public async Task RemoveAsync_AContactNobodyHolds_AnnouncesNothing()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(Now);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var photos = PhotosOver(new InMemoryContactBookStore(), new InMemoryContactBookStore(), Substitute.For<IStoredFileStore>(), signals);
+
+        // Act
+        await photos.RemoveAsync(AContactId(), TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Empty(channel.Published);
+    }
+
+    /// <summary>A photo set or removed on a contact the user holds tells their clients their own book moved.</summary>
+    [Fact]
+    public async Task ReplaceAndRemove_OnAContactTheUserHolds_EachAnnounceTheUsersOwnBook()
+    {
+        // Arrange
+        var book = new InMemoryContactBookStore();
+        var contact = OwnContact(Linked);
+        book.Hold(User, contact);
+        var clock = new FakeTimeProvider(Now);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var photos = PhotosOver(book, book, FilesWriting(Written), signals);
+
+        // Act
+        await photos.ReplaceAsync(contact.Id, Portrait.Of(Png)!, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+        await photos.RemoveAsync(contact.Id, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal(2, channel.Published.Count);
+        Assert.All(
+            channel.Published,
+            signal => Assert.Equal(ClientSignal.ContactsChanged(ContactBookHolder.Of(User)).Scope, signal.Scope));
+    }
+
     private static ContactPhotos PhotosOver(
         InMemoryContactBookStore book,
         IStoredFileStore files,
@@ -237,6 +285,14 @@ public sealed class ContactPhotosTests
         InMemoryContactBookStore book,
         IContactStore store,
         IStoredFileStore files,
+        params MailFathomPermission[] permissions) =>
+        PhotosOver(book, store, files, ClientSignalPublishers.ReachingNobody, permissions);
+
+    private static ContactPhotos PhotosOver(
+        InMemoryContactBookStore book,
+        IContactStore store,
+        IStoredFileStore files,
+        ClientSignals signals,
         params MailFathomPermission[] permissions)
     {
         var authorization = AccessAuthorizations.ForCallerGranted(
@@ -251,7 +307,8 @@ public sealed class ContactPhotosTests
             book,
             store,
             files,
-            new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), new FakeTimeProvider(Now)));
+            new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), new FakeTimeProvider(Now)),
+            signals);
     }
 
     private static IStoredFileStore FilesWriting(StoredFileId written)
