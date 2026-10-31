@@ -930,6 +930,10 @@
    `workspace:`. */
 @custom-variant rail (@media (width >= theme(--breakpoint-workspace)) and (not ((width < theme(--breakpoint-roomy)) and (pointer: coarse) and (aspect-ratio <= theme(--window-aspect-upright)))));
 
+/* Its exact opposite, where the bar stands: Tailwind cannot negate a custom variant, so the two are stated side by side
+   and change together. */
+@custom-variant bar (@media not ((width >= theme(--breakpoint-workspace)) and (not ((width < theme(--breakpoint-roomy)) and (pointer: coarse) and (aspect-ratio <= theme(--window-aspect-upright))))));
+
 /* The disclosed band's two tokens, inlined into the utilities rather than resolved on the root: which frames the band
    plays is the `disclosure` utility's to say on the band itself, because only an engine interpolating a height to
    `auto` can travel it, and a variable the root resolved would have nothing of that to read. */

@@ -165,7 +165,7 @@ export function StatusMenu({
             aria-label={translate(onDuration ? 'presence.duration' : 'presence.yours')}
             data-pull="down"
             onToggle={toggled}
-            className="not-rail:surface-sheet rail:surface-pop inset-x-0 top-auto bottom-0 mx-auto my-0 max-h-sheet-height w-full max-w-140 overflow-y-auto rounded-t-xl border-t border-line bg-panel px-2 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:flex open:flex-col rail:inset-x-auto rail:bottom-4.5 rail:left-26.5 rail:w-68 rail:rounded-lg rail:border rail:px-1.25 rail:pb-1.25 rail:backdrop:bg-transparent"
+            className="bar:surface-sheet rail:surface-pop inset-x-0 top-auto bottom-0 mx-auto my-0 max-h-sheet-height w-full max-w-140 overflow-y-auto rounded-t-xl border-t border-line bg-panel px-2 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:flex open:flex-col rail:inset-x-auto rail:bottom-4.5 rail:left-26.5 rail:w-68 rail:rounded-lg rail:border rail:px-1.25 rail:pb-1.25 rail:backdrop:bg-transparent"
         >
             {/* The bar a sheet draws across its top, which is decoration: the pull is the frame's rule for every sheet. */}
             <span
