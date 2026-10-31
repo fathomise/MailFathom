@@ -47,7 +47,7 @@ public sealed class ClientPresenceEndpointsTests : IAsyncDisposable
     public async Task RenewAsync_AnActivityItKnows_AnswersNoContent(string activity)
     {
         // Arrange
-        this.store.RenewClientAsync(default, default, default, default, default, default).ReturnsForAnyArgs(true);
+        this.store.RenewClientAsync(default, default, default, default, default, TestContext.Current.CancellationToken).ReturnsForAnyArgs(true);
 
         // Act
         var result = await ClientPresenceEndpoints.RenewAsync(
@@ -75,7 +75,7 @@ public sealed class ClientPresenceEndpointsTests : IAsyncDisposable
 
         // Assert
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
-        await this.store.DidNotReceiveWithAnyArgs().RenewClientAsync(default, default, default, default, default, default);
+        await this.store.DidNotReceiveWithAnyArgs().RenewClientAsync(default, default, default, default, default, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class ClientPresenceEndpointsTests : IAsyncDisposable
     public async Task RenewAsync_PastTheMostOpenClients_AnswersConflict()
     {
         // Arrange
-        this.store.RenewClientAsync(default, default, default, default, default, default).ReturnsForAnyArgs(false);
+        this.store.RenewClientAsync(default, default, default, default, default, TestContext.Current.CancellationToken).ReturnsForAnyArgs(false);
 
         // Act
         var result = await ClientPresenceEndpoints.RenewAsync(
@@ -179,7 +179,7 @@ public sealed class ClientPresenceEndpointsTests : IAsyncDisposable
 
         // Assert
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
-        await this.store.DidNotReceiveWithAnyArgs().ChooseAsync(default, default, default);
+        await this.store.DidNotReceiveWithAnyArgs().ChooseAsync(default, default, TestContext.Current.CancellationToken);
     }
 
     [Fact]
