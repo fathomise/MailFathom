@@ -187,13 +187,13 @@ describe('rememberedWorkspace', () => {
     });
 
     // A workspace kept before the column could be folded is one this client wrote, so it opens on what was kept with
-    // the column at the width every workspace before it was drawn at.
-    it('reads a workspace kept before the column could fold as one drawn at the column width', () => {
+    // the column left to the width, as one nobody has folded or opened.
+    it('reads a workspace kept before the column could fold as one leaving the column to the width', () => {
         const { mailboxesFolded, ...before } = kept;
 
         stored(before);
 
-        expect(rememberedWorkspace()).toEqual({ ...kept, mailboxesFolded: false });
+        expect(rememberedWorkspace()).toEqual({ ...kept, mailboxesFolded: null });
         expect(mailboxesFolded).toBe(true);
     });
 

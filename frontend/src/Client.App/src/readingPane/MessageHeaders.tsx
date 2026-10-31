@@ -13,7 +13,7 @@ import { useReadingZone } from '../localization/useReadingZone';
 import { BackToList } from '../mailSpace/BackToList';
 import { HeadActs } from '../mailSpace/HeadActs';
 import type { ActedMessage } from '../mailboxActs/useMailboxActs';
-import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
+import { useCoarsePointer, useTwoPanes } from '../shell/useWideWorkspace';
 import { useWorkspace } from '../workspace/useWorkspace';
 
 // What a message displays above its body: what it is called, who wrote it and when on one line under it, and everybody
@@ -95,11 +95,13 @@ export function MessageHeaders({
     const { locale, translate } = useLocalization();
     const twoPanes = useTwoPanes();
     const timeZone = useReadingZone();
-    const desktop = useDesktopComposition();
+    const coarse = useCoarsePointer();
     const { panelsHidden, selected } = useWorkspace().workspace;
 
-    // The toolbar stands above the head wherever two panes do, and a selection puts its own bar in the toolbar's place.
-    const toolbarCarriesActs = twoPanes && !desktop && selected.length === 0;
+    // The toolbar stands above the head wherever two panes do, and under a finger the head leaves it the acts rather
+    // than repeating them beside the subject, which keeps the width. A mouse keeps both, as the design draws it. A
+    // selection puts its own bar in the toolbar's place, so the head carries them again.
+    const toolbarCarriesActs = twoPanes && coarse && selected.length === 0;
 
     const authors = headers.participants.filter((participant) => participant.role === 'From');
     const others = headers.participants.filter((participant) => participant.role !== 'From');
@@ -141,7 +143,13 @@ export function MessageHeaders({
 
     return (
         <header
-            className={`flex flex-col border-b border-line ${twoPanes ? 'gap-1.75 px-5.5 py-4' : 'gap-0.5 px-2 pt-1.5 pb-2'}`}
+            // A low window folds the head from the start: the subject on one line and the address line gone, so the
+            // conversation keeps what little height there is. A tall one keeps it open, as every other band does.
+            className={`flex flex-col border-b border-line ${
+                twoPanes
+                    ? 'gap-1.75 px-5.5 py-4 low:gap-0.5 low:py-2'
+                    : 'gap-0.5 px-2 pt-1.5 pb-2 low:px-1.5 low:py-0.75'
+            }`}
         >
             {/* One pane gives the subject a row of its own under the way back and the acts, two lines before it is
                 cut, so a long subject is read rather than guessed from its first words. */}
@@ -151,8 +159,8 @@ export function MessageHeaders({
                 <h2
                     className={
                         twoPanes
-                            ? 'min-w-0 flex-1 text-3xl font-semibold text-balance'
-                            : 'order-3 line-clamp-2 min-w-0 basis-full px-2 pb-0.5 text-2xl leading-snug font-semibold text-pretty'
+                            ? 'min-w-0 flex-1 text-3xl font-semibold text-balance low:truncate low:text-xl'
+                            : 'order-3 line-clamp-2 min-w-0 basis-full px-2 pb-0.5 text-2xl leading-snug font-semibold text-pretty low:line-clamp-1 low:pb-0 low:text-xl'
                     }
                 >
                     {subject}
@@ -166,21 +174,24 @@ export function MessageHeaders({
                 />
             </div>
 
-            {/* A line with nobody behind it is a line rather than a control: a disclosure that unfolds nothing would
-                be a chevron promising something the message does not have. */}
-            {others.length === 0 ? (
-                <p className={`text-muted ${twoPanes ? 'text-base' : 'truncate ps-2 text-sm'}`}>{authorLine}</p>
-            ) : (
-                <OtherParticipants participants={others} compact={!twoPanes}>
-                    {authorLine}
-                </OtherParticipants>
-            )}
+            {/* The address line is what a low window's folded head leaves out. */}
+            <div className="contents low:hidden">
+                {/* A line with nobody behind it is a line rather than a control: a disclosure that unfolds nothing
+                    would be a chevron promising something the message does not have. */}
+                {others.length === 0 ? (
+                    <p className={`text-muted ${twoPanes ? 'text-base' : 'truncate ps-2 text-sm'}`}>{authorLine}</p>
+                ) : (
+                    <OtherParticipants participants={others} compact={!twoPanes}>
+                        {authorLine}
+                    </OtherParticipants>
+                )}
 
-            {sentAt === null ? (
-                <p className={`text-sm text-muted ${twoPanes ? '' : 'truncate ps-2'}`}>
-                    {translate('message.sentAtUnknown')}
-                </p>
-            ) : null}
+                {sentAt === null ? (
+                    <p className={`text-sm text-muted ${twoPanes ? '' : 'truncate ps-2'}`}>
+                        {translate('message.sentAtUnknown')}
+                    </p>
+                ) : null}
+            </div>
 
             {children}
         </header>

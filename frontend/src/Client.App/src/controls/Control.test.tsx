@@ -23,6 +23,16 @@ describe('Control', () => {
         expect(control.getAttribute('aria-label')).toBe('Reply');
     });
 
+    // A head in the thread pane draws its acts as words and narrows them to symbols where the pane is narrow, which is a
+    // container query rather than a tree — the browser suite holds the narrowing — so the words stay the name either way.
+    it('is named by its words where the pane decides between its words and its symbol', () => {
+        render(<Control label="Reply" icon="reply" shape="paneNamed" onPress={() => undefined} />);
+
+        const control = screen.getByRole('button', { name: 'Reply' });
+
+        expect(control.hasAttribute('aria-label')).toBe(false);
+    });
+
     it.each([
         ['on', true, 'true'],
         ['off', false, 'false'],

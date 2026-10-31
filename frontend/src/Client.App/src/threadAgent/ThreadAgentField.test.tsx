@@ -362,14 +362,16 @@ describe('ThreadAgentField', () => {
         expect(screen.getByText('Draft stays local until confirmed')).toBeDefined();
     });
 
-    it('draws none of that below the desktop composition', () => {
+    // Whether there is room for it is the pane's width rather than the window's, which a container query on the
+    // reading column answers and the browser suite holds — so a window narrower than the desktop takes nothing away.
+    it('says it at a window narrower than the desktop, leaving the room for it to the pane', () => {
         theTabletComposition();
 
         drawing();
         openingTheDrafter();
 
-        expect(screen.queryByText('Scope: this thread')).toBeNull();
-        expect(screen.queryByText('Draft stays local until confirmed')).toBeNull();
+        expect(screen.getByText('Scope: this thread')).toBeDefined();
+        expect(screen.getByText('Draft stays local until confirmed')).toBeDefined();
     });
 
     // The two fields hold separate sentences: what is typed under a correspondence is about that correspondence, and

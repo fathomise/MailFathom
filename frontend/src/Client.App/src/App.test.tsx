@@ -6,7 +6,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ClientResponse } from '@mailfathom/client-backend';
 import type { DeploymentTransport } from './deployment/sendToDeployment';
-import { startingListWidth, storeListWidth } from './mailSpace/listWidth';
+import { startingListWidthIn, storeListWidth } from './mailSpace/listWidth';
 import {
     accepted,
     anotherPersonsSession,
@@ -235,7 +235,7 @@ describe('App', () => {
 
         expect(
             (await screen.findByRole('separator', { name: 'Message list width' })).getAttribute('aria-valuenow'),
-        ).toBe(String(startingListWidth));
+        ).toBe(String(startingListWidthIn(true, true)));
     });
 
     // Opening a message from the list *is* opening its conversation, so there is no message standing behind the

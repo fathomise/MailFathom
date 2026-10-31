@@ -8,6 +8,7 @@ import {
     useCoarsePointer,
     useDesktopComposition,
     useLowWindow,
+    useMonitorComposition,
     useTallWindow,
     useTwoPanes,
     useWideWorkspace,
@@ -115,6 +116,16 @@ describe('the widths a composition changes at', () => {
         }));
 
         expect(composition.result.current).toEqual({ workspace, panes, desktop });
+    });
+
+    it.each([
+        ['the desktop the design frames', 1440, false],
+        ['the last width below a monitor', 1919, false],
+        ['a monitor', 1920, true],
+    ])('reads %s as wider than the columns want, or not', (_, pixels, monitor) => {
+        atWidth(pixels);
+
+        expect(renderHook(() => useMonitorComposition()).result.current).toBe(monitor);
     });
 });
 

@@ -4,7 +4,7 @@
 
 import type { ReactElement } from 'react';
 import { act, fireEvent, render, screen, waitFor, within, type RenderResult } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
     ClientResponse,
     ClientSession,
@@ -1267,6 +1267,30 @@ describe('FolderTree, under a drag carrying messages', () => {
 });
 
 describe('FolderTree, in a folded column', () => {
+    // The column folds only where it stands beside the list rather than in a drawer, which is a width jsdom does not
+    // have: every width is answered here as reached, under a mouse.
+    const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+    beforeEach(() => {
+        Object.defineProperty(window, 'matchMedia', {
+            configurable: true,
+            value: (query: string) => ({
+                media: query,
+                matches: query.includes('min-width'),
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+            }),
+        });
+    });
+
+    afterEach(() => {
+        if (declaredMatchMedia === undefined) {
+            Reflect.deleteProperty(window, 'matchMedia');
+        } else {
+            Object.defineProperty(window, 'matchMedia', declaredMatchMedia);
+        }
+    });
+
     it('draws a folder as its symbol alone, and says the name it no longer draws', async () => {
         renderTree(answering(JSON.stringify(tree)));
 

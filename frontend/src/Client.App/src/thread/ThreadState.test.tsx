@@ -249,14 +249,15 @@ describe('ThreadState', () => {
         expect(screen.queryByRole('button', { name: /message/u })).toBeNull();
     });
 
-    // The tablet chip holds a label and a line, which is what its width has room for.
-    it('draws the statements without their sources in the tablet composition', () => {
+    // A card holds a label and a line, which is what a pane narrower than 760 pixels has room for. The pane says so
+    // through a container query rather than the window through a tree, so the window no longer takes the source away.
+    it('draws a statement’s source at a window narrower than the desktop, leaving the room for it to the pane', () => {
         theTabletComposition();
 
         render(drawing(stateOf([entry()])));
 
         expect(screen.getByText('The response time stays at two hours.')).toBeDefined();
-        expect(screen.queryByRole('button', { name: /message/u })).toBeNull();
+        expect(screen.getByRole('button', { name: 'message 2 · Karolina' })).toBeDefined();
     });
 
     // The sheet is drawn closed rather than absent, so that the platform keeps focus where it found it. A stylesheet

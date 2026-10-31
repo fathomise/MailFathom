@@ -454,9 +454,15 @@ The frame is one tree laid out by the width it is given, and nothing in it reads
 running on. Three `@theme` breakpoints decide it, and between them they give the four compositions the design
 frames: below `workspace` the destinations are a bottom bar under a single pane, and every side panel is a drawer;
 from `workspace` up they are the rail beside the workspace again; from `panes` up the list and the message stand side
-by side; and from `desktop` up the mailboxes gain a column of their own beside them. The fold is a composition of its
-own out of that arithmetic rather than a case anything branches on — two panes, drawers, and a mailbox column still
-behind a control. How the toolbar draws its controls is measured rather than composed, in `src/mailSpace/useStripFit.ts`:
+by side; and from `desktop` up the mailboxes stand open as a column of their own beside them, opening wider from
+`monitor` up. The fold is a composition of its own out of that arithmetic rather than a case anything branches on — two
+panes, and a mailbox column still folded. What _folded_ is between `workspace` and `desktop` is the pointer's to say
+rather than the width's, in `src/workspace/mailboxesForm.ts`: a drawer under a finger and a strip of symbols under a
+mouse. The pointer also says whether a column has a boundary to drag at all — a mouse's gesture, so a finger gets none
+at any width. What stands inside the thread pane follows the pane's own width rather than the window's, through the
+`pane-compact` and `pane-narrow` container sizes the reading column measures, because the same window gives the pane
+more or less as the list beside it folds or is dragged. How the toolbar draws its controls is measured rather than
+composed, in `src/mailSpace/useStripFit.ts`:
 every control keeps its name in words for as long as the names fit the strip, composing leaves the strip for the
 floating control over the list when they stop fitting, and the symbols stand alone only when the names still do not
 fit without it.
@@ -516,7 +522,7 @@ nothing configured.
 holds one **scope** — every mailbox at once, one role across all of them, one mailbox, or one folder of one — beside the
 question, the message that is open, the conversation being read in front of it, the messages that have been picked
 out, what was searched for before, the rows of the folder tree somebody has folded away, and whether the mailbox column
-itself is folded to its rail. It is kept in the store the web head keeps its credential in, so a reload returns to what was on the
+itself is folded to its rail — or nothing about that, until somebody folds or opens it, which leaves it to the width. It is kept in the store the web head keeps its credential in, so a reload returns to what was on the
 screen; signing in and signing out both empty it, because what somebody was looking at and about to ask is theirs rather
 than the machine's.
 

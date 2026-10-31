@@ -19,10 +19,11 @@ import { SpamControl } from '../spamMarking/SpamControl';
 // conversation it belongs to — and the acts have to be the same acts from both. Asking the agent about the thread is not
 // one of them: the design gives that to the AI button at the thread's foot, so the head carries no second entry to it.
 //
-// The design draws the three as words alone where the head has a column to itself and no toolbar above it offers them
-// already, and as symbols alone where the column is the whole screen and the head is one compact bar over the message.
-// So two panes narrower than the desktop leave the three to the toolbar, and draw them again while a selection has
-// taken the toolbar's place.
+// The design draws the three as words alone where the head has a column to itself, as symbols alone where that column
+// is narrower than 560 pixels — the pane's width rather than the window's, which `controlShapes.ts`'s `paneNamed` asks —
+// and as symbols alone where the column is the whole screen and the head is one compact bar over the message. Two panes
+// under a finger leave the three to the toolbar above, which already offers them, and draw them again while a selection
+// has taken the toolbar's place; under a mouse the head keeps them beside the toolbar's.
 //
 // The other three act on the message the head is about, and each goes the way every other surface already goes: an
 // answer is `useComposing`'s, exactly as the toolbar's three answers and a row's own menu are, and the flag is a
@@ -70,7 +71,7 @@ export function HeadActs({
     // surfaces a test mounts on their own, and writing is offered by a deployment rather than by this component.
     const composing = useContext(ComposingContext);
 
-    const actShape: ControlShape = compact ? 'symbol' : 'named';
+    const actShape: ControlShape = compact ? 'symbol' : 'paneNamed';
 
     // What each of the three does, or `null` where it cannot be done: the answers need a deployment that lets this
     // credential write a draft, and both need a message to be about. Written as the act rather than as a condition

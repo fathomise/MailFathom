@@ -78,6 +78,7 @@ const paneWidth = windowSize('--breakpoint-panes', '51.25rem', atLeastWide, true
 const desktopBandIn = (view: Window) => windowSize('--breakpoint-desktop', '73.75rem', atLeastWide, true, view);
 const desktopWidth = desktopBandIn(window);
 const roomyWidth = windowSize('--breakpoint-roomy', '63.75rem', atLeastWide, true);
+const monitorWidth = windowSize('--breakpoint-monitor', '120rem', atLeastWide, false);
 const lowHeight = windowSize('--window-height-low', '30rem', (height) => `(height < ${height})`, false);
 const tallHeight = windowSize('--window-height-tall', '60rem', (height) => `(height >= ${height})`, false);
 const coarsePointer = pointerIsCoarse();
@@ -127,6 +128,15 @@ export function useRoomyComposition(): boolean {
  */
 export function useDesktopComposition(): boolean {
     return useSyncExternalStore(desktopWidth.watch, desktopWidth.matches);
+}
+
+/**
+ * Whether the window is wider than the desktop composition's columns want, which is where the Mail space opens its
+ * mailbox column and its list wider. A runtime that cannot answer is read as below it, so the columns open at the
+ * desktop's own widths.
+ */
+export function useMonitorComposition(): boolean {
+    return useSyncExternalStore(monitorWidth.watch, monitorWidth.matches);
 }
 
 /** Whether a window the client draws into beside its own is in the desktop composition, measured in that window. */

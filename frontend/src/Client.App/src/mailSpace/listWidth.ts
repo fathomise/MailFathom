@@ -19,8 +19,20 @@ export const narrowestList = 232;
 /** The widest the list is drawn at, past which it stops being a list beside a message and becomes the screen. */
 export const widestList = 560;
 
-/** What a first run opens at, and what a reset returns to. */
+/** What the list opens at in the desktop composition before anybody drags it, and what a reset there returns to. */
 export const startingListWidth = 340;
+
+/**
+ * What the list opens at in this window before anybody drags it, and what a reset returns to: 284 below the desktop
+ * composition, 340 in it, and 420 past the monitor width — the design's widths for each band.
+ */
+export function startingListWidthIn(desktop: boolean, monitor: boolean): number {
+    if (!desktop) {
+        return 284;
+    }
+
+    return monitor ? 420 : startingListWidth;
+}
 
 /**
  * The least room the list leaves the reading pane.
@@ -48,26 +60,32 @@ export function listWidthWithin(width: number, room: number): number {
 }
 
 /**
- * The width this person last chose on this machine, or the starting width where they chose none.
+ * The width this person last chose on this machine, or `null` where they chose none and the band's own width stands.
  *
  * Read back as untrusted input, because a device store is a place a person can write: anything that is not a number
  * inside the bounds is answered as nothing chosen rather than as a column drawn off the screen.
  */
-export function readListWidth(person: string | null): number {
+export function readListWidth(person: string | null): number | null {
     if (person === null) {
-        return startingListWidth;
+        return null;
     }
 
     const stored = Number(deviceStore().read(listWidthKey(person)));
 
-    return Number.isFinite(stored) && stored > 0
-        ? listWidthWithin(stored, Number.POSITIVE_INFINITY)
-        : startingListWidth;
+    return Number.isFinite(stored) && stored > 0 ? listWidthWithin(stored, Number.POSITIVE_INFINITY) : null;
 }
 
-/** Keeps the width this person settled on, so the next start of the client opens the Mail space at it. */
-export function storeListWidth(person: string | null, width: number): void {
+/**
+ * Keeps the width this person settled on, so the next start of the client opens the Mail space at it — or forgets it
+ * for `null`, which a list set back to its band's own width is, so the next band's width is the one it opens at.
+ */
+export function storeListWidth(person: string | null, width: number | null): void {
     if (person === null) {
+        return;
+    }
+
+    if (width === null) {
+        deviceStore().remove(listWidthKey(person));
         return;
     }
 

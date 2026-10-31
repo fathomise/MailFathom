@@ -278,6 +278,11 @@
        each takes its full measure. */
     --breakpoint-roomy: 63.75rem;
 
+    /* Where the desktop composition has more width than its columns want. From it the mailbox column opens at 240
+       pixels and the list at 420 rather than at 210 and 340, and what is left past them goes to the thread pane, whose
+       reading column is capped — so a monitor gains margin around the conversation rather than line length in it. */
+    --breakpoint-monitor: 120rem;
+
     /* The two heights a composition changes at, which are a second axis beside the widths above rather than a
        refinement of any of them: width decides which surfaces stand, height how dense they are, and nothing reads the
        window's orientation or aspect, so a device upright and on its side is one width band beside one height band
@@ -371,6 +376,12 @@
     /* The same list folded to a strip of senders at the fold while a message is open beside it. */
     --spacing-list-strip: 4.75rem;
 
+    /* The side padding a conversation's messages stand inside, which holds them to the design's 880-pixel column
+       centred in a pane wider than 924 and leaves them the design's 22 pixels from either edge in a narrower one. The
+       percentage is the pane's, being a padding's, so no query decides it. The head and the band of the thread's state
+       keep the pane's own edges: only the conversation is centred. */
+    --spacing-reading-gutter: max(1.375rem, calc((100% - 55rem) / 2));
+
     /* The notification centre, in the two shapes the design draws it: how wide the panel is beside the rail,
        and how tall the bottom navigation is — which the panel reads as well as the navigation itself, because the
        narrow shape is a sheet that stops above the bar rather than covering it. Both are the design's own, and the
@@ -440,6 +451,15 @@
        three the design's. Below the floor the pane itself is the measure, which is what the narrow composition
        is. */
     --container-conversation: clamp(42.5rem, 62vw, 68.75rem);
+
+    /* The two widths of the thread pane its content changes at, which are the pane's own rather than the window's: the
+       same window gives the pane more or less as the list folds to its strip, is dragged wider, or stands in a drawer.
+       So they are container sizes, asked as `@max-pane-compact:` and `@max-pane-narrow:` of whatever stands inside
+       the reading column, which is the `@container` they measure. Below the first the thread's state stands as cards
+       at the top of the thread rather than as a band over it, and the agent field drops its scope chips; below the
+       second the cards stand in one column and the head's acts are drawn as their symbols. */
+    --container-pane-compact: 47.5rem;
+    --container-pane-narrow: 35rem;
 
     /* The widest one tab in the strip above the content pane is drawn, which is a ceiling in the same sense: a tab
        takes the room its title needs and stops here, so a long subject is cut rather than pushing every other tab off
@@ -1376,11 +1396,15 @@
         @variant low {
             --spacing-dialog-height: calc(100dvh - 1rem);
             --spacing-sheet-height: calc(100dvh - 0.5rem);
+            --spacing-readings-tall: calc(100dvh - 1rem);
         }
 
+        /* A message's own markup is laid out for a mail client's window rather than for a monitor on its side, so a
+           tall window stops its window at 1100 pixels rather than at nine tenths of the height. */
         @variant tall {
             --spacing-dialog-height: min(calc(100dvh - 2.75rem), 47.5rem);
             --spacing-sheet-height: min(82dvh, 40rem);
+            --spacing-markup-window-tall: min(90dvh, 68.75rem, calc(100% - 3.25rem));
         }
     }
 

@@ -13,7 +13,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { useAgentHandOver, type AgentHandOver } from '../routing/agentHandOver';
 import { useScreenLayer } from '../shell/screenLayers';
-import { useDesktopComposition, useWideWorkspace } from '../shell/useWideWorkspace';
+import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { sourceOf, type ThreadStateSource } from './threadStateSources';
 
 // Where a conversation stands, drawn beside the conversation itself: what its people settled, what they raised and
@@ -87,7 +87,6 @@ export function ThreadState({
 }) {
     const { translate } = useLocalization();
     const wideWorkspace = useWideWorkspace();
-    const desktop = useDesktopComposition();
     const handToAgent = useAgentHandOver();
 
     const goWithThread =
@@ -141,24 +140,25 @@ export function ThreadState({
         );
     }
 
-    // The two wide compositions draw the same statements and differ in what a card has room for, which is why the
-    // source link is the one thing that goes: at the tablet's width a chip holds a label and a line, and the block
+    // Off the phone the statements stand as a band over the thread where the pane is wide enough, and as cards at the
+    // top of it where the pane is narrower than 760 pixels — the pane's width rather than the window's, because the same
+    // window gives the pane more or less as the list beside it folds or is dragged. So the two are one tree drawn two
+    // ways by the pane's container queries, and what a card has no room for — who owes a commitment and the message a
+    // statement rests on — is left out of the cards by the same query: a chip holds a label and a line, and the block
     // stops being a glance the moment it holds three lines each.
     //
     // Four statements or more stand as two columns rather than a row that wraps, which is how the design draws them:
     // a wrapped row leaves the fourth alone across the whole width, and a chip in a column half as wide has to say its
-    // statement in full rather than end it in an ellipsis.
+    // statement in full rather than end it in an ellipsis. Below 560 pixels those cards stand in one column instead.
     const paired = entries.length >= 4;
 
     return (
         <section
             aria-label={translate('threadState.label')}
-            className={desktop ? 'flex flex-col gap-1.5 border-b border-line bg-sunken px-5.5 py-2.25' : 'px-5.5 pt-3'}
+            className="flex flex-col gap-1.5 border-b border-line bg-sunken px-5.5 py-2.25 @max-pane-compact:block @max-pane-compact:border-b-0 @max-pane-compact:bg-transparent @max-pane-compact:pt-3 @max-pane-compact:pb-0"
         >
             <ul
-                className={`${paired ? 'grid grid-cols-2' : 'flex flex-wrap'} ${
-                    desktop ? 'gap-x-5 gap-y-3' : 'gap-1.75 rounded-md border border-line bg-sunken p-2'
-                }`}
+                className={`${paired ? 'grid grid-cols-2 @max-pane-narrow:grid-cols-1' : 'flex flex-wrap'} gap-x-5 gap-y-3 @max-pane-compact:gap-1.75 @max-pane-compact:rounded-md @max-pane-compact:border @max-pane-compact:border-line @max-pane-compact:bg-sunken @max-pane-compact:p-2`}
             >
                 {entries.map((entry, place) => (
                     <li
@@ -166,36 +166,32 @@ export function ThreadState({
                         // the place it holds is what keys it — the block is replaced whole whenever it is derived
                         // again rather than reordered under a reader.
                         key={`${entry.aspect}-${String(place)}`}
-                        className={
-                            desktop
-                                ? 'flex min-w-0 flex-1 basis-37.5 flex-col gap-0.75 border-s-2 border-accent-line px-3 py-0.5'
-                                : 'flex min-w-0 flex-1 basis-47.5 flex-col gap-px rounded-md border border-line bg-panel px-2.25 py-1.5'
-                        }
+                        className="flex min-w-0 flex-1 basis-37.5 flex-col gap-0.75 border-s-2 border-accent-line px-3 py-0.5 @max-pane-compact:basis-47.5 @max-pane-compact:gap-px @max-pane-compact:rounded-md @max-pane-compact:border @max-pane-compact:border-line @max-pane-compact:bg-panel @max-pane-compact:px-2.25 @max-pane-compact:py-1.5"
                     >
                         <span className="text-xs font-semibold text-muted">
                             {translate(aspectLabels[entry.aspect])}
                         </span>
 
                         <span
-                            className={
-                                desktop ? 'text-base' : paired ? 'text-sm leading-snug text-pretty' : 'truncate text-sm'
-                            }
+                            className={`text-base @max-pane-compact:text-sm ${
+                                paired
+                                    ? '@max-pane-compact:leading-snug @max-pane-compact:text-pretty'
+                                    : '@max-pane-compact:truncate'
+                            }`}
                         >
                             {entry.text}
                         </span>
 
-                        {desktop ? (
-                            <>
-                                <Owing owedBy={entry.owedBy} dueAt={entry.dueAt} />
+                        <span className="contents @max-pane-compact:hidden">
+                            <Owing owedBy={entry.owedBy} dueAt={entry.dueAt} />
 
-                                {worthCiting(messages) ? (
-                                    <SourceLink
-                                        source={sourceOf(messages, entry.sources[0]?.email)}
-                                        onFollow={onFollowSource}
-                                    />
-                                ) : null}
-                            </>
-                        ) : null}
+                            {worthCiting(messages) ? (
+                                <SourceLink
+                                    source={sourceOf(messages, entry.sources[0]?.email)}
+                                    onFollow={onFollowSource}
+                                />
+                            ) : null}
+                        </span>
                     </li>
                 ))}
             </ul>

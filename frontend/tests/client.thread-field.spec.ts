@@ -4,7 +4,7 @@
 
 import { expect, type Page } from '@playwright/test';
 
-import { declaredVersion, openSignedIn, test } from './client.harness';
+import { declaredVersion, desktopWindow, openSignedIn, test, wideWindow } from './client.harness';
 import * as deployment from './fixtures/deployment';
 
 // The reply drafter under an open message, and what becomes of the reply it asks for: journeys across the components
@@ -95,6 +95,24 @@ test('moves the reply’s context to a message clicked in the list, warns, and p
 
     await expect(warning).toBeHidden();
     await expect(page.getByRole('button', { name: /^Remove .+ from the context$/ })).toHaveCount(1);
+});
+
+// The scope the drafter writes from is said only where the pane it stands in is 760 pixels or wider, which is the pane's
+// own width rather than the window's: at the design's desktop size the pane has the room, and at 1280 pixels the three
+// columns leave it less.
+test('says the scope it drafts from only where the pane has room for it', async ({ page }) => {
+    await page.setViewportSize(desktopWindow);
+    await openMailWritingDrafts(page);
+    await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
+    await openTheDrafter(page);
+
+    const scope = page.getByRole('form', { name: drafterName }).getByText('Scope: this thread');
+    await expect(scope).toBeVisible();
+
+    await page.setViewportSize(wideWindow);
+
+    await expect(scope).toBeHidden();
+    await expect(page.getByRole('textbox', { name: drafterName })).toBeVisible();
 });
 
 // What is typed under one message is about that message, so opening another row of the list closes the drafter and

@@ -120,7 +120,7 @@ function workspaceIn(value: unknown): Workspace | null {
     const scope = scopeIn(record['scope']);
     const askedBefore = askedBeforeIn(record['askedBefore'] ?? []);
     const foldsToggled = foldsToggledIn(record['foldsToggled'] ?? []);
-    const mailboxesFolded = record['mailboxesFolded'] ?? false;
+    const mailboxesFolded = record['mailboxesFolded'] ?? null;
     const panelsHidden = record['panelsHidden'] ?? false;
     const selection = record['selection'] ?? null;
     const selected = selectedIn(record['selected']);
@@ -143,7 +143,7 @@ function workspaceIn(value: unknown): Workspace | null {
         return null;
     }
 
-    if (typeof mailboxesFolded !== 'boolean' || typeof panelsHidden !== 'boolean') {
+    if ((mailboxesFolded !== null && typeof mailboxesFolded !== 'boolean') || typeof panelsHidden !== 'boolean') {
         return null;
     }
 
