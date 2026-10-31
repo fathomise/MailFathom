@@ -5846,14 +5846,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         listIconBtnStyle: "flex:0 0 auto;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted)",
         toggleFilters: () => this.setState(s2 => ({ filtersOpen: !s2.filtersOpen })),
         toggleConvList: () => this.setState(s2 => ({ convMail: !s2.convMail })),
-        convListOn: convMail,
-        convListTbShown: !outboxOn,
-        convListHeadShown: singlePane && !outboxOn,
-        convListTbStyle: "flex:0 0 auto;width:" + (touch ? 44 : 32) + "px;height:" + (touch ? 44 : 32) + "px;box-sizing:border-box;margin-left:4px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;" +
-          (convMail ? "color:var(--accent-d);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
-        convListTitle: convMail ? "Show single messages" : "Group into conversations",
-        convListBtnStyle: "flex:0 0 auto;width:" + (touch ? 44 : 34) + "px;height:" + (touch ? 44 : 34) + "px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:8px;" +
-          (convMail ? "color:var(--accent-d);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
+        convListTitle: convMail ? "Threads - switch to single messages" : "Messages - switch to threads",
+        listModeLabel: convMail ? "Threads" : "Messages",
+        listModeAria: (convMail ? "Threads" : "Messages") + ", switch to " + (convMail ? "messages" : "threads"),
+        listModeIcon: convMail ? "forum" : "mail",
+        listModeWrapStyle: "flex:0 0 auto;padding:" + (sideCollapsed ? "10px 9px 6px" : "10px 10px 6px"),
+        listModeBtnStyle: "box-sizing:border-box;display:flex;align-items:center;gap:10px;border-radius:10px;font-size:15px;font-weight:600;" +
+          "border:1px solid var(--line);background:var(--panel);color:var(--text);box-shadow:0 1px 2px var(--sh-1);" +
+          (sideCollapsed ? "width:40px;height:40px;justify-content:center;padding:0;margin:0 auto" : "width:100%;min-height:" + (touch ? 48 : 44) + "px;padding:0 12px"),
+        listModeIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--accent-d)",
         filtersOpen: !!st.filtersOpen,
         filtersActive: filterCount > 0,
         filtersCount: filterCount,
