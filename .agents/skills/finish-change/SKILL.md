@@ -32,7 +32,9 @@ where it came from.
    it verified and a second run over identical content would reprove it rather than prove it. A
    formatting failure is repaired by this same script, which rewrites the changed files, rather than
    by a hand-run `dotnet format` over the whole solution; a diagnostic no rewrite fixes is a build
-   error and names its own file and line.
+   error and names its own file and line. A passing run that says its formatting pass rewrote files
+   has recorded the formatted tree: stage the rewrite with the task files and go on to the commit and
+   the push without running the gate again.
 
    This is the gate, and `scripts/verify-full.sh` is not part of it. `CI` asserts every verdict that
    script produces — the coverage target, the workflow contract suite, the client's bundle, and the

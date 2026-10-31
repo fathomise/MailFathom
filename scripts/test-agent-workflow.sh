@@ -1060,8 +1060,7 @@ verify_fast_accepts_the_full_gate_record_for_a_client_change() {
 # And never the other way round — with one exception, which is why both halves are asserted from one
 # run. Passing the loop says nothing about coverage or the contract suite, so those are asked again;
 # it does settle the formatting, because the repairing pass is the same tool over the same file set
-# and a record exists only where it rewrote nothing, which leaves the verifying pass one possible
-# answer.
+# and a record names the tree it left, which leaves the verifying pass one possible answer.
 verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass() {
   (
     cd "$repository_root"
@@ -1079,23 +1078,18 @@ verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass() {
   assert_excludes 'format backend/MailFathom.slnx' "$invocation_log"
 }
 
-# A run whose formatting pass rewrote a file verified a build and a suite against content the working
-# tree no longer holds, so it fails, records nothing, and the next run does the work.
-verify_fast_fails_and_records_nothing_when_formatting_rewrote_a_file() {
+# A formatting pass that only repairs — rewrites a file and reports nothing a person has to fix — asks
+# for no second run: the build and the suite passed, so the run records the formatted tree, and the
+# next run over that same tree reports the record instead of rebuilding.
+verify_fast_records_the_formatted_tree_when_formatting_only_repaired() {
   local rewrite_output="$test_directory/verify-fast-rewrite-output"
 
-  if (
+  (
     export FAKE_DOTNET_REWRITE="$repository_root/backend/src/Sample.cs"
     cd "$repository_root"
     "$scripts_directory/verify-fast.sh"
-  ) > "$rewrite_output" 2>&1; then
-    git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
-    printf 'verify-fast.sh succeeded although its formatting pass rewrote a file\n' >&2
-    return 1
-  fi
+  ) > "$rewrite_output" 2>&1
 
-  git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
-  assert_contains 'The formatting pass rewrote files' "$rewrite_output"
   : > "$invocation_log"
 
   (
@@ -1103,7 +1097,9 @@ verify_fast_fails_and_records_nothing_when_formatting_rewrote_a_file() {
     "$scripts_directory/verify-fast.sh"
   )
 
-  assert_contains 'build backend/MailFathom.slnx --configuration Release --no-restore' "$invocation_log"
+  git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
+  assert_contains 'the formatted tree is recorded and no second run is needed' "$rewrite_output"
+  assert_file_content '' "$invocation_log"
 }
 
 verify_force_runs_everything_a_record_would_have_skipped() {
@@ -12256,7 +12252,7 @@ run_test verify_fast_runs_again_once_the_tree_changed
 run_test verify_fast_accepts_the_record_the_full_gate_wrote
 run_test verify_fast_accepts_the_full_gate_record_for_a_client_change
 run_test verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass
-run_test verify_fast_fails_and_records_nothing_when_formatting_rewrote_a_file
+run_test verify_fast_records_the_formatted_tree_when_formatting_only_repaired
 run_test verify_full_records_nothing_when_it_failed
 run_test verify_force_runs_everything_a_record_would_have_skipped
 run_test verify_full_formats_the_whole_solution_when_a_shared_style_input_changed

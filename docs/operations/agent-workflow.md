@@ -39,10 +39,12 @@ over the C# files the branch changed — everything committed since `origin/main
 staged, modified, or newly added — and Prettier over the client workspace. It is
 the only workflow script that rewrites source files. Each C# file is formatted
 against `backend/MailFathom.slnx`, which is the solution that holds it, and that
-pass is skipped where the branch touched no C#. A formatting pass that rewrote a
-file fails the run: the build and the suites verified content the working tree
-no longer holds, so nothing is recorded and the gate has to be run again over
-the formatted files.
+pass is skipped where the branch touched no C#. Anything the formatters cannot
+repair has already failed the run in the build or the lint, so a rewrite that
+reaches the end of a passing run is their own repair and asks nothing of anybody:
+the run records the tree the formatters left rather than the one it built, the
+rewrite is committed with the change, and the gate is not run a second time to
+say what it already said.
 It ends on the same whitespace checks the full gate makes, over the staged and
 unstaged diffs and — where the base resolved — over the branch's committed range,
 because a whitespace error in a page, a workflow, or a Helm template is read by
@@ -453,20 +455,20 @@ prose; this is the same rule where a session cannot forget it.
 Four things bound what a record claims.
 
 - **It is written only when the tree stayed still.** Each run takes the digest
-  again at the end and records nothing when the two disagree. The fast loop is
-  why: its formatting pass rewrites files, so a run that repaired something
-  verified a build and a test suite against content the working tree no longer
-  holds — and fails as well as recording nothing, so it is never read as a pass.
-  That guard is also what would let either gate be started in the
-  background beside an editing session.
+  again at the end and records nothing when the two disagree. The one movement it
+  forgives is the fast loop's own formatting pass: a run whose tree changed only
+  there records the formatted tree, because what moved is the formatters' repair
+  of content the build and the suites already passed. Anything else that moved
+  while the gate ran — an edit beside it — records nothing, which is what would
+  let either gate be started in the background beside an editing session.
 - **A gate that failed writes nothing**, however far it got.
 - **The full gate's record answers for the fast loop, and never the reverse.**
   Both run the flow of whichever stacks the change reaches, and the full gate's is
   the loop's plus coverage and the verifying formatting pass; passing the loop says
   nothing about coverage or the contract suite. The one step the loop does settle
   for the full gate is the scoped formatting pass over the service solution — the
-  same tool over the same file set, and a record exists only where the repairing
-  pass rewrote nothing, which leaves `--verify-no-changes` one possible answer.
+  same tool over the same file set, and a record names the tree the repairing pass
+  left, which leaves `--verify-no-changes` one possible answer.
   Neither whole-solution pass is settled that way — the client's, and the service's
   where a shared style input triggered it — because the loop never formatted that
   scope.

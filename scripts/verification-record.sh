@@ -104,9 +104,11 @@ verification_recorded_at() {
 }
 
 # Recording is conditional on the tree having stayed still, which is what makes the record mean what
-# it says. The fast loop rewrites files, so a run whose formatting pass repaired something verified a
-# build and a test suite against content that no longer exists; the next run does the work again
-# rather than inheriting a claim about a tree nobody proved. The same check is what would let either
+# it says: a run whose tree changed while it ran verified content that no longer exists, so the next
+# run does the work again rather than inheriting a claim about a tree nobody proved. The one movement
+# the fast loop forgives is its own formatting pass, and it does so before calling this: when only the
+# formatters moved the tree, it hands over the digest of the tree they left, because what they
+# rewrote is their repair of content the build and the suites already passed. The same check is what would let either
 # gate be started in the background beside an editing session.
 record_verification() {
   local gate="$1"

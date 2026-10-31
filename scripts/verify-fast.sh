@@ -204,13 +204,21 @@ if [[ -n "$run_client_stack" ]]; then
   pnpm --dir frontend run format
 fi
 
-# A run whose formatter changed the tree verified a build and suites against content the working tree
-# no longer holds, so it cannot be recorded and has to be repeated over the formatted files. It fails
-# rather than exiting zero, so nobody reads it as a pass. A tree the digest cannot describe leaves the
-# question unasked, as it leaves the record.
-if [[ -n "$digest_before_formatting" && "$(resolve_verification_digest)" != "$digest_before_formatting" ]]; then
-  printf 'The formatting pass rewrote files, so the build and the tests above verified content the working tree no longer holds and nothing is recorded. Review the rewrite in git diff, then run verify-fast.sh again.\n' >&2
-  exit 1
+# A rewrite by the formatters is their own repair: whitespace, the order of using directives, a final
+# newline, the fixes an analyzer's code fix applies. What they cannot repair has already failed the
+# run, in the build or the lint, so a rewrite that reaches here asks nothing of a person, and a second
+# run over the formatted files would rebuild and retest only to say what this one said. So the run
+# records the formatted tree instead of the one it built — provided nothing but the formatters moved
+# it. A tree that changed while the build or the suites ran still records nothing, below.
+digest_after_formatting="$(resolve_verification_digest)"
+
+if [[ -n "$digest_before_formatting" && "$digest_after_formatting" != "$digest_before_formatting" ]]; then
+  printf 'The formatting pass rewrote files; commit the rewrite with the change.\n'
+
+  if [[ "$verification_digest" == "$digest_before_formatting" ]]; then
+    printf 'Nothing else changed while the gate ran, so the formatted tree is recorded and no second run is needed.\n'
+    verification_digest="$digest_after_formatting"
+  fi
 fi
 
 # Whitespace errors in a file no formatter reads — a page, a workflow, a Helm template — are checked
