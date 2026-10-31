@@ -3880,6 +3880,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           convTitle: title ? title.topic : t.subject,
           convStanding: standing,
           convStandingShown: !!standing,
+          /* What a model wrote stands in a light frame of its own, so it is never read as the sender's words. */
+          convAiBoxStyle: title
+            ? "display:flex;flex-direction:column;gap:1px;min-width:0;margin:2px 0 3px;padding:6px 10px 7px 8px;border:1px solid var(--accent-line);border-radius:8px;background:color-mix(in oklch, var(--accent-soft) 40%, transparent)"
+            : "display:flex;flex-direction:column;gap:1px;min-width:0",
           convStandingStale: standingStale,
           convStandingStyle: "padding-left:21px;font-size:13px;line-height:1.35;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
           convStaleStyle: "padding-left:21px;display:flex;align-items:center;gap:5px;font-size:13px;line-height:1.35;color:var(--faint);overflow:hidden;white-space:nowrap",
