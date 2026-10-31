@@ -72,12 +72,16 @@ public sealed class ClientPersonPhotoEndpointTests
         Assert.Equal(new PersonPhotoResponse("Member", Piotr.Value, PiotrsPortrait), entry.Photo);
     }
 
-    /// <summary>A request naming no list, and one naming more addresses than one resolution answers, are refused saying so.</summary>
+    /// <summary>
+    /// A request naming no list, and one carrying more entries than one resolution answers, are refused saying so. The
+    /// entries are counted as written, repeats included, because the bound applies before the list is read.
+    /// </summary>
     [Fact]
     public async Task ResolveAsync_NoListOrTooLongAList_IsRefused()
     {
         // Arrange
         string?[] tooMany = [.. Enumerable.Range(0, PersonPhotos.MaximumAddresses + 1).Select(at => $"sender{at}@example.org")];
+        string?[] repeated = [.. Enumerable.Repeat("sender@example.org", PersonPhotos.MaximumAddresses + 1)];
 
         // Act
         var absent = await ClientPersonPhotoEndpoint.ResolveAsync(
@@ -88,10 +92,15 @@ public sealed class ClientPersonPhotoEndpointTests
             new PersonPhotosRequest(tooMany),
             this.Photos(),
             TestContext.Current.CancellationToken);
+        var repeating = await ClientPersonPhotoEndpoint.ResolveAsync(
+            new PersonPhotosRequest(repeated),
+            this.Photos(),
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(absent.Result).StatusCode);
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(oversized.Result).StatusCode);
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(repeating.Result).StatusCode);
     }
 
     private static EmailAddress Mailbox(string address)

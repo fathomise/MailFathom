@@ -568,6 +568,56 @@ public sealed class ClientMailMessageEndpointTests
         Assert.Equal(new ClientMailSpamVerdictResponse("Spam", "Person", "Scam", "Person", null, null), response.Spam);
     }
 
+    /// <summary>A message names the photo its author — its first <c>From</c> mailbox, not any other participant — is drawn by.</summary>
+    [Fact]
+    public void For_AMessageWhoseAuthorHasAPhoto_NamesTheAuthorsPhoto()
+    {
+        // Arrange
+        var contact = new Guid("0198f0aa-0000-7000-8000-00000000d103");
+        var photo = new Guid("0198f0aa-0000-7000-8000-00000000d3f3");
+        var colleague = new Guid("0198f0aa-0000-7000-8000-00000000d104");
+        Assert.True(EmailAddress.TryCreate(displayName: null, "BILLING@example.test", out var author));
+        Assert.True(EmailAddress.TryCreate(displayName: null, "reader@example.test", out var recipient));
+        var photos = new Dictionary<EmailAddress, PersonPhoto>
+        {
+            [author] = new(PersonPhotoSource.OwnContact, contact, photo),
+            [recipient] = new(PersonPhotoSource.Member, colleague, photo),
+        };
+
+        // Act
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, photos);
+
+        // Assert
+        Assert.Equal(new PersonPhotoResponse("Own", contact, photo), response.SenderPhoto);
+    }
+
+    /// <summary>A message whose headers name no author is drawn by initials rather than refused or given another participant's photo.</summary>
+    [Fact]
+    public void For_AMessageNamingNoAuthor_NamesNoPhoto()
+    {
+        // Arrange
+        Assert.True(EmailAddress.TryCreate(displayName: null, "reader@example.test", out var recipient));
+        var photos = new Dictionary<EmailAddress, PersonPhoto>
+        {
+            [recipient] = new(PersonPhotoSource.OwnContact, Guid.CreateVersion7(), Guid.CreateVersion7()),
+        };
+        var message = MessageWith() with
+        {
+            Headers = MessageWith().Headers with
+            {
+                Participants = [Participant(EmailAddressRole.To, displayName: null, "reader@example.test")],
+            },
+        };
+
+        // Act
+        var authorless = ClientMailMessageResponse.AuthorOf(message);
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, photos);
+
+        // Assert
+        Assert.Null(authorless);
+        Assert.Null(response.SenderPhoto);
+    }
+
     private static ReadEmailContent MessageWith(SenderAuthenticationEvidence? evidence = null) => new()
     {
         StoredEmailId = StoredEmailId.Create(Message),

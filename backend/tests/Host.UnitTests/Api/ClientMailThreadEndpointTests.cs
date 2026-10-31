@@ -357,6 +357,46 @@ public sealed class ClientMailThreadEndpointTests
         Assert.Null(response.Messages[1].Body);
     }
 
+    /// <summary>
+    /// A drawn message's author is resolved beside the row senders even where no row was listed under that address, so its
+    /// head carries the author's photo rather than falling back to initials.
+    /// </summary>
+    [Fact]
+    public void PhotographedAddressesOf_ADrawnAuthorNoRowWasListedUnder_ResolvesItBesideTheRowSenders()
+    {
+        // Arrange
+        var thread = new BrowsedThread(
+            Conversation,
+            [new BrowsedThreadEmail(SyntheticListedEmail(Message), Position: 0, AnsweredStoredEmailId: null, Contribution: null, Enrichment: null)],
+            [],
+            MessageCount: 1,
+            MoreMessagesNotAssembled: false,
+            MoreParticipantsNotNamed: false,
+            NextCursor: null,
+            PageSize: 10);
+        var drawn = DrawnMessage() with
+        {
+            Headers = new EmailContentHeaders(
+                "Quarterly invoice",
+                SentAt: FirstJuly,
+                ReceivedAt: FirstJuly,
+                [Participant(EmailAddressRole.From, "Author", "author@example.test")],
+                EmailThreadReferences.Create("abc@example.test", inReplyTo: null, references: null)),
+        };
+        Assert.True(EmailAddress.TryCreate(displayName: null, "author@example.test", out var author));
+        var contact = new Guid("0198f0aa-0000-7000-8000-00000000d102");
+        var photo = new Guid("0198f0aa-0000-7000-8000-00000000d2f2");
+        var photos = new Dictionary<EmailAddress, PersonPhoto> { [author] = new(PersonPhotoSource.OwnContact, contact, photo) };
+
+        // Act
+        var addresses = ClientMailThreadResponse.PhotographedAddressesOf(thread, [drawn]);
+        var response = ClientMailThreadResponse.For(thread, [drawn], new Dictionary<StoredEmailId, SenderContactStanding>(), photos);
+
+        // Assert
+        Assert.Equal(["sender@example.test", "author@example.test"], addresses.Select(address => address.Address));
+        Assert.Equal(new PersonPhotoResponse("Own", contact, photo), response.Messages[0].Message?.SenderPhoto);
+    }
+
     /// <summary>The read a drawn conversation makes asks for the reduced tree and declines both of the per-message asks.</summary>
     /// <remarks>
     /// The sender's own markup is a surface a reader opens one message at a time, and a download link is a bearer

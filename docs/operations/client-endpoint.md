@@ -3665,8 +3665,8 @@ request wrote it, so a client finds it again without normalizing anything. The r
 carries on [a list row](#the-mail-list-route), resolved by the same rules.
 
 **It is a `POST` that writes nothing**, so the addresses travel in the body rather than in a query string an access log
-would keep. At most 200 distinct addresses are resolved per request, and a request naming more, or naming no list at
-all, is answered `400`. It is `mailfathom.contacts.read`, the grant of the books the photos come from; a caller without
+would keep. A request carries at most 200 entries, counted as written with repeats included because the bound applies
+before the list is read, and a request carrying more, or naming no list at all, is answered `400`. It is `mailfathom.contacts.read`, the grant of the books the photos come from; a caller without
 it is refused before any book is read.
 
 ### The contact correlation route

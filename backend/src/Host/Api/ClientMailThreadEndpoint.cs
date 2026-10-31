@@ -127,10 +127,7 @@ internal static class ClientMailThreadEndpoint
             var drawn = drawing ? await ReadMessagesAsync(page, messages, cancellationToken) : [];
             var standings = await senders.ReadAsync(drawn, cancellationToken);
             var senderPhotos = await photos.ResolveAsync(
-                [
-                    .. PersonPhotoResponse.AddressesOf(page.Messages.Select(message => message.Email.SenderAddress)),
-                    .. drawn.Select(ClientMailMessageResponse.AuthorOf).OfType<EmailAddress>(),
-                ],
+                ClientMailThreadResponse.PhotographedAddressesOf(page, drawn),
                 cancellationToken);
 
             return TypedResults.Ok(ClientMailThreadResponse.For(page, drawn, standings, senderPhotos));
@@ -218,6 +215,25 @@ internal sealed record ClientMailThreadResponse(
     string? NextCursor,
     int PageSize)
 {
+    /// <summary>Reads the addresses whose photos one page draws: each row's sender, and each drawn message's author.</summary>
+    /// <param name="thread">The page the use case read.</param>
+    /// <param name="drawn">The messages themselves, where the caller asked for them, and empty where it did not.</param>
+    /// <returns>The distinct addresses, rows first, so one resolution answers the whole page.</returns>
+    /// <remarks>A drawn message's author is its first <c>From</c> mailbox, which need not be the address its row was listed under.</remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    internal static EmailAddress[] PhotographedAddressesOf(BrowsedThread thread, IReadOnlyList<ReadEmailContent> drawn)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(drawn);
+
+        return
+        [
+            .. PersonPhotoResponse.AddressesOf(thread.Messages.Select(message => message.Email.SenderAddress))
+                .Concat(drawn.Select(ClientMailMessageResponse.AuthorOf).OfType<EmailAddress>())
+                .Distinct(),
+        ];
+    }
+
     /// <summary>Describes one page of one conversation for the wire.</summary>
     /// <param name="thread">The page the use case read.</param>
     /// <param name="drawn">The messages themselves, where the caller asked for them, and empty where it did not.</param>

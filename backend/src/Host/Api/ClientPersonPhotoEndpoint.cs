@@ -65,7 +65,7 @@ internal static class ClientPersonPhotoEndpoint
 
         if (written.Count > PersonPhotos.MaximumAddresses)
         {
-            return Refuse($"One request resolves at most {PersonPhotos.MaximumAddresses} addresses.");
+            return Refuse($"One request carries at most {PersonPhotos.MaximumAddresses} addresses, repeats included.");
         }
 
         var addresses = PersonPhotoResponse.AddressesOf(written);
