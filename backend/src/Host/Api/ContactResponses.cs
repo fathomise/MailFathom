@@ -38,6 +38,7 @@ internal sealed record ContactPhoneNumberResponse(string Number, string Label);
 /// <param name="PreferredAddress">The address to use when something addresses them without naming which of theirs.</param>
 /// <param name="Note">What the user wrote about them, or nothing where they wrote nothing.</param>
 /// <param name="Origin">How the contact came to be in the book, which decides who may amend it.</param>
+/// <param name="Book">Which of the reader's books holds the contact: <c>Own</c>, <c>Organization</c>, or <c>Collected</c>.</param>
 /// <param name="RecordedAt">When the contact entered the book.</param>
 /// <param name="AmendedAt">When it was last amended, which equals <paramref name="RecordedAt" /> until one happens.</param>
 /// <param name="Organization">The organization whose book holds the contact, or nothing where a person or a mailbox holds it. A member reads such a contact and cannot change it.</param>
@@ -55,6 +56,7 @@ internal sealed record ContactResponse(
     string PreferredAddress,
     string? Note,
     string Origin,
+    string Book,
     DateTimeOffset RecordedAt,
     DateTimeOffset AmendedAt,
     Guid? Organization,
@@ -76,6 +78,7 @@ internal sealed record ContactResponse(
             contact.PreferredAddress.Address,
             contact.Note?.Value,
             contact.Origin.ToString(),
+            BookOf(contact),
             contact.RecordedAt,
             contact.AmendedAt,
             contact.Organization,
@@ -83,6 +86,14 @@ internal sealed record ContactResponse(
             [.. contact.PhoneNumbers.Select(phoneNumber =>
                 new ContactPhoneNumberResponse(phoneNumber.Number, phoneNumber.Label.ToString()))]);
     }
+
+    /// <summary>Names the book a contact is drawn under, from its origin and the organization keeping it.</summary>
+    private static string BookOf(Contact contact) => contact switch
+    {
+        { Origin: ContactOrigin.Collected } => "Collected",
+        { Organization: not null } => "Organization",
+        _ => "Own",
+    };
 }
 
 /// <summary>The person a lookup found, or that the book holds none.</summary>

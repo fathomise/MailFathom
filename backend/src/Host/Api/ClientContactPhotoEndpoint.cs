@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Contacts.Failures;
 using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Portraits;
 using MailFathom.Domain.Access;
@@ -82,7 +83,7 @@ internal static class ClientContactPhotoEndpoint
     /// <param name="photos">The photos of the caller's contacts.</param>
     /// <param name="context">The request being answered, whose body carries the picture.</param>
     /// <param name="cancellationToken">Cancels the read and the commit.</param>
-    /// <returns><c>204</c> when it was stored, <c>404</c> when the caller's own book holds no such contact, <c>413</c> for an upload over the bound, <c>415</c> for octets that are neither kind, or <c>400</c> for a request carrying no picture or naming the empty identifier.</returns>
+    /// <returns><c>204</c> when it was stored, <c>404</c> when the caller's own book holds no such contact, <c>413</c> for an upload over the bound, <c>415</c> for octets that are neither kind, <c>400</c> for a request carrying no picture or naming the empty identifier, or <c>409</c> where the reader's organization keeps the contact.</returns>
     internal static async Task<Results<NoContent, NotFound<ProblemDetails>, ProblemHttpResult>> ReplaceAsync(
         Guid contactId,
         [FromServices] ContactPhotos photos,
@@ -104,16 +105,23 @@ internal static class ClientContactPhotoEndpoint
             return upload.Refusal!;
         }
 
-        return await photos.ReplaceAsync(identity, photo, cancellationToken)
-            ? TypedResults.NoContent()
-            : NoSuchContact();
+        try
+        {
+            return await photos.ReplaceAsync(identity, photo, cancellationToken)
+                ? TypedResults.NoContent()
+                : NoSuchContact();
+        }
+        catch (ContactReadOnlyException refusal)
+        {
+            return ClientContactEndpoints.ReadOnly(refusal);
+        }
     }
 
     /// <summary>Removes the photo of one contact of the caller's own book.</summary>
     /// <param name="contactId">The contact.</param>
     /// <param name="photos">The photos of the caller's contacts.</param>
     /// <param name="cancellationToken">Cancels the commit.</param>
-    /// <returns><c>204</c>, whether or not the contact had a photo, <c>404</c> when the caller's own book holds no such contact, or <c>400</c> for the empty identifier.</returns>
+    /// <returns><c>204</c>, whether or not the contact had a photo, <c>404</c> when the caller's own book holds no such contact, <c>400</c> for the empty identifier, or <c>409</c> where the reader's organization keeps the contact.</returns>
     internal static async Task<Results<NoContent, NotFound<ProblemDetails>, ProblemHttpResult>> RemoveAsync(
         Guid contactId,
         [FromServices] ContactPhotos photos,
@@ -126,9 +134,16 @@ internal static class ClientContactPhotoEndpoint
             return ContactEndpoints.EmptyIdentity();
         }
 
-        return await photos.RemoveAsync(identity, cancellationToken)
-            ? TypedResults.NoContent()
-            : NoSuchContact();
+        try
+        {
+            return await photos.RemoveAsync(identity, cancellationToken)
+                ? TypedResults.NoContent()
+                : NoSuchContact();
+        }
+        catch (ContactReadOnlyException refusal)
+        {
+            return ClientContactEndpoints.ReadOnly(refusal);
+        }
     }
 
     private static NotFound<ProblemDetails> NoSuchContact() =>

@@ -104,6 +104,12 @@ internal sealed class UserRecordDeployment
         this.Provisioning
             .RelabelAsync(Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(true);
+        this.Provisioning
+            .SetJobTitleAsync(Arg.Any<UserId>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        this.Provisioning
+            .SetTypeAsync(Arg.Any<UserId>(), Arg.Any<UserType>(), Arg.Any<CancellationToken>())
+            .Returns(true);
 
         this.Erasure = Substitute.For<IUserErasure>();
         this.Erasure.EraseAsync(Arg.Any<UserId>(), Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<CancellationToken>())

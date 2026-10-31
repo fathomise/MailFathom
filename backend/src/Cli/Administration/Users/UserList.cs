@@ -24,6 +24,8 @@ internal sealed record UserList(
 /// <param name="Served">Whether the running deployment is serving them, which is whether this user's mail is read now.</param>
 /// <param name="McpEndpoint">Whether the deployment serves them on the MCP endpoint.</param>
 /// <param name="ClientEndpoint">Whether the deployment serves them on the client endpoint.</param>
+/// <param name="Type">Whether they are a person or a technical account, absent from a deployment that reports none.</param>
+/// <param name="JobTitle">The title their colleagues read them by, absent where none is stated.</param>
 /// <remarks>
 /// The label is here because an identifier is what a command needs and a person is what an operator is thinking about.
 /// </remarks>
@@ -32,7 +34,9 @@ internal sealed record UserRosterEntry(
     [property: JsonPropertyName("displayName")] string? DisplayName,
     [property: JsonPropertyName("served")] bool Served,
     [property: JsonPropertyName("mcpEndpoint")] bool McpEndpoint,
-    [property: JsonPropertyName("clientEndpoint")] bool ClientEndpoint)
+    [property: JsonPropertyName("clientEndpoint")] bool ClientEndpoint,
+    [property: JsonPropertyName("type")] string? Type = null,
+    [property: JsonPropertyName("jobTitle")] string? JobTitle = null)
 {
     /// <summary>States the user as a line an operator selects from.</summary>
     /// <returns>The identifier with the label beside it, or the identifier alone where the deployment published none.</returns>

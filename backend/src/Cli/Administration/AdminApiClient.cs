@@ -1653,6 +1653,56 @@ internal sealed class AdminApiClient
             NoSuchUser);
     }
 
+    /// <summary>Writes the title one user's colleagues read them by, or takes it off.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="userId">The user whose title is written.</param>
+    /// <param name="request">The title from now on, or none.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>A task that completes once the deployment has accepted the title.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> or <paramref name="request" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the request or the credential, could not be reached, or holds no such user.</exception>
+    internal Task SetUserJobTitleAsync(
+        string token,
+        Guid userId,
+        UserJobTitleRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return this.RequestAsync(
+            HttpMethod.Put,
+            AdminEndpointRoutes.UserJobTitlePath(userId),
+            token,
+            cancellationToken,
+            JsonContent.Create(request, CliJsonContext.Default.UserJobTitleRequest),
+            NoSuchUser);
+    }
+
+    /// <summary>Marks one user a person or a technical account.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="userId">The user whose type is written.</param>
+    /// <param name="request">The type from now on.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>A task that completes once the deployment has accepted the type.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> or <paramref name="request" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the request or the credential, could not be reached, or holds no such user.</exception>
+    internal Task SetUserTypeAsync(
+        string token,
+        Guid userId,
+        UserTypeRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return this.RequestAsync(
+            HttpMethod.Put,
+            AdminEndpointRoutes.UserTypePath(userId),
+            token,
+            cancellationToken,
+            JsonContent.Create(request, CliJsonContext.Default.UserTypeRequest),
+            NoSuchUser);
+    }
+
     /// <summary>Writes either or both of one user's endpoint switches.</summary>
     /// <param name="token">The bearer credential to present.</param>
     /// <param name="userId">The user whose switches are written.</param>

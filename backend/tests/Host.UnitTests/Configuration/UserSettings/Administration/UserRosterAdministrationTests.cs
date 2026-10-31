@@ -624,7 +624,7 @@ public sealed class UserRosterAdministrationTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.True(outcome.IsRelabelled);
+        Assert.True(outcome.IsWritten);
     }
 
     [Theory]
@@ -642,7 +642,7 @@ public sealed class UserRosterAdministrationTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(UserRelabelOutcome.NoSuchUser, outcome);
+        Assert.Equal(UserRowWriteOutcome.NoSuchUser, outcome);
         Assert.Empty(harness.Provisioning.ReceivedCalls());
     }
 
@@ -948,7 +948,7 @@ public sealed class UserRosterAdministrationTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.True(outcome.IsRelabelled);
+        Assert.True(outcome.IsWritten);
         await harness.Provisioning.Received(1)
             .RelabelAsync(SyntheticUser.Deployment, "alex", Arg.Any<CancellationToken>());
     }
@@ -993,7 +993,117 @@ public sealed class UserRosterAdministrationTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(UserRelabelOutcome.NoSuchUser, outcome);
+        Assert.Equal(UserRowWriteOutcome.NoSuchUser, outcome);
+    }
+
+    /// <summary>The roster reads a user's type and title back, so an administrator sees what the member directory shows.</summary>
+    [Fact]
+    public async Task ReadRosterAsync_AServiceAccountWithATitle_ReportsBoth()
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminRead);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "backup-robot")
+        {
+            Type = UserType.ServiceAccount,
+            JobTitle = "Nightly backup",
+        });
+
+        // Act
+        var roster = await harness.Roster.ReadRosterAsync(FirstPage, TestContext.Current.CancellationToken);
+
+        // Assert
+        var entry = Assert.Single(roster.Entries);
+        Assert.Equal(UserType.ServiceAccount, entry.Type);
+        Assert.Equal("Nightly backup", entry.JobTitle);
+    }
+
+    /// <summary>A title is written trimmed, and a blank one takes the title off rather than storing nothing visible.</summary>
+    [Theory]
+    [InlineData("  Controller  ", "Controller")]
+    [InlineData("   ", null)]
+    [InlineData(null, null)]
+    public async Task SetJobTitleAsync_AUserThisDeploymentHolds_WritesTheTitleTrimmedOrNone(string? written, string? stored)
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "alex"));
+
+        // Act
+        var outcome = await harness.Roster.SetJobTitleAsync(SyntheticUser.Deployment, written, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(outcome.IsWritten);
+        await harness.Provisioning.Received(1).SetJobTitleAsync(SyntheticUser.Deployment, stored, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A title past the column is refused with the bound rather than cut short where nobody sees it.</summary>
+    [Fact]
+    public async Task SetJobTitleAsync_ATitlePastTheBound_IsRefusedWithoutWriting()
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "alex"));
+
+        // Act
+        var outcome = await harness.Roster.SetJobTitleAsync(
+            SyntheticUser.Deployment,
+            new string('a', UserRecord.MaximumJobTitleLength + 1),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(outcome.IsWritten);
+        Assert.Contains($"{UserRecord.MaximumJobTitleLength}", outcome.RefusalMessage, StringComparison.Ordinal);
+        await harness.Provisioning.DidNotReceiveWithAnyArgs().SetJobTitleAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A user outside the administrator's scope is answered as one the deployment does not hold, as a relabel is.</summary>
+    [Theory]
+    [MemberData(nameof(ScopesOutsideTheUser))]
+    public async Task SetJobTitleAsync_AUserOutsideTheCallersScope_ReportsTheUserAsUnheldWithoutTouchingTheRow(AssignmentScope scope)
+    {
+        // Arrange
+        var harness = HarnessScopedAt(scope, MailFathomPermission.AdminConfigurationWrite);
+        harness.Holding(new UserRecord(AccessAuthorizations.ScopedHolder, "alexandra"));
+
+        // Act
+        var outcome = await harness.Roster.SetJobTitleAsync(AccessAuthorizations.ScopedHolder, "Controller", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(UserRowWriteOutcome.NoSuchUser, outcome);
+        Assert.Empty(harness.Provisioning.ReceivedCalls());
+    }
+
+    /// <summary>Writing a title or a type is configuration, so the reading grant reaches neither.</summary>
+    [Fact]
+    public async Task SetTypeAsync_ACallerWithoutTheConfigurationGrant_IsRefused()
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminRead);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "alex"));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
+            () => harness.Roster.SetTypeAsync(SyntheticUser.Deployment, UserType.ServiceAccount, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.AdminConfigurationWrite, refusal.RequiredPermission);
+        Assert.Empty(harness.Provisioning.ReceivedCalls());
+    }
+
+    /// <summary>Marking a user a technical account is one write on their row, which is what takes them out of the member directory.</summary>
+    [Fact]
+    public async Task SetTypeAsync_AUserThisDeploymentHolds_WritesTheType()
+    {
+        // Arrange
+        var harness = new RosterHarness(MailFathomPermission.AdminConfigurationWrite);
+        harness.Holding(new UserRecord(SyntheticUser.Deployment, "backup-robot"));
+
+        // Act
+        var outcome = await harness.Roster.SetTypeAsync(SyntheticUser.Deployment, UserType.ServiceAccount, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(outcome.IsWritten);
+        await harness.Provisioning.Received(1).SetTypeAsync(SyntheticUser.Deployment, UserType.ServiceAccount, Arg.Any<CancellationToken>());
     }
 
     /// <summary>A user this deployment does not hold is an absence to report rather than a label to refuse.</summary>
@@ -1016,7 +1126,7 @@ public sealed class UserRosterAdministrationTests
 
         // Assert
         Assert.False(outcome.UserHeld);
-        Assert.False(outcome.IsRelabelled);
+        Assert.False(outcome.IsWritten);
         await harness.Provisioning.DidNotReceiveWithAnyArgs()
             .RelabelAsync(default, default!, CancellationToken.None);
     }
@@ -1125,6 +1235,12 @@ public sealed class UserRosterAdministrationTests
                 .Returns(UserProvisioningResult.Provisioned);
             this.Provisioning
                 .RelabelAsync(Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns(true);
+            this.Provisioning
+                .SetJobTitleAsync(Arg.Any<UserId>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                .Returns(true);
+            this.Provisioning
+                .SetTypeAsync(Arg.Any<UserId>(), Arg.Any<UserType>(), Arg.Any<CancellationToken>())
                 .Returns(true);
 
             this.Erasure = Substitute.For<IUserErasure>();

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Access;
 using MailFathom.Domain.Access;
 
 namespace MailFathom.Host.Configuration.UserSettings.Administration;
@@ -28,4 +29,11 @@ internal sealed record UserRosterEntry(
     UserId User,
     string DisplayName,
     bool Served,
-    UserEndpointAccess EndpointAccess);
+    UserEndpointAccess EndpointAccess)
+{
+    /// <summary>Gets whether the user is a person or a technical account.</summary>
+    public UserType Type { get; init; } = UserType.User;
+
+    /// <summary>Gets the title an administrator gave the user, or <see langword="null" /> for none.</summary>
+    public string? JobTitle { get; init; }
+}

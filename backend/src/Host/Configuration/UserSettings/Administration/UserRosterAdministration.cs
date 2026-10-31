@@ -108,7 +108,11 @@ internal sealed partial class UserRosterAdministration(
                     record.User,
                     record.DisplayName,
                     Served: served.Contains(record.User),
-                    record.EndpointAccess)),
+                    record.EndpointAccess)
+                {
+                    Type = record.Type,
+                    JobTitle = record.JobTitle,
+                }),
             ],
             page.ContinuesAfter);
     }
@@ -271,7 +275,7 @@ internal sealed partial class UserRosterAdministration(
     /// user carrying the same label refuses nothing. A user outside the caller's scope is answered as one this
     /// deployment does not hold.
     /// </remarks>
-    internal async Task<UserRelabelOutcome> RelabelAsync(
+    internal async Task<UserRowWriteOutcome> RelabelAsync(
         UserId user,
         string? displayName,
         CancellationToken cancellationToken)
@@ -285,7 +289,7 @@ internal sealed partial class UserRosterAdministration(
 
         if (FindLabelRefusal(displayName) is { } unusable)
         {
-            return UserRelabelOutcome.Refused(unusable);
+            return UserRowWriteOutcome.Refused(unusable);
         }
 
         var label = displayName!.Trim();
@@ -293,17 +297,96 @@ internal sealed partial class UserRosterAdministration(
         if (!await authorization.PermitsOverAsync(MailFathomPermission.AdminConfigurationWrite, user, cancellationToken)
             || await directory.ReadUserAsync(user, cancellationToken) is null)
         {
-            return UserRelabelOutcome.NoSuchUser;
+            return UserRowWriteOutcome.NoSuchUser;
         }
 
         if (!await provisioning.RelabelAsync(user, label, cancellationToken))
         {
-            return UserRelabelOutcome.NoSuchUser;
+            return UserRowWriteOutcome.NoSuchUser;
         }
 
         this.LogUserRelabelled();
 
-        return UserRelabelOutcome.Relabelled;
+        return UserRowWriteOutcome.Written;
+    }
+
+    /// <summary>Puts the title a user's colleagues read them by on a user this deployment already holds, or takes it off.</summary>
+    /// <param name="user">The user whose title is written.</param>
+    /// <param name="jobTitle">The title from now on, or <see langword="null" /> or blank to state none.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>Whether the deployment holds this user at all, and the sentence naming what has to change first where it holds them and refused.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller's grant omits <see cref="MailFathomPermission.AdminConfigurationWrite" /> at every scope.</exception>
+    /// <remarks>
+    /// The title is the organization's statement about where a person sits, so it is an administrator's to write and no
+    /// settings policy governs it. A user outside the caller's scope is answered as one this deployment does not hold,
+    /// as a relabel is.
+    /// </remarks>
+    internal async Task<UserRowWriteOutcome> SetJobTitleAsync(
+        UserId user,
+        string? jobTitle,
+        CancellationToken cancellationToken)
+    {
+        if (!user.IsSpecified)
+        {
+            throw new ArgumentException("A title is written for a named user.", nameof(user));
+        }
+
+        authorization.RequirePermissionAtAnyScope(MailFathomPermission.AdminConfigurationWrite);
+
+        var title = string.IsNullOrWhiteSpace(jobTitle) ? null : jobTitle.Trim();
+
+        if (title is { Length: > UserRecord.MaximumJobTitleLength })
+        {
+            return UserRowWriteOutcome.Refused(
+                $"The title is {title.Length} characters, past the {UserRecord.MaximumJobTitleLength} a user's title is stored as. Shorten it.");
+        }
+
+        if (!await this.IsHeldWithinWriteScopeAsync(user, cancellationToken)
+            || !await provisioning.SetJobTitleAsync(user, title, cancellationToken))
+        {
+            return UserRowWriteOutcome.NoSuchUser;
+        }
+
+        return UserRowWriteOutcome.Written;
+    }
+
+    /// <summary>Marks a user this deployment already holds as a person or as a technical account.</summary>
+    /// <param name="user">The user whose type is written.</param>
+    /// <param name="type">The type from now on.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>Whether the deployment holds this user at all.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="type" /> names no declared value.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller's grant omits <see cref="MailFathomPermission.AdminConfigurationWrite" /> at every scope.</exception>
+    /// <remarks>
+    /// A service account leaves its organization's member directory on the next read, and a user marked a person again
+    /// returns to it, with nothing else written: the directory is read from the rows rather than kept beside them.
+    /// </remarks>
+    internal async Task<UserRowWriteOutcome> SetTypeAsync(
+        UserId user,
+        UserType type,
+        CancellationToken cancellationToken)
+    {
+        if (!user.IsSpecified)
+        {
+            throw new ArgumentException("A type is written for a named user.", nameof(user));
+        }
+
+        if (!Enum.IsDefined(type))
+        {
+            throw new ArgumentOutOfRangeException(nameof(type), "A user's type names a declared value.");
+        }
+
+        authorization.RequirePermissionAtAnyScope(MailFathomPermission.AdminConfigurationWrite);
+
+        if (!await this.IsHeldWithinWriteScopeAsync(user, cancellationToken)
+            || !await provisioning.SetTypeAsync(user, type, cancellationToken))
+        {
+            return UserRowWriteOutcome.NoSuchUser;
+        }
+
+        return UserRowWriteOutcome.Written;
     }
 
     /// <summary>Erases one user and everything this deployment recorded for them, once their own work has stopped.</summary>
@@ -426,6 +509,11 @@ internal sealed partial class UserRosterAdministration(
 
         return new UserRosterErasureOutcome(erased, served);
     }
+
+    /// <summary>Says whether the caller's configuration-writing scope covers a user this deployment holds.</summary>
+    private async Task<bool> IsHeldWithinWriteScopeAsync(UserId user, CancellationToken cancellationToken) =>
+        await authorization.PermitsOverAsync(MailFathomPermission.AdminConfigurationWrite, user, cancellationToken)
+        && await directory.ReadUserAsync(user, cancellationToken) is not null;
 
     /// <summary>Counts the users again after a committed write and tells every other replica about it, whatever the count does.</summary>
     /// <remarks>

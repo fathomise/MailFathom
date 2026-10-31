@@ -385,6 +385,90 @@ public sealed class UserRecordEndpointsTests
             TestContext.Current.CancellationToken));
     }
 
+    /// <summary>The title the request carried is the whole of what changed, so acceptance is the whole answer.</summary>
+    [Fact]
+    public async Task SetJobTitleAsync_AUserThisDeploymentHolds_AnswersWithNoContent()
+    {
+        // Arrange
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminConfigurationWrite]);
+        deployment.Held(new UserRecord(SyntheticUser.Deployment, "alexandra"));
+
+        // Act
+        var result = await UserRecordEndpoints.SetJobTitleAsync(
+            SyntheticUser.Deployment.Value,
+            deployment.Roster,
+            new UserJobTitleRequest("Controller"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NoContent>(result.Result);
+        await deployment.Provisioning.Received(1)
+            .SetJobTitleAsync(SyntheticUser.Deployment, "Controller", Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A user this deployment does not hold is answered as no such record, as at every route naming one.</summary>
+    [Fact]
+    public async Task SetJobTitleAsync_AUserThisDeploymentDoesNotHold_AnswersThatThereIsNoSuchRecord()
+    {
+        // Arrange
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminConfigurationWrite]);
+
+        // Act
+        var result = await UserRecordEndpoints.SetJobTitleAsync(
+            SyntheticUser.Another.Value,
+            deployment.Roster,
+            new UserJobTitleRequest("Controller"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound<ProblemDetails>>(result.Result);
+    }
+
+    /// <summary>The type is written by name, so a request carrying the member's name in another case is the same request.</summary>
+    [Fact]
+    public async Task SetTypeAsync_ATypeNamedInAnotherCase_WritesThatType()
+    {
+        // Arrange
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminConfigurationWrite]);
+        deployment.Held(new UserRecord(SyntheticUser.Deployment, "backup-robot"));
+
+        // Act
+        var result = await UserRecordEndpoints.SetTypeAsync(
+            SyntheticUser.Deployment.Value,
+            deployment.Roster,
+            new UserTypeRequest("serviceaccount"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NoContent>(result.Result);
+        await deployment.Provisioning.Received(1)
+            .SetTypeAsync(SyntheticUser.Deployment, UserType.ServiceAccount, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A type no user has, including one written as its number, is refused naming the two it takes and nothing is written.</summary>
+    [Theory]
+    [InlineData("Robot")]
+    [InlineData("1")]
+    [InlineData(null)]
+    public async Task SetTypeAsync_ATypeNoUserHas_IsRefusedWithoutReachingTheRow(string? type)
+    {
+        // Arrange
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminConfigurationWrite]);
+        deployment.Held(new UserRecord(SyntheticUser.Deployment, "backup-robot"));
+
+        // Act
+        var result = await UserRecordEndpoints.SetTypeAsync(
+            SyntheticUser.Deployment.Value,
+            deployment.Roster,
+            new UserTypeRequest(type),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertRefusal(result.Result, StatusCodes.Status400BadRequest);
+        await deployment.Provisioning.DidNotReceiveWithAnyArgs()
+            .SetTypeAsync(default, default, CancellationToken.None);
+    }
+
     [Fact]
     public async Task ReadRecordAsync_AUserThisDeploymentHolds_ReportsTheRecordAndTheVersionAChangeIsAcceptedAgainst()
     {

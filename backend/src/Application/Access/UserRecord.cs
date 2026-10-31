@@ -24,7 +24,17 @@ public sealed record UserRecord(UserId User, string DisplayName)
     /// </remarks>
     public const int MaximumDisplayNameLength = 128;
 
+    /// <summary>The longest title a user is described by in their organization's member directory.</summary>
+    /// <remarks>Stated here for the reason <see cref="MaximumDisplayNameLength" /> is: the column and the rule that judges a title an administrator writes have to agree about it.</remarks>
+    public const int MaximumJobTitleLength = 256;
+
     /// <summary>Gets which endpoints this user may be served on, which is part of the envelope rather than of the document.</summary>
     /// <remarks>Both until an administrator says otherwise, which is what a user is recorded with.</remarks>
     public UserEndpointAccess EndpointAccess { get; init; } = UserEndpointAccess.Everywhere;
+
+    /// <summary>Gets whether the user is a person or a technical account, which is a person until an administrator says otherwise.</summary>
+    public UserType Type { get; init; } = UserType.User;
+
+    /// <summary>Gets the title the user's colleagues read them by, or <see langword="null" /> where an administrator stated none.</summary>
+    public string? JobTitle { get; init; }
 }

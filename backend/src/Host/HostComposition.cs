@@ -13,6 +13,7 @@ using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Configuration;
 using MailFathom.Application.Contacts.Collection;
+using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Coordination;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Move;
@@ -296,6 +297,9 @@ internal static class HostComposition
         // facts about them rather than about the request being served.
         builder.Services.AddSingleton<IUserLanguages, ServedUserLanguages>();
         builder.Services.AddSingleton<IUserTimeZones, ServedUserTimeZones>();
+        // An organization's member directory, composed from the rows on every read rather than from that cache, which
+        // holds only the users this replica serves. A singleton for the reason the reader beneath it is one.
+        builder.Services.AddSingleton<IMemberDirectory, MemberDirectory>();
         // ReferenceOnly is the default, so a deployment that configures nothing gets the mode under which a plain-text value
         // where a reference belongs fails startup instead of authenticating.
         builder.Services.AddSecretResolution(

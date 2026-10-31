@@ -696,6 +696,14 @@ public readonly record struct MailFathomErrorCode
     /// </remarks>
     public static MailFathomErrorCode OutgoingEmailIdentifierMalformed { get; } = new(51016);
 
+    /// <summary>Gets subcategory 1, request validation: a request asked to change a contact the caller's organization keeps.</summary>
+    /// <remarks>
+    /// An organization's book is written by its administrators alone, so a member's change to one of its contacts is
+    /// refused rather than answered as a contact the member does not hold: the member reads the contact, and what they
+    /// do instead is promote it into their own book, which keeps a copy they may change.
+    /// </remarks>
+    public static MailFathomErrorCode OrganizationContactReadOnly { get; } = new(51017);
+
     /// <summary>Gets subcategory 2, pagination: a continuation cursor is not one this system issued.</summary>
     public static MailFathomErrorCode MailboxQueryCursorMalformed { get; } = new(52001);
 
@@ -1240,6 +1248,7 @@ public readonly record struct MailFathomErrorCode
         AuthoredMailBoundExceeded,
         AuthoredMailScheduleRefused,
         OutgoingEmailIdentifierMalformed,
+        OrganizationContactReadOnly,
         MailboxQueryCursorMalformed,
         MailboxQueryCursorFilterMismatch,
         ContactCursorMalformed,

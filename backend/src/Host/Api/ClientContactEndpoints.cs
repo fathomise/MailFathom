@@ -202,7 +202,7 @@ internal static class ClientContactEndpoints
     /// <param name="request">The record the contact is to have afterwards, and which of its kept addresses the person states again.</param>
     /// <param name="contacts">Performs the write.</param>
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
-    /// <returns><c>200</c> with the outcome, or <c>400</c> naming which rule the record broke.</returns>
+    /// <returns><c>200</c> with the outcome, <c>400</c> naming which rule the record broke, or <c>409</c> where the reader's organization keeps the contact.</returns>
     /// <remarks>
     /// The whole record rather than the difference from the one held, which is what keeps adding an address, dropping
     /// one, choosing a different preferred address, and correcting a name one operation whose result the book's
@@ -251,6 +251,10 @@ internal static class ClientContactEndpoints
         {
             return Refuse(refusal.Message);
         }
+        catch (ContactReadOnlyException refusal)
+        {
+            return ReadOnly(refusal);
+        }
     }
 
     /// <summary>Takes on a contact one of the acting user's mailboxes collected, so it becomes one they asserted.</summary>
@@ -283,7 +287,7 @@ internal static class ClientContactEndpoints
     /// <param name="contactId">The contact to erase.</param>
     /// <param name="contacts">Performs the erasure.</param>
     /// <param name="cancellationToken">Cancels the erasure when the client disconnects.</param>
-    /// <returns><c>200</c> with what was removed, including books that held no such contact.</returns>
+    /// <returns><c>200</c> with what was removed, including books that held no such contact, or <c>409</c> where the reader's organization keeps the contact.</returns>
     /// <remarks>
     /// The data-subject erasure path, so it removes rather than marks and no origin gates it: somebody asking to be
     /// taken out of a contact book is not answered with which book they happen to be in. It therefore reaches a record
@@ -302,12 +306,19 @@ internal static class ClientContactEndpoints
             return NoContact();
         }
 
-        var erasure = await contacts.EraseAsync(identity, cancellationToken);
+        try
+        {
+            var erasure = await contacts.EraseAsync(identity, cancellationToken);
 
-        return TypedResults.Ok(new ContactErasureResponse(
-            erasure.ContactId.Value,
-            erasure.WasHeld,
-            erasure.AddressesErased));
+            return TypedResults.Ok(new ContactErasureResponse(
+                erasure.ContactId.Value,
+                erasure.WasHeld,
+                erasure.AddressesErased));
+        }
+        catch (ContactReadOnlyException refusal)
+        {
+            return ReadOnly(refusal);
+        }
     }
 
     /// <summary>Serves one bounded page of one half of the book.</summary>
@@ -338,6 +349,7 @@ internal static class ClientContactEndpoints
             Search = search,
             PageSize = pageSize,
             Cursor = string.IsNullOrWhiteSpace(cursor) ? null : cursor,
+            BesideColleagues = true,
         };
 
         try
@@ -392,4 +404,15 @@ internal static class ClientContactEndpoints
     /// <summary>States what a caller has to change, without echoing anything about the person it was writing.</summary>
     private static ProblemHttpResult Refuse(string stated) =>
         TypedResults.Problem(stated, statusCode: StatusCodes.Status400BadRequest);
+
+    /// <summary>States that the contact is one the reader's organization keeps, under the code a client tells it apart by.</summary>
+    /// <param name="refusal">The refusal the book raised.</param>
+    /// <returns><c>409</c> carrying the refusal's code.</returns>
+    internal static ProblemHttpResult ReadOnly(ContactReadOnlyException refusal) => TypedResults.Problem(
+        refusal.Message,
+        statusCode: StatusCodes.Status409Conflict,
+        extensions: new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            [RouteAuthorization.ErrorCodeExtension] = refusal.ErrorCode.Value,
+        });
 }

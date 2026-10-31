@@ -35,6 +35,16 @@ internal static class UserOutput
             }
 
             console.WriteLine(DescribeEndpoints(user.McpEndpoint, user.ClientEndpoint));
+
+            if (user.Type is { } type)
+            {
+                console.WriteLine($"    type: {type}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.JobTitle))
+            {
+                console.WriteLine($"    job title: {user.JobTitle}");
+            }
         }
     }
 

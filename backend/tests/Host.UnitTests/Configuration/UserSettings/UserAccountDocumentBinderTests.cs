@@ -1064,6 +1064,65 @@ public sealed class UserAccountDocumentBinderTests
         Assert.Empty(binding.Refusals);
     }
 
+    /// <summary>A user's phone numbers are what their colleagues read in the member directory, under the labels a contact's carry.</summary>
+    [Fact]
+    public void Bind_ARecordStatingPhoneNumbersAndAPreferredAddress_BindsBothOntoTheRecord()
+    {
+        // Arrange
+        var binder = CreateBinder();
+
+        // Act
+        var binding = binder.Bind(
+            """{"Language": "English", "PhoneNumbers": [{"Number": "+48 600 100 200", "Label": "Mobile"}], "PreferredAddress": "anna@example.test"}""",
+            UserRecordArrival.BeingWritten);
+
+        // Assert
+        Assert.True(binding.IsBound);
+        var phoneNumber = Assert.Single(binding.User!.ReadingPhoneNumbers);
+        Assert.Equal("+48 600 100 200", phoneNumber.Number);
+        Assert.Equal("anna@example.test", binding.User.PreferredAddress);
+    }
+
+    /// <summary>The rule is a contact's, so a number no contact could carry is refused without the number being repeated.</summary>
+    [Fact]
+    public void Bind_APhoneNumberUnderALabelNoContactCarries_IsRefusedWithoutRepeatingTheNumber()
+    {
+        // Arrange
+        var binder = CreateBinder();
+
+        // Act
+        var binding = binder.Bind(
+            """{"Language": "English", "PhoneNumbers": [{"Number": "+48 600 100 200", "Label": "Pager"}]}""",
+            UserRecordArrival.BeingWritten);
+
+        // Assert
+        Assert.False(binding.IsBound);
+        var refusal = Assert.Single(binding.Refusals);
+        Assert.StartsWith("PhoneNumbers cannot be this user's", refusal, StringComparison.Ordinal);
+        Assert.DoesNotContain("600 100 200", refusal, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A preferred address has to be an address, and is not required to be one of the user's: the accounts it would
+    /// be judged against change without the record being written, so the directory resolves it when it is read.
+    /// </summary>
+    [Theory]
+    [InlineData("not an address", false)]
+    [InlineData("somebody-else@example.test", true)]
+    public void Bind_ARecordStatingAPreferredAddress_IsRefusedOnlyWhereItIsNoAddress(string stated, bool bound)
+    {
+        // Arrange
+        var binder = CreateBinder();
+
+        // Act
+        var binding = binder.Bind(
+            $$"""{"Language": "English", "PreferredAddress": "{{stated}}"}""",
+            UserRecordArrival.BeingWritten);
+
+        // Assert
+        Assert.Equal(bound, binding.IsBound);
+    }
+
     /// <summary>Builds the binder, over a deployment that scans nothing and declares no decision model unless a test says otherwise.</summary>
     /// <param name="deployment">The deployment's own scanning section, which a record's scanning block is judged against.</param>
     /// <param name="decisions">The deployment's decision models, which a record's spam model stage is judged against.</param>

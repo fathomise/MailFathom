@@ -31,7 +31,9 @@ public sealed class GovernablePropertiesTests
                 "EndpointAccess:ClientEndpoint Value",
                 "EndpointAccess:McpEndpoint Value",
                 "Language Value",
+                "PhoneNumbers List",
                 "Portrait Value",
+                "PreferredAddress Value",
                 "TimeZone Value",
         ];
         string[] mailAccounts =
@@ -151,7 +153,9 @@ public sealed class GovernablePropertiesTests
                 "EndpointAccess=AdministratorOnly",
                 "EndpointAccess:ClientEndpoint=AdministratorOnly",
                 "EndpointAccess:McpEndpoint=AdministratorOnly",
+                "PhoneNumbers=Identity",
                 "Portrait=Identity",
+                "PreferredAddress=Identity",
             ],
             classed);
         Assert.Equal(SettingsPolicyPropertyClass.Ordinary, properties.Find("Language")!.PropertyClass);

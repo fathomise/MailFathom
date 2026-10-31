@@ -60,6 +60,12 @@ internal static class UserRecordEndpoints
     /// <remarks>Beneath the user rather than beside the roster, because it changes one user's row; a route on the collection would read as one that decides which users there are.</remarks>
     internal const string UserDisplayNameRoute = $"{UserRoute}/display-name";
 
+    /// <summary>The route the title one user's colleagues read them by is written at.</summary>
+    internal const string UserJobTitleRoute = $"{UserRoute}/job-title";
+
+    /// <summary>The route one user is marked a person or a technical account at.</summary>
+    internal const string UserTypeRoute = $"{UserRoute}/type";
+
     /// <summary>The route one user's two endpoint switches are written at.</summary>
     /// <remarks>Beneath the user for the reason the label's route is: it changes one user's row, and the roster is where both switches are read back.</remarks>
     internal const string UserEndpointAccessRoute = $"{UserRoute}/endpoint-access";
@@ -98,6 +104,14 @@ internal static class UserRecordEndpoints
             .RequirePermissionOverTarget(MailFathomPermission.AdminErase);
 
         api.MapPut(UserDisplayNameRoute, RelabelAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
+            .RequirePermissionOverTarget(MailFathomPermission.AdminConfigurationWrite);
+
+        api.MapPut(UserJobTitleRoute, SetJobTitleAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
+            .RequirePermissionOverTarget(MailFathomPermission.AdminConfigurationWrite);
+
+        api.MapPut(UserTypeRoute, SetTypeAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
             .RequirePermissionOverTarget(MailFathomPermission.AdminConfigurationWrite);
 
@@ -253,6 +267,63 @@ internal static class UserRecordEndpoints
         return outcome.RefusalMessage is { } refused
             ? Refusal(refused)
             : TypedResults.NoContent();
+    }
+
+    /// <summary>Writes the title one user's colleagues read them by, or takes it off.</summary>
+    /// <param name="userId">The user whose title is written.</param>
+    /// <param name="roster">The roster administration.</param>
+    /// <param name="request">The title from now on; absent or blank states none.</param>
+    /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
+    /// <returns><c>204</c> when the row carries the title, <c>404</c> when this deployment holds no such user, or <c>400</c> naming what has to change first.</returns>
+    /// <remarks>Answered as a relabel is, including a user outside the caller's scope answering <c>404</c>.</remarks>
+    internal static async Task<Results<NoContent, NotFound<ProblemDetails>, ProblemHttpResult>> SetJobTitleAsync(
+        Guid userId,
+        [FromServices] UserRosterAdministration roster,
+        [FromBody] UserJobTitleRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!TryReadUser(userId, out var user))
+        {
+            return EmptyUser();
+        }
+
+        return Answered(await roster.SetJobTitleAsync(user, request.JobTitle, cancellationToken));
+    }
+
+    /// <summary>Marks one user a person or a technical account.</summary>
+    /// <param name="userId">The user whose type is written.</param>
+    /// <param name="roster">The roster administration.</param>
+    /// <param name="request">The type from now on.</param>
+    /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
+    /// <returns><c>204</c> when the row carries the type, <c>404</c> when this deployment holds no such user, or <c>400</c> when the request names no type.</returns>
+    /// <remarks>
+    /// A service account has no member contact in its organization's directory and is never suggested to a colleague,
+    /// so this is how a technical user leaves the directory. The type is named as it is spelled, compared without regard
+    /// to case, and a number is not a type however well it would have parsed.
+    /// </remarks>
+    internal static async Task<Results<NoContent, NotFound<ProblemDetails>, ProblemHttpResult>> SetTypeAsync(
+        Guid userId,
+        [FromServices] UserRosterAdministration roster,
+        [FromBody] UserTypeRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!TryReadUser(userId, out var user))
+        {
+            return EmptyUser();
+        }
+
+        if (UserTypeRequest.Read(request.Type) is not { } type)
+        {
+            return Refusal($"A user's type is one of {UserTypeRequest.WrittenNames}.");
+        }
+
+        return Answered(await roster.SetTypeAsync(user, type, cancellationToken));
     }
 
     /// <summary>Keeps one user off either mail-serving endpoint, or lets them back on.</summary>
@@ -444,6 +515,19 @@ internal static class UserRecordEndpoints
     private static Results<Ok<UserRecordWriteResponse>, NotFound<ProblemDetails>, ProblemHttpResult> Answered(
         UserRecordWriteOutcome? outcome) =>
         outcome is null ? NoSuchUser() : TypedResults.Ok(UserRecordWriteResponse.For(outcome));
+
+    /// <summary>Answers what writing one column of a user's row did.</summary>
+    private static Results<NoContent, NotFound<ProblemDetails>, ProblemHttpResult> Answered(UserRowWriteOutcome outcome)
+    {
+        if (!outcome.UserHeld)
+        {
+            return NoSuchUser();
+        }
+
+        return outcome.RefusalMessage is { } refused
+            ? Refusal(refused)
+            : TypedResults.NoContent();
+    }
 
     /// <summary>Says why a stated version is not one this boundary accepts, or nothing where it is.</summary>
     private static ProblemHttpResult? StatedVersion(long version) => version < 0
