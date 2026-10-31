@@ -133,6 +133,7 @@ function colleague(
     phoneNumbers: readonly { readonly number: string; readonly label: string }[],
     presence: string,
     lastSeen: string | null = null,
+    outOfOfficeUntil: string | null = null,
 ) {
     return {
         id,
@@ -148,6 +149,7 @@ function colleague(
         photo: null,
         presence,
         lastSeen,
+        outOfOfficeUntil,
     };
 }
 
@@ -163,7 +165,8 @@ function hoursOn(days: readonly string[], start: string, end: string) {
  * They are the design's own sample members, so a parity capture of the directory draws the people the artboard does:
  * one who lives six hours behind, one in London, one who states no zone, and the rest beside the reader — each in the
  * presence the artboard draws them in. Igor Pawlak chose to hide, so he reads as offline with no time he was last seen,
- * and the two who are simply offline were last seen the evening before the corpus's own day.
+ * and the two who are simply offline were last seen the evening before the corpus's own day. Piotr Zieliński's
+ * automatic reply runs to the end of the day the artboard draws him out of office until.
  */
 export const colleaguePage = {
     contacts: [
@@ -230,6 +233,7 @@ export const colleaguePage = {
             [{ number: '+48 603 555 207', label: 'Mobile' }],
             'Offline',
             '2026-10-30T18:20:00+01:00',
+            '2027-09-05T00:00:00+02:00',
         ),
         colleague(
             'member-zofia',

@@ -66,6 +66,9 @@ public sealed record AutomaticReply
     /// <summary>Gets whether the reply is switched on; one switched off answers nothing whatever the period says.</summary>
     public bool IsOn { get; }
 
+    /// <summary>Gets when the reply answers, without what it answers with.</summary>
+    public AutomaticReplyPeriod Period => new(this.StartsAt, this.EndsAt, this.IsOn);
+
     /// <summary>Reads a reply out of what somebody wrote, or says why it is not one.</summary>
     /// <param name="insideText">The text for senders inside the organization, or <see langword="null" /> or blank for none.</param>
     /// <param name="outsideText">The text for every other sender.</param>
@@ -118,7 +121,7 @@ public sealed record AutomaticReply
     /// <param name="at">The instant it is answered at.</param>
     /// <returns><see langword="true" /> while the reply is switched on, in its period, and names the account.</returns>
     public bool IsAnswering(MailAccountId account, DateTimeOffset at) =>
-        this.IsOn && this.StartsAt <= at && at < this.EndsAt && this.Accounts.Contains(account);
+        this.Period.Covers(at) && this.Accounts.Contains(account);
 
     /// <summary>Chooses the text a sender is answered with.</summary>
     /// <param name="senderIsInsideOrganization">Whether the sender was proven a member of the organization.</param>

@@ -94,6 +94,12 @@ export interface Colleague {
 
     /** When they were last present, only where they read as `Offline` and did not choose to hide. */
     readonly lastSeen: string | null;
+
+    /**
+     * When their automatic reply stops answering, only while it is switched on and in its period — the fact that they are
+     * away and until when, and never what the reply says.
+     */
+    readonly outOfOfficeUntil: string | null;
 }
 
 /** A day of the week as the service names one. */
@@ -371,6 +377,7 @@ export function parseColleague(value: unknown): Colleague | null {
 
     const presence = record['presence'];
     const lastSeen = record['lastSeen'] ?? null;
+    const outOfOfficeUntil = record['outOfOfficeUntil'] ?? null;
 
     // A colleague never reads as hidden, and only an offline one carries when they were last seen.
     if (!isPresenceState(presence) || presence === 'Hidden') {
@@ -378,6 +385,10 @@ export function parseColleague(value: unknown): Colleague | null {
     }
 
     if (lastSeen !== null && (presence !== 'Offline' || !isInstant(lastSeen))) {
+        return null;
+    }
+
+    if (outOfOfficeUntil !== null && !isInstant(outOfOfficeUntil)) {
         return null;
     }
 
@@ -395,6 +406,7 @@ export function parseColleague(value: unknown): Colleague | null {
         photo,
         presence,
         lastSeen,
+        outOfOfficeUntil,
     };
 }
 

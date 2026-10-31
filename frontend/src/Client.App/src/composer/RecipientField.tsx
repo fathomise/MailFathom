@@ -9,7 +9,9 @@ import { Icon } from '../controls/Icon';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { SymbolControl } from '../controls/SymbolControl';
 import { useTip } from '../controls/useTip';
+import { wordAbsenceEnd } from '../localization/instants';
 import { useLocalization, type Translate } from '../localization/useLocalization';
+import { useReadingZone } from '../localization/useReadingZone';
 import { PresenceDot } from '../presence/PresenceDot';
 import { presenceSaid } from '../presence/presenceWords';
 import { looksLikeAnAddress, mostRecipientsInOneHeader } from './composition';
@@ -349,17 +351,20 @@ export function RecipientField({
 }
 
 // The line under a suggested person's name: a colleague's presence in words and what they do — the address where their
-// record names no title, as the contact book's row does — so the dot on their avatar is never the only telling of it;
-// anybody else's, the address choosing them writes in.
-function lineOf(suggestion: RecipientSuggestion, translate: Translate): string {
+// record names no title, as the contact book's row does — so the dot on their avatar is never the only telling of it,
+// and the last day they are out of office where their automatic reply is running; anybody else's, the address choosing
+// them writes in.
+function lineOf(suggestion: RecipientSuggestion, awayUntil: string | null, translate: Translate): string {
     if (suggestion.colleague === undefined) {
         return suggestion.address;
     }
 
-    return translate('presence.withRole', {
-        presence: translate(presenceSaid[suggestion.colleague.presence]),
-        role: suggestion.colleague.jobTitle ?? suggestion.address,
-    });
+    const presence = translate(presenceSaid[suggestion.colleague.presence]);
+    const role = suggestion.colleague.jobTitle ?? suggestion.address;
+
+    return awayUntil === null
+        ? translate('presence.withRole', { presence, role })
+        : translate('presence.withRoleOutUntil', { presence, role, day: awayUntil });
 }
 
 // One entry of the list: who it is, and how they are told apart — a colleague by presence and role, anybody else by
@@ -376,8 +381,11 @@ function SuggestedRecipient({
     readonly inForce: boolean;
     readonly onChosen: () => void;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
+    const readingZone = useReadingZone();
     const picture = useContactPhoto(suggestion.photo ?? null);
+    const outOfOfficeUntil = suggestion.colleague?.outOfOfficeUntil ?? null;
+    const awayUntil = outOfOfficeUntil === null ? null : wordAbsenceEnd(outOfOfficeUntil, locale, readingZone);
 
     return (
         <div
@@ -408,7 +416,7 @@ function SuggestedRecipient({
                     {suggestion.name ?? suggestion.address}
                 </span>
                 {suggestion.name === null && suggestion.colleague === undefined ? null : (
-                    <span className="truncate text-sm text-muted">{lineOf(suggestion, translate)}</span>
+                    <span className="truncate text-sm text-muted">{lineOf(suggestion, awayUntil, translate)}</span>
                 )}
             </span>
         </div>

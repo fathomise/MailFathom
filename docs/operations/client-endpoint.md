@@ -3510,7 +3510,7 @@ up from mail that arrived, and the four things they do about either.
 | `GET /api/client/contacts/colleagues/{userId}` | Reads one of them |
 | `GET /api/client/contacts/colleagues/{userId}/photo` | Serves that colleague's portrait, or `404` where they have none |
 | `POST /api/client/contacts/photos` | Resolves which photo each of a set of addresses is drawn by — [§ The person photo route](#the-person-photo-route) |
-| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence` and `lastSeen`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
+| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence`, `lastSeen`, and `outOfOfficeUntil`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
 | `POST /api/client/contacts/colleagues/{userId}/promotion` | Writes a copy of that colleague into this user's own book |
 
 **The book is read as two, because it is two.** What somebody wrote down and what their mailboxes picked up are
@@ -3552,7 +3552,8 @@ first, and `start` and `end` written `HH:mm` on the colleague's own wall clock, 
 `photo`, an identifier that changes whenever the portrait does, `presence` — `Active`, `Away`, `Busy`,
 `DoNotDisturb`, or `Offline`, which is also what a colleague who chose `Hidden` reads as — and `lastSeen`, an instant
 answered only for an `Offline` colleague who did not choose to hide, as [the presence routes](#the-presence-routes)
-describe. A colleague whose address this user's own book holds is left out, because the user's own record of them
+describe — and `outOfOfficeUntil`, the instant the colleague's automatic reply stops answering, answered only while it
+is switched on and in its period and `null` otherwise, and never the reply's text. A colleague whose address this user's own book holds is left out, because the user's own record of them
 answers for them; the two listings above leave out an organization contact and a collected contact holding a
 colleague's address, for the same reason in the other direction. [Contacts § The organization's member
 directory](../features/contacts.md#the-organizations-member-directory) holds where each field comes from and who is in

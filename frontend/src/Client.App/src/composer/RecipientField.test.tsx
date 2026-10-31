@@ -489,6 +489,7 @@ describe('RecipientField', () => {
             photo: null,
             presence: 'Active',
             lastSeen: null,
+            outOfOfficeUntil: null,
         };
         const { changed } = drawField(
             [],
@@ -560,6 +561,7 @@ describe('RecipientField', () => {
                         photo: null,
                         presence: 'Offline',
                         lastSeen: null,
+                        outOfOfficeUntil: null,
                     },
                 ],
             },
@@ -578,5 +580,36 @@ describe('RecipientField', () => {
                 .getAllByRole('option')
                 .map((option) => readOut(option)),
         ).toStrictEqual(['Piotr ZielińskiOffline · Head of Delivery', 'Anna Kowalskaanna@nordwind.example']);
+    });
+
+    it('adds the last day a suggested colleague is out of office to the line under their name', async () => {
+        drawField([], [], {
+            colleagues: {
+                status: 200,
+                contacts: [
+                    {
+                        id: 'member-piotr',
+                        book: 'Member',
+                        displayName: 'Piotr Zieliński',
+                        addresses: ['piotr@nordwind.example'],
+                        preferredAddress: 'piotr@nordwind.example',
+                        phoneNumbers: [],
+                        jobTitle: 'Head of Delivery',
+                        organizationName: 'Nordwind',
+                        timeZone: null,
+                        photo: null,
+                        presence: 'Offline',
+                        lastSeen: null,
+                        outOfOfficeUntil: '2026-11-04T12:00:00Z',
+                    },
+                ],
+            },
+        });
+
+        typeInto('piotr');
+
+        const option = await screen.findByRole('option');
+
+        expect(readOut(option)).toBe('Piotr ZielińskiOffline · Head of Delivery · out until 11/04');
     });
 });

@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Colleague, Contact } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
@@ -81,11 +81,40 @@ describe('ContactRow', () => {
             photo: null,
             presence: 'DoNotDisturb',
             lastSeen: null,
+            outOfOfficeUntil: null,
         };
 
         drawRow({ contact: marta });
 
         expect(screen.getByText('Do not disturb · Controller')).toBeDefined();
+    });
+
+    it('marks a colleague whose automatic reply is running with the last day it runs to, and one whose is not with nothing', () => {
+        const piotr: Colleague = {
+            id: 'piotr',
+            book: 'Member',
+            displayName: 'Piotr Zieliński',
+            addresses: ['p.zielinski@nordwind.example'],
+            preferredAddress: 'p.zielinski@nordwind.example',
+            phoneNumbers: [],
+            jobTitle: 'Head of Delivery',
+            organizationName: 'Nordwind',
+            timeZone: null,
+            workingHours: null,
+            photo: null,
+            presence: 'Offline',
+            lastSeen: null,
+            outOfOfficeUntil: '2026-11-04T12:00:00Z',
+        };
+
+        drawRow({ contact: piotr });
+
+        expect(screen.getByText('Out until 11/04')).toBeDefined();
+
+        cleanup();
+        drawRow({ contact: { ...piotr, outOfOfficeUntil: null } });
+
+        expect(screen.queryByText(/Out until/u)).toBeNull();
     });
 
     it('marks a contact the reader’s organization keeps with the organization’s name', () => {

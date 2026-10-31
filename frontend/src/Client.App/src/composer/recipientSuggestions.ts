@@ -25,13 +25,17 @@ import type { PhotoOfPerson } from '../contactBook/contactPhotos';
 
 /**
  * One person a recipient field offers: the address choosing them writes in, the name they go by where known, and — for a
- * member of the reader's organization — their presence and what they do there, which the row says in place of the
- * address.
+ * member of the reader's organization — their presence, what they do there, and until when they are out of office,
+ * which the row says in place of the address.
  */
 export interface RecipientSuggestion {
     readonly address: string;
     readonly name: string | null;
-    readonly colleague?: { readonly presence: ColleaguePresence; readonly jobTitle: string | null };
+    readonly colleague?: {
+        readonly presence: ColleaguePresence;
+        readonly jobTitle: string | null;
+        readonly outOfOfficeUntil: string | null;
+    };
 
     /** The photo they are drawn by, present only for somebody who has one — anybody else is drawn by their initials. */
     readonly photo?: PhotoOfPerson;
@@ -175,7 +179,11 @@ function offeredAt(contact: Found, term: string): readonly RecipientSuggestion[]
             ? {
                   address,
                   name: contact.displayName,
-                  colleague: { presence: contact.presence, jobTitle: contact.jobTitle },
+                  colleague: {
+                      presence: contact.presence,
+                      jobTitle: contact.jobTitle,
+                      outOfOfficeUntil: contact.outOfOfficeUntil,
+                  },
                   ...photo,
               }
             : { address, name: contact.displayName, ...photo },

@@ -50,6 +50,7 @@ function colleague(id: string, displayName: string, presence = 'Active'): unknow
         photo: null,
         presence,
         lastSeen: null,
+        outOfOfficeUntil: null,
     };
 }
 

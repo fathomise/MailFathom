@@ -47,6 +47,7 @@ const piotr: Colleague = {
     photo: null,
     presence: 'Busy',
     lastSeen: null,
+    outOfOfficeUntil: null,
 };
 
 const officeHours = {
@@ -401,6 +402,21 @@ describe('PersonPage', () => {
 
             expect(screen.getByText('Offline')).toBeDefined();
             expect(screen.getByText('Last seen yesterday 6:20 PM')).toBeDefined();
+        });
+
+        it('says a colleague is out of office until the last day their automatic reply runs to, in the reader’s zone', () => {
+            drawPage({
+                contact: { ...piotr, outOfOfficeUntil: '2026-11-05T00:00:00+01:00' },
+                readerZone: 'Europe/Warsaw',
+            });
+
+            expect(screen.getByText('Out of office until 11/04')).toBeDefined();
+        });
+
+        it('says nothing about being away for a colleague whose automatic reply is not running', () => {
+            drawPage({ contact: piotr });
+
+            expect(screen.queryByText(/Out of office/u)).toBeNull();
         });
 
         it('says nothing about when a member was last seen where the deployment withholds it, as for one hidden', () => {

@@ -182,6 +182,25 @@ export function wordLastSeen(instant: string, locale: Locale, now: number, timeZ
 }
 
 /**
+ * The last day a colleague is out of office, as the design words it after *out of office until*: the day and the month.
+ *
+ * What the service states is the instant their automatic reply stops answering, which is the first moment they are no
+ * longer away — a reply ending at midnight covers the day before it and none of the day it ends on — so the day said is
+ * the one the moment before that instant falls on, in the reader's own zone.
+ *
+ * @param instant When the reply stops answering, as the service sent it.
+ * @param locale The language it is worded in.
+ * @param timeZone The zone the reader's record states their days are read in, or `null` for the runtime's own.
+ */
+export function wordAbsenceEnd(instant: string, locale: Locale, timeZone: string | null): string | null {
+    const ends = Date.parse(instant);
+
+    return Number.isNaN(ends)
+        ? null
+        : wordedIn(locale, { day: '2-digit', month: '2-digit' }, timeZone).format(ends - 1);
+}
+
+/**
  * The day a task is due, as the design words one on a row of the list.
  *
  * It is the calendar day of {@link wordCalendarDay} written short: the language's own word for the day the reader is

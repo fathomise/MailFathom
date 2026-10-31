@@ -48,6 +48,7 @@ import { draftingRead, failureSaid } from './draftingRead';
 import { writtenParagraphs } from './draftWords';
 import { forgetComposition, rememberComposition, rememberedComposition } from './keptComposition';
 import type { RecipientSuggestion } from './recipientSuggestions';
+import { AbsentRecipients } from './AbsentRecipients';
 import { RecipientField } from './RecipientField';
 import { SendConfirmation } from './SendConfirmation';
 import { useDraftAtDeployment, type AttachedFile, type DraftStanding } from './useDraftAtDeployment';
@@ -894,6 +895,8 @@ export function Composer({
                             </button>
                         }
                     />
+
+                    <AbsentRecipients addresses={composition.to} session={session} transport={transport} />
 
                     {copiesShown ? (
                         <>

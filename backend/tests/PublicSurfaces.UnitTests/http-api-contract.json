@@ -5730,6 +5730,13 @@
           "organizationName": {
             "type": "string"
           },
+          "outOfOfficeUntil": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "phoneNumbers": {
             "items": {
               "$ref": "#/components/schemas/ContactPhoneNumberResponse"
@@ -5782,7 +5789,8 @@
           "workingHours",
           "photo",
           "presence",
-          "lastSeen"
+          "lastSeen",
+          "outOfOfficeUntil"
         ],
         "type": "object"
       },

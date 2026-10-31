@@ -14,7 +14,7 @@ import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import type { MessageKey } from '../localization/en';
-import { wordLastSeen } from '../localization/instants';
+import { wordAbsenceEnd, wordLastSeen } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { useCurrentMinute } from '../notifications/notificationAge';
@@ -147,6 +147,12 @@ export function PersonPage({
     const lastSeen =
         member && contact.lastSeen !== null ? wordLastSeen(contact.lastSeen, locale, now, readingZone) : null;
 
+    // The last day a colleague's automatic reply runs to, which the deployment states only while it is running.
+    const awayUntil =
+        member && contact.outOfOfficeUntil !== null
+            ? wordAbsenceEnd(contact.outOfOfficeUntil, locale, readingZone)
+            : null;
+
     // Deleting and taking somebody on write to the book, so while the server is out of reach both are drawn as
     // controls that cannot act; the one with no room for a name of its own says why on the line under the person.
     // Editing opens a form whose own *Save* says the same.
@@ -229,6 +235,12 @@ export function PersonPage({
                             </span>
                             {lastSeen === null ? null : (
                                 <span className="text-muted">{translate('presence.lastSeen', { when: lastSeen })}</span>
+                            )}
+                            {awayUntil === null ? null : (
+                                <span className="flex items-center gap-1 rounded-sm bg-warning-soft px-2 py-0.5 font-semibold text-warning-text">
+                                    <Icon name="event_busy" className="size-icon-sm" />
+                                    {translate('presence.outOfOfficeUntil', { day: awayUntil })}
+                                </span>
                             )}
                         </p>
                     ) : null}

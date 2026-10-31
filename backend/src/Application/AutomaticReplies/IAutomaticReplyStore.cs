@@ -11,6 +11,19 @@ namespace MailFathom.Application.AutomaticReplies;
 /// <summary>Holds each user's automatic reply and the senders it has already answered.</summary>
 public interface IAutomaticReplyStore
 {
+    /// <summary>The most users one read of periods names.</summary>
+    /// <remarks>The member directory composes at most a thousand members, so a read the size of the directory is the largest any caller asks.</remarks>
+    const int MostReadPeriods = 1_000;
+
+    /// <summary>Reads when several users' automatic replies answer, without what they answer with.</summary>
+    /// <param name="users">The users to read, at most <see cref="MostReadPeriods" /> of them.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>One entry per user asked for who ever set a reply; a user who never did has none.</returns>
+    /// <remarks>Neither text is read: what a colleague is told about somebody's reply is that it runs and until when.</remarks>
+    Task<IReadOnlyDictionary<UserId, AutomaticReplyPeriod>> ReadPeriodsAsync(
+        IReadOnlyCollection<UserId> users,
+        CancellationToken cancellationToken);
+
     /// <summary>Reads one user's automatic reply.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancels the read.</param>

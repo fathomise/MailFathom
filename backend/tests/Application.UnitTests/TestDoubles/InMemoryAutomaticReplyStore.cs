@@ -22,6 +22,13 @@ internal sealed class InMemoryAutomaticReplyStore : IAutomaticReplyStore
     public bool HoldsUsers { get; set; } = true;
 
     /// <inheritdoc />
+    public Task<IReadOnlyDictionary<UserId, AutomaticReplyPeriod>> ReadPeriodsAsync(
+        IReadOnlyCollection<UserId> users,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<UserId, AutomaticReplyPeriod>>(
+            users.Where(this.replies.ContainsKey).ToDictionary(user => user, user => this.replies[user].Reply.Period));
+
+    /// <inheritdoc />
     public Task<StoredAutomaticReply?> ReadAsync(UserId user, CancellationToken cancellationToken) =>
         Task.FromResult(this.replies.GetValueOrDefault(user));
 

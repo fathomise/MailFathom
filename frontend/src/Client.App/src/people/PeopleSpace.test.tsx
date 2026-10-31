@@ -91,6 +91,7 @@ function colleagueCalled(id: string, displayName: string): unknown {
         photo: null,
         presence: 'Away',
         lastSeen: null,
+        outOfOfficeUntil: null,
     };
 }
 

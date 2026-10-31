@@ -10,6 +10,8 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.AutomaticReplies;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Presence;
@@ -46,6 +48,8 @@ public sealed class ColleagueBookTests
     private readonly IStoredFileStore files = Substitute.For<IStoredFileStore>();
 
     private readonly InMemoryPresenceStore presence = new();
+
+    private readonly InMemoryAutomaticReplyStore automaticReplies = new();
 
     /// <summary>The reader is one of the members the directory composes, and is never their own colleague.</summary>
     [Fact]
@@ -223,6 +227,32 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.Equal(new PresenceReading(PresenceState.Away, LastSeen: null), found?.Presence);
+    }
+
+    /// <summary>
+    /// A colleague is out of office while their automatic reply is switched on and in its period, and the reader is told
+    /// its end; a reply switched off says nothing, and a member who never set one is not away.
+    /// </summary>
+    [Fact]
+    public async Task ReadPageAsync_ColleaguesWithARunningAnOffAndNoReply_MarksTheRunningOneOutOfOfficeUntilItsEnd()
+    {
+        // Arrange
+        var end = Now.AddDays(3);
+        var marta = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000c004"));
+        this.Holding(
+            MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example"),
+            MemberOf(Zofia, "Zofia Nowak", "zofia@nordwind.example"),
+            MemberOf(marta, "Marta Wiśniewska", "marta@nordwind.example"));
+        await this.automaticReplies.SaveAsync(Piotr, ReplyAround(end, isOn: true), TestContext.Current.CancellationToken);
+        await this.automaticReplies.SaveAsync(Zofia, ReplyAround(end, isOn: false), TestContext.Current.CancellationToken);
+
+        // Act
+        var page = await this.BookFor(Organization).ReadPageAsync(new ContactPageRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [(marta, null), (Piotr, end), (Zofia, null)],
+            page.Colleagues.Select(colleague => (colleague.Contact.Member, colleague.OutOfOfficeUntil)));
     }
 
     /// <summary>
@@ -495,6 +525,20 @@ public sealed class ColleagueBookTests
             Now,
             Now);
 
+    /// <summary>A reply whose period runs from a day before the reading clock to the end given.</summary>
+    private static AutomaticReply ReplyAround(DateTimeOffset end, bool isOn) =>
+        AutomaticReply.TryCreate(
+            insideText: null,
+            "Back next week.",
+            [MailAccountId.Create("work")],
+            Now.AddDays(-1),
+            end,
+            isOn,
+            out var reply,
+            out _)
+            ? reply!
+            : throw new InvalidOperationException("The test reply is not one the domain admits.");
+
     private static EmailAddress Address(string address) =>
         EmailAddress.TryCreate(displayName: null, address, out var parsed)
             ? parsed
@@ -538,7 +582,16 @@ public sealed class ColleagueBookTests
             ownership,
             authorization);
 
-        return new ColleagueBook(this.members, this.store, this.files, writer, ownership, authorization, this.presence, timeProvider);
+        return new ColleagueBook(
+            this.members,
+            this.store,
+            this.files,
+            writer,
+            ownership,
+            authorization,
+            this.presence,
+            this.automaticReplies,
+            timeProvider);
     }
 
     /// <summary>A session that commits, because nothing here is about a conflict the policy has to retry.</summary>

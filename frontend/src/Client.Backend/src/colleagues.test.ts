@@ -34,6 +34,7 @@ const member = {
     photo: 'revision-1',
     presence: 'Busy',
     lastSeen: null,
+    outOfOfficeUntil: null,
 };
 
 type Answer = Omit<ClientResponse, 'headers'>;
@@ -312,6 +313,18 @@ describe('parseColleague', () => {
     it('refuses a last-seen time on a member who is present, and one that is not an instant', () => {
         expect(parseColleague({ ...member, presence: 'Away', lastSeen: '2026-10-30T18:20:00+00:00' })).toBeNull();
         expect(parseColleague({ ...member, presence: 'Offline', lastSeen: 'yesterday' })).toBeNull();
+    });
+
+    it('reads until when a member is out of office, and one with none stated as somebody who is not away', () => {
+        const away = { ...member, outOfOfficeUntil: '2026-11-04T00:00:00+01:00' };
+        const unstated = Object.fromEntries(Object.entries(member).filter(([field]) => field !== 'outOfOfficeUntil'));
+
+        expect(parseColleague(away)).toEqual(away);
+        expect(parseColleague(unstated)?.outOfOfficeUntil).toBeNull();
+    });
+
+    it('refuses an out-of-office end that is not an instant', () => {
+        expect(parseColleague({ ...member, outOfOfficeUntil: 'next week' })).toBeNull();
     });
 
     it('refuses a field of the wrong shape', () => {

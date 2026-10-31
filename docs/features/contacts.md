@@ -216,6 +216,16 @@ naming the member and nothing about them, and a client re-reads that colleague; 
 that ran out reaches colleagues on their client's own re-read, within five minutes. [The client endpoint § The
 presence routes](../operations/client-endpoint.md#the-presence-routes) holds the routes.
 
+### A colleague who is out of office
+
+A member contact says the colleague is out of office, and until when, while the colleague's
+[automatic reply](automatic-reply.md) is switched on and in its period: the end of that period and nothing else. The
+reply's text, the accounts it answers on, and when it started never reach a colleague, so what a member wrote to the
+people they correspond with is not shown to the people they work with. It is read from the reply on every read of a
+colleague and stored nowhere else, so a reply switched off or past its end stops showing at once. Like presence, it
+reaches members of the same organization alone and no MCP tool reads it. The client marks the colleague in the
+directory and on their page, and warns when a message is addressed to them.
+
 ## A contact is a person, not an address
 
 One person uses a work address, a personal one, and an old one they still receive on. A book keyed on the address could

@@ -2,12 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Presence;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.AutomaticReplies;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Presence;
@@ -53,7 +55,7 @@ public sealed class ClientColleagueEndpointsTests
         Assert.Equal("/contacts/colleagues/{userId:guid}/promotion", ClientColleagueEndpoints.ColleaguePromotionRoute);
     }
 
-    /// <summary>A colleague is drawn as a member contact: the preferred address first, the portrait's identifier, the zone by its IANA name, and the working hours on their own wall clock.</summary>
+    /// <summary>A colleague is drawn as a member contact: the preferred address first, the portrait's identifier, the zone by its IANA name, the working hours on their own wall clock, and the end of an automatic reply that is running.</summary>
     [Fact]
     public async Task ReadPageAsync_AColleague_IsDescribedAsAMemberContact()
     {
@@ -96,6 +98,7 @@ public sealed class ClientColleagueEndpointsTests
         Assert.Equal(PiotrsPortrait, colleague.Photo);
         Assert.Equal("Offline", colleague.Presence);
         Assert.Null(colleague.LastSeen);
+        Assert.Equal(Now.AddDays(2), colleague.OutOfOfficeUntil);
         Assert.Null(page.Value.NextCursor);
     }
 
@@ -259,6 +262,13 @@ public sealed class ClientColleagueEndpointsTests
         presence.ReadAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<UserId, MemberPresence>());
 
+        var automaticReplies = Substitute.For<IAutomaticReplyStore>();
+        automaticReplies.ReadPeriodsAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<UserId, AutomaticReplyPeriod>
+            {
+                [Piotr] = new(Now.AddDays(-1), Now.AddDays(2), IsOn: true),
+            });
+
         return new ColleagueBook(
             this.members,
             this.directory,
@@ -267,6 +277,7 @@ public sealed class ClientColleagueEndpointsTests
             ownership,
             authorization,
             presence,
+            automaticReplies,
             clock);
     }
 
