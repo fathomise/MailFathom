@@ -37,6 +37,7 @@ function connected(change: Partial<Connection> = {}, accounts: readonly MailAcco
                 telemetryLevel: 'info',
                 revision: null,
                 organization: null,
+                organizationName: null,
             },
         },
         accounts: { outcome: 'read', value: { synchronizationEnabled: true, accounts } },

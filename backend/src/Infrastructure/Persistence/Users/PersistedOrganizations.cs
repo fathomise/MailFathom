@@ -247,6 +247,10 @@ internal sealed class PersistedOrganizations(
         dbContext.Organizations.AsNoTracking().AnyAsync(organization => organization.Id == organizationId, cancellationToken);
 
     /// <inheritdoc />
+    public Task<string?> ReadDisplayNameAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        DisplayNameOf(dbContext, organizationId).SingleOrDefaultAsync(cancellationToken);
+
+    /// <inheritdoc />
     /// <remarks>
     /// The organization row is locked before its members and its mail accounts are counted, and the counts and the delete
     /// commit together. A move of a user or an account into it checks the restricting foreign key, which waits on that
@@ -661,6 +665,17 @@ internal sealed class PersistedOrganizations(
                 && dbContext.MailAccountAssignments.Any(assignment => assignment.UserId == user.Id
                     && assignment.MailAccountId == mailAccountId))
             .Select(user => user.Id);
+
+    /// <summary>Composes the display name of one organization, read without tracking.</summary>
+    /// <param name="dbContext">The context the query is composed over.</param>
+    /// <param name="organizationId">The organization whose name is read.</param>
+    /// <returns>Its display name, as nullable so a deleted organization reads as no row rather than as an empty name.</returns>
+    /// <remarks>Composed apart so its translation — one organization, by its key, and its name alone — is assertable without a server.</remarks>
+    internal static IQueryable<string?> DisplayNameOf(MailFathomDbContext dbContext, Guid organizationId) =>
+        dbContext.Organizations
+            .AsNoTracking()
+            .Where(organization => organization.Id == organizationId)
+            .Select(organization => (string?)organization.DisplayName);
 
     private static OrganizationWriteResult WrittenOrUnknown(int written) => OrganizationWriteResult.Of(
         written == 1 ? OrganizationWriteOutcome.Written : OrganizationWriteOutcome.UnknownOrganization);

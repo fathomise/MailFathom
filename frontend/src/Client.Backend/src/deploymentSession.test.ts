@@ -49,6 +49,7 @@ describe('readDeploymentSession', () => {
                 telemetryLevel: 'info',
                 revision: null,
                 organization: null,
+                organizationName: null,
             },
         });
     });
@@ -58,7 +59,14 @@ describe('readDeploymentSession', () => {
 
         expect(result).toEqual({
             outcome: 'read',
-            value: { version: '0.8.0', permissions: [], telemetryLevel: 'info', revision: null, organization: null },
+            value: {
+                version: '0.8.0',
+                permissions: [],
+                telemetryLevel: 'info',
+                revision: null,
+                organization: null,
+                organizationName: null,
+            },
         });
     });
 
@@ -82,7 +90,14 @@ describe('readDeploymentSession', () => {
 
         expect(result).toEqual({
             outcome: 'read',
-            value: { version: '0.8.0', permissions: [], telemetryLevel: level, revision: null, organization: null },
+            value: {
+                version: '0.8.0',
+                permissions: [],
+                telemetryLevel: level,
+                revision: null,
+                organization: null,
+                organizationName: null,
+            },
         });
     });
 
@@ -100,6 +115,7 @@ describe('readDeploymentSession', () => {
                 telemetryLevel: 'info',
                 revision: null,
                 organization: null,
+                organizationName: null,
             },
         });
     });
@@ -131,6 +147,7 @@ describe('readDeploymentSession', () => {
                 telemetryLevel: 'info',
                 revision: null,
                 organization: null,
+                organizationName: null,
             },
         });
     });
@@ -143,7 +160,14 @@ describe('readDeploymentSession', () => {
 
         expect(result).toEqual({
             outcome: 'read',
-            value: { version: '0.8.0', permissions: [], telemetryLevel: 'info', revision: null, organization: null },
+            value: {
+                version: '0.8.0',
+                permissions: [],
+                telemetryLevel: 'info',
+                revision: null,
+                organization: null,
+                organizationName: null,
+            },
         });
     });
 
@@ -182,8 +206,33 @@ describe('readDeploymentSession', () => {
                 telemetryLevel: 'info',
                 revision: readRevision,
                 organization: readOrganization,
+                organizationName: null,
             },
         });
+    });
+
+    it.each([
+        ['the name the organization is shown by', 'Nordwind', 'Nordwind'],
+        ['no name as nothing', null, null],
+        ['a blank name as nothing', '  ', null],
+        ['a name of the wrong type as nothing', 7, null],
+        ['a name longer than an organization can carry as nothing', 'N'.repeat(129), null],
+    ])('reads %s', async (_, organizationName, readOrganizationName) => {
+        const result = await readDeploymentSession(
+            session,
+            answering({
+                body: JSON.stringify({
+                    service: 'MailFathom',
+                    version: '0.8.0',
+                    permissions: [],
+                    telemetry: 'info',
+                    organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f',
+                    organizationName,
+                }),
+            }),
+        );
+
+        expect(result).toMatchObject({ outcome: 'read', value: { organizationName: readOrganizationName } });
     });
 
     it('names a permission once however many times the answer repeated it', async () => {
@@ -200,6 +249,7 @@ describe('readDeploymentSession', () => {
                 telemetryLevel: 'info',
                 revision: null,
                 organization: null,
+                organizationName: null,
             },
         });
     });

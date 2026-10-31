@@ -2268,6 +2268,16 @@ export const pl: Catalogue = {
     'people.backToList': 'Wróć do książki adresowej',
     'people.nobodyOpen': 'Otwórz kogoś, aby przeczytać jego stronę.',
     'people.collectedReadOnly': 'Tylko do odczytu – edytowalny po dodaniu do kontaktów',
+    'people.organization': 'Organizacja',
+    'people.yourOrganization': 'Twoja organizacja',
+    'people.organizationBook': 'Z książki adresowej: {organization}',
+    'people.organizationReadOnly': 'Prowadzi: {organization} – tylko do odczytu',
+    'people.keptReadOnly.one': 'Zostaje {count} kontakt z książki adresowej: {organization}, bo jest tylko do odczytu.',
+    'people.keptReadOnly.few': 'Zostają {count} kontakty z książki adresowej: {organization}, bo są tylko do odczytu.',
+    'people.keptReadOnly.many':
+        'Zostaje {count} kontaktów z książki adresowej: {organization}, bo są tylko do odczytu.',
+    'people.keptReadOnly.other':
+        'Zostaje {count} kontaktu z książki adresowej: {organization}, bo są tylko do odczytu.',
     'people.promote': 'Dodaj do moich kontaktów',
     'people.promoting': 'Dodajemy…',
 

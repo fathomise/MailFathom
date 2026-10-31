@@ -29,6 +29,7 @@ function person(at: number, origin: string) {
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
+        organization: null,
     };
 }
 
@@ -53,6 +54,7 @@ export const assertedContact = {
     recordedAt: '2026-06-02T11:15:00+00:00',
     amendedAt: '2026-08-14T08:02:00+00:00',
     photo: null,
+    organization: null,
 };
 
 /**
@@ -72,11 +74,36 @@ export const collectedContact = {
     recordedAt: '2026-08-29T16:40:00+00:00',
     amendedAt: '2026-08-29T16:40:00+00:00',
     photo: null,
+    organization: null,
+};
+
+/**
+ * One person the reader's organization keeps in its own book, which every member reads and none may change.
+ *
+ * It is listed among the reader's own, so it sits in the resting book rather than a page of its own, named to sort
+ * straight after the first row so the mark that tells it apart is on the screen the book opens on.
+ */
+export const organizationContact = {
+    id: 'contact-atlas',
+    displayName: 'Atlas Travel desk',
+    addresses: ['desk@atlastravel.example'],
+    preferredAddress: 'desk@atlastravel.example',
+    note: null,
+    phoneNumbers: [],
+    origin: 'Asserted',
+    recordedAt: '2026-05-12T07:30:00+00:00',
+    amendedAt: '2026-05-12T07:30:00+00:00',
+    photo: null,
+    organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f',
 };
 
 /** The book of people this user wrote down, long enough that the list windows rather than drawing every row. */
 export const assertedContactPage = {
-    contacts: [assertedContact, ...Array.from({ length: contactsPerPage - 1 }, (_, at) => person(at + 1, 'Asserted'))],
+    contacts: [
+        assertedContact,
+        organizationContact,
+        ...Array.from({ length: contactsPerPage - 2 }, (_, at) => person(at + 1, 'Asserted')),
+    ],
     nextCursor: null,
 };
 

@@ -1594,6 +1594,10 @@ export function App({
                                                                                                                 writable={
                                                                                                                     writesContacts
                                                                                                                 }
+                                                                                                                organizationName={
+                                                                                                                    deploymentSession.organizationName ??
+                                                                                                                    null
+                                                                                                                }
                                                                                                                 onOpenThread={(
                                                                                                                     thread,
                                                                                                                 ) => {

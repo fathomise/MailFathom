@@ -1218,6 +1218,29 @@
       ]
     },
     {
+      "id": "person-organization",
+      "route": "/#/people",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Contacts"
+          }
+        },
+        {
+          "click": {
+            "text": "Atlas Travel desk"
+          }
+        },
+        {
+          "expect": {
+            "text": "Kept by Nordwind - read-only"
+          }
+        }
+      ]
+    },
+    {
       "id": "tasks",
       "route": "/#/tasks",
       "signIn": true,

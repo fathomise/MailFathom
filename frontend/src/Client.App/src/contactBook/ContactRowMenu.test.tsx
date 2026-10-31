@@ -20,6 +20,7 @@ const anna: Contact = {
     recordedAt: '2026-08-31T09:41:00+00:00',
     amendedAt: '2026-08-31T09:41:00+00:00',
     photo: null,
+    organization: null,
 };
 
 function composingWhere(offered: boolean, compose = vi.fn()): Composing {
@@ -77,6 +78,14 @@ describe('ContactRowMenu', () => {
 
     it('leaves deleting out where the credential may not change the book', () => {
         menuUnder({ erasable: false });
+
+        expect(drawn()).toStrictEqual(['Select contacts', 'Write a message', 'Open contact']);
+    });
+
+    // The organization's book is read-only to a member, so its contact is offered no deletion however much the
+    // credential could write to the reader's own book.
+    it('leaves deleting out for a contact the reader’s organization keeps', () => {
+        menuUnder({ contact: { ...anna, organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' } });
 
         expect(drawn()).toStrictEqual(['Select contacts', 'Write a message', 'Open contact']);
     });

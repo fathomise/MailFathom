@@ -5200,6 +5200,12 @@
               "string"
             ]
           },
+          "organizationName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "permissions": {
             "items": {
               "type": "string"
@@ -5224,6 +5230,7 @@
           "version",
           "revision",
           "organization",
+          "organizationName",
           "permissions",
           "telemetry"
         ],

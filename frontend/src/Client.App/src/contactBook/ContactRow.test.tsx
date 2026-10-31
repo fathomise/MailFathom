@@ -19,14 +19,17 @@ const anna: Contact = {
     recordedAt: '2026-08-31T09:41:00+00:00',
     amendedAt: '2026-08-31T09:41:00+00:00',
     photo: null,
+    organization: null,
 };
 
 function drawRow({
     selected = false,
+    contact = anna,
     open = false,
     onOpen = vi.fn(),
     onToggle = vi.fn(),
 }: {
+    contact?: Contact;
     selected?: boolean;
     open?: boolean;
     onOpen?: () => void;
@@ -36,7 +39,8 @@ function drawRow({
         <LocalizationProvider>
             <ul>
                 <ContactRow
-                    contact={anna}
+                    contact={contact}
+                    organizationName="Nordwind"
                     selected={selected}
                     open={open}
                     focusable={true}
@@ -58,6 +62,13 @@ describe('ContactRow', () => {
 
         expect(screen.getByText('Anna Kowalska')).toBeDefined();
         expect(screen.getByText('anna@contoso.example')).toBeDefined();
+        expect(screen.queryByText('Nordwind')).toBeNull();
+    });
+
+    it('marks a contact the reader’s organization keeps with the organization’s name', () => {
+        drawRow({ contact: { ...anna, organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' } });
+
+        expect(screen.getByText('Nordwind')).toBeDefined();
     });
 
     // The book is keyset-paged, so nothing knows how many people it holds and the option says so rather than claiming

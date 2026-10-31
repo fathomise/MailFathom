@@ -129,11 +129,31 @@ describe('readOwnContacts', () => {
                         recordedAt: '2026-03-01T08:00:00+00:00',
                         amendedAt: '2026-03-04T09:01:12+00:00',
                         photo: null,
+                        organization: null,
                     },
                 ],
                 nextCursor: 'page-two',
             },
         });
+    });
+
+    it('reads the organization whose book keeps a contact, and refuses one named by nothing', async () => {
+        const keptBy = (organization: unknown) =>
+            readOwnContacts(
+                session,
+                answering({
+                    status: 200,
+                    body: JSON.stringify({ contacts: [{ ...asserted, organization }], nextCursor: null }),
+                }),
+            );
+
+        const kept = await keptBy('0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f');
+
+        expect(kept.outcome === 'read' && kept.value.contacts[0]?.organization).toBe(
+            '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f',
+        );
+        expect((await keptBy('')).outcome).toBe('failed');
+        expect((await keptBy(7)).outcome).toBe('failed');
     });
 
     it('reads the end of the book as a page carrying no cursor', async () => {
@@ -409,6 +429,7 @@ describe('recordContact', () => {
                     recordedAt: '2026-03-01T08:00:00+00:00',
                     amendedAt: '2026-03-04T09:01:12+00:00',
                     photo: null,
+                    organization: null,
                 },
                 addressHolder: null,
             },

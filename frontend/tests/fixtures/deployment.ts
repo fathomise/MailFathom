@@ -57,6 +57,9 @@ export const expectedRenewedSessionAuthorization = `Bearer ${renewedSession.toke
  * task list, the calendar, the bell, and their own settings are. An answer missing one is a different screen from the
  * one most checks are about.
  *
+ * The person signed in is a member of an organization, named so the contact its book keeps in `contacts.ts` is drawn
+ * with the organization's name rather than the word the client falls back on.
+ *
  * **`version` is the one field a consumer replaces rather than reads.** Only a build knows what version it was built
  * from, and a corpus stating one would be a second copy of `Version.props` going stale in a directory nothing reads it
  * from — so a check proving anything about the version spreads the number it read over this value, and every other
@@ -78,6 +81,8 @@ export const sessionAnswer = {
         'mailfathom.profile.write',
     ],
     telemetry: 'info',
+    organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f',
+    organizationName: 'Nordwind',
 };
 
 /** Who the signed-in person is, as the frame reads it for the account menu and the settings screen. */

@@ -74,6 +74,7 @@ const books: readonly ContactBookName[] = ['own', 'collected'];
 export function ContactBook({
     book,
     reading,
+    organizationName,
     opened,
     selected,
     erasable,
@@ -84,6 +85,9 @@ export function ContactBook({
 }: {
     readonly book: ContactBookName;
     readonly reading: ContactBookInForce;
+
+    /** The name the reader's organization is shown by, which a row its book keeps is marked with. */
+    readonly organizationName: string | null;
 
     /** The person the pane beside this one is drawing, or `null` where none is. */
     readonly opened: string | null;
@@ -298,6 +302,7 @@ export function ContactBook({
                             <ContactRow
                                 key={contact.id}
                                 contact={contact}
+                                organizationName={organizationName}
                                 selected={selected.includes(contact.id)}
                                 open={opened === contact.id}
                                 focusable={row === focusedRow}

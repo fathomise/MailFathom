@@ -69,10 +69,13 @@ function personCalled(
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
+        organization: null,
     };
 }
 
 const answered = { status: 200, headers: {} } as const;
+
+const organizationId = '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f';
 
 // One deployment behind the screen: the two books, one person's correlation, and the three writes. A test states what
 // the write answers and reads back what the screen did about it.
@@ -189,6 +192,7 @@ function drawSpace(
                                 transport={transport}
                                 contactPhotos={photos}
                                 writable={writable}
+                                organizationName="Nordwind"
                                 onOpenThread={vi.fn()}
                                 onOpenDocument={vi.fn()}
                             />
@@ -703,6 +707,50 @@ describe('PeopleSpace', () => {
 
     // Erasing several is several writes, so one refusal among them is reported as itself: the sentence names who is
     // still in the book, and they are still picked out so that asking again is one press rather than a search.
+    // The organization's contacts stand among the reader's own, so a selection can hold both: only the reader's own are
+    // taken out, the question says how many of the organization's stay, and nothing is asked of the server about them.
+    it('takes out only the reader’s own contacts from a selection that also holds the organization’s', async () => {
+        const { transport, sent } = deployment({
+            own: [
+                personCalled('anna', 'Anna Kowalska'),
+                { ...(personCalled('globe', 'Globe Travel desk') as object), organization: organizationId },
+            ],
+        });
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }), { ctrlKey: true });
+        fireEvent.click(screen.getByRole('option', { name: /Globe Travel desk/u }), { ctrlKey: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+        const question = await screen.findByRole('dialog', { name: 'Delete contact?' });
+
+        expect(
+            within(question).getByText(
+                'Anna Kowalska will disappear from your contacts. 1 kept by Nordwind stays, because it is read-only.',
+            ),
+        ).toBeDefined();
+
+        fireEvent.click(within(question).getByRole('button', { name: 'Delete' }));
+
+        expect(await screen.findByText('Deleted.')).toBeDefined();
+        const erasures = sent().filter((request) => request.method === 'DELETE');
+
+        expect(erasures).toHaveLength(1);
+        expect(erasures[0]?.path.endsWith('/contacts/anna')).toBe(true);
+    });
+
+    it('offers no deletion over a selection of the organization’s contacts alone', async () => {
+        const { transport } = deployment({
+            own: [{ ...(personCalled('globe', 'Globe Travel desk') as object), organization: organizationId }],
+        });
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('option', { name: /Globe Travel desk/u }), { ctrlKey: true });
+
+        expect(screen.getByRole('toolbar', { name: 'Selected contacts' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+    });
+
     it('names whoever a batch erasure did not remove, and leaves them picked out', async () => {
         const { transport } = deployment({
             own: [personCalled('anna', 'Anna Kowalska'), personCalled('bartek', 'Bartek Nowak')],

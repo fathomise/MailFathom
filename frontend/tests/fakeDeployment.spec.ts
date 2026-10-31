@@ -844,8 +844,9 @@ test('walks the address book in name order across pages, with a person it was wr
 
     const first = page('pageSize=50');
 
-    expect(first.contacts.slice(0, 2).map(({ displayName }) => displayName)).toStrictEqual([
+    expect(first.contacts.slice(0, 3).map(({ displayName }) => displayName)).toStrictEqual([
         'Anna Marlow',
+        'Atlas Travel desk',
         'Beatrice Holm',
     ]);
     expect(page(`pageSize=50&cursor=${first.nextCursor ?? ''}`).contacts).toHaveLength(1);
