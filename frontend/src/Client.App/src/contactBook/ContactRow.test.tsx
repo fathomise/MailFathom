@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Colleague, Contact } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ReadingZoneContext } from '../localization/useReadingZone';
 import { ContactRow } from './ContactRow';
 
 const anna: Contact = {
@@ -29,30 +30,34 @@ function drawRow({
     open = false,
     onOpen = vi.fn(),
     onToggle = vi.fn(),
+    readingZone = null,
 }: {
     contact?: Contact | Colleague;
     selected?: boolean;
     open?: boolean;
     onOpen?: () => void;
     onToggle?: () => void;
+    readingZone?: string | null;
 } = {}): void {
     render(
         <LocalizationProvider>
-            <ul>
-                <ContactRow
-                    contact={contact}
-                    organizationName="Nordwind"
-                    selected={selected}
-                    open={open}
-                    focusable={true}
-                    position={4}
-                    onOpen={onOpen}
-                    onToggle={onToggle}
-                    onPress={undefined}
-                    onPoint={vi.fn()}
-                    onElement={vi.fn()}
-                />
-            </ul>
+            <ReadingZoneContext value={readingZone}>
+                <ul>
+                    <ContactRow
+                        contact={contact}
+                        organizationName="Nordwind"
+                        selected={selected}
+                        open={open}
+                        focusable={true}
+                        position={4}
+                        onOpen={onOpen}
+                        onToggle={onToggle}
+                        onPress={undefined}
+                        onPoint={vi.fn()}
+                        onElement={vi.fn()}
+                    />
+                </ul>
+            </ReadingZoneContext>
         </LocalizationProvider>,
     );
 }
@@ -107,9 +112,14 @@ describe('ContactRow', () => {
             outOfOfficeUntil: '2026-11-04T12:00:00Z',
         };
 
-        drawRow({ contact: piotr });
+        drawRow({ contact: piotr, readingZone: 'Europe/Warsaw' });
 
         expect(screen.getByText('Out until 11/04')).toBeDefined();
+
+        cleanup();
+        drawRow({ contact: piotr, readingZone: 'Pacific/Kiritimati' });
+
+        expect(screen.getByText('Out until 11/05')).toBeDefined();
 
         cleanup();
         drawRow({ contact: { ...piotr, outOfOfficeUntil: null } });

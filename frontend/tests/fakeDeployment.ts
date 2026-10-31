@@ -801,6 +801,8 @@ export class FakeDeployment {
             // journey about the reader's own book and the contact the organization keeps in it.
             case 'GET /contacts/colleagues':
                 return answering(contacts.emptyContactPage);
+            case 'GET /contacts/colleagues/by-address':
+                return { status: 404, body: '' };
             case 'GET /contacts/collected':
                 return answering(
                     contactPage(

@@ -153,6 +153,30 @@ public sealed class ColleagueBook
             : null;
     }
 
+    /// <summary>Reads the colleague one address belongs to, whether or not the reader's own book holds it too.</summary>
+    /// <param name="address">The address to read the colleague of.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The colleague with their presence, or <see langword="null" /> where no colleague holds the address, or it is the reader's own.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the reading grant.</exception>
+    /// <remarks>
+    /// An identity read like <see cref="FindAsync" />, so the own book's precedence does not apply: the caller named the
+    /// person by an address it already holds — a recipient — and asks who that is, rather than browsing the directory.
+    /// Where two colleagues share the address, the first in the directory's order answers.
+    /// </remarks>
+    public async Task<Colleague?> FindAtAsync(EmailAddress address, CancellationToken cancellationToken)
+    {
+        this.authorization.RequirePermission(MailFathomPermission.ContactsRead);
+
+        var scope = await this.ownership.ReadScopeAsync(cancellationToken);
+        var colleague = (await this.ReadColleaguesAsync(scope, cancellationToken))
+            .Where(colleague => colleague.Addresses.Contains(address))
+            .OrderBy(colleague => colleague.DisplayName.SortKey, StringComparer.Ordinal)
+            .ThenBy(colleague => colleague.Member.Value)
+            .FirstOrDefault();
+
+        return colleague is null ? null : (await this.WithPresenceAsync([colleague], cancellationToken))[0];
+    }
+
     /// <summary>Reads where one colleague sits in the reader's organization: the managers above them and their direct reports.</summary>
     /// <param name="member">The member whose structure is read.</param>
     /// <param name="cancellationToken">Cancels the read.</param>

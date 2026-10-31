@@ -36,6 +36,9 @@ import { send, type ClientRequest, type MailFathomTransport } from './transport'
 /** The route the members of the reader's organization are served at, relative to the client prefix. */
 export const colleaguesRoute = `${contactsRoute}/colleagues`;
 
+/** The route the member one address belongs to is read at, relative to the client prefix. */
+export const colleagueAtAddressRoute = `${colleaguesRoute}/by-address`;
+
 /** The route one member of the reader's organization is read at, relative to the client prefix. */
 export function colleagueRoute(userId: string): string {
     return `${colleaguesRoute}/${encodeURIComponent(userId)}`;
@@ -198,6 +201,41 @@ export function readColleague(
         const response = await send(transport, {
             method: 'GET',
             path: routeFor(session, colleagueRoute(userId)),
+            headers: headersFor(session),
+            longestAnswer: longestColleagueAnswer,
+        });
+
+        if (response === null) {
+            return failed('unavailable', null);
+        }
+
+        if (response.status === 404) {
+            return failed('missing', response.status);
+        }
+
+        if (response.status !== 200) {
+            return failed(failureReasonForStatus(response.status), response.status);
+        }
+
+        const colleague = parseColleague(bodyOf(response));
+
+        return colleague === null ? failed('unreadable', response.status) : read(colleague);
+    });
+}
+
+/**
+ * Reads the member one address belongs to, even where the reader's own book holds that address too; an address no
+ * member holds, or the reader's own, is `missing`.
+ */
+export function readColleagueAt(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    address: string,
+): Promise<ClientResult<Colleague>> {
+    return spanned(`GET ${colleagueAtAddressRoute}`, async () => {
+        const response = await send(transport, {
+            method: 'GET',
+            path: `${routeFor(session, colleagueAtAddressRoute)}?address=${encodeURIComponent(address)}`,
             headers: headersFor(session),
             longestAnswer: longestColleagueAnswer,
         });

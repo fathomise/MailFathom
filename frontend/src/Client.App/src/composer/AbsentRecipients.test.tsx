@@ -2,10 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ClientRequest, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ReadingZoneContext } from '../localization/useReadingZone';
 import { AbsentRecipients } from './AbsentRecipients';
 
 const session: ClientSession = {
@@ -31,15 +32,16 @@ function member(id: string, displayName: string, address: string, outOfOfficeUnt
     };
 }
 
-// Piotr is away and his address is also contained in Apiotr's, which a search by his address finds beside him; Zofia is
-// in the office.
+// Piotr is away and Zofia is in the office.
 const directory = [
-    member('member-apiotr', 'Adam Piotrowski', 'apiotr@nordwind.example', '2026-11-20T12:00:00Z'),
     member('member-piotr', 'Piotr Zieliński', 'piotr@nordwind.example', '2026-11-04T12:00:00Z'),
     member('member-zofia', 'Zofia Krawczyk', 'zofia@nordwind.example', null),
 ];
 
-/** A directory searched by any part of an address, as the deployment searches it. */
+/**
+ * A deployment whose reader keeps every colleague in their own book as well, so the directory's list holds nobody and
+ * only a read by address finds a colleague — which is the case a search would miss.
+ */
 function deployment(): { transport: MailFathomTransport; asked: ClientRequest[] } {
     const asked: ClientRequest[] = [];
 
@@ -48,18 +50,34 @@ function deployment(): { transport: MailFathomTransport; asked: ClientRequest[] 
         transport: (request) => {
             asked.push(request);
 
-            const search = new URL(request.path).searchParams.get('search') ?? '';
-            const contacts = directory.filter((colleague) => colleague.addresses.some((held) => held.includes(search)));
+            const url = new URL(request.path);
 
-            return Promise.resolve({ status: 200, body: JSON.stringify({ contacts, nextCursor: null }), headers: {} });
+            if (!url.pathname.endsWith('/colleagues/by-address')) {
+                return Promise.resolve({
+                    status: 200,
+                    body: JSON.stringify({ contacts: [], nextCursor: null }),
+                    headers: {},
+                });
+            }
+
+            const address = (url.searchParams.get('address') ?? '').toLowerCase();
+            const colleague = directory.find((held) => held.addresses.includes(address));
+
+            return Promise.resolve(
+                colleague === undefined
+                    ? { status: 404, body: '', headers: {} }
+                    : { status: 200, body: JSON.stringify(colleague), headers: {} },
+            );
         },
     };
 }
 
-function drawWarnings(addresses: readonly string[], transport: MailFathomTransport) {
+function drawWarnings(addresses: readonly string[], transport: MailFathomTransport, readingZone = 'Europe/Warsaw') {
     return render(
         <LocalizationProvider>
-            <AbsentRecipients addresses={addresses} session={session} transport={transport} />
+            <ReadingZoneContext value={readingZone}>
+                <AbsentRecipients addresses={addresses} session={session} transport={transport} />
+            </ReadingZoneContext>
         </LocalizationProvider>,
     );
 }
@@ -77,6 +95,18 @@ describe('AbsentRecipients', () => {
         });
     });
 
+    // That instant is already the next day far east of UTC, so the day said is the reader's rather than the server's.
+    it('says the last day in the reader’s own zone', async () => {
+        drawWarnings(['piotr@nordwind.example'], deployment().transport, 'Pacific/Kiritimati');
+
+        expect((await screen.findByRole('status')).textContent).toBe('Piotr Zieliński is out of office until 11/05.');
+
+        cleanup();
+        drawWarnings(['piotr@nordwind.example'], deployment().transport, 'America/Los_Angeles');
+
+        expect((await screen.findByRole('status')).textContent).toBe('Piotr Zieliński is out of office until 11/04.');
+    });
+
     it('asks the directory about an address once, however often the recipients change around it', async () => {
         const { transport, asked } = deployment();
         const { rerender } = drawWarnings(['piotr@nordwind.example'], transport);
@@ -85,11 +115,13 @@ describe('AbsentRecipients', () => {
 
         rerender(
             <LocalizationProvider>
-                <AbsentRecipients
-                    addresses={['piotr@nordwind.example', 'zofia@nordwind.example']}
-                    session={session}
-                    transport={transport}
-                />
+                <ReadingZoneContext value="Europe/Warsaw">
+                    <AbsentRecipients
+                        addresses={['piotr@nordwind.example', 'zofia@nordwind.example']}
+                        session={session}
+                        transport={transport}
+                    />
+                </ReadingZoneContext>
             </LocalizationProvider>,
         );
 

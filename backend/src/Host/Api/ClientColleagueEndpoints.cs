@@ -33,6 +33,10 @@ internal static class ClientColleagueEndpoints
     /// <remarks>A literal segment where the single-contact route takes an identifier, which routing prefers over a parameter.</remarks>
     internal const string ColleaguesRoute = "/contacts/colleagues";
 
+    /// <summary>The route the colleague one address belongs to is read at, relative to the client prefix.</summary>
+    /// <remarks>A literal segment, like the list's, which routing prefers over the identifier the single-colleague route takes.</remarks>
+    internal const string ColleagueAtAddressRoute = "/contacts/colleagues/by-address";
+
     /// <summary>The route one colleague is read at, relative to the client prefix.</summary>
     internal const string ColleagueRoute = "/contacts/colleagues/{userId:guid}";
 
@@ -53,6 +57,9 @@ internal static class ClientColleagueEndpoints
         ArgumentNullException.ThrowIfNull(api);
 
         api.MapGet(ColleaguesRoute, ReadPageAsync)
+            .RequirePermission(MailFathomPermission.ContactsRead);
+
+        api.MapGet(ColleagueAtAddressRoute, FindAtAsync)
             .RequirePermission(MailFathomPermission.ContactsRead);
 
         api.MapGet(ColleagueRoute, FindAsync)
@@ -130,6 +137,32 @@ internal static class ClientColleagueEndpoints
         }
 
         return await colleagues.FindAsync(member, cancellationToken) is { } colleague
+            ? TypedResults.Ok(ColleagueResponse.For(colleague))
+            : TypedResults.NotFound();
+    }
+
+    /// <summary>Serves the colleague one address belongs to, whether or not the reader's own book holds it too.</summary>
+    /// <param name="address">The address whose colleague is read.</param>
+    /// <param name="colleagues">Reads the reader's organization.</param>
+    /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
+    /// <returns><c>200</c> with the colleague, <c>404</c> where no colleague holds the address, or <c>400</c> where the address is not one.</returns>
+    /// <remarks>
+    /// What a composer asks about a recipient, which is why the own book's precedence the list applies does not hold
+    /// here. An address of another organization's member, the reader's own, and nobody's answer identically.
+    /// </remarks>
+    internal static async Task<Results<Ok<ColleagueResponse>, NotFound, ProblemHttpResult>> FindAtAsync(
+        [FromQuery] string? address,
+        [FromServices] ColleagueBook colleagues,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(colleagues);
+
+        if (!ContactEndpoints.TryReadAddress(address, out var resolved))
+        {
+            return Refuse("The lookup names no usable address.");
+        }
+
+        return await colleagues.FindAtAsync(resolved, cancellationToken) is { } colleague
             ? TypedResults.Ok(ColleagueResponse.For(colleague))
             : TypedResults.NotFound();
     }

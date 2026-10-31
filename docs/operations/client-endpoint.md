@@ -3513,6 +3513,7 @@ up from mail that arrived, and the four things they do about either.
 | `POST /api/client/contacts/{contactId}/promotion` | Takes on a collected record, so it becomes one this user asserted |
 | `DELETE /api/client/contacts/{contactId}` | Erases one person and everything the book derived from them |
 | `GET /api/client/contacts/colleagues` | Reads one page of the other members of this user's organization |
+| `GET /api/client/contacts/colleagues/by-address?address=` | Reads the colleague one address belongs to, even one this user's own book also holds; `404` where no colleague holds it or it is the user's own, `400` where it is no address |
 | `GET /api/client/contacts/colleagues/{userId}` | Reads one of them |
 | `GET /api/client/contacts/colleagues/{userId}/photo` | Serves that colleague's portrait, or `404` where they have none |
 | `POST /api/client/contacts/photos` | Resolves which photo each of a set of addresses is drawn by — [§ The person photo route](#the-person-photo-route) |
@@ -3560,7 +3561,8 @@ first, and `start` and `end` written `HH:mm` on the colleague's own wall clock, 
 answered only for an `Offline` colleague who did not choose to hide, as [the presence routes](#the-presence-routes)
 describe — and `outOfOfficeUntil`, the instant the colleague's automatic reply stops answering, answered only while it
 is switched on and in its period and `null` otherwise, and never the reply's text. A colleague whose address this user's own book holds is left out, because the user's own record of them
-answers for them; the two listings above leave out an organization contact and a collected contact holding a
+answers for them — in the listing, and not in the reads that name a colleague by an identifier or by an address, which
+answer for the person named; the two listings above leave out an organization contact and a collected contact holding a
 colleague's address, for the same reason in the other direction. [Contacts § The organization's member
 directory](../features/contacts.md#the-organizations-member-directory) holds where each field comes from and who is in
 the directory. There is no route that changes a colleague: promoting one copies their name, addresses, preferred

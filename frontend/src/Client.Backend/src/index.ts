@@ -54,12 +54,14 @@ export {
     type StatedClientPreferences,
 } from './clientPreferences';
 export {
+    colleagueAtAddressRoute,
     colleaguePhotoRoute,
     colleagueRoute,
     colleaguesRoute,
     colleagueStructureRoute,
     promoteColleague,
     readColleague,
+    readColleagueAt,
     readColleaguePhoto,
     readColleagues,
     readColleagueStructure,

@@ -4,9 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import {
-    longestContactSearch,
-    mostContactsPerPage,
-    readColleagues,
+    readColleagueAt,
     type ClientSession,
     type Colleague,
     type MailFathomTransport,
@@ -26,10 +24,9 @@ import { useReadingZone } from '../localization/useReadingZone';
 // failed read is kept as nobody: this is a courtesy beside the message, and a sentence about a directory that did not
 // answer would be a refusal nobody asked about.
 //
-// The directory is searched by the address, which also matches every colleague whose own address contains it, so one
-// page is read at the largest size the service serves and the colleague holding the address exactly is picked out of
-// it. A directory with more colleagues than that containing one address would miss them, which no organization's
-// naming has been seen to produce; reading further pages is the way past it.
+// The address is asked as an address rather than searched for, so a colleague the reader also keeps in their own book
+// is still found: the directory's list leaves such a colleague to the reader's own record of them, and that record says
+// nothing about whether they are away.
 
 /** Two spellings of one address are one recipient, which is how the book itself compares them. */
 function addressKey(address: string): string {
@@ -41,13 +38,9 @@ async function colleagueAt(
     transport: MailFathomTransport,
     address: string,
 ): Promise<Colleague | null> {
-    const answer = await readColleagues(session, transport, { search: address, pageSize: mostContactsPerPage });
+    const answer = await readColleagueAt(session, transport, address);
 
-    return answer.outcome === 'read'
-        ? (answer.value.colleagues.find((colleague) =>
-              colleague.addresses.some((held) => addressKey(held) === address),
-          ) ?? null)
-        : null;
+    return answer.outcome === 'read' ? answer.value : null;
 }
 
 export function AbsentRecipients({
@@ -64,7 +57,7 @@ export function AbsentRecipients({
     const [found, setFound] = useState<ReadonlyMap<string, Colleague | null>>(new Map());
 
     const keys = [...new Set(addresses.map(addressKey))];
-    const unasked = keys.filter((key) => !found.has(key) && key.length <= longestContactSearch).join('\n');
+    const unasked = keys.filter((key) => !found.has(key)).join('\n');
 
     // Asking the directory is a request going out, which is what an effect is for. The answers are discarded where the
     // header moved on before they arrived, and the addresses still unasked then are asked again.

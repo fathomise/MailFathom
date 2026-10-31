@@ -136,6 +136,45 @@ public sealed class ClientColleagueEndpointsTests
         Assert.IsType<NotFound>(result.Result);
     }
 
+    /// <summary>A recipient's address reads the colleague it belongs to, as one colleague is described.</summary>
+    [Fact]
+    public async Task FindAtAsync_AColleaguesAddress_DescribesThatColleague()
+    {
+        // Arrange
+        this.Holding(ColleagueNamed(Piotr, "Piotr Zieliński") with
+        {
+            Addresses = [Mailbox("piotr@nordwind.example")],
+        });
+
+        // Act
+        var result = await ClientColleagueEndpoints.FindAtAsync(
+            "Piotr@nordwind.example",
+            this.Colleagues(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var found = Assert.IsType<Ok<ColleagueResponse>>(result.Result);
+        Assert.Equal(Piotr.Value, found.Value!.Id);
+    }
+
+    /// <summary>An address nobody in the organization holds answers that there is no such colleague, and text that is no address is refused without reading.</summary>
+    [Fact]
+    public async Task FindAtAsync_NobodysAddressOrNoAddress_AnswersNotFoundOrIsRefused()
+    {
+        // Arrange
+        this.Holding(ColleagueNamed(Piotr, "Piotr Zieliński"));
+        var colleagues = this.Colleagues();
+
+        // Act
+        var nobody = await ClientColleagueEndpoints.FindAtAsync("someone@contoso.example", colleagues, TestContext.Current.CancellationToken);
+        var noAddress = await ClientColleagueEndpoints.FindAtAsync("not an address", colleagues, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound>(nobody.Result);
+        var refusal = Assert.IsType<ProblemHttpResult>(noAddress.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+    }
+
     /// <summary>The structure names the managers top-down, the reports below, and the reader, so the client knows which row leads nowhere.</summary>
     [Fact]
     public async Task ReadStructureAsync_AColleagueWithAManagerAndAReport_DescribesBothAndTheReader()

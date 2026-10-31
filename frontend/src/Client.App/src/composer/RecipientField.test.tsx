@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ReadingZoneContext } from '../localization/useReadingZone';
 import { mostRecipientsInOneHeader } from './composition';
 import type { RecipientSuggestion } from './recipientSuggestions';
 import { RecipientField } from './RecipientField';
@@ -78,22 +79,25 @@ function drawField(
     participants: readonly RecipientSuggestion[] = [],
     books: Books = {},
     organizationName: string | null = null,
+    readingZone: string | null = null,
 ): { changed: ReturnType<typeof vi.fn>; asked: ClientRequest[] } {
     const changed = vi.fn();
     const { transport, asked } = deployment(books);
 
     render(
         <LocalizationProvider>
-            <RecipientField
-                label="To"
-                placeholder={emptyFieldSays}
-                addresses={addresses}
-                participants={participants}
-                session={session}
-                transport={transport}
-                organizationName={organizationName}
-                onChanged={changed}
-            />
+            <ReadingZoneContext value={readingZone}>
+                <RecipientField
+                    label="To"
+                    placeholder={emptyFieldSays}
+                    addresses={addresses}
+                    participants={participants}
+                    session={session}
+                    transport={transport}
+                    organizationName={organizationName}
+                    onChanged={changed}
+                />
+            </ReadingZoneContext>
         </LocalizationProvider>,
     );
 
@@ -582,34 +586,41 @@ describe('RecipientField', () => {
         ).toStrictEqual(['Piotr ZielińskiOffline · Head of Delivery', 'Anna Kowalskaanna@nordwind.example']);
     });
 
+    // The reader's zone is far east of UTC, where that instant already falls on the next day, so the day said is theirs.
     it('adds the last day a suggested colleague is out of office to the line under their name', async () => {
-        drawField([], [], {
-            colleagues: {
-                status: 200,
-                contacts: [
-                    {
-                        id: 'member-piotr',
-                        book: 'Member',
-                        displayName: 'Piotr Zieliński',
-                        addresses: ['piotr@nordwind.example'],
-                        preferredAddress: 'piotr@nordwind.example',
-                        phoneNumbers: [],
-                        jobTitle: 'Head of Delivery',
-                        organizationName: 'Nordwind',
-                        timeZone: null,
-                        photo: null,
-                        presence: 'Offline',
-                        lastSeen: null,
-                        outOfOfficeUntil: '2026-11-04T12:00:00Z',
-                    },
-                ],
+        drawField(
+            [],
+            [],
+            {
+                colleagues: {
+                    status: 200,
+                    contacts: [
+                        {
+                            id: 'member-piotr',
+                            book: 'Member',
+                            displayName: 'Piotr Zieliński',
+                            addresses: ['piotr@nordwind.example'],
+                            preferredAddress: 'piotr@nordwind.example',
+                            phoneNumbers: [],
+                            jobTitle: 'Head of Delivery',
+                            organizationName: 'Nordwind',
+                            timeZone: null,
+                            photo: null,
+                            presence: 'Offline',
+                            lastSeen: null,
+                            outOfOfficeUntil: '2026-11-04T12:00:00Z',
+                        },
+                    ],
+                },
             },
-        });
+            null,
+            'Pacific/Kiritimati',
+        );
 
         typeInto('piotr');
 
         const option = await screen.findByRole('option');
 
-        expect(readOut(option)).toBe('Piotr ZielińskiOffline · Head of Delivery · out until 11/04');
+        expect(readOut(option)).toBe('Piotr ZielińskiOffline · Head of Delivery · out until 11/05');
     });
 });

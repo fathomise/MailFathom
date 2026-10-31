@@ -197,6 +197,46 @@ public sealed class ColleagueBookTests
         await this.members.DidNotReceiveWithAnyArgs().ReadAsync(default, TestContext.Current.CancellationToken);
     }
 
+    /// <summary>An address names its colleague even where the reader's own book holds it, because the caller asks who a recipient is rather than browsing.</summary>
+    [Fact]
+    public async Task FindAtAsync_AnAddressTheReadersOwnBookAlsoHolds_ReadsTheColleagueWithTheirAbsence()
+    {
+        // Arrange
+        this.Holding(
+            MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example", "controlling@nordwind.example"),
+            MemberOf(Zofia, "Zofia Nowak", "zofia@nordwind.example"));
+        this.store.Hold(Reader, ContactOf("Piotrek", "piotr@nordwind.example"));
+        await this.automaticReplies.SaveAsync(Piotr, ReplyAround(Now.AddDays(3), isOn: true), TestContext.Current.CancellationToken);
+
+        // Act
+        var found = await this.BookFor(Organization).FindAtAsync(
+            Address("CONTROLLING@nordwind.example"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(Piotr, found?.Contact.Member);
+        Assert.Equal(Now.AddDays(3), found?.OutOfOfficeUntil);
+    }
+
+    /// <summary>The reader's own address, and one no colleague holds, both answer as nobody.</summary>
+    [Fact]
+    public async Task FindAtAsync_TheReadersOwnAddressOrAStrangers_IsNoColleague()
+    {
+        // Arrange
+        this.Holding(
+            MemberOf(Reader, "Anna Kowalska", "anna@nordwind.example"),
+            MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example"));
+        var book = this.BookFor(Organization);
+
+        // Act
+        var own = await book.FindAtAsync(Address("anna@nordwind.example"), TestContext.Current.CancellationToken);
+        var stranger = await book.FindAtAsync(Address("someone@contoso.example"), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(own);
+        Assert.Null(stranger);
+    }
+
     /// <summary>A colleague who chose to hide is handed to a reader as offline with no last-seen time, which is the only presence a reader is ever given.</summary>
     [Fact]
     public async Task ReadPageAsync_AColleagueWhoChoseToHide_ReadsAsOfflineWithNoLastSeen()

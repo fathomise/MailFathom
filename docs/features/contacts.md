@@ -227,7 +227,8 @@ that switches a running reply on or off, or moves when it ends, tells every memb
 colleague again, as a change of presence does; a period beginning or ending with nobody saving anything is announced by
 nothing, and an open client learns of it when it reads the directory again. Like presence, it
 reaches members of the same organization alone and no MCP tool reads it. The client marks the colleague in the
-directory and on their page, and warns when a message is addressed to them.
+directory and on their page, and warns when a message is addressed to them in *To* — asking the directory by the
+address, so a colleague the reader also keeps in their own book is found as well.
 
 ## A contact is a person, not an address
 

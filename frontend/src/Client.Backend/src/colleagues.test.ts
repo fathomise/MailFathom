@@ -8,6 +8,7 @@ import {
     parseColleague,
     promoteColleague,
     readColleague,
+    readColleagueAt,
     readColleaguePhoto,
     readColleagues,
     readColleagueStructure,
@@ -114,6 +115,25 @@ describe('readColleague', () => {
 
     it('reads a member who left the organization as somebody to let go of', async () => {
         const result = await readColleague(session, answering({ status: 404, body: '' }), member.id);
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
+    });
+});
+
+describe('readColleagueAt', () => {
+    it('asks for the member the address belongs to, with the address carried as a query value', async () => {
+        const { transport, requests } = recording({ status: 200, body: JSON.stringify(member) });
+
+        const result = await readColleagueAt(session, transport, 'p.zielinski+team@nordwind.example');
+
+        expect(requests[0]?.path).toBe(
+            'https://mail.example.invalid/api/client/contacts/colleagues/by-address?address=p.zielinski%2Bteam%40nordwind.example',
+        );
+        expect(result.outcome).toBe('read');
+    });
+
+    it('reads an address no member holds as nobody to warn about', async () => {
+        const result = await readColleagueAt(session, answering({ status: 404, body: '' }), 'someone@contoso.example');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
     });
