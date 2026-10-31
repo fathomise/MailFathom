@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useId, useRef, useState } from 'react';
-import type { MailAccount } from '@mailfathom/client-backend';
+import type { MailAccount, PresenceState } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { MailboxMark } from '../controls/MailboxMark';
 import { PersonAvatar } from '../controls/PersonAvatar';
@@ -11,6 +11,8 @@ import { SharedMark } from '../controls/SharedMark';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
 import { useLocalization } from '../localization/useLocalization';
 import type { ClientPreferencesInForce } from '../preferences/useClientPreferences';
+import { OwnPresenceRow } from '../presence/OwnPresenceRow';
+import { PresenceDot } from '../presence/PresenceDot';
 import type { OwnProfileInForce } from '../profile/useOwnProfile';
 import { Settings } from '../settings/Settings';
 import { accountInScope, scopeOfAccount } from '../workspace/mailScope';
@@ -52,6 +54,7 @@ export function AccountMenu({
     writesProfile,
     preferences,
     profile,
+    presence,
     onSignOut,
 }: {
     /** The mailboxes this deployment reads for the signed-in person, which is empty while nothing has answered. */
@@ -77,6 +80,9 @@ export function AccountMenu({
     /** Who the client is drawing, which this menu shows and the screen behind its own row edits. */
     readonly profile: OwnProfileInForce;
 
+    /** What the member reads as to themselves, or `null` for a reader with no presence — one in no organization. */
+    readonly presence: PresenceState | null;
+
     readonly onSignOut: () => void;
 }) {
     const { translate } = useLocalization();
@@ -87,6 +93,12 @@ export function AccountMenu({
     const [standing, setStanding] = useState(false);
     const menu = useRef<HTMLDivElement>(null);
     const settingsRow = useRef<HTMLButtonElement>(null);
+
+    // The member's presence, drawn on the circle in the rail and named to whoever reaches it there: the dot is the only
+    // telling the circle carries, so it describes the control rather than standing beside words. On a phone the row
+    // leading to the status menu heads the *More* sheet instead of standing in this menu.
+    const presenceNamed = useId();
+    const presenceDrawn = wide ? presence : null;
 
     // The menu is folded away while the screen behind it is open, which is what the design draws, and put back
     // when it closes so that focus returns to the row it was opened from rather than to the rail. The platform's own
@@ -130,13 +142,19 @@ export function AccountMenu({
                 type="button"
                 popoverTarget="account-menu"
                 aria-label={wide ? translate('shell.account') : undefined}
+                aria-describedby={presenceDrawn === null ? undefined : presenceNamed}
                 className={
                     wide
                         ? `flex size-10 shrink-0 items-center justify-center rounded-full text-text-soft shadow-raised transition hover:-translate-y-px hover:shadow-overlay ${standing ? 'outline-2 outline-offset-2 outline-accent-line' : ''}`
                         : 'flex min-h-13 w-full items-center gap-3.5 rounded-md px-2.5 text-start text-text transition hover:bg-hover'
                 }
             >
-                <PersonAvatar displayName={profile.displayName} picture={profile.picture} place="menu" />
+                <span className="relative shrink-0">
+                    <PersonAvatar displayName={profile.displayName} picture={profile.picture} place="menu" />
+                    {presenceDrawn === null ? null : (
+                        <PresenceDot presence={presenceDrawn} place="rail" id={presenceNamed} />
+                    )}
+                </span>
                 {wide ? null : <span className="truncate">{translate('shell.account')}</span>}
             </button>
 
@@ -157,6 +175,15 @@ export function AccountMenu({
                 <div className="flex flex-col gap-0.5 border-b border-line-soft px-3.25 py-2.75">
                     {profile.displayName === null ? null : (
                         <p className="truncate font-semibold">{profile.displayName}</p>
+                    )}
+
+                    {presenceDrawn === null ? null : (
+                        <OwnPresenceRow
+                            presence={presenceDrawn}
+                            place="menu"
+                            displayName={profile.displayName}
+                            picture={profile.picture}
+                        />
                     )}
 
                     <Mailboxes accounts={accounts} />

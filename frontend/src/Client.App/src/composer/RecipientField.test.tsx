@@ -106,6 +106,18 @@ function typeInto(text: string): void {
     fireEvent.change(field(), { target: { value: text } });
 }
 
+// What an entry reads out: its words without the avatar's letters, which are drawn for the eye and hidden from the
+// accessibility tree.
+function readOut(element: HTMLElement): string {
+    const copy = element.cloneNode(true) as HTMLElement;
+
+    for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) {
+        hidden.remove();
+    }
+
+    return copy.textContent;
+}
+
 function field(): HTMLElement {
     return screen.getByLabelText('To');
 }
@@ -220,7 +232,7 @@ describe('RecipientField', () => {
         expect(
             within(list)
                 .getAllByRole('option')
-                .map((option) => option.textContent),
+                .map((option) => readOut(option)),
         ).toStrictEqual(['Anna Billingbilling@example.invalid', 'Anna Kowalskaanna@example.invalid']);
         expect(field().getAttribute('aria-expanded')).toBe('true');
         expect(field().getAttribute('aria-controls')).toBe(list.id);
@@ -277,7 +289,7 @@ describe('RecipientField', () => {
 
         fireEvent.change(field(), { target: { value: 'anni' } });
 
-        expect(screen.getAllByRole('option').map((option) => option.textContent)).toStrictEqual([
+        expect(screen.getAllByRole('option').map((option) => readOut(option))).toStrictEqual([
             'Annikaannika@example.invalid',
         ]);
     });
@@ -475,6 +487,8 @@ describe('RecipientField', () => {
             organizationName: 'Nordwind',
             timeZone: null,
             photo: null,
+            presence: 'Active',
+            lastSeen: null,
         };
         const { changed } = drawField(
             [],
@@ -526,5 +540,43 @@ describe('RecipientField', () => {
         fireEvent.keyDown(field(), { key: 'Enter' });
 
         expect(changed).toHaveBeenCalledWith(['anna@nordwind.example']);
+    });
+
+    it('tells a colleague by their presence and title, and anybody else by their address', async () => {
+        drawField([], [], {
+            colleagues: {
+                status: 200,
+                contacts: [
+                    {
+                        id: 'member-piotr',
+                        book: 'Member',
+                        displayName: 'Piotr Zieliński',
+                        addresses: ['piotr@nordwind.example'],
+                        preferredAddress: 'piotr@nordwind.example',
+                        phoneNumbers: [],
+                        jobTitle: 'Head of Delivery',
+                        organizationName: 'Nordwind',
+                        timeZone: null,
+                        photo: null,
+                        presence: 'Offline',
+                        lastSeen: null,
+                    },
+                ],
+            },
+            own: { status: 200, contacts: [contact('000000000002', 'Anna Kowalska', ['anna@nordwind.example'])] },
+        });
+
+        typeInto('nordwind');
+
+        const list = await screen.findByRole('listbox', { name: 'Suggested recipients for To' });
+
+        await waitFor(() => {
+            expect(within(list).getAllByRole('option')).toHaveLength(2);
+        });
+        expect(
+            within(list)
+                .getAllByRole('option')
+                .map((option) => readOut(option)),
+        ).toStrictEqual(['Piotr ZielińskiOffline · Head of Delivery', 'Anna Kowalskaanna@nordwind.example']);
     });
 });

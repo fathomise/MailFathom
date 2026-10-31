@@ -24,9 +24,10 @@ import { initialsOf } from './initials';
 
 /**
  * Where the avatar stands: a row of a list or that row folded to a strip, the head of a message drawn as a card, an opened person's own page, or one
- * of the two places a block of an AI answer draws somebody.
+ * of the two places a block of an AI answer draws somebody, or a person a recipient field suggests.
  */
-export type SenderAvatarPlace = 'row' | 'strip' | 'card' | 'contact' | 'person' | 'answerRow' | 'answerStack';
+export type SenderAvatarPlace =
+    'row' | 'strip' | 'card' | 'contact' | 'person' | 'answerRow' | 'answerStack' | 'suggestion';
 
 const places: Readonly<Record<SenderAvatarPlace, string>> = {
     row: 'size-8.5 text-sm workspace:size-5.5 workspace:text-xs',
@@ -38,6 +39,7 @@ const places: Readonly<Record<SenderAvatarPlace, string>> = {
     // The participants of a conversation are drawn as one overlapping run of circles rather than a list of names, which
     // is what the ring in the panel's own colour and the negative margin are: each circle sits over the one before it.
     answerStack: 'size-6.5 text-xs -me-1.75 border-2 border-panel',
+    suggestion: 'size-7 text-xs',
 };
 
 /** The circle a sender is recognised by, drawn only where there are letters to put in it. */

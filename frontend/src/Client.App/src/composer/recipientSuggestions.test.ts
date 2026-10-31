@@ -78,6 +78,8 @@ function colleagueCalled(id: string, displayName: string, addresses = [`${id}@no
         organizationName: 'Nordwind',
         timeZone: null,
         photo: null,
+        presence: 'Active',
+        lastSeen: null,
     };
 }
 
@@ -156,6 +158,36 @@ describe('searchContacts across the directory', () => {
             ['own', ['Anna Kowalska', 'Celina Wrona']],
         ]);
         expect(found.incomplete).toBe(false);
+    });
+
+    it('offers a colleague with their presence and title, and anybody else with neither', async () => {
+        const transport: MailFathomTransport = (request) =>
+            Promise.resolve({
+                status: 200,
+                body: request.path.includes('/contacts/colleagues')
+                    ? page([
+                          {
+                              ...(colleagueCalled('piotr', 'Piotr Zieliński') as object),
+                              presence: 'Offline',
+                              jobTitle: 'Head of Delivery',
+                          },
+                      ])
+                    : page(
+                          request.path.includes('/contacts/collected')
+                              ? []
+                              : [contactCalled('anna', 'Anna Kowalska', 'Own')],
+                      ),
+                headers: {},
+            });
+
+        expect(everybodyIn(await searchContacts(session, transport, ''))).toStrictEqual([
+            {
+                address: 'piotr@nordwind.example',
+                name: 'Piotr Zieliński',
+                colleague: { presence: 'Offline', jobTitle: 'Head of Delivery' },
+            },
+            { address: 'anna@nordwind.example', name: 'Anna Kowalska' },
+        ]);
     });
 
     it('asks the directory for the term being typed', async () => {

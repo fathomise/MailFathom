@@ -5,9 +5,12 @@
 import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { longestContactSearch, type ClientSession, type MailFathomTransport } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { SenderAvatar } from '../controls/SenderAvatar';
 import { SymbolControl } from '../controls/SymbolControl';
 import { useTip } from '../controls/useTip';
 import { useLocalization, type Translate } from '../localization/useLocalization';
+import { PresenceDot } from '../presence/PresenceDot';
+import { presenceSaid } from '../presence/presenceWords';
 import { looksLikeAnAddress, mostRecipientsInOneHeader } from './composition';
 import {
     searchContacts,
@@ -344,8 +347,23 @@ export function RecipientField({
     );
 }
 
-// One entry of the list: who it is, and the address choosing them writes in. A press is kept from taking the focus
-// out of the field, which is what would otherwise commit the half-typed text before the entry was chosen.
+// The line under a suggested person's name: a colleague's presence in words and what they do — the address where their
+// record names no title, as the contact book's row does — so the dot on their avatar is never the only telling of it;
+// anybody else's, the address choosing them writes in.
+function lineOf(suggestion: RecipientSuggestion, translate: Translate): string {
+    if (suggestion.colleague === undefined) {
+        return suggestion.address;
+    }
+
+    return translate('presence.withRole', {
+        presence: translate(presenceSaid[suggestion.colleague.presence]),
+        role: suggestion.colleague.jobTitle ?? suggestion.address,
+    });
+}
+
+// One entry of the list: who it is, and how they are told apart — a colleague by presence and role, anybody else by
+// the address choosing them writes in. A press is kept from taking the focus out of the field, which is what would
+// otherwise commit the half-typed text before the entry was chosen.
 function SuggestedRecipient({
     id,
     suggestion,
@@ -357,20 +375,34 @@ function SuggestedRecipient({
     readonly inForce: boolean;
     readonly onChosen: () => void;
 }) {
+    const { translate } = useLocalization();
+
     return (
         <div
             id={id}
             role="option"
             aria-selected={inForce}
-            className={`flex cursor-pointer flex-col px-3 py-1.75 ${inForce ? 'bg-hover' : 'hover:bg-hover'}`}
+            className={`flex min-h-10 cursor-pointer items-center gap-2.5 px-3.75 py-1 pointer-coarse:min-h-12 ${
+                inForce ? 'bg-hover' : 'hover:bg-hover'
+            }`}
             onMouseDown={(event) => {
                 event.preventDefault();
             }}
             onClick={onChosen}
         >
-            {suggestion.name === null ? null : <span className="truncate text-base text-text">{suggestion.name}</span>}
-            <span className={`truncate ${suggestion.name === null ? 'text-base text-text' : 'text-sm text-muted'}`}>
-                {suggestion.address}
+            <span className="relative flex shrink-0">
+                <SenderAvatar displayName={suggestion.name} address={suggestion.address} place="suggestion" />
+                {suggestion.colleague === undefined ? null : (
+                    <PresenceDot presence={suggestion.colleague.presence} place="suggestion" />
+                )}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-px">
+                <span className="truncate text-base font-semibold text-text">
+                    {suggestion.name ?? suggestion.address}
+                </span>
+                {suggestion.name === null && suggestion.colleague === undefined ? null : (
+                    <span className="truncate text-sm text-muted">{lineOf(suggestion, translate)}</span>
+                )}
             </span>
         </div>
     );

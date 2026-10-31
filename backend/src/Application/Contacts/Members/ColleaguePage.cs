@@ -7,4 +7,4 @@ namespace MailFathom.Application.Contacts.Members;
 /// <summary>One bounded page of a reader's colleagues, and where the walk continues.</summary>
 /// <param name="Colleagues">The colleagues this page holds, ordered by the name's comparison form and then by the member's identity.</param>
 /// <param name="NextCursor">The boundary the following page reads beyond, or <see langword="null" /> when this page reached the end of the directory.</param>
-public sealed record ColleaguePage(IReadOnlyList<MemberContact> Colleagues, ContactCursor? NextCursor);
+public sealed record ColleaguePage(IReadOnlyList<Colleague> Colleagues, ContactCursor? NextCursor);

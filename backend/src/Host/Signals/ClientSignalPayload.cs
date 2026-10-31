@@ -19,6 +19,7 @@ namespace MailFathom.Host.Signals;
 /// <param name="Run">The Discover run, or the Agent answer being composed, that advanced, where the kind names one.</param>
 /// <param name="Conversation">The Agent conversation that advanced, and nothing for a Discover run or any other kind.</param>
 /// <param name="Sequence">How far that run or conversation has got, which is the cursor the client re-reads its tail from, and zero for every other kind.</param>
+/// <param name="Members">The user identities of the colleagues whose presence a presence change names, empty where it names every colleague and for every other kind.</param>
 /// <remarks>
 /// <para>
 /// <b>It names no user.</b> The connection already belongs to one — it joined that user's group and nothing else can
@@ -45,7 +46,8 @@ internal sealed record ClientSignalPayload(
     string? SecondLine,
     string? Run,
     string? Conversation,
-    long Sequence)
+    long Sequence,
+    IReadOnlyList<string> Members)
 {
     /// <summary>Renders one signal for the wire.</summary>
     /// <param name="signal">What changed.</param>
@@ -72,7 +74,8 @@ internal sealed record ClientSignalPayload(
             signal.SecondLine,
             signal.Run?.ToString(),
             signal.Conversation?.ToString(),
-            signal.Sequence);
+            signal.Sequence,
+            [.. signal.Members.Select(static member => member.Value.ToString())]);
     }
 }
 

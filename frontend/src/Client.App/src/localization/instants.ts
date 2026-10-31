@@ -152,6 +152,36 @@ export function wordRecentInstant(
 }
 
 /**
+ * When somebody was last seen, as the design words it after *Last seen*: the language's own word for today or
+ * yesterday and the time, and the short date and the time for anything earlier. The clock time is always said, because
+ * what the phrase answers is how long ago somebody left, and a day alone does not say that.
+ *
+ * @param instant What the service sent, as an instant carrying its own offset.
+ * @param locale The language it is worded in.
+ * @param now The instant it is being drawn at.
+ * @param timeZone The zone the reader's record states their days are read in, or `null` for the runtime's own.
+ */
+export function wordLastSeen(instant: string, locale: Locale, now: number, timeZone: string | null): string | null {
+    const at = Date.parse(instant);
+
+    if (Number.isNaN(at)) {
+        return null;
+    }
+
+    const then = calendarDayIn(at, timeZone);
+    const today = calendarDayIn(now, timeZone);
+    const time = wordedIn(locale, { timeStyle: 'short' }, timeZone).format(at);
+
+    if (then === today || then === dayBefore(today)) {
+        const day = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(then === today ? 0 : -1, 'day');
+
+        return `${day} ${time}`;
+    }
+
+    return wordedIn(locale, { dateStyle: 'short', timeStyle: 'short' }, timeZone).format(at);
+}
+
+/**
  * The day a task is due, as the design words one on a row of the list.
  *
  * It is the calendar day of {@link wordCalendarDay} written short: the language's own word for the day the reader is

@@ -32,6 +32,8 @@ const member = {
     timeZone: 'Europe/Warsaw',
     workingHours: null,
     photo: 'revision-1',
+    presence: 'Busy',
+    lastSeen: null,
 };
 
 type Answer = Omit<ClientResponse, 'headers'>;
@@ -283,6 +285,33 @@ describe('parseColleague', () => {
     it('refuses a title longer than the service lets an administrator write', () => {
         expect(parseColleague({ ...member, jobTitle: 'x'.repeat(256) })).not.toBeNull();
         expect(parseColleague({ ...member, jobTitle: 'x'.repeat(257) })).toBeNull();
+    });
+
+    it.each(['Active', 'Away', 'Busy', 'DoNotDisturb', 'Offline'])('reads a member who reads as %s', (presence) => {
+        expect(parseColleague({ ...member, presence })?.presence).toBe(presence);
+    });
+
+    it('reads when an offline member was last seen', () => {
+        const away = { ...member, presence: 'Offline', lastSeen: '2026-10-30T18:20:00+00:00' };
+
+        expect(parseColleague(away)).toEqual(away);
+    });
+
+    it('reads a member with no last-seen time stated as one whose last sighting is not known', () => {
+        const unstated = Object.fromEntries(Object.entries(member).filter(([field]) => field !== 'lastSeen'));
+
+        expect(parseColleague(unstated)?.lastSeen).toBeNull();
+    });
+
+    it('refuses a member drawn as hidden, which no colleague ever reads as, and one with no presence at all', () => {
+        expect(parseColleague({ ...member, presence: 'Hidden' })).toBeNull();
+        expect(parseColleague({ ...member, presence: 'busy' })).toBeNull();
+        expect(parseColleague({ ...member, presence: undefined })).toBeNull();
+    });
+
+    it('refuses a last-seen time on a member who is present, and one that is not an instant', () => {
+        expect(parseColleague({ ...member, presence: 'Away', lastSeen: '2026-10-30T18:20:00+00:00' })).toBeNull();
+        expect(parseColleague({ ...member, presence: 'Offline', lastSeen: 'yesterday' })).toBeNull();
     });
 
     it('refuses a field of the wrong shape', () => {

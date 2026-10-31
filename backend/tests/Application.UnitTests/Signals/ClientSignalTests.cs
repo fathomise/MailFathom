@@ -5,6 +5,7 @@
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Discovery.Streaming;
 using MailFathom.Application.Signals;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
@@ -228,12 +229,66 @@ public sealed class ClientSignalTests
                 "mail.flags.changed",
                 "notification.raised",
                 "outbox.changed",
+                "presence.changed",
                 "run.advanced",
             ],
             [.. names.Order(StringComparer.Ordinal)]);
     }
 
-    /// <summary>A kind nobody named is not one of the eight, so a value that reached a channel by accident says so.</summary>
+    /// <summary>A presence change names the member and nothing about them, so what a reader may see stays the read's to decide.</summary>
+    [Fact]
+    public void PresenceChanged_ForOneMember_NamesThatMemberToTheRecipientAndNothingElse()
+    {
+        // Arrange
+        var recipient = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d001"));
+        var member = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d002"));
+
+        // Act
+        var signal = ClientSignal.PresenceChanged(recipient, member);
+
+        // Assert
+        Assert.Equal(ClientSignalKind.PresenceChanged, signal.Kind);
+        Assert.Equal(recipient, signal.User);
+        Assert.Equal([member], signal.Members);
+        Assert.Null(signal.Account);
+        Assert.Equal(0, signal.Count);
+    }
+
+    [Fact]
+    public void FoldedWith_TwoPresenceChangesForOneRecipient_NamesBothMembers()
+    {
+        // Arrange
+        var recipient = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d001"));
+        var first = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d002"));
+        var second = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d003"));
+
+        // Act
+        var folded = ClientSignal.PresenceChanged(recipient, first)
+            .FoldedWith(ClientSignal.PresenceChanged(recipient, second))
+            .FoldedWith(ClientSignal.PresenceChanged(recipient, first));
+
+        // Assert
+        Assert.Equal([first, second], folded.Members);
+    }
+
+    /// <summary>Past the bound a signal names nobody, which a client reads as every colleague, and it keeps naming nobody.</summary>
+    [Fact]
+    public void FoldedWith_MorePresenceChangesThanOneSignalNames_NamesEverybody()
+    {
+        // Arrange
+        var recipient = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d001"));
+        var changes = Enumerable.Range(1, ClientSignal.MostNamedMembers + 2)
+            .Select(index => ClientSignal.PresenceChanged(recipient, UserId.Create(new Guid(index, 0, 0, new byte[8]))))
+            .ToArray();
+
+        // Act
+        var folded = changes.Aggregate((held, later) => held.FoldedWith(later));
+
+        // Assert
+        Assert.Empty(folded.Members);
+    }
+
+    /// <summary>A kind nobody named is not one of the nine, so a value that reached a channel by accident says so.</summary>
     [Fact]
     public void IsSpecified_ForTheStructDefault_ReportsThatNoKindWasNamed() =>
         Assert.False(default(ClientSignalKind).IsSpecified);

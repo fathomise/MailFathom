@@ -7,6 +7,9 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
 import { SenderAvatar } from '../controls/SenderAvatar';
+import { useLocalization, type Translate } from '../localization/useLocalization';
+import { PresenceDot } from '../presence/PresenceDot';
+import { presenceSaid } from '../presence/presenceWords';
 import { useContactPhoto } from './contactPhotos';
 import { OrganizationChip } from './OrganizationChip';
 import type { Person } from './useContactBook';
@@ -24,14 +27,22 @@ import type { Person } from './useContactBook';
 //
 // What it draws is the record and nothing derived: the name the book holds and the address to write to — for a
 // colleague, the title their administrator gave them, which is what the directory knows them by, and the address
-// where it gives none. The design draws a company and a last-contact date beside them, and this deployment's contact
+// where it gives none — after their presence in words, so the dot on their avatar is never the only telling of it
+// (*Busy · Controller*). The design draws a company and a last-contact date beside them, and this deployment's contact
 // record carries neither — which is a correction owed to the design rather than a field to invent here. A contact the
 // reader's organization keeps carries the chip naming it at the end of the line, which is how the design tells it from
 // one of their own.
 
 // The line under the name.
-function lineOf(person: Person): string | null {
-    return person.book === 'Member' ? (person.jobTitle ?? person.preferredAddress) : person.preferredAddress;
+function lineOf(person: Person, translate: Translate): string | null {
+    if (person.book !== 'Member') {
+        return person.preferredAddress;
+    }
+
+    const presence = translate(presenceSaid[person.presence]);
+    const role = person.jobTitle ?? person.preferredAddress;
+
+    return role === null ? presence : translate('presence.withRole', { presence, role });
 }
 
 export function ContactRow({
@@ -79,7 +90,8 @@ export function ContactRow({
 }) {
     const press = useRowPress(onPress);
     const picture = useContactPhoto(contact);
-    const line = lineOf(contact);
+    const { translate } = useLocalization();
+    const line = lineOf(contact, translate);
 
     return (
         <li
@@ -139,12 +151,15 @@ export function ContactRow({
                 </span>
             ) : null}
 
-            <SenderAvatar
-                displayName={contact.displayName}
-                address={contact.preferredAddress}
-                picture={picture}
-                place="contact"
-            />
+            <span className="relative flex shrink-0">
+                <SenderAvatar
+                    displayName={contact.displayName}
+                    address={contact.preferredAddress}
+                    picture={picture}
+                    place="contact"
+                />
+                {contact.book === 'Member' ? <PresenceDot presence={contact.presence} place="contact" /> : null}
+            </span>
 
             <span className="flex min-w-0 flex-1 flex-col gap-0.75">
                 <span className="truncate text-base font-semibold">{contact.displayName}</span>

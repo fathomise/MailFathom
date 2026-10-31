@@ -69,6 +69,15 @@ public readonly record struct ClientSignalKind
     /// </remarks>
     public static ClientSignalKind OutboxChanged { get; } = new("outbox.changed");
 
+    /// <summary>Gets the kind raised when how a member of the reader's organization reads to the others may have changed.</summary>
+    /// <remarks>
+    /// It names the members and nothing about them, so the client re-reads their presence over the colleague routes,
+    /// where who may see what is decided.
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0045-a-members-presence-from-the-clients-it-keeps-open-and-the-state-it-chose.md">ADR 0045</see>
+    /// decides it.
+    /// </remarks>
+    public static ClientSignalKind PresenceChanged { get; } = new("presence.changed");
+
     /// <summary>Gets every kind this deployment publishes.</summary>
     /// <remarks>Declared last so the members it lists are already initialized when this initializer runs.</remarks>
     public static IReadOnlyList<ClientSignalKind> All { get; } =
@@ -81,6 +90,7 @@ public readonly record struct ClientSignalKind
         AccountState,
         RunAdvanced,
         OutboxChanged,
+        PresenceChanged,
     ];
 
     /// <summary>Gets whether this value names a kind rather than the unusable struct default.</summary>

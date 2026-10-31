@@ -1129,6 +1129,20 @@
     overflow-anchor: none;
 }
 
+/* The two presence dots that are more than one colour, as the design draws them: *Do not disturb* is the error red
+   crossed by a bar of the surface colour, and *Hidden* — which only the member themselves is drawn as — is the surface
+   struck through by a line of the faint grey. The ring around the second is the dot's own, drawn where it is used. */
+@utility presence-crossed {
+    background:
+        linear-gradient(var(--color-panel), var(--color-panel)) center / 56% 2px no-repeat,
+        var(--color-error);
+}
+
+@utility presence-struck {
+    background:
+        linear-gradient(135deg, transparent 42%, var(--color-faint) 42% 58%, transparent 58%), var(--color-panel);
+}
+
 /* How a surface the platform puts in its top layer — a modal `dialog`, a popover — arrives and leaves, one utility
    per kind the design draws: `surface-pop` for a centred dialog and a menu, `surface-sheet` for a sheet rising from the
    foot of the window and for anything standing over the whole of a narrow one, `surface-drawer` for the mailboxes

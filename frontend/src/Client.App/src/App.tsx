@@ -76,6 +76,10 @@ import { AiFiltersShownContext } from './preferences/aiFilters';
 import { MessageViewContext } from './preferences/messageView';
 import { LinkQuestion } from './linkQuestion/LinkQuestion';
 import { useClientPreferences } from './preferences/useClientPreferences';
+import { OwnPresenceRow } from './presence/OwnPresenceRow';
+import { StatusMenu } from './presence/StatusMenu';
+import { useOwnPresence } from './presence/useOwnPresence';
+import { usePresenceClient } from './presence/usePresenceClient';
 import { useOwnProfile } from './profile/useOwnProfile';
 import { ReadMarkingProvider } from './readMarking/ReadMarking';
 import { AttachmentView } from './readingPane/AttachmentView';
@@ -687,6 +691,21 @@ export function App({
     // ahead of the effect that opens the stream, so not even its first step is told to nobody.
     const connectionWatch = useConnectionWatch(signedInAs, connection, channelHeld, signalledChanges);
 
+    // The member's presence: what they read as, on the grant the profile is read under, and this running client kept
+    // open to the deployment on the grant it is written under. Only for a member of an organization, because a reader
+    // in none has no presence and the design draws them none — and neither is asked of a machine with no network.
+    const inOrganization = deploymentSession !== null && deploymentSession.organization !== null;
+    const writesProfile = deploymentSession !== null && offers(deploymentSession, 'writeProfile');
+    const ownPresence = useOwnPresence(
+        inOrganization && readsProfile && connection.online ? session : null,
+        readMail,
+        signalledChanges,
+    );
+    const presenceClient = usePresenceClient(
+        inOrganization && writesProfile && connection.online ? session : null,
+        readMail,
+    );
+
     useLayoutEffect(() => {
         channelStood.current = connectionWatch.channelStood;
     }, [connectionWatch.channelStood]);
@@ -996,6 +1015,10 @@ export function App({
         revise(emptyWorkspace);
         forgetListings();
         forgetComposition();
+
+        // This client says it has closed while the credential still works, so the member reads as gone at once rather
+        // than once the row it renewed has expired.
+        presenceClient.close();
 
         if (adopted === null) {
             return;
@@ -1836,6 +1859,25 @@ export function App({
                                                                                                 <Refresh />
                                                                                             ) : null
                                                                                         }
+                                                                                        presence={
+                                                                                            ownPresence ===
+                                                                                            null ? null : (
+                                                                                                <OwnPresenceRow
+                                                                                                    presence={
+                                                                                                        ownPresence
+                                                                                                            .presence
+                                                                                                            .state
+                                                                                                    }
+                                                                                                    place="sheet"
+                                                                                                    displayName={
+                                                                                                        profile.displayName
+                                                                                                    }
+                                                                                                    picture={
+                                                                                                        profile.picture
+                                                                                                    }
+                                                                                                />
+                                                                                            )
+                                                                                        }
                                                                                         developer={
                                                                                             <DeveloperInformationButton />
                                                                                         }
@@ -1882,6 +1924,11 @@ export function App({
                                                                                                     preferences
                                                                                                 }
                                                                                                 profile={profile}
+                                                                                                presence={
+                                                                                                    ownPresence
+                                                                                                        ?.presence
+                                                                                                        .state ?? null
+                                                                                                }
                                                                                                 onSignOut={signOut}
                                                                                             />
                                                                                         }
@@ -1907,6 +1954,16 @@ export function App({
                                                                                             onDecideSend={showSend}
                                                                                         />
                                                                                     ) : null}
+
+                                                                                    {ownPresence === null ? null : (
+                                                                                        <StatusMenu
+                                                                                            own={ownPresence}
+                                                                                            displayName={
+                                                                                                profile.displayName
+                                                                                            }
+                                                                                            picture={profile.picture}
+                                                                                        />
+                                                                                    )}
 
                                                                                     <DeveloperInformation
                                                                                         context={developerContext}

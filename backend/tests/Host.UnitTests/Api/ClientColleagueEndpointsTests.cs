@@ -5,10 +5,12 @@
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Presence;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Presence;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
@@ -92,6 +94,8 @@ public sealed class ClientColleagueEndpointsTests
         Assert.Equal("08:00", colleague.WorkingHours.Start);
         Assert.Equal("16:30", colleague.WorkingHours.End);
         Assert.Equal(PiotrsPortrait, colleague.Photo);
+        Assert.Equal("Offline", colleague.Presence);
+        Assert.Null(colleague.LastSeen);
         Assert.Null(page.Value.NextCursor);
     }
 
@@ -250,7 +254,19 @@ public sealed class ClientColleagueEndpointsTests
             ownership,
             authorization);
 
-        return new ColleagueBook(this.members, this.directory, Substitute.For<IStoredFileStore>(), writer, ownership, authorization);
+        var presence = Substitute.For<IPresenceStore>();
+        presence.ReadAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<UserId, MemberPresence>());
+
+        return new ColleagueBook(
+            this.members,
+            this.directory,
+            Substitute.For<IStoredFileStore>(),
+            writer,
+            ownership,
+            authorization,
+            presence,
+            clock);
     }
 
     /// <summary>A session that commits, because nothing here is about a conflict the policy has to retry.</summary>

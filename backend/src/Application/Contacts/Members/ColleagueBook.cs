@@ -5,10 +5,12 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Contacts.Failures;
 using MailFathom.Application.Portraits;
+using MailFathom.Application.Presence;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Presence;
 
 namespace MailFathom.Application.Contacts.Members;
 
@@ -46,6 +48,8 @@ public sealed class ColleagueBook
     private readonly ContactBookWriter writer;
     private readonly ContactBookOwnership ownership;
     private readonly AccessAuthorization authorization;
+    private readonly IPresenceStore presence;
+    private readonly TimeProvider time;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="members">Reads the organization's member directory.</param>
@@ -54,6 +58,8 @@ public sealed class ColleagueBook
     /// <param name="writer">Writes the copy a promotion makes.</param>
     /// <param name="ownership">Answers whose books this caller reads, and which organization they belong to.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
+    /// <param name="presence">Holds what each colleague's presence is worked out from.</param>
+    /// <param name="time">The clock presence is read at.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public ColleagueBook(
         IMemberDirectory members,
@@ -61,7 +67,9 @@ public sealed class ColleagueBook
         IStoredFileStore files,
         ContactBookWriter writer,
         ContactBookOwnership ownership,
-        AccessAuthorization authorization)
+        AccessAuthorization authorization,
+        IPresenceStore presence,
+        TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(members);
         ArgumentNullException.ThrowIfNull(contacts);
@@ -69,6 +77,8 @@ public sealed class ColleagueBook
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(ownership);
         ArgumentNullException.ThrowIfNull(authorization);
+        ArgumentNullException.ThrowIfNull(presence);
+        ArgumentNullException.ThrowIfNull(time);
 
         this.members = members;
         this.contacts = contacts;
@@ -76,6 +86,8 @@ public sealed class ColleagueBook
         this.writer = writer;
         this.ownership = ownership;
         this.authorization = authorization;
+        this.presence = presence;
+        this.time = time;
     }
 
     /// <summary>Serves one bounded page of the reader's colleagues.</summary>
@@ -115,7 +127,7 @@ public sealed class ColleagueBook
         MemberContact[] page = [.. visible.Take(query.PageSize)];
 
         return new ColleaguePage(
-            page,
+            await this.WithPresenceAsync(page, cancellationToken),
             visible.Count > query.PageSize
                 ? ContactCursor.After(page[^1].DisplayName, ContactId.Create(page[^1].Member.Value))
                 : null);
@@ -124,13 +136,15 @@ public sealed class ColleagueBook
     /// <summary>Reads one colleague by the member's user identifier.</summary>
     /// <param name="member">The member to read.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The colleague, or <see langword="null" /> where the reader's organization holds no such person, or the identifier is the reader's own.</returns>
+    /// <returns>The colleague with their presence, or <see langword="null" /> where the reader's organization holds no such person, or the identifier is the reader's own.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the reading grant.</exception>
-    public async Task<MemberContact?> FindAsync(UserId member, CancellationToken cancellationToken)
+    public async Task<Colleague?> FindAsync(UserId member, CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.ContactsRead);
 
-        return await this.FindColleagueAsync(member, cancellationToken);
+        return await this.FindColleagueAsync(member, cancellationToken) is { } colleague
+            ? (await this.WithPresenceAsync([colleague], cancellationToken))[0]
+            : null;
     }
 
     /// <summary>Reads where one colleague sits in the reader's organization: the managers above them and their direct reports.</summary>
@@ -256,6 +270,22 @@ public sealed class ColleagueBook
         var byName = string.CompareOrdinal(colleague.DisplayName.SortKey, cursor.DisplayNameSortKey);
 
         return byName > 0 || (byName == 0 && colleague.Member.Value.CompareTo(cursor.ContactId.Value) > 0);
+    }
+
+    /// <summary>Reads how each colleague reads to the other members, which is the only presence a reader is ever handed.</summary>
+    private async Task<IReadOnlyList<Colleague>> WithPresenceAsync(
+        IReadOnlyList<MemberContact> colleagues,
+        CancellationToken cancellationToken)
+    {
+        var held = await this.presence.ReadAsync([.. colleagues.Select(colleague => colleague.Member)], cancellationToken);
+        var now = this.time.GetUtcNow();
+
+        return
+        [
+            .. colleagues.Select(colleague => new Colleague(
+                colleague,
+                held.GetValueOrDefault(colleague.Member, MemberPresence.Unknown).SeenByOthersAt(now))),
+        ];
     }
 
     /// <summary>Reads one colleague of the caller's, without asking for a grant, and without composing anybody else.</summary>

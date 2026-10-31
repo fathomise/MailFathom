@@ -9,6 +9,7 @@ import {
     type ClientResult,
     type ClientSession,
     type Colleague,
+    type ColleaguePresence,
     type Contact,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
@@ -21,10 +22,15 @@ import {
 // rule; what is matched here is only the narrowing of an answer already on the screen, which is what keeps the list
 // moving with every keystroke rather than with every answer.
 
-/** One person a recipient field offers: the address choosing them writes in, and the name they go by where known. */
+/**
+ * One person a recipient field offers: the address choosing them writes in, the name they go by where known, and — for a
+ * member of the reader's organization — their presence and what they do there, which the row says in place of the
+ * address.
+ */
 export interface RecipientSuggestion {
     readonly address: string;
     readonly name: string | null;
+    readonly colleague?: { readonly presence: ColleaguePresence; readonly jobTitle: string | null };
 }
 
 /** The groups the book is offered in, in the order the design draws them. */
@@ -158,7 +164,15 @@ function offeredAt(contact: Found, term: string): readonly RecipientSuggestion[]
     const typed = term.trim() === '' ? [] : contact.addresses.filter((address) => contains(address, term));
     const addresses = typed.length > 0 ? typed : contact.preferredAddress === null ? [] : [contact.preferredAddress];
 
-    return addresses.map((address) => ({ address, name: contact.displayName }));
+    return addresses.map((address) =>
+        contact.book === 'Member'
+            ? {
+                  address,
+                  name: contact.displayName,
+                  colleague: { presence: contact.presence, jobTitle: contact.jobTitle },
+              }
+            : { address, name: contact.displayName },
+    );
 }
 
 function matches(suggestion: RecipientSuggestion, term: string): boolean {

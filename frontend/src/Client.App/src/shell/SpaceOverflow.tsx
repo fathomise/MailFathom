@@ -33,6 +33,7 @@ export function SpaceOverflow({
     spaces,
     current,
     account,
+    presence,
     refresh,
     developer,
 }: {
@@ -44,6 +45,9 @@ export function SpaceOverflow({
 
     /** The control that opens the account menu, which stands at the foot of this sheet rather than in the bar. */
     readonly account: ReactNode;
+
+    /** The row leading to the member's status, which heads the sheet, or nothing for a reader with no presence. */
+    readonly presence: ReactNode;
 
     /**
      * The control that reads again what the client is already showing. It stands here rather than in the bar for the
@@ -114,6 +118,8 @@ export function SpaceOverflow({
                         is. It is decoration and nothing is done with it: the gesture that would pull it is the
                         notification centre's, and this sheet is left by pressing outside it or by Escape. */}
                     <span aria-hidden="true" className="mx-auto mb-1.5 h-1 w-9.5 rounded-full bg-line-strong" />
+
+                    {presence}
 
                     {spaces.map((space) => (
                         <OverflowLink key={space} space={space} current={space === current} />

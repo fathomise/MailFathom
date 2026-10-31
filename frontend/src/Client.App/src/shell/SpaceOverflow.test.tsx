@@ -55,6 +55,7 @@ function renderOverflow(
                         spaces={spaces}
                         current={current}
                         account={<button>{handedTheAccount}</button>}
+                        presence={null}
                         refresh={<button>{handedTheRefresh}</button>}
                         developer={<button>{handedTheDeveloper}</button>}
                     />

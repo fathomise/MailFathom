@@ -3530,8 +3530,11 @@ organization reads the other members beneath `/contacts/colleagues` — a page u
 answered with `id` (their user's identifier), `book` (always `Member`), `displayName`, `addresses` with the preferred
 one first, `preferredAddress` (`null` exactly when `addresses` is empty), `phoneNumbers` in a contact's shape,
 `jobTitle`, `organizationName`, `timeZone` as an IANA identifier, `workingHours` — `days` named in English Monday
-first, and `start` and `end` written `HH:mm` on the colleague's own wall clock, or `null` where none is stated — and
-`photo`, an identifier that changes whenever the portrait does. A colleague whose address this user's own book holds is left out, because the user's own record of them
+first, and `start` and `end` written `HH:mm` on the colleague's own wall clock, or `null` where none is stated —
+`photo`, an identifier that changes whenever the portrait does, `presence` — `Active`, `Away`, `Busy`,
+`DoNotDisturb`, or `Offline`, which is also what a colleague who chose `Hidden` reads as — and `lastSeen`, an instant
+answered only for an `Offline` colleague who did not choose to hide, as [the presence routes](#the-presence-routes)
+describe. A colleague whose address this user's own book holds is left out, because the user's own record of them
 answers for them; the two listings above leave out an organization contact and a collected contact holding a
 colleague's address, for the same reason in the other direction. [Contacts § The organization's member
 directory](../features/contacts.md#the-organizations-member-directory) holds where each field comes from and who is in
@@ -3756,6 +3759,34 @@ card carries at most one observation per aspect.
 A credential whose grant does not carry `mailfathom.assistant.use` is answered `403`, and so is one missing
 `mailfathom.mail.read` or `mailfathom.contacts.read`, which the correlation and the book ask for themselves — the
 refusal names which. It reaches no mail server and cannot set the remote `\Seen` flag.
+
+### The presence routes
+
+A member of an organization keeps their own presence through these routes, and their colleagues read it beside each
+colleague over [the contact routes](#the-contact-routes). [Contacts § A colleague's
+presence](../features/contacts.md#a-colleagues-presence) states the six states and how each is worked out.
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/client/presence` | Reads this user's own presence as they see it: `state`, `Hidden` included, and while a choice holds `chosenState`, `choiceDuration` — the while it was chosen for, named as the choice states it — and `choiceEndsAt`, both `null` for until changed |
+| `PUT /api/client/presence/clients/{clientId}` | Renews one open client, carrying `activity` as `active` or `idle` |
+| `DELETE /api/client/presence/clients/{clientId}` | Closes one client, which reads as `Offline` at once when it was this user's last |
+| `PUT /api/client/presence/choice` | Chooses a state, carrying `state` as `Active`, `Away`, `Busy`, `DoNotDisturb`, `Hidden`, or `Offline`, and `duration` as `30m`, `1h`, `2h`, `today`, `week`, or nothing for until changed; answers what `GET` answers |
+
+**A running client renews its own row every minute**, under an identifier it mints for itself when it starts, and says
+`idle` once ten minutes pass without input. It renews at once when input returns, and on `pagehide` and sign-out it
+sends the `DELETE` as a `keepalive` request. A row it stops renewing counts for three minutes and then for nothing,
+which is what covers a crash, a lost network, and a replica that died. A new client past the sixteen a user keeps open
+is refused `409`. A `clientId` names a row of this user's alone, because the user comes from the session.
+
+**A user in no organization is answered `404` on all four**, because nobody could see their presence, so nothing is
+recorded about them and a client reading that stops renewing. A state or a duration this surface does not know is
+refused `400` before anything is written. Reading is `mailfathom.profile.read`, and the three writes are
+`mailfathom.profile.write`.
+
+**Nothing here is audited or logged.** A renewal changes no mail, and an entry per renewal would be a history of
+somebody's working day. A write that changes how this user reads to the others raises `presence.changed` on [the
+signal channel](#the-signal-channel) to every member of the organization, the user included for their other devices.
 
 ### The notification routes
 
@@ -4660,7 +4691,7 @@ no subject, address, body fragment, filename, or attachment name reaches it at a
 flags `mail.flags.changed` carries, which say where each of those two stands rather than that one moved, for the reason
 the paragraph below the table gives. The second is a raised notification's own headline and second line, which are the
 record's already-derived text and reach a client entitled to read that record over
-[the notification routes](#the-notification-routes). Eight things are said:
+[the notification routes](#the-notification-routes). Nine things are said:
 
 | Signal | What it says |
 | --- | --- |
@@ -4672,6 +4703,7 @@ record's already-derived text and reach a client entitled to read that record ov
 | `notification.raised` | A notification was written, with its kind, its two lines, and how many now stand unread |
 | `account.state` | An account's synchronization run finished, so what a client says about it is out of date |
 | `run.advanced` | A [Discover run](../features/discovery-run.md#a-run-is-watched-rather-than-waited-for) or an [Agent conversation](#the-agent-conversation-routes) had something written, naming the run, the conversation where it is one, and the place reached — and no part of what was written |
+| `presence.changed` | How up to 100 colleagues read to the other members of the organization may have changed, naming their user identities in `members` and nothing about them; an empty `members` names every colleague. A client re-reads them over [the contact routes](#the-contact-routes) |
 
 **A flag is the one change stated rather than pointed at.** `mail.flags.changed` carries, per row, the stored identity
 and where each of the two flags now stands, so a client redraws the row it already holds without reading the page it is
@@ -4683,7 +4715,7 @@ whole of what a run found, and a client re-reads. A flag a publisher did not obs
 cleared: a reconciliation window states both, and a change this deployment authored states the one it wrote.
 
 **A client that does not know a kind ignores it and catches up on its next refresh**, which is what made the sixth, the
-seventh, and the eighth additions rather than breaks; the client and the service ship under one version.
+seventh, the eighth, and the ninth additions rather than breaks; the client and the service ship under one version.
 
 **A statement names no folder where the change is known only by where it stands on the mail server.** A change
 settled against the server — a move, a copy, a delete, a keyword or a flag change MailFathom wrote there — and what a

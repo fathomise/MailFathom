@@ -45,6 +45,8 @@ const piotr: Colleague = {
     timeZone: 'Europe/London',
     workingHours: null,
     photo: null,
+    presence: 'Busy',
+    lastSeen: null,
 };
 
 const officeHours = {
@@ -380,6 +382,32 @@ describe('PersonPage', () => {
 
             expect(screen.getByRole('heading', { name: 'Time and working hours' })).toBeDefined();
             expect(screen.getByText('8:41 AM, 1h behind you')).toBeDefined();
+        });
+
+        it('says their presence in words beside the dot on their avatar', () => {
+            drawPage({ contact: piotr });
+
+            expect(screen.getByText('Busy')).toBeDefined();
+            expect(screen.queryByText(/Last seen/u)).toBeNull();
+        });
+
+        it('says when an offline colleague was last seen, against the reader’s own day', () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-31T09:00:00Z'));
+            drawPage({
+                contact: { ...piotr, presence: 'Offline', lastSeen: '2026-10-30T17:20:00Z' },
+                readerZone: 'Europe/Warsaw',
+            });
+
+            expect(screen.getByText('Offline')).toBeDefined();
+            expect(screen.getByText('Last seen yesterday 6:20 PM')).toBeDefined();
+        });
+
+        it('says nothing about when a member was last seen where the deployment withholds it, as for one hidden', () => {
+            drawPage({ contact: { ...piotr, presence: 'Offline', lastSeen: null } });
+
+            expect(screen.getByText('Offline')).toBeDefined();
+            expect(screen.queryByText(/Last seen/u)).toBeNull();
         });
 
         it('draws no time at all for a member who states neither a zone nor working hours', () => {

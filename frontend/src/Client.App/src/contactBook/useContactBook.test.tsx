@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import { SignalledChangesContext, type SignalListener } from '../signals/signalledChanges';
 import { useContactBook, type ContactBookName } from './useContactBook';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
@@ -35,7 +36,7 @@ function pageOf(contacts: readonly unknown[], nextCursor: string | null): string
     return JSON.stringify({ contacts, nextCursor });
 }
 
-function colleague(id: string, displayName: string): unknown {
+function colleague(id: string, displayName: string, presence = 'Active'): unknown {
     return {
         id,
         book: 'Member',
@@ -47,6 +48,8 @@ function colleague(id: string, displayName: string): unknown {
         organizationName: 'Nordwind',
         timeZone: null,
         photo: null,
+        presence,
+        lastSeen: null,
     };
 }
 
@@ -95,7 +98,10 @@ function Book({
         <div>
             <ul>
                 {held.contacts.map((person) => (
-                    <li key={person.id}>{person.displayName}</li>
+                    <li key={person.id}>
+                        {person.displayName}
+                        {person.book === 'Member' ? <span>{person.presence}</span> : null}
+                    </li>
                 ))}
             </ul>
             <p>{held.reading ? 'reading' : 'settled'}</p>
@@ -207,5 +213,111 @@ describe('useContactBook', () => {
 
         expect(await screen.findByText('settled')).toBeDefined();
         expect(attempts).toBe(0);
+    });
+
+    describe('a colleague’s presence', () => {
+        // The directory, and each member read alone, answering whatever the test last said about them.
+        function directory(presence: Record<string, string>): {
+            readonly transport: MailFathomTransport;
+            readonly asked: () => readonly string[];
+        } {
+            const asked: string[] = [];
+
+            return {
+                asked: () => asked,
+                transport: ({ path }) => {
+                    asked.push(path);
+
+                    const member = /\/contacts\/colleagues\/([a-z]+)$/u.exec(path)?.[1];
+                    const body =
+                        member === undefined
+                            ? pageOf(
+                                  Object.entries(presence).map(([id, state]) => colleague(id, id, state)),
+                                  null,
+                              )
+                            : JSON.stringify(colleague(member, member, presence[member]));
+
+                    return Promise.resolve({ status: 200, body, headers: {} });
+                },
+            };
+        }
+
+        function told(): { readonly say: SignalListener; readonly listen: (listener: SignalListener) => () => void } {
+            const listeners = new Set<SignalListener>();
+
+            return {
+                say: (change) => {
+                    for (const listener of listeners) {
+                        listener(change);
+                    }
+                },
+                listen: (listener) => {
+                    listeners.add(listener);
+
+                    return () => {
+                        listeners.delete(listener);
+                    };
+                },
+            };
+        }
+
+        function drawDirectory(
+            transport: MailFathomTransport,
+            channel: ReturnType<typeof told>,
+            book: ContactBookName,
+        ) {
+            render(
+                <SignalledChangesContext value={{ listen: channel.listen, refresh: () => undefined }}>
+                    <Book transport={transport} book={book} />
+                </SignalledChangesContext>,
+            );
+        }
+
+        it('reads again each member a presence change names, and only them', async () => {
+            const presence: Record<string, string> = { marta: 'Busy', piotr: 'Active' };
+            const { transport, asked } = directory(presence);
+            const channel = told();
+
+            drawDirectory(transport, channel, 'colleagues');
+            expect(await screen.findByText('Busy')).toBeDefined();
+
+            presence['piotr'] = 'Away';
+            act(() => {
+                channel.say({ kind: 'presence.changed', members: ['piotr'] });
+            });
+
+            expect(await screen.findByText('Away')).toBeDefined();
+            expect(asked().slice(1)).toEqual(['https://mail.example.invalid/api/client/contacts/colleagues/piotr']);
+        });
+
+        it('reads the members held again where a presence change names nobody', async () => {
+            const presence: Record<string, string> = { marta: 'Busy' };
+            const { transport } = directory(presence);
+            const channel = told();
+
+            drawDirectory(transport, channel, 'colleagues');
+            expect(await screen.findByText('Busy')).toBeDefined();
+
+            presence['marta'] = 'Offline';
+            act(() => {
+                channel.say({ kind: 'presence.changed', members: [] });
+            });
+
+            expect(await screen.findByText('Offline')).toBeDefined();
+        });
+
+        it('reads nothing again for a book that holds no colleagues', async () => {
+            const { transport, asked } = answering({ own: [pageOf([contact('anna', 'Anna Kowalska')], null)] });
+            const channel = told();
+
+            drawDirectory(transport, channel, 'own');
+            expect(await screen.findByText('Anna Kowalska')).toBeDefined();
+
+            act(() => {
+                channel.say({ kind: 'presence.changed', members: [] });
+            });
+
+            expect(asked()).toHaveLength(1);
+        });
     });
 });

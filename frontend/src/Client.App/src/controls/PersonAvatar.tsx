@@ -15,12 +15,16 @@ import { initialsOf } from './initials';
 // the settings screen the name is the field beside it: a picture of somebody announced next to their own name is the
 // same sentence twice.
 
-/** Where the circle stands: the control that opens the account menu, or the settings screen's profile section. */
-export type PersonAvatarPlace = 'menu' | 'profile';
+/**
+ * Where the circle stands: the control that opens the account menu, the settings screen's profile section, or the head
+ * of the status menu.
+ */
+export type PersonAvatarPlace = 'menu' | 'profile' | 'status';
 
 const places: Readonly<Record<PersonAvatarPlace, string>> = {
     menu: 'size-10 text-sm',
     profile: 'size-11.5 text-2xl',
+    status: 'size-8 text-xs max-workspace:size-10 max-workspace:text-sm',
 };
 
 export function PersonAvatar({

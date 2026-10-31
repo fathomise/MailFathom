@@ -124,8 +124,8 @@ answering a signal makes requests whether a person is there or not. Only the cli
 
 ### The chosen state, its duration, and *Last seen* are one row per member
 
-`member_presence` holds one row per member, overwritten in place: the chosen state or none, the instant the choice ends
-or none, and the instant the member was last seen. It is not a property of the user record. ADR 0037's policy does not
+`member_presence` holds one row per member, overwritten in place: the chosen state or none, the while it was chosen
+for and the instant the choice ends or none, and the instant the member was last seen. It is not a property of the user record. ADR 0037's policy does not
 govern it, because an administrator never sets somebody's presence (ADR 0044). It is a separate row because it is
 written on every renewal, and the record is written by people. The row cascades with the user, so erasing a user
 erases it.
@@ -137,6 +137,9 @@ erases it.
   local midnight, and `week` at the midnight that ends the local Sunday, ISO 8601's week. A member whose record states
   no zone is resolved in UTC. The deployment resolves it, rather than the client, so a member on two devices in two
   zones gets one answer, and it is the answer the member's contact shows colleagues as their local time.
+- **The duration is kept beside the instant it resolved to.** The status menu names the while a member picked —
+  *Busy · 1 hour* — and an instant cannot say which while produced it, so the row keeps both and the member's own
+  reading answers both. Colleagues are told neither: they read the state alone.
 - **A choice that runs out is not cleared by anybody.** A read compares the instant with the time of the read, so the
   member is back to automatic presence when it passes, whether or not any process is running.
 - ***Last seen* is one timestamp, moved forward by every renewal.** It is never moved while the member's chosen state
@@ -183,7 +186,7 @@ re-read already bounds. Revisit it if five minutes proves too long for the peopl
 | Held | Where | How long |
 |---|---|---|
 | An open client: the user, the client's own identifier, `active` or `idle`, an expiry | `presence_clients` | 180 seconds after the last renewal, then deleted opportunistically |
-| The chosen state and when it ends | `member_presence` | until changed or run out, overwritten in place, erased with the user |
+| The chosen state, the while it was chosen for, and when it ends | `member_presence` | until changed or run out, overwritten in place, erased with the user |
 | When the member was last seen | `member_presence` | overwritten on each renewal, erased with the user |
 
 - **No history.** No previous state, no earlier timestamp, and no record of when a choice was made is kept anywhere.

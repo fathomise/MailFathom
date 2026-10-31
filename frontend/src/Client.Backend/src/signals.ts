@@ -45,6 +45,9 @@ const longestSignalText = 4_096;
 /** The most stored identities one signal names, which is the deployment's own bound on the same list. */
 export const mostNamedSignalEmails = 100;
 
+/** The most members one presence change names, which is the deployment's own bound on the same list. */
+const mostNamedSignalMembers = 100;
+
 /** What part of MailFathom a raised notification was about, which is the same closed set the record routes publish. */
 export type SignalNotificationKind = 'Mail' | 'Calendar' | 'Task' | 'System';
 
@@ -65,7 +68,7 @@ export interface SignalledFlags {
 /**
  * One statement that something changed.
  *
- * Eight closed shapes rather than one record of optional fields, because what a reader does with a signal is decided
+ * Nine closed shapes rather than one record of optional fields, because what a reader does with a signal is decided
  * entirely by which of them arrived: a folder set that moved and a message that changed are read again from different
  * routes, and a shape carrying both would leave every reader checking which fields happened to be present.
  */
@@ -103,6 +106,15 @@ export type ClientSignal =
           readonly run: string | null;
           readonly conversation: string | null;
           readonly sequence: number;
+      }
+    | {
+          /**
+           * How some members of the reader's organization read may have changed. It names them and nothing about
+           * them, so a reader reads their presence again over the routes that decide what it may see — and names
+           * nobody where every member it draws is to be read again.
+           */
+          readonly kind: 'presence.changed';
+          readonly members: readonly string[];
       };
 
 /** The ticket one connection is opened against, and when presenting it stops working. */
@@ -203,7 +215,7 @@ export function readSignalTicket(
 }
 
 /**
- * Reads one payload the deployment sent, refusing anything that is not one of the eight statements.
+ * Reads one payload the deployment sent, refusing anything that is not one of the nine statements.
  *
  * @returns The signal, or `null` where the payload is not one this client acts on.
  */
@@ -231,6 +243,8 @@ export function parseClientSignal(payload: unknown): ClientSignal | null {
             return isIdentity(record['account']) ? { kind: 'account.state', account: record['account'] } : null;
         case 'run.advanced':
             return parseRunAdvance(record);
+        case 'presence.changed':
+            return parsePresenceChange(record);
         default:
             return null;
     }
@@ -255,7 +269,7 @@ export function parseClientSignal(payload: unknown): ClientSignal | null {
  * What the stream does say is how the channel stands, to the caller rather than to the person: the client's connection
  * status is one sentence about whether the server is there, and the channel is half of what it reads.
  *
- * @param told Called once per statement, after the payload has been read as one of the eight.
+ * @param told Called once per statement, after the payload has been read as one of the nine.
  * @param stood Called after every step of keeping the channel open, with how it then stands. `opened` is the moment a
  * caller reads again what it draws, since whatever was said while none stood was said to nobody — except after the
  * first opening, which only the caller can tell apart, since only it knows whether anything was drawn before it.
@@ -545,6 +559,16 @@ function parseRunAdvance(record: Readonly<Record<string, unknown>>): ClientSigna
     }
 
     return { kind: 'run.advanced', run, conversation, sequence };
+}
+
+function parsePresenceChange(record: Readonly<Record<string, unknown>>): ClientSignal | null {
+    const named = record['members'];
+
+    if (!Array.isArray(named) || named.length > mostNamedSignalMembers || !named.every(isIdentity)) {
+        return null;
+    }
+
+    return { kind: 'presence.changed', members: [...named] };
 }
 
 // `undefined` reports a value that is neither an identity nor absent, for the reason `optionalFlag` gives.

@@ -1898,7 +1898,8 @@ describe('Composer, an answer', () => {
 
         const offered = within(screen.getByRole('listbox', { name: 'Suggested recipients for To' }))
             .getAllByRole('option')
-            .map((option) => option.textContent);
+            // The words beside the avatar, whose letters are drawn for the eye alone.
+            .map((option) => option.lastElementChild?.textContent);
 
         expect(offered).toContain('auditor@example.invalid');
         expect(offered).toContain('Billingbilling@example.invalid');

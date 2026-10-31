@@ -43,6 +43,8 @@ function colleagueCalled(id: string, displayName: string): Colleague {
         timeZone: null,
         workingHours: null,
         photo: null,
+        presence: 'Busy',
+        lastSeen: null,
     };
 }
 

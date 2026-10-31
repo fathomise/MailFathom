@@ -4,7 +4,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { Contact } from '@mailfathom/client-backend';
+import type { Colleague, Contact } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { ContactRow } from './ContactRow';
 
@@ -30,7 +30,7 @@ function drawRow({
     onOpen = vi.fn(),
     onToggle = vi.fn(),
 }: {
-    contact?: Contact;
+    contact?: Contact | Colleague;
     selected?: boolean;
     open?: boolean;
     onOpen?: () => void;
@@ -64,6 +64,27 @@ describe('ContactRow', () => {
         expect(screen.getByText('Anna Kowalska')).toBeDefined();
         expect(screen.getByText('anna@contoso.example')).toBeDefined();
         expect(screen.queryByText('Nordwind')).toBeNull();
+    });
+
+    it('names a colleague’s presence in words before their title, so the dot is never the only telling', () => {
+        const marta: Colleague = {
+            id: 'marta',
+            book: 'Member',
+            displayName: 'Marta Nowak',
+            addresses: ['m.nowak@nordwind.example'],
+            preferredAddress: 'm.nowak@nordwind.example',
+            phoneNumbers: [],
+            jobTitle: 'Controller',
+            organizationName: 'Nordwind',
+            timeZone: null,
+            photo: null,
+            presence: 'DoNotDisturb',
+            lastSeen: null,
+        };
+
+        drawRow({ contact: marta });
+
+        expect(screen.getByText('Do not disturb · Controller')).toBeDefined();
     });
 
     it('marks a contact the reader’s organization keeps with the organization’s name', () => {
