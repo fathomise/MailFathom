@@ -20,6 +20,12 @@ if [[ "$(basename "$0")" == 'dotnet' ]]; then
     printf 'rewritten\n' >> "$FAKE_DOTNET_REWRITE"
   fi
 
+  # An edit made beside a running gate, landing while the solution builds. It is what a record must
+  # not forgive the way it forgives the formatters' own repair.
+  if [[ -n "${FAKE_DOTNET_EDIT_DURING_BUILD:-}" && "$*" == 'build '* ]]; then
+    printf 'edited\n' >> "$FAKE_DOTNET_EDIT_DURING_BUILD"
+  fi
+
   if [[ "$*" == '--version' ]]; then
     printf '10.0.110\n'
   fi
@@ -33,6 +39,11 @@ fi
 if [[ "$(basename "$0")" == 'pnpm' ]]; then
   : "${FAKE_PNPM_LOG:?FAKE_PNPM_LOG must identify the invocation log}"
   printf '%s\n' "$*" >> "$FAKE_PNPM_LOG"
+
+  # The client's repairing pass, which the fast loop treats exactly as it treats `dotnet format`.
+  if [[ -n "${FAKE_PNPM_REWRITE:-}" && "$*" == '--dir frontend run format' ]]; then
+    printf 'rewritten\n' >> "$FAKE_PNPM_REWRITE"
+  fi
 
   exit 0
 fi
@@ -1100,6 +1111,58 @@ verify_fast_records_the_formatted_tree_when_formatting_only_repaired() {
   git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
   assert_contains 'the formatted tree is recorded and no second run is needed' "$rewrite_output"
   assert_file_content '' "$invocation_log"
+}
+
+# Prettier's repair is forgiven the same way as `dotnet format`'s: a client run whose only movement
+# was its formatting pass records the formatted tree.
+verify_fast_records_the_formatted_tree_when_prettier_only_repaired() {
+  local rewrite_output="$test_directory/verify-fast-client-rewrite-output"
+  add_client_change
+
+  (
+    export FAKE_PNPM_REWRITE="$repository_root/frontend/src/Sample.txt"
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$rewrite_output" 2>&1
+
+  : > "$client_invocation_log"
+
+  (
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  )
+
+  # Back to the staged content first, or `git rm --cached` refuses a file that differs from both
+  # its index entry and HEAD.
+  git -C "$repository_root" checkout --quiet -- frontend/src/Sample.txt
+  remove_client_change
+  assert_contains 'the formatted tree is recorded and no second run is needed' "$rewrite_output"
+  assert_file_content '' "$client_invocation_log"
+}
+
+# The forgiveness covers the formatters and nothing else. A tree an edit moved while the build ran
+# records nothing, even when the formatters rewrote a file too, so the next run does the work.
+verify_fast_records_nothing_when_the_tree_moved_beside_a_formatter_rewrite() {
+  local rewrite_output="$test_directory/verify-fast-moved-output"
+
+  (
+    export FAKE_DOTNET_EDIT_DURING_BUILD="$repository_root/backend/src/Sample.cs"
+    export FAKE_DOTNET_REWRITE="$repository_root/backend/src/Sample.cs"
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$rewrite_output" 2>&1
+
+  : > "$invocation_log"
+
+  (
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  )
+
+  git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
+  assert_contains 'commit the rewrite with the change' "$rewrite_output"
+  assert_excludes 'no second run is needed' "$rewrite_output"
+  assert_contains 'build backend/MailFathom.slnx --configuration Release --no-restore' "$invocation_log"
 }
 
 verify_force_runs_everything_a_record_would_have_skipped() {
@@ -12253,6 +12316,8 @@ run_test verify_fast_accepts_the_record_the_full_gate_wrote
 run_test verify_fast_accepts_the_full_gate_record_for_a_client_change
 run_test verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass
 run_test verify_fast_records_the_formatted_tree_when_formatting_only_repaired
+run_test verify_fast_records_the_formatted_tree_when_prettier_only_repaired
+run_test verify_fast_records_nothing_when_the_tree_moved_beside_a_formatter_rewrite
 run_test verify_full_records_nothing_when_it_failed
 run_test verify_force_runs_everything_a_record_would_have_skipped
 run_test verify_full_formats_the_whole_solution_when_a_shared_style_input_changed

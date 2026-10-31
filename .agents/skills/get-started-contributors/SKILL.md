@@ -609,11 +609,13 @@ offer to go deeper on any one of them instead of expanding all six.
    builds, runs the unit tests, and formats the C# files the branch changed; in the client stack it restores the
    workspace in locked mode and runs its lint and its type check, then its suite, then its formatting pass. **Both
    halves rewrite working-tree files by design**; a run whose build and suites passed and whose formatting pass only
-   repaired files records the formatted tree, so the rewrite is committed with the change and the gate is not run again. Never run `dotnet format` or `pnpm format`
-   by hand; both of their modes already run where they belong.
+   repaired files records the formatted tree, so the rewrite is committed with the change and the gate is not run
+   again. Never run `dotnet format` or `pnpm format` by hand; both of their modes already run where they belong.
 
-   That loop is also the gate before a commit, so stage the task files and run it again. It refuses a branch that no
-   longer contains the base it will merge into, which is the one question the pull request's own checks never ask:
+   That loop is also the gate before a commit, so stage the task files and run it again — unless the run before passed
+   and only its formatting pass rewrote files: then stage the rewrite and commit without another run, since staging
+   changes what the record describes and a run after it rebuilds for nothing. It refuses a branch that no longer
+   contains the base it will merge into, which is the one question the pull request's own checks never ask:
 
    ```bash
    git add <task-files>

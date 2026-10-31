@@ -39,12 +39,14 @@ over the C# files the branch changed — everything committed since `origin/main
 staged, modified, or newly added — and Prettier over the client workspace. It is
 the only workflow script that rewrites source files. Each C# file is formatted
 against `backend/MailFathom.slnx`, which is the solution that holds it, and that
-pass is skipped where the branch touched no C#. Anything the formatters cannot
-repair has already failed the run in the build or the lint, so a rewrite that
-reaches the end of a passing run is their own repair and asks nothing of anybody:
-the run records the tree the formatters left rather than the one it built, the
-rewrite is committed with the change, and the gate is not run a second time to
-say what it already said.
+pass is skipped where the branch touched no C#. A rewrite that reaches the end of
+a passing run is the formatters' own repair, so the run records the tree they
+left rather than the one it built: the rewrite is staged and committed with the
+change, and the gate is not run a second time to say what it already said —
+staging changes the digest, so a run after it would be a whole one. Such a record
+settles exactly what a run that rewrote nothing settles: a diagnostic with no code
+fix, which the Release build passes over and a repairing pass cannot act on, is
+still the full gate's and `CI`'s to report.
 It ends on the same whitespace checks the full gate makes, over the staged and
 unstaged diffs and — where the base resolved — over the branch's committed range,
 because a whitespace error in a page, a workflow, or a Helm template is read by

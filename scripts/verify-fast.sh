@@ -205,11 +205,12 @@ if [[ -n "$run_client_stack" ]]; then
 fi
 
 # A rewrite by the formatters is their own repair: whitespace, the order of using directives, a final
-# newline, the fixes an analyzer's code fix applies. What they cannot repair has already failed the
-# run, in the build or the lint, so a rewrite that reaches here asks nothing of a person, and a second
-# run over the formatted files would rebuild and retest only to say what this one said. So the run
-# records the formatted tree instead of the one it built — provided nothing but the formatters moved
-# it. A tree that changed while the build or the suites ran still records nothing, below.
+# newline, the fixes an analyzer's code fix applies. A second run over the formatted files would
+# rebuild and retest only to say what this one said, so the run records the formatted tree instead of
+# the one it built — provided nothing but the formatters moved it. A tree that changed while the build
+# or the suites ran still records nothing, below. The record settles no more than a run that rewrote
+# nothing does: a diagnostic with no code fix, which the build passes over and this pass cannot act
+# on, is still left to the full gate and `CI`, as the comment above the formatting passes says.
 digest_after_formatting="$(resolve_verification_digest)"
 
 if [[ -n "$digest_before_formatting" && "$digest_after_formatting" != "$digest_before_formatting" ]]; then
