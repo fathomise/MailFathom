@@ -1146,3 +1146,25 @@ test('keeps the trusted link domains it holds through a preferences write that s
     });
     expect(ask(deployment, 'GET', '/preferences')).toMatchObject({ trustedLinkDomains: ['example.com'] });
 });
+
+test('answers the presence the person chose on every later read, and takes a renewal and a close as nothing to say', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const client = '/presence/clients/01a1927c-a2e6-77e3-8caa-f90649ee3c8f';
+
+    expect(ask(deployment, 'PUT', client, { activity: 'active' })).toBe(204);
+    expect(ask(deployment, 'GET', '/presence')).toEqual(fixtures.ownPresence);
+
+    ask(deployment, 'PUT', '/presence/choice', { state: 'Busy', duration: '1h' });
+
+    expect(ask(deployment, 'GET', '/presence')).toMatchObject({
+        state: 'Busy',
+        chosenState: 'Busy',
+        choiceDuration: '1h',
+    });
+
+    ask(deployment, 'PUT', '/presence/choice', { state: 'Active' });
+
+    expect(ask(deployment, 'GET', '/presence')).toEqual(fixtures.ownPresence);
+    expect(ask(deployment, 'DELETE', client)).toBe(204);
+    expect(deployment.unimplemented).toEqual([]);
+});
