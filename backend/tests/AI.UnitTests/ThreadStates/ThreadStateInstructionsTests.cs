@@ -24,6 +24,11 @@ public sealed class ThreadStateInstructionsTests
     [InlineData("messages")]
     [InlineData("owedBy")]
     [InlineData("dueAt")]
+    [InlineData("\"title\"")]
+    [InlineData("\"topic\"")]
+    [InlineData("\"keepTopic\"")]
+    [InlineData("\"subjectChanged\"")]
+    [InlineData("\"standing\"")]
     public void Text_TheInstruction_NamesEveryFieldTheReadingReads(string field)
     {
         // Act
@@ -141,6 +146,35 @@ public sealed class ThreadStateInstructionsTests
         Assert.Empty(Parsed(turn).Descendants(ThreadStateInstructions.SubjectElementName));
         Assert.Null(message.Element(ThreadStateInstructions.AuthorElementName));
         Assert.Null(message.Attribute(ThreadStateInstructions.WrittenAttributeName));
+    }
+
+    /// <summary>A topic a model wrote on an earlier run is quoted back to it, so it can keep what the row is already called.</summary>
+    [Fact]
+    public void ComposeThreadTurn_AConversationGivenATopicBefore_QuotesItBesideTheSubject()
+    {
+        // Act
+        var turn = ThreadStateInstructions.ComposeThreadTurn(
+            "The racking quotation",
+            [new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds", StubEmailProvenanceReader.KnownCorrespondent)],
+            keptTopic: "Racking quotation for the Gdańsk warehouse");
+
+        // Assert
+        Assert.Equal(
+            "Racking quotation for the Gdańsk warehouse",
+            Assert.Single(Parsed(turn).Descendants(ThreadStateInstructions.TopicElementName)).Value);
+    }
+
+    /// <summary>A conversation never given a topic carries no element for one, which is what tells the model to write one.</summary>
+    [Fact]
+    public void ComposeThreadTurn_AConversationGivenNoTopic_WritesNone()
+    {
+        // Act
+        var turn = ThreadStateInstructions.ComposeThreadTurn(
+            "The racking quotation",
+            [new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds", StubEmailProvenanceReader.KnownCorrespondent)]);
+
+        // Assert
+        Assert.Empty(Parsed(turn).Descendants(ThreadStateInstructions.TopicElementName));
     }
 
     /// <summary>The budget is the writer's, so a conversation longer than the bound stops at the message it cut and still parses.</summary>

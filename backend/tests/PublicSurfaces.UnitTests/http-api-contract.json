@@ -4231,6 +4231,16 @@
           "threadId": {
             "format": "uuid",
             "type": "string"
+          },
+          "title": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailThreadTitleResponse"
+              }
+            ]
           }
         },
         "required": [
@@ -4238,7 +4248,23 @@
           "coverage",
           "derivedAt",
           "current",
-          "entries"
+          "entries",
+          "title"
+        ],
+        "type": "object"
+      },
+      "ClientMailThreadTitleResponse": {
+        "properties": {
+          "standing": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "standing"
         ],
         "type": "object"
       },

@@ -188,6 +188,46 @@ public sealed class ClientMailThreadStateEndpointTests
     }
 
     /// <summary>
+    /// A title is served beside the state it was derived with, so a reply since then reads as a title that no longer
+    /// describes the newest message rather than as a current one.
+    /// </summary>
+    [Fact]
+    public async Task ReadStateAsync_AStateWithATitleDerivedBeforeAReply_ServesTheTitleBesideTheStateThatIsNotCurrent()
+    {
+        // Arrange
+        this.Holding(State([]) with
+        {
+            IsCurrent = false,
+            Title = ThreadTitle.Create("Racking quotation", "Upper limit still open"),
+        });
+
+        // Act
+        var result = await this.ReadAsync();
+
+        // Assert
+        var block = Assert.IsType<Ok<ClientMailThreadStateResponse>>(result.Result).Value;
+
+        Assert.False(block!.Current);
+        Assert.Equal(new ClientMailThreadTitleResponse("Racking quotation", "Upper limit still open"), block.Title);
+    }
+
+    /// <summary>A conversation the derivation gave no title says so, rather than receiving a placeholder.</summary>
+    [Fact]
+    public async Task ReadStateAsync_AStateWithNoTitle_ServesNone()
+    {
+        // Arrange
+        this.Holding(State([]));
+
+        // Act
+        var result = await this.ReadAsync();
+
+        // Assert
+        var block = Assert.IsType<Ok<ClientMailThreadStateResponse>>(result.Result).Value;
+
+        Assert.Null(block!.Title);
+    }
+
+    /// <summary>
     /// A message joined the conversation after its state was derived, so the reader reports the state as no longer
     /// describing it and the route says so rather than publishing the block as the conversation's current one.
     /// </summary>

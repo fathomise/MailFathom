@@ -93,12 +93,13 @@ public sealed class MailThreadStateBrowser
     /// <summary>Scans everything the block would publish, under the point this surface is read on.</summary>
     /// <remarks>
     /// One report for the block rather than one per statement, because the block is what a screen waits for. The dates
-    /// and the aspects are this deployment's own values rather than text anybody wrote, so nothing but the statement
-    /// and the name a commitment is owed by is offered to a scanner.
+    /// and the aspects are this deployment's own values rather than text anybody wrote, so nothing but the statement,
+    /// the name a commitment is owed by, and the title's two lines is offered to a scanner. The title is guarded in
+    /// place rather than recreated, because a placeholder may lengthen a line past the bound a model was held to.
     /// </remarks>
     private async Task<EmailThreadState> GuardedAsync(EmailThreadState state, CancellationToken cancellationToken)
     {
-        if (!await this.egressGuard.IsActiveAsync(cancellationToken) || state.Entries.Count is 0)
+        if (!await this.egressGuard.IsActiveAsync(cancellationToken) || (state.Entries.Count is 0 && state.Title is null))
         {
             return state;
         }
@@ -125,8 +126,22 @@ public sealed class MailThreadStateBrowser
                 entry.DueAt));
         }
 
+        var title = state.Title is { } derived
+            ? derived with
+            {
+                Topic = await this.egressGuard.GuardAsync(
+                    SensitiveContentEgressPoint.ClientThreadState,
+                    derived.Topic,
+                    cancellationToken),
+                Standing = await this.egressGuard.GuardAsync(
+                    SensitiveContentEgressPoint.ClientThreadState,
+                    derived.Standing,
+                    cancellationToken),
+            }
+            : null;
+
         scan.Completed();
 
-        return state with { Entries = guarded };
+        return state with { Entries = guarded, Title = title };
     }
 }

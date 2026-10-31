@@ -60,7 +60,7 @@ internal static class ThreadStateScenario
             StructuredAnswerScenario.JudgedWhen(scenario.ReadsTwoWays));
     }
 
-    /// <summary>Holds the statements to the case's expectation, then to the language the case declares, refusing an answer a deployment would withhold.</summary>
+    /// <summary>Holds the statements to the case's expectation, the title to its own, then both to the language the case declares, refusing an answer a deployment would withhold.</summary>
     private static string? Held(
         ThreadStateCase scenario,
         ThreadStateDerivation derivation,
@@ -72,9 +72,17 @@ internal static class ThreadStateScenario
         }
 
         var entries = derivation.Entries;
+        string?[] written =
+        [
+            .. entries.Select(static entry => entry.Text),
+            derivation.Title?.Topic,
+            derivation.Title?.Standing,
+        ];
 
-        return scenario.Expectation(entries, messages) ?? (scenario.Language is { } language
-            ? WrittenLanguage.Shortfall(string.Join('\n', entries.Select(static entry => entry.Text)), language)
-            : null);
+        return scenario.Expectation(entries, messages)
+            ?? scenario.TitleExpectation?.Invoke(derivation.Title)
+            ?? (scenario.Language is { } language
+                ? WrittenLanguage.Shortfall(string.Join('\n', written.Where(static text => !string.IsNullOrEmpty(text))), language)
+                : null);
     }
 }

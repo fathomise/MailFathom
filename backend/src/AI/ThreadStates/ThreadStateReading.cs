@@ -42,8 +42,9 @@ internal static class ThreadStateReading
     /// <param name="answerText">What the agent wrote, which may be empty, fenced, or surrounded by prose.</param>
     /// <param name="messages">The messages the turn published, in the order it numbered them.</param>
     /// <returns>
-    /// A settled derivation of the statements that survived, in aspect order and empty where none did, or one withheld
-    /// as <see cref="ThreadStateWithholding.AnswerUnreadable" /> where the answer carries no object this build reads.
+    /// A settled derivation of the statements that survived, in aspect order and empty where none did, beside the title
+    /// the answer proposed — or one withheld as <see cref="ThreadStateWithholding.AnswerUnreadable" /> where the answer
+    /// carries no object this build reads, or a title it does not draw.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" /> is <see langword="null" />.</exception>
     internal static ThreadStateDerivation Read(
@@ -57,13 +58,62 @@ internal static class ThreadStateReading
             return ThreadStateDerivation.Withholding(ThreadStateWithholding.AnswerUnreadable);
         }
 
-        return ThreadStateDerivation.Settled(
+        IReadOnlyList<ThreadStateEntry> entries =
         [
             .. Aspect(ThreadStateAspect.Agreement, document.Agreements, messages),
             .. Aspect(ThreadStateAspect.OpenQuestion, document.OpenQuestions, messages),
             .. Aspect(ThreadStateAspect.Commitment, document.Commitments, messages),
             .. Aspect(ThreadStateAspect.VersionDifference, document.Differences, messages),
-        ]);
+        ];
+
+        if (document.Title is not { } writtenTitle)
+        {
+            return ThreadStateDerivation.Settled(entries);
+        }
+
+        return ReadTitle(writtenTitle, entries) is { } title
+            ? ThreadStateDerivation.Settled(entries, title)
+            : ThreadStateDerivation.Withholding(ThreadStateWithholding.AnswerUnreadable);
+    }
+
+    /// <summary>Reads the title the model wrote, or nothing where either of its lines is not one this build draws.</summary>
+    /// <remarks>
+    /// <para>
+    /// A refusal rather than a repair, unlike a statement that runs long. A title is the line a row is recognized by,
+    /// so a topic with markup, a link, or a second line in it is a model not answering what it was asked, and the
+    /// answer is withheld exactly as one that does not parse is. An answer carrying no title at all is the other case
+    /// and settles without one, as an answer of no statements settles without any.
+    /// </para>
+    /// <para>
+    /// The standing is kept only beside a statement it can be reading: an open question or a commitment. A standing
+    /// written beside nothing still open is a line stating something no statement carries, so it is stored empty —
+    /// which is also what a conversation with nothing left open is owed.
+    /// </para>
+    /// </remarks>
+    private static ThreadTitleProposal? ReadTitle(ThreadTitleDocument written, IReadOnlyList<ThreadStateEntry> entries)
+    {
+        var standing = written.Standing?.Trim() ?? string.Empty;
+
+        if (standing.Length > 0 && !ThreadTitle.IsPlainLine(standing, ThreadTitle.MaximumStandingLength))
+        {
+            return null;
+        }
+
+        if (!entries.Any(static entry => entry.Aspect is ThreadStateAspect.OpenQuestion or ThreadStateAspect.Commitment))
+        {
+            standing = string.Empty;
+        }
+
+        if (written.KeepTopic is true)
+        {
+            return new ThreadTitleProposal(Topic: null, StatesSubjectChange: false, standing);
+        }
+
+        var topic = written.Topic?.Trim();
+
+        return ThreadTitle.IsPlainLine(topic, ThreadTitle.MaximumTopicLength)
+            ? new ThreadTitleProposal(topic, written.SubjectChanged is true, standing)
+            : null;
     }
 
     /// <summary>Reads one array of written statements into the statements of one aspect.</summary>

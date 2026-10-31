@@ -69,6 +69,8 @@ internal sealed class StoredThreadStateReader(
                 state.DerivedAt,
                 state.DerivedFromMessageCount,
                 state.DerivedFromLatestArrival,
+                state.Topic,
+                state.Standing,
                 state.Entries
                     .OrderBy(entry => entry.Aspect)
                     .ThenBy(entry => entry.Ordinal)
@@ -114,7 +116,8 @@ internal sealed class StoredThreadStateReader(
             ],
             new ThreadStateRevision(stored.DerivedFromMessageCount, stored.DerivedFromLatestArrival),
             stored.DerivedAt,
-            IsCurrent: !owed);
+            IsCurrent: !owed,
+            stored.Topic is { } topic ? ThreadTitle.Create(topic, stored.Standing ?? string.Empty) : null);
     }
 
     /// <summary>Asks the derivation pass's own question of one conversation: whether it is owed a derivation now.</summary>
@@ -167,6 +170,8 @@ internal sealed class StoredThreadStateReader(
         DateTimeOffset DerivedAt,
         int DerivedFromMessageCount,
         DateTimeOffset? DerivedFromLatestArrival,
+        string? Topic,
+        string? Standing,
         IReadOnlyList<StoredThreadStateEntryRow> Entries);
 
     private sealed record StoredThreadStateEntryRow(

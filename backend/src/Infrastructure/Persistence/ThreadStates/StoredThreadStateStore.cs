@@ -23,8 +23,9 @@ namespace MailFathom.Infrastructure.Persistence.ThreadStates;
 /// <remarks>
 /// <para>
 /// The selection carries the arrival pipeline's own orderings and one comparison of its own. A message counts towards a
-/// conversation once the rules have finished with it, it is settled where it is, the classification gate admits it, its
-/// folder is one an operator asked to have derived from, and extraction has read a body out of it. What then decides
+/// conversation once the rules have finished with it, it is settled where it is, the classification gate admits it, it
+/// is not in Trash, its folder is one an operator asked to have derived from, and extraction has read a body out of it.
+/// What then decides
 /// whether the conversation is read at all is the comparison between the shape it has now and the shape the stored
 /// state was derived from.
 /// </para>
@@ -162,6 +163,8 @@ internal sealed class StoredThreadStateStore(
         existing.DerivedAt = state.DerivedAt;
         existing.DerivedFromMessageCount = state.DerivedFrom.MessageCount;
         existing.DerivedFromLatestArrival = state.DerivedFrom.LatestArrival;
+        existing.Topic = state.Title?.Topic;
+        existing.Standing = state.Title?.Standing;
 
         var ordinals = new Dictionary<ThreadStateAspect, int>();
 
@@ -193,6 +196,10 @@ internal sealed class StoredThreadStateStore(
     /// Written as a composable predicate rather than inline, so what counts towards a conversation is one statement
     /// that can be asserted about directly — and so that the count and the messages a derivation is shown are read
     /// through the same clause rather than through two that could drift apart.
+    /// <para>
+    /// A message in Trash is one somebody deleted, so it says nothing about where the conversation stands and does not
+    /// name it either. Moving one there changes the count, and the conversation is derived again without it.
+    /// </para>
     /// </remarks>
     internal static IQueryable<StoredEmailEntity> Selecting(
         IQueryable<StoredEmailEntity> emails,
@@ -205,7 +212,8 @@ internal sealed class StoredThreadStateStore(
                 .Where(email => email.MailboxAccountId == mailboxAccountId
                     && email.EmailThreadId != null
                     && email.SearchDocument != null
-                    && email.SearchDocument.BodyText != null)
+                    && email.SearchDocument.BodyText != null
+                    && email.Folder.Role != MailFolderSpecialUse.Trash)
                 .Where(MailAwaitingRuleEvaluation.IsFinishedWith)
                 .Where(MailAwaitingRelocation.IsSettledWhereItIs),
             embeddedFolders),
@@ -249,7 +257,8 @@ internal sealed class StoredThreadStateStore(
         select new ThreadAwaitingStateRow(
             conversation.EmailThreadId,
             conversation.MessageCount,
-            conversation.LatestArrival);
+            conversation.LatestArrival,
+            stored == null ? null : stored.Topic);
 
     /// <summary>Puts one selected conversation together with the messages that were read for it.</summary>
     /// <remarks>
@@ -286,7 +295,8 @@ internal sealed class StoredThreadStateStore(
                 Subject: null,
                 revision,
                 Messages: [],
-                ExceedsBound: conversation.MessageCount > maximumMessagesPerThread);
+                ExceedsBound: conversation.MessageCount > maximumMessagesPerThread,
+                conversation.KeptTopic);
         }
 
         return new DerivableThread(
@@ -302,7 +312,8 @@ internal sealed class StoredThreadStateStore(
                     row.Text,
                     provenance[StoredEmailId.Create(row.StoredEmailId)])),
             ],
-            ExceedsBound: false);
+            ExceedsBound: false,
+            conversation.KeptTopic);
     }
 
     /// <summary>One message of a selected conversation as the store reads it.</summary>
@@ -325,4 +336,9 @@ internal sealed class StoredThreadStateStore(
 /// <param name="EmailThreadId">The conversation, which is always a surviving thread because merged mail is repointed.</param>
 /// <param name="MessageCount">How many of its messages a derivation would be shown.</param>
 /// <param name="LatestArrival">When the most recent of them arrived, or <see langword="null" /> where none recorded an arrival.</param>
-internal sealed record ThreadAwaitingStateRow(Guid EmailThreadId, int MessageCount, DateTimeOffset? LatestArrival);
+/// <param name="KeptTopic">The topic the conversation's stored state carries, or <see langword="null" /> where it has no state or no title.</param>
+internal sealed record ThreadAwaitingStateRow(
+    Guid EmailThreadId,
+    int MessageCount,
+    DateTimeOffset? LatestArrival,
+    string? KeptTopic);

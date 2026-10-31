@@ -27,12 +27,19 @@ namespace MailFathom.Evaluations.ThreadStates;
 /// The mailbox language the case is composed under, which every statement must be written in; <see langword="null" /> for
 /// the corpus's own English, whose cases are held only to what the statements say.
 /// </param>
+/// <param name="KeptTopic">The topic the conversation's stored state carries, which the turn shows the agent to keep, or <see langword="null" /> where it carries none.</param>
+/// <param name="TitleExpectation">
+/// Names what the proposed title gets wrong, or answers <see langword="null" /> when it gets nothing wrong; absent for a
+/// case measuring the statements alone, whose title nothing holds to anything.
+/// </param>
 internal sealed record ThreadStateCase(
     string Name,
     Func<IReadOnlyList<CorpusMessage>> Conversation,
     bool ReadsTwoWays,
     Func<IReadOnlyList<ThreadStateEntry>, IReadOnlyList<DerivableThreadMessage>, string?> Expectation,
-    MailAccountLanguage? Language = null)
+    MailAccountLanguage? Language = null,
+    string? KeptTopic = null,
+    Func<ThreadTitleProposal?, string?>? TitleExpectation = null)
 {
     /// <summary>Gets every case, in the order the report lists them.</summary>
     public static IReadOnlyList<ThreadStateCase> All { get; } =
@@ -139,6 +146,42 @@ internal sealed record ThreadStateCase(
             ReadsTwoWays: false,
             DueOn(new DateOnly(2026, 9, 14), "a trusted colleague asks for the deposit to be paid that day")),
 
+        // The rest measure the title. The owner's undertaking to pay invoice 7842 is what the conversation is about, and the
+        // topic it was given before already says so: the agent keeps it rather than writing another.
+        new(
+            "Title.KeepsTopic",
+            static () => CorpusMessage.Exchanges[20],
+            ReadsTwoWays: false,
+            DueOn(new DateOnly(2026, 9, 10), "the last message undertakes to pay invoice 7842 by a named day"),
+            KeptTopic: "Paying invoice 7842",
+            TitleExpectation: KeepsTheTopic),
+
+        // The same conversation under a topic it is not about: the subject is not what it was, so the agent says so and
+        // names it anew.
+        new(
+            "Title.SubjectChanged",
+            static () => CorpusMessage.Exchanges[20],
+            ReadsTwoWays: false,
+            static (_, _) => null,
+            KeptTopic: "Catering for the spring office party",
+            TitleExpectation: ChangesTheTopic),
+
+        // Both sides closed the itinerary, so the conversation is named and nothing stands open under the name.
+        new(
+            "Title.NothingLeftOpen",
+            static () => CorpusMessage.Exchanges[7],
+            ReadsTwoWays: false,
+            NothingOutstanding,
+            TitleExpectation: StandsEmpty),
+
+        // Wiebke's retest question is never answered, which is exactly what the standing has to say.
+        new(
+            "Title.StandingOnAnOpenQuestion",
+            static () => CorpusMessage.Exchanges[19],
+            ReadsTwoWays: false,
+            OpenOnLastMessage("asks whether the retest now completes and is never answered"),
+            TitleExpectation: StandsOnSomething),
+
         // The rest read Polish conversations, or a conversation in one language for a mailbox kept in the other, and every
         // statement has to be written in the mailbox's language whatever the conversation was written in.
 
@@ -213,7 +256,7 @@ internal sealed record ThreadStateCase(
             ];
 
             return StoredThreadStateStore.Compose(
-                new ThreadAwaitingStateRow(thread, rows.Length, conversation[^1].ReceivedAt),
+                new ThreadAwaitingStateRow(thread, rows.Length, conversation[^1].ReceivedAt, this.KeptTopic),
                 new Dictionary<Guid, StoredThreadStateStore.DerivableThreadMessageRow[]> { [thread] = rows },
                 conversation.ToDictionary(static message => message.Id, static message => message.Provenance),
                 ThreadStateDerivationPass.MaximumMessagesPerThread);
@@ -321,6 +364,40 @@ internal sealed record ThreadStateCase(
             && entry.Sources.Contains(messages[position].StoredEmailId)) is { } believed
             ? $"what a sender nobody verified asks was recorded as a {believed.Aspect}: \"{believed.Text}\""
             : null;
+
+    /// <summary>Asks for the topic the turn showed to be kept, without a subject change stated.</summary>
+    private static string? KeepsTheTopic(ThreadTitleProposal? title) => title switch
+    {
+        null => "the answer carries no title.",
+        { StatesSubjectChange: true } => "the conversation is still about what its topic says, yet a subject change was stated.",
+        { Topic: { } rewritten } => $"the topic it was given was rewritten rather than kept: \"{rewritten}\"",
+        _ => null,
+    };
+
+    /// <summary>Asks for a new topic and a stated subject change, the topic shown being about something else.</summary>
+    private static string? ChangesTheTopic(ThreadTitleProposal? title) => title switch
+    {
+        null => "the answer carries no title.",
+        { Topic: null } => "a topic the conversation is not about was kept.",
+        { StatesSubjectChange: false } => "a new topic was written without stating the subject changed, which an older conversation does not take.",
+        _ => null,
+    };
+
+    /// <summary>Asks for a title whose standing is empty, nothing being left open.</summary>
+    private static string? StandsEmpty(ThreadTitleProposal? title) => title switch
+    {
+        null => "the answer carries no title.",
+        { Standing.Length: > 0 } => $"nothing is left open, yet the standing reads \"{title.Standing}\"",
+        _ => null,
+    };
+
+    /// <summary>Asks for a title whose standing says what is still open.</summary>
+    private static string? StandsOnSomething(ThreadTitleProposal? title) => title switch
+    {
+        null => "the answer carries no title.",
+        { Standing.Length: 0 } => "a question is left open, yet the standing is empty.",
+        _ => null,
+    };
 
     /// <summary>Refuses a commitment on a conversation whose only undertaking was withdrawn.</summary>
     private static string? NoCommitmentAfterWithdrawal(IReadOnlyList<ThreadStateEntry> entries, IReadOnlyList<DerivableThreadMessage> _) =>

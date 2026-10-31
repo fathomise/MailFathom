@@ -65,6 +65,12 @@ public sealed class ThreadAwaitingStateQueryTests
 
         Assert.True(ordering >= 0, sql);
         Assert.True(bound > ordering, sql);
+
+        // The topic the stored state kept travels with the batch, so the derivation can be asked to keep it.
+        Assert.Contains("\"Topic\"", sql, StringComparison.Ordinal);
+
+        // A message in Trash counts towards nothing, so it neither shapes the state nor names the conversation.
+        Assert.Contains("\"Role\"", sql, StringComparison.Ordinal);
     }
 
     /// <summary>

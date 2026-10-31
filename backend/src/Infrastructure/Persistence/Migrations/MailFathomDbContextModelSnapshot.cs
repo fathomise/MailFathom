@@ -1302,6 +1302,14 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<int>("DerivedFromMessageCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Standing")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Topic")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
                     b.HasKey("EmailThreadId")
                         .HasName("pk_email_thread_states");
 

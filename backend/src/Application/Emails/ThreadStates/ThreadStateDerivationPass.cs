@@ -187,7 +187,8 @@ public sealed class ThreadStateDerivationPass
                 derivation.Entries,
                 thread.Revision,
                 this.timeProvider.GetUtcNow(),
-                IsCurrent: true);
+                IsCurrent: true,
+                derivation.Title?.SettleFor(thread));
 
             // Committed one conversation at a time rather than one batch at a time, because a derivation that is
             // settled has already been paid for: holding it until the last of the batch had answered would lose every

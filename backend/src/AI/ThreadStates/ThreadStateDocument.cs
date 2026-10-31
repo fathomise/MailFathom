@@ -30,6 +30,30 @@ internal sealed record ThreadStateDocument
     /// <summary>Gets how the model said a document the conversation exchanged changed between versions.</summary>
     [JsonPropertyName("differences")]
     public IReadOnlyList<ThreadStateEntryDocument?>? Differences { get; init; }
+
+    /// <summary>Gets what the model said the conversation is called.</summary>
+    [JsonPropertyName("title")]
+    public ThreadTitleDocument? Title { get; init; }
+}
+
+/// <summary>The title as the model wrote it: a topic or the answer that the one it was shown stays, and a standing.</summary>
+internal sealed record ThreadTitleDocument
+{
+    /// <summary>Gets the new topic the model wrote.</summary>
+    [JsonPropertyName("topic")]
+    public string? Topic { get; init; }
+
+    /// <summary>Gets whether the model answered that the topic it was shown stays.</summary>
+    [JsonPropertyName("keepTopic")]
+    public bool? KeepTopic { get; init; }
+
+    /// <summary>Gets whether the model stated that the conversation moved on to another subject.</summary>
+    [JsonPropertyName("subjectChanged")]
+    public bool? SubjectChanged { get; init; }
+
+    /// <summary>Gets where the model said the conversation stands.</summary>
+    [JsonPropertyName("standing")]
+    public string? Standing { get; init; }
 }
 
 /// <summary>One statement as the model wrote it, with nothing about it yet established.</summary>
