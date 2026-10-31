@@ -620,11 +620,12 @@ Project repository: https://github.com/fathomise/MailFathom
       <div data-motion="scrim" data-phase="{{ mo.sendAsk }}" style="{{ ovAsk97 }}">
         <div data-motion="pop" data-phase="{{ mo.sendAsk }}" style="{{ dlgAsk }}">
           <div style="display:flex;align-items:flex-start;gap:11px">
-            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--accent)">send</span>
+            <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--accent)">{{ sendAskGlyph }}</span>
             <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
-              <div style="font-size:15px;font-weight:600">Send this message?</div>
-              <div style="font-size:13px;line-height:1.55;color:var(--muted);text-wrap:pretty">Do: {{ sendSummaryTo }}</div>
+              <div style="font-size:15px;font-weight:600">{{ sendAskTitle }}</div>
+              <div style="font-size:13px;line-height:1.55;color:var(--muted);text-wrap:pretty">To: {{ sendSummaryTo }}</div>
               <div style="font-size:13px;line-height:1.55;color:var(--muted);text-wrap:pretty">Subject: {{ sendSummarySubj }}</div>
+              <sc-if value="{{ sendAskWhenShown }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;line-height:1.55;color:var(--text);font-weight:600;text-wrap:pretty">{{ sendAskWhen }}</div></sc-if>
             </div>
           </div>
           <sc-if value="{{ sendHasWarn }}" hint-placeholder-val="{{ false }}">
@@ -1604,11 +1605,14 @@ Project repository: https://github.com/fathomise/MailFathom
               <sc-if value="{{ composeReceiptsOn }}" hint-placeholder-val="{{ false }}">
                 <div data-compose-receipts role="button" tabindex="0" title="Change sending options" aria-haspopup="menu" onClick="{{ openComposeMore }}" onKeyDown="{{ openComposeMore }}" style="{{ composeReceiptsLineStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:19px;flex-shrink:0;color:var(--accent-d)">{{ composeReceiptsGlyph }}</span><span style="min-width:0">{{ composeReceiptsText }} <span style="color:var(--muted)">{{ composeReceiptsNote }}</span></span></div>
               </sc-if>
+              <sc-if value="{{ composeSendAtOn }}" hint-placeholder-val="{{ false }}">
+                <div data-compose-send-at role="status" style="{{ composeSendAtLineStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;flex-shrink:0;color:var(--accent-d)">schedule_send</span><span style="flex:1 1 220px;min-width:0">{{ composeSendAtText }} <span style="color:var(--muted)">{{ composeSendAtZone }}</span></span><span style="display:flex;align-items:center;gap:6px;margin-left:auto"><span role="button" tabindex="0" title="Change the time" onClick="{{ changeSendAt }}" onKeyDown="{{ changeSendAt }}" style="{{ composeSendAtChangeStyle }}" style-hover="cursor:pointer;background:var(--hover)">Change</span><span role="button" tabindex="0" title="Clear the time - the message leaves as soon as you send it" onClick="{{ clearSendAt }}" onKeyDown="{{ clearSendAt }}" style="{{ composeSendAtClearStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span>Clear time</span></span></div>
+              </sc-if>
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 15px;border-top:1px solid var(--line);background:var(--sub)">
-                <div onClick="{{ askSendNow }}" title="{{ composeSendTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send</div>
+                <div data-compose-send onClick="{{ askSendNow }}" title="{{ composeSendTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSendStyle }}" style-hover="cursor:pointer;opacity:0.9"><sc-if value="{{ composeSendGlyphShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;vertical-align:-4px;margin-right:6px">schedule_send</span></sc-if>{{ composeSendLabel }}</div>
                 <div title="Attach" style="{{ composeAttachStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ composeAttachIconStyle }}">attach_file</span><sc-if value="{{ composeAttachLabel }}" hint-placeholder-val="{{ true }}">Attach</sc-if></div>
                 <div onClick="{{ saveDraftNow }}" title="{{ composeSaveTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSaveStyle }}" style-hover="cursor:pointer;color:var(--text)">Save draft</div>
-                <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div style="margin-left:auto;font-size:11px;color:var(--faint)">Ctrl+Enter sends</div></sc-if>
+                <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div style="margin-left:auto;font-size:11px;color:var(--faint)">{{ composeCtrlHint }}</div></sc-if>
                 <div data-compose-more role="button" tabindex="0" title="{{ composeMoreTitle }}" aria-label="{{ composeMoreTitle }}" aria-haspopup="menu" onClick="{{ openComposeMore }}" onKeyDown="{{ openComposeMore }}" style="{{ composeMoreStyle }}" style-hover="cursor:pointer;background:var(--hover)">more_vert</div>
               </div>
             </div>
@@ -2555,9 +2559,15 @@ Project repository: https://github.com/fathomise/MailFathom
         <div aria-hidden="true" style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:4px 12px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">{{ ctxMenuTitle }}</div>
         <sc-if value="{{ ctxMenuHasDetail }}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);padding:0 12px 6px;margin-top:-4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ctxMenuDetail }}</div></sc-if>
         <sc-for list="{{ ctxMenuItems }}" as="cm" hint-placeholder-count="4">
+          <div style="display:contents">
+          <sc-if value="{{ cm.groupShown }}" hint-placeholder-val="{{ false }}"><div role="separator" aria-label="{{ cm.group }}" style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--muted);border-top:1px solid var(--line);margin:4px 6px 0;padding:9px 6px 5px"><span aria-hidden="true">{{ cm.group }}</span></div></sc-if>
           <div data-ctx-item role="{{ cm.role }}" aria-checked="{{ cm.ariaChecked }}" tabindex="-1" onClick="{{ cm.run }}" onKeyDown="{{ cm.key }}" style="{{ cm.style }}" style-hover="cursor:pointer;background:var(--hover)">
             <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;width:24px;text-align:center">{{ cm.icon }}</span>{{ cm.label }}
-            <sc-if value="{{ cm.checkShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="margin-left:auto;padding-left:10px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:var(--accent-d)">check</span></sc-if>
+            <sc-if value="{{ cm.trailShown }}" hint-placeholder-val="{{ false }}"><span style="margin-left:auto;padding-left:10px;flex:0 0 auto;display:flex;align-items:center;gap:8px">
+              <sc-if value="{{ cm.hintShown }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap">{{ cm.hint }}</span></sc-if>
+              <sc-if value="{{ cm.checkSlot }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ cm.checkStyle }}">check</span></sc-if>
+            </span></sc-if>
+          </div>
           </div>
         </sc-for>
       </div>
@@ -2625,6 +2635,44 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="display:flex;gap:9px;justify-content:space-between;align-items:center">
             <div onClick="{{ remModalClear }}" style="font-size:13px;color:var(--text2)" style-hover="cursor:pointer;text-decoration:underline">Turn all off</div>
             <div onClick="{{ closeRemModal }}" style="font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 16px" style-hover="cursor:pointer;opacity:0.9">Done</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ sendLaterOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="scrim" data-phase="{{ mo.sendLaterAsk }}" onClick="{{ closeSendLater }}" style="{{ sendLaterOverlayStyle }}">
+      <div data-send-later role="dialog" aria-modal="true" aria-label="Send later" data-motion="{{ moDialog }}" data-phase="{{ mo.sendLaterAsk }}" onClick="{{ stopProp }}" style="{{ dlgForm }}">
+        <sc-if value="{{ sheetGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
+        <div style="display:flex;align-items:flex-start;gap:11px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
+          <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d);padding-top:1px">schedule_send</span>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+            <div style="font-size:15px;font-weight:600">Send later</div>
+            <div style="font-size:12px;color:var(--muted);text-wrap:pretty">Choose when this message leaves. Until then it waits in the Outbox.</div>
+          </div>
+          <div role="button" tabindex="0" title="Close" aria-label="Close" onClick="{{ closeSendLater }}" onKeyDown="{{ closeSendLater }}" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span aria-hidden="true" style="{{ closeIconStyle }}">close</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;padding:18px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+            <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--text2)">Date<input data-send-later-date type="date" min="{{ sendLaterMin }}" value="{{ sendLaterDate }}" onChange="{{ onSendLaterDate }}" aria-invalid="{{ sendLaterInvalid }}" aria-describedby="send-later-when" style="{{ sendLaterFieldStyle }}" style-focus="border-color:var(--accent)" /></label>
+            <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--text2)">Time<input type="time" value="{{ sendLaterTime }}" onChange="{{ onSendLaterTime }}" aria-invalid="{{ sendLaterInvalid }}" aria-describedby="send-later-when" style="{{ sendLaterFieldStyle }}" style-focus="border-color:var(--accent)" /></label>
+          </div>
+          <div id="send-later-when" aria-live="polite" style="display:flex;flex-direction:column;gap:6px">
+            <sc-if value="{{ sendLaterOk }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:14px;line-height:1.45;font-weight:600;color:var(--text)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:20px;color:var(--accent-d)">schedule_send</span><span>{{ sendLaterLeaves }}</span></div>
+            </sc-if>
+            <sc-if value="{{ sendLaterGone }}" hint-placeholder-val="{{ false }}">
+              <div role="alert" style="display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.5;color:var(--err-text);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:20px">error</span><span>{{ sendLaterRefusal }}</span></div>
+            </sc-if>
+            <sc-if value="{{ sendLaterEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:13px;line-height:1.5;color:var(--muted)">Choose a date and a time.</div>
+            </sc-if>
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.45;color:var(--muted);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:17px">public</span><span>{{ sendLaterZone }}</span></div>
+          </div>
+          <div style="display:flex;gap:9px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
+            <div role="button" tabindex="0" onClick="{{ closeSendLater }}" onKeyDown="{{ closeSendLater }}" style="{{ sendLaterCancelStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
+            <div role="button" tabindex="0" title="{{ sendLaterConfirmTitle }}" aria-disabled="{{ sendLaterConfirmOff }}" onClick="{{ confirmSendLater }}" onKeyDown="{{ confirmSendLater }}" style="{{ sendLaterConfirmStyle }}" style-hover="opacity:0.9">Schedule</div>
           </div>
         </div>
       </div>

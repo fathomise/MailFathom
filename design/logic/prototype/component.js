@@ -8,7 +8,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     app: { version: APP_VERSION, build: APP_BUILD },
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI, organization: ORGANIZATION,
     threads: THREADS, earlierMessages, threadMailBodies, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
-    mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO,
+    mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO, sendLater: SEND_LATER,
     accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
     calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
@@ -915,7 +915,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.pendingBody = draftHtml(d.body);
       const patch = { compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null,
         composeSubjEdit: d.subject, composeDraft: d, composeCc: (d.cc || []).slice(), ccOpen: !!(d.cc || []).length, closeAsk: false, sendAsk: null,
-        composeReceipts: Object.assign({}, d.receipts) };
+        composeReceipts: Object.assign({}, d.receipts), composeSendAt: null, sendLaterAsk: null };
       if (this.tabsMode()) this.openTab("compose", patch);
       else this.setState(patch);
     };
@@ -1215,7 +1215,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     startReply = (mode, ids) => {
       const id = this.opTargets(ids)[0];
       if (this.refuseSpam(id, mode === "fwd" ? "Spam cannot be forwarded." : "Spam cannot be answered.")) return;
-      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], composeReceipts: {}, threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
+      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
       if (this.state.workMode === "tabs") this.openTab("compose", patch);
       else this.setState(patch);
     };
@@ -1247,7 +1247,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "statusMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
-      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "receiptPop", "linkAsk", "source"];
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "receiptPop", "sendLaterAsk", "linkAsk", "source"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -1295,7 +1295,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "source", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "statusMenu", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "receiptPop", "replyDock", "replyChooser", "linkAsk"];
+      "statusMenu", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "receiptPop", "sendLaterAsk", "replyDock", "replyChooser", "linkAsk"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1899,9 +1899,44 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (t) setTimeout(() => { const el = t.isConnected ? t : document.querySelector("[data-compose-more]"); if (el) el.focus(); }, 0);
     };
 
+    /* A date and time named in the reader's zone (`SEND_LATER.zone`), said as the composer and the Outbox say it:
+       `short` on the Send button and an Outbox row (*Fri 08:00*, *Today 17:00*, *28.09 08:00* a week or more out),
+       `date` beside a ready time in the menu (*Fri 28.08, 08:00*), `long` in a sentence (*Fri 28.08 at 08:00*).
+       `gone` holds at or before the sample's now, which the service refuses before anything is queued. */
+    sendLaterSaid = (date, time) => {
+      const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const now = SEND_LATER.now;
+      if (!date || !time) return { short: "", date: "", long: "", gone: false, empty: true };
+      const days = Math.round((new Date(date + "T00:00:00Z") - new Date(now.date + "T00:00:00Z")) / 86400000);
+      const dm = date.slice(8, 10) + "." + date.slice(5, 7);
+      const dow = DOW[new Date(date + "T00:00:00Z").getUTCDay()];
+      return {
+        short: (days === 0 ? "Today" : days > 0 && days < 7 ? dow : dm) + " " + time,
+        date: (days === 0 ? "Today" : dow + " " + dm) + ", " + time,
+        long: (days === 0 ? "today" : dow + " " + dm) + " at " + time,
+        gone: date + " " + time <= now.date + " " + now.time,
+        empty: false,
+      };
+    };
+
+    /* The picker: a date and a time, opened on the time already chosen or on the first ready time. Focus lands on the
+       date and goes back to the foot's three-dot control when it closes. */
+    openSendLater = () => {
+      const at = this.state.composeSendAt || SEND_LATER.presets[0];
+      this.setState({ sendLaterAsk: { date: at.date, time: at.time } });
+      setTimeout(() => { const el = document.querySelector("[data-send-later-date]"); if (el) el.focus(); }, 60);
+    };
+
+    closeSendLater = () => {
+      this.setState({ sendLaterAsk: null });
+      setTimeout(() => { const el = document.querySelector("[data-compose-more]"); if (el) el.focus(); }, 0);
+    };
+
     /* *Sending options* — the three-dot control at the end of the composer's foot. The same context menu, standing
        above the control since the foot is the composer's last row, its end edge on the control's, holding the two
-       requests this one message makes. Both start off; neither has an account-wide default. */
+       requests this one message makes, then *Send later*: three ready times, each with the date it resolves to, and
+       *Pick a date and time…*. The requests start off and neither has an account-wide default; a time is chosen for
+       this message alone, and choosing one closes the menu. */
     openComposeMore = (e) => {
       if (e && e.type === "keydown") {
         if (e.key !== "Enter" && e.key !== " ") return;
@@ -1914,10 +1949,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (byKey) setTimeout(() => { const it = document.querySelector("[data-ctx-item]"); if (it) it.focus(); }, 0);
       const r = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
       const coarse = this.state.coarse;
-      const W = (coarse ? 312 : 296) + 14;
-      const H = 46 + 2 * (coarse ? 50 : 38) + 15;
+      const W = (coarse ? 352 : 336) + 14;
+      const H = 46 + 6 * (coarse ? 50 : 38) + 30 + 15;
       const p = this.localPt(r ? r.right - W : 0, r ? r.top - H - 4 : 0);
       const turn = (k) => () => this.setState(s => ({ composeReceipts: Object.assign({}, s.composeReceipts, { [k]: !(s.composeReceipts || {})[k] }) }));
+      const chosen = () => this.state.composeSendAt || null;
+      const custom = chosen() && !chosen().preset ? this.sendLaterSaid(chosen().date, chosen().time).date : "";
       this.armCtx(false);
       this.setState({
         ctxMenu: {
@@ -1925,6 +1962,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           items: [
             { icon: "move_to_inbox", label: "Request delivery notification", checked: () => !!(this.state.composeReceipts || {}).dsn, run: turn("dsn") },
             { icon: "mark_email_read", label: "Request read receipt", checked: () => !!(this.state.composeReceipts || {}).mdn, run: turn("mdn") },
+            ...SEND_LATER.presets.map((pr, i) => ({
+              group: i === 0 ? "Send later" : "", icon: pr.icon, label: pr.label, hint: this.sendLaterSaid(pr.date, pr.time).date, radio: true,
+              checked: () => (chosen() || {}).preset === pr.key,
+              run: () => this.setState({ composeSendAt: { date: pr.date, time: pr.time, preset: pr.key } }),
+            })),
+            { icon: "edit_calendar", label: "Pick a date and time…", hint: custom, radio: true, checked: () => !!chosen() && !chosen().preset, run: () => this.openSendLater() },
           ],
         },
       });
@@ -2093,6 +2136,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (e.key === "Escape" && this.state.linkAsk) { e.preventDefault(); this.closeLinkAsk(); return; }
       if (e.key === "Escape" && this.state.senderMark) { e.preventDefault(); this.closeSenderMark(true); return; }
       if (e.key === "Escape" && this.state.receiptPop) { e.preventDefault(); this.closeReceipt(true); return; }
+      if (e.key === "Escape" && this.state.sendLaterAsk) { e.preventDefault(); this.closeSendLater(); return; }
       if (e.key === "Escape" && this.state.ctxMenu) { e.preventDefault(); this.closeCtxMenuFocus(); return; }
       if (e.key === "Escape" && this.state.source) { e.preventDefault(); this.closeSource(); }
     };
@@ -2325,7 +2369,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const wasActive = s.activeTab === key;
         const nextTab = wasActive ? (tabs.length ? tabs[tabs.length - 1] : null) : null;
         const patch = { tabs, activeTab: wasActive ? (nextTab ? nextTab.key : null) : s.activeTab };
-        if (key === "compose") Object.assign(patch, { compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, replyThreadId: null });
+        if (key === "compose") Object.assign(patch, { compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null });
         if (key.indexOf("doc:") === 0) patch.doc = null;
         if (key.indexOf("html:") === 0) patch.htmlDoc = null;
         if (wasActive && nextTab) Object.assign(patch, this.tabPatch(nextTab));
@@ -4019,7 +4063,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -4754,13 +4798,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctxMenuHasDetail: !!(st.ctxMenu && st.ctxMenu.detail),
         closeCtxMenu: () => { if (this.ctxArmed()) this.closeCtxMenuFocus(); },
         /* A checkable item reads its state from the render rather than from when the menu opened, and pressing it
-           turns it over and leaves the menu standing, so both of the composer's requests are set in one visit. */
+           turns it over and leaves the menu standing, so both of the composer's requests are set in one visit. A radio
+           item is a choice among several (*Send later*'s times): pressing it takes it and closes the menu. An item may
+           open a group, headed by the group's name over a rule, and may carry a hint at its end in `--muted`. */
         ctxMenuItems: (st.ctxMenu ? st.ctxMenu.items : []).map(mi => ({
           icon: mi.icon, label: mi.label,
-          role: mi.checked ? "menuitemcheckbox" : "menuitem",
+          group: mi.group || "", groupShown: !!mi.group,
+          hint: mi.hint || "", hintShown: !!mi.hint,
+          role: mi.radio ? "menuitemradio" : mi.checked ? "menuitemcheckbox" : "menuitem",
           ariaChecked: mi.checked ? !!mi.checked() : null,
           checkShown: !!(mi.checked && mi.checked()),
-          run: () => { if (!this.ctxArmed()) return; if (!mi.checked) this.closeCtxMenuFocus(); if (mi.run) mi.run(); },
+          /* A radio item keeps the check's room when it is not the one taken, so the times stand in one column. */
+          checkSlot: !!(mi.radio || (mi.checked && mi.checked())),
+          /* Only an item with a hint or a check draws the trailing slot, so every other menu keeps its label's room. */
+          trailShown: !!(mi.hint || mi.radio || (mi.checked && mi.checked())),
+          checkStyle: "width:20px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:var(--accent-d)" +
+            (mi.checked && mi.checked() ? "" : ";visibility:hidden"),
+          run: () => { if (!this.ctxArmed()) return; if (!mi.checked || mi.radio) this.closeCtxMenuFocus(); if (mi.run) mi.run(); },
           /* Enter and Space take an item, the arrow keys walk the items; Escape is the document's. */
           key: (e) => {
             const items = [...document.querySelectorAll("[data-ctx-item]")];
@@ -4771,7 +4825,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               if (next) next.focus();
             } else if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              if (!mi.checked) this.closeCtxMenuFocus();
+              if (!mi.checked || mi.radio) this.closeCtxMenuFocus();
               if (mi.run) mi.run();
             } else if (e.key === "Tab") {
               // Tab leaves the menu as a menu is left: it closes, and focus goes back to what opened it.
@@ -4785,9 +4839,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctxMenuStyle: (() => {
           const c = st.ctxMenu || { x: 0, y: 0, items: [] };
           const base = "display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 6px 8px;box-shadow:0 20px 46px var(--sh-3);position:fixed;z-index:99;";
-          if (isMobile) return base + "left:50%;top:50%;transform:translate(-50%,-50%);width:min(300px,calc(100% - 36px));max-height:calc(100% - 120px);overflow:auto";
-          const W = c.wide ? (touch ? 312 : 296) : touch ? 262 : 236;
-          const H = 46 + (c.items || []).length * (touch ? 50 : 38);
+          if (isMobile) return base + "left:50%;top:50%;transform:translate(-50%,-50%);width:" + (c.wide ? "min(352px,calc(100% - 24px))" : "min(300px,calc(100% - 36px))") + ";max-height:calc(100% - 120px);overflow:auto";
+          const W = c.wide ? (touch ? 352 : 336) : touch ? 262 : 236;
+          const H = 46 + (c.items || []).length * (touch ? 50 : 38) + (c.items || []).filter(i => i.group).length * 30;
           const bw = st.vw || 1200;
           const bh = st.vh || (typeof window !== "undefined" ? window.innerHeight : 900);
           const x = Math.max(10, Math.min(c.x, bw - W - 10));
@@ -5400,7 +5454,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The composer's foot under a finger: one 44 row, Send filled, Attach a symbol alone on the phone,
            and Save draft a text action whose target is the row's height rather than its words. */
         composeSendRefused: this.writeRefused("send"),
-        composeSendTitle: this.writeRefusedTitle("send", "Send"),
+        composeSendTitle: this.writeRefusedTitle("send", st.composeSendAt ? "Send " + this.sendLaterSaid(st.composeSendAt.date, st.composeSendAt.time).long : "Send"),
         composeSaveTitle: this.writeRefusedTitle("save", "Save draft"),
         askSendNow: this.writeRefused("send") ? this.noop : askSend,
         composeSendStyle: (touch
@@ -5421,19 +5475,90 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const rq = st.composeReceipts || {};
           const what = rq.dsn && rq.mdn ? "a delivery notification and a read receipt" : rq.dsn ? "a delivery notification" : "a read receipt";
           const on = !!(rq.dsn || rq.mdn);
+          /* A time chosen under *Send later*: Send names it, a line directly above the foot says it in words with
+             *Change* and *Clear time* beside it, and the three-dot control stands on the accent ground, so nobody
+             schedules a message unaware or sends it at once by mistake. */
+          const at = st.composeSendAt;
+          const said = at ? this.sendLaterSaid(at.date, at.time) : null;
+          const moreSaid = [at ? "leaves " + said.short : "", on ? "asks for " + what : ""].filter(Boolean).join(", ");
+          const lineBtn = "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:5px;box-sizing:border-box;border-radius:8px;font-size:13px;white-space:nowrap;" +
+            (touch ? "min-height:44px;padding:0 12px;" : "height:28px;padding:0 10px;");
           return {
             openComposeMore: this.openComposeMore,
             composeReceiptsOn: on,
             composeReceiptsGlyph: rq.mdn ? "mark_email_read" : "move_to_inbox",
             composeReceiptsText: "This message asks for " + what + ".",
             composeReceiptsNote: rq.mdn ? "A read receipt comes back only if the recipient's mail app sends one." : "",
-            composeMoreTitle: on ? "Sending options - asks for " + what : "Sending options",
+            composeMoreTitle: moreSaid ? "Sending options - " + moreSaid : "Sending options",
             composeMoreStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;" +
               "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
               (touch ? "width:44px;height:44px;font-size:22px;margin-left:auto;" : "width:32px;height:32px;font-size:20px;") +
-              (on ? "color:var(--accent-d);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
+              (on || at ? "color:var(--accent-d);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
             composeReceiptsLineStyle: "display:flex;align-items:flex-start;gap:8px;padding:" + (touch ? "6px 15px" : "7px 15px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : "") +
               "border-top:1px solid var(--line);background:var(--panel);font-size:13px;line-height:1.45;color:var(--text2);text-wrap:pretty",
+            composeSendAtOn: !!at,
+            composeSendLabel: at ? "Send " + said.short : "Send",
+            composeSendGlyphShown: !!at,
+            composeSendAtText: at ? "This message leaves " + said.long + ", not when you press Send." : "",
+            composeSendAtZone: SEND_LATER.zone.id + " time",
+            composeSendAtLineStyle: "display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:" + (touch ? "4px 9px 4px 15px" : "6px 9px 6px 15px") + ";" + (touch ? "min-height:52px;box-sizing:border-box;" : "") +
+              "border-top:1px solid var(--accent-line);background:var(--accent-soft);font-size:13px;line-height:1.45;color:var(--text);text-wrap:pretty",
+            composeSendAtChangeStyle: lineBtn + "color:var(--accent-d);font-weight:600",
+            composeSendAtClearStyle: lineBtn + "color:var(--text2);border:1px solid var(--accent-line);background:var(--panel)",
+            changeSendAt: (e) => { if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); } this.openSendLater(); },
+            /* Clearing goes back to sending at once; the line goes with it, so focus lands on the foot's three-dot
+               control, where the time was chosen. */
+            clearSendAt: (e) => {
+              if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+              this.setState({ composeSendAt: null });
+              setTimeout(() => { const el = document.querySelector("[data-compose-more]"); if (el) el.focus(); }, 0);
+            },
+            composeCtrlHint: at ? "Ctrl+Enter schedules" : "Ctrl+Enter sends",
+          };
+        })(),
+        /* The picker: a date and a time in the reader's zone, named under the fields. A time at or before now cannot be
+           confirmed, and the line under the fields says why in place of when the message leaves. */
+        ...(() => {
+          const ask = st.sendLaterAsk || { date: "", time: "" };
+          const said = this.sendLaterSaid(ask.date, ask.time);
+          const nowSaid = this.sendLaterSaid(SEND_LATER.now.date, SEND_LATER.now.time);
+          const ok = !said.empty && !said.gone;
+          const field = "box-sizing:border-box;width:100%;font-family:inherit;color:var(--text);background:var(--sub);border-radius:8px;outline:none;" +
+            (touch ? "min-height:44px;font-size:16px;padding:0 12px;" : "height:36px;font-size:14px;padding:0 10px;") +
+            "border:1px solid " + (said.gone ? "var(--err)" : "var(--border2)");
+          return {
+            sendLaterOpen: !!st.sendLaterAsk,
+            /* The composer covers the bottom navigation on the phone, so the picker over it covers the whole screen. */
+            sendLaterOverlayStyle: this.ovStyle(97, isMobile).replace("top:0;left:0;right:0;bottom:" + this.barH() + "px", "inset:0"),
+            sendLaterDate: ask.date,
+            sendLaterTime: ask.time,
+            sendLaterMin: SEND_LATER.now.date,
+            onSendLaterDate: (e) => { const v = e.target.value; this.setState(s => ({ sendLaterAsk: Object.assign({}, s.sendLaterAsk, { date: v }) })); },
+            onSendLaterTime: (e) => { const v = e.target.value; this.setState(s => ({ sendLaterAsk: Object.assign({}, s.sendLaterAsk, { time: v }) })); },
+            sendLaterInvalid: said.gone ? "true" : "false",
+            sendLaterFieldStyle: field,
+            sendLaterZone: "In your time zone, " + SEND_LATER.zone.id + " (" + SEND_LATER.zone.offset + "), as your profile sets it.",
+            sendLaterOk: ok,
+            sendLaterLeaves: ok ? "Leaves " + said.long + "." : "",
+            sendLaterGone: said.gone,
+            sendLaterRefusal: "That time has already passed - it is " + nowSaid.long.replace(/^today at /, "") + " today. Choose a later time.",
+            sendLaterEmpty: said.empty,
+            sendLaterConfirmTitle: ok ? "Schedule for " + said.long : said.gone ? "Schedule - choose a time that has not passed yet." : "Schedule - choose a date and a time first.",
+            sendLaterConfirmOff: ok ? "false" : "true",
+            sendLaterConfirmStyle: "display:inline-flex;align-items:center;box-sizing:border-box;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;" +
+              (touch ? "min-height:44px;padding:0 18px;" : "height:34px;padding:0 16px;") + (ok ? "" : "opacity:0.45;cursor:not-allowed;"),
+            sendLaterCancelStyle: "display:inline-flex;align-items:center;box-sizing:border-box;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;" +
+              (touch ? "min-height:44px;padding:0 16px;" : "height:34px;padding:0 15px;"),
+            closeSendLater: (e) => {
+              if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+              this.closeSendLater();
+            },
+            confirmSendLater: (e) => {
+              if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+              if (!ok) return;
+              this.setState({ composeSendAt: { date: ask.date, time: ask.time, preset: (SEND_LATER.presets.find(p => p.date === ask.date && p.time === ask.time) || {}).key || null } });
+              this.closeSendLater();
+            },
           };
         })(),
         composeAiPlaceholder: isMobile ? "Write what this is about…" : "Write what this is about - e.g. “we accept the 2 h SLA but ask for a 5% CPI cap”",
@@ -7211,38 +7336,60 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeExpanded: (!!st.compose && !st.composeMin) || composeInPane,
         composeChromeShown: !composeTabActive,
         openCompose: () => (tabsMode
-          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
-          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
+          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
+          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
         composeSubjValue: curSubj,
         onComposeSubj: (e) => this.setState({ composeSubjEdit: e.target.value }),
         closeCompose: () => (bodyTxt() || curSubj.trim() ? this.setState({ closeAsk: true }) : finishCompose()),
         keepEditing: () => this.setState({ closeAsk: false, sendAsk: null }),
         discardCompose: () => { finishCompose(); this.notify("Draft discarded", false); },
-        saveDraftAndClose: () => { finishCompose(); this.notify("The message is waiting in Drafts.", { kind: "success", title: "Draft saved" }); },
-        saveDraftNow: this.writeRefused("save") ? this.noop : () => { finishCompose(); this.notify("The message is waiting in Drafts.", { kind: "success", title: "Draft saved" }); },
+        /* A time chosen under *Send later* belongs to the send, not to the draft: a draft keeps none, and saving one
+           says so, so nobody leaves a draft believing it will go out on its own. */
+        saveDraftAndClose: () => { const timed = !!st.composeSendAt; finishCompose(); this.notify("The message is waiting in Drafts." + (timed ? " The time you chose is not kept with it - choose it again when you send." : ""), { kind: "success", title: "Draft saved" }); },
+        saveDraftNow: this.writeRefused("save") ? this.noop : () => { const timed = !!st.composeSendAt; finishCompose(); this.notify("The message is waiting in Drafts." + (timed ? " The time you chose is not kept with it - choose it again when you send." : ""), { kind: "success", title: "Draft saved" }); },
         closeAskOpen: !!st.closeAsk,
         composeKeyDown: (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); askSend(); } },
         askSend: askSend,
         sendAskOpen: !!st.sendAsk,
         sendWarnings: ((st.sendAsk && st.sendAsk.warnings) || []).map(w => ({ text: w })),
         sendHasWarn: !!(st.sendAsk && st.sendAsk.warnings.length),
-        sendConfirmLabel: st.sendAsk && st.sendAsk.warnings.length ? "Send anyway" : "Send",
+        sendConfirmLabel: (st.composeSendAt ? "Schedule" : "Send") + (st.sendAsk && st.sendAsk.warnings.length ? " anyway" : ""),
+        sendAskTitle: st.composeSendAt ? "Schedule this message?" : "Send this message?",
+        sendAskGlyph: st.composeSendAt ? "schedule_send" : "send",
+        sendAskWhenShown: !!st.composeSendAt,
+        sendAskWhen: st.composeSendAt ? "Leaves " + this.sendLaterSaid(st.composeSendAt.date, st.composeSendAt.time).long + ", " + SEND_LATER.zone.id + " time" : "",
         sendSummaryTo: composeTo.length ? composeTo.join(", ") : "- no recipient -",
         sendSummarySubj: curSubj.trim() || "- no subject -",
         /* A send is handed to the account's Outbox, so the toast saying it was sent leads to its entry there, which is
-           where withdrawing it is offered for as long as it can be. */
+           where withdrawing it is offered for as long as it can be. A scheduled one is handed over the same way and
+           waits there as *Scheduled* until its time, so its toast confirms the time and leads to the same entry, where
+           *Cancel sending* stands until then. A time that passed while the message was written is refused before
+           anything is handed over: the picker opens on it, saying why. */
         confirmSend: () => {
           const to = composeTo.length ? composeTo.join(", ") : "no recipient";
-          const entry = { id: "ob" + Date.now(), stage: "waiting", at: "10:47", attempts: 0,
+          const at = st.composeSendAt;
+          const said = at ? this.sendLaterSaid(at.date, at.time) : null;
+          if (said && said.gone) { this.setState({ sendAsk: null, sendLaterAsk: { date: at.date, time: at.time } }); return; }
+          const entry = { id: "ob" + Date.now(), stage: at ? "scheduled" : "waiting", at: "10:47", attempts: 0, leaveAt: said ? said.short : undefined,
             rcpt: composeTo.map(n => ({ hdr: "To", name: n, mail: (CONTACTS.find(c => c.name === n) || { mail: n }).mail })), subject: curSubj.trim() || "(no subject)", body: [bodyTxt()] };
+          const showEntry = () => {
+            this.goScreen("mail", { mailPane: "list" });
+            this.openOutbox("acc1");
+            this.pickOutboxEntry(entry.id);
+          };
           finishCompose();
           this.setOutbox("acc1", [entry].concat(this.outboxOf("acc1")));
+          if (at) {
+            const tid = this.notify("It leaves " + said.long + ". Until then it waits in the Outbox, where it can still be cancelled.", {
+              kind: "success", title: "Message scheduled", actionLabel: "Show in Outbox", onAction: () => { this.dismissToast(tid); showEntry(); }, ms: 8000 });
+            return;
+          }
           this.notifyTask({
             title: "Sending message…",
-            body: "Do: " + to,
+            body: "To: " + to,
             cancelText: "The message is being sent. Aborting stops it here, so it is not sent.",
             doneTitle: "Message sent",
-            doneBody: "Do: " + to,
+            doneBody: "To: " + to,
             doneActionLabel: "Show in Outbox",
             doneAction: () => {
               this.goScreen("mail", { mailPane: "list" });
@@ -7798,7 +7945,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeAllInfo: "Open tabs: " + (st.closeAllAsk ? st.closeAllAsk.count : 0) + ". An unsent draft will be discarded.",
         askCloseAll: () => this.setState({ closeAllAsk: { count: tabItems.length } }),
         cancelCloseAll: () => this.setState({ closeAllAsk: false }),
-        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, replyThreadId: null, closeAllAsk: false }),
+        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, closeAllAsk: false }),
         tabItems,
         workModeLabel: tabsMode ? "Mode: tabs" : "Mode: classic",
         toggleWorkMode: () => this.setState(s => ({
@@ -7860,8 +8007,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (touch ? "min-height:44px;padding:0 10px;font-size:13px" : "padding:3px 8px;font-size:12px"),
       };
       /* What back calls for a surface whose own close does more than empty its key: asking before a draft is thrown
-         away, and closing the tab the surface stands in. */
-      this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml };
+         away, closing the tab the surface stands in, and handing focus back to what opened the picker. */
+      this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml, sendLaterAsk: this.closeSendLater };
       return vals;
     }
   }
