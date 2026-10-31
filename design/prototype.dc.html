@@ -1224,6 +1224,9 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div style="height:1px;flex:1;background:var(--line)"></div>
                 </div>
               </sc-if>
+              <sc-if value="{{ m.rptShown }}" hint-placeholder-val="{{ false }}">
+                <div data-report-line role="button" tabindex="0" aria-expanded="{{ m.rptOpen }}" onClick="{{ m.rptToggle }}" onKeyDown="{{ m.rptToggle }}" style="{{ m.rptLineStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ m.rptGlyphStyle }}">{{ m.rptGlyph }}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.rptLine }}</span><span aria-hidden="true" style="{{ m.rptChevStyle }}">{{ m.rptChev }}</span></div>
+              </sc-if>
               <sc-if value="{{ m.isMsg }}" hint-placeholder-val="{{ true }}">
                 <div data-motion="{{ m.unfoldMotion }}" data-phase="{{ m.unfoldPhase }}" style="{{ m.wrapStyle }}">
                   <div style="{{ m.headPadStyle }}">

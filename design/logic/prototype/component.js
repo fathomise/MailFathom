@@ -359,6 +359,29 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     if (asked.mdn && !r.read && r.dsn !== "failed") lines.push("No read receipt back yet.");
     return lines;
   };
+  /* A report that came back as mail (threads.js, `report`) is drawn from what it reports, never from the subject its
+     sender wrote: the headline takes that subject's place in the list and the conversation's head, and `line` is the
+     one line the conversation folds the report to until it is pressed. Several recipients take the marks' summary. */
+  const reportOf = (t) => {
+    const r = t.report;
+    const of = r.of && ((THREADS.find(x => x.id === r.of) || {}).subject || "");
+    if (r.kind === "read") return {
+      glyph: RECEIPT.read.glyph, tone: RECEIPT.read.tone,
+      headline: of ? "Read receipt: " + r.reader + " read “" + of + "”" : "Read receipt from " + r.reader + " · for a message not in this mailbox",
+      line: r.reader + " read your message · " + r.at,
+    };
+    const outs = r.to.map(x => x.outcome);
+    const k = RECEIPT_ORDER.find(x => outs.includes(x));
+    const R = RECEIPT[k];
+    const n = outs.filter(x => x === k).length;
+    const what = outs.length === 1 ? R.word + (k === "delayed" ? " for " : " to ") + r.to[0].addr : R.count(n, outs.length);
+    return {
+      glyph: R.glyph, tone: R.tone,
+      headline: of ? what + ": “" + of + "”" : "Delivery report: " + lowerFirst(what) + " · for a message not in this mailbox",
+      line: what + " · " + r.at,
+    };
+  };
+  THREADS.forEach(t => { if (t.report && !t.reportSubject) Object.assign(t, { reportSubject: t.subject, subject: reportOf(t).headline }); });
   const domainOf = (a) => (a || "").split("@")[1] || a || "";
   const pgpSig = (s) => s.format === "pgp";
   const sigVerified = (r) => {
@@ -3945,6 +3968,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (touch ? "min-height:44px;padding:0 14px;" : "min-height:32px;padding:0 13px;") + (busy ? "opacity:.7;cursor:progress;" : "") + this.writeRefusedStyle("send"),
         };
       };
+      /* A received report is folded to one line naming what it reports, in its mark's glyph and tone; a press on the
+         line unfolds the report as the ordinary message it is, and another folds it again. The one message that folds. */
+      const reportLine = (th) => {
+        if (!th.report) return { rptShown: false };
+        const rp = reportOf(th);
+        const open = !!(st.reportOpen || {})[th.id];
+        return {
+          rptShown: true, isMsg: open, rptOpen: open, rptLine: rp.line, rptGlyph: rp.glyph,
+          rptChev: open ? "expand_less" : "expand_more",
+          rptToggle: (e) => {
+            if (e && e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+            if (e && e.preventDefault) e.preventDefault();
+            this.setState(s2 => ({ reportOpen: Object.assign({}, s2.reportOpen, { [th.id]: !open }) }));
+          },
+          rptLineStyle: "flex:0 0 auto;display:flex;align-items:center;gap:10px;box-sizing:border-box;border-radius:10px;background:var(--sub);border:1px solid var(--line);color:var(--text2);outline-offset:2px;" +
+            (touch ? "min-height:48px;padding:0 6px 0 14px;font-size:14px;" : "min-height:38px;padding:0 6px 0 12px;font-size:13px;"),
+          rptGlyphStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1;color:" + RECEIPT_INK[rp.tone],
+          rptChevStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--muted);" +
+            (touch ? "width:36px;height:36px" : "width:28px;height:28px"),
+        };
+      };
       const rowAnim = st.rowAnim || {};
       const rowOut = (id) => rowAnim[id] === "out" || rowAnim[id] === "outdel" || rowAnim[id] === "outarc";
       /* the wash names the act: red for a deletion, orange for archive and move */
@@ -4040,7 +4084,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const flash = st.msgFlash === k;
         const isActive = i === activeIdx && msgs.length > 1 && !hiddenCount;
         const remoteRefs = m.remoteRefs != null ? m.remoteRefs
-          : m.mine ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
+          : m.mine || thread.report ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
         const folding = st.histFolding === thread.id;
         /* A mailbox change the server never took, on the message it was asked for, until it is asked again or let go. */
@@ -4052,6 +4096,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            a spam thread carries its own warning, as each message the client opens is warned from its own. */
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
+          ...(m.mine ? { rptShown: false } : reportLine(thread)),
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
           // What came back belongs to the newest message the account sent in the conversation.
           ...(m.mine && i === msgs.map(x => x.mine).lastIndexOf(true) ? receiptBadge(thread.id) : { rcptShown: false }),
@@ -6995,7 +7040,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            the state was derived, so the reading is held back instead of being shown out of date. */
         stateStale: !!thread.stateStale,
         stateFresh: !thread.stateStale,
-        stateInBody: stateCards && !st.stateBarOff && !thread.stateStale && !threadSpam.spam,
+        stateInBody: stateCards && !st.stateBarOff && !thread.stateStale && !threadSpam.spam && thread.state.length > 0,
         staleInBody: stateCards && !st.stateBarOff && !!thread.stateStale && !threadSpam.spam,
         threadAiLine: thread.ai || (thread.state[0] ? thread.state[0].value : ""),
         threadSheetOpen: !!st.threadSheet,
@@ -7060,7 +7105,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           style: "flex:1 1 190px;min-width:0;display:flex;flex-direction:column;gap:1px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px",
         })),
         isMobileState: singlePane,
-        mobileStateLine: singlePane && !thread.stateStale,
+        mobileStateLine: singlePane && !thread.stateStale && !!(thread.ai || thread.state.length),
         showStateCards: !singlePane && !thread.stateStale,
         stateToggleStyle: singlePane
           ? "margin-left:auto;font-size:12px;color:var(--accent-d);background:var(--accent-soft);border-radius:12px;padding:3px 10px"

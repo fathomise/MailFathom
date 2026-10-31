@@ -480,7 +480,7 @@ the passage it rests on.*, shortened to *Quoted from this message alone* on the 
 | A change whose outcome is unknown | `m.changeShown` (fate `unknown`) | the same box in `--warn` with `help`: *Flagging may not have happened* — *Moving*, *Archiving*, *Deleting*, *Marking read*, *Marking unread*, *Flagging*, *Unflagging* — over *The mail server never answered, so nobody knows whether it took the change. The message is shown as the server last reported it.*, with the same two buttons. Reached by opening the `devops1` thread, *Nightly report - build #2418* |
 | The change decided | `changeDecided` / `decideChange` | *Ask again* or *Let it go*, on the message or on its notification row: the notice goes, the durable row is marked read and loses its pills, so one failure is never shown as two. *Ask again* raises a neutral toast titled *Asked again*, *MailFathom is telling your mailbox again.*; *Let it go* does nothing else |
 | Reveal the earlier messages | `showEarlier` in the thread head | *Show N earlier messages* / *Hide earlier messages*, in the pane already open |
-| Expand every message | `showExpandAll` | **constant `false`** — the source hands the screen no per-message collapse at all, so a revealed message is drawn in full |
+| Expand every message | `showExpandAll` | **constant `false`** — the source hands the screen no per-message collapse at all, so a revealed message is drawn in full. The one exception is a report that came back as mail, folded to one line until pressed (§ *The receipt mark*, *Folded*) |
 
 ### Waiting
 
@@ -695,6 +695,23 @@ when the reader says so, once, and keeps saying afterwards that it did (`data/pr
 
 Seeded: asked of the reader by the sender, `jacek`; asked to go to an address other than the sender's,
 `marketing1`; sent earlier, `anna2`; asked by spam and never offered, `spamPayroll`.
+
+A report that comes back as mail — a read receipt (`multipart/report; report-type=disposition-notification`) or a
+delivery status notification (`report-type=delivery-status`), which a failure and a delay send unasked and a success
+only when one was requested — is drawn from what it reports, never from the subject the reader's mail app or a mail
+server wrote (`reportOf`, `threads.js` § `report`). The words are the receipt mark's, and so is the summary over
+several recipients.
+
+| State | Flag | Reveal |
+|---|---|---|
+| A report's row | `t.report` / `t.subject` | the headline takes the subject's place in the row and at the head of the conversation, in the subject's own style: *Read receipt: Marta Nowak read “CPI calculation 2027”*; *Not delivered to r.lis@northwind.example: “Quote for the reporting module”*, *Delayed for t.bak@fabrikam.example: “Q4 delivery dates”*, *Delivered to j.wrona@lawoffice.example: “Contract addendum - signatures”*; several recipients, *Not delivered to 1 of 2: “Request for the contract register”*. The message quoted is the account's own one the report names. The row draws no AI line, since a report carries nothing to read into |
+| A report naming no message here | `report.of === null` | the headline still says what kind of report it is and what it says: *Read receipt from Karol Wiśniewski · for a message not in this mailbox*, *Delivery report: not delivered to orders@old-supplier.example · for a message not in this mailbox* |
+| Folded | `m.rptShown` / `m.rptLine` / `reportOpen` | the report as opened, by default: one line in place of the whole message, `--sub` inside a `--line` border on a 10 px radius, 38 px tall under a mouse and 48 under a finger — the mark's glyph in its tone (`done_all` in `--ok-text` for a read receipt, `error`, `hourglass_top`, `done` for a delivery report), what it reports and when, *Marta Nowak read your message · 25.08 17:40*, *Not delivered to 1 of 2 · 24.08 09:13*, and `expand_more` at the end. It is a `role="button"` with `aria-expanded="false"`; a click, `Enter` or `Space` unfolds it. A head with no state draws no state strip and, on the phone, no empty AI line |
+| Unfolded | `m.rptOpen` | the line stays, its chevron turned to `expand_less` and `aria-expanded="true"`, with focus kept on it, and the report follows it written out as any message is — its sender, its time, the original's button, and its body, the human-readable part and the machine-readable fields. It loads nothing remote and offers no read receipt. Another press folds it again. This is the one message that folds: every other message is drawn in full (`showExpandAll`) |
+
+Seeded, each in the inbox under *Transfer confirmation €18,400*: a read receipt for `marta`, `mdnMarta`; one naming
+no message here, `mdnStray`; not delivered, `dsnNorth`; delayed, `dsnFabrikam`; delivered as requested,
+`dsnContoso`; several recipients, `dsnAudit`; a delivery report naming no message here, `dsnStray`.
 
 ### Composing
 
@@ -1441,7 +1458,8 @@ clicking a preview.
   the line above the foot need the composer open and a press on its `more_vert`; a draft opening with a request already
   on is reached through the out-of-step draft row in Drafts. A read receipt asked of the reader sits on messages
   further down the list, its sending state lasts a moment after the press, and its offline state needs the
-  `connection` property pinned to `offline`.
+  `connection` property pinned to `offline`. The reports that came back as mail sit below the first screen of the
+  inbox, and a report unfolds only on a press of its line.
 - **A failure raised while the client is open** (`raiseFailure`). The three failure rows start in the sample
   centre, so their toasts are raised only by the prototype's `raise` property — `send`, `change` or `draft` —
   and the rule that a tab already following a change raises none (*One failure, one voice*) has no pending-change
