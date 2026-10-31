@@ -5,6 +5,8 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.AutomaticReplies;
+using MailFathom.Application.Presence;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.AutomaticReplies;
@@ -13,16 +15,19 @@ using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Host.UnitTests.Api;
 
-public sealed class ClientAutomaticReplyEndpointTests
+public sealed class ClientAutomaticReplyEndpointTests : IAsyncDisposable
 {
     private static readonly MailAccountId Primary = MailAccountId.Create("primary");
 
     private static readonly DateTimeOffset StartsAt = new(2026, 11, 2, 8, 0, 0, TimeSpan.Zero);
+
+    private readonly ClientSignals signals = new([], new FakeTimeProvider());
 
     /// <summary>The path a client appends to the address it was configured with.</summary>
     [Fact]
@@ -73,7 +78,7 @@ public sealed class ClientAutomaticReplyEndpointTests
 
         // Act
         var result = await ClientAutomaticReplyEndpoint.SaveAsync(
-            Replies(assignments),
+            this.Replies(assignments),
             Request(),
             TestContext.Current.CancellationToken);
 
@@ -95,7 +100,7 @@ public sealed class ClientAutomaticReplyEndpointTests
 
         // Act
         var result = await ClientAutomaticReplyEndpoint.SaveAsync(
-            Replies(assignments),
+            this.Replies(assignments),
             Request(),
             TestContext.Current.CancellationToken);
 
@@ -121,7 +126,7 @@ public sealed class ClientAutomaticReplyEndpointTests
 
         // Act
         var result = await ClientAutomaticReplyEndpoint.SaveAsync(
-            Replies(assignments, store),
+            this.Replies(assignments, store),
             Request(),
             TestContext.Current.CancellationToken);
 
@@ -132,7 +137,9 @@ public sealed class ClientAutomaticReplyEndpointTests
     private static ClientAutomaticReplyRequest Request() =>
         new(OutsideText: "Away.", Accounts: ["primary"], StartsAt: StartsAt, EndsAt: StartsAt.AddDays(7));
 
-    private static OwnAutomaticReply Replies(IMailAccountAssignments assignments, IAutomaticReplyStore? store = null)
+    public ValueTask DisposeAsync() => this.signals.DisposeAsync();
+
+    private OwnAutomaticReply Replies(IMailAccountAssignments assignments, IAutomaticReplyStore? store = null)
     {
         if (store is null)
         {
@@ -148,6 +155,9 @@ public sealed class ClientAutomaticReplyEndpointTests
                 MailFathomPermission.MailSend),
             store,
             assignments,
-            Substitute.For<IAdministrativeTargets>());
+            Substitute.For<IAdministrativeTargets>(),
+            Substitute.For<IPresenceStore>(),
+            this.signals,
+            new FakeTimeProvider());
     }
 }

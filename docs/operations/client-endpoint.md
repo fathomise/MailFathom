@@ -3084,6 +3084,12 @@ period, and `on` defaults to `true`; switching a reply off early is a write with
 the reply a write replaces is answered once more under the new one, which is what a person changing their text
 expects.
 
+**A write that changes whether, or until when, the person reads as out of office tells their colleagues.** It raises
+`presence.changed` on [the signal channel](#the-signal-channel) naming the person to every member of their
+organization, themselves included, so an open directory reads them again; a write that leaves `outOfOfficeUntil` as it
+was raises nothing. A period beginning or ending on its own is announced by nobody, and reaches an open client on its
+next read of the directory.
+
 **What the body may hold is refused with `400` naming the reason**: an `outsideText` that is missing or blank, a text
 past 8000 characters, no account or more than 64, an account named twice or by nothing, a period without both ends or
 one ending before it starts, and a member the contract does not name. `insideText` is optional, and a blank one reads
@@ -4772,7 +4778,7 @@ record's already-derived text and reach a client entitled to read that record ov
 | `notification.raised` | A notification was written, with its kind, its two lines, and how many now stand unread |
 | `account.state` | An account's synchronization run finished, so what a client says about it is out of date |
 | `run.advanced` | A [Discover run](../features/discovery-run.md#a-run-is-watched-rather-than-waited-for) or an [Agent conversation](#the-agent-conversation-routes) had something written, naming the run, the conversation where it is one, and the place reached — and no part of what was written |
-| `presence.changed` | How up to 100 colleagues read to the other members of the organization may have changed, naming their user identities in `members` and nothing about them; an empty `members` names every colleague. A client re-reads them over [the contact routes](#the-contact-routes) |
+| `presence.changed` | How up to 100 colleagues read to the other members of the organization — their presence, or whether they are out of office — may have changed, naming their user identities in `members` and nothing about them; an empty `members` names every colleague. A client re-reads them over [the contact routes](#the-contact-routes) |
 | `calendar.changed` | One person's [calendar](#the-calendar-routes) was written, whoever wrote it, naming nothing of any event; it reaches that person alone |
 | `tasks.changed` | One person's [task list](#the-task-routes) was written, whoever wrote it, naming nothing of any task; it reaches that person alone |
 | `contacts.changed` | A [contact book](#the-contact-routes) was written, whoever wrote it, naming nothing of any record. One person's own book reaches that person, a mailbox's collected book reaches everybody that mailbox serves and names the account, and the organization's book reaches every member |
