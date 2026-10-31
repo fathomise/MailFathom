@@ -1054,3 +1054,7 @@ MailFathomDesign.data.conversationTitles = {
   devops1: { topic: "Nightly build #2418", standing: "" },
   rekrutacja1: { topic: "Frontend hiring", standing: "3 candidates awaiting our decision" },
 };
+
+/* How many of an unread thread's received messages arrived since it was last read, counted back from the newest. The
+   user's own messages between them are context rather than news. A thread unread but missing here has one. */
+MailFathomDesign.data.newInThread = { contoso: 2, piotr: 2, marta: 1, finanse: 1, jacek: 1 };

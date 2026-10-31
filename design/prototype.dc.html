@@ -1242,6 +1242,9 @@ Project repository: https://github.com/fathomise/MailFathom
                         <span style="flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:14px;font-weight:600;white-space:nowrap">{{ m.from }}</span>
                         <sc-if value="{{ m.markShown }}" hint-placeholder-val="{{ true }}"><span role="button" tabindex="0" data-sender-mark title="{{ m.markName }}" aria-label="{{ m.markName }}" aria-haspopup="dialog" aria-expanded="{{ m.markOpen }}" onClick="{{ m.openMark }}" onKeyDown="{{ m.openMark }}" style="{{ m.markBtnStyle }}" style-hover="cursor:pointer;opacity:0.86"><span style="{{ m.markPillStyle }}"><span aria-hidden="true" style="{{ m.markGlyphStyle }}">{{ m.markGlyph }}</span>{{ m.markWord }}</span></span></sc-if>
                         <span style="font-size:11px;color:var(--muted)">{{ m.role }}</span>
+                        <sc-if value="{{ m.newShown }}" hint-placeholder-val="{{ false }}">
+                          <span style="flex:0 0 auto;align-self:center;font-family:'Geist',system-ui,sans-serif;font-size:11px;line-height:16px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:1px 7px;white-space:nowrap">New</span>
+                        </sc-if>
                         <sc-if value="{{ m.isActive }}" hint-placeholder-val="{{ false }}">
                           <span style="flex:0 0 auto;display:flex;align-items:center;gap:4px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:6px;padding:2px 7px;white-space:nowrap;font-weight:600"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:12px;line-height:1">arrow_right</span>Opened from the list</span>
                         </sc-if>

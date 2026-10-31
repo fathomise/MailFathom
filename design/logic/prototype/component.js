@@ -7,7 +7,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     me: { name: ME, address: MY_MAIL },
     app: { version: APP_VERSION, build: APP_BUILD },
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI, organization: ORGANIZATION,
-    threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
+    threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, newInThread: NEW_IN_THREAD, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO, sendLater: SEND_LATER,
     accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
@@ -946,11 +946,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const sel = Array.isArray(this.state.sel) ? this.state.sel : [];
       if ((e && (e.ctrlKey || e.metaKey || e.shiftKey)) || sel.length) { this.toggleSelect(id); return; }
       const unread = Object.assign({}, this.state.unread || DEFAULT_UNREAD);
+      const wasUnread = !!unread[id];
       delete unread[id];
       /* Some threads have an unread message from the middle of the history —
-         we open exactly that one, not the newest. */
-      const entry = { piotr: 2 };
+         we open exactly that one, not the newest. Listed by thread, opening one reads the whole of it at once: what
+         arrived since it was last read is marked new for as long as it stays open, and never again. */
+      const convMail = !!this.state.convMail;
+      const entry = convMail ? {} : { piotr: 2 };
       const patch = Object.assign(this.leaveOutbox(), { threadId: id, mailAnswer: false, replyDock: null, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+        newOnOpen: convMail && wasUnread ? { [id]: NEW_IN_THREAD[id] || 1 } : {},
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) }, this.composeCtxPatch([id]));
       patch.msgLoading = true;
@@ -4137,10 +4141,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* The message picked from the list; the newest in the thread by default. */
       const rawActive = (st.activeMsg || {})[thread.id];
       const activeIdx = Math.max(0, Math.min(typeof rawActive === "number" ? rawActive : lastIdx, lastIdx));
-      const activeIsNewest = activeIdx === lastIdx;
-      const hiddenCount = histOpen ? 0 : lastIdx;
+      /* Opened by thread with news in it, every message from the first new one on stands open, and only what was read
+         before folds behind the pill. The user's own messages among them are shown but are not news. */
+      const newCount = convMail ? ((st.newOnOpen || {})[thread.id] || 0) : 0;
+      const firstNew = (() => {
+        if (!newCount) return null;
+        let left = newCount;
+        for (let i = lastIdx; i >= 0; i--) if (!msgs[i].mine && --left === 0) return i;
+        return 0;
+      })();
+      const shownFolded = (i) => firstNew != null ? i >= firstNew : i === activeIdx;
+      const activeIsNewest = firstNew != null || activeIdx === lastIdx;
+      const hiddenCount = histOpen ? 0 : firstNew != null ? firstNew : lastIdx;
       const items = [];
-      if (msgs.length > 1) {
+      if (msgs.length > 1 && firstNew !== 0) {
         items.push({
           isPill: true, isMsg: false, key: "pill",
           pillLabel: !hiddenCount
@@ -4159,11 +4173,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       msgs.forEach((m, i) => {
         /* A collapsed thread shows only the message picked from the list — even when it is not
            the newest; the pill then reveals both earlier and newer ones. */
-        if (hiddenCount && i !== activeIdx) return;
+        if (hiddenCount && !shownFolded(i)) return;
         const k = mKey(i);
         const open = true;
         const flash = st.msgFlash === k;
-        const isActive = i === activeIdx && msgs.length > 1 && !hiddenCount;
+        const isActive = firstNew == null && i === activeIdx && msgs.length > 1 && !hiddenCount;
+        const isNew = firstNew != null && i >= firstNew && !m.mine;
         const remoteRefs = m.remoteRefs != null ? m.remoteRefs
           : m.mine || thread.report ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
@@ -4176,7 +4191,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The sample data states a verdict per thread, which is every one of its messages' verdict, so each message of
            a spam thread carries its own warning, as each message the client opens is warned from its own. */
         items.push({
-          isMsg: true, isPill: false, key: k, isActive,
+          isMsg: true, isPill: false, key: k, isActive, newShown: isNew,
           ...(m.mine ? { rptShown: false } : reportLine(thread)),
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
           // What came back belongs to the newest message the account sent in the conversation.
@@ -4197,8 +4212,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           changeLetGo: (e) => this.decideChange(thread.id, false, e),
           changeAgainStyle: chgBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)",
           changeQuietStyle: chgBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
-          unfoldMotion: i !== activeIdx && (folding || st.histUnfolded === thread.id) ? "unfold" : "none",
-          unfoldPhase: folding && i !== activeIdx ? "out" : "in",
+          unfoldMotion: !shownFolded(i) && (folding || st.histUnfolded === thread.id) ? "unfold" : "none",
+          unfoldPhase: folding && !shownFolded(i) ? "out" : "in",
           remoteBlocked: remoteRefs > 0 && !remoteOn && !threadSpam.spam,
           remoteLoaded: remoteRefs > 0 && remoteOn && !threadSpam.spam,
           remoteCountLabel: "Removed references: " + remoteRefs,
