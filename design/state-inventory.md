@@ -782,7 +782,7 @@ a contact of the reader's holds but they did not write down (`klient3`).
 | Context changed | `composeCtxChanged` | the context differs from its starting point as a set: another message clicked, several selected, a chip removed. Two marks, never colour alone: a 22 px disc on `--warn-soft` with a 1 px `--warn` ring holding `priority_high` in `--warn-text` at the end of the AI prompt field, arriving with `pop` and named *The context changed since you started* — and, under the context row with `disclose`, *This message started from “…” - the context has changed since. Check it before the AI drafts.* in `--warn-text`, naming the starting message (and *and N more* for a selection), beside *Restore* (`undo`, 44 px tall under `touch`), which puts the starting context back. Arriving back at the starting set by any route takes both marks away |
 | The composer's foot | `composeSendStyle`, `composeAttachStyle`, `composeSaveStyle` | always; under `touch` one 44 px row — *Send* filled, *Attach* bordered and on the phone the `attach_file` symbol alone (`composeAttachLabel` is `!isMobile`), *Save draft* a text action as tall as the row |
 | A focused field | `data-compose-fields` | a field with keyboard focus — the composer's rows are one sheet rather than boxes, so the ring every other borderless field takes is not drawn: a row holding the focused field turns its bottom edge `--accent`, and the editor turns a 2 px start edge, transparent until then, `--accent` |
-| Part of the message selected | `passageBarIsDraft` (`selBar.kind === "compose"`) | text selected in the editor of a new message, a reply or a forward, whoever wrote it — the Agent's rewrite bar (*Working on one part of an answer* below): *Shorter*, *More formal*, *Softer*, *Firmer* and a field for saying how, with no *Ask about this*, because the composer has no conversation to quote into. It floats over the passage on a fine pointer and docks on the composer's foot, across its width, on touch; scrolling the editor closes the floating one |
+| Part of the message selected | `passageBarIsDraft` (`selBar.kind === "compose"`) | text selected in the editor of a new message, a reply or a forward, whoever wrote it — the small Fathom button by the selection, and on its press the Agent's rewrite bar (*Working on one part of an answer* below): *Shorter*, *More formal*, *Softer*, *Firmer* and a field for saying how, with no *Ask about this*, because the composer has no conversation to quote into. It floats over the passage on a fine pointer and docks on the composer's foot, across its width, on touch; scrolling the editor closes the floating one |
 | Being rewritten | `composeChangeBusy` | a preset or a said instruction — the whole sentences the selection touches pulse in the editor, the editor stops taking input (`composeEditable`), and the foot reads *Rewriting N passage(s)* with a turning glyph and no controls |
 | A rewrite to review | `composeHasChange` | the old sentences struck in the editor and the new ones beside them on `--accent-soft` with an accent underline; the foot holds *Keep the change*, *Try again* and *Undo* **in place of *Send*, *Attach* and *Save draft***, and Ctrl+Enter sends nothing while it waits. Under touch the three are 44 px |
 | A rewrite kept | `cChange` cleared | *Keep the change* — the new text stands as plain text and the editor takes input again; the toast carries *Undo* back to the message as it was. *Undo* in the foot leaves the message as it was, and *Try again* rewrites the same sentences under the next preset (*· another version*). Every sentence coming back the same is a toast, *The agent found nothing to change there*, and no diff |
@@ -1045,14 +1045,20 @@ versions of a document through attachments, a fact table, evidence and a task.
 
 ### Working on one part of an answer
 
-**A part is worked on where it stands.** Selecting text in the conversation opens one bar
-(`passageBarShown`, from `selBar`) whose actions follow the scope the selection sits in — each scope is a
-`data-sel` attribute in the template, and a selection that crosses two scopes opens nothing. The bar stands over
+**A part is worked on where it stands.** Selecting text in the conversation raises a small Fathom button
+(`passageFabShown`) and nothing else, so a right press on the passage still finds the system's own context menu;
+pressing the button opens one bar (`passageBarShown`, from `selBar`) whose actions follow the scope the selection sits in — each scope is a
+`data-sel` attribute in the template, and a selection that crosses two scopes raises nothing. The button is
+Fathom's own accent square with `auto_awesome` — 28 px on an 8 px radius just above where the selection ends on a fine
+pointer; under touch 44 px on a 12 px radius just below the selection's last line, 16 px beside its end handle (on the
+other side of it where the edge is too close), because the system's selection menu stands above the passage — titled
+*Fathom - rewrite this part* on a draft and *Fathom - act on the selected passage* elsewhere. Enter or Space opens the
+bar from it and Escape lets the selection go. The bar stands over
 the passage on a fine pointer, above it or below it by where the passage is, and docks above the field on touch,
 where the system's own selection menu already sits over the passage — across the field's own width, so on the fold and
-the tablet it never covers the rail or the history. The bar follows the document's selection rather than a release inside
-the conversation: a mouse opens it when the button comes up, wherever it comes up, and a finger's long press and its
-handles open it once the selection settles, with no lift to wait for. Escape and × close it, and scrolling closes the floating one.
+the tablet it never covers the rail or the history. The button follows the document's selection rather than a release inside
+the conversation: a mouse raises it when the button comes up, wherever it comes up, and a finger's long press and its
+handles raise it once the selection settles, with no lift to wait for. Escape and × close it, and scrolling closes the floating one.
 Docked, it is a tool for the selection rather than a sheet, so it takes no grabber and no pull: clearing the
 selection closes it as × does. Under a finger its chips are 36 px with 8 px between them, in one row that scrolls
 sideways on the phone and wrapping elsewhere, and *Rewrite*, *Keep in the conversation*, *Ask about this* and × are

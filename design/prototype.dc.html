@@ -4023,6 +4023,9 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </div>
   </sc-if>
+  <sc-if value="{{ passageFabShown }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="pop" data-sel-fab="1" role="button" tabIndex="0" aria-haspopup="dialog" aria-label="{{ passageFabTitle }}" title="{{ passageFabTitle }}" onMouseDown="{{ passageFabKeep }}" onClick="{{ passageFabOpen }}" onKeyDown="{{ passageFabKey }}" style="{{ passageFabStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">auto_awesome</div>
+  </sc-if>
   <sc-if value="{{ passageBarShown }}" hint-placeholder-val="{{ false }}">
     <div role="dialog" aria-label="{{ passageBarAria }}" data-motion="pop" onMouseDown="{{ passageBarKeep }}" onKeyDown="{{ passageBarKey }}" style="{{ passageBarStyle }}">
       <div style="display:flex;align-items:center;gap:8px">

@@ -2948,11 +2948,35 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const blk = startDraft ? HOME.steps[+parts[1]] : msg && (msg.blocks || [])[+parts[2]];
       if (bar.kind === "draft" && !blk) return { passageBarShown: false };
       const r = bar.rect, W = isDraft ? 440 : 400;
+      const keyer = (run) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } };
+      /* A selection first raises a small Fathom button and nothing more, so a right press still finds the system's own
+         menu over the passage: just above where the selection ends on a fine pointer, and under touch just below the
+         last line beside the end handle, since the system's selection menu stands above the passage and the handle
+         under its end. Only pressing it opens the bar. */
+      if (!bar.open) {
+        const size = touch ? 44 : 28;
+        const besideHandle = r.endRight + 16 + size <= r.width - 10 ? r.endRight + 16 : r.endRight - 16 - size;
+        const belowEnd = r.endBottom + 6 + size <= r.inputTop - 8 ? r.endBottom + 6 : r.top - size - 8;
+        const fabPos = touch
+          ? "left:" + Math.round(Math.max(10, besideHandle)) + "px;top:" + Math.round(belowEnd) + "px;"
+          : "left:" + Math.round(Math.max(12, Math.min(r.endRight - size / 2, r.width - size - 12))) + "px;top:" + Math.round(r.endTop - size - 4 < 12 ? r.bottom + 4 : r.endTop - size - 4) + "px;";
+        const open = () => this.setState(s2 => ({ selBar: s2.selBar && Object.assign({}, s2.selBar, { open: true }) }));
+        return {
+          passageBarShown: false,
+          passageFabShown: true,
+          passageFabTitle: isDraft ? "Fathom - rewrite this part" : "Fathom - act on the selected passage",
+          passageFabOpen: open,
+          passageFabKey: (e) => { if (e.key === "Escape") this.closeSelBar(); else keyer(open)(e); },
+          passageFabKeep: (e) => e.preventDefault(),
+          passageFabStyle: "position:fixed;z-index:90;" + fabPos + "width:" + size + "px;height:" + size + "px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;" +
+            "border-radius:" + (touch ? 12 : 8) + "px;color:var(--onaccent);background:var(--accent);box-shadow:0 6px 16px var(--sh-3),0 1px 3px var(--sh-2);" +
+            "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
+        };
+      }
       const above = r.top > 300;
       const pos = touch
         ? (r.inputWidth ? "left:" + Math.round(r.inputLeft) + "px;width:" + Math.round(r.inputWidth) + "px;" : "left:10px;right:10px;") + "bottom:" + Math.round(r.height - r.inputTop + 8) + "px;"
         : "width:" + W + "px;left:" + Math.round(Math.max(12, Math.min(r.left, r.width - W - 12))) + "px;" + (above ? "top:" + Math.round(r.top - 10) + "px;transform:translateY(-100%);" : "top:" + Math.round(r.bottom + 10) + "px;");
-      const keyer = (run) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } };
       const chip = "display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:999px;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:36px;padding:0 13px" : "padding:6px 11px");
       const icon = (n) => "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)";
       const act = (label, ic, run, aria) => ({ label, icon: ic, run, key: keyer(run), aria: aria || label, style: chip, iconStyle: icon() });
@@ -3509,7 +3533,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const range = sel.getRangeAt(0);
         const rr = range.getBoundingClientRect(), root = this.rootRef.current.getBoundingClientRect();
         const inp = this.agentInputRef.current;
-        const rect = { top: rr.top - root.top, bottom: rr.bottom - root.top, left: rr.left - root.left, width: root.width, height: root.height,
+        const ends = range.getClientRects(), er = ends[ends.length - 1] || rr;
+        const rect = { top: rr.top - root.top, bottom: rr.bottom - root.top, left: rr.left - root.left, endTop: er.top - root.top, endBottom: er.bottom - root.top, endRight: er.right - root.left, width: root.width, height: root.height,
           inputTop: inp ? inp.getBoundingClientRect().top - root.top : root.height - 90 };
         /* Docked under touch, the bar spans the field it sits on, so it never covers the rail or the history. */
         const box = inp && inp.parentElement ? inp.parentElement.getBoundingClientRect() : null;
@@ -3628,7 +3653,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const short = text.length > 140 ? text.slice(0, 137) + "…" : text;
       if (openOnly && cur && cur.kind === "compose" && cur.text === short) return true;
       const rr = range.getBoundingClientRect(), root = this.rootRef.current.getBoundingClientRect();
-      const rect = { top: rr.top - root.top, bottom: rr.bottom - root.top, left: rr.left - root.left, width: root.width, height: root.height, inputTop: root.height - 90 };
+      const ends = range.getClientRects(), er = ends[ends.length - 1] || rr;
+      const rect = { top: rr.top - root.top, bottom: rr.bottom - root.top, left: rr.left - root.left, endTop: er.top - root.top, endBottom: er.bottom - root.top, endRight: er.right - root.left, width: root.width, height: root.height, inputTop: root.height - 90 };
       /* Docked under touch, the bar sits on the composer's foot, across the composer's own width. */
       const foot = this.composeFootRef.current;
       if (foot) { const b = foot.getBoundingClientRect(); rect.inputTop = b.top - root.top; rect.inputLeft = b.left - root.left; rect.inputWidth = b.width; }
