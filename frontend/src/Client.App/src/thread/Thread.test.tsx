@@ -1302,4 +1302,40 @@ describe('Thread against a deployment that says what changed', () => {
         await act(() => Promise.resolve());
         expect(screen.getByText('The whole of what two says.')).toBeDefined();
     });
+
+    it('keeps what it drew when reading it again fails', async () => {
+        // Arrange
+        theColumnStandsBesideTheList();
+        const signalling = deploymentSaying();
+        const deployment = deploymentDerivingLater();
+        deployment.derive();
+        let failing = false;
+        const failingOnceDrawn: MailFathomTransport = (request) => {
+            if (!failing) {
+                return deployment.transport(request);
+            }
+
+            asked.push(request);
+
+            return Promise.resolve({ status: 503, body: '', headers: {} });
+        };
+        drawingSaid(failingOnceDrawn, signalling.changes);
+        await screen.findByText('The response time stays at two hours.');
+        await screen.findByText('The whole of what two says.');
+
+        // Act
+        failing = true;
+        act(() => {
+            signalling.say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['one'] });
+        });
+        await waitFor(() => {
+            expect(pagesAsked()).toBe(2);
+            expect(statesAsked()).toBe(2);
+        });
+        await act(() => Promise.resolve());
+
+        // Assert
+        expect(screen.getByText('The response time stays at two hours.')).toBeDefined();
+        expect(screen.getByText('The whole of what two says.')).toBeDefined();
+    });
 });

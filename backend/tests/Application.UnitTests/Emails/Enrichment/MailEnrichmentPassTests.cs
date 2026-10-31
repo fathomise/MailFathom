@@ -198,6 +198,33 @@ public sealed class MailEnrichmentPassTests
         Assert.Equal([first.StoredEmailId], Assert.Single(channel.Published).Emails);
     }
 
+    /// <summary>A pass that fails part-way through still says what it committed before the failure, which travels on unchanged.</summary>
+    [Fact]
+    public async Task RunAsync_ThePassFailingHalfWayThrough_SignalsWhatItCommittedAndRethrows()
+    {
+        // Arrange
+        var first = Enrichable();
+        var second = Enrichable();
+        var clock = new FakeTimeProvider(DerivedAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var pass = CreatePass(
+            StoreReturning([first, second]),
+            EnricherAnswering(email => email.StoredEmailId == first.StoredEmailId
+                ? EmailEnrichmentDerivation.Settled([])
+                : throw new InvalidOperationException("The derivation failed.")),
+            signals: signals);
+
+        // Act
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => pass.RunAsync(Account, TestContext.Current.CancellationToken));
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal([first.StoredEmailId], Assert.Single(channel.Published).Emails);
+    }
+
     /// <summary>A pass that committed nothing — none awaiting, or the first derivation withheld — has nothing to tell anybody.</summary>
     [Theory]
     [InlineData(false)]

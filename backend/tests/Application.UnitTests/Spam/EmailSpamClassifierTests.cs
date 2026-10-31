@@ -256,21 +256,26 @@ public sealed class EmailSpamClassifierTests
 
     /// <summary>A rescoring is said where it changed what a client would draw, and only there.</summary>
     [Theory]
-    [InlineData(SpamVerdict.NotSpam, true)]
-    [InlineData(SpamVerdict.Spam, false)]
+    [InlineData(SpamVerdict.NotSpam, null, true)]
+    [InlineData(SpamVerdict.Spam, SpamSubcategory.Marketing, true)]
+    [InlineData(SpamVerdict.Spam, null, false)]
     public async Task ClassifyAsync_ARescoringOfASettledMessage_SignalsOnlyAVerdictThatMoved(
         SpamVerdict recordedBefore,
+        SpamSubcategory? subcategoryBefore,
         bool signalled)
     {
         // Arrange
-        this.store.Hold(Recorded(recordedBefore));
+        this.store.Hold(Recorded(recordedBefore, subcategoryBefore));
         var email = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true);
 
         // Act
         var published = await this.SignalledWhenClassifyingAsync(email, SpamClassificationMode.Reclassify);
 
         // Assert
-        Assert.Equal(SpamVerdict.Spam, Assert.Single(this.store.Saved).Verdict);
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamVerdict.Spam, saved.Verdict);
+        Assert.Null(saved.Subcategory);
         Assert.Equal(signalled, published.Count == 1);
     }
 
@@ -755,14 +760,23 @@ public sealed class EmailSpamClassifierTests
         return new StoredEmailContent(rawMime, rawMime.Length, SHA256.HashData(rawMime));
     }
 
-    private static SpamClassification Recorded(SpamVerdict verdict) => SpamClassification.Create(
-        Occurrence,
-        verdict,
-        SpamClassificationStage.Deterministic,
-        assessment: null,
-        SpamClassificationProfile.Create(),
-        [],
-        EvaluatedAt.AddDays(-1));
+    /// <summary>A record made a day earlier; one naming a subcategory carries the model judgement only that could name it.</summary>
+    private static SpamClassification Recorded(SpamVerdict verdict, SpamSubcategory? subcategory = null) =>
+        SpamClassification.Create(
+            Occurrence,
+            verdict,
+            SpamClassificationStage.Deterministic,
+            assessment: null,
+            SpamClassificationProfile.Create(),
+            subcategory is null
+                ? []
+                : [SpamSignal.Create(
+                    SpamSignalKind.ModelJudgement,
+                    "spam_kind",
+                    "marketing",
+                    SpamSignalProvenance.FromModel("example-provider/spam-model", "0123456789ab"))],
+            EvaluatedAt.AddDays(-1),
+            subcategory);
 
     /// <summary>Builds the classifier over one mailbox's settings, every other mailbox classifying nothing.</summary>
     /// <param name="settings">What the classified mailbox asked for.</param>
