@@ -190,6 +190,26 @@ public sealed class AutomaticReplyResponderTests
     }
 
     /// <summary>
+    /// History a synchronization stores during the period settles like anything new, so what tells it apart is when
+    /// the mailbox received it: mail received before the period started is not answered, and neither is undated mail.
+    /// </summary>
+    [Fact]
+    public async Task AnswerAsync_MailReceivedBeforeThePeriodStarted_WritesNothing()
+    {
+        // Arrange
+        var world = new AutomaticReplyWorld();
+        await world.AnswerAsync();
+        var backfilled = world.Arrive("anna@example.test", receivedAt: AutomaticReplyWorld.Now.AddYears(-2));
+
+        // Act
+        var answered = await world.RespondAsync(backfilled);
+
+        // Assert
+        Assert.Equal(0, answered);
+        Assert.Empty(world.Composed);
+    }
+
+    /// <summary>
     /// A signature proves the <c>From</c> address and nothing a <c>Reply-To</c> names, so a colleague's message asking
     /// to be answered elsewhere is answered there with the text for everybody else.
     /// </summary>

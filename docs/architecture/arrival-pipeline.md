@@ -221,8 +221,9 @@ messages one run settled, and the arrival notification is raised for those of th
 
 The [automatic reply](../features/automatic-reply.md) answers on settlement as well, after the announcement and only
 for the messages the run itself settled, so a message a competing replica settled first is not answered from here a
-second time. It answers what settled in the inbox — or was filed out of it by a rule — whether or not it was already
-read, and never what settled as junk, in the trash, or tombstoned. Like the announcement it is not durable: a message
+second time. It answers what settled in the inbox — or was filed out of it by a rule — and was received since the
+reply's period started, whether or not it was already read, and never what settled as junk, in the trash, or
+tombstoned. The received date rather than the read flag is what keeps a backfill of history unanswered. Like the announcement it is not durable: a message
 the reply could not be queued for is not answered later. Everything stored already settled is never answered, which is
 also why nothing a held account files locally and nothing a restore appends ever is.
 

@@ -126,11 +126,13 @@ internal sealed class AutomaticReplyWorld
         EmailAutomation automation = EmailAutomation.None,
         bool hasNullReturnPath = false,
         SenderTrustSource trustedBy = SenderTrustSource.None,
-        string? replyTo = null)
+        string? replyTo = null,
+        DateTimeOffset? receivedAt = null)
     {
         var id = StoredEmailId.Create(Guid.CreateVersion7());
 
         this.Summaries.With(SyntheticEmailSummaries.Create(
+            receivedAt: receivedAt ?? this.Clock.GetUtcNow(),
             storedEmailId: id.Value,
             accountId: Account.Value,
             senderVerification: SenderVerificationGrantedBy(trustedBy)));

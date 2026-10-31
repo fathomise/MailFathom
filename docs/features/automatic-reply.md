@@ -42,8 +42,12 @@ whenever mail arrives, so an account shared after the save stops answering witho
 
 An arrival is answered when its account's one assigned user has a reply switched on whose period contains the
 instant it settles, and when it settled where the person reads new mail: in the inbox, or filed out of it by a
-[rule](mail-rules.md), and not as junk, in the trash, or already gone from the server. Mail already read on another
-client is answered as well, since being read elsewhere says nothing about whether the person is there.
+[rule](mail-rules.md), and not as junk, in the trash, or already gone from the server. **Only mail the mailbox received
+since the period started is answered**, by the date its own server recorded on the last `Received` hop: a mailbox's
+first synchronization, or one after its folders were renumbered, stores years of history that settles during the
+period like anything new, and none of it is answered — nor is a message carrying no such date. Mail that did arrive
+during the period is answered even if it was already read on another client, since being read elsewhere says nothing
+about whether the person is there.
 
 **Nothing that would start a loop is answered**, which is what [RFC 3834](https://www.rfc-editor.org/rfc/rfc3834)
 asks of an automatic responder. An arrival is left unanswered when:

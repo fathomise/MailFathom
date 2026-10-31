@@ -114,7 +114,8 @@ public sealed record SettlingEmail(
     /// </returns>
     /// <remarks>
     /// Whether the message was read does not matter here: another client having opened it first says nothing about
-    /// whether the sender should be told the user is away.
+    /// whether the sender should be told the user is away. What keeps a backfill of read history unanswered is the
+    /// responder's own test of when the message was received, not this one.
     /// </remarks>
     public bool IsAnswerable() =>
         !this.IsTombstoned

@@ -11,6 +11,7 @@ using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.AutomaticReplies;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
@@ -39,6 +40,11 @@ namespace MailFathom.Application.AutomaticReplies;
 /// It reads no custody phase, because nothing about it differs by phase: every phase stores new mail by
 /// synchronization and settles it through the same pass, and every phase sends through the account's outbox. A message
 /// a held account files locally or a restore appends back is stored already settled, so it never reaches this.
+/// </para>
+/// <para>
+/// Only mail the mailbox received since the period started is answered, by the date its last receiving hop recorded:
+/// a backfill or a resynchronization settles old mail during the period too, and answering it would write to every
+/// correspondent of years of history.
 /// </para>
 /// <para>
 /// The claim is taken before the reply is written down and the two are not one transaction, so a failure between them
@@ -104,6 +110,7 @@ public sealed class AutomaticReplyResponder(
         CancellationToken cancellationToken)
     {
         if (await summaries.FindAsync(arrival, cancellationToken) is not { ContentAvailability: StoredEmailContentAvailability.Available } summary
+            || !ReachedTheMailboxDuring(held.Reply, summary.ReceivedAt)
             || await this.ReadEnvelopeAsync(arrival, cancellationToken) is not { } envelope
             || !envelope.TryReadAnswerable(ownAddress, out var target))
         {
@@ -135,6 +142,16 @@ public sealed class AutomaticReplyResponder(
 
         return await this.WriteDownAsync(composed, cancellationToken);
     }
+
+    /// <summary>Answers whether the message reached the mailbox after the reply started, rather than being history a synchronization only now stored.</summary>
+    /// <remarks>
+    /// Settling now says nothing about when a message arrived: a mailbox's first runs, and a resynchronization after its
+    /// folders were renumbered, store years of read mail that settles during the period like anything new. The last
+    /// receiving hop is the mailbox's own server, so its date is what tells the two apart, and mail carrying none is
+    /// not answered because nothing says it is new.
+    /// </remarks>
+    private static bool ReachedTheMailboxDuring(AutomaticReply reply, DateTimeOffset? receivedAt) =>
+        receivedAt is { } received && received >= reply.StartsAt;
 
     private async Task<ArrivedMailEnvelope?> ReadEnvelopeAsync(StoredEmailId arrival, CancellationToken cancellationToken)
     {
