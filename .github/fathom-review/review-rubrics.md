@@ -430,6 +430,11 @@ translating those answers, so read it rather than reasoning from the service's:
   content is that a file was not touched is a defect in the review.
 - A defect in code, documentation, or tests this change does not touch. You are reading
   the repository to judge this change, not auditing it.
+- Anything under `design/` outside the short list `design/AGENTS.md` § *Fast, and working is
+  enough* names. An artboard is a prototype the client is built from, not the client: "The
+  screen a person uses" is read onto it only for what it draws, never for its keyboard paths,
+  focus placement, focus traps, ARIA roles, or state resets, and a P3 polish item there is
+  not reported at all.
 - A rubric item the change does not reach. The lists above say where to look; a finding
   exists because the code is wrong, never because a category went unmentioned.
 - Anything that would quote a credential, a token, message content, or raw MIME.

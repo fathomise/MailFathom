@@ -6,12 +6,13 @@ either.
 
 ## Skills
 
-**A design change is drawn with the taste skills vendored under `.agents/skills/`, never from a session's own
-defaults.**
+**A new screen or a new direction is drawn with the taste skills vendored under `.agents/skills/`, never from a
+session's own defaults. A change that extends what is already drawn follows the artboards and opens none of them.**
 
-- Open with `$read-design`, then the taste skills: `design-taste-frontend` by default, `redesign-existing-projects` when
-  reworking a screen that exists, `high-end-visual-design` for the detail of a surface, and the image-generation ones to
-  explore a direction before anything is drawn.
+- Open with `$read-design`. For a new screen or a new direction, then the taste skills: `design-taste-frontend` by
+  default, `redesign-existing-projects` when reworking a screen that exists, `high-end-visual-design` for the detail of
+  a surface, and the image-generation ones to explore a direction before anything is drawn. One skill is enough; open a
+  second only for what the first left undecided.
 - The design already drawn outranks a skill. A skill settles what the artboards have not decided, and its advice on
   frameworks, libraries, and builds is not followed: an artboard takes no dependency.
 - Draw only what the client can ship under `frontend/src/AGENTS.md`.
@@ -47,17 +48,25 @@ for a pointer resting on something is missing from every phone, fold and tablet 
   and a menu, or a name and a swipe, at once.
 - An action no glyph names keeps its words where the strip has room for them, and *Select all* keeps them everywhere.
 
-## Fast, in balance
+## Fast, and working is enough
 
-**The design is authored fast.** Nothing here ships, so what counts is how soon a screen can be looked at and judged,
-and an artboard's code is the means to that rather than a deliverable.
+**The design is authored fast, and an artboard's code only has to work.** Nothing here ships, so what counts is how
+soon a screen can be looked at and judged, and the code is the means to that rather than a deliverable. Working means
+the page boots, every state the change draws is reachable by the press the inventory names, and the screens beside it
+still work.
 
 - **Not owed:** the stacks' rules for structure, naming, and logic, deduplication, error and edge-case handling, unit
-  tests, or tidying on the way past.
-- **Still owed:** the screen itself at the full bar, a page that boots with every inventoried state reachable under the
-  inventory's name, the split into template, styles, logic, and data, and everything `README.md` asks of a change.
+  tests, or tidying on the way past — and the interaction mechanics the client is held to under
+  `frontend/src/AGENTS.md`: keyboard paths, focus placement and return, focus traps, ARIA roles and semantics, and
+  resetting state on every path that closes a surface. The design says what a screen shows and what a press reveals;
+  how a keyboard or a screen reader reaches it is the client's to build.
+- **Still owed:** the screen itself — layout, type, colour, copy, and every state the change adds — the touch and hover
+  rules above, the split into template, styles, logic, and data, and everything `README.md` asks of a change.
 - **The balance:** could the next session find what to change within a minute and change it without breaking the
   screen beside it? If so the code is good enough; if not, tidy as far as that and no further.
 
-A review reads a change here against this bar: what the page shows and what it owes is a finding, how its code is
-structured is not.
+**A review reports only what breaks this bar**: a screen or state the issue asks for that is missing or drawn wrong, a
+state that cannot be reached, a page that does not boot or a screen beside it the change broke, a fact only a hover
+shows or a touch target under the inventory's size, sample data that is not made up, a missing licensing header, and
+`state-inventory.md` or `parity.json` out of step with the artboard. Nothing else under `design/` is a finding — not
+how its code is structured, not the mechanics listed above, and not polish such as a neighbouring colour token.
