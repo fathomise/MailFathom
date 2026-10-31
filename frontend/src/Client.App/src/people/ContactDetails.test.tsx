@@ -20,6 +20,7 @@ const anna: Contact = {
         { number: '+1 (202) 555-01.78', label: 'Work' },
     ],
     origin: 'Asserted',
+    book: 'Own',
     recordedAt: '2026-08-31T09:41:00+00:00',
     amendedAt: '2026-08-31T09:41:00+00:00',
     photo: null,
@@ -85,7 +86,7 @@ describe('ContactDetails', () => {
 
     // Nothing collected from mail headers carries a number, so the absence is not a gap worth reporting.
     it('says nothing about phones for a contact a mailbox collected', () => {
-        drawDetails({ ...anna, origin: 'Collected', phoneNumbers: [] });
+        drawDetails({ ...anna, origin: 'Collected', book: 'Collected', phoneNumbers: [] });
 
         expect(screen.queryByText('No phone numbers')).toBeNull();
     });

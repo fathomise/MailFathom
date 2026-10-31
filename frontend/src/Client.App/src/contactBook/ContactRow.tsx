@@ -3,13 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { PointerEvent } from 'react';
-import type { Contact } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { useContactPhoto } from './contactPhotos';
 import { OrganizationChip } from './OrganizationChip';
+import type { Person } from './useContactBook';
 
 // One person on the list, which is its own component for the reason a message row is: it is what carries the press,
 // the keyboard path, and a test.
@@ -22,10 +22,17 @@ import { OrganizationChip } from './OrganizationChip';
 // the book is drawn through is arithmetic over one height, and a row that grew with a long name would put every row
 // below it somewhere other than where the list drew the space for it.
 //
-// What it draws is the record and nothing derived: the name the book holds and the address to write to. The design
-// draws a company and a last-contact date beside them, and this deployment's contact record carries neither —
-// which is a correction owed to the design rather than a field to invent here. A contact the reader's organization keeps
-// carries the chip naming it at the end of the address line, which is how the design tells it from one of their own.
+// What it draws is the record and nothing derived: the name the book holds and the address to write to — for a
+// colleague, the title their administrator gave them, which is what the directory knows them by, and the address
+// where it gives none. The design draws a company and a last-contact date beside them, and this deployment's contact
+// record carries neither — which is a correction owed to the design rather than a field to invent here. A contact the
+// reader's organization keeps carries the chip naming it at the end of the line, which is how the design tells it from
+// one of their own.
+
+// The line under the name.
+function lineOf(person: Person): string | null {
+    return person.book === 'Member' ? (person.jobTitle ?? person.preferredAddress) : person.preferredAddress;
+}
 
 export function ContactRow({
     contact,
@@ -40,7 +47,7 @@ export function ContactRow({
     onPoint,
     onElement,
 }: {
-    readonly contact: Contact;
+    readonly contact: Person;
 
     /** The name the reader's organization is shown by, or `null` where the session answered none. */
     readonly organizationName: string | null;
@@ -72,6 +79,7 @@ export function ContactRow({
 }) {
     const press = useRowPress(onPress);
     const picture = useContactPhoto(contact);
+    const line = lineOf(contact);
 
     return (
         <li
@@ -141,10 +149,10 @@ export function ContactRow({
             <span className="flex min-w-0 flex-1 flex-col gap-0.75">
                 <span className="truncate text-base font-semibold">{contact.displayName}</span>
                 <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-sm text-muted">{contact.preferredAddress}</span>
-                    {contact.organization === null ? null : (
+                    {line === null ? null : <span className="truncate text-sm text-muted">{line}</span>}
+                    {contact.book === 'Organization' ? (
                         <OrganizationChip organizationName={organizationName} place="row" />
-                    )}
+                    ) : null}
                 </span>
             </span>
         </li>

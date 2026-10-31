@@ -792,6 +792,10 @@ export class FakeDeployment {
                 return answering(calendar.calendarDescriptionsRead);
             case 'GET /contacts':
                 return answering(contactPage(this.ownBook(), request.query));
+            // The organization the person signed in belongs to lists nobody in its directory here, which keeps every
+            // journey about the reader's own book and the contact the organization keeps in it.
+            case 'GET /contacts/colleagues':
+                return answering(contacts.emptyContactPage);
             case 'GET /contacts/collected':
                 return answering(
                     contactPage(

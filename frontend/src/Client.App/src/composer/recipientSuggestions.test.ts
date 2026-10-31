@@ -4,14 +4,20 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
-import { mostSuggestions, searchContacts, suggestionsFor } from './recipientSuggestions';
+import { searchContacts, suggestionsFor, type ContactLookup } from './recipientSuggestions';
+
+// Everybody a lookup offers, in the order the list draws them.
+function everybodyIn(found: ContactLookup): readonly unknown[] {
+    return found.groups.flatMap((group) => group.suggestions);
+}
 
 const session: ClientSession = {
     baseAddress: 'https://mail.example.invalid',
     authorization: 'Basic dGVzdA==',
 };
 
-// Both halves of the book answer with the one person, which is what the deployment does for somebody held in both.
+// Both of the reader's books answer with the one person, which is what the deployment does for somebody held in both,
+// and the directory with nobody, which is what it answers a reader in no organization.
 function answering(addresses: readonly string[], preferredAddress: string): MailFathomTransport {
     const body = JSON.stringify({
         contacts: [
@@ -23,6 +29,7 @@ function answering(addresses: readonly string[], preferredAddress: string): Mail
                 note: null,
                 phoneNumbers: [],
                 origin: 'Asserted',
+                book: 'Own',
                 recordedAt: '2026-03-01T08:00:00+00:00',
                 amendedAt: '2026-03-01T08:00:00+00:00',
                 photo: null,
@@ -32,7 +39,48 @@ function answering(addresses: readonly string[], preferredAddress: string): Mail
         nextCursor: null,
     });
 
-    return () => Promise.resolve({ status: 200, body, headers: {} });
+    return (request) =>
+        Promise.resolve({
+            status: 200,
+            body: request.path.includes('/contacts/colleagues') ? JSON.stringify({ contacts: [], nextCursor: null }) : body,
+            headers: {},
+        });
+}
+
+function contactCalled(id: string, displayName: string, book: string): unknown {
+    return {
+        id,
+        displayName,
+        addresses: [`${id}@nordwind.example`],
+        preferredAddress: `${id}@nordwind.example`,
+        note: null,
+        phoneNumbers: [],
+        origin: book === 'Collected' ? 'Collected' : 'Asserted',
+        book,
+        organization: book === 'Organization' ? '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' : null,
+        recordedAt: '2026-03-01T08:00:00+00:00',
+        amendedAt: '2026-03-01T08:00:00+00:00',
+        photo: null,
+    };
+}
+
+function colleagueCalled(id: string, displayName: string, addresses = [`${id}@nordwind.example`]): unknown {
+    return {
+        id,
+        book: 'Member',
+        displayName,
+        addresses,
+        preferredAddress: addresses[0] ?? null,
+        phoneNumbers: [],
+        jobTitle: null,
+        organizationName: 'Nordwind',
+        timeZone: null,
+        photo: null,
+    };
+}
+
+function page(contacts: readonly unknown[]): string {
+    return JSON.stringify({ contacts, nextCursor: null });
 }
 
 describe('searchContacts', () => {
@@ -43,13 +91,11 @@ describe('searchContacts', () => {
             'work',
         );
 
-        expect(found).toEqual({
-            incomplete: false,
-            suggestions: [
-                { address: 'a.kowalska@work.example.invalid', name: 'Anna Kowalska' },
-                { address: 'a.kowalska@work.example.invalid', name: 'Anna Kowalska' },
-            ],
-        });
+        expect(found.incomplete).toBe(false);
+        expect(everybodyIn(found)).toStrictEqual([
+            { address: 'a.kowalska@work.example.invalid', name: 'Anna Kowalska' },
+            { address: 'a.kowalska@work.example.invalid', name: 'Anna Kowalska' },
+        ]);
     });
 
     it('offers somebody found by their name at the address they prefer', async () => {
@@ -59,7 +105,7 @@ describe('searchContacts', () => {
             'Anna K',
         );
 
-        expect(found).toMatchObject({ incomplete: false, suggestions: [{ address: 'anna@example.invalid' }, {}] });
+        expect(everybodyIn(found)).toMatchObject([{ address: 'anna@example.invalid' }, {}]);
     });
 
     it.each([
@@ -76,18 +122,120 @@ describe('searchContacts', () => {
 
         const found = await searchContacts(session, transport, 'anna');
 
-        expect(found).toEqual({ incomplete, suggestions: [] });
+        expect(found.incomplete).toBe(incomplete);
+        expect(everybodyIn(found)).toStrictEqual([]);
+    });
+});
+
+describe('searchContacts across the directory', () => {
+    // The design's groups: the organization's members, then the contacts it keeps, then the reader's own, with what
+    // their mail collected after the reader's own in that last group.
+    it('offers colleagues, the organization\'s contacts, and the reader\'s own with the collected, each under its group', async () => {
+        const transport: MailFathomTransport = (request) => {
+            const body = request.path.includes('/contacts/colleagues')
+                ? page([colleagueCalled('piotr', 'Piotr Zieliński')])
+                : request.path.includes('/contacts/collected')
+                  ? page([contactCalled('celina', 'Celina Wrona', 'Collected')])
+                  : page([contactCalled('anna', 'Anna Kowalska', 'Own'), contactCalled('globe', 'Globe Travel', 'Organization')]);
+
+            return Promise.resolve({ status: 200, body, headers: {} });
+        };
+
+        const found = await searchContacts(session, transport, 'example');
+
+        expect(found.groups.map((group) => [group.name, group.suggestions.map((suggestion) => suggestion.name)])).toEqual([
+            ['colleagues', ['Piotr Zieliński']],
+            ['organization', ['Globe Travel']],
+            ['own', ['Anna Kowalska', 'Celina Wrona']],
+        ]);
+        expect(found.incomplete).toBe(false);
+    });
+
+    it('asks the directory for the term being typed', async () => {
+        const asked: string[] = [];
+        const transport: MailFathomTransport = (request) => {
+            asked.push(request.path);
+
+            return Promise.resolve({ status: 200, body: page([]), headers: {} });
+        };
+
+        await searchContacts(session, transport, 'piotr');
+
+        expect(asked).toContain('https://mail.example.invalid/api/client/contacts/colleagues?pageSize=6&search=piotr');
+    });
+
+    it('asks each route for the three a group lists while nothing is typed', async () => {
+        const asked: string[] = [];
+        const transport: MailFathomTransport = (request) => {
+            asked.push(request.path);
+
+            return Promise.resolve({ status: 200, body: page([]), headers: {} });
+        };
+
+        await searchContacts(session, transport, '');
+
+        expect(asked).toStrictEqual([
+            'https://mail.example.invalid/api/client/contacts?pageSize=6',
+            'https://mail.example.invalid/api/client/contacts/colleagues?pageSize=3',
+            'https://mail.example.invalid/api/client/contacts/collected?pageSize=3',
+        ]);
+    });
+
+    it('offers nobody for a colleague who holds no address to write to', async () => {
+        const transport: MailFathomTransport = (request) =>
+            Promise.resolve({
+                status: 200,
+                body: request.path.includes('/contacts/colleagues')
+                    ? page([colleagueCalled('igor', 'Igor Pawlak', [])])
+                    : page([]),
+                headers: {},
+            });
+
+        const found = await searchContacts(session, transport, 'Igor');
+
+        expect(everybodyIn(found)).toStrictEqual([]);
+    });
+
+    it('says the directory went unread where it failed', async () => {
+        const transport: MailFathomTransport = (request) =>
+            Promise.resolve({
+                status: request.path.includes('/contacts/colleagues') ? 503 : 200,
+                body: request.path.includes('/contacts/colleagues') ? '' : page([]),
+                headers: {},
+            });
+
+        const found = await searchContacts(session, transport, 'anna');
+
+        expect(found.incomplete).toBe(true);
     });
 });
 
 describe('suggestionsFor', () => {
-    it('lists no more than a glance takes in', () => {
-        const many = Array.from({ length: mostSuggestions + 4 }, (_, at) => ({
-            address: `reader${at.toFixed(0)}@example.invalid`,
-            name: null,
-        }));
+    const many = (prefix: string) =>
+        Array.from({ length: 8 }, (_, at) => ({ address: `${prefix}${at.toFixed(0)}@example.invalid`, name: null }));
 
-        expect(suggestionsFor('reader', many, [], [])).toHaveLength(mostSuggestions);
+    it('lists six a group once something is typed, and three while nothing is', () => {
+        const book = [
+            { name: 'colleagues' as const, suggestions: many('colleague') },
+            { name: 'own' as const, suggestions: many('reader') },
+        ];
+
+        expect(suggestionsFor('example', [], book, []).groups.map((group) => group.suggestions.length)).toEqual([6, 6]);
+        expect(suggestionsFor('', [], book, []).groups.map((group) => group.suggestions.length)).toEqual([3, 3]);
+    });
+
+    it('leaves out a group nobody in it matches', () => {
+        const offered = suggestionsFor(
+            'anna',
+            [],
+            [
+                { name: 'colleagues', suggestions: [{ address: 'piotr@example.invalid', name: 'Piotr' }] },
+                { name: 'own', suggestions: [{ address: 'anna@example.invalid', name: 'Anna' }] },
+            ],
+            [],
+        );
+
+        expect(offered.groups.map((group) => group.name)).toEqual(['own']);
     });
 
     it('lists one person once, however many places they were found in', () => {
@@ -95,12 +243,15 @@ describe('suggestionsFor', () => {
             'anna',
             [{ address: 'anna@example.invalid', name: 'Anna' }],
             [
-                { address: 'ANNA@example.invalid', name: 'Anna Kowalska' },
-                { address: 'ANNA@example.invalid', name: 'Anna Kowalska' },
+                { name: 'colleagues', suggestions: [{ address: 'ANNA@example.invalid', name: 'Anna Kowalska' }] },
+                { name: 'own', suggestions: [{ address: 'ANNA@example.invalid', name: 'Anna Kowalska' }] },
             ],
             [],
         );
 
-        expect(offered).toStrictEqual([{ address: 'anna@example.invalid', name: 'Anna' }]);
+        expect(offered).toStrictEqual({
+            participants: [{ address: 'anna@example.invalid', name: 'Anna' }],
+            groups: [],
+        });
     });
 });

@@ -1598,6 +1598,9 @@ export function App({
                                                                                                                     deploymentSession.organizationName ??
                                                                                                                     null
                                                                                                                 }
+                                                                                                                inOrganization={
+                                                                                                                    deploymentSession.organization !== null
+                                                                                                                }
                                                                                                                 onOpenThread={(
                                                                                                                     thread,
                                                                                                                 ) => {
@@ -1781,6 +1784,10 @@ export function App({
                                                                                                                 }
                                                                                                                 showsOutbox={
                                                                                                                     readsMail
+                                                                                                                }
+                                                                                                                organizationName={
+                                                                                                                    deploymentSession?.organizationName ??
+                                                                                                                    null
                                                                                                                 }
                                                                                                                 inFront={
                                                                                                                     space ===

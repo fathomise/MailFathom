@@ -4,12 +4,12 @@
 
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { Contact } from '@mailfathom/client-backend';
+import type { Colleague, Contact } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
 import { swipeDistance } from '../controls/swipeAcross';
 import { LocalizationProvider } from '../localization/Localization';
 import { ContactBook } from './ContactBook';
-import type { ContactBookInForce, ContactBookName } from './useContactBook';
+import type { ContactBookInForce, ContactBookName, Person } from './useContactBook';
 
 function personCalled(id: string, displayName: string): Contact {
     return {
@@ -20,6 +20,7 @@ function personCalled(id: string, displayName: string): Contact {
         note: null,
         phoneNumbers: [],
         origin: 'Asserted',
+        book: 'Own',
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
@@ -36,6 +37,19 @@ function swipeLeftAcross(surface: Element): void {
 
 const anna = personCalled('anna', 'Anna Kowalska');
 const bartek = personCalled('bartek', 'Bartek Nowak');
+
+const piotr: Colleague = {
+    id: 'piotr',
+    book: 'Member',
+    displayName: 'Piotr Zieliński',
+    addresses: ['p.zielinski@nordwind.example'],
+    preferredAddress: 'p.zielinski@nordwind.example',
+    phoneNumbers: [],
+    jobTitle: 'Head of Delivery',
+    organizationName: 'Nordwind',
+    timeZone: 'Europe/Warsaw',
+    photo: null,
+};
 
 const nothingRead: ContactBookInForce = {
     contacts: [],
@@ -56,6 +70,7 @@ const notWriting: Composing = {
 };
 
 function drawBook({
+    books = ['own', 'collected'],
     book = 'own',
     reading = { ...nothingRead, contacts: [anna, bartek] },
     opened = null,
@@ -66,13 +81,14 @@ function drawBook({
     onSelected = vi.fn(),
     onAskErasure = vi.fn(),
 }: {
+    books?: readonly ContactBookName[];
     book?: ContactBookName;
     reading?: ContactBookInForce;
     opened?: string | null;
     selected?: readonly string[];
     erasable?: boolean;
     onBook?: (book: ContactBookName) => void;
-    onOpen?: (contact: Contact) => void;
+    onOpen?: (contact: Person) => void;
     onSelected?: (selected: readonly string[]) => void;
     onAskErasure?: (contacts: readonly Contact[]) => void;
 } = {}): void {
@@ -80,6 +96,7 @@ function drawBook({
         <LocalizationProvider>
             <ComposingContext value={notWriting}>
                 <ContactBook
+                    books={books}
                     book={book}
                     reading={reading}
                     organizationName={null}
@@ -117,6 +134,39 @@ describe('ContactBook', () => {
 
         expect(screen.getByRole('radio', { name: 'Own', checked: false })).toBeDefined();
         expect(screen.getByRole('radio', { name: 'Collected', checked: true })).toBeDefined();
+    });
+
+    it('stands Colleagues between the two books for a reader in an organization', () => {
+        drawBook({ books: ['own', 'colleagues', 'collected'], book: 'colleagues' });
+
+        expect(screen.getAllByRole('radio').map((segment) => segment.getAttribute('value'))).toEqual([
+            'own',
+            'colleagues',
+            'collected',
+        ]);
+        expect(screen.getByRole('radio', { name: 'Colleagues', checked: true })).toBeDefined();
+    });
+
+    it('counts the directory in colleagues and names it after the organization its members read', () => {
+        drawBook({ books: ['own', 'colleagues', 'collected'], book: 'colleagues', reading: { ...nothingRead, contacts: [piotr] } });
+
+        expect(screen.getByText('1 colleague')).toBeDefined();
+        expect(screen.getByText("Nordwind's directory")).toBeDefined();
+        expect(screen.getByRole('option', { name: /Piotr Zieliński/u }).textContent).toContain('Head of Delivery');
+    });
+
+    it('says the directory is empty in its own terms, and whose it is before a member has named it', () => {
+        drawBook({ books: ['own', 'colleagues', 'collected'], book: 'colleagues', reading: nothingRead });
+
+        expect(screen.getByText('Nobody else in your organization is listed here.')).toBeDefined();
+        expect(screen.getByText("your organization's directory")).toBeDefined();
+    });
+
+    it('marks a contact the organization keeps on its row, beside the reader\'s own', () => {
+        drawBook({ reading: { ...nothingRead, contacts: [anna, { ...bartek, book: 'Organization' }] } });
+
+        expect(screen.getByRole('option', { name: /Bartek Nowak/u }).textContent).toContain('Organization');
+        expect(screen.getByRole('option', { name: /Anna Kowalska/u }).textContent).not.toContain('Organization');
     });
 
     it('asks for the other book when its choice is pressed', () => {

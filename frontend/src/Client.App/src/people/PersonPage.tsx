@@ -3,10 +3,11 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useRef } from 'react';
-import type { Contact } from '@mailfathom/client-backend';
 import { useComposing } from '../composer/useComposing';
 import { useContactPhoto } from '../contactBook/contactPhotos';
 import { OrganizationChip } from '../contactBook/OrganizationChip';
+import { useAddressCopy } from '../contactBook/useAddressCopy';
+import type { Person } from '../contactBook/useContactBook';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
@@ -14,6 +15,7 @@ import { SenderAvatar } from '../controls/SenderAvatar';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import { ColleagueTime } from './ColleagueTime';
 import { ContactDetails } from './ContactDetails';
 import { PersonCorrespondence } from './PersonCorrespondence';
 import { RelationshipReading } from './RelationshipReading';
@@ -22,14 +24,16 @@ import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 // One person as the design draws them: who they are and how to reach them, the acts that belong to the record
 // itself, and then what MailFathom and the mailbox have to say about them.
 //
-// **What the record admits is read off its origin rather than from a control being pressed.** A contact one of this
+// **What the record admits is read off its book rather than from a control being pressed.** A contact one of this
 // user's mailboxes collected is theirs to take on or to erase and nobody's to amend, and the page says so on the record
-// rather than leaving somebody to discover it from a refusal. Taking them out is offered either way, because somebody
+// rather than leaving somebody to discover it from a refusal. A colleague and a contact the organization keeps are
+// nobody's to change here at all, so neither page draws a control that would change them, and each says whose they
+// are under `lock` instead; what a colleague's page offers is the two quick acts, copying their address and writing to
+// them, and the time where they are. What MailFathom reads out of mail about a person is a book contact's alone — the
+// directory serves no correspondence for a member — so a colleague's page draws neither the reading nor the threads. Taking them out is offered either way, because somebody
 // asking to be taken out of a book is not answered with which book they happen to be in — but it is said as what it
 // is: a contact somebody wrote down is deleted, and one their mail collected is removed from the collected book, which
-// gathers them again the next time they write. A contact the reader's organization keeps admits neither: the member reads
-// the organization's book and changes nothing in it, so the page names whose book it is and offers no edit and no
-// deletion rather than a press the books would answer as a contact they do not hold.
+// gathers them again the next time they write.
 //
 // **The way back is part of the page rather than of the frame**, and it is drawn only where the list and the person
 // cannot stand together: at that width the two are one pane the reader moves between, so the control that returns is on
@@ -42,6 +46,28 @@ import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 // StrictMode's second invocation where a flag would not. The element it is put on is this screen's own rather than
 // that one's — a person's page is a region of the People screen where a message is a document in its own right, so
 // this is a `section` where the reading pane is an `article`.
+
+// The line under a colleague's name: their title and their organization, each where it is stated. The design adds the
+// department between the two, which the directory does not carry.
+function roleOf(person: Person): string {
+    return person.book === 'Member' ? [person.jobTitle, person.organizationName].filter(Boolean).join(' · ') : '';
+}
+
+// Whose a record is that this reader may not change, said under `lock` on the page — the reader's organization by the
+// name the session gave it, or as theirs where it gave none.
+function readOnlySaid(
+    person: Person,
+    readersOrganization: string,
+): { readonly key: MessageKey; readonly organization?: string } {
+    switch (person.book) {
+        case 'Member':
+            return { key: 'people.colleagueReadOnly', organization: person.organizationName };
+        case 'Organization':
+            return { key: 'people.organizationReadOnly', organization: readersOrganization };
+        default:
+            return { key: 'people.collectedReadOnly' };
+    }
+}
 
 export function PersonPage({
     contact,
@@ -57,7 +83,7 @@ export function PersonPage({
     onOpenThread,
     onOpenDocument,
 }: {
-    readonly contact: Contact;
+    readonly contact: Person;
 
     /** The name the reader's organization is shown by, or `null` where the session answered none. */
     readonly organizationName: string | null;
@@ -91,9 +117,13 @@ export function PersonPage({
     const { translate } = useLocalization();
     const picture = useContactPhoto(contact);
     const composing = useComposing();
-    const collected = contact.origin === 'Collected';
-    const keptByOrganization = contact.organization !== null;
-    const changeable = writable && !keptByOrganization;
+    const copy = useAddressCopy();
+    const collected = contact.book === 'Collected';
+    const member = contact.book === 'Member';
+    const own = contact.book === 'Own';
+    const address = contact.preferredAddress;
+    const role = roleOf(contact);
+    const readOnly = readOnlySaid(contact, organizationName ?? translate('people.yourOrganization'));
 
     // Deleting and taking somebody on write to the book, so while the server is out of reach both are drawn as
     // controls that cannot act; the one with no room for a name of its own says why on the line under the person.
@@ -150,32 +180,35 @@ export function PersonPage({
                             </span>
                         ) : null}
 
-                        {keptByOrganization ? (
+                        {member ? (
+                            <span className="flex shrink-0 items-center gap-1.25 rounded-sm border border-line-strong px-1.75 py-0.5 text-xs font-semibold text-text-soft">
+                                <Icon name="badge" className="size-icon-xs" />
+                                {translate('people.colleague')}
+                            </span>
+                        ) : null}
+
+                        {contact.book === 'Organization' ? (
                             <OrganizationChip organizationName={organizationName} place="page" />
                         ) : null}
                     </div>
 
-                    <p className="truncate text-sm text-accent-deep">{contact.preferredAddress}</p>
+                    {role === '' ? null : <p className="truncate text-base text-muted">{role}</p>}
 
-                    {collected ? (
+                    {address === null ? null : <p className="truncate text-sm text-accent-deep">{address}</p>}
+
+                    {own ? null : (
                         <p className="flex items-center gap-1.5 text-sm text-muted text-pretty">
                             <Icon name="lock" className="size-icon-sm" />
-                            {translate('people.collectedReadOnly')}
+                            {translate(
+                                readOnly.key,
+                                readOnly.organization === undefined ? {} : { organization: readOnly.organization },
+                            )}
                         </p>
-                    ) : null}
-
-                    {keptByOrganization ? (
-                        <p className="flex items-center gap-1.5 text-sm text-muted text-pretty">
-                            <Icon name="lock" className="size-icon-sm" />
-                            {translate('people.organizationReadOnly', {
-                                organization: organizationName ?? translate('people.yourOrganization'),
-                            })}
-                        </p>
-                    ) : null}
+                    )}
                 </div>
 
                 <div className="ms-auto flex shrink-0 items-center gap-2.25">
-                    {changeable ? (
+                    {writable && (own || collected) ? (
                         <Control
                             label={erasure}
                             icon="delete"
@@ -186,7 +219,7 @@ export function PersonPage({
                         />
                     ) : null}
 
-                    {changeable && !collected ? (
+                    {writable && own ? (
                         <Control
                             label={translate('people.editContact')}
                             icon="edit_note"
@@ -205,12 +238,24 @@ export function PersonPage({
                         />
                     ) : null}
 
-                    {composing.offered ? (
+                    {member && address !== null ? (
                         <Control
-                            label={translate('people.write')}
+                            label={translate('people.copyAddress')}
+                            icon="content_copy"
+                            shape="outlinedSymbol"
+                            className="bg-panel"
+                            onPress={() => {
+                                copy([address]);
+                            }}
+                        />
+                    ) : null}
+
+                    {composing.offered && address !== null ? (
+                        <Control
+                            label={translate(member ? 'people.writeEmail' : 'people.write')}
                             shape="primary"
                             onPress={() => {
-                                composing.compose({ kind: 'new', to: [contact.preferredAddress] });
+                                composing.compose({ kind: 'new', to: [address] });
                             }}
                         />
                     ) : null}
@@ -230,15 +275,26 @@ export function PersonPage({
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-3.5 workspace:px-6 workspace:py-4.5">
-                <RelationshipReading lastCorrespondedAt={lastCorrespondedAt} reading={correspondence.reading} />
+                {member ? (
+                    // The two cards side by side where the page has room, as the design draws them, and one under the
+                    // other where it has not.
+                    <div className="flex flex-col gap-3 roomy:flex-row roomy:*:flex-1">
+                        <ContactDetails contact={contact} />
+                        {contact.timeZone === null ? null : <ColleagueTime timeZone={contact.timeZone} />}
+                    </div>
+                ) : (
+                    <>
+                        <RelationshipReading lastCorrespondedAt={lastCorrespondedAt} reading={correspondence.reading} />
 
-                <ContactDetails contact={contact} />
+                        <ContactDetails contact={contact} />
 
-                <PersonCorrespondence
-                    reading={correspondence}
-                    onOpenThread={onOpenThread}
-                    onOpenDocument={onOpenDocument}
-                />
+                        <PersonCorrespondence
+                            reading={correspondence}
+                            onOpenThread={onOpenThread}
+                            onOpenDocument={onOpenDocument}
+                        />
+                    </>
+                )}
             </div>
         </section>
     );

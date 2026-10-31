@@ -3,12 +3,15 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { fireEvent, render, screen, type RenderResult } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import type { Contact } from '@mailfathom/client-backend';
+import type { Colleague, Contact } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
+import type { Person } from '../contactBook/useContactBook';
 import { LocalizationProvider } from '../localization/Localization';
+import { ReadingZoneContext } from '../localization/useReadingZone';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
+import { ToastContext } from '../toasts/useToasts';
 import { PersonPage } from './PersonPage';
 import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 
@@ -21,12 +24,30 @@ function personCalled(origin: Contact['origin'], id = 'anna', displayName = 'Ann
         note: null,
         phoneNumbers: [],
         origin,
+        book: origin === 'Collected' ? 'Collected' : 'Own',
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
         organization: null,
     };
 }
+
+const piotr: Colleague = {
+    id: 'piotr',
+    book: 'Member',
+    displayName: 'Piotr Zieliński',
+    addresses: ['p.zielinski@nordwind.example', 'piotr@nordwind.example'],
+    preferredAddress: 'p.zielinski@nordwind.example',
+    phoneNumbers: [{ number: '+48 600 100 200', label: 'Mobile' }],
+    jobTitle: 'Head of Delivery',
+    organizationName: 'Nordwind',
+    timeZone: 'Europe/London',
+    photo: null,
+};
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 const nothingCorrelated: ContactCorrespondenceInForce = {
     correspondence: null,
@@ -50,8 +71,10 @@ function pageOf({
     onPromote = vi.fn(),
     onAskAmendment = vi.fn(),
     onAskErasure = vi.fn(),
+    readerZone = null,
 }: {
-    contact?: Contact;
+    contact?: Person;
+    readerZone?: string | null;
     organizationName?: string | null;
     writable?: boolean;
     promoting?: boolean;
@@ -64,6 +87,8 @@ function pageOf({
 } = {}): ReactNode {
     return (
         <LocalizationProvider>
+            <ToastContext value={{ raise: vi.fn(), raiseOperation: () => () => undefined }}>
+            <ReadingZoneContext value={readerZone}>
             <LinkOpenerContext value={() => Promise.resolve()}>
                 <ComposingContext value={composing}>
                     <PersonPage
@@ -82,6 +107,8 @@ function pageOf({
                     />
                 </ComposingContext>
             </LinkOpenerContext>
+            </ReadingZoneContext>
+            </ToastContext>
         </LocalizationProvider>
     );
 }
@@ -89,6 +116,13 @@ function pageOf({
 function drawPage(page: Parameters<typeof pageOf>[0] = {}): RenderResult {
     return render(pageOf(page));
 }
+
+// A contact the reader's organization keeps in its own book.
+const keptByNordwind: Person = {
+    ...personCalled('Asserted'),
+    book: 'Organization',
+    organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f',
+};
 
 describe('PersonPage', () => {
     it('draws who the person is and how to reach them', () => {
@@ -128,7 +162,7 @@ describe('PersonPage', () => {
     // A member reads the organization's book and changes nothing in it, so the page names whose book the contact is in
     // and offers neither act that writes to it — however much the credential could write to the reader's own.
     it('names the organization that keeps a contact and offers no edit and no deletion of it', () => {
-        drawPage({ contact: { ...personCalled('Asserted'), organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' } });
+        drawPage({ contact: keptByNordwind });
 
         expect(screen.getByText('Nordwind')).toBeDefined();
         expect(screen.getByText('Kept by Nordwind - read-only')).toBeDefined();
@@ -141,7 +175,7 @@ describe('PersonPage', () => {
     // words rather than by the identifier the contact carries.
     it('names the organization in words where the session answered no name for it', () => {
         drawPage({
-            contact: { ...personCalled('Asserted'), organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' },
+            contact: keptByNordwind,
             organizationName: null,
         });
 
@@ -236,5 +270,82 @@ describe('PersonPage', () => {
         drawPage({ recordSaid: 'people.written' });
 
         expect(screen.getByRole('status').textContent).toBe('Contact added.');
+    });
+
+    describe('a colleague', () => {
+        it('names them a colleague, says what they do and where, and whose directory they come from', () => {
+            drawPage({ contact: piotr });
+
+            expect(screen.getByText('Colleague')).toBeDefined();
+            expect(screen.getByText('Head of Delivery · Nordwind')).toBeDefined();
+            expect(screen.getByText("From Nordwind's directory - read-only")).toBeDefined();
+        });
+
+        // Read-only in the client as in the service: nothing on the page would change the member.
+        it('draws no control that would change them, whatever the credential may do', () => {
+            drawPage({ contact: piotr, writable: true });
+
+            expect(screen.queryByRole('button', { name: 'Edit contact' })).toBeNull();
+            expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull();
+            expect(screen.queryByRole('button', { name: 'Remove from collected' })).toBeNull();
+            expect(screen.queryByRole('button', { name: 'Add to my contacts' })).toBeNull();
+        });
+
+        it('offers the two quick acts: copying the address, and an email addressed to them', () => {
+            const compose = vi.fn();
+            drawPage({ contact: piotr, composing: composingWhere(true, compose) });
+
+            expect(screen.getByRole('button', { name: 'Copy address' })).toBeDefined();
+
+            fireEvent.click(screen.getByRole('button', { name: 'Write an email' }));
+
+            expect(compose).toHaveBeenCalledWith({ kind: 'new', to: ['p.zielinski@nordwind.example'] });
+        });
+
+        it('offers neither act to a member who holds no address', () => {
+            drawPage({ contact: { ...piotr, addresses: [], preferredAddress: null } });
+
+            expect(screen.queryByRole('button', { name: 'Copy address' })).toBeNull();
+            expect(screen.queryByRole('button', { name: 'Write an email' })).toBeNull();
+        });
+
+        it('adds the organization and the title to the contact details', () => {
+            drawPage({ contact: piotr });
+
+            const details = screen.getByRole('heading', { name: 'Contact details' }).parentElement;
+
+            expect(details?.textContent).toContain('OrganizationNordwind');
+            expect(details?.textContent).toContain('TitleHead of Delivery');
+            expect(details?.textContent).toContain('+48 600 100 200');
+        });
+
+        it('leaves the title out of the details and the line under the name where none is stated', () => {
+            drawPage({ contact: { ...piotr, jobTitle: null } });
+
+            expect(screen.queryByText('Title')).toBeNull();
+            expect(screen.queryByText(/Head of Delivery/u)).toBeNull();
+        });
+
+        it("says their local time and how far it stands from the reader's", () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-31T08:41:00Z'));
+            drawPage({ contact: piotr, readerZone: 'Europe/Warsaw' });
+
+            expect(screen.getByRole('heading', { name: 'Time and working hours' })).toBeDefined();
+            expect(screen.getByText('8:41 AM, 1h behind you')).toBeDefined();
+        });
+
+        it('draws no time at all for a member who states no zone', () => {
+            drawPage({ contact: { ...piotr, timeZone: null } });
+
+            expect(screen.queryByRole('heading', { name: 'Time and working hours' })).toBeNull();
+        });
+
+        it('draws neither the relationship reading nor the correspondence, which the directory serves none of', () => {
+            drawPage({ contact: piotr });
+
+            expect(screen.queryByText('Relationship state')).toBeNull();
+            expect(screen.queryByText('Shared threads')).toBeNull();
+        });
     });
 });

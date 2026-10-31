@@ -58,6 +58,7 @@ const heldContact = {
     note: null,
     phoneNumbers: [{ number: '+1 202 555 0178', label: 'Work' }],
     origin: 'Asserted',
+    book: 'Own',
     recordedAt: '2026-03-01T08:00:00+00:00',
     amendedAt: '2026-03-01T08:00:00+00:00',
     photo: null,

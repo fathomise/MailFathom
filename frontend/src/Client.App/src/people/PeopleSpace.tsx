@@ -21,7 +21,7 @@ import { Confirmation } from '../confirmation/Confirmation';
 import { ContactBook } from '../contactBook/ContactBook';
 import { ContactPhotoContext, contactPhotoReader, useContactPhoto } from '../contactBook/contactPhotos';
 import { ContactSelectionBar } from '../contactBook/ContactSelectionBar';
-import { useContactBook, type ContactBookName } from '../contactBook/useContactBook';
+import { useContactBook, type ContactBookName, type Person } from '../contactBook/useContactBook';
 import { Control } from '../controls/Control';
 import type { ContactPhotoExchange } from '../deployment/portraitExchange';
 import type { MessageKey } from '../localization/en';
@@ -51,6 +51,11 @@ import { useScreenStep } from '../shell/screenLayers';
 // `/api/client` answers none of them, so each is left out rather than drawn as a control that would do nothing. That
 // is a correction owed to the design rather than a toolbar to fill.
 //
+// **Inside an organization the space opens on its members.** *Colleagues* stands between the reader's own book and the
+// collected one only for a reader who belongs to an organization, and is the book they arrive at there, as the design
+// draws it; outside one the space opens on *Own* as it always did. A colleague, and a contact the organization keeps
+// under *Own*, are read-only: nothing here writes to either, and a write the service refused as read-only says so.
+//
 // **A photo is stored after the record it belongs to, and read back with it.** The photo is a file the deployment keeps
 // under a contact, so the contact is written first and the photo second, and the record is then read again — what
 // names the photo is the record, and that name is what every avatar of the person draws from.
@@ -68,7 +73,19 @@ const writeSaid: Readonly<Record<ContactWriteOutcome, MessageKey>> = {
     AddressHeldByAnotherContact: 'people.addressHeld',
     OriginRefusesWriter: 'people.originRefuses',
     AlreadyAsserted: 'people.alreadyAsserted',
+    OrganizationContactReadOnly: 'people.writeReadOnly',
 };
+
+// The books a reader has, in the order the segments stand: *Colleagues* between the other two inside an organization.
+function booksFor(inOrganization: boolean): readonly ContactBookName[] {
+    return inOrganization ? ['own', 'colleagues', 'collected'] : ['own', 'collected'];
+}
+
+// Whether somebody listed is in one of the reader's own books, which is what may be taken out of it: what the reader
+// wrote down, or what their mail collected — never a colleague or a contact the organization keeps.
+function inOwnBooks(person: Person): person is Contact {
+    return person.book === 'Own' || person.book === 'Collected';
+}
 
 // Where a sentence about a write belongs: over the book for a write the book as a whole answered, and on the person's
 // own page for one about the person who is open. One state rather than two, because only one write is in flight at a
@@ -83,9 +100,9 @@ function failedSaid(failure: ClientFailure): MessageKey {
 // Who is opened once the person who was open has been taken out of the book: whoever the list draws in their place, or
 // the one before where they were the last — and nobody where the book is left empty, or where the person was not in
 // the book being listed at all, which is a person opened in one book and taken out after the reader moved to the other.
-function nextAfter(contacts: readonly Contact[], leaving: string, erased: readonly string[]): Contact | null {
+function nextAfter(contacts: readonly Person[], leaving: string, erased: readonly string[]): Person | null {
     const at = contacts.findIndex((contact) => contact.id === leaving);
-    const kept = (listed: readonly Contact[]) => listed.filter((contact) => !erased.includes(contact.id));
+    const kept = (listed: readonly Person[]) => listed.filter((contact) => !erased.includes(contact.id));
     const rest = kept(contacts);
 
     // Counted among those kept, because a batch may also take out people listed above the one who was open.
@@ -173,6 +190,7 @@ export function PeopleSpace({
     contactPhotos,
     writable,
     organizationName,
+    inOrganization,
     onOpenThread,
     onOpenDocument,
 }: {
@@ -189,6 +207,8 @@ export function PeopleSpace({
 
     /** The name the reader's organization is shown by, which its contacts are marked with, or `null` where none is known. */
     readonly organizationName: string | null;
+    /** Whether the reader belongs to an organization, which is what puts its members in a book of their own. */
+    readonly inOrganization: boolean;
 
     /** Opens one conversation, which is the Mail space's to draw and therefore the frame's to perform. */
     readonly onOpenThread: (thread: {
@@ -204,8 +224,9 @@ export function PeopleSpace({
     const twoPanes = useTwoPanes();
     const wide = useWideWorkspace();
 
-    const [book, setBook] = useState<ContactBookName>('own');
-    const [opened, setOpened] = useState<Contact | null>(null);
+    const books = booksFor(inOrganization);
+    const [book, setBook] = useState<ContactBookName>(inOrganization ? 'colleagues' : 'own');
+    const [opened, setOpened] = useState<Person | null>(null);
     const [selected, setSelected] = useState<readonly string[]>([]);
     const [erasing, setErasing] = useState<readonly Contact[]>([]);
     const [kept, setKept] = useState(0);
@@ -222,13 +243,18 @@ export function PeopleSpace({
     // opened person changes and read only in an answer, so nothing here touches it while rendering.
     const openedNow = useRef<string | null>(null);
 
-    function open(contact: Contact | null): void {
+    function open(contact: Person | null): void {
         openedNow.current = contact?.id ?? null;
         setOpened(contact);
     }
 
     const reading = useContactBook(session, transport, book);
-    const correspondence = useContactCorrespondence(session, transport, opened?.id ?? null);
+    // A member of the directory is nobody the books hold, so there is no correspondence of theirs to read.
+    const correspondence = useContactCorrespondence(
+        session,
+        transport,
+        opened === null || opened.book === 'Member' ? null : opened.id,
+    );
 
     // One reader per session, because what it keeps is the photos that session drew: kept across renders so a book
     // read again does not ask again for a photo that did not change.
@@ -271,7 +297,7 @@ export function PeopleSpace({
     // The people picked out, read back out of the book rather than held as records: the list holds identities and the
     // book holds what each of them is, so a selection cannot outlive a read that no longer names one of them.
     const picked = reading.contacts.filter((contact) => selected.includes(contact.id));
-    const pickedOwn = picked.filter((contact) => contact.organization === null);
+    const pickedOwn = picked.filter(inOwnBooks);
 
     function record({ statement, photo }: ContactSave): void {
         if (session === null) {
@@ -339,7 +365,7 @@ export function PeopleSpace({
     }
 
     function promote(): void {
-        if (session === null || opened === null) {
+        if (session === null || opened?.book !== 'Collected') {
             return;
         }
 
@@ -387,8 +413,15 @@ export function PeopleSpace({
                 eraseContact(session, transport, contact.id).then((answer) => ({ contact, answer })),
             ),
         ).then((answers) => {
-            const refused = answers.filter(({ answer }) => answer.outcome === 'failed').map(({ contact }) => contact);
-            const erased = answers.filter(({ answer }) => answer.outcome !== 'failed').map(({ contact }) => contact.id);
+            // A contact the organization keeps is refused rather than erased, said as the read-only rule it is where
+            // that is the whole of what was refused.
+            const readOnly = ({ answer }: (typeof answers)[number]) =>
+                answer.outcome === 'read' && answer.value === 'OrganizationContactReadOnly';
+            const notErased = answers.filter((settled) => settled.answer.outcome === 'failed' || readOnly(settled));
+            const refused = notErased.map(({ contact }) => contact);
+            const erased = answers
+                .filter((settled) => !notErased.includes(settled))
+                .map(({ contact }) => contact.id);
 
             // An erasure nobody answered is not known to have failed, so it is never named among those refused.
             const unknown = answers.some(({ answer }) => answer.outcome === 'failed' && wentUnanswered(answer.failure));
@@ -399,7 +432,7 @@ export function PeopleSpace({
                     : unknown
                       ? { where: 'book', said: 'people.writeUnknown' }
                       : erased.length === 0
-                        ? { where: 'book', said: 'people.writeFailed' }
+                        ? { where: 'book', said: notErased.every(readOnly) ? 'people.writeReadOnly' : 'people.writeFailed' }
                         : {
                               where: 'book',
                               said: erasingAsked[contacts[0]?.origin ?? 'Asserted'].someRefused,
@@ -498,6 +531,7 @@ export function PeopleSpace({
                         }`}
                     >
                         <ContactBook
+                            books={books}
                             // Keyed by the book, so moving between the two draws a list rather than continuing one. What
                             // this list holds is where it was scrolled, which row the keyboard is on, and the height it
                             // measured — every one of them about the book that was being read, and none of them true of
@@ -557,7 +591,7 @@ export function PeopleSpace({
                                     amending.current?.showModal();
                                 }}
                                 onAskErasure={() => {
-                                    askErasure([opened]);
+                                    askErasure(inOwnBooks(opened) ? [opened] : []);
                                 }}
                                 onOpenThread={onOpenThread}
                                 onOpenDocument={onOpenDocument}
@@ -586,7 +620,7 @@ export function PeopleSpace({
 
                 {/* Keyed by the person and by what their record says, so the form opens on whoever is open now as their
                     record now stands — a correction just saved included — rather than on whatever it was first drawn for. */}
-                {writable && opened !== null && opened.origin === 'Asserted' && opened.organization === null ? (
+                {writable && opened?.book === 'Own' ? (
                     <ContactAmendment
                         key={`${opened.id} ${opened.displayName} ${opened.preferredAddress} ${opened.addresses.join(' ')} ${JSON.stringify(opened.phoneNumbers)} ${opened.photo ?? ''}`}
                         contact={opened}

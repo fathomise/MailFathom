@@ -54,6 +54,17 @@ export {
     type StatedClientPreferences,
 } from './clientPreferences';
 export {
+    colleaguePhotoRoute,
+    colleagueRoute,
+    colleaguesRoute,
+    promoteColleague,
+    readColleague,
+    readColleaguePhoto,
+    readColleagues,
+    type Colleague,
+    type ColleaguePage,
+} from './colleagues';
+export {
     contactCorrespondenceRoute,
     mostCorrespondenceEntries,
     readContactCorrespondence,
@@ -83,7 +94,9 @@ export {
     recordContact,
     type AuthorToAdd,
     type Contact,
+    type ContactBookKind,
     type ContactErasure,
+    type ContactErasureRefusal,
     type ContactOrigin,
     type ContactPage,
     type ContactPageRequest,

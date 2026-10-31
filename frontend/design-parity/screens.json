@@ -1115,6 +1115,11 @@
       "signIn": true,
       "steps": [
         {
+          "click": {
+            "text": "Own"
+          }
+        },
+        {
           "expect": {
             "role": "listbox",
             "name": "Contacts"
@@ -1140,10 +1145,32 @@
       ]
     },
     {
+      "id": "people-colleagues",
+      "route": "/#/people",
+      "signIn": true,
+      "steps": [
+        {
+          "click": {
+            "text": "Piotr Zieliński"
+          }
+        },
+        {
+          "expect": {
+            "text": "From Nordwind's directory - read-only"
+          }
+        }
+      ]
+    },
+    {
       "id": "person",
       "route": "/#/people",
       "signIn": true,
       "steps": [
+        {
+          "click": {
+            "text": "Own"
+          }
+        },
         {
           "expect": {
             "role": "listbox",
@@ -1169,6 +1196,11 @@
       "route": "/#/people",
       "signIn": true,
       "steps": [
+        {
+          "click": {
+            "text": "Own"
+          }
+        },
         {
           "expect": {
             "role": "listbox",
@@ -1222,6 +1254,11 @@
       "route": "/#/people",
       "signIn": true,
       "steps": [
+        {
+          "click": {
+            "text": "Own"
+          }
+        },
         {
           "expect": {
             "role": "listbox",

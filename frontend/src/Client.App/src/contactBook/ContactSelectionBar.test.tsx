@@ -4,11 +4,12 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { Contact } from '@mailfathom/client-backend';
+import type { Colleague, Contact } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
+import { ToastContext } from '../toasts/useToasts';
 import { ContactSelectionBar } from './ContactSelectionBar';
-import type { ContactBookName } from './useContactBook';
+import type { ContactBookName, Person } from './useContactBook';
 
 function personCalled(id: string, displayName: string): Contact {
     return {
@@ -19,6 +20,7 @@ function personCalled(id: string, displayName: string): Contact {
         note: null,
         phoneNumbers: [],
         origin: 'Asserted',
+        book: 'Own',
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
         photo: null,
@@ -27,6 +29,21 @@ function personCalled(id: string, displayName: string): Contact {
 }
 
 const picked = [personCalled('anna', 'Anna Kowalska'), personCalled('bartek', 'Bartek Nowak')];
+
+function colleagueCalled(id: string, displayName: string): Colleague {
+    return {
+        id,
+        book: 'Member',
+        displayName,
+        addresses: [`${id}@nordwind.example`],
+        preferredAddress: `${id}@nordwind.example`,
+        phoneNumbers: [],
+        jobTitle: null,
+        organizationName: 'Nordwind',
+        timeZone: null,
+        photo: null,
+    };
+}
 
 function composingWhere(offered: boolean, compose = vi.fn()): Composing {
     return { offered, drafts: false, opening: null, compose, close: vi.fn() };
@@ -42,7 +59,7 @@ function drawBar({
     onAskErasure = vi.fn(),
 }: {
     book?: ContactBookName;
-    selected?: readonly Contact[];
+    selected?: readonly Person[];
     erasable?: boolean;
     composing?: Composing;
     onClear?: () => void;
@@ -51,6 +68,7 @@ function drawBar({
 } = {}): void {
     render(
         <LocalizationProvider>
+            <ToastContext value={{ raise: vi.fn(), raiseOperation: () => () => undefined }}>
             <ComposingContext value={composing}>
                 <ContactSelectionBar
                     book={book}
@@ -61,6 +79,7 @@ function drawBar({
                     onAskErasure={onAskErasure}
                 />
             </ComposingContext>
+            </ToastContext>
         </LocalizationProvider>,
     );
 }
@@ -124,6 +143,31 @@ describe('ContactSelectionBar', () => {
         expect(screen.getByRole('button', { name: 'Write' })).toBeDefined();
         expect(screen.queryByRole('button', { name: absent })).toBeNull();
         expect(screen.queryByRole('button', { name: /export/i })).toBeNull();
+    });
+
+    // Nobody here may change a colleague, so copying their addresses stands where taking them out would.
+    it('offers writing and copying their addresses under Colleagues, and nothing that takes anybody out', () => {
+        const writeText = vi.fn(() => Promise.resolve());
+        Object.defineProperty(window.navigator, 'clipboard', { configurable: true, value: { writeText } });
+        drawBar({
+            book: 'colleagues',
+            selected: [colleagueCalled('piotr', 'Piotr Zieliński'), colleagueCalled('marta', 'Marta Nowak')],
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Copy addresses' }));
+
+        expect(writeText).toHaveBeenCalledWith('piotr@nordwind.example, marta@nordwind.example');
+        expect(screen.getByRole('button', { name: 'Write' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
+        Reflect.deleteProperty(window.navigator, 'clipboard');
+    });
+
+    it('offers no deletion while every contact picked out is one the organization keeps', () => {
+        drawBar({ selected: picked.map((contact) => ({ ...contact, book: 'Organization' as const })) });
+
+        expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Write' })).toBeDefined();
     });
 
     it('offers no deletion where the credential may not change the book', () => {

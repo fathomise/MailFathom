@@ -32,6 +32,8 @@ test('offers a person it wrote down to a message, opens their page, and lets the
     deployment.grant('mailfathom.contacts.read', 'mailfathom.contacts.write', 'mailfathom.mail.drafts.write');
 
     await openSignedIn(page, '/#/people');
+    // A member of an organization arrives at its directory, so the reader's own book is one press away.
+    await page.getByRole('radio', { name: 'Own' }).click();
 
     const book = page.getByRole('listbox', { name: 'Contacts' });
 
@@ -63,6 +65,7 @@ test('offers a person it wrote down to a message, opens their page, and lets the
     await expect(page.getByRole('button', { name: `Remove ${address} from To` })).toBeVisible();
 
     await page.getByRole('link', { name: 'People' }).click();
+    await page.getByRole('radio', { name: 'Own' }).click();
     await book.getByRole('option', { name: new RegExp(name, 'u') }).click();
 
     const person = page.getByRole('region', { name });
@@ -101,15 +104,16 @@ test('offers a person it wrote down to a message, opens their page, and lets the
     await expect(offeredAgain.getByRole('option', { name: /Bartosz Rowe/u })).toBeVisible();
     await expect(offeredAgain.getByRole('option', { name: new RegExp(name, 'u') })).toHaveCount(0);
 
-    // Both lookups asked the deployment's own book, with the fragment and no more than the list shows of it.
+    // Both lookups asked the deployment's own book, with the fragment and no more than the list shows of it: six of
+    // each of the two groups that route fills, the organization's contacts and the reader's own.
     expect(
         deployment
             .requests('GET', '/contacts')
             .filter(({ query }) => query.has('search'))
             .map(({ query }) => [query.get('search'), query.get('pageSize')]),
     ).toStrictEqual([
-        [fragment, '5'],
-        [fragment, '5'],
+        [fragment, '12'],
+        [fragment, '12'],
     ]);
 });
 
@@ -122,6 +126,8 @@ test('corrects a person it wrote down from their page, and the book and the page
     deployment.grant('mailfathom.contacts.read', 'mailfathom.contacts.write');
 
     await openSignedIn(page, '/#/people');
+    // A member of an organization arrives at its directory, so the reader's own book is one press away.
+    await page.getByRole('radio', { name: 'Own' }).click();
 
     const book = page.getByRole('listbox', { name: 'Contacts' });
 

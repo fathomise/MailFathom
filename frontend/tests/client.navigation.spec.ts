@@ -82,6 +82,8 @@ test('goes back from a person to the address book on a phone, rather than out of
     deployment.grant('mailfathom.contacts.read');
     await page.setViewportSize(phoneWindow);
     await openSignedIn(page, '/#/people');
+    // A member of an organization arrives at its directory, so the reader's own book is one press away.
+    await page.getByRole('radio', { name: 'Own' }).click();
 
     const book = page.getByRole('listbox', { name: 'Contacts' });
 

@@ -3,9 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useState, type MouseEvent } from 'react';
-import type { Contact } from '@mailfathom/client-backend';
+import type { Person } from '../contactBook/useContactBook';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
+import type { MessageKey } from '../localization/en';
 import { useLinkOpener } from '../shellOperations/linkOpener';
 import { phoneLabelSaid, telephoneLink } from './phoneNumbers';
 
@@ -18,12 +19,29 @@ import { phoneLabelSaid, telephoneLink } from './phoneNumbers';
 //
 // A collected contact holds no numbers and never could — nothing collected from mail headers carries one — so its card
 // says nothing about phones at all rather than reporting an absence that is not a gap.
+//
+// A colleague's card adds what the directory says about them as a member: the organization, and the title where their
+// administrator gave one.
 
-export function ContactDetails({ contact }: { readonly contact: Contact }) {
+// What a colleague's card says about them as a member, each where it is stated.
+function factsOf(person: Person): readonly { readonly name: MessageKey; readonly value: string }[] {
+    if (person.book !== 'Member') {
+        return [];
+    }
+
+    const facts: { readonly name: MessageKey; readonly value: string }[] = [
+        { name: 'people.factOrganization', value: person.organizationName },
+    ];
+
+    return person.jobTitle === null ? facts : [...facts, { name: 'people.factTitle', value: person.jobTitle }];
+}
+
+export function ContactDetails({ contact }: { readonly contact: Person }) {
     const { translate } = useLocalization();
     const openLink = useLinkOpener();
     const [unopened, setUnopened] = useState<number | null>(null);
-    const asserted = contact.origin === 'Asserted';
+    const holdsPhones = contact.book !== 'Collected';
+    const facts = factsOf(contact);
 
     function call(pressed: MouseEvent<HTMLAnchorElement>, number: string, position: number): void {
         pressed.preventDefault();
@@ -52,7 +70,7 @@ export function ContactDetails({ contact }: { readonly contact: Contact }) {
                     </li>
                 ))}
 
-                {asserted
+                {holdsPhones
                     ? contact.phoneNumbers.map((phoneNumber, position) => (
                           // Numbers are held in the person's order and may repeat, so the place is the identity.
                           <li
@@ -81,11 +99,20 @@ export function ContactDetails({ contact }: { readonly contact: Contact }) {
                       ))
                     : null}
 
-                {asserted && contact.phoneNumbers.length === 0 ? (
+                {holdsPhones && contact.phoneNumbers.length === 0 ? (
                     <li className="border-t border-line-soft pt-2.25 text-base leading-natural text-faint">
                         {translate('people.noPhoneNumbers')}
                     </li>
                 ) : null}
+
+                {facts.map((fact) => (
+                    <li key={fact.name} className="flex min-w-0 items-baseline gap-2.5 border-t border-line-soft pt-2.25">
+                        <span className="w-contact-fact shrink-0 text-sm leading-natural text-muted">
+                            {translate(fact.name)}
+                        </span>
+                        <span className="min-w-0 flex-1 text-md leading-natural wrap-anywhere">{fact.value}</span>
+                    </li>
+                ))}
             </ul>
         </section>
     );

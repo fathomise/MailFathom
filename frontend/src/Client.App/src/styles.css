@@ -322,6 +322,10 @@
        own page narrower for no reading gained. */
     --spacing-contact-list: 18.75rem;
 
+    /* How wide the name of a fact about a colleague stands in their *Contact details* card — *Organization*,
+       *Title* — which the design draws as a fixed column so the values line up under one another. */
+    --spacing-contact-fact: 5.75rem;
+
     /* How wide the column of dates the calendar read out of somebody's mail stands where the window has room for it
        beside the views, which is the width the design draws it at. Fixed for the reason the address book's
        column is: a card there holds a title and a range, and a column that grew with the window would take the room

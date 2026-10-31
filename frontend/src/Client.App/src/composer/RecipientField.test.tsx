@@ -27,6 +27,7 @@ function contact(identity: string, displayName: string, addresses: readonly [str
         note: null,
         phoneNumbers: [],
         origin: 'Asserted',
+        book: 'Own',
         recordedAt: '2026-03-01T08:00:00+00:00',
         amendedAt: '2026-03-01T08:00:00+00:00',
         photo: null,
@@ -40,9 +41,10 @@ interface BookAnswer {
     readonly contacts?: readonly unknown[];
 }
 
-/** What the two halves answer, so a test states only the people it is about. */
+/** What the books answer, so a test states only the people it is about; the directory answers nobody unless stated. */
 interface Books {
     readonly own?: BookAnswer;
+    readonly colleagues?: BookAnswer;
     readonly collected?: BookAnswer;
 }
 
@@ -58,7 +60,13 @@ function deployment(books: Books): { transport: MailFathomTransport; asked: Clie
         transport: (request) => {
             asked.push(request);
 
-            const answer = pageOf(request.path.includes('/contacts/collected') ? books.collected : books.own);
+            const answer = pageOf(
+                request.path.includes('/contacts/collected')
+                    ? books.collected
+                    : request.path.includes('/contacts/colleagues')
+                      ? books.colleagues
+                      : books.own,
+            );
 
             return Promise.resolve({ ...answer, headers: {} });
         },
@@ -69,6 +77,7 @@ function drawField(
     addresses: readonly string[] = [],
     participants: readonly RecipientSuggestion[] = [],
     books: Books = {},
+    organizationName: string | null = null,
 ): { changed: ReturnType<typeof vi.fn>; asked: ClientRequest[] } {
     const changed = vi.fn();
     const { transport, asked } = deployment(books);
@@ -82,6 +91,7 @@ function drawField(
                 participants={participants}
                 session={session}
                 transport={transport}
+                organizationName={organizationName}
                 onChanged={changed}
             />
         </LocalizationProvider>,
@@ -231,8 +241,9 @@ describe('RecipientField', () => {
             expect(screen.getAllByRole('option')).toHaveLength(2);
         });
         expect(asked.map((request) => request.path)).toStrictEqual([
-            'https://mail.example.invalid/api/client/contacts?pageSize=5&search=ada',
-            'https://mail.example.invalid/api/client/contacts/collected?pageSize=5&search=ada',
+            'https://mail.example.invalid/api/client/contacts?pageSize=12&search=ada',
+            'https://mail.example.invalid/api/client/contacts/colleagues?pageSize=6&search=ada',
+            'https://mail.example.invalid/api/client/contacts/collected?pageSize=6&search=ada',
         ]);
     });
 
@@ -246,7 +257,7 @@ describe('RecipientField', () => {
         }
 
         await waitFor(() => {
-            expect(asked).toHaveLength(2);
+            expect(asked).toHaveLength(3);
         });
         expect(asked.every((request) => request.path.endsWith('search=ann'))).toBe(true);
     });
@@ -402,20 +413,85 @@ describe('RecipientField', () => {
         typeInto('ann');
         await act(() => vi.runAllTimersAsync());
 
-        expect(asked).toHaveLength(2);
+        expect(asked).toHaveLength(3);
         expect(screen.queryByText(/could not be searched/u)).toBeNull();
         expect(screen.queryByRole('listbox')).toBeNull();
     });
 
-    it('lists nothing for a field nobody has typed in, and asks the book nothing', async () => {
-        vi.useFakeTimers();
-
-        const { asked } = drawField([], [{ address: 'anna@example.invalid', name: 'Anna' }]);
+    it('lists three of each group as soon as the field has the focus, before anything is typed', async () => {
+        const { asked } = drawField([], [], {
+            own: {
+                status: 200,
+                contacts: ['1', '2', '3', '4'].map((at) =>
+                    contact(`00000000000${at}`, `Reader ${at}`, [`reader${at}@example.invalid`]),
+                ),
+            },
+        });
 
         fireEvent.focus(field());
-        await act(() => vi.runAllTimersAsync());
 
-        expect(asked).toHaveLength(0);
-        expect(screen.queryByRole('listbox')).toBeNull();
+        const group = await screen.findByRole('group', { name: 'Your contacts' });
+
+        expect(within(group).getAllByRole('option')).toHaveLength(3);
+        expect(asked.map((request) => request.path)).toContain(
+            'https://mail.example.invalid/api/client/contacts?pageSize=6',
+        );
+    });
+
+    it('draws the book in the design\'s groups, the organization\'s under its name, and walks them as one list', async () => {
+        const member = {
+            id: 'member-piotr',
+            book: 'Member',
+            displayName: 'Piotr Zieliński',
+            addresses: ['piotr@nordwind.example'],
+            preferredAddress: 'piotr@nordwind.example',
+            phoneNumbers: [],
+            jobTitle: null,
+            organizationName: 'Nordwind',
+            timeZone: null,
+            photo: null,
+        };
+        const { changed } = drawField(
+            [],
+            [],
+            {
+                colleagues: { status: 200, contacts: [member] },
+                own: {
+                    status: 200,
+                    contacts: [
+                        { ...contact('000000000001', 'Globe Travel', ['globe@nordwind.example']), book: 'Organization', organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' },
+                        contact('000000000002', 'Anna Kowalska', ['anna@nordwind.example']),
+                    ],
+                },
+            },
+            'Nordwind',
+        );
+
+        typeInto('nordwind');
+
+        const list = await screen.findByRole('listbox', { name: 'Suggested recipients for To' });
+
+        await waitFor(() => {
+            expect(within(list).getAllByRole('group').map((group) => group.getAttribute('aria-labelledby'))).toHaveLength(3);
+        });
+        expect(
+            within(list)
+                .getAllByRole('group')
+                .map((group) => [
+                    document.getElementById(group.getAttribute('aria-labelledby') ?? '')?.textContent,
+                    within(group).getAllByRole('option').length,
+                ]),
+        ).toStrictEqual([
+            ['Colleagues', 1],
+            ['Nordwind contacts', 1],
+            ['Your contacts', 1],
+        ]);
+
+        fireEvent.keyDown(field(), { key: 'ArrowDown' });
+        fireEvent.keyDown(field(), { key: 'ArrowDown' });
+        fireEvent.keyDown(field(), { key: 'ArrowDown' });
+        fireEvent.keyDown(field(), { key: 'Enter' });
+
+        expect(changed).toHaveBeenCalledWith(['anna@nordwind.example']);
     });
 });

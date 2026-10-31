@@ -4,18 +4,23 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    readColleagues,
     readCollectedContacts,
     readOwnContacts,
     type ClientFailureReason,
+    type ClientResult,
     type ClientSession,
+    type Colleague,
     type Contact,
+    type ContactPageRequest,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
 
-// One half of the address book as a screen holds it: the page or pages read so far, where the walk continues, and
-// whether it is still going. The two halves are read the same way and are two calls of this rather than one reader with
-// a filter, which is the shape the surface publishes — what somebody wrote down and what their own mailboxes picked up
-// are two books.
+// One book of the address book as a screen holds it: the page or pages read so far, where the walk continues, and
+// whether it is still going. The books are read the same way and are calls of this rather than one reader with a
+// filter, which is the shape the surface publishes — what somebody wrote down, who their organization lists as its
+// members, and what their own mailboxes picked up are three books. The members are a directory rather than a book of
+// contacts, so a row here is a `Person`: a contact, or a colleague, told apart by the book each names.
 //
 // **Each book is read from the leading end when it is asked for**, rather than both being held at once. A tab is a
 // deliberate move between two lists rather than a filter over one, and holding the other book's pages against the
@@ -29,13 +34,16 @@ import {
 // is derived away during the render that observes it rather than cleared by an effect. That is what keeps the tab a
 // reader has just pressed from drawing the other one's rows for a frame.
 
-/** Which half of the book a screen is reading. */
-export type ContactBookName = 'own' | 'collected';
+/** Which book a screen is reading: the reader's own, their organization's members, or what their mail collected. */
+export type ContactBookName = 'own' | 'colleagues' | 'collected';
 
-/** What one half of the book holds, and the two ways a screen asks it for more. */
+/** One person the People space lists: a contact in one of the reader's books, or a member of their organization. */
+export type Person = Contact | Colleague;
+
+/** What one book holds, and the two ways a screen asks it for more. */
 export interface ContactBookInForce {
     /** The people read so far, in the order the deployment walks the book. */
-    readonly contacts: readonly Contact[];
+    readonly contacts: readonly Person[];
 
     /** Whether nothing has answered yet, which is the wait the list says it is in. */
     readonly reading: boolean;
@@ -60,12 +68,31 @@ export interface ContactBookInForce {
 interface HeldBook {
     readonly book: ContactBookName;
     readonly session: ClientSession | null;
-    readonly contacts: readonly Contact[];
+    readonly contacts: readonly Person[];
     readonly cursor: string | null;
     readonly complete: boolean;
     readonly reading: boolean;
     readonly paging: boolean;
     readonly failure: ClientFailureReason | null;
+}
+
+// One page of whichever book is asked for, in the one shape this holds. The directory answers its members under a
+// name of its own, which is the only difference between reading it and reading a book.
+async function pageOf(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    book: ContactBookName,
+    page: ContactPageRequest,
+): Promise<ClientResult<{ readonly contacts: readonly Person[]; readonly nextCursor: string | null }>> {
+    if (book !== 'colleagues') {
+        return (book === 'own' ? readOwnContacts : readCollectedContacts)(session, transport, page);
+    }
+
+    const answer = await readColleagues(session, transport, page);
+
+    return answer.outcome === 'failed'
+        ? answer
+        : { outcome: 'read', value: { contacts: answer.value.colleagues, nextCursor: answer.value.nextCursor } };
 }
 
 function nothingRead(book: ContactBookName, session: ClientSession | null): HeldBook {
@@ -109,8 +136,7 @@ export function useContactBook(
             }
 
             const asked = ++latest.current;
-            const read = book === 'own' ? readOwnContacts : readCollectedContacts;
-            const answer = await read(session, transport, { cursor });
+            const answer = await pageOf(session, transport, book, { cursor });
 
             if (asked !== latest.current) {
                 return;

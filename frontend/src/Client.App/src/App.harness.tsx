@@ -689,6 +689,7 @@ const drawsNobody: PortraitExchange = {
 // The photo of a person in the book is read the same way and answered the same way, for the same reason.
 const photographsNobody: ContactPhotoExchange = {
     read: () => Promise.resolve({ outcome: 'none' }),
+    readColleague: () => Promise.resolve({ outcome: 'none' }),
     replace: () => Promise.resolve({ outcome: 'refused', reason: 'unavailable' }),
     remove: () => Promise.resolve({ outcome: 'refused', reason: 'unavailable' }),
 };

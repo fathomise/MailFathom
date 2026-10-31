@@ -30,6 +30,7 @@ const asserted = {
     note: 'Renewal owner',
     phoneNumbers: [{ number: '+1 202 555 0143', label: 'Mobile' }],
     origin: 'Asserted',
+    book: 'Own',
     recordedAt: '2026-03-01T08:00:00+00:00',
     amendedAt: '2026-03-04T09:01:12+00:00',
     photo: null,
@@ -126,6 +127,7 @@ describe('readOwnContacts', () => {
                         note: 'Renewal owner',
                         phoneNumbers: [{ number: '+1 202 555 0143', label: 'Mobile' }],
                         origin: 'Asserted',
+                        book: 'Own',
                         recordedAt: '2026-03-01T08:00:00+00:00',
                         amendedAt: '2026-03-04T09:01:12+00:00',
                         photo: null,
@@ -143,7 +145,10 @@ describe('readOwnContacts', () => {
                 session,
                 answering({
                     status: 200,
-                    body: JSON.stringify({ contacts: [{ ...asserted, organization }], nextCursor: null }),
+                    body: JSON.stringify({
+                        contacts: [{ ...asserted, book: 'Organization', organization }],
+                        nextCursor: null,
+                    }),
                 }),
             );
 
@@ -269,6 +274,37 @@ describe('readContact', () => {
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
+    it('reads a contact the organization keeps as one in the organization\'s book', async () => {
+        const kept = { ...asserted, book: 'Organization', organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' };
+
+        const result = await readContact(session, answering({ status: 200, body: JSON.stringify(kept) }), 'anna');
+
+        expect(result.outcome === 'read' && result.value.book).toBe('Organization');
+    });
+
+    it.each([
+        ['the organization\'s book naming no organization', { book: 'Organization', organization: null }],
+        ['the reader\'s own book naming an organization', { book: 'Own', organization: '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f' }],
+    ])('refuses a contact whose book and organization disagree: %s', async (_, held) => {
+        const result = await readContact(
+            session,
+            answering({ status: 200, body: JSON.stringify({ ...asserted, ...held }) }),
+            'anna',
+        );
+
+        expect(result.outcome).toBe('failed');
+    });
+
+    it('refuses a contact naming no book, or one this surface does not publish', async () => {
+        const unnamed = Object.fromEntries(Object.entries(asserted).filter(([field]) => field !== 'book'));
+
+        for (const body of [unnamed, { ...asserted, book: 'Member' }]) {
+            const result = await readContact(session, answering({ status: 200, body: JSON.stringify(body) }), 'anna');
+
+            expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+        }
+    });
+
     it('reads a contact the books no longer hold as something to let go of', async () => {
         const result = await readContact(session, answering({ status: 404, body: '' }), 'gone');
 
@@ -304,6 +340,25 @@ describe('amendContact', () => {
         const result = await amendContact(session, answering({ status: 200, body }), 'a', record);
 
         expect(result.outcome === 'read' && result.value.outcome).toBe('AddressHeldByAnotherContact');
+    });
+
+    it('reads the refusal of a contact the organization keeps as an outcome a screen can say', async () => {
+        const body = JSON.stringify({ title: 'Read-only', status: 409, errorCode: 51017 });
+
+        const result = await amendContact(session, answering({ status: 409, body }), 'anna', record);
+
+        expect(result).toEqual({
+            outcome: 'read',
+            value: { outcome: 'OrganizationContactReadOnly', contact: null, addressHolder: null },
+        });
+    });
+
+    it('reads a conflict naming any other rule as the failure its status names', async () => {
+        const body = JSON.stringify({ title: 'Conflict', status: 409, errorCode: 51001 });
+
+        const result = await amendContact(session, answering({ status: 409, body }), 'anna', record);
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: 409 } });
     });
 
     it('names the addresses the user vouches for beside the record that keeps them', async () => {
@@ -426,6 +481,7 @@ describe('recordContact', () => {
                     note: 'Renewal owner',
                     phoneNumbers: [{ number: '+1 202 555 0143', label: 'Mobile' }],
                     origin: 'Asserted',
+                    book: 'Own',
                     recordedAt: '2026-03-01T08:00:00+00:00',
                     amendedAt: '2026-03-04T09:01:12+00:00',
                     photo: null,
@@ -526,6 +582,14 @@ describe('eraseContact', () => {
         const result = await eraseContact(session, answering({ status: 200, body }), 'anna');
 
         expect(result).toEqual({ outcome: 'read', value: { contact: 'anna', wasHeld: false, addressesErased: 0 } });
+    });
+
+    it('reads the refusal to erase a contact the organization keeps as that refusal', async () => {
+        const body = JSON.stringify({ title: 'Read-only', status: 409, errorCode: 51017 });
+
+        const result = await eraseContact(session, answering({ status: 409, body }), 'anna');
+
+        expect(result).toEqual({ outcome: 'read', value: 'OrganizationContactReadOnly' });
     });
 
     it('refuses an answer that does not say whether the book held them', async () => {
