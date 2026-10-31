@@ -7394,9 +7394,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* Unread is the weight and the ink of the words, as every mail client draws it: the sender and the subject
              in 700 and the full text colour, a read row in 400 and the secondary one. 600 against 400 alone read as
              the same row at a glance. No dot. */
-          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;" : listCompact ? "flex:0 1 auto;min-width:0;font-size:14px;" : "flex:0 0 auto;max-width:60%;font-size:14px;") + "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;" : listCompact ? "flex:0 1 auto;min-width:0;font-size:14px;" : "flex:0 1 auto;min-width:0;max-width:60%;font-size:14px;") + "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           subjStyle: (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
-          orgStyle: isMobile || compact ? "display:none" : "flex:0 1 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+          orgStyle: isMobile || compact ? "display:none" : "flex:0 100 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
           showAi: aiHints && !!t.ai && !convMail,
           openAiSum: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.openAiSum(t.id); },
           aiBtnStyle: "width:" + (touch ? 32 : 24) + "px;height:" + (touch ? 32 : 24) + "px;flex:0 0 " + (touch ? 32 : 24) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
