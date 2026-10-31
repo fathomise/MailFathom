@@ -1464,9 +1464,14 @@ opening a thread cannot set the remote `\Seen` flag.
 
 `GET /api/client/threads/{threadId}/state` answers with where one conversation stands, as
 [a conversation's state](../features/thread-state.md) describes: `threadId`, `coverage` (`WholeThread` or
-`ThreadTooLarge`, the second with no entries), `derivedAt`, `current`, and `entries`. Each entry carries its `aspect`,
-its `text`, the `owedBy` and `dueAt` only a commitment may carry, and its `sources` as citation targets the
+`ThreadTooLarge`, the second with no entries), `derivedAt`, `current`, `entries`, and `title`. Each entry carries its
+`aspect`, its `text`, the `owedBy` and `dueAt` only a commitment may carry, and its `sources` as citation targets the
 [citation route](#the-citation-route) resolves.
+
+**`title` is what the conversation is called**: its `topic`, kept as replies arrive, and its `standing`, an empty string
+where nothing is left open. It is `null` where the conversation was given none — never a placeholder — and it was
+derived with the entries, so where `current` is `false` it names the conversation as it stood before the change: a
+client keeps the topic and holds the standing back until the next derivation.
 
 **`entries` holds at most one statement per aspect**, in aspect order, and a state recorded while more were kept
 answers with the first of each.

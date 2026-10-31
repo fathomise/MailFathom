@@ -21,10 +21,11 @@ namespace MailFathom.AI.ThreadStates;
 /// <summary>Derives where one conversation stands by putting it to the composed thread-state agent.</summary>
 /// <remarks>
 /// <para>
-/// One call, no tools, and one conversation. What leaves this deployment is the subject, and for each message the name
-/// it was written under, when it was written, and what it added — every one of them guarded first — beside its
-/// provenance: the sender verdict, whether the deployment trusts the author, whether the message sits in junk, and
-/// whether the mailbox had corresponded with its sender before. No address, no folder name, and no account travels with
+/// One call, no tools, and one conversation. What leaves this deployment is the subject, the topic the conversation was
+/// given on its last derivation, and for each message the name it was written under, when it was written, and what it
+/// added — every one of them guarded first — beside its provenance: the sender verdict, whether the deployment trusts
+/// the author, whether the message sits in junk, and whether the mailbox had corresponded with its sender before. No
+/// address, no folder name, and no account travels with
 /// it.
 /// </para>
 /// <para>
@@ -187,8 +188,8 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
     }
 
     /// <summary>Composes the turn one derivation sends: the conversation, guarded and cut to what one call may carry.</summary>
-    /// <param name="thread">The conversation, with the messages the derivation reads.</param>
-    /// <param name="egressGuard">Scans the subject and every message before any of it is composed.</param>
+    /// <param name="thread">The conversation, with the messages the derivation reads and the topic it was given last time.</param>
+    /// <param name="egressGuard">Scans the subject, the kept topic, and every message before any of it is composed.</param>
     /// <param name="plan">The model the turn is sent to, whose request bound the turn is cut to.</param>
     /// <param name="cancellationToken">Withdraws the scan.</param>
     /// <returns>The turn.</returns>
@@ -203,7 +204,11 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
                 thread.Subject,
                 cancellationToken),
             await GuardedMessagesAsync(thread.Messages, egressGuard, cancellationToken),
-            plan.MaximumRequestCharacters);
+            plan.MaximumRequestCharacters,
+            await egressGuard.GuardOptionalAsync(
+                SensitiveContentEgressPoint.ChatPrompt,
+                thread.KeptTopic,
+                cancellationToken));
 
     /// <summary>Puts every message of the conversation through the egress guard before any of it is composed into a turn.</summary>
     /// <remarks>

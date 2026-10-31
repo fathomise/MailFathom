@@ -13,6 +13,7 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// <param name="Revision">The shape of the conversation this reading was taken from.</param>
 /// <param name="Messages">The messages in the conversation's own order, or empty where the conversation is past the bound.</param>
 /// <param name="ExceedsBound">Whether the conversation holds more messages than one derivation may take in.</param>
+/// <param name="KeptTopic">The topic the conversation's stored state carries, which a derivation is shown so it can keep it, or <see langword="null" /> where it carries none.</param>
 /// <remarks>
 /// <para>
 /// Deliberately narrow, exactly as one message's derivation is. A reading is shown the subject, who wrote each message,
@@ -33,7 +34,8 @@ public sealed record DerivableThread(
     string? Subject,
     ThreadStateRevision Revision,
     IReadOnlyList<DerivableThreadMessage> Messages,
-    bool ExceedsBound);
+    bool ExceedsBound,
+    string? KeptTopic = null);
 
 /// <summary>One message of a conversation as a derivation is shown it.</summary>
 /// <param name="StoredEmailId">The message, which is what a statement drawn from it cites.</param>

@@ -223,6 +223,96 @@ public sealed class ThreadStateReadingTests
         Assert.Empty(derivation.Entries);
     }
 
+    [Fact]
+    public void Read_AnAnswerNamingTheConversation_ProposesItsTopicAndStanding()
+    {
+        // Arrange
+        const string answer = """
+            {
+              "openQuestions": [{ "text": "The upper limit is unsettled.", "messages": [1] }],
+              "title": { "topic": " Racking quotation ", "subjectChanged": true, "standing": "Upper limit still open" }
+            }
+            """;
+
+        // Act
+        var title = ThreadStateReading.Read(answer, Messages()).Title;
+
+        // Assert
+        Assert.Equal(new ThreadTitleProposal("Racking quotation", StatesSubjectChange: true, "Upper limit still open"), title);
+    }
+
+    [Fact]
+    public void Read_AnAnswerKeepingTheTopic_ProposesNoNewTopic()
+    {
+        // Arrange
+        const string answer = """{ "title": { "keepTopic": true, "topic": "Something else", "standing": "" } }""";
+
+        // Act
+        var title = ThreadStateReading.Read(answer, Messages()).Title;
+
+        // Assert
+        Assert.Equal(new ThreadTitleProposal(Topic: null, StatesSubjectChange: false, string.Empty), title);
+    }
+
+    /// <summary>A standing is a reading of what is still open, so one written beside nothing open says nothing the statements carry.</summary>
+    [Fact]
+    public void Read_AStandingBesideNothingOpenOrOwed_IsStoredEmpty()
+    {
+        // Arrange
+        const string answer = """
+            {
+              "agreements": [{ "text": "The price holds.", "messages": [0] }],
+              "title": { "topic": "Racking quotation", "standing": "Waiting on the signed order" }
+            }
+            """;
+
+        // Act
+        var title = ThreadStateReading.Read(answer, Messages()).Title;
+
+        // Assert
+        Assert.NotNull(title);
+        Assert.Empty(title.Standing);
+    }
+
+    [Theory]
+    [InlineData("""{ "title": { "topic": "<b>Racking</b>", "standing": "" } }""")]
+    [InlineData("""{ "title": { "topic": "Racking\nquotation", "standing": "" } }""")]
+    [InlineData("""{ "title": { "topic": "See https://example.test", "standing": "" } }""")]
+    [InlineData("""{ "title": { "standing": "" } }""")]
+    [InlineData("""{ "openQuestions": [{ "text": "Open.", "messages": [1] }], "title": { "topic": "Racking", "standing": "**Open**" } }""")]
+    public void Read_ATitleThatIsNotOnePlainLine_IsWithheldAsUnreadable(string answer)
+    {
+        // Act
+        var derivation = ThreadStateReading.Read(answer, Messages());
+
+        // Assert
+        Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
+    }
+
+    [Fact]
+    public void Read_ATopicPastItsBound_IsWithheldAsUnreadable()
+    {
+        // Arrange
+        var answer = $$"""{ "title": { "topic": "{{new string('a', ThreadTitle.MaximumTopicLength + 1)}}", "standing": "" } }""";
+
+        // Act
+        var derivation = ThreadStateReading.Read(answer, Messages());
+
+        // Assert
+        Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
+    }
+
+    [Fact]
+    public void Read_AnAnswerCarryingNoTitle_SettlesWithoutOne()
+    {
+        // Act
+        var derivation = ThreadStateReading.Read("""{ "agreements": [] }""", Messages());
+
+        // Assert
+        Assert.True(derivation.IsSettled);
+        Assert.Null(derivation.Title);
+    }
+
     private static IReadOnlyList<DerivableThreadMessage> Messages() =>
     [
         new(First, 0, "Karolina", new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero), "the price holds", StubEmailProvenanceReader.KnownCorrespondent),

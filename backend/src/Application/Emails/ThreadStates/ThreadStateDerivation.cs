@@ -17,10 +17,12 @@ public sealed record ThreadStateDerivation
     private ThreadStateDerivation(
         ThreadStateCoverage coverage,
         IReadOnlyList<ThreadStateEntry> entries,
+        ThreadTitleProposal? title,
         ThreadStateWithholding? withheld)
     {
         this.Coverage = coverage;
         this.Entries = entries;
+        this.Title = title;
         this.Withheld = withheld;
     }
 
@@ -30,6 +32,10 @@ public sealed record ThreadStateDerivation
     /// <summary>Gets what was derived, which is empty for a settled answer of nothing and for a withheld one alike.</summary>
     public IReadOnlyList<ThreadStateEntry> Entries { get; }
 
+    /// <summary>Gets the title the derivation proposed, or <see langword="null" /> where it proposed none.</summary>
+    /// <remarks>A proposal rather than a title, because whether its topic replaces the one the conversation kept is the pass's to decide — see <see cref="ThreadTitleProposal.SettleFor" />.</remarks>
+    public ThreadTitleProposal? Title { get; }
+
     /// <summary>Gets why nothing was derived, or <see langword="null" /> where the answer is settled.</summary>
     public ThreadStateWithholding? Withheld { get; }
 
@@ -38,13 +44,14 @@ public sealed record ThreadStateDerivation
 
     /// <summary>Records a derivation made over the whole conversation.</summary>
     /// <param name="entries">What was derived, and empty where there was nothing to say.</param>
+    /// <param name="title">The title the derivation proposed, or <see langword="null" /> where it read no conversation to name.</param>
     /// <returns>The derivation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="entries" /> is <see langword="null" />.</exception>
-    public static ThreadStateDerivation Settled(IReadOnlyList<ThreadStateEntry> entries)
+    public static ThreadStateDerivation Settled(IReadOnlyList<ThreadStateEntry> entries, ThreadTitleProposal? title = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
 
-        return new ThreadStateDerivation(ThreadStateCoverage.WholeThread, entries, withheld: null);
+        return new ThreadStateDerivation(ThreadStateCoverage.WholeThread, entries, title, withheld: null);
     }
 
     /// <summary>Records that the conversation is longer than one derivation may take in, so none was attempted.</summary>
@@ -55,7 +62,7 @@ public sealed record ThreadStateDerivation
     /// exactly like one derived from all of it, and a reader has no way to tell them apart.
     /// </remarks>
     public static ThreadStateDerivation TooLarge() =>
-        new(ThreadStateCoverage.ThreadTooLarge, [], withheld: null);
+        new(ThreadStateCoverage.ThreadTooLarge, [], title: null, withheld: null);
 
     /// <summary>Records that nothing was derived, and why.</summary>
     /// <param name="withholding">The condition that stopped it.</param>
@@ -71,6 +78,6 @@ public sealed record ThreadStateDerivation
                 "A withheld derivation names one of the conditions this system stops on.");
         }
 
-        return new ThreadStateDerivation(ThreadStateCoverage.WholeThread, [], withholding);
+        return new ThreadStateDerivation(ThreadStateCoverage.WholeThread, [], title: null, withholding);
     }
 }

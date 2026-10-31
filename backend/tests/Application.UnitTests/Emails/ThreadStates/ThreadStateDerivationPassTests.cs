@@ -319,6 +319,54 @@ public sealed class ThreadStateDerivationPassTests
         Assert.Equal(withholding, report.StoppedBy);
     }
 
+    /// <summary>The title is settled against the topic the conversation kept before it is written, not taken as the model wrote it.</summary>
+    [Fact]
+    public async Task RunAsync_ADerivationProposingANewTopicForAnOlderConversation_StoresTheKeptTopicAndTheNewStanding()
+    {
+        // Arrange
+        var conversation = Derivable() with
+        {
+            Revision = new ThreadStateRevision(
+                ThreadTitleProposal.YoungConversationMessageCount + 1,
+                new DateTimeOffset(2026, 9, 7, 16, 0, 0, TimeSpan.Zero)),
+            KeptTopic = "Racking quotation",
+        };
+        var store = StoreReturning([conversation]);
+        var pass = CreatePass(
+            store,
+            DeriverAnswering(_ => ThreadStateDerivation.Settled(
+                [],
+                new ThreadTitleProposal("Response times", StatesSubjectChange: false, string.Empty))));
+
+        // Act
+        await pass.RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        await store.Received(1).SaveAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Is<EmailThreadState>(state => state!.Title == ThreadTitle.Create("Racking quotation", string.Empty)),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>An answer that names no title leaves the conversation the topic it had rather than taking its name away.</summary>
+    [Fact]
+    public async Task RunAsync_ADerivationCarryingNoTitleForATitledConversation_StoresTheKeptTopicWithNoStanding()
+    {
+        // Arrange
+        var conversation = Derivable() with { KeptTopic = "Racking quotation" };
+        var store = StoreReturning([conversation]);
+        var pass = CreatePass(store, DeriverAnswering(_ => ThreadStateDerivation.Settled([Agreement()])));
+
+        // Act
+        await pass.RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        await store.Received(1).SaveAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Is<EmailThreadState>(state => state!.Title == ThreadTitle.Create("Racking quotation", string.Empty)),
+            Arg.Any<CancellationToken>());
+    }
+
     private static DerivableThread Derivable() =>
         new(
             EmailThreadId.Create(Guid.CreateVersion7()),

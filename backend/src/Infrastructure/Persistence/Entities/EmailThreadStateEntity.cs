@@ -46,6 +46,13 @@ internal sealed class EmailThreadStateEntity
     /// <summary>Gets or sets when the most recent of those messages arrived, absent where none of them recorded an arrival.</summary>
     public DateTimeOffset? DerivedFromLatestArrival { get; set; }
 
+    /// <summary>Gets or sets what the conversation is about, absent where the derivation gave it no title.</summary>
+    /// <remarks>A column of the state rather than a row of its own, so the title is settled, replaced, and erased with the statements beside it and against the same revision.</remarks>
+    public string? Topic { get; set; }
+
+    /// <summary>Gets or sets where the conversation stands, empty where nothing is left open and absent wherever <see cref="Topic" /> is.</summary>
+    public string? Standing { get; set; }
+
     /// <summary>Gets or sets the optimistic concurrency token, which is PostgreSQL's own <c>xmin</c> rather than a column.</summary>
     /// <remarks>
     /// Two runs can reach one conversation: an account run derives from it while a later run reaches the same

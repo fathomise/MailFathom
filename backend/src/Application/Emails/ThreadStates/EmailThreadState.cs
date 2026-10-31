@@ -38,13 +38,20 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// until a pass derives it again — which can be indefinitely, while the answering allowance is spent. A reader is never
 /// shown one that is not as though it were.
 /// </param>
+/// <param name="Title">
+/// What the conversation is called, written by the same derivation as its statements, or <see langword="null" /> where
+/// it has none: the conversation was too long to read, every message of it sits in junk, or there was nothing in it to
+/// read. A title stays with the revision it was derived from, so one served from a state that is not current describes
+/// the conversation as it stood then.
+/// </param>
 public sealed record EmailThreadState(
     EmailThreadId ThreadId,
     ThreadStateCoverage Coverage,
     IReadOnlyList<ThreadStateEntry> Entries,
     ThreadStateRevision DerivedFrom,
     DateTimeOffset DerivedAt,
-    bool IsCurrent)
+    bool IsCurrent,
+    ThreadTitle? Title = null)
 {
     /// <summary>The greatest number of statements one aspect of a state holds.</summary>
     /// <remarks>

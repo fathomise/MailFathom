@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -109,6 +110,25 @@ public sealed class EmailThreadStateModelTests
         Assert.Equal(
             EmailThreadStateEntryEntity.MaximumOwedByLength,
             statement.FindProperty(nameof(EmailThreadStateEntryEntity.OwedBy))!.GetMaxLength());
+    }
+
+    /// <summary>A title's two lines are bounded where a model's answer is read, and the columns hold exactly that much.</summary>
+    [Fact]
+    public void EmailThreadStateModel_TheTitle_IsBoundedByTheColumnsItIsStoredIn()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var state = EntityType<EmailThreadStateEntity>(context);
+
+        // Assert
+        Assert.Equal(
+            ThreadTitle.MaximumTopicLength,
+            state.FindProperty(nameof(EmailThreadStateEntity.Topic))!.GetMaxLength());
+        Assert.Equal(
+            ThreadTitle.MaximumStandingLength,
+            state.FindProperty(nameof(EmailThreadStateEntity.Standing))!.GetMaxLength());
     }
 
     private static IEntityType EntityType<TEntity>(MailFathomDbContext context)

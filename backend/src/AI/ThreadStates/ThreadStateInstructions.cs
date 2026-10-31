@@ -37,6 +37,9 @@ internal static class ThreadStateInstructions
     /// <summary>Names the element carrying the conversation's subject, absent where it carried none.</summary>
     internal const string SubjectElementName = "subject";
 
+    /// <summary>Names the element carrying the topic the conversation was given last time, absent where it was given none.</summary>
+    internal const string TopicElementName = "topic";
+
     /// <summary>Names the element one message occupies.</summary>
     internal const string MessageElementName = "message";
 
@@ -87,6 +90,17 @@ internal static class ThreadStateInstructions
         than a guessed one, and an object carrying nothing at all is a valid answer for a conversation there is nothing
         to say about. Put at most {EmailThreadState.MaximumEntriesPerAspect} in each array, the most important first.
 
+        The object also carries "title", an object naming the conversation on a list of conversations, in two parts.
+        "topic" is what the conversation is about, at most {ThreadTitle.MaximumTopicLength} characters. "standing" is
+        where it stands now, at most {ThreadTitle.MaximumStandingLength} characters: what is still open, owed, or
+        awaited, read from the open questions and commitments you wrote and saying nothing they do not — and an empty
+        string where nothing is left open. Each is one line of plain text, with no markup, no link, and no line break.
+
+        Where the turn carries a <{TopicElementName}> element, that is the topic this conversation was given before.
+        Keep it: write "keepTopic": true and no "topic". Only where the conversation has moved on to another subject
+        write the new "topic" and "subjectChanged": true; a reply, a new detail, a new date, or a new person joining
+        is not another subject. Where the turn carries no <{TopicElementName}>, write "topic".
+
         Every entry is an object with two required fields. "text" is the statement itself, at most
         {ThreadStateEntry.MaximumTextLength} characters, written as one plain sentence. "messages" is an array of at most
         {ThreadStateEntry.MaximumSourceCount} numbers, each the "{PositionAttributeName}" of a <{MessageElementName}>
@@ -127,6 +141,7 @@ internal static class ThreadStateInstructions
     /// <param name="subject">The subject, already guarded for anything the deployment withholds from a provider, or <see langword="null" /> where the conversation carried none.</param>
     /// <param name="messages">The messages in the conversation's own order, whose texts are already guarded.</param>
     /// <param name="maximumCharacters">The most characters the turn may hold, which is the request bound of the model it is sent to.</param>
+    /// <param name="keptTopic">The topic the conversation was given last time, already guarded, or <see langword="null" /> where it was given none.</param>
     /// <returns>The turn text.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" /> is <see langword="null" />.</exception>
     /// <remarks>
@@ -146,17 +161,25 @@ internal static class ThreadStateInstructions
     internal static string ComposeThreadTurn(
         string? subject,
         IReadOnlyList<GuardedThreadMessage> messages,
-        int maximumCharacters = int.MaxValue)
+        int maximumCharacters = int.MaxValue,
+        string? keptTopic = null)
     {
         ArgumentNullException.ThrowIfNull(messages);
 
-        return AgentTurnDocument.Compose(maximumCharacters, document => WriteThread(document, subject, messages));
+        return AgentTurnDocument.Compose(
+            maximumCharacters,
+            document => WriteThread(document, subject, keptTopic, messages));
     }
 
     /// <summary>Writes the conversation, stopping at the message the budget ran out in.</summary>
+    /// <remarks>
+    /// The kept topic is quoted like the subject rather than written as the service's own text, because it is a line a
+    /// model wrote out of this same mail on an earlier run.
+    /// </remarks>
     private static void WriteThread(
         AgentTurnDocument document,
         string? subject,
+        string? keptTopic,
         IReadOnlyList<GuardedThreadMessage> messages)
     {
         document.StartElement(ThreadElementName);
@@ -164,6 +187,11 @@ internal static class ThreadStateInstructions
         if (subject is not null)
         {
             document.WriteQuoted(SubjectElementName, subject);
+        }
+
+        if (keptTopic is not null)
+        {
+            document.WriteQuoted(TopicElementName, keptTopic);
         }
 
         foreach (var message in messages)

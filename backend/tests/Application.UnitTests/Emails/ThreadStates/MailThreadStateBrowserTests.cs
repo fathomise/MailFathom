@@ -181,6 +181,24 @@ public sealed class MailThreadStateBrowserTests
         Assert.Equal(recorded.DueAt, guarded.DueAt);
     }
 
+    /// <summary>A title is two more lines a model wrote about somebody's mail, so both are scanned like the statements beside them.</summary>
+    [Fact]
+    public async Task ReadStateAsync_ADeploymentThatScansATitledState_ScansTheTopicAndTheStanding()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        var titled = State([]) with { Title = ThreadTitle.Create($"Key {Marker}", $"Rotate {Marker}") };
+        var browser = CreateBrowser(ReaderReturning(titled), egressGuard: egress.Guard);
+
+        // Act
+        var state = await browser.ReadStateAsync(Conversation, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(state?.Title);
+        Assert.DoesNotContain(Marker, state.Title.Topic, StringComparison.Ordinal);
+        Assert.DoesNotContain(Marker, state.Title.Standing, StringComparison.Ordinal);
+    }
+
     /// <summary>The band is asked for by whoever reads the conversation, so a folder withheld from AI is read for the person and left out for an agent.</summary>
     [Theory]
     [InlineData(MailboxReaderKind.Person, true)]

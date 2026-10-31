@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -27,6 +28,9 @@ internal sealed class EmailThreadStateConfiguration : IEntityTypeConfiguration<E
         // Text for the reason every other stored outcome is: it stays readable in an ad-hoc query and survives a later
         // reordering of the enum.
         entity.Property(state => state.Coverage).HasConversion<string>().HasMaxLength(64).IsRequired();
+
+        entity.Property(state => state.Topic).HasMaxLength(ThreadTitle.MaximumTopicLength);
+        entity.Property(state => state.Standing).HasMaxLength(ThreadTitle.MaximumStandingLength);
 
         // See the stored-email mapping: this is the PostgreSQL `xmin` system column, not a user-defined column.
         entity.Property(state => state.ConcurrencyVersion).IsRowVersion();

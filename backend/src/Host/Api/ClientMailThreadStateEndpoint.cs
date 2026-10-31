@@ -95,6 +95,12 @@ internal static class ClientMailThreadStateEndpoint
 /// such a state as the conversation's current one.
 /// </param>
 /// <param name="Entries">The statements, at most one of each aspect, in aspect order.</param>
+/// <param name="Title">
+/// What the conversation is called, or <see langword="null" /> where it has no title — it was too long to read, all of
+/// it sits in junk, or the derivation gave it none. It was derived with the statements, so where
+/// <paramref name="Current" /> is <see langword="false" /> it names the conversation as it stood before the change: a
+/// client keeps the topic and holds the standing back until the next derivation.
+/// </param>
 /// <remarks>
 /// <c>coverage</c> is what a conversation too large to read in one bound is published as, and it arrives with no
 /// entries: a partial reading of a long exchange presented as its state would be worse than saying nothing, so the
@@ -105,7 +111,8 @@ internal sealed record ClientMailThreadStateResponse(
     string Coverage,
     DateTimeOffset DerivedAt,
     bool Current,
-    IReadOnlyList<ClientMailThreadStateEntryResponse> Entries)
+    IReadOnlyList<ClientMailThreadStateEntryResponse> Entries,
+    ClientMailThreadTitleResponse? Title)
 {
     /// <summary>Describes one conversation's state for the wire.</summary>
     /// <param name="state">The state the reader returned.</param>
@@ -120,9 +127,15 @@ internal sealed record ClientMailThreadStateResponse(
             state.Coverage.ToString(),
             state.DerivedAt,
             state.IsCurrent,
-            [.. state.Entries.Select(ClientMailThreadStateEntryResponse.For)]);
+            [.. state.Entries.Select(ClientMailThreadStateEntryResponse.For)],
+            state.Title is { } title ? new ClientMailThreadTitleResponse(title.Topic, title.Standing) : null);
     }
 }
+
+/// <summary>What a conversation is called, as a model wrote it.</summary>
+/// <param name="Topic">What the conversation is about, kept as replies arrive.</param>
+/// <param name="Standing">Where it stands, empty where nothing in it is left open.</param>
+internal sealed record ClientMailThreadTitleResponse(string Topic, string Standing);
 
 /// <summary>One statement about where a conversation stands.</summary>
 /// <param name="Aspect">Which of the four the statement is: <c>Agreement</c>, <c>OpenQuestion</c>, <c>Commitment</c>, or <c>VersionDifference</c>.</param>

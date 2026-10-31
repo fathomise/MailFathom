@@ -43,11 +43,58 @@ a conversation carried on in two languages still reads as one statement in that 
 the reader's because the statement is one row, derived once however many people are assigned the account. A name, a
 subject, or a phrase quoted out of the conversation stays as it was written.
 
+## What the conversation is called
+
+The same derivation names the conversation, so a thread list can show each row by what it is about and where it stands
+without anybody opening it. The **title** has two parts, both written by the model in the mailbox's language like every
+statement:
+
+| Part | What it holds |
+|---|---|
+| **Topic** | What the conversation is about, at most 80 characters. Set early and kept, so a reply never turns the row somebody is looking for into a different one. |
+| **Standing** | Where it stands now, at most 160 characters: what is still open, owed, or awaited. Written again on every derivation, and empty where nothing is left open. |
+
+Each is one line of plain text, with no markup and no link. **An answer whose title breaks that is withheld as
+unreadable** rather than shortened, because a title is drawn where a sender's words are not, and a line carrying a tag
+or a link would be a sender's text reaching a place the deployment writes. An answer carrying no title at all settles
+proposing none: the conversation keeps the topic it had, with no standing beside it.
+
+**The standing is a reading of the statements beside it, never a sentence of its own.** It is kept only beside an open
+question or a commitment; written beside nothing still open, it is stored empty, because it would be stating something
+no statement carries.
+
+**The topic is kept by rule rather than by trusting the model to repeat itself.** The turn quotes back the topic the
+conversation was given last time, and the model answers either that it stays or with a new one and a statement that the
+subject changed. The service then decides:
+
+- A conversation with no topic yet takes the one proposed.
+- A **young** conversation — at most three messages, a constant rather than a setting — takes a new topic freely: the
+  first exchanges are where a conversation finds out what it is about.
+- After that, a new topic is taken only beside a stated subject change. Otherwise the kept topic stays, and the
+  standing is taken regardless.
+
+**Where threads merge, the surviving thread's topic is the one kept**, because the state hangs off the surviving thread
+and the merged conversation is derived again from its shape.
+
+**Some conversations are given no title, and say so** rather than receiving a placeholder: one too long to read
+(`ThreadTooLarge`), one with no settled derivation yet, and one whose every message sits in junk — a spam conversation,
+which a name on its row would vouch for. A message the classification gate withholds as spam, and one moved to Trash,
+never reaches the derivation at all, so it feeds neither the statements nor the title.
+
+A title stays with the revision it was derived from. Where a reply has arrived since, the state is served as not
+current, and a client keeps the topic and holds the standing back until the conversation is derived again.
+
 ## Nothing to say, and too much to read
 
 A record with **no statements at all** is a real outcome rather than a failure. It says a derivation ran and found
 nothing to put beside the correspondence — two messages arranging a time, a receipt and its acknowledgement — and
 storing it is what stops the same nothing being paid for again.
+
+A message in Trash is somebody's deletion rather than part of where the conversation stands, so it is in no count and
+in no turn, and moving one there puts the conversation back in front of the derivation without it. A folder beneath
+Trash counts as Trash, because deleting a folder the account keeps moves it there. A conversation whose every message
+has gone is never derived again, so the state it kept is served as not current rather than as a reading of mail nobody
+reads it from any more.
 
 A conversation longer than one derivation may take in is the other case, and it is stored as a coverage of its own
 rather than as an absence:
@@ -119,7 +166,8 @@ of its own.
 agent in the turn, so an agent that could look something up would be an agent able to reach mail beyond the
 correspondence it was asked about.
 
-What leaves the deployment is the subject, each message's author, arrival instant, provenance, and text — nothing else,
+What leaves the deployment is the subject, the topic the conversation was given last time, each message's author,
+arrival instant, provenance, and text — nothing else,
 and every quoted one of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment
 switched on. The messages are **numbered in the turn and cited by number**, and the model is shown no identifier at
 all, so a citation is a position in a list this deployment composed: an answer naming a message it was not given names
@@ -164,13 +212,13 @@ restart.
 
 A statement is a sentence derived from somebody's mail and inherits its classification whole.
 
-- **Nothing about a statement reaches a log or a span.** What a derivation reports about itself is the endpoint that
-  answered, a count of conversations, a count of statements, and the reason a derivation was withheld. Never the text,
-  never who owes a commitment, never the subject.
-- **The text and the owner are scanned on the way out**, at the client point as well as at the prompt point, so a
-  statement quoting a credential a message carried is redacted before it reaches a screen.
-- **Deleting the conversation's mail deletes its state.** The record hangs off the surviving thread with a cascading
-  delete, so an erasure removes the block with the correspondence rather than leaving it behind.
+- **Nothing about a statement or a title reaches a log or a span.** What a derivation reports about itself is the
+  endpoint that answered, a count of conversations, a count of statements, and the reason a derivation was withheld.
+  Never the text, never who owes a commitment, never the subject, the topic, or the standing.
+- **The text, the owner, and the title are scanned on the way out**, at the client point as well as at the prompt
+  point, so a statement quoting a credential a message carried is redacted before it reaches a screen.
+- **Deleting the conversation's mail deletes its state and its title.** The record hangs off the surviving thread with a
+  cascading delete, so an erasure removes the block with the correspondence rather than leaving it behind.
 - **A source is published as a message identifier rather than as text**, because following one is a request of its own.
 - **It publishes no participants.** Who is taking part is something the correspondence states exactly — the authors of
   its messages — and the conversation route already publishes it from the mail itself. Asking a model for it would
@@ -179,7 +227,7 @@ A statement is a sentence derived from somebody's mail and inherits its classifi
 ## What a client reads
 
 `GET /api/client/threads/{threadId}/state` answers with the block: the conversation, the coverage, when it was derived,
-whether it is current, and the statements with their sources.
+whether it is current, the statements with their sources, and the title, or `null` where the conversation has none.
 
 **A stale state is never published as current.** Between a reply arriving and the next pass reaching the conversation
 — which is indefinite while the answering allowance is spent — the stored record describes a conversation that no
@@ -209,6 +257,7 @@ conversation on the screen holding any of them reads its pages and its state aga
 - **Acting on a commitment.** Nothing reminds, schedules, files, or replies. A commitment is a reading of the
   conversation, not a task this deployment took on.
 - **Drafting a reply.** The block says where a correspondence stands and stops there.
+- **Renaming a conversation by hand.** Every title is the derivation's; nothing lets a person write one.
 - **A deterministic producer.** Every statement today comes from the agent.
 - **Re-deriving on a changed instruction.** A conversation is re-derived when its shape changes and at no other time,
   including after the instruction or the model behind it moves.
