@@ -1165,6 +1165,35 @@ verify_fast_records_nothing_when_the_tree_moved_beside_a_formatter_rewrite() {
   assert_contains 'build backend/MailFathom.slnx --configuration Release --no-restore' "$invocation_log"
 }
 
+# The instruction to skip the next run is given only once a record exists to skip to. A rewrite that
+# reaches a whitespace error fails the run, records nothing, and never says otherwise.
+verify_fast_promises_no_second_run_only_once_it_recorded() {
+  local rewrite_output="$test_directory/verify-fast-rewrite-whitespace-output"
+
+  printf 'clean\n\n' > "$repository_root/tracked.txt"
+  git -C "$repository_root" add tracked.txt
+
+  local script_status=0
+
+  (
+    export FAKE_DOTNET_REWRITE="$repository_root/backend/src/Sample.cs"
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$rewrite_output" 2>&1 || script_status=$?
+
+  git -C "$repository_root" restore --staged tracked.txt
+  git -C "$repository_root" restore tracked.txt
+  git -C "$repository_root" checkout --quiet HEAD -- backend/src/Sample.cs
+
+  if ((script_status == 0)); then
+    printf 'verify-fast.sh ignored a whitespace error after a formatter rewrite\n' >&2
+    return 1
+  fi
+
+  assert_contains 'new blank line at EOF.' "$rewrite_output"
+  assert_excludes 'no second run is needed' "$rewrite_output"
+}
+
 verify_force_runs_everything_a_record_would_have_skipped() {
   (
     cd "$repository_root"
@@ -12318,6 +12347,7 @@ run_test verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass
 run_test verify_fast_records_the_formatted_tree_when_formatting_only_repaired
 run_test verify_fast_records_the_formatted_tree_when_prettier_only_repaired
 run_test verify_fast_records_nothing_when_the_tree_moved_beside_a_formatter_rewrite
+run_test verify_fast_promises_no_second_run_only_once_it_recorded
 run_test verify_full_records_nothing_when_it_failed
 run_test verify_force_runs_everything_a_record_would_have_skipped
 run_test verify_full_formats_the_whole_solution_when_a_shared_style_input_changed

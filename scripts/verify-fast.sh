@@ -207,15 +207,17 @@ fi
 # A rewrite by the formatters is their own repair: whitespace, the order of using directives, a final
 # newline, the fixes an analyzer's code fix applies. A second run over the formatted files would
 # rebuild and retest only to say what this one said, so the run records the formatted tree instead of
-# the one it built — provided nothing but the formatters moved it. A tree that changed while the build
-# or the suites ran still records nothing, below. The record settles no more than a run that rewrote
+# the one it built — provided nothing moved it before they started. A tree that changed while the
+# build or the suites ran still records nothing, below; an edit landing while the formatters
+# themselves run is indistinguishable from their rewrite and is recorded with it. The record settles no more than a run that rewrote
 # nothing does: a diagnostic with no code fix, which the build passes over and this pass cannot act
 # on, is still left to the full gate and `CI`, as the comment above the formatting passes says.
 digest_after_formatting="$(resolve_verification_digest)"
+formatters_rewrote_the_tree=''
 
 if [[ -n "$digest_before_formatting" && "$digest_after_formatting" != "$digest_before_formatting" ]]; then
   if [[ "$verification_digest" == "$digest_before_formatting" ]]; then
-    printf 'The formatting pass rewrote files and nothing else moved, so the formatted tree is recorded and no second run is needed: commit the rewrite with the change.\n'
+    formatters_rewrote_the_tree='yes'
     verification_digest="$digest_after_formatting"
   else
     printf 'The formatting pass rewrote files, but the tree also changed while the gate ran, so nothing is recorded: run the gate again.\n'
@@ -244,3 +246,9 @@ fi
 # Records nothing when the tree changed while the run went on, because what passed is then not what
 # is here now.
 record_verification 'verify-fast' "$verification_digest"
+
+# Said only once the record exists, because the sentence is an instruction to skip the next run, and
+# a whitespace error or a tree that moved in the last seconds would have left nothing to skip to.
+if [[ -n "$formatters_rewrote_the_tree" ]] && verification_already_recorded 'verify-fast' "$verification_digest"; then
+  printf 'The formatting pass rewrote files and nothing else moved, so the formatted tree is recorded and no second run is needed: commit the rewrite with the change.\n'
+fi

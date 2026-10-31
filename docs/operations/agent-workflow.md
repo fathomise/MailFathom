@@ -461,8 +461,11 @@ Four things bound what a record claims.
   forgives is the fast loop's own formatting pass: a run whose tree changed only
   there records the formatted tree, because what moved is the formatters' repair
   of content the build and the suites already passed. Anything else that moved
-  while the gate ran — an edit beside it — records nothing, which is what would
-  let either gate be started in the background beside an editing session.
+  while the build or the suites ran — an edit beside the gate — records nothing,
+  which is what would let either gate be started in the background beside an
+  editing session. The forgiveness covers the whole formatting phase, though: an
+  edit landing in the seconds the formatters themselves run cannot be told from
+  their rewrite and is recorded with it.
 - **A gate that failed writes nothing**, however far it got.
 - **The full gate's record answers for the fast loop, and never the reverse.**
   Both run the flow of whichever stacks the change reaches, and the full gate's is
