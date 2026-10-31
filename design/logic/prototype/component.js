@@ -1441,7 +1441,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     askDel = (o) => this.setState({ confirmDel: o });
 
-    inTrash = () => /·Trash$/.test(this.state.folderKey || "acc1·Inbox");
+    inTrash = () => !this.state.convMail && /·Trash$/.test(this.state.folderKey || "acc1·Inbox");
 
     deleteThreads = (ids) => {
       const t = this.opTargets(ids);
@@ -1690,7 +1690,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (moved) return moved === "Spam";
       return (THREADS.find(x => x.id === id) || {}).box === "spam";
     };
-    inSpamFolder = () => /·Spam$/.test(this.state.folderKey || "acc1·Inbox");
+    inSpamFolder = () => !this.state.convMail && /·Spam$/.test(this.state.folderKey || "acc1·Inbox");
     /* Whether *Spam* and *Not spam* also move a message is its account's own setting, off unless the account says so. */
     accountOf = (id) => (THREADS.find(x => x.id === id) || {}).acc || "acc1";
     movesSpam = (id) => !!(ACCOUNTS.find(a => a.key === this.accountOf(id)) || {}).movesSpam;
@@ -3838,27 +3838,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const thread = THREADS.find(t => t.id === st.threadId) || THREADS[0];
       /* An account's Spam folder lists what sits in it, badged by kind; every other list leaves it out and folds the
          spam that sits elsewhere. The prototype's lists are otherwise one list under every folder. */
-      const inSpamBox = this.inSpamFolder();
-      const spamBoxAcc = (st.folderKey || "").split("·")[0];
-      /* Listed by conversation, a row reads from the newest message the folder is about: in Sent the newest one the
-         user sent, everywhere else the newest one they received - so Sent lists only conversations they wrote in. */
+      /* Listed by conversation there are no folders: a conversation gathers its messages from every folder, Spam and
+         Trash included, and is listed under its account as long as one of them sits in an ordinary folder. The
+         prototype keeps a whole thread in one place, so one wholly in Spam or in Trash is the one left out. */
       const convMail = !!st.convMail;
-      const convSent = /·Sent$/.test(st.folderKey || "");
-      const listedThreads = THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 &&
+      const convAcc = st.convAcc || "all";
+      const inSpamBox = !convMail && this.inSpamFolder();
+      const spamBoxAcc = (st.folderKey || "").split("·")[0];
+      const listedThreads = THREADS.filter(t => (convMail || (st.archived || []).indexOf(t.id) < 0) && (st.deleted || []).indexOf(t.id) < 0 &&
         this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc) &&
-        (!convMail || !convSent || msgsFor(t).some(m => m.mine)));
+        (!convMail || convAcc === "all" || this.accountOf(t.id) === convAcc));
       const convFirst = (n) => n === ME ? "me" : n.split(" ")[0];
       const convRowOf = (t) => {
         const ms = msgsFor(t);
-        const mine = ms.filter(m => m.mine), theirs = ms.filter(m => !m.mine);
-        const pick = (convSent ? mine[mine.length - 1] : theirs[theirs.length - 1]) || ms[ms.length - 1];
+        const pick = ms[ms.length - 1];
         const people = ms.map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
         const others = people.filter(n => n !== ME);
         const named = (list) => list.length === 1 ? (list[0] === ME ? "me" : list[0]) : list.map(convFirst).join(", ");
         const title = aiHints && !this.spamOf(t.id).spam ? CONV_TITLES[t.id] : "";
         const who = pick.mine ? "You:" : others.length > 1 ? convFirst(pick.from) + ":" : "";
         return {
-          convPeople: convSent ? "To " + named(others.length ? others : [t.from]) : named(people),
+          convPeople: named(people),
           convTitled: !!title,
           convTitle: title || t.subject,
           convWho: who,
@@ -3948,7 +3948,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          is exactly what someone unsure of a verdict wants to judge; rows that draw recipients - Sent and Drafts - carry
          none. On a row it is the glyph alone, beside a sender it is a badge naming the state, and a neutral badge is
          the glyph alone too. Either opens the same details. */
-      const recipientList = /·(Sent|Drafts)$/.test(st.folderKey || "");
+      const recipientList = !convMail && /·(Sent|Drafts)$/.test(st.folderKey || "");
       const markGlyph = (px) => "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + px + "px";
       const markOf = (threadId, from) => {
         const r = senderRecord(threadId, from);
@@ -5917,6 +5917,33 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         sideGroups: [{ key: "all", label: UNIFIED_ACCOUNTS.label, title: UNIFIED_ACCOUNTS.title, dot: UNIFIED_ACCOUNTS.dot, folders: STD_FOLDERS(UNIFIED_ACCOUNTS.counts, true) }]
           .concat(ACCOUNTS.map(a => ({ key: a.key, label: a.label, title: a.address + (a.shared ? " - shared mailbox" : ""), dot: a.dot, shared: !!a.shared, folders: STD_FOLDERS(a.counts) })))
           .map(g => {
+          if (convMail) {
+            const active = convAcc === g.key;
+            const icon = g.key === "all" ? "all_inbox" : g.shared ? "group" : "account_circle";
+            return {
+              label: g.label, title: null, open: true, chevron: "expand_more", shared: false, sharedStyle: SHARED_MARK,
+              showHeader: false, showDot: sideCollapsed,
+              ctxOpen: noop, pressDown: noop, pressUp: noop, toggle: noop,
+              wrapStyle: sideCollapsed ? "display:flex;flex-direction:column;gap:3px;padding-bottom:4px" : "display:flex;flex-direction:column;gap:2px;padding-bottom:2px",
+              headStyle: "display:none",
+              dotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:" + g.dot,
+              folders: [{
+                ctxOpen: noop, pressDown: noop, pressUp: noop,
+                icon, label: g.label, count: "", expanded: !sideCollapsed,
+                outboxMark: false, outboxStrip: false, ob: {},
+                title: sideCollapsed ? g.label : null,
+                pick: () => this.setState({ convAcc: g.key, sel: [], sideDrawer: false }),
+                dragOver: noop, dragLeave: noop, drop: noop,
+                twisty: "chevron_right", hasKids: false, twistyTitle: "", twistyStyle: "display:none", toggleKids: noop,
+                style: (sideCollapsed
+                  ? "display:flex;align-items:center;justify-content:center;height:34px;border-radius:8px;font-size:14px;"
+                  : "display:flex;align-items:center;gap:10px;font-size:14px;padding:7px 11px;border-radius:8px;") +
+                  (active ? "background:var(--accent-soft);color:var(--accent-d);font-weight:600;" : ""),
+                iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;text-align:center;" + (sideCollapsed ? "font-size:24px;width:24px;" : "font-size:18px;width:20px;flex:0 0 20px;") + (active ? "" : "color:var(--muted);"),
+                countStyle: "font-size:13px;color:var(--faint)",
+              }],
+            };
+          }
           const open = (st.accOpen || {})[g.key] !== false;
           const press = g.key === "all" ? null : this.pressFor("account", g.key, g.label, this.accountMenu(g.key, g.label), undefined, g.title);
           return {
