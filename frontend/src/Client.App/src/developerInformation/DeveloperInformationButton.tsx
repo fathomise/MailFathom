@@ -16,9 +16,9 @@ import { toggleDeveloperInformation, useDeveloperAccess } from './developerAcces
 // only shows or hides what is already being kept.
 
 const resting =
-    'text-muted hover:bg-hover hover:text-text workspace:border-line workspace:bg-panel workspace:text-muted workspace:hover:bg-hover workspace:hover:text-text';
+    'text-muted hover:bg-hover hover:text-text rail:border-line rail:bg-panel rail:text-muted rail:hover:bg-hover rail:hover:text-text';
 const showing =
-    'bg-accent-soft text-accent-deep hover:bg-hover hover:text-text workspace:border-accent-line workspace:bg-accent-soft workspace:text-accent-deep workspace:hover:bg-hover workspace:hover:text-text';
+    'bg-accent-soft text-accent-deep hover:bg-hover hover:text-text rail:border-accent-line rail:bg-accent-soft rail:text-accent-deep rail:hover:bg-hover rail:hover:text-text';
 
 export function DeveloperInformationButton() {
     const { translate } = useLocalization();
@@ -45,17 +45,17 @@ export function DeveloperInformationButton() {
                 aria-label={translate('developer.title')}
                 aria-expanded={open}
                 aria-describedby={recordingId}
-                className={`relative flex flex-1 cursor-pointer flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition workspace:size-8.5 workspace:flex-none workspace:justify-center workspace:gap-0 workspace:rounded-lg workspace:border workspace:px-0 workspace:py-0 ${open ? showing : resting}`}
+                className={`relative flex flex-1 cursor-pointer flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition rail:size-8.5 rail:flex-none rail:justify-center rail:gap-0 rail:rounded-lg rail:border rail:px-0 rail:py-0 ${open ? showing : resting}`}
             >
                 <Icon name="code" className="size-icon-lg" />
                 <span
                     aria-hidden="true"
-                    className="absolute end-1.75 top-1.75 size-2 animate-working rounded-full bg-error ring-2 ring-panel workspace:end-0.75 workspace:ring-rail workspace:top-0.75"
+                    className="absolute end-1.75 top-1.75 size-2 animate-working rounded-full bg-error ring-2 ring-panel rail:end-0.75 rail:ring-rail rail:top-0.75"
                 />
                 <span id={recordingId} hidden>
                     {translate('developer.recordingInBackground')}
                 </span>
-                <span className="max-w-full truncate workspace:hidden">{translate('developer.title')}</span>
+                <span className="max-w-full truncate rail:hidden">{translate('developer.title')}</span>
             </button>
             {tip}
         </>

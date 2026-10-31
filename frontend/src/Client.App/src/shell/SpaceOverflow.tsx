@@ -83,7 +83,7 @@ export function SpaceOverflow({
                 popoverTarget={sheet}
                 aria-label={alarmed ? translate('shell.moreDisconnected') : undefined}
                 aria-current={holdsCurrent ? 'true' : undefined}
-                className={`flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition ${
+                className={`flex max-w-30 flex-1 cursor-pointer flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition ${
                     holdsCurrent ? 'font-semibold text-accent-deep' : 'text-muted hover:bg-hover hover:text-text'
                 }`}
             >
@@ -110,8 +110,9 @@ export function SpaceOverflow({
                 data-pull="down"
                 // Dimmed behind, which the design draws and which is what says the sheet is the whole of what
                 // is being answered right now. The platform paints it: a popover has a `::backdrop` of its own exactly
-                // as the notification panel's dialog does, and this is the same token that one uses.
-                className="surface-sheet inset-x-0 top-auto bottom-0 m-0 max-h-sheet-height w-full max-w-full overflow-y-auto rounded-t-xl border-t border-line bg-panel px-3 pt-3 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:block"
+                // as the notification panel's dialog does, and this is the same token that one uses. No wider than the
+                // design's 560 pixels, centred over the bar, where the bar runs across an upright fold or tablet.
+                className="surface-sheet inset-x-0 top-auto bottom-0 mx-auto my-0 max-h-sheet-height w-full max-w-140 overflow-y-auto rounded-t-xl border-t border-line bg-panel px-3 pt-3 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:block"
             >
                 <div className="flex flex-col gap-0.5 pb-3">
                     {/* The bar the design draws across the top of the sheet, which says a sheet is what this

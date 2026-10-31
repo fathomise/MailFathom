@@ -165,12 +165,12 @@ export function StatusMenu({
             aria-label={translate(onDuration ? 'presence.duration' : 'presence.yours')}
             data-pull="down"
             onToggle={toggled}
-            className="max-workspace:surface-sheet workspace:surface-pop inset-x-0 top-auto bottom-0 m-0 max-h-sheet-height w-full max-w-full overflow-y-auto rounded-t-xl border-t border-line bg-panel px-2 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:flex open:flex-col workspace:inset-x-auto workspace:bottom-4.5 workspace:left-26.5 workspace:w-68 workspace:rounded-lg workspace:border workspace:px-1.25 workspace:pb-1.25 workspace:backdrop:bg-transparent"
+            className="bar:surface-sheet rail:surface-pop inset-x-0 top-auto bottom-0 mx-auto my-0 max-h-sheet-height w-full max-w-140 overflow-y-auto rounded-t-xl border-t border-line bg-panel px-2 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:flex open:flex-col rail:inset-x-auto rail:bottom-4.5 rail:left-26.5 rail:w-68 rail:rounded-lg rail:border rail:px-1.25 rail:pb-1.25 rail:backdrop:bg-transparent"
         >
             {/* The bar a sheet draws across its top, which is decoration: the pull is the frame's rule for every sheet. */}
             <span
                 aria-hidden="true"
-                className="mx-auto mt-2.5 mb-1.5 h-1 w-9.5 shrink-0 rounded-full bg-line-strong workspace:hidden"
+                className="mx-auto mt-2.5 mb-1.5 h-1 w-9.5 shrink-0 rounded-full bg-line-strong rail:hidden"
             />
 
             {onDuration ? (
@@ -184,7 +184,7 @@ export function StatusMenu({
                 />
             ) : (
                 <>
-                    <div className="-mx-1.25 mb-1 flex items-center gap-2.5 border-b border-line-soft py-2 ps-3.5 pe-2.25 workspace:pt-2.5">
+                    <div className="-mx-1.25 mb-1 flex items-center gap-2.5 border-b border-line-soft py-2 ps-3.5 pe-2.25 rail:pt-2.5">
                         <span className="relative shrink-0">
                             <PersonAvatar displayName={displayName} picture={picture} place="status" />
                             <PresenceDot presence={own.presence.state} place="head" />

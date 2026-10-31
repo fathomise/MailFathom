@@ -384,7 +384,7 @@ export function NotificationCentre({
             // The panel is in the platform's top layer, where the frame's safe-area padding is not around it, so both
             // insets are padded away inside it: the sheet reaches the screen's edges and its content stays clear of the
             // status bar and the gesture bar.
-            className={`fixed inset-x-0 top-0 bottom-0 m-0 hidden h-auto max-h-none w-auto max-w-none open:flex flex-col overflow-visible rounded-t-xl border-line bg-panel pt-safe-top pb-safe-bottom text-text shadow-dialog backdrop:bg-scrim workspace:end-auto workspace:start-rail workspace:w-notifications workspace:rounded-none workspace:border-e ${
+            className={`fixed inset-x-0 top-0 bottom-0 m-0 hidden h-auto max-h-none w-auto max-w-none open:flex flex-col overflow-visible rounded-t-xl border-line bg-panel pt-safe-top pb-safe-bottom text-text shadow-dialog backdrop:bg-scrim workspace:end-auto workspace:start-0 workspace:bottom-navigation rail:start-rail rail:bottom-0 workspace:w-notifications workspace:rounded-none workspace:border-e ${
                 swipe.dragging
                     ? 'transition-none'
                     : swipe.springing

@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useComposing } from '../composer/useComposing';
 import { Control } from '../controls/Control';
 import { PlannedControl } from '../controls/PlannedControl';
@@ -23,7 +23,6 @@ import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { AiFilters } from './AiFilters';
 import { BackToList } from './BackToList';
 import { MailboxesDrawerContext } from './mailboxesDrawer';
-import { ListFoldContext, type ListFold } from '../messageRows/listFold';
 import {
     listWidthWithin,
     narrowestList,
@@ -147,7 +146,8 @@ export function MailSpace({
     const [chosenListWidth, setChosenListWidth] = useState(() => readListWidth(person));
     const [chosenMailboxesWidth, setChosenMailboxesWidth] = useState(() => readMailboxesWidth(person));
     const [listRoom, setListRoom] = useState(Number.POSITIVE_INFINITY);
-    const startingList = startingListWidthIn(desktop, monitor);
+    const roomy = useRoomyComposition();
+    const startingList = startingListWidthIn(desktop, monitor, roomy);
     const startingMailboxes = startingMailboxesWidthIn(monitor);
     const listWidth = listWidthWithin(chosenListWidth ?? startingList, listRoom);
     const mailboxesWidth = chosenMailboxesWidth ?? startingMailboxes;
@@ -205,52 +205,15 @@ export function MailSpace({
     // that reasoning, including why standing a surface aside is `visibility` and not `display`.
     const listAside = readingInFront || listGivenUp;
 
-    // Two panes in less width than 1020 — the fold, and a desktop window narrowed to half a screen — fold the list to a
-    // strip of senders while something is open beside it, so the message gets the width, and the toolbar's list
-    // control widens it again. It is the width's rule alone: a mouse there is as short of room as a finger.
-    // Widening is remembered against what was open when it was asked for, so picking another message folds the list
-    // back without anything having to undo it — unless somebody held that control to keep the list open, which holds
-    // for the session rather than for one message.
-    const roomy = useRoomyComposition();
-    const [widenedFor, setWidenedFor] = useState<string | null | undefined>(undefined);
-    const [listKept, setListKept] = useState(false);
-    // Not while an Outbox stands in the list's place: the strip is a list of senders, and an Outbox lists none.
-    const foldOffered = twoPanes && !roomy && readingOpen && !selecting && !listGivenUp && workspace.outbox === null;
-    const opened = workspace.selection;
-    const listFolded = !listKept && widenedFor !== opened;
-    const listFold = useMemo<ListFold | null>(
-        () =>
-            foldOffered
-                ? {
-                      folded: listFolded,
-                      kept: listKept,
-                      turn: () => {
-                          setListKept(false);
-                          setWidenedFor(listFolded ? opened : undefined);
-                      },
-                      keep: () => {
-                          if (listFolded) {
-                              return;
-                          }
-
-                          setListKept(!listKept);
-                          setWidenedFor(opened);
-                      },
-                  }
-                : null,
-        [foldOffered, listFolded, listKept, opened],
-    );
-    const listStrip = listFold?.folded === true;
-
     // How the toolbar fits its width is measured here rather than in the toolbar, because what it decides is drawn in
     // two places: the names in the strip, and — once composing no longer fits beside them — the floating control over
     // the list, which is this space's to draw. The selection bar measures itself; nothing outside it moves. The controls
-    // that change the view — the mailbox column's, or the drawer's and the fold's list — stand ahead of composing as
+    // that change the view — the mailbox column's, or the drawer's — stand ahead of composing as
     // one child of the strip at every width the toolbar is drawn at.
     const mailboxesInDrawer = mailboxes === 'drawer';
     const { strip: toolbarStrip, fit: toolbarFit } = useStripFit(
         true,
-        `${locale}:${String(mailboxesInDrawer)}:${String(listFold !== null)}:${String(coarse)}`,
+        `${locale}:${String(mailboxesInDrawer)}:${String(coarse)}`,
         1,
     );
     const toolbarDrawn = !selecting && wide;
@@ -379,7 +342,6 @@ export function MailSpace({
                     strip={toolbarStrip}
                     fit={toolbarFit}
                     openMailboxes={mailboxesInDrawer ? openDrawer : null}
-                    listFold={listFold}
                 />
             ) : null}
 
@@ -470,24 +432,23 @@ export function MailSpace({
                     /* Aside, it is laid out over the row at the width it is drawn at rather than at whatever the row
                        has left, so the offset it keeps points at the row it pointed at. Only the two narrow cases
                        reach it: the width somebody dragged is read below and never here. */
-                    className={`flex min-h-0 min-w-0 flex-col bg-panel ${paneArrival(paneMoved, false)} ${
+                    className={`@container flex min-h-0 min-w-0 flex-col bg-panel ${paneArrival(paneMoved, false)} ${
                         listAside
-                            ? `invisible absolute inset-y-0 start-0 ${twoPanes ? 'w-list-tablet' : 'w-full'}`
+                            ? `invisible absolute inset-y-0 start-0 ${
+                                  twoPanes ? (roomy ? 'w-list-tablet' : 'w-list-narrow') : 'w-full'
+                              }`
                             : twoPanes
-                              ? listStrip
-                                  ? 'w-list-strip shrink-0 border-e border-line bg-sunken'
-                                  : ''
+                              ? ''
                               : 'flex-1'
                     }`}
                     /* The one width in the client a person sets rather than the design, which is why it is drawn
                        from a value instead of a utility: the band's own width until a mouse drags it, and what was
-                       dragged after that. The narrow shape takes the whole column and the strip is the strip, so
-                       neither reads this.
+                       dragged after that. The narrow shape takes the whole column, so it does not read this.
                        Left able to shrink on purpose: a width chosen on a wider screen is read back before
                        anything has measured this one, and a column that refuses to give way in that frame would
                        push the message off the side. Flexbox holds it inside the window until the measurement
                        above brings it back to a width that fits. */
-                    style={twoPanes && !listAside && !listStrip ? { width: `${String(listWidth)}px` } : undefined}
+                    style={twoPanes && !listAside ? { width: `${String(listWidth)}px` } : undefined}
                 >
                     {/* The list and, wherever composing has no place in the toolbar, the control that writes a
                         message standing over its bottom corner: the narrow shape has no toolbar, and a wider one
@@ -503,12 +464,11 @@ export function MailSpace({
                             and a selection, whose bar replaces the toolbar. The column has no drawer and offers
                             nothing. */}
                         <MailboxesDrawerContext value={!mailboxesInDrawer || toolbarDrawn ? null : openDrawer}>
-                            <ListFoldContext value={listFold}>{list}</ListFoldContext>
+                            {list}
                         </MailboxesDrawerContext>
 
                         {(wide && toolbarFit === 'labelled') ||
                         readingInFront ||
-                        listStrip ||
                         selecting ? null : composing.offered ? (
                             <Control
                                 label={translate('mail.compose')}
@@ -530,11 +490,10 @@ export function MailSpace({
                     </div>
                 </section>
 
-                {/* The boundary is only there where both columns are, the list stands at a width rather than as its
-                    strip, and a mouse can drag it: one column at a time has nothing between them, and a finger has
+                {/* The boundary is only there where both columns are and a mouse can drag it: one column at a time has nothing between them, and a finger has
                     no drag handle to take hold of. The line the grip draws is the one place the design rules the list
                     off from the pane, so a finger's list stands against the pane without one. */}
-                {twoPanes && !coarse && !listAside && !listStrip ? (
+                {twoPanes && !coarse && !listAside ? (
                     <WidthGrip
                         label={translate('mail.listWidth')}
                         hint={translate('mail.listWidthHint')}

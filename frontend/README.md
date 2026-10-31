@@ -455,20 +455,25 @@ running on. Three `@theme` breakpoints decide it, and between them they give the
 frames: below `workspace` the destinations are a bottom bar under a single pane, and every side panel is a drawer;
 from `workspace` up they are the rail beside the workspace again; from `panes` up the list and the message stand side
 by side; and from `desktop` up the mailboxes stand open as a column of their own beside them, opening wider from
-`monitor` up. The fold is a composition of its own out of that arithmetic rather than a case anything branches on — two
-panes, and a mailbox column still folded. What _folded_ is between `workspace` and `desktop` is the pointer's to say
-rather than the width's, in `src/workspace/mailboxesForm.ts`: a drawer under a finger and a strip of symbols under a
-mouse. The pointer also says whether a column has a boundary to drag at all — a mouse's gesture, so a finger gets none
+`monitor` up. The one exception to the bar and the rail following the width alone is where the navigation stands under
+a finger below `roomy`: there a window that is upright or near square — the fold and the small tablet held upright —
+keeps the bottom bar, which is the `rail` variant in `src/styles.css` and `useNavigationRail` in
+`src/shell/useWideWorkspace.ts`. The fold is a composition of its own out of that arithmetic rather than a case anything
+branches on — two panes beside the bottom bar, the list at its narrow width, and a mailbox column still folded. What
+_folded_ is between `panes` and `desktop` is the pointer's to say rather than the width's, in
+`src/workspace/mailboxesForm.ts`: a drawer under a finger and a strip of symbols under a mouse; on one pane it is a
+drawer under either. The pointer also says whether a column has a boundary to drag at all — a mouse's gesture, so a finger gets none
 at any width. What stands inside the thread pane follows the pane's own width rather than the window's, through the
 `pane-compact` and `pane-narrow` container sizes the reading column measures, because the same window gives the pane
-more or less as the list beside it folds or is dragged. How the toolbar draws its controls is measured rather than
+more or less as the list beside it is dragged. The list itself never folds: below `roomy` it opens at its narrow width,
+and below the `list-compact` container size a row draws less on its one line rather than growing taller. How the toolbar draws its controls is measured rather than
 composed, in `src/mailSpace/useStripFit.ts`:
 every control keeps its name in words for as long as the names fit the strip, composing leaves the strip for the
 floating control over the list when they stop fitting, and the symbols stand alone only when the names still do not
 fit without it.
 
 Height is a second axis beside the width: the width decides which surfaces stand, the height how dense they are, and
-nothing reads the window's orientation. A height rule may be scoped to a surface the width put there — the rail's is
+nothing but where the navigation stands reads the window's orientation. A height rule may be scoped to a surface the width put there — the rail's is
 written for the rail alone. Below the
 `--window-height-low` token the window is low — a phone on its side, a laptop's shortest viewport — and what is vertical
 folds: the rail draws its destinations as symbols named by their labels and drops the mark, and a dialog or a sheet may

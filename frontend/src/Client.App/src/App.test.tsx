@@ -235,7 +235,7 @@ describe('App', () => {
 
         expect(
             (await screen.findByRole('separator', { name: 'Message list width' })).getAttribute('aria-valuenow'),
-        ).toBe(String(startingListWidthIn(true, true)));
+        ).toBe(String(startingListWidthIn(true, true, true)));
     });
 
     // Opening a message from the list *is* opening its conversation, so there is no message standing behind the

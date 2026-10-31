@@ -950,7 +950,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Some threads have an unread message from the middle of the history —
          we open exactly that one, not the newest. */
       const entry = { piotr: 2 };
-      const patch = Object.assign(this.leaveOutbox(), { threadId: id, listWide: !!this.state.listKept, mailAnswer: false, replyDock: null, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+      const patch = Object.assign(this.leaveOutbox(), { threadId: id, mailAnswer: false, replyDock: null, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) }, this.composeCtxPatch([id]));
       patch.msgLoading = true;
@@ -3732,7 +3732,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const tall = h >= 960;
       /* The framed previews are the three touch devices; anything else asks the pointer, as the client does. */
       const touch = FR ? true : mode === "desktop" ? false : !!st.coarse;
-      const railW = compact ? 66 : 96;
+      /* The one rule that reads the window's aspect: under a finger, a window in the narrow two-pane band that is upright
+         or near square — the fold and the small tablet — carries its navigation at the bottom, as the phone does, under
+         the thumb. Near square counts because a fold's inner screen is: a browser's own bars take enough height to leave
+         the upright fold a little wider than tall, and it is still held upright. */
+      const navBottom = isMobile || (narrow && touch && w <= h * 1.15);
+      const railW = navBottom ? 0 : compact ? 66 : 96;
       this._low = low;
       this._isMobile = isMobile;
       this._touch = touch;
@@ -3779,8 +3784,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const thCollapsed = low || (!!st.thScroll && !tall);
       /* Width decides that the folder list stands as a column only from 1180; the pointer decides what it folds into
          below that — a drawer under a finger, which has no hover to read a strip of icons by, and the 58 px strip of
-         icons under a mouse. The phone has no rail to fold beside, so its list is always the drawer. */
-      const drawer = isMobile || (compact && !!touch);
+         icons under a mouse. One pane shows the list or the message and nothing beside it, so below 820 the folder list
+         is always the drawer, under a mouse as well. */
+      const drawer = singlePane || (compact && !!touch);
       const drawerOpen = !!st.sideDrawer;
       const rowStyleFor = (active, selected) =>
         "position:relative;display:flex;flex-direction:column;user-select:none;-webkit-user-select:none;" +
@@ -3805,12 +3811,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const tbFabForced = tbHasPri && tbMode !== "full";
       const inspW = narrow ? 288 : compact ? 320 : 400;
 
-      const railBase = isMobile
-        ? "flex:1;min-width:0;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 0;border-radius:16px;font-size:12px;"
+      const railBase = navBottom
+        ? "flex:1;min-width:0;max-width:120px;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 0;border-radius:16px;font-size:12px;"
         : "display:flex;flex-direction:column;align-items:center;gap:4px;width:calc(100% - 14px);box-sizing:border-box;border-radius:12px;padding:" + (low ? (touch ? 0 : 4) : compact ? 8 : 9) + "px 0;" + (low ? "min-height:" + (touch ? 44 : 36) + "px;justify-content:center;" : "");
       /* The phone marks the current place with a pill behind its glyph rather than a tile around the whole item: a
          tile the full height of the bar reads as a pressed button, and the bar is navigation. */
-      const activeStyle = isMobile
+      const activeStyle = navBottom
         ? "--nav-mark:var(--accent-soft);color:var(--accent-d);font-weight:600;"
         : "background:var(--accent-soft);color:var(--accent-d);font-weight:600;";
       const idleColor = "color:var(--muted);";
@@ -3911,9 +3917,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             foldSubjStyle: "flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted)",
             foldTimeStyle: "flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)",
             foldCheckShown: selected,
-            stripLabel: spamVerdictLine(sp) + ": " + t.from + " - " + t.subject,
-            stripInitials: "report",
-            stripAvatarStyle: "width:36px;height:36px;flex:0 0 36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--rail);color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1",
           } : {}),
         });
       };
@@ -3931,17 +3934,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       const withMark = (t, row) => {
         const M = recipientList ? null : markOf(t.id, null);
-        if (!M) return Object.assign(row, { markShown: false, stripMarkShown: false });
+        if (!M) return Object.assign(row, { markShown: false });
         return Object.assign(row, {
           markShown: true, markGlyph: M.glyph, markName: M.name, openMark: M.open,
           markOpen: !!(st.senderMark && st.senderMark.key === t.id + "|"),
           markBtnStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:" + MARK_INK[M.tone] + ";" +
             (touch ? "width:44px;height:44px;margin:-12px -10px;" : "width:24px;height:24px;margin:-4px -3px;"),
           markGlyphStyle: markGlyph(touch ? 20 : 18),
-          stripLabel: row.stripLabel + " - " + M.name,
-          stripMarkShown: M.k !== "neutral",
-          stripMarkStyle: "position:absolute;bottom:6px;right:6px;width:18px;height:18px;border-radius:50%;background:var(--panel);box-shadow:0 0 0 2px var(--sub);display:flex;align-items:center;justify-content:center;color:" +
-            MARK_INK[M.tone] + ";" + markGlyph(13),
         });
       };
       const badgeOf = (threadId, from) => {
@@ -3971,7 +3970,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           rcptBtnStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:" + RECEIPT_INK[R.tone] + ";" +
             (touch ? "width:44px;height:44px;margin:-12px -10px;" : "width:24px;height:24px;margin:-4px -3px;"),
           rcptGlyphStyle: markGlyph(touch ? 20 : 17),
-          stripLabel: row.stripLabel + " - " + R.name,
         });
       };
       const receiptBadge = (threadId) => {
@@ -4385,8 +4383,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       ].filter(mb => !(unified && mb.perAccount))
         .map(mb => ({ icon: mb.icon, label: mb.label, count: (counts || {})[mb.label] || "" }));
       const sideW = drawer ? 0 : sideCollapsed ? 58 : Math.max(210, Math.min(420, st.sideW || (wide ? 240 : 210)));
-      /* The list's width is the width band's until a mouse drags it: 284 below 1180, 340 on a desktop, 420 from 1920. */
-      const listW = Math.max(232, Math.min(st.listW || (compact ? 284 : wide ? 420 : 340), w - railW - sideW - (narrow ? 300 : 420)));
+      /* The list's width is the width band's until a mouse drags it: 248 below 1020, 284 below 1180, 340 on a desktop,
+         420 from 1920. Below 1020 it stays a list beside the thread rather than folding away. */
+      const listW = Math.max(232, Math.min(st.listW || (narrow ? 248 : compact ? 284 : wide ? 420 : 340), w - railW - sideW - (narrow ? 300 : 420)));
+      /* A list too narrow for one line of sender, marks, buttons and time keeps the row's one height and draws less on
+         it. Read from the list's own width, not the window's. */
+      const listCompact = !singlePane && listW < 270;
       this._listW = listW;
       const composeTabActive = tabsMode && st.activeTab === "compose" && !!st.compose;
       const docInPane = tabsMode && (st.activeTab || "").indexOf("doc:") === 0 && !!st.doc;
@@ -4414,9 +4416,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          until something has been opened during this visit to mail. */
       const emptyMail = !composeInPane && !docInPane && !htmlInPane &&
         (tabsMode ? tabItems.length === 0 : (!singlePane && !st.threadOpen));
-      /* Two panes in less than 1020 px: while a thread is open the list folds to a strip of senders, so the thread
-         gets the width; the toolbar's list control widens it again. A width rule — a mouse gets the same strip as a finger. */
-      const foldTwoPanes = !singlePane && narrow;
       /* The Outbox: one per account, read-only, holding what has not left it yet. It has no row of its own in the tree;
          it is a mark on the account's Sent row, drawn only while something waits or was refused. */
       const outboxAcc = st.screen === "mail" ? (st.outboxAcc || null) : null;
@@ -4570,10 +4569,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         outboxHasAttachments: !!outboxEntry && !!(outboxEntry.attachments || []).length,
         outboxBody: outboxEntry ? outboxEntry.body.map(p => ({ text: p })) : [],
       };
-      const listStrip = foldTwoPanes && !emptyMail && !st.listWide && !selectionOn && !(st.stateBarOff) && !outboxOn;
       /* What is inside the thread pane reads the pane's own width, not the window's: the same window gives the pane
          more or less as the list is folded, dragged, or put away. These are the pane's container breakpoints. */
-      const paneW = singlePane ? w - (isMobile ? 0 : railW) : w - railW - sideW - (listStrip ? 76 : listW);
+      const paneW = singlePane ? w - railW : w - railW - sideW - listW;
       const paneCompact = paneW < 760;
       const paneNarrow = paneW < 560;
       const stateCards = !isMobile && paneCompact;
@@ -4643,15 +4641,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             openStatusMenu: () => this.setState({ statusMenu: true, statusPage: null, statusDraft: null, userMenu: false, more: false }),
             statusMenuOpen: inOrg && !!st.statusMenu,
             closeStatusMenu: () => commit({ statusMenu: false, statusPage: null }),
-            statusScrimStyle: isMobile
+            statusScrimStyle: navBottom
               ? "position:fixed;inset:0;z-index:95;display:flex;flex-direction:column;justify-content:flex-end;background:var(--scrim)"
               : "position:fixed;inset:0;z-index:95",
-            statusCardStyle: isMobile
-              ? "display:flex;flex-direction:column;max-height:88dvh;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 30px var(--sh-3);padding:0 8px calc(8px + env(safe-area-inset-bottom))"
+            statusCardStyle: navBottom
+              ? "display:flex;flex-direction:column;width:100%;max-width:560px;box-sizing:border-box;align-self:center;max-height:88dvh;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 30px var(--sh-3);padding:0 8px calc(8px + env(safe-area-inset-bottom))"
               : "position:fixed;bottom:18px;left:106px;width:272px;max-height:calc(100dvh - 36px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 10px 24px var(--sh-2),0 2px 6px var(--sh-2);overflow:hidden;padding:0 5px 5px",
-            moStatusCard: isMobile ? "sheet" : "pop",
-            moStatusScrim: isMobile ? "scrim" : "none",
-            statusGrabber: isMobile,
+            moStatusCard: navBottom ? "sheet" : "pop",
+            moStatusScrim: navBottom ? "scrim" : "none",
+            statusGrabber: navBottom,
             statusAvatarStyle: "position:relative;width:" + (isMobile ? 40 : 32) + "px;height:" + (isMobile ? 40 : 32) + "px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:" + (isMobile ? 14 : 12) + "px;background:var(--border2);color:var(--text2);" +
               (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : ""),
             statusDotStyle: presenceDot(myPresence, isMobile ? 13 : 11),
@@ -4758,17 +4756,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (st.userMenu ? "outline:2px solid var(--accent-line);outline-offset:2px;" : ""),
         railThemeStyle: railBase + "color:var(--muted);",
         notMobile: !isMobile,
-        railIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + (isMobile ? 24 : 22) + "px" +
-          (isMobile ? ";width:56px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:var(--nav-mark,transparent);transition:background 120ms ease" : ""),
+        navBottom,
+        navSide: !navBottom,
+        railIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + (navBottom ? 24 : 22) + "px" +
+          (navBottom ? ";width:56px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:var(--nav-mark,transparent);transition:background 120ms ease" : ""),
         railMoreStyle: railBase + (st.more ? activeStyle : idleColor),
         moreOpen: !!st.more,
         toggleMore: () => this.setState(s2 => ({ more: !s2.more })),
         closeMore: () => this.setState({ more: false }),
-        moreItems: [
+        /* The phone's bar has five places, so three spaces stand in More; the fold's and the tablet's bar carries all six. */
+        moreItems: (isMobile ? [
           { icon: "task_alt", label: "Tasks", go: { screen: "tasks" } },
           { icon: "calendar_month", label: "Calendar", go: { screen: "cal" } },
           { icon: "group", label: "People", go: { screen: "people", peoplePane: "list" } },
-        ].map(mi => ({
+        ] : []).map(mi => ({
           icon: mi.icon, label: mi.label,
           run: () => this.setState(Object.assign({ more: false }, mi.go)),
           style: "display:flex;align-items:center;gap:16px;box-sizing:border-box;min-height:52px;padding:0 14px;border-radius:12px;font-size:15px;color:" +
@@ -4786,10 +4787,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         railLabelCal: "Calendar",
         railLabelPeople: "People",
         railLabelSettings: isMobile ? "Settings" : "Settings",
-        railLabelStyle: isMobile
+        railLabelStyle: navBottom
           ? "font-size:12px;line-height:1.1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%"
           : low ? "width:1px;height:1px;margin:-1px;overflow:hidden;opacity:0;white-space:nowrap" : compact ? "font-size:12px;line-height:1.1;text-align:center" : "font-size:12px",
-        rootStyle: FONT + (isMobile ? ";flex-direction:column-reverse" : "") + (FR
+        rootStyle: FONT + (navBottom ? ";flex-direction:column-reverse" : "") + (FR
           ? ";width:" + FR.w + "px;max-width:100%;height:" + FR.h + "px;max-height:calc(100dvh - 40px);margin:20px auto;transform:translateZ(0);border:1px solid var(--border2);border-radius:" + (isMobile ? 24 : 12) + "px;overflow:hidden;box-shadow:0 20px 50px var(--sh-2)"
           : ""),
         ctxMenuOpen: !!st.ctxMenu,
@@ -5108,15 +5109,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         dlgList: isMobile
           ? "box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;gap:5px;background:var(--panel);padding:16px 14px 22px;overflow:auto"
           : "width:330px;max-width:100%;max-height:" + dlgMaxH + ";overflow:auto;display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 22px 50px var(--sh-3)",
-        railLogoShown: !isMobile && !low,
+        railLogoShown: !navBottom && !low,
         railCaptionShown: !low,
         logoStyle: (compact ? "width:30px;height:30px" : "width:40px;height:40px") + ";border-radius:12px;display:block;flex:0 0 auto",
-        railStyle: isMobile
-          ? "flex:0 0 auto;min-height:70px;box-sizing:border-box;display:flex;flex-direction:row;align-items:stretch;justify-content:space-between;gap:3px;background:var(--rail);border-top:1px solid var(--line);padding:6px 6px calc(8px + env(safe-area-inset-bottom)) 6px;touch-action:none"
+        railStyle: navBottom
+          ? "flex:0 0 auto;min-height:70px;box-sizing:border-box;display:flex;flex-direction:row;align-items:stretch;justify-content:center;gap:3px;background:var(--rail);border-top:1px solid var(--line);padding:6px 6px calc(8px + env(safe-area-inset-bottom)) 6px;touch-action:none"
           : "width:" + railW + "px;flex:0 0 " + railW + "px;display:flex;flex-direction:column;align-items:center;gap:" + (narrow ? 10 : 14) + "px;overflow:hidden;background:var(--rail);border-right:1px solid var(--line);padding:16px 0",
         /* The nav scrolls on short viewports; the bottom cluster (demo, bell, avatar) stays pinned. */
-        railNavStyle: isMobile
-          ? "flex:1;min-width:0;display:flex;flex-direction:row;align-items:stretch;justify-content:space-between;gap:3px"
+        railNavStyle: navBottom
+          ? "flex:1;min-width:0;display:flex;flex-direction:row;align-items:stretch;justify-content:" + (isMobile ? "space-between" : "center") + ";gap:3px"
           : "flex:1 1 auto;width:100%;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;align-items:center;gap:" + (narrow ? 2 : 4) + "px",
         isCal: st.screen === "cal" && !emptyApp,
         isTasks: st.screen === "tasks" && !emptyApp,
@@ -5262,9 +5263,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            far enough that the pulse's 5 px ring never crosses the tile's edge. */
         agentDotShown: !!agentDot,
         agentDotKind: agentDot,
-        railIconWrapStyle: (isMobile ? "position:relative;" : "") + "display:flex;align-items:center;justify-content:center",
+        railIconWrapStyle: (navBottom ? "position:relative;" : "") + "display:flex;align-items:center;justify-content:center",
         railDotStyle: "position:absolute;width:8px;height:8px;border-radius:50%;background:var(--err);pointer-events:none;" +
-          (isMobile ? "top:6px;right:6px" : "top:8px;right:8px"),
+          (navBottom ? "top:6px;right:6px" : "top:8px;right:8px"),
         agentTileLabel: "Agent" + (agentDot ? " - " + [agentRuns.length ? agentRuns.length + " working" : "", agentUnread.length ? agentUnread.length + " unread" : ""].filter(Boolean).join(", ") : ""),
         railPeekShown: !!peekView,
         railPeekTitle: peekView ? peekView.title : "",
@@ -6638,34 +6639,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         backToList: () => this.setState({ mailPane: "list", replyDock: null, replyChooser: null }),
         threadListStyle: "position:relative;" + (singlePane
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
-          : "width:" + (listStrip ? 76 : listW) + "px;flex:0 0 " + (listStrip ? 76 : listW) + "px;display:flex;flex-direction:column;min-height:0" + (listStrip ? ";background:var(--sub);border-right:1px solid var(--line)" : "")),
-        listStrip,
-        listFull: !listStrip && !outboxOn,
+          : "width:" + listW + "px;flex:0 0 " + listW + "px;display:flex;flex-direction:column;min-height:0"),
+        listFull: !outboxOn,
         ...outboxView,
-        /* The toolbar leads with the controls that change the view rather than the message: below 1020 px with a
-           thread open the list's own fold, one control for both ways, and then the folder pane's — its show and hide
-           where it stands beside the list, its drawer's opener where it is a drawer. The strip has no head of its own,
-           so the list control is there under a mouse as well as a finger. Holding it while the list is widened keeps
-           the list open as other threads are opened (`st.listKept`), drawn on `--accent-soft`; holding again lets
-           it fold, and a tap narrows it and lets go of the hold. */
+        /* The toolbar leads with the controls that change the view rather than the message: the folder pane's — its
+           show and hide where it stands beside the list, its drawer's opener where it is a drawer. */
         viewLeadShown: st.screen === "mail",
         drawerOpenerShown: drawer && st.screen === "mail",
-        listToggleShown: listStrip || (foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn && !outboxOn),
-        listToggleIcon: listStrip ? "left_panel_open" : "left_panel_close",
-        listToggleLabel: listStrip ? "Show the list" : "Narrow the list",
-        listToggleTitle: listStrip
-          ? "Show the list"
-          : st.listKept
-            ? "The list stays open as you open other messages. Hold to let it fold again, or tap to narrow it."
-            : "Narrow the list. Hold to keep it open as you open other messages.",
-        toggleList: () => this.setState(listStrip ? { listWide: true } : { listWide: false, listKept: false }),
-        keepList: (e) => {
-          if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); }
-          if (!listStrip) this.setState(s2 => ({ listKept: !s2.listKept }));
-        },
-        listToggleStyle: "flex:0 0 auto;width:" + (touch ? 44 : 32) + "px;height:" + (touch ? 44 : 32) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;"
-          + (st.listKept && !listStrip ? "color:var(--accent-strong);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
-        stripScrollStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0",
         selectionOn,
         selectionOff: !selectionOn,
         showMailToolbar: !selectionOn && !singlePane,
@@ -6963,7 +6943,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           "opacity:" + (isMobile ? notifProg : notifIn ? 1 : 0),
         /* On the phone the panel comes up over the bottom bar and covers it, as the whole screen. */
         notifPanelStyle: "position:fixed;z-index:89;top:0;" +
-          (isMobile ? "left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom);" : "bottom:0;left:" + railW + "px;width:min(400px,calc(100vw - " + (railW + 24) + "px));border-right:1px solid var(--line);") +
+          (isMobile ? "left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom);" : "bottom:" + (navBottom ? this.barH() : 0) + "px;left:" + railW + "px;width:min(400px,calc(100vw - " + (railW + 24) + "px));border-right:1px solid var(--line);") +
           "display:flex;flex-direction:column;background:var(--panel);box-shadow:26px 0 60px var(--sh-3);" +
           (isMobile
             ? "touch-action:pan-y;transform:translateY(" + (notifIn ? notifDrag + "px" : "100%") + ");" +
@@ -7086,7 +7066,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         keepTask: () => this.setState({ cancelAsk: null }),
         abortTaskNow: this.abortTask,
         /* A drag handle is a fine pointer's: under a finger the list keeps the width its band gives it. */
-        showResizer: !singlePane && !touch && !listStrip,
+        showResizer: !singlePane && !touch,
         startResize: this.beginResize,
         resetResize: () => this.setState({ listW: null }),
         /* The thread list leaves the DOM when a message opens (single-panel layout),
@@ -7192,7 +7172,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         convReturnLabel: "Back to the conversation",
         backToConv: this.backToConv,
         backToConvKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.backToConv(); } },
-        convReturnStyle: "position:fixed;z-index:120;left:50%;transform:translateX(-50%);" + (isMobile ? "bottom:78px;" : "bottom:22px;") +
+        convReturnStyle: "position:fixed;z-index:120;left:50%;transform:translateX(-50%);" + (navBottom ? "bottom:78px;" : "bottom:22px;") +
           "display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border-radius:24px;font-size:14px;font-weight:600;color:var(--onaccent);background:var(--accent);border:1px solid var(--accent);box-shadow:0 6px 20px var(--sh-1)",
         convReturnIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1",
         closeThreadSheet: () => this.setState({ threadSheet: false }),
@@ -7264,6 +7244,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           swipeLabel: (st.swipeDx || 0) < 0 ? "Reply" : "Archive",
           swipeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;margin-right:8px" + (Math.abs(st.swipeDx || 0) >= 96 ? ";font-variation-settings:'wght' 500" : ""),
           swipeTextStyle: "font-size:13px;font-weight:600;opacity:" + (Math.abs(st.swipeDx || 0) >= 96 ? "1" : "0.55"),
+          /* A compact list draws neither the count nor the AI summary button, and its sender gives way so the receipt
+             mark, the flag and the time keep the one line every row has. */
+          iconsInline: !listCompact,
           aiStyle: isMobile ? "display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);line-height:1.35" : "display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)",
           from: t.from, org: t.org, time: t.time, subject: t.subject, ai: t.ai,
           hasAvatar: !!avatarOf(t.from), noAvatar: !avatarOf(t.from), initials: initialsOf(t.from),
@@ -7274,7 +7257,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* Unread is the weight and the ink of the words, as every mail client draws it: the sender and the subject
              in 700 and the full text colour, a read row in 400 and the secondary one. 600 against 400 alone read as
              the same row at a glance. No dot. */
-          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "flex:0 0 auto;max-width:60%;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;" : listCompact ? "flex:0 1 auto;min-width:0;font-size:14px;" : "flex:0 0 auto;max-width:60%;font-size:14px;") + "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           subjStyle: (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           orgStyle: isMobile || compact ? "display:none" : "flex:0 1 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
           showAi: aiHints && !!t.ai,
@@ -7282,12 +7265,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           aiBtnStyle: "width:" + (touch ? 32 : 24) + "px;height:" + (touch ? 32 : 24) + "px;flex:0 0 " + (touch ? 32 : 24) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
           selected: sel.indexOf(t.id) >= 0,
           select: (e) => this.pickThread(t.id, e),
-          stripStyle: "position:relative;width:52px;height:52px;flex:0 0 52px;display:flex;align-items:center;justify-content:center;border-radius:14px;" +
-            (t.id === st.threadId ? "background:var(--accent-soft);box-shadow:inset 0 0 0 2px var(--accent-line)" : ""),
-          stripAvatarStyle: "width:36px;height:36px;flex:0 0 36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:0.02em;background:var(--border2);color:var(--text2)" +
-            (avatarOf(t.from) ? ";background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(t.from) + ")" : ""),
-          stripInitials: avatarOf(t.from) ? "" : initialsOf(t.from),
-          stripLabel: t.from + " - " + t.subject,
           longPress: (e) => { if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); } this.armCtx(false); this.openMailMenu(t.id, e.clientX, e.clientY); },
           touchStart: (e) => {
             const p = e && e.touches && e.touches[0];
@@ -7295,9 +7272,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             this.startLongPress(t.id, p ? p.clientX : 0, p ? p.clientY : 0);
           },
           touchMove: (e) => { this.cancelLongPress(); if (isMobile) this.swipeMove(t.id, e); },
-          // Folded to a strip, the row answers a tap and its menu alone: too narrow to carry a swipe across.
-          stripTouchStart: (e) => { const p = e && e.touches && e.touches[0]; this.startLongPress(t.id, p ? p.clientX : 0, p ? p.clientY : 0); },
-          stripTouchEnd: () => this.cancelLongPress(),
           touchEnd: () => { this.cancelLongPress(); if (isMobile) this.swipeEnd(t.id); },
           dragStart: (e) => this.dragThreadsStart(t.id, e),
           dragEnd: this.dragThreadsEnd,
@@ -7531,7 +7505,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             sourceMotion: full ? "sheet" : "pop",
             sourceGrabber: full,
             sourceSubject: src.named ? th.subject || "Message" : "",
-            sourceOverlayStyle: isMobile
+            sourceOverlayStyle: full && navBottom
               ? "position:fixed;top:0;left:0;right:0;bottom:" + this.barH() + "px;z-index:89;display:flex;background:var(--sub)"
               : full
               ? "position:fixed;inset:0;z-index:89;display:flex;background:var(--sub)"
@@ -7569,7 +7543,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeHtml: () => (htmlInPane ? this.closeTab(st.activeTab) : this.setState({ htmlDoc: null })),
         htmlOverlayStyle: htmlInPane
           ? "flex:1;display:flex;min-height:0;min-width:0;background:var(--sub)"
-          : isMobile
+          : singlePane && navBottom
           ? "position:fixed;top:0;left:0;right:0;bottom:" + this.barH() + "px;z-index:88;display:flex;background:var(--sub)"
           : singlePane
           ? "position:fixed;inset:0;z-index:88;display:flex;background:var(--sub)"

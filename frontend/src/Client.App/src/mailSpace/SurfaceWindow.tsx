@@ -24,15 +24,17 @@ import { useScreenLayer } from '../shell/screenLayers';
 //
 // Three compositions, and none of them is asked for in code: the design draws the window over a scrim from the width
 // its kind starts at, the whole screen between that width and the phone shape, and the whole screen stopping above the
-// bottom navigation on a phone. All three are the width variants on the element itself.
+// bottom navigation wherever that stands — the phone, and the fold or small tablet held upright. All three are
+// variants on the element itself.
 
 /** Which of the three windows the design draws. It is a size, and the width a window starts at, and nothing else. */
 export type SurfaceWindowKind = 'markup' | 'file' | 'source';
 
-// The whole screen below the width a window starts at — stopping above the bottom navigation on a phone — whichever
-// window this is.
+// The whole screen below the width a window starts at — stopping above the bottom navigation wherever the rail does
+// not stand — whichever window this is. The safe-area margin stays at every width: it is nothing where the device has
+// no inset, and dropping it under the rail would outrank the centring a window's own `m-auto` gives it.
 const wholeScreen =
-    'fixed inset-x-0 top-0 bottom-navigation m-0 mb-safe-bottom h-auto max-h-none w-auto max-w-none overflow-hidden rounded-none border-0 bg-panel p-0 text-text open:flex open:flex-col workspace:bottom-0 workspace:mb-0';
+    'fixed inset-x-0 top-0 bottom-navigation m-0 mb-safe-bottom h-auto max-h-none w-auto max-w-none overflow-hidden rounded-none border-0 bg-panel p-0 text-text open:flex open:flex-col rail:bottom-0';
 
 // The design draws the markup and the file as windows wherever two panes stand, and the source only on the desktop,
 // the tablet and the fold giving it the whole screen. Each stops short of the viewport by the room the design leaves

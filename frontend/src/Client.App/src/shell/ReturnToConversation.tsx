@@ -20,7 +20,7 @@ export function ReturnToConversation({ onReturn }: { readonly onReturn: () => vo
 
     return (
         <button
-            className={`fixed bottom-19.5 left-1/2 z-40 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full bg-accent px-4.5 text-md font-semibold whitespace-nowrap text-on-accent shadow-overlay transition hover:bg-accent-strong workspace:bottom-5.5 ${leaving ? 'animate-pop-out' : 'animate-pop-in'}`}
+            className={`fixed bottom-19.5 left-1/2 z-40 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full bg-accent px-4.5 text-md font-semibold whitespace-nowrap text-on-accent shadow-overlay transition hover:bg-accent-strong rail:bottom-5.5 ${leaving ? 'animate-pop-out' : 'animate-pop-in'}`}
             type="button"
             onClick={onReturn}
         >

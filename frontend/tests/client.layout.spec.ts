@@ -88,6 +88,10 @@ test('puts the navigation beside the workspace in a wide window and under it in 
     const wideSpace = await boxOf(space);
     expect(rail.x + rail.width).toBeLessThanOrEqual(wideSpace.x);
 
+    // The desktop's rail is the wide one, 96 pixels with a border: what widens it there is a desktop rule that has to
+    // outrank the rail's own narrow width, which is a matter of the order the stylesheet states them in.
+    expect(rail.width).toBeGreaterThan(90);
+
     await page.setViewportSize(narrowWindow);
 
     // Where the navigation is drawn changes with the width, but what it holds changes with a render: the bar's own
@@ -231,6 +235,11 @@ test('draws the mail screens at the phone composition, with its own row height a
     expect(phoneRow.height).toBeGreaterThan((await boxOf(list.getByRole('option').first())).height);
 });
 
+/** An element read for the width of the box around it, named for the reason the scroll regions below are. */
+interface Enclosed {
+    readonly parentElement: { readonly offsetWidth: number } | null;
+}
+
 test.describe('driven by a finger', () => {
     test.use({ hasTouch: true });
 
@@ -259,11 +268,13 @@ test.describe('driven by a finger', () => {
 
     // The three compositions a finger drives, each at the design's own frame. What sets them apart is which of
     // three regions stands beside which: the phone draws the list or the message and no toolbar, while the fold and the
-    // tablet draw both panes under the toolbar. All three keep the mailboxes behind a drawer.
+    // tablet draw both panes under the toolbar. All three keep the mailboxes behind a drawer. The phone and the fold —
+    // whose inner screen a browser's own bar leaves slightly wider than tall — carry the navigation along the foot,
+    // and the tablet on its side carries it down the side.
     const touchCompositions = [
-        { name: 'phone', window: phoneWindow, twoPanes: false },
-        { name: 'fold', window: foldWindow, twoPanes: true },
-        { name: 'tablet', window: tabletWindow, twoPanes: true },
+        { name: 'phone', window: phoneWindow, twoPanes: false, navigationAtTheFoot: true },
+        { name: 'fold', window: foldWindow, twoPanes: true, navigationAtTheFoot: true },
+        { name: 'tablet', window: tabletWindow, twoPanes: true, navigationAtTheFoot: false },
     ] as const;
 
     for (const composition of touchCompositions) {
@@ -276,6 +287,15 @@ test.describe('driven by a finger', () => {
             const list = page.getByRole('listbox', { name: 'Messages' });
 
             await expect(list.getByRole('option').first()).toBeVisible();
+
+            const navigation = await boxOf(page.getByRole('navigation', { name: 'Spaces' }));
+            const space = await boxOf(page.getByRole('main'));
+
+            if (composition.navigationAtTheFoot) {
+                expect(navigation.y).toBeGreaterThanOrEqual(space.y + space.height);
+            } else {
+                expect(navigation.x + navigation.width).toBeLessThanOrEqual(space.x);
+            }
 
             // The mailboxes stand behind a drawer at every one of the three, opened from the toolbar where one stands
             // and from the list's own head on the phone, and closed again from inside it. The drawer is the platform's modal dialog, so closing it is what hands focus
@@ -352,6 +372,44 @@ test.describe('driven by a finger', () => {
             ).toBe(false);
         });
     }
+
+    // At the fold the list stands at 248 pixels beside the thread, narrower than a row's whole first line, so what a
+    // row draws there is decided by the list's own width, which only a browser measures: the conversation's count
+    // stays words for a screen reader rather than a pill, and every row keeps its time inside the list.
+    test('draws the narrow list’s rows at the fold without the count pill and with the time inside the list', async ({
+        page,
+    }) => {
+        await page.setViewportSize(foldWindow);
+        await openSignedIn(page, '/#/mail');
+
+        const list = page.getByRole('listbox', { name: 'Messages' });
+
+        await list.getByRole('option').first().click();
+        await expect(page.getByRole('article', messageRegion)).toBeVisible();
+        await settled(page);
+
+        const column = await boxOf(page.getByRole('region', { name: 'Message list' }));
+        const conversation = list.getByRole('option', { name: /^Nordwind/u });
+        const count = conversation.getByText(/^\d+$/u);
+
+        // The words stand in a box clipped to a single pixel, which is how a screen reader keeps what the eye no
+        // longer gets; a pill would be drawn around them at the width of its number and padding.
+        expect(await count.evaluate((digits: Enclosed) => digits.parentElement?.offsetWidth ?? 0)).toBeLessThanOrEqual(
+            1,
+        );
+
+        for (const row of await list.getByRole('option').all()) {
+            const time = row.getByRole('time');
+
+            if ((await time.count()) === 0) {
+                continue;
+            }
+
+            const when = await boxOf(time);
+
+            expect(when.x + when.width).toBeLessThanOrEqual(column.x + column.width);
+        }
+    });
 
     // The viewport meta asks for the on-screen keyboard to shorten the layout rather than cover it, so a phone writing a
     // message is a phone window little more than half as tall. What the composer owes it is the field being written in
@@ -460,8 +518,8 @@ test.describe('driven by a finger', () => {
         }
 
         // Unfolded, which is known by the toolbar only the two-pane compositions draw: the list stands beside the
-        // message again, on the row that is open and where the reader left it — although its rows are now the strip's,
-        // half the height of the phone's.
+        // message again, on the row that is open and where the reader left it — although its rows are now the two-pane
+        // list's, shorter than the phone's.
         await page.setViewportSize(foldWindow);
         await expect(page.getByRole('toolbar', { name: 'Mail actions' })).toBeVisible();
         await holdsTheMessage();

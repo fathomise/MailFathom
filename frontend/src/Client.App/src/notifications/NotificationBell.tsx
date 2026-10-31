@@ -60,10 +60,10 @@ export function NotificationBell({
                       })
                     : translate('notifications.place')
             }
-            className={`flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-lg px-0.5 py-1.5 text-xs font-medium transition workspace:size-11.5 workspace:flex-none workspace:justify-center workspace:gap-0 workspace:rounded-lg workspace:border workspace:px-0 workspace:py-0 ${
+            className={`flex max-w-30 flex-1 cursor-pointer flex-col items-center gap-1 rounded-lg px-0.5 py-1.5 text-xs font-medium transition rail:size-11.5 rail:flex-none rail:justify-center rail:gap-0 rail:rounded-lg rail:border rail:px-0 rail:py-0 ${
                 shown
-                    ? 'text-accent-deep workspace:border-accent-line workspace:bg-accent-soft'
-                    : 'text-muted hover:bg-hover hover:text-text workspace:border-line workspace:bg-panel workspace:text-text-soft workspace:shadow-raised'
+                    ? 'text-accent-deep rail:border-accent-line rail:bg-accent-soft'
+                    : 'text-muted hover:bg-hover hover:text-text rail:border-line rail:bg-panel rail:text-text-soft rail:shadow-raised'
             }`}
             onClick={onPress}
         >
@@ -84,7 +84,7 @@ export function NotificationBell({
 
             {/* The name is under the symbol in the bottom bar, where every item carries one, and gone in the rail,
                 where the design draws this control as the symbol alone above the account. */}
-            <span className="max-w-full truncate workspace:hidden">{translate('notifications.place')}</span>
+            <span className="max-w-full truncate rail:hidden">{translate('notifications.place')}</span>
         </button>
     );
 }

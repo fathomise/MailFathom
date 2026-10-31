@@ -20,7 +20,6 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { ListHeadRowContext } from '../mailSpace/listHeadRow';
-import { useListFold } from '../messageRows/listFold';
 import { useMailboxesDrawer } from '../mailSpace/mailboxesDrawer';
 import type { MailScope } from '../workspace/mailScope';
 import { mostRecentSearches } from '../workspace/rememberedWorkspace';
@@ -95,7 +94,6 @@ export function MailSearch({
     const submitName = useTip({ says: translate('search.submit'), onPress: () => undefined });
     const { workspace, revise } = useWorkspace();
     const openMailboxes = useMailboxesDrawer();
-    const strip = useListFold()?.folded === true;
 
     const [typed, setTyped] = useState('');
 
@@ -201,13 +199,8 @@ export function MailSearch({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            {/* Folded to a strip, the list has no head: the toolbar's list control widens it again. The field and what
-                stands in its row stay in the document, hidden, so a search in progress is where it was when the list
-                widens. */}
             <form
-                className={`flex-wrap items-center gap-2 border-b border-line px-3 py-2 desktop:gap-2.25 desktop:py-2.5 ${
-                    strip ? 'hidden' : 'flex'
-                }`}
+                className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2 desktop:gap-2.25 desktop:py-2.5"
                 onSubmit={(event) => {
                     event.preventDefault();
                     search(typed);
@@ -271,7 +264,7 @@ export function MailSearch({
                 />
             </form>
 
-            {refused === null || strip ? null : (
+            {refused === null ? null : (
                 <p className="px-3 pt-2 text-sm text-warning" role="alert">
                     {translate(refused, { longest: String(longestSearchText) })}
                 </p>
@@ -280,7 +273,7 @@ export function MailSearch({
             {/* Offered where there is nothing else in the column's own controls to read, which is where somebody is
                 about to type. They are this tab's own and they go with the credential, which is what the workspace
                 already promises everything it holds. */}
-            {ask === null && beingRead === null && !strip && workspace.recentSearches.length > 0 ? (
+            {ask === null && beingRead === null && workspace.recentSearches.length > 0 ? (
                 <RecentSearches
                     searches={workspace.recentSearches}
                     onSearch={search}
@@ -293,7 +286,7 @@ export function MailSearch({
             {/* What stands under the row while a sentence is being read. It is a line rather than a spinner over the
                 folder's own list, because the list below is about to be replaced by results and a column that goes on
                 showing the inbox reads as a search that did nothing. */}
-            {beingRead === null || strip ? null : (
+            {beingRead === null ? null : (
                 <p className="px-3 pt-2 text-sm text-muted" role="status">
                     {translate('search.readingPhrase')}
                 </p>

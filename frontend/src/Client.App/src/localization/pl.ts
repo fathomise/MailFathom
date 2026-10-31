@@ -831,11 +831,6 @@ export const pl: Catalogue = {
     'mail.hidePanels': 'Ukryj panele – sama korespondencja',
     'mail.showPanels': 'Pokaż panele wątku',
     'mail.listColumn': 'Lista wiadomości',
-    'mail.showList': 'Pokaż listę',
-    'mail.narrowList': 'Zwęź listę',
-    'mail.narrowListHold': 'Zwęź listę. Przytrzymaj, aby została otwarta przy otwieraniu kolejnych wiadomości.',
-    'mail.listKept':
-        'Lista zostaje otwarta przy kolejnych wiadomościach. Przytrzymaj, aby znów się zwijała, albo dotknij, aby ją zwęzić.',
     'mail.readingColumn': 'To, co otwarte',
     'mail.listWidth': 'Szerokość listy wiadomości',
     'mail.listWidthHint':
@@ -1233,8 +1228,6 @@ export const pl: Catalogue = {
     'list.includeJunk': 'Uwzględnij spam',
 
     'list.unread': 'Nieprzeczytana',
-    'list.stripRow': '{sender} - {subject}',
-    'list.stripRowMarked': '{sender} - {subject} – {mark}',
     'list.flagged': 'Oznaczona',
     'list.answered': 'Odpowiedziano',
     'list.attachments': 'Załączniki: {count}',
