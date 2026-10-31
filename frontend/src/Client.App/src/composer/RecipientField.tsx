@@ -4,6 +4,7 @@
 
 import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { longestContactSearch, type ClientSession, type MailFathomTransport } from '@mailfathom/client-backend';
+import { useContactPhoto } from '../contactBook/contactPhotos';
 import { Icon } from '../controls/Icon';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { SymbolControl } from '../controls/SymbolControl';
@@ -376,6 +377,7 @@ function SuggestedRecipient({
     readonly onChosen: () => void;
 }) {
     const { translate } = useLocalization();
+    const picture = useContactPhoto(suggestion.photo ?? null);
 
     return (
         <div
@@ -391,7 +393,12 @@ function SuggestedRecipient({
             onClick={onChosen}
         >
             <span className="relative flex shrink-0">
-                <SenderAvatar displayName={suggestion.name} address={suggestion.address} place="suggestion" />
+                <SenderAvatar
+                    displayName={suggestion.name}
+                    address={suggestion.address}
+                    picture={picture}
+                    place="suggestion"
+                />
                 {suggestion.colleague === undefined ? null : (
                     <PresenceDot presence={suggestion.colleague.presence} place="suggestion" />
                 )}

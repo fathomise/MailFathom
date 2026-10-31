@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Emails.Extraction;
@@ -31,6 +32,8 @@ namespace MailFathom.Host.UnitTests.Api;
 /// </remarks>
 public sealed class ClientMailMessageEndpointTests
 {
+    private static readonly IReadOnlyDictionary<EmailAddress, PersonPhoto> NoPhotos = new Dictionary<EmailAddress, PersonPhoto>();
+
     private static readonly Guid Message = new("22222222-2222-2222-2222-222222222222");
 
     private static readonly Guid Conversation = new("33333333-3333-3333-3333-333333333333");
@@ -74,7 +77,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AReadMessage_CarriesTheHeadersTheMessageDisplayed()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.Equal(Message, response.StoredEmailId);
@@ -102,7 +105,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AMessageCarryingFiles_DescribesEachAtThePositionItsDownloadIsAskedWith()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.Collection(
@@ -127,7 +130,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AMessageWhosePartsWereRead_CarriesTheCountsBesideTheDescriptions()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.NotNull(response.Carried);
@@ -152,7 +155,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.Null(response.Carried);
@@ -184,7 +187,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.Equal("Readable", response.Body.Availability);
@@ -200,7 +203,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AReadMessage_CarriesTheSenderVerdictAsTwoStates()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.Equal("Authenticated", response.Sender.AuthorAuthentication);
@@ -224,7 +227,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith(evidence), SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(MessageWith(evidence), SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.Equal("mail.example.test", response.Sender.AuthenticatedDomain);
@@ -235,7 +238,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AMessageNothingAuthenticated_NamesNoDomain()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.Null(response.Sender.AuthenticatedDomain);
@@ -260,7 +263,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(MessageWith(evidence), SenderContactStanding.Unanswered).Sender;
+        var sender = ClientMailMessageResponse.For(MessageWith(evidence), SenderContactStanding.Unanswered, NoPhotos).Sender;
 
         // Assert
         Assert.Equal("ReceivingServer", sender.AuthenticationSource);
@@ -283,7 +286,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(MessageWith(evidence), SenderContactStanding.Unanswered).Sender;
+        var sender = ClientMailMessageResponse.For(MessageWith(evidence), SenderContactStanding.Unanswered, NoPhotos).Sender;
 
         // Assert
         Assert.Equal("LocalVerification", sender.AuthenticationSource);
@@ -312,7 +315,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos).Sender;
 
         // Assert
         Assert.Equal(published, sender.TrustSource);
@@ -340,7 +343,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos).Sender;
 
         // Assert
         Assert.Equal("OrganizationMember", sender.TrustSource);
@@ -363,7 +366,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos).Sender;
 
         // Assert
         Assert.Null(sender.TrustOrganization);
@@ -377,7 +380,7 @@ public sealed class ClientMailMessageEndpointTests
         var message = MessageWith() with { SenderVerification = SenderVerification.NotEstablished };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos).Sender;
 
         // Assert
         Assert.Null(sender.TrustSource);
@@ -397,7 +400,7 @@ public sealed class ClientMailMessageEndpointTests
         var message = MessageWith(SenderAuthenticationEvidence.None with { AuthorRoute = route });
 
         // Act
-        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos).Sender;
 
         // Assert
         Assert.Equal(published, sender.AuthorRoute);
@@ -419,7 +422,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Sender;
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos).Sender;
 
         // Assert
         Assert.Equal(published, sender.TrustEvidence);
@@ -441,7 +444,7 @@ public sealed class ClientMailMessageEndpointTests
         var standing = new SenderContactStanding { RecognizingContactHolder = RecognizingContactHolder.Reader };
 
         // Act
-        var sender = ClientMailMessageResponse.For(message, standing).Sender;
+        var sender = ClientMailMessageResponse.For(message, standing, NoPhotos).Sender;
 
         // Assert
         Assert.Equal(published, sender.TrustContact);
@@ -460,11 +463,11 @@ public sealed class ClientMailMessageEndpointTests
         // Act
         var restating = ClientMailMessageResponse.For(
             MessageWith(),
-            new SenderContactStanding { ContactAddition = new ContactAdditionOffer(restated) }).Sender;
+            new SenderContactStanding { ContactAddition = new ContactAdditionOffer(restated) }, NoPhotos).Sender;
         var recording = ClientMailMessageResponse.For(
             MessageWith(),
-            new SenderContactStanding { ContactAddition = new ContactAdditionOffer(RestatedContactId: null) }).Sender;
-        var withheld = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered).Sender;
+            new SenderContactStanding { ContactAddition = new ContactAdditionOffer(RestatedContactId: null) }, NoPhotos).Sender;
+        var withheld = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, NoPhotos).Sender;
 
         // Assert
         Assert.Equal(restated.Value, restating.AddToContacts?.RestatedContactId);
@@ -478,7 +481,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AReadMessage_CarriesTheFlagsTheServerLastShowed()
     {
         // Act
-        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.True(response.Unread);
@@ -516,7 +519,7 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var signature = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered).Signature;
+        var signature = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos).Signature;
 
         // Assert
         Assert.Equal("Verified", signature.Outcome);
@@ -534,7 +537,7 @@ public sealed class ClientMailMessageEndpointTests
     public void For_AnUnsignedMessage_CarriesNotSignedWithEveryStepSkipped()
     {
         // Act
-        var signature = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered).Signature;
+        var signature = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, NoPhotos).Signature;
 
         // Assert
         Assert.Equal("NotSigned", signature.Outcome);
@@ -559,10 +562,60 @@ public sealed class ClientMailMessageEndpointTests
         };
 
         // Act
-        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered);
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos);
 
         // Assert
         Assert.Equal(new ClientMailSpamVerdictResponse("Spam", "Person", "Scam", "Person", null, null), response.Spam);
+    }
+
+    /// <summary>A message names the photo its author — its first <c>From</c> mailbox, not any other participant — is drawn by.</summary>
+    [Fact]
+    public void For_AMessageWhoseAuthorHasAPhoto_NamesTheAuthorsPhoto()
+    {
+        // Arrange
+        var contact = new Guid("0198f0aa-0000-7000-8000-00000000d103");
+        var photo = new Guid("0198f0aa-0000-7000-8000-00000000d3f3");
+        var colleague = new Guid("0198f0aa-0000-7000-8000-00000000d104");
+        Assert.True(EmailAddress.TryCreate(displayName: null, "BILLING@example.test", out var author));
+        Assert.True(EmailAddress.TryCreate(displayName: null, "reader@example.test", out var recipient));
+        var photos = new Dictionary<EmailAddress, PersonPhoto>
+        {
+            [author] = new(PersonPhotoSource.OwnContact, contact, photo),
+            [recipient] = new(PersonPhotoSource.Member, colleague, photo),
+        };
+
+        // Act
+        var response = ClientMailMessageResponse.For(MessageWith(), SenderContactStanding.Unanswered, photos);
+
+        // Assert
+        Assert.Equal(new PersonPhotoResponse("Own", contact, photo), response.SenderPhoto);
+    }
+
+    /// <summary>A message whose headers name no author is drawn by initials rather than refused or given another participant's photo.</summary>
+    [Fact]
+    public void For_AMessageNamingNoAuthor_NamesNoPhoto()
+    {
+        // Arrange
+        Assert.True(EmailAddress.TryCreate(displayName: null, "reader@example.test", out var recipient));
+        var photos = new Dictionary<EmailAddress, PersonPhoto>
+        {
+            [recipient] = new(PersonPhotoSource.OwnContact, Guid.CreateVersion7(), Guid.CreateVersion7()),
+        };
+        var message = MessageWith() with
+        {
+            Headers = MessageWith().Headers with
+            {
+                Participants = [Participant(EmailAddressRole.To, displayName: null, "reader@example.test")],
+            },
+        };
+
+        // Act
+        var authorless = ClientMailMessageResponse.AuthorOf(message);
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, photos);
+
+        // Assert
+        Assert.Null(authorless);
+        Assert.Null(response.SenderPhoto);
     }
 
     private static ReadEmailContent MessageWith(SenderAuthenticationEvidence? evidence = null) => new()

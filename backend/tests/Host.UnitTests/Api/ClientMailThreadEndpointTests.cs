@@ -5,6 +5,7 @@
 using System.Security.Cryptography;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
@@ -26,6 +27,7 @@ using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Api;
+using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -43,6 +45,8 @@ namespace MailFathom.Host.UnitTests.Api;
 /// </remarks>
 public sealed class ClientMailThreadEndpointTests
 {
+    private static readonly IReadOnlyDictionary<EmailAddress, PersonPhoto> NoPhotos = new Dictionary<EmailAddress, PersonPhoto>();
+
     private static readonly DateTimeOffset FirstJuly = new(2026, 7, 1, 8, 0, 0, TimeSpan.Zero);
 
     private static readonly EmailThreadId Conversation =
@@ -313,7 +317,7 @@ public sealed class ClientMailThreadEndpointTests
         var message = new BrowsedThreadEmail(email, Position: 0, AnsweredStoredEmailId: null, "what I added", Enrichment: null);
 
         // Act
-        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: DrawnMessage(), standing: SenderContactStanding.Unanswered);
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: DrawnMessage(), standing: SenderContactStanding.Unanswered, senderPhotos: NoPhotos);
 
         // Assert
         Assert.NotNull(response.Message);
@@ -344,13 +348,53 @@ public sealed class ClientMailThreadEndpointTests
             PageSize: 10);
 
         // Act
-        var response = ClientMailThreadResponse.For(thread, [DrawnMessage()], new Dictionary<StoredEmailId, SenderContactStanding>());
+        var response = ClientMailThreadResponse.For(thread, [DrawnMessage()], new Dictionary<StoredEmailId, SenderContactStanding>(), NoPhotos);
 
         // Assert
         Assert.NotNull(response.Messages[0].Message);
         Assert.NotNull(response.Messages[0].Body);
         Assert.Null(response.Messages[1].Message);
         Assert.Null(response.Messages[1].Body);
+    }
+
+    /// <summary>
+    /// A drawn message's author is resolved beside the row senders even where no row was listed under that address, so its
+    /// head carries the author's photo rather than falling back to initials.
+    /// </summary>
+    [Fact]
+    public void PhotographedAddressesOf_ADrawnAuthorNoRowWasListedUnder_ResolvesItBesideTheRowSenders()
+    {
+        // Arrange
+        var thread = new BrowsedThread(
+            Conversation,
+            [new BrowsedThreadEmail(SyntheticListedEmail(Message), Position: 0, AnsweredStoredEmailId: null, Contribution: null, Enrichment: null)],
+            [],
+            MessageCount: 1,
+            MoreMessagesNotAssembled: false,
+            MoreParticipantsNotNamed: false,
+            NextCursor: null,
+            PageSize: 10);
+        var drawn = DrawnMessage() with
+        {
+            Headers = new EmailContentHeaders(
+                "Quarterly invoice",
+                SentAt: FirstJuly,
+                ReceivedAt: FirstJuly,
+                [Participant(EmailAddressRole.From, "Author", "author@example.test")],
+                EmailThreadReferences.Create("abc@example.test", inReplyTo: null, references: null)),
+        };
+        Assert.True(EmailAddress.TryCreate(displayName: null, "author@example.test", out var author));
+        var contact = new Guid("0198f0aa-0000-7000-8000-00000000d102");
+        var photo = new Guid("0198f0aa-0000-7000-8000-00000000d2f2");
+        var photos = new Dictionary<EmailAddress, PersonPhoto> { [author] = new(PersonPhotoSource.OwnContact, contact, photo) };
+
+        // Act
+        var addresses = ClientMailThreadResponse.PhotographedAddressesOf(thread, [drawn]);
+        var response = ClientMailThreadResponse.For(thread, [drawn], new Dictionary<StoredEmailId, SenderContactStanding>(), photos);
+
+        // Assert
+        Assert.Equal(["sender@example.test", "author@example.test"], addresses.Select(address => address.Address));
+        Assert.Equal(new PersonPhotoResponse("Own", contact, photo), response.Messages[0].Message?.SenderPhoto);
     }
 
     /// <summary>The read a drawn conversation makes asks for the reduced tree and declines both of the per-message asks.</summary>
@@ -388,7 +432,7 @@ public sealed class ClientMailThreadEndpointTests
             PageSize: 25);
 
         // Act
-        var response = ClientMailThreadResponse.For(thread, [], new Dictionary<StoredEmailId, SenderContactStanding>());
+        var response = ClientMailThreadResponse.For(thread, [], new Dictionary<StoredEmailId, SenderContactStanding>(), NoPhotos);
 
         // Assert
         Assert.Equal(500, response.MessageCount);
@@ -413,7 +457,7 @@ public sealed class ClientMailThreadEndpointTests
         var message = new BrowsedThreadEmail(SyntheticListedEmail(), Position: 2, answered, "what I added", Enrichment: null);
 
         // Act
-        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 4, drawn: null, standing: SenderContactStanding.Unanswered);
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 4, drawn: null, standing: SenderContactStanding.Unanswered, senderPhotos: NoPhotos);
 
         // Assert
         Assert.Equal(2, response.Position);
@@ -436,7 +480,7 @@ public sealed class ClientMailThreadEndpointTests
             Enrichment: null);
 
         // Act
-        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: null, standing: SenderContactStanding.Unanswered);
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: null, standing: SenderContactStanding.Unanswered, senderPhotos: NoPhotos);
 
         // Assert
         Assert.Null(response.AnsweredId);
@@ -567,6 +611,7 @@ public sealed class ClientMailThreadEndpointTests
             this.Browser(),
             ReadingNothing(),
             NoStandings(),
+            UnresolvedPersonPhotos.Create(),
             TestContext.Current.CancellationToken);
 
     /// <summary>Reads the conversation with its messages drawn, over a content read that answers for the summaries given.</summary>
@@ -581,6 +626,7 @@ public sealed class ClientMailThreadEndpointTests
             this.Browser(participation),
             this.ReadingDrawnMessages(summaries, participation),
             NoStandings(),
+            UnresolvedPersonPhotos.Create(),
             TestContext.Current.CancellationToken);
 
     /// <summary>A standings read for a caller holding no contact grant, which asks the books nothing about a message no personal contact recognized.</summary>

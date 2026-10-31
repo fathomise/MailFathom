@@ -8,8 +8,9 @@ import { initialsOf } from './initials';
 // list and at the head of every message card, in two sizes and in one colour: a neutral disc rather than a hue per
 // person, because a colour nobody chose says nothing and competes with the accent that marks what is open.
 //
-// The signed-in person has a circle of their own in `PersonAvatar.tsx`, because they may have put a picture in it and
-// a sender never has one here: what the two share is the derivation of the letters, which is `initials.ts`.
+// The signed-in person has a circle of their own in `PersonAvatar.tsx`, because theirs is read from their own record
+// rather than from what the reader knows about them: what the two share is the derivation of the letters, which is
+// `initials.ts`.
 //
 // The row's circle is drawn at two sizes for the reason the row itself is two heights: the design enlarges
 // both at the phone, where the list is the whole screen, and draws them at one size everywhere above it. The card's is
@@ -19,8 +20,9 @@ import { initialsOf } from './initials';
 // the person opened — and they are places here rather than a second component, because a person recognised by their
 // letters is the same circle wherever it stands.
 //
-// A person the reader wrote down in their own book may carry a photo the reader gave them, and then the circle draws
-// that instead of the letters — the same circle in the same place, as `PersonAvatar.tsx` does for the signed-in person.
+// A person the reader wrote down in their own book may carry a photo the reader gave them, and a colleague the portrait
+// their own record holds, and then the circle draws that instead of the letters — the same circle in the same place,
+// at every one of the places below, as `PersonAvatar.tsx` does for the signed-in person.
 
 /**
  * Where the avatar stands: a row of a list, the head of a message drawn as a card, an opened person's own page, one of

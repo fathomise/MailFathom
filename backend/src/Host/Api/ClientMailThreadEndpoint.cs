@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Emails.BrowseThread;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
@@ -66,6 +67,7 @@ internal static class ClientMailThreadEndpoint
     /// <param name="thread">Reads the conversation, for a caller the read's own grant admits.</param>
     /// <param name="messages">Reads the messages themselves, where the caller asked for them.</param>
     /// <param name="senders">Reads what each drawn message's sender is to this caller, which is asked per reader rather than stored.</param>
+    /// <param name="photos">Resolves the photo each sender on the page is drawn by, for a caller who may read the books.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the page, <c>400</c> naming what was wrong with the request, <c>404</c> where this user has no such conversation, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>
@@ -81,11 +83,13 @@ internal static class ClientMailThreadEndpoint
         [FromServices] MailThreadBrowser thread,
         [FromServices] EmailContentReader messages,
         [FromServices] SenderContactStandingReader senders,
+        [FromServices] PersonPhotos photos,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(messages);
         ArgumentNullException.ThrowIfNull(senders);
+        ArgumentNullException.ThrowIfNull(photos);
 
         if (threadId == Guid.Empty)
         {
@@ -122,8 +126,11 @@ internal static class ClientMailThreadEndpoint
 
             var drawn = drawing ? await ReadMessagesAsync(page, messages, cancellationToken) : [];
             var standings = await senders.ReadAsync(drawn, cancellationToken);
+            var senderPhotos = await photos.ResolveAsync(
+                ClientMailThreadResponse.PhotographedAddressesOf(page, drawn),
+                cancellationToken);
 
-            return TypedResults.Ok(ClientMailThreadResponse.For(page, drawn, standings));
+            return TypedResults.Ok(ClientMailThreadResponse.For(page, drawn, standings, senderPhotos));
         }
         catch (MailboxQueryCursorMalformedException)
         {
@@ -208,20 +215,42 @@ internal sealed record ClientMailThreadResponse(
     string? NextCursor,
     int PageSize)
 {
+    /// <summary>Reads the addresses whose photos one page draws: each row's sender, and each drawn message's author.</summary>
+    /// <param name="thread">The page the use case read.</param>
+    /// <param name="drawn">The messages themselves, where the caller asked for them, and empty where it did not.</param>
+    /// <returns>The distinct addresses, rows first, so one resolution answers the whole page.</returns>
+    /// <remarks>A drawn message's author is its first <c>From</c> mailbox, which need not be the address its row was listed under.</remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    internal static EmailAddress[] PhotographedAddressesOf(BrowsedThread thread, IReadOnlyList<ReadEmailContent> drawn)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(drawn);
+
+        return
+        [
+            .. PersonPhotoResponse.AddressesOf(thread.Messages.Select(message => message.Email.SenderAddress))
+                .Concat(drawn.Select(ClientMailMessageResponse.AuthorOf).OfType<EmailAddress>())
+                .Distinct(),
+        ];
+    }
+
     /// <summary>Describes one page of one conversation for the wire.</summary>
     /// <param name="thread">The page the use case read.</param>
     /// <param name="drawn">The messages themselves, where the caller asked for them, and empty where it did not.</param>
     /// <param name="standings">What each drawn message's sender is to the caller, keyed by the message.</param>
+    /// <param name="senderPhotos">The photo each sender and drawn author on the page is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     internal static ClientMailThreadResponse For(
         BrowsedThread thread,
         IReadOnlyList<ReadEmailContent> drawn,
-        IReadOnlyDictionary<StoredEmailId, SenderContactStanding> standings)
+        IReadOnlyDictionary<StoredEmailId, SenderContactStanding> standings,
+        IReadOnlyDictionary<EmailAddress, PersonPhoto> senderPhotos)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(drawn);
         ArgumentNullException.ThrowIfNull(standings);
+        ArgumentNullException.ThrowIfNull(senderPhotos);
 
         var byIdentity = drawn.ToDictionary(message => message.StoredEmailId);
 
@@ -231,7 +260,8 @@ internal sealed record ClientMailThreadResponse(
                 message,
                 thread.MessageCount,
                 byIdentity.GetValueOrDefault(message.Email.StoredEmailId),
-                standings.GetValueOrDefault(message.Email.StoredEmailId, SenderContactStanding.Unanswered)))],
+                standings.GetValueOrDefault(message.Email.StoredEmailId, SenderContactStanding.Unanswered),
+                senderPhotos))],
             [.. thread.Participants.Select(ClientMailThreadParticipantResponse.For)],
             thread.MessageCount,
             thread.MoreMessagesNotAssembled,
@@ -278,6 +308,7 @@ internal sealed record ClientMailThreadEmailResponse(
     /// <param name="threadMessageCount">How many messages the conversation holds of those this caller may see.</param>
     /// <param name="drawn">The message itself, where the caller asked for it and its local copy could be read.</param>
     /// <param name="standing">What the drawn message's sender is to the caller, which only a drawn message carries.</param>
+    /// <param name="senderPhotos">The photo each sender and drawn author of the read is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
     /// <remarks>
     /// <para>
@@ -299,15 +330,17 @@ internal sealed record ClientMailThreadEmailResponse(
         BrowsedThreadEmail message,
         int threadMessageCount,
         ReadEmailContent? drawn,
-        SenderContactStanding standing) => new(
+        SenderContactStanding standing,
+        IReadOnlyDictionary<EmailAddress, PersonPhoto> senderPhotos) => new(
         message.Position,
         message.AnsweredStoredEmailId?.Value,
         ClientMailTimelineEntryResponse.For(
             message.Email,
             message.Contribution,
             message.Enrichment,
-            threadMessageCount),
-        drawn is null ? null : ClientMailMessageResponse.For(drawn, standing),
+            threadMessageCount,
+            senderPhotos),
+        drawn is null ? null : ClientMailMessageResponse.For(drawn, standing, senderPhotos),
         drawn is null ? null : ClientMailBodyResponse.For(drawn, remoteImagesRequested: false));
 }
 

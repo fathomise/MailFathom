@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
+import { ContactPhotoContext, type ContactPhotoReader } from '../contactBook/contactPhotos';
 import { LocalizationProvider } from '../localization/Localization';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressDrift, pressOpensAfter } from '../contextMenu/rowPress';
@@ -24,6 +25,7 @@ const email: MailTimelineEntry = {
     sentAt: null,
     senderAddress: 'writer@nordwind.example',
     senderDisplayName: 'Writer',
+    senderPhoto: null,
     toAddresses: ['user@example.invalid'],
     unread: false,
     flagged: false,
@@ -1128,5 +1130,51 @@ describe('MessageRow, the mark on who sent the message', () => {
 
         expect(pointed).not.toHaveBeenCalled();
         expect(opened).not.toHaveBeenCalled();
+    });
+});
+
+describe('MessageRow, a sender with a photo', () => {
+    const drawn = 'data:image/png;base64,iVBORw0KGgo=';
+
+    // The row names the photo the deployment resolved for its sender, so drawing it asks for that photo alone.
+    it('draws the photo its sender is named by, and the initials of a sender named by none', async () => {
+        const read = vi.fn<ContactPhotoReader['read']>(() => Promise.resolve(drawn));
+        const reader: ContactPhotoReader = { read, resolve: () => Promise.resolve(new Map()) };
+        const photographed: MailTimelineEntry = {
+            ...email,
+            id: 'message-2',
+            senderPhoto: { book: 'Member', id: 'writer', photo: 'revision-1' },
+        };
+
+        render(
+            <LocalizationProvider>
+                <ContactPhotoContext value={reader}>
+                    <ul>
+                        {[photographed, email].map((row, at) => (
+                            <MessageRow
+                                key={row.id}
+                                email={row}
+                                position={at + 1}
+                                open={false}
+                                selected={false}
+                                focusable
+                                onOpen={() => undefined}
+                                onPoint={() => undefined}
+                                onElement={() => undefined}
+                            />
+                        ))}
+                    </ul>
+                </ContactPhotoContext>
+            </LocalizationProvider>,
+        );
+
+        const [withPhoto, withInitials] = screen.getAllByRole('option');
+
+        await waitFor(() => {
+            expect(withPhoto?.querySelector('img')?.getAttribute('src')).toBe(drawn);
+        });
+        expect(withInitials?.querySelector('img')).toBeNull();
+        expect(read).toHaveBeenCalledWith({ id: 'writer', book: 'Member' }, 'revision-1', expect.any(AbortSignal));
+        expect(read).toHaveBeenCalledTimes(1);
     });
 });

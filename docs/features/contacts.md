@@ -1,6 +1,6 @@
 # Contacts
 
-<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactPhoneNumberEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Domain/Presence/**, backend/src/Application/Presence/**, backend/src/Infrastructure/Persistence/Presence/**, backend/src/Host/Configuration/UserSettings/MemberDirectory.cs, backend/src/Infrastructure/Persistence/Users/*OrganizationMember*.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
+<!-- describes: backend/src/Domain/Contacts/**, backend/src/Application/Contacts/**, backend/src/Infrastructure/Persistence/Contacts/**, backend/src/Infrastructure/Persistence/Entities/ContactEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactAddressEntity.cs, backend/src/Infrastructure/Persistence/Entities/ContactPhoneNumberEntity.cs, backend/src/Host/Api/Contact*.cs, backend/src/Host/Api/OrganizationContactEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientPersonPhotoEndpoint.cs, backend/src/Host/Api/PersonPhotoResponse.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Domain/Presence/**, backend/src/Application/Presence/**, backend/src/Infrastructure/Persistence/Presence/**, backend/src/Host/Configuration/UserSettings/MemberDirectory.cs, backend/src/Infrastructure/Persistence/Users/*OrganizationMember*.cs, backend/src/Cli/Commands/Contacts/**, backend/src/Cli/Administration/Contacts/**, backend/src/Mcp/Tools/Contacts/**, backend/src/Host/Configuration/Mail/ContactCollection*.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredContactCollectionSettingsReader.cs, backend/src/Infrastructure/Mail/Mime/MailAutomationReading.cs -->
 
 MailFathom holds a contact book of its own: people, the addresses they use, and what a user recorded about them, in
 the same PostgreSQL database the mail is in. This page describes the record and the rules every writer of it obeys —
@@ -295,6 +295,32 @@ once it is an hour old. An amendment of the record keeps the photo; the photo ch
 A contact read over the client endpoint or the administrative endpoint names its photo by the stored file's identifier,
 `photo`, which changes whenever the photo does and carries nothing about the picture. The tools over the book publish
 no photo: an agent has nothing to do with a picture somebody chose for a person.
+
+## Where a person's photo is drawn, and who sees it
+
+**A person is drawn by a photo wherever the client draws them**: on a row of the mail list, at the head of an opened
+message, on a row of the address book and on the person's own page, in the
+organization's structure, on a person a recipient field suggests, and in the people and the participants an AI answer
+names. Two photos exist to draw, and
+they are found by address in the order [ADR 0044](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0044-an-organizations-member-directory-as-a-projection-of-user-records.md)
+sets for naming somebody: the photo the reader gave a person in their own book, and otherwise the portrait a member of
+the reader's organization holds in their own record. **The first book holding the address decides, with or without a
+photo**, so a person the reader wrote down without one is drawn by their initials even where a colleague of that
+address has a portrait — the reader's own record of somebody is never overridden by another. A contact the
+organization's book or a mailbox's collected book holds carries no photo and hides no portrait. Anybody else is drawn
+by their initials.
+
+**Who sees a photo is who may read the book it comes from.** It takes `mailfathom.contacts.read`, the reader's own book
+holds a photo only they gave, and a portrait is served only to another member of the same organization — never across
+one, and never for a service account, which the member directory does not hold. The reader's own portrait is not
+resolved for their own mail: it is drawn where the client draws the signed-in person. Nothing is fetched from outside to
+supply a photo, here as anywhere else.
+
+**A list names each sender's photo in the answer that draws it**, as `senderPhoto` on every row of the mail list, the
+search results, and a conversation, and on every message — so drawing a page asks for no photo row by row, and a
+replaced photo is shown on the next read because the reference names the stored file. An AI answer names people by
+address alone, so the client resolves the ones a block names in one request,
+[`POST /api/client/contacts/photos`](../operations/client-endpoint.md#the-person-photo-route), when the block is drawn.
 
 ## When two addresses are the same address
 

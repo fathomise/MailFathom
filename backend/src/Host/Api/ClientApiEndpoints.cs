@@ -233,6 +233,7 @@ internal static class ClientApiEndpoints
         api.MapClientOutbox();
         api.MapClientContacts();
         api.MapClientContactPhoto();
+        api.MapClientPersonPhotos();
         api.MapClientColleagues();
         api.MapClientPresence();
         api.MapClientNotifications();

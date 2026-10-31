@@ -283,6 +283,12 @@ export function colleagueStructureOf(userId: string) {
 /** A book with nobody in it, which is a state neither of the two above can be scrolled into. */
 export const emptyContactPage = { contacts: [], nextCursor: null };
 
+/**
+ * Who of the people an AI answer names is drawn by a photo, which is nobody: none of the corpus's people has one, so
+ * every person an answer names is drawn by their initials.
+ */
+export const noPersonPhotos = { photos: [] };
+
 /** What writing somebody down answers with, which is the record the caller itself stated. */
 export const contactWritten = { outcome: 'Written', contact: assertedContact, addressHolder: null };
 

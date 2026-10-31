@@ -4,6 +4,7 @@
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
+import { parsePersonPhoto, type PersonPhotoReference } from './personPhotos';
 import {
     authorAuthentications,
     deploymentTrusts,
@@ -270,6 +271,9 @@ export interface MailMessage {
 
     /** What spam classification concluded, read from the same summary the message's list row is, so the two agree. */
     readonly spam: MailSpamVerdict | null;
+
+    /** The photo the author the message displays — its first `From` mailbox — is drawn by, or `null` for their initials. */
+    readonly senderPhoto: PersonPhotoReference | null;
 }
 
 // A description composes to a stated size, so the backstop written for a stranger is far looser than this answer ever
@@ -452,6 +456,11 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         return null;
     }
 
+    const drawnBy = parsePersonPhoto(record['senderPhoto']);
+    if (drawnBy === null) {
+        return null;
+    }
+
     return {
         storedEmailId,
         account,
@@ -468,6 +477,7 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         flagged,
         answered,
         spam: judged.spam,
+        senderPhoto: drawnBy.photo,
     };
 }
 

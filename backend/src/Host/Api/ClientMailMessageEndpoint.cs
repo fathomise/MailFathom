@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Summaries;
@@ -63,6 +64,7 @@ internal static class ClientMailMessageEndpoint
     /// <param name="storedEmailId">The message to read, as a list row or a conversation published it.</param>
     /// <param name="content">Reads the message from the local copy, for a caller the read's own grant admits.</param>
     /// <param name="senders">Reads what the message's sender is to this caller, which is asked per reader rather than stored.</param>
+    /// <param name="photos">Resolves the photo the message's author is drawn by, for a caller who may read the books.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the message, <c>404</c> where this user has no such message, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>
@@ -74,10 +76,12 @@ internal static class ClientMailMessageEndpoint
         [FromRoute] Guid storedEmailId,
         [FromServices] EmailContentReader content,
         [FromServices] SenderContactStandingReader senders,
+        [FromServices] PersonPhotos photos,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(senders);
+        ArgumentNullException.ThrowIfNull(photos);
 
         if (storedEmailId == Guid.Empty)
         {
@@ -92,8 +96,11 @@ internal static class ClientMailMessageEndpoint
         }
 
         var standings = await senders.ReadAsync([message], cancellationToken);
+        var authorPhotos = await photos.ResolveAsync(
+            ClientMailMessageResponse.AuthorOf(message) is { } author ? [author] : [],
+            cancellationToken);
 
-        return TypedResults.Ok(ClientMailMessageResponse.For(message, standings[message.StoredEmailId]));
+        return TypedResults.Ok(ClientMailMessageResponse.For(message, standings[message.StoredEmailId], authorPhotos));
     }
 
     /// <summary>Composes the read this route makes, which asks for a description and for no representation at all.</summary>
@@ -125,6 +132,7 @@ internal static class ClientMailMessageEndpoint
 /// <param name="Flagged">Whether the mail server last showed the message as flagged.</param>
 /// <param name="Answered">Whether the mail server last showed the message as answered.</param>
 /// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
+/// <param name="SenderPhoto">The photo the author the message displays — its first <c>From</c> mailbox — is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
 /// <remarks>
 /// All of it is mail content and personal data, so none of it reaches a log, a span attribute, or a telemetry event,
 /// here or anywhere it is carried afterwards.
@@ -144,17 +152,37 @@ internal sealed record ClientMailMessageResponse(
     bool Unread,
     bool Flagged,
     bool Answered,
-    ClientMailSpamVerdictResponse? Spam)
+    ClientMailSpamVerdictResponse? Spam,
+    PersonPhotoResponse? SenderPhoto)
 {
+    /// <summary>Reads the author a message displays: the first mailbox of its <c>From</c> header.</summary>
+    /// <param name="message">The message.</param>
+    /// <returns>The author's address, or <see langword="null" /> where the message names none.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="message" /> is <see langword="null" />.</exception>
+    internal static EmailAddress? AuthorOf(ReadEmailContent message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        return message.Headers.Participants
+            .Where(participant => participant.Role == EmailAddressRole.From)
+            .Select(participant => (EmailAddress?)participant.Address)
+            .FirstOrDefault();
+    }
+
     /// <summary>Describes one message for the wire.</summary>
     /// <param name="message">The message the use case read.</param>
     /// <param name="standing">What the message's sender is to the caller reading it.</param>
+    /// <param name="authorPhotos">The photo each author of the read is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
-    internal static ClientMailMessageResponse For(ReadEmailContent message, SenderContactStanding standing)
+    internal static ClientMailMessageResponse For(
+        ReadEmailContent message,
+        SenderContactStanding standing,
+        IReadOnlyDictionary<EmailAddress, PersonPhoto> authorPhotos)
     {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(standing);
+        ArgumentNullException.ThrowIfNull(authorPhotos);
 
         return new ClientMailMessageResponse(
             message.StoredEmailId.Value,
@@ -175,7 +203,8 @@ internal sealed record ClientMailMessageResponse(
             !message.RemoteFlags.IsSeen,
             message.RemoteFlags.IsFlagged,
             message.RemoteFlags.IsAnswered,
-            ClientMailSpamVerdictResponse.For(message.Spam));
+            ClientMailSpamVerdictResponse.For(message.Spam),
+            PersonPhotoResponse.For(AuthorOf(message), authorPhotos));
     }
 }
 

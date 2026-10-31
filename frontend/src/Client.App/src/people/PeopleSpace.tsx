@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useMemo, useRef, useState, type RefObject } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import {
     amendContact,
     eraseContact,
@@ -19,7 +19,7 @@ import {
 } from '@mailfathom/client-backend';
 import { Confirmation } from '../confirmation/Confirmation';
 import { ContactBook } from '../contactBook/ContactBook';
-import { ContactPhotoContext, contactPhotoReader, useContactPhoto } from '../contactBook/contactPhotos';
+import { useContactPhoto } from '../contactBook/contactPhotos';
 import { ContactSelectionBar } from '../contactBook/ContactSelectionBar';
 import { useContactBook, type ContactBookName, type Person } from '../contactBook/useContactBook';
 import { Control } from '../controls/Control';
@@ -264,13 +264,6 @@ export function PeopleSpace({
     );
     const structure = useColleagueStructure(session, transport, opened?.book === 'Member' ? opened.id : null);
 
-    // One reader per session, because what it keeps is the photos that session drew: kept across renders so a book
-    // read again does not ask again for a photo that did not change.
-    const photoReader = useMemo(
-        () => (session === null ? null : contactPhotoReader(session, contactPhotos)),
-        [session, contactPhotos],
-    );
-
     // Stores what the form said about the photo, answering the sentence owed where it did not land and `null` otherwise.
     // A write nobody answered may well have landed, so it is said to be unknown rather than refused.
     async function storePhoto(contactId: string, photo: ContactPhotoChange): Promise<MessageKey | null> {
@@ -487,202 +480,200 @@ export function PeopleSpace({
     });
 
     return (
-        <ContactPhotoContext value={photoReader}>
-            <div className="relative flex min-h-0 flex-1 flex-col">
-                {selected.length > 0 ? (
-                    <ContactSelectionBar
-                        book={book}
-                        selected={picked}
-                        erasable={writable && pickedOwn.length > 0}
-                        onClear={() => {
-                            setSelected([]);
-                        }}
-                        onSelectAll={() => {
-                            setSelected(reading.contacts.map((contact) => contact.id));
-                        }}
-                        onAskErasure={() => {
-                            askErasure(pickedOwn, picked.length - pickedOwn.length);
-                        }}
-                    />
-                ) : wide ? (
-                    <div className="flex shrink-0 items-center gap-2.25 border-b border-line bg-panel px-3 py-2">
-                        {writable ? (
-                            <Control
-                                label={translate('people.newContact')}
-                                icon="add"
-                                shape="primary"
-                                onPress={() => {
-                                    setSaid(null);
-                                    asking.current?.showModal();
-                                }}
-                            />
-                        ) : null}
-                    </div>
-                ) : null}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+            {selected.length > 0 ? (
+                <ContactSelectionBar
+                    book={book}
+                    selected={picked}
+                    erasable={writable && pickedOwn.length > 0}
+                    onClear={() => {
+                        setSelected([]);
+                    }}
+                    onSelectAll={() => {
+                        setSelected(reading.contacts.map((contact) => contact.id));
+                    }}
+                    onAskErasure={() => {
+                        askErasure(pickedOwn, picked.length - pickedOwn.length);
+                    }}
+                />
+            ) : wide ? (
+                <div className="flex shrink-0 items-center gap-2.25 border-b border-line bg-panel px-3 py-2">
+                    {writable ? (
+                        <Control
+                            label={translate('people.newContact')}
+                            icon="add"
+                            shape="primary"
+                            onPress={() => {
+                                setSaid(null);
+                                asking.current?.showModal();
+                            }}
+                        />
+                    ) : null}
+                </div>
+            ) : null}
 
-                {said?.where === 'book' ? (
-                    <p role="status" className="shrink-0 border-b border-line bg-sunken px-4 py-2 text-sm text-muted">
-                        {translate(said.said, said.names)}
-                    </p>
-                ) : null}
+            {said?.where === 'book' ? (
+                <p role="status" className="shrink-0 border-b border-line bg-sunken px-4 py-2 text-sm text-muted">
+                    {translate(said.said, said.names)}
+                </p>
+            ) : null}
 
-                <div className="relative flex min-h-0 flex-1 flex-col panes:flex-row">
-                    {/* The book stands aside rather than coming down where one pane draws the person, for the reason
+            <div className="relative flex min-h-0 flex-1 flex-col panes:flex-row">
+                {/* The book stands aside rather than coming down where one pane draws the person, for the reason
                         `shell/Space.tsx` gives about a space: what it holds is the pages the deployment answered and where
                         in them the reader had scrolled to, and the platform keeps a scroller's offset only while its box
                         is there. How wide the column is belongs to this composition rather than to the list, which is why
                         the width and the boundary are written here and not inside it. */}
-                    <div
-                        aria-hidden={personInFront ? true : undefined}
-                        inert={personInFront}
-                        className={`flex min-h-0 min-w-0 flex-col panes:border-e panes:border-line ${paneArrival(paneMoved, false)} ${
-                            personInFront ? 'invisible absolute inset-0' : 'flex-1 panes:w-contact-list panes:flex-none'
-                        }`}
-                    >
-                        <ContactBook
-                            books={books}
-                            // Keyed by the book, so moving between the two draws a list rather than continuing one. What
-                            // this list holds is where it was scrolled, which row the keyboard is on, and the height it
-                            // measured — every one of them about the book that was being read, and none of them true of
-                            // the one arrived at. `messageList/MessageList.tsx` writes the same reset by hand because a
-                            // folder is read into the same list; here the two books are two lists, and a key is what says
-                            // so. It also puts the scroller back at the top, which state alone cannot: `scrollTop` on the
-                            // element the browser holds is not this component's to write.
-                            key={book}
-                            book={book}
-                            reading={reading}
-                            organizationName={organizationName}
-                            opened={opened?.id ?? null}
-                            selected={selected}
-                            erasable={writable}
-                            onBook={(chosen) => {
-                                setBook(chosen);
-                                setSelected([]);
-                            }}
-                            onOpen={(contact) => {
-                                setSaid(null);
-                                open(contact);
-                            }}
-                            onSelected={setSelected}
-                            onAskErasure={askErasure}
-                        />
-                    </div>
-
-                    {opened === null ? (
-                        // Beside an empty pane rather than instead of one, so the book does not move under a reader the
-                        // moment they open somebody. The narrow shape has no second pane to leave empty.
-                        twoPanes ? (
-                            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 py-8 text-center">
-                                <p className="text-base text-muted text-pretty">{translate('people.nobodyOpen')}</p>
-                            </div>
-                        ) : null
-                    ) : (
-                        // One element around the page so it can arrive the way a pane does: the page itself is drawn
-                        // the same in either composition, and only the narrow one moves it.
-                        <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${paneArrival(paneMoved, true)}`}>
-                            <PersonPage
-                                contact={asHeld(opened, reading.contacts)}
-                                organizationName={organizationName}
-                                correspondence={correspondence}
-                                structure={structure}
-                                writable={writable}
-                                promoting={promoting}
-                                recordSaid={said?.where === 'person' ? said.said : null}
-                                onBack={
-                                    twoPanes
-                                        ? null
-                                        : () => {
-                                              open(null);
-                                          }
-                                }
-                                onPromote={promote}
-                                onAskAmendment={() => {
-                                    setSaid(null);
-                                    amending.current?.showModal();
-                                }}
-                                onAskErasure={() => {
-                                    askErasure(inOwnBooks(opened) ? [opened] : []);
-                                }}
-                                onOpenColleague={(colleague) => {
-                                    setSaid(null);
-                                    open(colleague);
-                                }}
-                                onOpenThread={onOpenThread}
-                                onOpenDocument={onOpenDocument}
-                            />
-                        </div>
-                    )}
+                <div
+                    aria-hidden={personInFront ? true : undefined}
+                    inert={personInFront}
+                    className={`flex min-h-0 min-w-0 flex-col panes:border-e panes:border-line ${paneArrival(paneMoved, false)} ${
+                        personInFront ? 'invisible absolute inset-0' : 'flex-1 panes:w-contact-list panes:flex-none'
+                    }`}
+                >
+                    <ContactBook
+                        books={books}
+                        // Keyed by the book, so moving between the two draws a list rather than continuing one. What
+                        // this list holds is where it was scrolled, which row the keyboard is on, and the height it
+                        // measured — every one of them about the book that was being read, and none of them true of
+                        // the one arrived at. `messageList/MessageList.tsx` writes the same reset by hand because a
+                        // folder is read into the same list; here the two books are two lists, and a key is what says
+                        // so. It also puts the scroller back at the top, which state alone cannot: `scrollTop` on the
+                        // element the browser holds is not this component's to write.
+                        key={book}
+                        book={book}
+                        reading={reading}
+                        organizationName={organizationName}
+                        opened={opened?.id ?? null}
+                        selected={selected}
+                        erasable={writable}
+                        onBook={(chosen) => {
+                            setBook(chosen);
+                            setSelected([]);
+                        }}
+                        onOpen={(contact) => {
+                            setSaid(null);
+                            open(contact);
+                        }}
+                        onSelected={setSelected}
+                        onAskErasure={askErasure}
+                    />
                 </div>
 
-                {/* The narrow composition's own way to write somebody down, which is where a thumb reaches rather than at
+                {opened === null ? (
+                    // Beside an empty pane rather than instead of one, so the book does not move under a reader the
+                    // moment they open somebody. The narrow shape has no second pane to leave empty.
+                    twoPanes ? (
+                        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 py-8 text-center">
+                            <p className="text-base text-muted text-pretty">{translate('people.nobodyOpen')}</p>
+                        </div>
+                    ) : null
+                ) : (
+                    // One element around the page so it can arrive the way a pane does: the page itself is drawn
+                    // the same in either composition, and only the narrow one moves it.
+                    <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${paneArrival(paneMoved, true)}`}>
+                        <PersonPage
+                            contact={asHeld(opened, reading.contacts)}
+                            organizationName={organizationName}
+                            correspondence={correspondence}
+                            structure={structure}
+                            writable={writable}
+                            promoting={promoting}
+                            recordSaid={said?.where === 'person' ? said.said : null}
+                            onBack={
+                                twoPanes
+                                    ? null
+                                    : () => {
+                                          open(null);
+                                      }
+                            }
+                            onPromote={promote}
+                            onAskAmendment={() => {
+                                setSaid(null);
+                                amending.current?.showModal();
+                            }}
+                            onAskErasure={() => {
+                                askErasure(inOwnBooks(opened) ? [opened] : []);
+                            }}
+                            onOpenColleague={(colleague) => {
+                                setSaid(null);
+                                open(colleague);
+                            }}
+                            onOpenThread={onOpenThread}
+                            onOpenDocument={onOpenDocument}
+                        />
+                    </div>
+                )}
+            </div>
+
+            {/* The narrow composition's own way to write somebody down, which is where a thumb reaches rather than at
                     the top of a column: the toolbar the wide shape carries has nowhere to stand once bottom navigation has
                     the foot of the window. */}
-                {!wide && writable && selected.length === 0 && !personInFront ? (
-                    <Control
-                        label={translate('people.newContact')}
-                        icon="person_add"
-                        shape="floating"
-                        className="absolute end-4 bottom-4"
-                        onPress={() => {
-                            setSaid(null);
-                            asking.current?.showModal();
-                        }}
-                    />
-                ) : null}
-
-                {writable ? <ContactDialog asked={asking} onSave={record} /> : null}
-
-                {/* Keyed by the person and by what their record says, so the form opens on whoever is open now as their
-                    record now stands — a correction just saved included — rather than on whatever it was first drawn for. */}
-                {writable && opened?.book === 'Own' ? (
-                    <ContactAmendment
-                        key={`${opened.id} ${opened.displayName} ${opened.preferredAddress} ${opened.addresses.join(' ')} ${JSON.stringify(opened.phoneNumbers)} ${opened.photo ?? ''}`}
-                        contact={opened}
-                        asked={amending}
-                        onSave={(save) => {
-                            amend(opened, save);
-                        }}
-                    />
-                ) : null}
-
-                <Confirmation
-                    asked={asked}
-                    mark="delete"
-                    question={translate(erasing.length === 1 ? erasingQuestion.one : erasingQuestion.many)}
-                    consequence={
-                        <p className="text-base text-pretty">
-                            {erasing.length === 1
-                                ? translate(erasingQuestion.oneWhat, { name: erasing[0]?.displayName ?? '' })
-                                : translate(
-                                      erasingCounted[erasedFrom][new Intl.PluralRules(locale).select(erasing.length)],
-                                      { count: new Intl.NumberFormat(locale).format(erasing.length) },
-                                  )}
-                            {kept === 0
-                                ? null
-                                : ` ${translate(keptCounted[new Intl.PluralRules(locale).select(kept)], {
-                                      count: new Intl.NumberFormat(locale).format(kept),
-                                      organization: organizationName ?? translate('people.yourOrganization'),
-                                  })}`}
-                        </p>
-                    }
-                    reversal={{ kind: 'permanent', said: translate(erasingQuestion.afterwards) }}
-                    ways={[
-                        { said: translate('act.cancel'), manner: 'back' },
-                        {
-                            said: translate(erasingQuestion.act),
-                            manner: 'destroy',
-                            run: () => {
-                                erase(erasing);
-                            },
-                        },
-                    ]}
+            {!wide && writable && selected.length === 0 && !personInFront ? (
+                <Control
+                    label={translate('people.newContact')}
+                    icon="person_add"
+                    shape="floating"
+                    className="absolute end-4 bottom-4"
+                    onPress={() => {
+                        setSaid(null);
+                        asking.current?.showModal();
+                    }}
                 />
-            </div>
-        </ContactPhotoContext>
+            ) : null}
+
+            {writable ? <ContactDialog asked={asking} onSave={record} /> : null}
+
+            {/* Keyed by the person and by what their record says, so the form opens on whoever is open now as their
+                    record now stands — a correction just saved included — rather than on whatever it was first drawn for. */}
+            {writable && opened?.book === 'Own' ? (
+                <ContactAmendment
+                    key={`${opened.id} ${opened.displayName} ${opened.preferredAddress} ${opened.addresses.join(' ')} ${JSON.stringify(opened.phoneNumbers)} ${opened.photo ?? ''}`}
+                    contact={opened}
+                    asked={amending}
+                    onSave={(save) => {
+                        amend(opened, save);
+                    }}
+                />
+            ) : null}
+
+            <Confirmation
+                asked={asked}
+                mark="delete"
+                question={translate(erasing.length === 1 ? erasingQuestion.one : erasingQuestion.many)}
+                consequence={
+                    <p className="text-base text-pretty">
+                        {erasing.length === 1
+                            ? translate(erasingQuestion.oneWhat, { name: erasing[0]?.displayName ?? '' })
+                            : translate(
+                                  erasingCounted[erasedFrom][new Intl.PluralRules(locale).select(erasing.length)],
+                                  { count: new Intl.NumberFormat(locale).format(erasing.length) },
+                              )}
+                        {kept === 0
+                            ? null
+                            : ` ${translate(keptCounted[new Intl.PluralRules(locale).select(kept)], {
+                                  count: new Intl.NumberFormat(locale).format(kept),
+                                  organization: organizationName ?? translate('people.yourOrganization'),
+                              })}`}
+                    </p>
+                }
+                reversal={{ kind: 'permanent', said: translate(erasingQuestion.afterwards) }}
+                ways={[
+                    { said: translate('act.cancel'), manner: 'back' },
+                    {
+                        said: translate(erasingQuestion.act),
+                        manner: 'destroy',
+                        run: () => {
+                            erase(erasing);
+                        },
+                    },
+                ]}
+            />
+        </div>
     );
 }
 
-// The form a correction opens, drawn inside the space's photo reader so it opens on the photo every avatar of the
+// The form a correction opens, drawn inside the client's photo reader so it opens on the photo every avatar of the
 // person draws rather than reading one of its own.
 function ContactAmendment({
     contact,

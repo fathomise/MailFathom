@@ -67,6 +67,7 @@ function message(id: string, position: number): MailThreadMessage {
             sentAt: null,
             senderAddress: 'karolina@example.invalid',
             senderDisplayName: 'Karolina Nowak',
+            senderPhoto: null,
             toAddresses: [],
             unread: false,
             flagged: false,

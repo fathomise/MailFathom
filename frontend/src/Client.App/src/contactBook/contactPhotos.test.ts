@@ -3,9 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it, vi } from 'vitest';
-import type { ClientSession } from '@mailfathom/client-backend';
+import type { ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import type { ContactPhotoExchange, PortraitRead } from '../deployment/portraitExchange';
-import { contactPhotoReader } from './contactPhotos';
+import { contactPhotoReader, photosOfAddresses } from './contactPhotos';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -75,5 +75,41 @@ describe('contactPhotoReader', () => {
         expect(portrait).toBe(drawn);
         expect(readColleague).toHaveBeenCalledWith(session, 'piotr', expect.any(AbortSignal));
         expect(read).not.toHaveBeenCalled();
+    });
+});
+
+describe('photosOfAddresses', () => {
+    // An AI answer names people by address alone, so they are resolved in one request rather than one each.
+    it('resolves the people a block names in one request, and nobody where the deployment refused', async () => {
+        const piotr = { book: 'Member', id: 'piotr', photo: 'revision-1' } as const;
+        const sent: string[] = [];
+        let refusing = false;
+        const transport: MailFathomTransport = (request) => {
+            sent.push(request.body ?? '');
+
+            return Promise.resolve(
+                refusing
+                    ? { status: 403, headers: {}, body: '' }
+                    : {
+                          status: 200,
+                          headers: {},
+                          body: JSON.stringify({ photos: [{ address: 'piotr@nordwind.example', photo: piotr }] }),
+                      },
+            );
+        };
+
+        const resolved = await photosOfAddresses(session, transport, [
+            'piotr@nordwind.example',
+            'ola@nordwind.example',
+        ]);
+        refusing = true;
+        const refused = await photosOfAddresses(session, transport, ['piotr@nordwind.example']);
+
+        expect([...resolved]).toEqual([['piotr@nordwind.example', piotr]]);
+        expect(refused.size).toBe(0);
+        expect(sent).toEqual([
+            JSON.stringify({ addresses: ['piotr@nordwind.example', 'ola@nordwind.example'] }),
+            JSON.stringify({ addresses: ['piotr@nordwind.example'] }),
+        ]);
     });
 });

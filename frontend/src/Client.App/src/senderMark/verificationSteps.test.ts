@@ -95,6 +95,7 @@ function message(sender: MailSenderVerdict, signature: MailSignature = unsigned)
             inReplyTo: null,
             references: [],
         },
+        senderPhoto: null,
         body: { availability: 'Readable', plainText: true, html: false },
         sender,
         signature,

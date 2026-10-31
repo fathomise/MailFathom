@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnswerBlock, BlockEvidence, DeclaredSource, PersonEntry } from '@mailfathom/client-backend';
+import { ContactPhotoContext, type ContactPhotoReader } from '../../contactBook/contactPhotos';
 import { LocalizationProvider } from '../../localization/Localization';
 import { ReadingZoneContext } from '../../localization/useReadingZone';
 import { AnswerSourcesContext } from '../answerSources';
@@ -36,22 +37,28 @@ function found(entries: readonly PersonEntry[]): AnswerBlock {
     return { type: 'people', named: 'people', evidence: backed, entries };
 }
 
-function renderPeople(block: AnswerBlock, sources: readonly DeclaredSource[] = [agreement]) {
+function renderPeople(
+    block: AnswerBlock,
+    sources: readonly DeclaredSource[] = [agreement],
+    photos: ContactPhotoReader | null = null,
+) {
     const declared = new Map(sources.map((source) => [source.id, source]));
 
     return render(
-        <LocalizationProvider>
-            {/* A zone the suite is not running in, so the wording below proves the block placed the instant in the
+        <ContactPhotoContext value={photos}>
+            <LocalizationProvider>
+                {/* A zone the suite is not running in, so the wording below proves the block placed the instant in the
                 zone the reader's record states rather than in whichever one the machine reports. */}
-            <ReadingZoneContext value="America/New_York">
-                {/* A citation is given somewhere to follow to, which is what the canvas hands every block on the screen
+                <ReadingZoneContext value="America/New_York">
+                    {/* A citation is given somewhere to follow to, which is what the canvas hands every block on the screen
                     this block is drawn on: a chip with nowhere to go says so in its own name, and asserting that here
                     would be asserting `Citation`'s behaviour rather than this block's. */}
-                <AnswerSourcesContext value={{ sources: declared, follow: () => undefined }}>
-                    <People block={block} />
-                </AnswerSourcesContext>
-            </ReadingZoneContext>
-        </LocalizationProvider>,
+                    <AnswerSourcesContext value={{ sources: declared, follow: () => undefined }}>
+                        <People block={block} />
+                    </AnswerSourcesContext>
+                </ReadingZoneContext>
+            </LocalizationProvider>
+        </ContactPhotoContext>,
     );
 }
 
@@ -140,5 +147,34 @@ describe('People', () => {
         renderPeople({ type: null, named: 'RiskScore' });
 
         expect(screen.getByText('Unknown block')).toBeDefined();
+    });
+});
+
+describe('People, drawing who has a photo', () => {
+    const drawn = 'data:image/png;base64,iVBORw0KGgo=';
+
+    // The answer was composed once and kept, so it names people by address alone: who has a photo is asked when the
+    // block is drawn, once for the whole block.
+    it('resolves the people the block names in one request and draws each by the photo they have', async () => {
+        const bea: PersonEntry = {
+            ...anna,
+            person: { displayName: 'Bea Lind', address: 'bea@contoso.example' },
+        };
+        const resolve = vi.fn<ContactPhotoReader['resolve']>(() =>
+            Promise.resolve(new Map([['anna@contoso.example', { book: 'Own', id: 'anna', photo: 'stored-file' }]])),
+        );
+        const read = vi.fn<ContactPhotoReader['read']>(() => Promise.resolve(drawn));
+
+        renderPeople(found([anna, bea]), [agreement], { read, resolve });
+
+        await waitFor(() => {
+            expect(screen.getByText('Anna Kowalska').closest('li')?.querySelector('img')?.getAttribute('src')).toBe(
+                drawn,
+            );
+        });
+        expect(screen.getByText('Bea Lind').closest('li')?.querySelector('img')).toBeNull();
+        expect(resolve).toHaveBeenCalledTimes(1);
+        expect(resolve).toHaveBeenCalledWith(['anna@contoso.example', 'bea@contoso.example']);
+        expect(read).toHaveBeenCalledWith({ id: 'anna', book: 'Own' }, 'stored-file', expect.any(AbortSignal));
     });
 });

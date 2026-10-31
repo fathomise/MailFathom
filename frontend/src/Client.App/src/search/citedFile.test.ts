@@ -37,6 +37,7 @@ function found(carried: Partial<MailSearchResult> = {}): MailSearchResult {
         sentAt: null,
         senderAddress: 'billing@example.invalid',
         senderDisplayName: 'Billing',
+        senderPhoto: null,
         toAddresses: ['user@example.invalid'],
         unread: false,
         flagged: false,

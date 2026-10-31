@@ -32,6 +32,21 @@
         ],
         "type": "object"
       },
+      "AddressedPersonPhotoResponse": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "photo": {
+            "$ref": "#/components/schemas/PersonPhotoResponse"
+          }
+        },
+        "required": [
+          "address",
+          "photo"
+        ],
+        "type": "object"
+      },
       "AdminSessionResponse": {
         "properties": {
           "credential": {
@@ -3069,6 +3084,16 @@
           "sender": {
             "$ref": "#/components/schemas/ClientMailSenderVerdictResponse"
           },
+          "senderPhoto": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonPhotoResponse"
+              }
+            ]
+          },
           "signature": {
             "$ref": "#/components/schemas/ClientMailSignatureResponse"
           },
@@ -3120,7 +3145,8 @@
           "unread",
           "flagged",
           "answered",
-          "spam"
+          "spam",
+          "senderPhoto"
         ],
         "type": "object"
       },
@@ -3471,6 +3497,16 @@
               "string"
             ]
           },
+          "senderPhoto": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonPhotoResponse"
+              }
+            ]
+          },
           "sentAt": {
             "format": "date-time",
             "type": [
@@ -3548,7 +3584,8 @@
           "attachmentMatches",
           "isDepictedMatch",
           "spam",
-          "sender"
+          "sender",
+          "senderPhoto"
         ],
         "type": "object"
       },
@@ -4272,6 +4309,16 @@
               "string"
             ]
           },
+          "senderPhoto": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonPhotoResponse"
+              }
+            ]
+          },
           "sentAt": {
             "format": "date-time",
             "type": [
@@ -4350,7 +4397,8 @@
           "enrichment",
           "threadMessageCount",
           "spam",
-          "sender"
+          "sender",
+          "senderPhoto"
         ],
         "type": "object"
       },
@@ -10786,6 +10834,58 @@
           "relationship",
           "lastContactAt",
           "sources"
+        ],
+        "type": "object"
+      },
+      "PersonPhotoResponse": {
+        "properties": {
+          "book": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "photo": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "book",
+          "id",
+          "photo"
+        ],
+        "type": "object"
+      },
+      "PersonPhotosRequest": {
+        "properties": {
+          "addresses": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "addresses"
+        ],
+        "type": "object"
+      },
+      "PersonPhotosResponse": {
+        "properties": {
+          "photos": {
+            "items": {
+              "$ref": "#/components/schemas/AddressedPersonPhotoResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "photos"
         ],
         "type": "object"
       },
@@ -19772,6 +19872,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContactPageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/contacts/photos": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PersonPhotosRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonPhotosResponse"
                 }
               }
             },

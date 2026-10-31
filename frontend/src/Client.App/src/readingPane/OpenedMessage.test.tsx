@@ -55,6 +55,7 @@ const described: MailMessage = {
         inReplyTo: null,
         references: [],
     },
+    senderPhoto: null,
     body: { availability: 'Readable', plainText: true, html: true },
     sender: {
         authorAuthentication: 'Authenticated',

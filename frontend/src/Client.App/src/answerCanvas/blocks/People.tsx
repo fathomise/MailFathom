@@ -3,7 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useState } from 'react';
-import type { AnswerBlock, PersonEntry } from '@mailfathom/client-backend';
+import type { AnswerBlock, PersonEntry, PersonPhotoReference } from '@mailfathom/client-backend';
+import { useContactPhoto, usePhotosOfAddresses } from '../../contactBook/contactPhotos';
 import { SenderAvatar } from '../../controls/SenderAvatar';
 import { wordRecentInstant } from '../../localization/instants';
 import { useLocalization } from '../../localization/useLocalization';
@@ -34,6 +35,9 @@ export function People({ block }: { readonly block: AnswerBlock }) {
     // The clock is read once, when the block is first drawn, for the reason `controls/ReceivedAt.tsx` gives: a render
     // is pure and the clock is not.
     const [now] = useState(() => Date.now());
+    const photos = usePhotosOfAddresses(
+        block.type === 'people' ? block.entries.map((entry) => entry.person.address) : [],
+    );
 
     if (block.type !== 'people') {
         return <UnrecognisedAnswerBlock />;
@@ -67,7 +71,12 @@ export function People({ block }: { readonly block: AnswerBlock }) {
                         className="flex flex-wrap items-center gap-3.5 border-b border-line-soft py-2.5 last:border-b-0"
                         key={`${entry.person.address ?? entry.person.displayName}-${String(at)}`}
                     >
-                        <Person entry={entry} now={now} positionOf={positionOf} />
+                        <Person
+                            entry={entry}
+                            photo={entry.person.address === null ? null : (photos.get(entry.person.address) ?? null)}
+                            now={now}
+                            positionOf={positionOf}
+                        />
                     </li>
                 ))}
             </ul>
@@ -78,10 +87,14 @@ export function People({ block }: { readonly block: AnswerBlock }) {
 /** One person: who they are, where they stand, when they were last in contact, and what says so. */
 function Person({
     entry,
+    photo,
     now,
     positionOf,
 }: {
     readonly entry: PersonEntry;
+
+    /** Which photo they are drawn by, or `null` where their initials are. */
+    readonly photo: PersonPhotoReference | null;
     readonly now: number;
 
     /** Where a source stands among the ones the block names, which is the number its chip draws. */
@@ -90,10 +103,16 @@ function Person({
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const last = wordRecentInstant(entry.lastContactAt, locale, now, timeZone);
+    const picture = useContactPhoto(photo);
 
     return (
         <>
-            <SenderAvatar address={entry.person.address} displayName={entry.person.displayName} place="answerRow" />
+            <SenderAvatar
+                address={entry.person.address}
+                displayName={entry.person.displayName}
+                picture={picture}
+                place="answerRow"
+            />
 
             <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-sm font-semibold">{entry.person.displayName}</span>

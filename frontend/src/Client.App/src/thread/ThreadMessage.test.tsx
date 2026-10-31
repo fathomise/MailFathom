@@ -68,6 +68,7 @@ const described: MailMessage = {
         inReplyTo: null,
         references: [],
     },
+    senderPhoto: null,
     body: { availability: 'Readable', plainText: true, html: true },
     sender: {
         authorAuthentication: 'Authenticated',
@@ -138,6 +139,7 @@ function message(overrides: Partial<MailThreadMessage> = {}): MailThreadMessage 
             sentAt: '2026-08-31T09:40:00+00:00',
             senderAddress: 'auditor@example.invalid',
             senderDisplayName: 'The auditor',
+            senderPhoto: null,
             toAddresses: ['user@example.invalid'],
             unread: false,
             flagged: false,

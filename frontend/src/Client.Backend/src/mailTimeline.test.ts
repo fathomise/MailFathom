@@ -197,7 +197,7 @@ describe('readMailTimeline', () => {
         expect(result).toStrictEqual({
             outcome: 'read',
             value: {
-                emails: [{ ...message, enrichment: null, spam: null }],
+                emails: [{ ...message, enrichment: null, spam: null, senderPhoto: null }],
                 nextCursor: 'after',
                 previousCursor: 'before',
                 pageSize: 50,
@@ -402,5 +402,29 @@ describe('readMailTimeline', () => {
         const result = await readMailTimeline(session, transport, leadingPage);
 
         expect(result.outcome === 'read' && result.value.emails[0]?.threadMessageCount).toBeNull();
+    });
+
+    // Which photo the sender is drawn by is said once per row, so a list asks for no photo row by row.
+    it('reads the photo a row names its sender by, and a row naming none as drawn by initials', async () => {
+        const senderPhoto = { book: 'Own', id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90', photo: 'stored-file' };
+        const transport = answering({ status: 200, body: bodyOf([{ ...message, senderPhoto }, message]) });
+
+        const result = await readMailTimeline(session, transport, leadingPage);
+
+        expect(result.outcome === 'read' && result.value.emails.map((row) => row.senderPhoto)).toStrictEqual([
+            senderPhoto,
+            null,
+        ]);
+    });
+
+    it('refuses a row naming its sender by a photo it cannot read', async () => {
+        const transport = answering({
+            status: 200,
+            body: bodyOf([{ ...message, senderPhoto: { book: 'Collected', id: 'x', photo: 'y' } }]),
+        });
+
+        const result = await readMailTimeline(session, transport, leadingPage);
+
+        expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 });

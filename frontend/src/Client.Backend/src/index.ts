@@ -578,6 +578,13 @@ export {
     type OwnTimeZone,
     type OwnTimeZoneChange,
 } from './ownTimeZone';
+export {
+    mostPersonPhotos,
+    personPhotosRoute,
+    readPersonPhotos,
+    type PersonPhotoBook,
+    type PersonPhotoReference,
+} from './personPhotos';
 export { livenessBound, mostReconnectionAttempts, reconnectionDelay } from './reconnection';
 export { mostRetries, retryDelay } from './transientFailures';
 export {

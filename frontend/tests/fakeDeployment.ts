@@ -810,6 +810,8 @@ export class FakeDeployment {
                 );
             case 'POST /contacts':
                 return answering(this.contactWritten(request.body));
+            case 'POST /contacts/photos':
+                return answering(contacts.noPersonPhotos);
             case 'POST /discovery/runs':
                 this.runs.set(discovery.runId, { reads: 0, startsRunning: this.takeRunning(), stopped: false });
 
