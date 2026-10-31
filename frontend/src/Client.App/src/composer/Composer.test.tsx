@@ -727,6 +727,7 @@ describe('Composer, a message of its own', () => {
         const save = lastDraftRequest(asked);
 
         expect(save?.method).toBe('POST');
+        expect(save?.path).toBe('https://mail.example.invalid/api/client/drafts');
         expect(JSON.parse(save?.body ?? '{}')).toMatchObject({ account: 'work', subject: 'Invoice' });
     });
 

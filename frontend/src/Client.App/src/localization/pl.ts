@@ -2339,8 +2339,8 @@ export const pl: Catalogue = {
     'people.workingHours': '{days} {hours}',
     'people.workingHoursYours': '({hours} u Ciebie)',
     'people.workingHoursYoursOn': '({days} {hours} u Ciebie)',
-    'people.workingHoursYoursIntoNextDay': '({hours} do następnego dnia, u Ciebie)',
-    'people.workingHoursYoursOnIntoNextDay': '({days} {hours} do następnego dnia, u Ciebie)',
+    'people.workingHoursYoursIntoNextDay': '({hours} następnego dnia, u Ciebie)',
+    'people.workingHoursYoursOnIntoNextDay': '({days} {hours} następnego dnia, u Ciebie)',
     'people.workingRun': '{first}–{last}',
     'people.outsideWorkingHours': 'Poza godzinami pracy',
     'people.workingHoursNoZone':
