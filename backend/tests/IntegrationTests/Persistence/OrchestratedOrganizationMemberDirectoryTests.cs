@@ -38,6 +38,9 @@ namespace MailFathom.IntegrationTests.Persistence;
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
 public sealed class OrchestratedOrganizationMemberDirectoryTests(MailFathomOrchestrationFixture orchestration)
 {
+    /// <summary>Enough writers, half in each direction, that one of them reliably reads before another commits.</summary>
+    private const int ConcurrentManagerWrites = 8;
+
     private static readonly DateTimeOffset RecordedAt = new(2026, 10, 31, 8, 0, 0, TimeSpan.Zero);
 
     private static readonly ContactAddressWriter PersonWriting = new(ContactAddressWriterKind.Person, User: null, Credential: null);
@@ -213,8 +216,62 @@ public sealed class OrchestratedOrganizationMemberDirectoryTests(MailFathomOrche
     }
 
     /// <summary>
+    /// Two writers naming each other's manager at once cannot close a loop between them: neither sees the other's
+    /// uncommitted line, so only the lock on the organization's row leaves the second to read the first and refuse it.
+    /// </summary>
+    [Fact]
+    public async Task SetManagerAsync_TwoUsersNamedEachOthersManagerAtOnce_StoresOneLineAndRefusesTheOther()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var arrangement = new Arrangement(services);
+
+        try
+        {
+            var people = await arrangement.HoldAsync(cancellationToken);
+            var anna = UserId.Create(people.Anna);
+            var piotr = UserId.Create(people.Piotr);
+
+            // Act
+            var attempts = await ConcurrentIdempotency.RunAsync(
+                "Naming each other's manager",
+                ConcurrentManagerWrites,
+                (ordinal, token) => services.InScopeAsync(
+                    async (scope, scopeToken) =>
+                    {
+                        var annaReportsToPiotr = ordinal % 2 == 0;
+                        var answer = annaReportsToPiotr
+                            ? await scope.GetRequiredService<IUserProvisioning>().SetManagerAsync(anna, piotr, scopeToken)
+                            : await scope.GetRequiredService<IUserProvisioning>().SetManagerAsync(piotr, anna, scopeToken);
+
+                        return (AnnaReportsToPiotr: annaReportsToPiotr, Answer: answer);
+                    },
+                    token),
+                cancellationToken);
+            var annasManager = await ManagerOfAsync(services, people.Anna, cancellationToken);
+            var piotrsManager = await ManagerOfAsync(services, people.Piotr, cancellationToken);
+
+            // Assert
+            Assert.Empty(attempts.Failures);
+            Assert.True(annasManager is null ^ piotrsManager is null, "Exactly one of Anna and Piotr should report to the other.");
+            var storedDirection = annasManager is not null;
+            Assert.All(
+                attempts.Results,
+                attempt => Assert.Equal(
+                    attempt.AnnaReportsToPiotr == storedDirection ? ManagerAssignmentResult.Assigned : ManagerAssignmentResult.ReportingCycle,
+                    attempt.Answer));
+        }
+        finally
+        {
+            await arrangement.RemoveAsync();
+        }
+    }
+
+    /// <summary>
     /// A manager who leaves the organization is nobody's manager there any more, and neither is their own manager theirs:
-    /// moving Anna out clears both her line and Piotr's, and erasing a manager clears the line of whoever named them.
+    /// moving Anna out clears both her line to Piotr and the robot's line to her, and erasing a manager clears the line of
+    /// whoever named them.
     /// </summary>
     [Fact]
     public async Task SetUserOrganizationAsync_AManagerLeavingOrErased_ClearsTheLinesThatNamedThem()
@@ -229,15 +286,20 @@ public sealed class OrchestratedOrganizationMemberDirectoryTests(MailFathomOrche
             var people = await arrangement.HoldAsync(cancellationToken);
             var anna = UserId.Create(people.Anna);
             var piotr = UserId.Create(people.Piotr);
+            var robot = UserId.Create(people.Robot);
             var otherOrganization = await arrangement.HoldOrganizationAsync(cancellationToken);
             await services.InScopeAsync(
                 async (scope, token) =>
                 {
                     var provisioning = scope.GetRequiredService<IUserProvisioning>();
-                    Assert.Equal(ManagerAssignmentResult.Assigned, await provisioning.SetManagerAsync(piotr, anna, token));
-                    Assert.Equal(ManagerAssignmentResult.Assigned, await provisioning.SetManagerAsync(UserId.Create(people.Robot), piotr, token));
+                    Assert.Equal(ManagerAssignmentResult.Assigned, await provisioning.SetManagerAsync(anna, piotr, token));
+                    Assert.Equal(ManagerAssignmentResult.Assigned, await provisioning.SetManagerAsync(robot, anna, token));
 
-                    return true;
+                    // A user holding an account outside the organization they move into is refused before anything is
+                    // written, so Anna gives up her accounts for the move to reach the lines it clears.
+                    return await scope.GetRequiredService<MailFathomDbContext>().MailAccountAssignments
+                        .Where(assignment => assignment.UserId == people.Anna)
+                        .ExecuteDeleteAsync(token);
                 },
                 cancellationToken);
 
@@ -245,13 +307,19 @@ public sealed class OrchestratedOrganizationMemberDirectoryTests(MailFathomOrche
             var moved = await services.InScopeAsync(
                 (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(anna, otherOrganization, token),
                 cancellationToken);
-            var piotrsAfterTheMove = await ManagerOfAsync(services, people.Piotr, cancellationToken);
+            var annasAfterTheMove = await ManagerOfAsync(services, people.Anna, cancellationToken);
+            var robotsAfterTheMove = await ManagerOfAsync(services, people.Robot, cancellationToken);
+            var reassigned = await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IUserProvisioning>().SetManagerAsync(robot, piotr, token),
+                cancellationToken);
             await OrchestratedForeignUser.EraseAsync(services, people.Piotr);
             var robotsAfterTheErasure = await ManagerOfAsync(services, people.Robot, cancellationToken);
 
             // Assert
             Assert.Equal(OrganizationWriteOutcome.Written, moved.Outcome);
-            Assert.Null(piotrsAfterTheMove);
+            Assert.Null(annasAfterTheMove);
+            Assert.Null(robotsAfterTheMove);
+            Assert.Equal(ManagerAssignmentResult.Assigned, reassigned);
             Assert.Null(robotsAfterTheErasure);
         }
         finally
