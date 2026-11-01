@@ -15,4 +15,8 @@ public sealed record ArrivedReceipts(
     ReceiptReport? Report,
     ReportedOutgoingEmail? ReportedOutgoingEmail,
     IReadOnlyList<RecipientOutcomeUpdate> Outcomes,
-    ReadReceiptRequest? ReadReceiptRequest);
+    ReadReceiptRequest? ReadReceiptRequest)
+{
+    /// <summary>Gets the organization's send the message is, delivered to the receiving account, or <see langword="null" /> where it is none.</summary>
+    public OrganizationDelivery? OrganizationDelivery { get; init; }
+}

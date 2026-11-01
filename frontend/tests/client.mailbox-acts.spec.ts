@@ -282,8 +282,10 @@ test('marks the open message unread and flags it from the toolbar, and the row a
     await expect(row(page, 'Message 6')).toHaveAccessibleName(/\bUnread\b/u);
     await expect(toolbar.getByRole('button', { name: 'Unflag' })).toBeVisible();
 
+    // The opening says it is one, which is what tells the deployment it may report the reading back; the toolbar's two
+    // changes are not openings and say nothing.
     expect(bodiesOf(deployment, '/mutations/flags')).toStrictEqual([
-        { changes: [{ storedEmailId: 'message-6', flags: { seen: true } }] },
+        { changes: [{ storedEmailId: 'message-6', flags: { seen: true } }], opened: true },
         { changes: [{ storedEmailId: 'message-6', flags: { seen: false } }] },
         { changes: [{ storedEmailId: 'message-6', flags: { flagged: true } }] },
     ]);

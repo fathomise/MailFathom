@@ -10,6 +10,7 @@ using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
+using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Authoring;
@@ -64,6 +65,8 @@ public sealed class ClientMailMutationsEndpointTests
     private readonly IMailboxMutationRecordStore records = Substitute.For<IMailboxMutationRecordStore>();
 
     private readonly IEmailSpamClassificationStore spamClassifications = Substitute.For<IEmailSpamClassificationStore>();
+
+    private readonly IReceiptReportStore receipts = Substitute.For<IReceiptReportStore>();
 
     /// <summary>The paths a client appends to the address it was configured with, pinned because the client composes them from constants of its own.</summary>
     [Fact]
@@ -196,6 +199,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
             new ClientMailFlagChangesRequest(RequestId: null, []),
             this.FlagRecorder(),
+            this.Openings(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -210,6 +214,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
             request: null,
             this.FlagRecorder(),
+            this.Openings(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -233,6 +238,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
             new ClientMailFlagChangesRequest(RequestId: null, changes),
             this.FlagRecorder(),
+            this.Openings(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -254,6 +260,7 @@ public sealed class ClientMailMutationsEndpointTests
                 requestId,
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(true, null), null)]),
             this.FlagRecorder(),
+            this.Openings(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -291,6 +298,7 @@ public sealed class ClientMailMutationsEndpointTests
                 "call-1",
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
             this.FlagRecorder(TargetInInbox()),
+            this.Openings(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -300,6 +308,112 @@ public sealed class ClientMailMutationsEndpointTests
         Assert.Equal(ClientMailChangeOutcomes.Recorded, change.Outcome);
         Assert.Null(change.Detail);
         Assert.NotEmpty(change.Changes);
+    }
+
+    /// <summary>
+    /// A batch the reader's opening produced reports every message it marked read as opened, whether the account's mail
+    /// is mirrored, where the change is recorded, or held, where it is applied: the read hangs on the act, not the phase.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubmitFlagChangesAsync_AnOpeningThatMarkedAMessageRead_RecordsItAsOpened(bool held)
+    {
+        // Arrange
+        this.RecordEveryRequest();
+
+        // Act
+        await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
+            new ClientMailFlagChangesRequest(
+                "call-1",
+                [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)],
+                Opened: true),
+            this.FlagRecorder(TargetInInbox(), held: held),
+            this.Openings(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.receipts.Received(1).RecordOpenedAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Is<IReadOnlyCollection<StoredEmailId>>(opened => opened.SequenceEqual(new[] { StoredEmailId.Create(Message) })),
+            RecordedAt,
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary><em>Mark as read</em> and every other change that is not an opening sets the flag and reports no reading to anybody.</summary>
+    [Fact]
+    public async Task SubmitFlagChangesAsync_MarkingReadThatIsNotAnOpening_RecordsNoOpening()
+    {
+        // Arrange
+        this.RecordEveryRequest();
+
+        // Act
+        await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
+            new ClientMailFlagChangesRequest(
+                "call-1",
+                [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
+            this.FlagRecorder(TargetInInbox()),
+            this.Openings(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.receipts.DidNotReceiveWithAnyArgs().RecordOpenedAsync(default!, default!, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>An opening whose change was refused — the message has gone — marked nothing read, so it reports nothing either.</summary>
+    [Fact]
+    public async Task SubmitFlagChangesAsync_AnOpeningWhoseChangeWasRefused_RecordsNoOpening()
+    {
+        // Act
+        await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
+            new ClientMailFlagChangesRequest(
+                "call-1",
+                [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)],
+                Opened: true),
+            this.FlagRecorder(),
+            this.Openings(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.receipts.DidNotReceiveWithAnyArgs().RecordOpenedAsync(default!, default!, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// Of an opening's batch, only a change that marked a message read and was accepted reports a reading: one that has
+    /// gone, one marking a message unread, and one changing tags alone were not read by anybody, and saying they were
+    /// would tell a colleague something the person never did.
+    /// </summary>
+    [Fact]
+    public async Task SubmitFlagChangesAsync_AnOpeningBatchMixingOtherChanges_RecordsOnlyTheAcceptedReadAsOpened()
+    {
+        // Arrange
+        this.RecordEveryRequest();
+
+        var gone = Guid.Parse("0199a0c0-0000-7000-8000-0000000090a1");
+        var markedUnread = Guid.Parse("0199a0c0-0000-7000-8000-0000000090a2");
+        var tagged = Guid.Parse("0199a0c0-0000-7000-8000-0000000090a3");
+
+        // Act
+        await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
+            new ClientMailFlagChangesRequest(
+                "call-1",
+                [
+                    new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null),
+                    new ClientMailFlagChangeRequest(gone, new ClientMailFlagStateRequest(Seen: true, null), null),
+                    new ClientMailFlagChangeRequest(markedUnread, new ClientMailFlagStateRequest(Seen: false, null), null),
+                    new ClientMailFlagChangeRequest(tagged, null, new ClientMailTagChangeRequest(ClientMailTagChanges.Add, ["$label1"])),
+                ],
+                Opened: true),
+            this.FlagRecorder(TargetInInbox(), gone: gone),
+            this.Openings(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.receipts.Received(1).RecordOpenedAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Is<IReadOnlyCollection<StoredEmailId>>(opened => opened.SequenceEqual(new[] { StoredEmailId.Create(Message) })),
+            RecordedAt,
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>A folder withheld from AI is still the person's, so a flag they set on its mail is recorded like any other.</summary>
@@ -315,6 +429,7 @@ public sealed class ClientMailMutationsEndpointTests
                 "call-1",
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
             this.FlagRecorder(TargetInInbox(), participation: InboxWithheldFromAI()),
+            this.Openings(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -337,6 +452,7 @@ public sealed class ClientMailMutationsEndpointTests
                 "call-1",
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
             this.FlagRecorder(TargetInInbox(), held: true),
+            this.Openings(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -376,6 +492,7 @@ public sealed class ClientMailMutationsEndpointTests
                 "call-1",
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
             this.FlagRecorder(),
+            this.Openings(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -403,6 +520,7 @@ public sealed class ClientMailMutationsEndpointTests
                         new ClientMailTagChangeRequest("sideways", ["$label1"])),
                 ]),
             this.FlagRecorder(TargetInInbox()),
+            this.Openings(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -1103,6 +1221,13 @@ public sealed class ClientMailMutationsEndpointTests
             new FakeTimeProvider(RecordedAt));
     }
 
+    private OpenedMailReceipts Openings() => new(
+        this.receipts,
+        Substitute.For<IClientPreferencesStore>(),
+        AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),
+        CommitPolicy(),
+        new FakeTimeProvider(RecordedAt));
+
     private MailboxChangeProgressReader ProgressReader(StubMailFolderParticipation? participation = null) => new(
         AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
         ScopeResolver(participation),
@@ -1171,13 +1296,22 @@ public sealed class ClientMailMutationsEndpointTests
     /// <param name="target">The message the caller names, defaulting to none, which is the absence the recorder reports as a message that has gone.</param>
     /// <param name="held">Whether the account's mailbox is one MailFathom holds.</param>
     /// <param name="participation">What the caller's folders take part in where a target is named, defaulting to the inbox taking part in everything.</param>
+    /// <param name="gone">A message the recorder reports as gone although every other one resolves to the target.</param>
     private MailFlagChangeRecorder FlagRecorder(
         AuthoredMailboxTarget? target = null,
         bool held = false,
-        StubMailFolderParticipation? participation = null)
+        StubMailFolderParticipation? participation = null,
+        Guid? gone = null)
     {
         var targets = Substitute.For<IAuthoredMailboxTargetReader>();
         targets.FindAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(target));
+
+        if (gone is { } goneMessage)
+        {
+            targets
+                .FindAsync(StoredEmailId.Create(goneMessage), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult<AuthoredMailboxTarget?>(null));
+        }
 
         return new MailFlagChangeRecorder(
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),

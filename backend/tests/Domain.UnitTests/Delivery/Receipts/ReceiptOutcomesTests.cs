@@ -45,9 +45,53 @@ public sealed class ReceiptOutcomesTests
         bool expected)
     {
         // Act
-        var replaces = ReceiptOutcomes.Replaces(recorded, reported);
+        var replaces = ReceiptOutcomes.Replaces(
+            Outcome(recorded, ReceiptOutcomeSource.Report),
+            Outcome(reported, ReceiptOutcomeSource.Report));
 
         // Assert
         Assert.Equal(expected, replaces);
     }
+
+    /// <summary>What this deployment observed between two accounts of one organization is proof, so it replaces any report.</summary>
+    [Theory]
+    [InlineData(ReceiptOutcome.Delivered, ReceiptOutcome.Delivered)]
+    [InlineData(ReceiptOutcome.Failed, ReceiptOutcome.Delivered)]
+    [InlineData(ReceiptOutcome.Delayed, ReceiptOutcome.Delivered)]
+    [InlineData(ReceiptOutcome.Displayed, ReceiptOutcome.Displayed)]
+    [InlineData(ReceiptOutcome.Deleted, ReceiptOutcome.Displayed)]
+    public void Replaces_AnOrganizationOutcomeAfterAReport_ReplacesIt(ReceiptOutcome recorded, ReceiptOutcome observed)
+    {
+        // Act
+        var replaces = ReceiptOutcomes.Replaces(
+            Outcome(recorded, ReceiptOutcomeSource.Report),
+            Outcome(observed, ReceiptOutcomeSource.Organization));
+
+        // Assert
+        Assert.True(replaces);
+    }
+
+    /// <summary>Nothing replaces an organization outcome: not a report arriving later, and not the same observation made again.</summary>
+    [Theory]
+    [InlineData(ReceiptOutcome.Delivered, ReceiptOutcome.Failed, ReceiptOutcomeSource.Report)]
+    [InlineData(ReceiptOutcome.Delivered, ReceiptOutcome.Delayed, ReceiptOutcomeSource.Report)]
+    [InlineData(ReceiptOutcome.Displayed, ReceiptOutcome.Deleted, ReceiptOutcomeSource.Report)]
+    [InlineData(ReceiptOutcome.Delivered, ReceiptOutcome.Delivered, ReceiptOutcomeSource.Organization)]
+    [InlineData(ReceiptOutcome.Displayed, ReceiptOutcome.Displayed, ReceiptOutcomeSource.Organization)]
+    public void Replaces_AnythingAfterAnOrganizationOutcome_LeavesIt(
+        ReceiptOutcome recorded,
+        ReceiptOutcome reported,
+        ReceiptOutcomeSource reportedSource)
+    {
+        // Act
+        var replaces = ReceiptOutcomes.Replaces(
+            Outcome(recorded, ReceiptOutcomeSource.Organization),
+            Outcome(reported, reportedSource));
+
+        // Assert
+        Assert.False(replaces);
+    }
+
+    private static RecordedReceiptOutcome Outcome(ReceiptOutcome outcome, ReceiptOutcomeSource source) =>
+        new(outcome, DateTimeOffset.UnixEpoch, source, Status: null, ReportingServer: null);
 }

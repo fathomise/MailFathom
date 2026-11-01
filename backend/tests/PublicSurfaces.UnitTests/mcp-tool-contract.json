@@ -512,7 +512,8 @@
                       "source": {
                         "description": "Where the outcome came from.",
                         "enum": [
-                          "report"
+                          "report",
+                          "organization"
                         ],
                         "type": "string"
                       },
@@ -560,7 +561,8 @@
                       "source": {
                         "description": "Where the outcome came from.",
                         "enum": [
-                          "report"
+                          "report",
+                          "organization"
                         ],
                         "type": "string"
                       },
@@ -1712,7 +1714,8 @@
                                 "source": {
                                   "description": "Where the outcome came from.",
                                   "enum": [
-                                    "report"
+                                    "report",
+                                    "organization"
                                   ],
                                   "type": "string"
                                 },
@@ -1760,7 +1763,8 @@
                                 "source": {
                                   "description": "Where the outcome came from.",
                                   "enum": [
-                                    "report"
+                                    "report",
+                                    "organization"
                                   ],
                                   "type": "string"
                                 },
@@ -2267,7 +2271,8 @@
                       "source": {
                         "description": "Where the outcome came from.",
                         "enum": [
-                          "report"
+                          "report",
+                          "organization"
                         ],
                         "type": "string"
                       },
@@ -2315,7 +2320,8 @@
                       "source": {
                         "description": "Where the outcome came from.",
                         "enum": [
-                          "report"
+                          "report",
+                          "organization"
                         ],
                         "type": "string"
                       },
@@ -3060,7 +3066,8 @@
                             "source": {
                               "description": "Where the outcome came from.",
                               "enum": [
-                                "report"
+                                "report",
+                                "organization"
                               ],
                               "type": "string"
                             },
@@ -3108,7 +3115,8 @@
                             "source": {
                               "description": "Where the outcome came from.",
                               "enum": [
-                                "report"
+                                "report",
+                                "organization"
                               ],
                               "type": "string"
                             },
@@ -3600,7 +3608,8 @@
                             "source": {
                               "description": "Where the outcome came from.",
                               "enum": [
-                                "report"
+                                "report",
+                                "organization"
                               ],
                               "type": "string"
                             },
@@ -3648,7 +3657,8 @@
                             "source": {
                               "description": "Where the outcome came from.",
                               "enum": [
-                                "report"
+                                "report",
+                                "organization"
                               ],
                               "type": "string"
                             },
@@ -4538,7 +4548,8 @@
                                 "source": {
                                   "description": "Where the outcome came from.",
                                   "enum": [
-                                    "report"
+                                    "report",
+                                    "organization"
                                   ],
                                   "type": "string"
                                 },
@@ -4586,7 +4597,8 @@
                                 "source": {
                                   "description": "Where the outcome came from.",
                                   "enum": [
-                                    "report"
+                                    "report",
+                                    "organization"
                                   ],
                                   "type": "string"
                                 },

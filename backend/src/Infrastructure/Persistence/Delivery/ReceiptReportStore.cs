@@ -16,7 +16,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Delivery;
 
-/// <summary>Finds the account's own outgoing email a report names, and records an arriving message's receipts.</summary>
+/// <summary>Finds the account's own outgoing email a report names, and records an arriving or an opened message's receipts.</summary>
 /// <param name="readContext">The context the lookups read through, which joins no transaction.</param>
 [RequiresIntegrationCoverage]
 internal sealed class ReceiptReportStore(MailFathomDbContext readContext) : IReceiptReportStore
@@ -95,8 +95,60 @@ internal sealed class ReceiptReportStore(MailFathomDbContext readContext) : IRec
         {
             foreach (var update in receipts.Outcomes)
             {
-                await ApplyAsync(writeContext, reported.Id, update, cancellationToken);
+                await ApplyAsync(writeContext, reported.Id, update, observedIn: null, cancellationToken);
             }
+        }
+
+        if (receipts.OrganizationDelivery is { } delivery)
+        {
+            foreach (var update in delivery.Outcomes)
+            {
+                await ApplyAsync(writeContext, delivery.OutgoingEmail, update, storedEmailId.Value, cancellationToken);
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The deliveries are read through the session rather than the read context, so a read that a concurrent opening
+    /// recorded first is seen by the retry this write's key conflict causes.
+    /// </remarks>
+    public async Task RecordOpenedAsync(
+        IPersistenceSession session,
+        IReadOnlyCollection<StoredEmailId> opened,
+        DateTimeOffset openedAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(opened);
+
+        Guid[] openedIds = [.. opened.Select(static storedEmailId => storedEmailId.Value).Distinct()];
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+
+        var deliveries = await writeContext.OutgoingEmailReceiptOutcomes
+            .AsNoTracking()
+            .Where(outcome => outcome.Kind == ReceiptKind.Delivery
+                && outcome.Source == ReceiptOutcomeSource.Organization
+                && outcome.ObservedInStoredEmailId != null
+                && openedIds.Contains(outcome.ObservedInStoredEmailId.Value))
+            .Select(static outcome => new { outcome.OutgoingEmailId, outcome.RecipientOrdinal, outcome.ObservedInStoredEmailId })
+            .ToListAsync(cancellationToken);
+
+        var read = new RecordedReceiptOutcome(
+            ReceiptOutcome.Displayed,
+            openedAt,
+            ReceiptOutcomeSource.Organization,
+            Status: null,
+            ReportingServer: null);
+
+        foreach (var delivery in deliveries)
+        {
+            await ApplyAsync(
+                writeContext,
+                OutgoingEmailId.Create(delivery.OutgoingEmailId),
+                new RecipientOutcomeUpdate(delivery.RecipientOrdinal, read),
+                delivery.ObservedInStoredEmailId,
+                cancellationToken);
         }
     }
 
@@ -191,6 +243,7 @@ internal sealed class ReceiptReportStore(MailFathomDbContext readContext) : IRec
         MailFathomDbContext writeContext,
         OutgoingEmailId outgoingEmailId,
         RecipientOutcomeUpdate update,
+        Guid? observedIn,
         CancellationToken cancellationToken)
     {
         var reported = update.Outcome;
@@ -208,7 +261,7 @@ internal sealed class ReceiptReportStore(MailFathomDbContext readContext) : IRec
             };
             writeContext.OutgoingEmailReceiptOutcomes.Add(recorded);
         }
-        else if (!ReceiptOutcomes.Replaces(recorded.Outcome, reported.Outcome))
+        else if (!ReceiptOutcomes.Replaces(RecordedOf(recorded), reported))
         {
             return;
         }
@@ -220,7 +273,11 @@ internal sealed class ReceiptReportStore(MailFathomDbContext readContext) : IRec
         recorded.ReportingServer = Bounded(
             reported.ReportingServer,
             OutgoingEmailReceiptOutcomeConfiguration.MaximumReportingServerLength);
+        recorded.ObservedInStoredEmailId = observedIn;
     }
+
+    private static RecordedReceiptOutcome RecordedOf(OutgoingEmailReceiptOutcomeEntity outcome) =>
+        new(outcome.Outcome, outcome.ReportedAt, outcome.Source, outcome.Status, outcome.ReportingServer);
 
     private static string? Bounded(string? value, int maximumLength) =>
         value is { Length: > 0 } && value.Length <= maximumLength ? value : null;

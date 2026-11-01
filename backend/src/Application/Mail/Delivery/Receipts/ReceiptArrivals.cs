@@ -28,6 +28,13 @@ namespace MailFathom.Application.Mail.Delivery.Receipts;
 /// reason the two differ; with several recipients an unmatched address is somebody the message was not sent to and is
 /// recorded against nobody.
 /// </para>
+/// <para>
+/// A message another account of the receiving account's organization sent is delivered without any report: the
+/// organization's signature proved which accounts the author sends as (ADR 0042), and the send whose <c>Message-ID</c>
+/// the message carries in one of those accounts' outboxes is the send that arrived. Each of its recipients that is the
+/// receiving account is marked delivered by this deployment itself, whatever the send asked for. Unsigned mail, mail
+/// another organization signed, and mail into an account in no organization carry no such proof and mark nothing.
+/// </para>
 /// </remarks>
 /// <param name="store">Finds the account's own messages and records the arrival.</param>
 /// <param name="senderIdentities">Names the address each account sends as, which is what makes a request the account's own.</param>
@@ -52,10 +59,13 @@ public sealed class ReceiptArrivals(
         ArgumentNullException.ThrowIfNull(metadata);
 
         var request = isFiledCopy || this.IsOwn(account, metadata) ? null : metadata.ReadReceiptRequest;
+        var delivery = isFiledCopy ? null : await this.FindOrganizationDeliveryAsync(account, metadata, cancellationToken);
 
         if (metadata.Report is not { } report)
         {
-            return request is null ? null : new ArrivedReceipts(null, null, [], request);
+            return request is null && delivery is null
+                ? null
+                : new ArrivedReceipts(null, null, [], request) { OrganizationDelivery = delivery };
         }
 
         var reported = await this.FindReportedAsync(account, report, metadata.ThreadReferences, cancellationToken);
@@ -65,7 +75,10 @@ public sealed class ReceiptArrivals(
             report,
             reported,
             reported is null ? [] : MatchRecipients(report, reported, reportedAt),
-            ReadReceiptRequest: null);
+            ReadReceiptRequest: null)
+        {
+            OrganizationDelivery = delivery,
+        };
     }
 
     /// <summary>Records what <see cref="ReadAsync" /> decided, in the transaction that stores the message.</summary>
@@ -98,6 +111,56 @@ public sealed class ReceiptArrivals(
         return metadata.Participants.Any(participant => participant.Role == EmailAddressRole.From
                 && string.Equals(participant.Address.Address, ownAddress, StringComparison.OrdinalIgnoreCase))
             || string.Equals(metadata.ReadReceiptRequest?.Address, ownAddress, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Finds the organization's send the message is, and the recipients of it the receiving account is.</summary>
+    /// <remarks>
+    /// The send is looked for only in the outboxes of the accounts the signature proved the author sends as, so a
+    /// <c>Message-ID</c> copied into another message names nothing, and a send none of whose recipients is the receiving
+    /// account's address — an alias or a forward delivered it — marks nobody.
+    /// </remarks>
+    private async Task<OrganizationDelivery?> FindOrganizationDeliveryAsync(
+        MailAccountId account,
+        ExtractedEmailMetadata metadata,
+        CancellationToken cancellationToken)
+    {
+        if (metadata.OrganizationVerification is not { SenderIsMember: true, AuthorAccounts: var authorAccounts }
+            || metadata.ThreadReferences.MessageId is not { } messageId
+            || senderIdentities.FindSenderIdentity(account) is not { } receiver)
+        {
+            return null;
+        }
+
+        foreach (var authorAccount in authorAccounts)
+        {
+            if (await store.FindOutgoingEmailByMessageIdAsync(authorAccount, [messageId], cancellationToken) is { } sent)
+            {
+                return this.DeliveredTo(sent, receiver.Address);
+            }
+        }
+
+        return null;
+    }
+
+    private OrganizationDelivery? DeliveredTo(ReportedOutgoingEmail sent, EmailAddress receiver)
+    {
+        var deliveredAt = timeProvider.GetUtcNow();
+        RecipientOutcomeUpdate[] outcomes =
+        [
+            .. sent.RecipientAddresses
+                .Select((address, ordinal) => (Address: address, Ordinal: ordinal))
+                .Where(recipient => EmailAddress.TryCreate(displayName: null, recipient.Address, out var parsed) && parsed == receiver)
+                .Select(recipient => new RecipientOutcomeUpdate(
+                    recipient.Ordinal,
+                    new RecordedReceiptOutcome(
+                        ReceiptOutcome.Delivered,
+                        deliveredAt,
+                        ReceiptOutcomeSource.Organization,
+                        Status: null,
+                        ReportingServer: null))),
+        ];
+
+        return outcomes.Length == 0 ? null : new OrganizationDelivery(sent.Id, outcomes);
     }
 
     private async Task<ReportedOutgoingEmail?> FindReportedAsync(

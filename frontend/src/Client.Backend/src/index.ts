@@ -431,6 +431,7 @@ export {
     mailMoveMutationsRoute,
     mailMutationRecordsRoute,
     mailSpamMarksRoute,
+    markMailOpened,
     markMailRead,
     markMailSpam,
     moveMail,

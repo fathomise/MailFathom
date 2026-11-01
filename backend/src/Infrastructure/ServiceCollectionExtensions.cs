@@ -1551,6 +1551,8 @@ public static class ServiceCollectionExtensions
         // read receipt. Synchronization asks it as it stores each message, so it is scoped with the pass that does.
         services.AddScoped<IReceiptReportStore, ReceiptReportStore>();
         services.AddScoped<ReceiptArrivals>();
+        // A colleague's message read because a person opened it, which the client's flag route reports beside the change.
+        services.AddScoped<OpenedMailReceipts>();
         // The one append every filed copy goes through, whatever kind of message it is a copy of. It is registered once
         // and shared by the filers rather than owned by either, because the order of its two writes is what keeps a
         // copy one copy, and an ordering that held on one filing path and lapsed on another would be no ordering.

@@ -13,16 +13,34 @@ public static class ReceiptOutcomes
     public static ReceiptKind KindOf(ReceiptOutcome outcome) =>
         outcome <= ReceiptOutcome.Delayed ? ReceiptKind.Delivery : ReceiptKind.Read;
 
-    /// <summary>Answers whether a newly reported outcome takes the place of the one already recorded.</summary>
+    /// <summary>Answers whether a newly recorded outcome takes the place of the one already recorded.</summary>
     /// <param name="recorded">The outcome the recipient holds for this kind of report.</param>
-    /// <param name="reported">The outcome a report that arrived later states.</param>
+    /// <param name="reported">The outcome that arrived later, from a report or from this deployment itself.</param>
     /// <returns><see langword="true" /> when the recipient should hold <paramref name="reported" /> from now on.</returns>
     /// <remarks>
-    /// Only <see cref="ReceiptOutcome.Delayed" /> is provisional: a server still trying will report again, with a
-    /// delivery, a failure, or a further delay. Every other outcome is final, so a later report — a duplicate, a report
-    /// that crossed another on the way, or one somebody forged — never replaces it. Reports arrive in no guaranteed order,
-    /// which is why the rule reads the outcomes rather than the times.
+    /// <para>
+    /// An outcome this deployment observed between two accounts of one organization
+    /// (<see cref="ReceiptOutcomeSource.Organization" />) is proof, so it replaces whatever a report said and nothing
+    /// replaces it: neither a report, which anybody could have written, nor a second observation of the same thing.
+    /// </para>
+    /// <para>
+    /// Between reports, only <see cref="ReceiptOutcome.Delayed" /> is provisional: a server still trying will report
+    /// again, with a delivery, a failure, or a further delay. Every other outcome is final, so a later report — a
+    /// duplicate, a report that crossed another on the way, or one somebody forged — never replaces it. Reports arrive in
+    /// no guaranteed order, which is why the rule reads the outcomes rather than the times.
+    /// </para>
     /// </remarks>
-    public static bool Replaces(ReceiptOutcome recorded, ReceiptOutcome reported) =>
-        recorded == ReceiptOutcome.Delayed && KindOf(reported) == ReceiptKind.Delivery;
+    public static bool Replaces(RecordedReceiptOutcome recorded, RecordedReceiptOutcome reported)
+    {
+        ArgumentNullException.ThrowIfNull(recorded);
+        ArgumentNullException.ThrowIfNull(reported);
+
+        if (recorded.Source == ReceiptOutcomeSource.Organization)
+        {
+            return false;
+        }
+
+        return reported.Source == ReceiptOutcomeSource.Organization
+            || (recorded.Outcome == ReceiptOutcome.Delayed && reported.Kind == ReceiptKind.Delivery);
+    }
 }

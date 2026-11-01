@@ -10,8 +10,9 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 /// <summary>Persists what one kind of report said about one recipient of the account's own outgoing email.</summary>
 /// <remarks>
 /// It belongs to the recipient row, and through it to the outgoing email: erasing the send or its account erases every
-/// outcome with it. A read time says when a named person read the message, so it is personal data carrying the
-/// classification of the message it describes.
+/// outcome with it. An outcome this deployment observed between two accounts of one organization also belongs to the
+/// received message it was observed on, and is erased with that message and its account. A read time says when a named
+/// person read the message, so it is personal data carrying the classification of the message it describes.
 /// </remarks>
 [RequiresIntegrationCoverage]
 internal sealed class OutgoingEmailReceiptOutcomeEntity
@@ -42,4 +43,7 @@ internal sealed class OutgoingEmailReceiptOutcomeEntity
 
     /// <summary>Gets or sets the server a delivery report names as having reported it, or <see langword="null" /> where it named none.</summary>
     public string? ReportingServer { get; set; }
+
+    /// <summary>Gets or sets the recipient's stored copy the outcome was observed on, set only where <see cref="Source" /> is <see cref="ReceiptOutcomeSource.Organization" />.</summary>
+    public Guid? ObservedInStoredEmailId { get; set; }
 }

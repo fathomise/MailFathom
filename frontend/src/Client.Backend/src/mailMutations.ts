@@ -238,6 +238,31 @@ export function markMailRead(
 }
 
 /**
+ * Writes down that the reader opened the named messages, which marks them read as ADR 0026 decides.
+ *
+ * It is the one batch that says it is an opening, because an opening is what reports a colleague's message read to
+ * the colleague who sent it; marking mail read by any other gesture goes through {@link markMailRead} and reports
+ * nothing to anybody.
+ *
+ * @param session Who is asking and where.
+ * @param transport How a request reaches the deployment.
+ * @param storedEmailIds The messages the reader opened, at most {@link mostMessagesPerMutation} of them.
+ * @returns One result per message the deployment answered for, or an expected failure as a value.
+ */
+export function markMailOpened(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    storedEmailIds: readonly string[],
+): Promise<ClientResult<readonly MailMutationResult[]>> {
+    return submitFlagChanges(
+        session,
+        transport,
+        storedEmailIds.map((storedEmailId) => ({ storedEmailId, seen: true })),
+        true,
+    );
+}
+
+/**
  * Writes down where the named messages' flags are to be left, as one batch their reader's act authored.
  *
  * @param session Who is asking and where.
@@ -250,12 +275,27 @@ export function changeMailFlags(
     transport: MailFathomTransport,
     changes: readonly MailFlagChange[],
 ): Promise<ClientResult<readonly MailMutationResult[]>> {
+    return submitFlagChanges(session, transport, changes, false);
+}
+
+function submitFlagChanges(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    changes: readonly MailFlagChange[],
+    opened: boolean,
+): Promise<ClientResult<readonly MailMutationResult[]>> {
     const asked = changes.slice(0, mostMessagesPerMutation).map((change) => ({
         storedEmailId: change.storedEmailId,
         flags: { seen: change.seen, flagged: change.flagged },
     }));
 
-    return submit(session, transport, mailFlagMutationsRoute, { changes: asked }, 'changes');
+    return submit(
+        session,
+        transport,
+        mailFlagMutationsRoute,
+        opened ? { changes: asked, opened } : { changes: asked },
+        'changes',
+    );
 }
 
 /**

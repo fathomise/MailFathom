@@ -81,10 +81,11 @@ internal sealed class OrganizationSignatureVerifier
             return null;
         }
 
-        var senderIsMember = await this.VerifiesAsync(organizationId, message, cancellationToken)
-            && await this.ProvesMembershipAsync(organizationId, receivingAccount, message, cancellationToken);
+        MailAccountId[] authorAccounts = await this.VerifiesAsync(organizationId, message, cancellationToken)
+            ? await this.ProvesMembershipAsync(organizationId, receivingAccount, message, cancellationToken)
+            : [];
 
-        return new OrganizationSenderVerification(organizationId, senderIsMember);
+        return new OrganizationSenderVerification(organizationId, authorAccounts.Length > 0) { AuthorAccounts = authorAccounts };
     }
 
     /// <summary>Answers whether any of the message's organization signatures verifies against one of the organization's keys.</summary>
@@ -113,13 +114,13 @@ internal sealed class OrganizationSignatureVerifier
         return false;
     }
 
-    /// <summary>Answers whether a verified message's author is a current member who sent it to the receiving account.</summary>
+    /// <summary>Names the accounts a verified message's author sends as, where the author is a current member who sent it to the receiving account, and none otherwise.</summary>
     /// <remarks>
     /// The headers read here are the ones the signature covers, each over-signed so no instance can be inserted above
     /// it; refusing a second <c>From</c> field here as well keeps the condition true even of a signature that somehow
     /// covered one.
     /// </remarks>
-    private async Task<bool> ProvesMembershipAsync(
+    private async Task<MailAccountId[]> ProvesMembershipAsync(
         Guid organizationId,
         MailAccountId receivingAccount,
         MimeMessage message,
@@ -127,7 +128,7 @@ internal sealed class OrganizationSignatureVerifier
     {
         if (SoleAuthorOf(message) is not { } author)
         {
-            return false;
+            return [];
         }
 
         var servedIdentities = await this.identities.ReadServedIdentitiesAsync(
@@ -136,7 +137,7 @@ internal sealed class OrganizationSignatureVerifier
 
         if (!servedIdentities.TryGetValue(receivingAccount, out var receivingIdentity))
         {
-            return false;
+            return [];
         }
 
         var receivingAddress = receivingIdentity.Address;
@@ -148,17 +149,19 @@ internal sealed class OrganizationSignatureVerifier
 
         if (authorAccounts.Length == 0)
         {
-            return false;
+            return [];
         }
 
         if (message.To.Mailboxes.Concat(message.Cc.Mailboxes).Any(recipient => AddressOf(recipient) == receivingAddress))
         {
-            return true;
+            return authorAccounts;
         }
 
         return InternetMessageIdReader.Read(message.Headers) is { } internetMessageId
             && (await this.directory.ListBlindCopyRecipientsAsync(authorAccounts, internetMessageId, cancellationToken))
-                .Contains(receivingAddress);
+                .Contains(receivingAddress)
+                ? authorAccounts
+                : [];
     }
 
     /// <summary>Reads the one mailbox the message's one <c>From</c> field names, or nothing where it names any other number.</summary>

@@ -2413,7 +2413,11 @@ record, recipient ordinal, and `Kind` — `Delivery` or `Read` — keyed by the 
 characters) and the `ReportingServer` (at most 255). Its foreign key onto `outgoing_email_recipients` cascades, so an
 outcome goes with its recipient, its send, and its account, and an outcome can only ever be recorded about a recipient
 the send really had. A later report replaces a `Delayed` delivery outcome and nothing else, and the primary key is the
-concurrency identity two arrivals of reports about one recipient collide on.
+concurrency identity two arrivals of reports about one recipient collide on. A `Source` of `Organization` is an outcome
+this deployment saw itself between two accounts of one organization, which replaces a report's and is replaced by
+nothing; its `ObservedInStoredEmailId` names the recipient's stored copy it was seen on, null for every report's, and
+that foreign key onto `stored_emails` cascades too, so the outcome also goes with that copy and with the receiving
+account.
 [Delivery and read receipts](../features/delivery-and-read-receipts.md#what-is-recorded) states the behaviour.
 
 `outgoing_email_contents` is the message itself, in the same one-to-one arrangement `email_message_contents` has with

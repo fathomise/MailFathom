@@ -3386,6 +3386,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid?>("ObservedInStoredEmailId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Outcome")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -3409,6 +3412,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasKey("OutgoingEmailId", "RecipientOrdinal", "Kind")
                         .HasName("PK_outgoing_email_receipt_outcomes");
+
+                    b.HasIndex("ObservedInStoredEmailId");
 
                     b.ToTable("outgoing_email_receipt_outcomes", (string)null);
                 });
@@ -5569,6 +5574,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailReceiptOutcomeEntity", b =>
                 {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ObservedInStoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_outgoing_email_receipt_outcomes_stored_emails");
+
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailRecipientEntity", "Recipient")
                         .WithMany()
                         .HasForeignKey("OutgoingEmailId", "RecipientOrdinal")
