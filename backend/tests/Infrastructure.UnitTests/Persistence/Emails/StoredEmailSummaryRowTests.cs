@@ -114,6 +114,23 @@ public sealed class StoredEmailSummaryRowTests
         Assert.Null(summary.Report);
     }
 
+    /// <summary>A row is the reader's own sent copy exactly when the send recorded filing it, which nothing in the message can claim.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ToSummary_ARowWhetherOrNotFiledFromASend_SaysWhetherItIsTheFiledSentCopy(bool filedFromASend)
+    {
+        // Act
+        var summary = RowWith(
+                MachineAuthorshipBand.NotAssessed,
+                likelihood: 0,
+                filedFromOutgoingEmailId: filedFromASend ? Guid.CreateVersion7() : null)
+            .ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
+
+        // Assert
+        Assert.Equal(filedFromASend, summary.IsFiledSentCopy);
+    }
+
     /// <summary>A recorded classification reaches the summary whole: the verdict, both judges, and the phishing detail.</summary>
     [Fact]
     public void ToSummary_ARowWithAClassification_CarriesTheVerdictAStageReached()
@@ -371,7 +388,8 @@ public sealed class StoredEmailSummaryRowTests
         ReceiptKind? reportKind = null,
         string[]? reportRecipients = null,
         int[]? reportOutcomes = null,
-        Guid? reportOutgoingEmailId = null) => new(
+        Guid? reportOutgoingEmailId = null,
+        Guid? filedFromOutgoingEmailId = null) => new(
         Guid.CreateVersion7(),
         "primary",
         Guid.CreateVersion7(),
@@ -431,5 +449,5 @@ public sealed class StoredEmailSummaryRowTests
         ReadReceiptRequestedTo: null,
         ReadReceiptRequestNamesAnotherAddress: false,
         ReadReceiptSentAt: null,
-        FiledFromOutgoingEmailId: null);
+        filedFromOutgoingEmailId);
 }

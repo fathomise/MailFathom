@@ -66,6 +66,14 @@ public sealed record EmailContentRenderingBounds(
     /// </remarks>
     public bool RetainRemoteImageReferences { get; init; }
 
+    /// <summary>Gets whether the reduced document names the footer MailFathom appended to the message, where it carries one.</summary>
+    /// <remarks>
+    /// True only for the copy MailFathom filed of a message it sent from one of the reader's own accounts. The mark is
+    /// an ordinary <c>footer</c> element, or the <c>-- </c> line in a message without markup, so anybody can write one;
+    /// honouring it on a message from outside would let its sender fold part of what they wrote out of sight.
+    /// </remarks>
+    public bool NamesAppendedFooter { get; init; }
+
     /// <summary>Gets how many octets of its own pictures the whole read may still inline when this email is reached.</summary>
     /// <remarks>
     /// <para>

@@ -28,7 +28,7 @@ namespace MailFathom.Infrastructure.Mail.Mime.Composition;
 internal sealed class MimeKitMailFooterComposer : IMailFooterComposer
 {
     /// <summary>The line RFC 3676 opens a signature with, followed by its line break.</summary>
-    private const string SignatureDelimiter = "-- \n";
+    internal const string SignatureDelimiter = "-- \n";
 
     /// <summary>The domain a content identifier is minted under where the message names no author's domain.</summary>
     private const string FallbackContentIdDomain = "footer.mailfathom.invalid";
@@ -125,7 +125,7 @@ internal sealed class MimeKitMailFooterComposer : IMailFooterComposer
     /// in the text is the only place one can begin. What follows it has to be the attribution and then quoted lines to
     /// the end; the last line may be cut short by the bound the quotation was composed under.
     /// </remarks>
-    private static int FindTextQuotation(string body)
+    internal static int FindTextQuotation(string body)
     {
         var separator = body.LastIndexOf("\n\n", StringComparison.Ordinal);
         if (separator < 0)

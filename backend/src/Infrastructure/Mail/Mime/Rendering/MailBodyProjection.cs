@@ -6,6 +6,7 @@ using AngleSharp.Html.Parser;
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
 using MailFathom.Domain.Emails;
+using MailFathom.Infrastructure.Mail.Mime.Composition;
 using MimeKit;
 
 namespace MailFathom.Infrastructure.Mail.Mime.Rendering;
@@ -35,6 +36,7 @@ internal static class MailBodyProjection
     /// <param name="htmlParts">The HTML the message displays, in the order the walk found the parts.</param>
     /// <param name="plainText">What the message says where it displays no markup, which is a document of its own.</param>
     /// <param name="retainRemoteImages">Whether the reader asked for this message's remote pictures.</param>
+    /// <param name="namesAppendedFooter">Whether the document names the footer MailFathom appended, which only the reader's own sent copy is asked for.</param>
     /// <param name="maximumCharacters">How much markup is reduced before the source is cut.</param>
     /// <param name="maximumImageOctets">How many octets of its own pictures this document may still inline.</param>
     /// <param name="cancellationToken">Cancels the decode of the message's own pictures.</param>
@@ -45,6 +47,7 @@ internal static class MailBodyProjection
         IReadOnlyList<string> htmlParts,
         string plainText,
         bool retainRemoteImages,
+        bool namesAppendedFooter,
         int maximumCharacters,
         int maximumImageOctets,
         CancellationToken cancellationToken)
@@ -55,7 +58,11 @@ internal static class MailBodyProjection
 
         if (htmlParts.Count == 0)
         {
-            return FromPlainText(plainText, maximumCharacters);
+            return FromPlainText(
+                plainText,
+                namesAppendedFooter,
+                message.Headers.Contains(HeaderId.InReplyTo),
+                maximumCharacters);
         }
 
         // What the call has left narrows the document's own octet bound rather than sitting beside it, so the one
@@ -90,7 +97,7 @@ internal static class MailBodyProjection
             bounds.MaximumInlineImageOctetsPerDocument,
             cancellationToken);
 
-        var reducer = new MailBodyReducer(bounds, inlineImages, retainRemoteImages);
+        var reducer = new MailBodyReducer(bounds, inlineImages, retainRemoteImages, namesAppendedFooter);
 
         // The cut happens before the parse, so the reducer never meets the words it removed and would report a whole
         // document. Telling it here is what keeps every way a body is shortened readable as one flag.
@@ -122,7 +129,11 @@ internal static class MailBodyProjection
     /// the reading that was always behind the name.
     /// </para>
     /// </remarks>
-    private static MailDocument FromPlainText(string plainText, int maximumCharacters)
+    private static MailDocument FromPlainText(
+        string plainText,
+        bool namesAppendedFooter,
+        bool answers,
+        int maximumCharacters)
     {
         var bounds = MailDocumentBounds.Default;
 
@@ -134,14 +145,22 @@ internal static class MailBodyProjection
 
         var truncated = source.Length < normalized.Length;
         var blocks = new List<MailDocumentBlock>();
+        var footer = namesAppendedFooter ? FindTextFooter(source, answers) : null;
+        int? footerFirstBlock = null;
+        var footerBlockCount = 0;
 
-        foreach (var paragraph in ParagraphsIn(source))
+        foreach (var (paragraph, inFooter) in ParagraphsIn(source, footer))
         {
             if (blocks.Count >= bounds.MaximumBlocks)
             {
                 truncated = true;
 
                 break;
+            }
+
+            if (inFooter)
+            {
+                footerFirstBlock ??= blocks.Count;
             }
 
             var text = MailTextBounds.TruncateAtTextElementBoundary(paragraph, bounds.MaximumCharactersPerRun);
@@ -154,6 +173,7 @@ internal static class MailBodyProjection
 
             truncated |= stoppedAtTheRunBound;
             blocks.Add(new MailParagraphBlock(runs, MailBlockAlignment.Inherited));
+            footerBlockCount += inFooter ? 1 : 0;
         }
 
         return blocks.Count == 0
@@ -164,10 +184,56 @@ internal static class MailBodyProjection
                 retainedRemoteImageCount: 0,
                 inlineImageCount: 0,
                 undrawnInlineImageCount: 0,
-                truncated);
+                truncated) with
+            {
+                Footer = footerFirstBlock is { } firstBlock && footerBlockCount > 0
+                    ? new MailDocumentFooter(firstBlock, footerBlockCount)
+                    : null,
+            };
     }
 
-    /// <summary>Names the paragraphs a plain-text body is written in, which is what a blank line separates.</summary>
+    /// <summary>Finds the footer MailFathom appended to a text body, from its <c>-- </c> line to the quotation or the end.</summary>
+    /// <remarks>
+    /// The composer's own reading of where an answer's quotation begins is what bounds it, so the footer found here is
+    /// the one that was written there: under the author's words, above what they quoted. A quoted signature opens with
+    /// a quotation marker and cannot be mistaken for it. The composer always puts a blank line in front of the
+    /// delimiter, so a <c>-- </c> line inside a paragraph is one the author typed and never the footer's start.
+    /// </remarks>
+    private static Range? FindTextFooter(string source, bool answers)
+    {
+        var body = source.TrimEnd('\n');
+        var quotationStart = answers ? MimeKitMailFooterComposer.FindTextQuotation(body) : body.Length;
+        var authored = body[..quotationStart];
+
+        var delimiter = authored.LastIndexOf(
+            "\n\n" + MimeKitMailFooterComposer.SignatureDelimiter,
+            StringComparison.Ordinal);
+        var footerStart = delimiter >= 0
+            ? delimiter + 2
+            : authored.StartsWith(MimeKitMailFooterComposer.SignatureDelimiter, StringComparison.Ordinal) ? 0 : -1;
+
+        return footerStart < 0 ? null : footerStart..quotationStart;
+    }
+
+    /// <summary>Names the paragraphs a plain-text body is written in, which is what a blank line separates, and which of them are its footer.</summary>
+    /// <remarks>
+    /// A footer begins and ends on a paragraph boundary, so splitting the text either side of it first yields the very
+    /// paragraphs splitting it whole would.
+    /// </remarks>
+    private static IEnumerable<(string Paragraph, bool InFooter)> ParagraphsIn(string source, Range? footer)
+    {
+        if (footer is not { } range)
+        {
+            return ParagraphsIn(source).Select(static paragraph => (paragraph, false));
+        }
+
+        var (start, length) = range.GetOffsetAndLength(source.Length);
+
+        return ParagraphsIn(source[..start]).Select(static paragraph => (paragraph, false))
+            .Concat(ParagraphsIn(source.Substring(start, length)).Select(static paragraph => (paragraph, true)))
+            .Concat(ParagraphsIn(source[(start + length)..]).Select(static paragraph => (paragraph, false)));
+    }
+
     private static IEnumerable<string> ParagraphsIn(string source) => source
         .Split("\n\n", StringSplitOptions.None)
         .Select(paragraph => paragraph.Trim('\n'))

@@ -265,6 +265,7 @@ internal sealed record StoredEmailSummaryRow(
                 this.CarriesUnverifiedSignature,
                 this.ContainsUnexpandedTnefPart),
             ContentAvailability = this.ContentAvailability,
+            IsFiledSentCopy = this.FiledFromOutgoingEmailId is not null,
             RemoteFlags = new RemoteEmailFlagSnapshot(
                 this.RemoteFlagsObservedAt,
                 this.IsRemotelySeen,

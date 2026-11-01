@@ -50,6 +50,8 @@ internal sealed class MailBodyReducer
 
     private readonly MailInlineImages inlineImages;
     private readonly bool retainRemoteImages;
+    private readonly bool namesAppendedFooter;
+    private readonly List<List<MailDocumentBlock>> footers = [];
 
     private int emittedBlocks;
     private int removedRemoteReferences;
@@ -62,8 +64,13 @@ internal sealed class MailBodyReducer
     /// <param name="bounds">What one reduction may produce at most.</param>
     /// <param name="inlineImages">The pictures the message carries in itself, already resolved.</param>
     /// <param name="retainRemoteImages">Whether the reader asked for this message's remote pictures.</param>
+    /// <param name="namesAppendedFooter">Whether the document names the footer MailFathom appended to the message.</param>
     /// <exception cref="ArgumentNullException">Thrown when either reference argument is <see langword="null" />.</exception>
-    internal MailBodyReducer(MailDocumentBounds bounds, MailInlineImages inlineImages, bool retainRemoteImages)
+    internal MailBodyReducer(
+        MailDocumentBounds bounds,
+        MailInlineImages inlineImages,
+        bool retainRemoteImages,
+        bool namesAppendedFooter)
     {
         ArgumentNullException.ThrowIfNull(bounds);
         ArgumentNullException.ThrowIfNull(inlineImages);
@@ -71,6 +78,7 @@ internal sealed class MailBodyReducer
         this.Bounds = bounds;
         this.inlineImages = inlineImages;
         this.retainRemoteImages = retainRemoteImages;
+        this.namesAppendedFooter = namesAppendedFooter;
     }
 
     /// <summary>Reduces the body of one parsed document.</summary>
@@ -95,8 +103,26 @@ internal sealed class MailBodyReducer
             this.retainedRemoteImages,
             this.inlineImages.ResolvedCount,
             this.inlineImages.UndrawnCount + this.undrawnPictures,
-            this.truncated);
+            this.truncated) with
+        {
+            Footer = this.FindAppendedFooter(blocks),
+        };
     }
+
+    /// <summary>Finds the last <c>footer</c> element whose blocks reached the top of the document, which is the one MailFathom appended.</summary>
+    /// <remarks>
+    /// The composer puts it under the author's words and above the quotation, so a footer the quoted history carries
+    /// sits inside a quotation block rather than among the top-level ones and is never the one named. A footer's
+    /// blocks are moved into the list that holds them whole and in order, so they stay consecutive wherever they land;
+    /// they are found by reference, because two paragraphs saying the same words are equal records.
+    /// </remarks>
+    private MailDocumentFooter? FindAppendedFooter(List<MailDocumentBlock> blocks) => Enumerable
+        .Reverse(this.footers)
+        .Where(static footer => footer.Count > 0)
+        .Select(footer => (Footer: footer, FirstBlock: blocks.FindIndex(block => ReferenceEquals(block, footer[0]))))
+        .Where(static found => found.FirstBlock >= 0)
+        .Select(static found => new MailDocumentFooter(found.FirstBlock, found.Footer.Count))
+        .FirstOrDefault();
 
     private List<MailDocumentBlock> ReduceChildren(INode parent, MailReductionContext context)
     {
@@ -254,7 +280,15 @@ internal sealed class MailBodyReducer
         if (MailBodyElements.Breaking.Contains(name))
         {
             this.Flush(blocks, pending, context);
-            this.EmitRange(blocks, this.ReduceChildren(element, emphasized));
+
+            var reduced = this.ReduceChildren(element, emphasized);
+
+            if (this.namesAppendedFooter && name == "footer" && context.QuoteDepth == 0)
+            {
+                this.footers.Add(reduced);
+            }
+
+            this.EmitRange(blocks, reduced);
 
             return;
         }

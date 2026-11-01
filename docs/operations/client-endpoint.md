@@ -1926,6 +1926,7 @@ layout reads:
     "inlineImageCount": 1,
     "undrawnInlineImageCount": 0,
     "truncated": false,
+    "footer": null,
     "blocks": [
       {
         "type": "heading",
@@ -1972,6 +1973,19 @@ cannot be steered by what a stranger wrote. `type` names the block and `version`
 shape, so a client keys its renderers by the pair and shows a placeholder for a pair it does not implement rather than
 failing the message. The eight identities are `paragraph`, `heading`, `list`, `table`, `quote`, `image`, `separator`,
 and `preformatted`, each at revision `1`, and `schemaVersion` names the revision of the document itself.
+
+**`footer` names the reader's own footer, and only theirs.** On the copy MailFathom filed of a message it sent from
+one of the reader's accounts — a shared mailbox they are assigned to included — it reads
+`{ "firstBlock": 1, "blockCount": 2 }`: the top-level blocks, counted from zero, that are the footer MailFathom appended
+to that message, so a pane can fold them under each message the reader wrote, in Sent and in a conversation alike. The
+blocks themselves stay in `blocks`, so the footer can be unfolded, and a client that does not read `footer` draws the
+message exactly as before, which is why `schemaVersion` did not move for it. In a message with markup the footer is
+found by the `footer` element the composer wraps it in, above any quotation — a footer the quoted history carries sits
+inside the `quote` block and is never the one named — and in a message without markup by the `-- ` line it opens with,
+up to the quotation or the end. On every other message `footer` is `null`: one MailFathom sent before footers existed,
+one written in another mail client, and above all one from anybody else, because the mark is ordinary markup a sender
+could copy and the copy MailFathom filed of its own send is the one thing nothing in a message can claim to be. The
+sender's own markup under `fullHtml` is unchanged by any of it.
 
 **Nothing in a body reaches somebody else's server unless the reader asked.** Every reference to a remote address is
 removed while the tree is built rather than left for a renderer to decline to follow, so a tracking pixel is defeated by
@@ -2074,10 +2088,15 @@ frame rather than their message absent, and every block it keeps identical to wh
     "inlineImageCount": 1,
     "undrawnInlineImageCount": 0,
     "truncated": false,
+    "footer": null,
     "blocks": [ /* the blocks the cleaning kept, in the order they were in */ ]
   }
 }
 ```
+
+`footer` is `null` on a `Cleaned` document even where the body route names the reader's own footer, because it counts
+the blocks the body route served and the cleaning kept only some of them. Every other value serves the body route's
+document unchanged, `footer` included.
 
 **`cleaning` says what happened, and `document` is what to draw whichever value it carries.**
 
