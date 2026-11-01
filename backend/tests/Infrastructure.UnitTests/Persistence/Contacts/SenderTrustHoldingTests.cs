@@ -76,6 +76,20 @@ public sealed class SenderTrustHoldingTests
         Assert.Equal(RecognizingContacts.None, contacts);
     }
 
+    /// <summary>A contact holding another sender's address says nothing about this one, though one read returned both.</summary>
+    [Fact]
+    public void RecognizingContactsOf_ContactHoldingAnotherAddress_RecognizesNobody()
+    {
+        // Act
+        var contacts = SenderTrustHolding.RecognizingContactsOf(
+            [new SenderTrustHolding(Account, "MALLORY@PARTNER.EXAMPLE", FirstContact, IsOrganizationBook: true, ContactAddressWriterKind.Person)],
+            Account,
+            Address);
+
+        // Assert
+        Assert.Equal(RecognizingContacts.None, contacts);
+    }
+
     /// <summary>Two contacts holding the address in one book recognize the sender as the same one whichever row arrived first.</summary>
     [Fact]
     public void RecognizingContactsOf_TwoContactsHoldTheAddressInOneBook_NamesTheSameOneEitherWay()

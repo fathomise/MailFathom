@@ -114,13 +114,6 @@ every member's mailbox recognizes.
 own, so a promotion into it names the mail account that collected the person, under the same scope rule a collected book
 is read under everywhere else.
 
-**Every write and the deletion of the organization serialize on the addresses they touch.** Each single-contact write —
-into any of the three books — and each deletion of an organization takes a transaction-scoped advisory lock keyed by
-each address it adds, keeps, or removes, in one sorted order so two of them never wait on each other. Two writes that
-reach one address therefore run one after the other rather than interleaving, whichever books they write, and so does
-the deletion of an organization against a write into its book. Erasing everything one account collected takes no such
-lock, because it is a sweep over a mailbox's whole book rather than a write about one person.
-
 **MailFathom's own work finds the organization's contact by address.** It is one indexed seek on the book and the
 address's comparison form, so it ignores case like every other match in the book, and it answers with the contact's
 identity alone rather than anything the contact says. Nothing but MailFathom's own identity may ask it.

@@ -50,7 +50,7 @@ public sealed class LocalMailCopier
     /// <param name="emails">Writes the copy's own stored message.</param>
     /// <param name="contents">Reads the copied message's payload, places the copy's, and saves it.</param>
     /// <param name="mimeReader">Reads the metadata the copy is searched and threaded by.</param>
-    /// <param name="senderTrust">Judges the copy's author inside the transaction that commits it.</param>
+    /// <param name="senderTrust">Judges what configuration and the organization signature answer of the copy's author, reading no contact book and joining no transaction.</param>
     /// <param name="folders">Files the copy into the local folder it was copied into.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public LocalMailCopier(

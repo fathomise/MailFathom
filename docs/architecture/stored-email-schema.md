@@ -183,9 +183,9 @@ held against. The stored half is what configuration and the organization signatu
 stored, because the contact books are asked when the row is read.
 `SenderTrustAuthorEvidence` is text defaulting to `None` and names what tied the message to its `From` address —
 `Authentication` or `AuthorSignature`. `SenderTrustIsStrict` is a `boolean` saying whether the receiving account was
-strict when the verdict was reached, which decides whether a contact found on a later read may make the sender `Known`;
-it is `false` for a new row and was set `true` for every row stored before it existed except those already `Known`, so
-an older row draws no `Known` until it is re-derived. `SenderTrustAddress` is the comparison form of the message's first
+strict when the row was stored, which decides whether a contact found on a later read may make the sender `Known`.
+Each new row stores the account's own answer, `false` being only the column default; every row stored before the
+column existed was set `true` except those already `Known`, so an older row draws no `Known` until it is re-derived. `SenderTrustAddress` is the comparison form of the message's first
 `From` mailbox, `character varying(320)` and absent where the message wrote none, on mail stored before the column
 existed until it is re-derived, and where the address is longer than the column. It is the subject the contact books
 are held against when the row is read, and it is read with the row rather than searched by, so it carries no index.

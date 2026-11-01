@@ -52,8 +52,9 @@ public sealed record SenderVerification
 
     /// <summary>Gets what recognized the author, which is <see cref="SenderTrustSource.None" /> wherever nothing did.</summary>
     /// <remarks>
-    /// It is the source in force when the message was extracted: a contact written down since reaches mail extracted
-    /// after it, so this names what held then, and removing the contact it names resets it to not evaluated.
+    /// The two contact sources are found in the books as they stand when the message is read, so a contact written down
+    /// or erased since moves it on the next read and nothing is reset. Every other source is the one in force when the
+    /// message was extracted.
     /// </remarks>
     public SenderTrustSource DeploymentTrustGrantedBy { get; init; } = SenderTrustSource.None;
 
