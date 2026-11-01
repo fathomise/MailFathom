@@ -9,7 +9,7 @@ informed:
 
 # Keep the ciphertext the server delivered, open a message in flight wherever a key addressed to it is held, let the deployment's ring make it ordinary mail for the accounts the key names and a device key make it the client's alone, and encrypt only to keys configuration or a verified signature supplied
 
-<!-- describes: backend/src/Infrastructure/Mail/Mime/**, backend/src/Application/Emails/Extraction/**, backend/src/Application/EmailContent/Rendering/**, backend/src/Application/Emails/GetEmailContent/**, frontend/src/Client.Backend/src/** -->
+<!-- describes: backend/src/Infrastructure/Mail/Mime/**, backend/src/Application/Emails/Extraction/**, backend/src/Application/EmailContent/Rendering/**, backend/src/Application/Emails/GetEmailContent/**, backend/src/Application/Mail/Delivery/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailSignerKeyWriter.cs, backend/src/Infrastructure/Persistence/Entities/StoredEmailSignerKeyEntity.cs, frontend/src/Client.Backend/src/** -->
 
 ## Context and Problem Statement
 
@@ -136,6 +136,31 @@ invariant is a promise about one table and one store, and nothing on any page ma
 deployment. The derived rows inherit the source message's classification, retention, access, export, and erasure
 obligations whole, which they already do for cleartext mail.
 
+### What is opened, and how far it may expand
+
+**Only the message's own envelope is opened.** That is an encrypted part that is the message's root, or the sole content
+of a `multipart/signed` that is the root. What comes out of it is reduced on its own, as the message, and is never
+joined with clear parts beside the envelope. An encrypted part sitting next to clear content is an attachment. It is not
+decrypted into the body, so captured ciphertext wrapped between clear siblings cannot be turned into an exfiltration
+gadget (EFAIL's direct exfiltration). The same rule holds on the device.
+
+**A ciphertext that could have been altered is not trusted to stay inert.** OpenPGP data is opened only under integrity
+protection — a modification detection code or AEAD — and only when that check passes; otherwise the message takes the
+unkeyed path. S/MIME's `EnvelopedData` carries no integrity protection, and most S/MIME mail in use is sent that way, so
+it is opened anyway. But remote pictures are never offered for content that came out of an envelope without integrity
+protection. A ciphertext someone malleated into a picture address therefore stays an address nobody fetches.
+
+**Decryption is bounded before it expands, as it streams.**
+
+- The plaintext is held to `MailSynchronization:MaxRawMimeBytes`, the ceiling the stored message was held to. Decompression
+  inside an OpenPGP message counts against that same ceiling.
+- An envelope inside an envelope is opened one level deep and no further.
+- The decrypted message passes through the MIME structure limits the outer message already passed, because its structure
+  is something the outer pass never saw.
+
+A message that reaches a limit is not readable here. The read publishes that as a state of its own, distinct from *no
+key is held*, so an operator can tell a ceiling from a missing key. The device builder applies the same three bounds.
+
 ### Where the key is decides what each reader sees
 
 | Where the key is | What the service reads | What the client reads | What MCP, search, embeddings, and every model reach |
@@ -147,9 +172,10 @@ obligations whole, which they already do for cleartext mail.
 **A message the ring opens is an ordinary message on every surface.** It is extracted, chunked, indexed, embedded,
 searched, rendered, summarised, answered from, classified, and scanned for sensitive content exactly like cleartext
 mail, and its attachments are read and downloaded the same way, decrypted per download. Nothing tells a reader it is
-different except the marker saying it arrived protected: `IsEncrypted` keeps describing what arrived rather than what
-is readable, and the availability a read publishes is what says whether a body could be read. A signature inside the
-envelope is verified once the envelope is open, exactly as an outer one is.
+different except two things. One is the marker saying it arrived protected: `IsEncrypted` keeps describing what arrived
+rather than what is readable, and the availability a read publishes is what says whether a body could be read. The
+other is the rule below that its content leaves MailFathom only sealed. A signature inside the envelope is verified once
+the envelope is open, exactly as an outer one is.
 
 **That includes every model the deployment calls.** Ring-opened text goes wherever the deployment already sends
 cleartext mail: the embedding provider, the chat provider, the spam stage, image description. An operator who places a
@@ -160,9 +186,8 @@ and the operator-facing page states it in those words.
 to the person signed in, and the device decrypts and reduces it in memory. Nothing a device key opened is sent to the
 service in the clear, written to device storage, indexed, chunked, embedded, logged, or reported to telemetry —
 [ADR 0028](0028-no-mail-on-the-device-and-an-honest-client-with-no-route-to-its-deployment.md)'s rule that the device
-keeps no mail holds for plaintext as it does for everything else. A reply that quotes such a message is sealed on the
-device before it leaves, so what reaches the service is ciphertext; a reply the device cannot seal does not quote it.
-No model, no search, and no answer reaches such a message's body, and the surfaces that offer one say why rather than
+keeps no mail holds for plaintext as it does for everything else. A reply or a draft that quotes such a message is
+sealed on the device before it leaves (below), so what reaches the service is ciphertext. No model, no search, and no answer reaches such a message's body, and the surfaces that offer one say why rather than
 offering an empty result.
 
 **A reader whose reads are redacted does not get the device row.** Where a sensitive-content scanner covers any account
@@ -173,6 +198,31 @@ person's mail cannot be kept by a device that reads it unredacted.
 
 **A message no key opens shows its envelope and nothing else**: its headers, its recipients, its attachment structure as
 far as the outer MIME shows it, and a plain explanation of what would change that. It is never an empty body.
+
+### Content decrypted from a protected message leaves only sealed
+
+*An ordinary message on every surface* stops at one place, and it is the only visible difference from cleartext mail
+this record allows beyond the protected marker. **Content decrypted from a protected message never leaves MailFathom in
+the clear, whichever row opened it.** The sender chose encryption, and a quotation, a forward, or an attached original
+that dropped it would be the silent degradation the drivers refuse. So:
+
+- **An answer, a forward, or a draft that carries such content is sent encrypted, or it does not carry it.** A recipient
+  with no key makes that send refuse, exactly as an encrypted send refuses (below), and the person may remove the
+  quotation instead. This holds for an answer the service composes from a ring-opened message, for one composed in
+  the client, and for one an agent drafted. Drafting and sending stay separate acts
+  ([ADR 0013](0013-what-a-caller-must-do-before-mail-leaves.md)): a person who sends a quotation back to whoever sent
+  the ciphertext has chosen to.
+- **Nothing automatic quotes or forwards it.** An automatic reply, a rule, or any other pass that sends on nobody's
+  explicit act never carries decrypted content. That is what keeps the ring from becoming a reply oracle, in which
+  someone mails captured ciphertext into an account and reads what comes back.
+- **A draft that carries such content, or that is to be sent encrypted, is stored and filed only as ciphertext sealed
+  to the author's own key.** A draft here is a row, a stored message, and a copy in the author's drafts folder on their
+  mail server. The mail server never saw the plaintext of what arrived, and a draft filed in the clear would hand it
+  over. Where the deployment's ring holds a key for the sending account, the service seals the draft. Where the key is
+  on the device, the device seals it before the drafts routes see it. Reopening a draft, including the outbox handing a
+  refused send back to its draft, decrypts it in flight with that same key. A ring-path draft for an account the ring
+  holds no key for cannot be sealed. It is refused rather than saved in the clear, so sending encrypted through the
+  service needs a ring key for the sending account.
 
 ### Holding a key is the whole opt-in, and the key says whose mail it opens
 
@@ -289,6 +339,13 @@ verification outcome was `Verified`**, which `stored_email_signer_keys` already 
 did not verify contributes nothing usable, so a forged signature never becomes a key MailFathom would encrypt to (G3 is
 refused). An expired or revoked key is not used.
 
+**A key learned from a signature is filed under the address the key itself names, and never under the message's
+`From`.** For S/MIME that is a `rfc822Name` in the certificate's subject alternative names, and for OpenPGP the address
+in a self-certified user ID. `Verified` proves the signature was made with that key. It does not prove the key belongs
+to the displayed author, because a valid key for one address can sign a message claiming any `From`. Filing it under
+the `From` would let anybody holding a valid key make MailFathom encrypt somebody else's mail to them, which is the
+planted key G3 was refused for. A key that names no address is learned for none.
+
 **No network discovery is performed** (G2 is refused): no WKD, no DANE, no key server, no LDAP directory, and no fetch of
 a certificate an incoming message points at. Each of those turns composing a message into a request to a third party
 saying who the sender is writing to, and that is a decision of its own rather than a detail of this one.
@@ -296,9 +353,16 @@ saying who the sender is writing to, and that is a decision of its own rather th
 **A recipient whose key is unknown makes an encrypted send refuse, and it never falls back to the clear.** Every
 recipient counts, including a blind-copied one, and the refusal names the recipients that cannot be reached before
 anything is sent. A message the person asked to encrypt is sealed once, at submission, and what the outbox keeps and
-retries is the sealed message; the plaintext they wrote is not stored beside it. Where a key for the sending account is
-held, the message is encrypted to it as well, so the sent copy reads on the same terms as the reply that comes back;
-where none is held, the sent copy is a message no key opens.
+retries is the sealed message. The draft behind it is sealed to the author's own key (above), so nothing stores the
+plaintext the person wrote. The message is also encrypted to the sending account's own key, which the draft rule makes
+present on the service path. The sent copy therefore reads on the same terms as the reply that comes back.
+
+**A blind-copied recipient gets a copy sealed to them alone.** A sealed message names every recipient it was sealed
+to — a key ID in each OpenPGP session-key packet, an issuer and serial or a subject key identifier in each CMS
+`RecipientInfo` — and every visible recipient can read those identifiers. One message sealed to everybody would tell
+the `To` and `Cc` recipients who was blind-copied, which is exactly what a blind copy exists to hide. So the visible
+message is sealed to the visible recipients and the sender, and each blind-copied recipient receives a separately
+sealed copy.
 
 Sealing happens where the key is. Where the deployment's ring holds the sending account's keys, the service signs and
 encrypts. Where the key is on the device, the device seals the message before it leaves, using recipient public keys it
@@ -335,7 +399,13 @@ valid configuration.
 - Neutral, because derived rows in the clear mean the database as a whole protects a ring-opened message no better than
   a cleartext one. That is the deliberate trade B1 makes, and the operator-facing page says it in those words.
 - Neutral, because every read decrypts again. That is CPU spent per read in exchange for no plaintext held anywhere
-  between reads, and it is bounded by the same concurrency limits every read already runs under.
+  between reads. The concurrency limits every read already runs under bound it, and so do the plaintext, decompression,
+  nesting, and structure limits above, which hold memory to what a stored message could already occupy.
+- Bad, because sending encrypted through the service needs a ring key for the sending account even when every
+  recipient's key is known, since that key is what seals the draft. Without one, the draft would reach the mail server
+  in the clear.
+- Bad, because S/MIME without integrity protection is opened, so its malleability is answered by withholding remote
+  pictures and by reducing the envelope on its own, not by the cipher.
 - Bad, because removing a key is not a retraction, and an operator who expects it to be will be wrong. The page states
   it where the ring is configured, which is the most this record can do short of making removal an erasure.
 - Bad, because the client takes a MIME parser, an OpenPGP implementation, and a CMS implementation, which are a supply
@@ -360,11 +430,24 @@ valid configuration.
 - **The outbound refusal is held by unit tests** for a recipient with no key, a mixed recipient list, a blind-copied
   recipient with no key, an expired key, a key from a signature that did not verify, and a test that no network request
   is made to find a key.
+- **Recipient key provenance is held by unit tests**: a key from a verified signature whose own address differs from the
+  message's `From` is filed under the key's address and is never offered for the `From`.
+- **Blind copies are held by unit tests**: the visible message's recipient identifiers name no blind-copied recipient,
+  and each blind-copied recipient's copy names that recipient alone.
+- **Decrypted content leaving only sealed is held by unit tests**: an answer, forward, or draft that quotes a decrypted
+  message is sealed, or refuses, for both rows. An automatic reply never carries decrypted content. A saved draft of
+  such a message is ciphertext in this deployment and in the drafts folder.
+- **What is opened is held by the adversarial corpus**: captured ciphertext between clear siblings is an attachment and
+  never joins the body, an OpenPGP message without integrity protection or with a failing check is not opened, and an
+  integrity-unprotected S/MIME message offers no remote pictures.
+- **The bounds are held by unit tests** for a plaintext over the ceiling, a compressed payload that expands past it, an
+  envelope nested two levels deep, and an inner message over the structure limits, each publishing the limit state
+  rather than a body.
 - **No secret reaches telemetry**, held by tests in both stacks over the log and trace output of a keyed read and a
   sealed send.
 - **By review** of each child of issue 75 against the table and the sections above. A child whose change makes a reader
   see more than its row allows, or makes a ring-opened message visibly different from cleartext mail beyond the
-  protected marker, does not match this record.
+  protected marker and the rule that its content leaves only sealed, does not match this record.
 
 ## Pros and Cons of the Options
 
@@ -482,7 +565,8 @@ valid configuration.
 
 ### G1 — configuration and verified signatures
 
-- Good, because every key MailFathom encrypts to came from an operator or from a signature that proved its owner.
+- Good, because every key MailFathom encrypts to came from an operator, or from a verified signature that filed it
+  under the address the key itself names.
 - Good, because composing a message makes no request to anybody.
 - Bad, because a correspondent who has never written signed and is not configured cannot be written to encrypted.
 
