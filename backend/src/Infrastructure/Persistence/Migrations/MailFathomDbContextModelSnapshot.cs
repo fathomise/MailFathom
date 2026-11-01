@@ -2935,27 +2935,6 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("LastSeenAt");
 
-                    b.Property<string>("StatusMessage")
-                        .HasMaxLength(280)
-                        .HasColumnType("character varying(280)")
-                        .HasColumnName("StatusMessage");
-
-                    b.Property<int?>("StatusMessageClears")
-                        .HasColumnType("integer")
-                        .HasColumnName("StatusMessageClears");
-
-                    b.Property<DateTimeOffset?>("StatusMessageClearsAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("StatusMessageClearsAt");
-
-                    b.Property<int?>("WorkMode")
-                        .HasColumnType("integer")
-                        .HasColumnName("WorkMode");
-
-                    b.Property<DateTimeOffset?>("WorkModeEndsAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("WorkModeEndsAt");
-
                     b.HasKey("UserId");
 
                     b.ToTable("member_presence", (string)null);

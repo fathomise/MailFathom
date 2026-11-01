@@ -6387,16 +6387,6 @@
           "presence": {
             "type": "string"
           },
-          "statusMessage": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/StatusMessageResponse"
-              }
-            ]
-          },
           "timeZone": {
             "type": [
               "null",
@@ -6405,16 +6395,6 @@
           },
           "usesPhoneApp": {
             "type": "boolean"
-          },
-          "workMode": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WorkModeResponse"
-              }
-            ]
           },
           "workingHours": {
             "oneOf": [
@@ -6442,9 +6422,7 @@
           "presence",
           "lastSeen",
           "outOfOfficeUntil",
-          "usesPhoneApp",
-          "statusMessage",
-          "workMode"
+          "usesPhoneApp"
         ],
         "type": "object"
       },
@@ -11484,35 +11462,13 @@
           },
           "state": {
             "type": "string"
-          },
-          "statusMessage": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/StatusMessageResponse"
-              }
-            ]
-          },
-          "workMode": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WorkModeResponse"
-              }
-            ]
           }
         },
         "required": [
           "state",
           "chosenState",
           "choiceDuration",
-          "choiceEndsAt",
-          "statusMessage",
-          "workMode"
+          "choiceEndsAt"
         ],
         "type": "object"
       },
@@ -13038,50 +12994,6 @@
         ],
         "type": "object"
       },
-      "StatusMessageRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "clears": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "text": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        },
-        "type": "object"
-      },
-      "StatusMessageResponse": {
-        "properties": {
-          "clears": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "clearsAt": {
-            "format": "date-time",
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "text",
-          "clears",
-          "clearsAt"
-        ],
-        "type": "object"
-      },
       "StoredEmailId": {
         "properties": {
           "value": {
@@ -14080,43 +13992,6 @@
         },
         "required": [
           "type"
-        ],
-        "type": "object"
-      },
-      "WorkModeRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "mode": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "today": {
-            "type": [
-              "null",
-              "boolean"
-            ]
-          }
-        },
-        "type": "object"
-      },
-      "WorkModeResponse": {
-        "properties": {
-          "endsAt": {
-            "format": "date-time",
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "mode": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "mode",
-          "endsAt"
         ],
         "type": "object"
       },
@@ -23491,80 +23366,6 @@
         "responses": {
           "204": {
             "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Client"
-        ]
-      }
-    },
-    "/api/client/presence/status-message": {
-      "put": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StatusMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OwnPresenceResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Client"
-        ]
-      }
-    },
-    "/api/client/presence/work-mode": {
-      "put": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WorkModeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OwnPresenceResponse"
-                }
-              }
-            },
-            "description": "OK"
           },
           "404": {
             "description": "Not Found"
