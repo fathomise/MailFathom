@@ -20,9 +20,11 @@ namespace MailFathom.Application.Mail.Delivery;
 /// outright. A caller left to guess at either pays for the guess in a transmission that was never going to be accepted.
 /// </para>
 /// <para>
-/// Everything else a server advertises is absent on purpose. Pipelining, chunking, and delivery status notifications
-/// change how a submission is carried out and never whether it may happen, so they belong to whatever issues the
-/// commands rather than to a contract every caller above reads.
+/// Everything else a server advertises is absent from the three on purpose. Pipelining and chunking change how a
+/// submission is carried out and never whether it may happen, so they belong to whatever issues the commands rather than
+/// to a contract every caller above reads. Delivery status notifications decide nothing about whether a message is sent
+/// either, but a send that asked for one records whether the request went out with it, so
+/// <see cref="AcceptsDeliveryStatusNotifications" /> reports them beside the three.
 /// </para>
 /// </remarks>
 public sealed record MailDeliveryCapabilities(
@@ -53,6 +55,14 @@ public sealed record MailDeliveryCapabilities(
         MaxMessageBytes: null,
         AcceptsEightBitContent: false,
         AcceptsInternationalizedAddresses: false);
+
+    /// <summary>Gets whether the server advertised <c>DSN</c>, without which a message goes out with no delivery-notification request in its envelope.</summary>
+    /// <remarks>
+    /// It is not among the values a message is composed against, because the request is envelope data rather than part of
+    /// the message: a server that does not carry it still takes the message, and the send records that the request was
+    /// not carried rather than being refused.
+    /// </remarks>
+    public bool AcceptsDeliveryStatusNotifications { get; init; }
 
     /// <summary>Reports whether a message of the supplied size is within what the server declared it will accept.</summary>
     /// <param name="messageBytes">The size of the message as it would be transmitted.</param>

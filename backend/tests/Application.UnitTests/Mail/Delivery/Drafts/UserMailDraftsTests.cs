@@ -230,6 +230,7 @@ public sealed class UserMailDraftsTests
                 "a draft",
                 InternetMessageId.Mint("example.test"),
                 ComposedMime),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 

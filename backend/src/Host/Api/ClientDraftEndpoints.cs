@@ -505,6 +505,7 @@ internal static class ClientDraftEndpoints
             Subject = request.Subject,
             PlainTextBody = request.PlainTextBody ?? string.Empty,
             HtmlBody = request.HtmlBody,
+            ReceiptRequests = request.ReceiptRequests,
             Author = Author(),
             Revises = revises,
         };
@@ -535,6 +536,7 @@ internal static class ClientDraftEndpoints
             Act = act,
             PlainTextBody = request.PlainTextBody ?? string.Empty,
             HtmlBody = request.HtmlBody,
+            ReceiptRequests = request.ReceiptRequests,
             Recipients = NamedRecipients(request),
             Author = Author(),
             Revises = revises,

@@ -61,6 +61,23 @@ public sealed class MailDraftPromotionTests
         Assert.Equal(record.Id, harness.Drafts.Peek(draft.Id)!.PromotedTo);
     }
 
+    /// <summary>The reports the author asked for on the draft are what the send it becomes asks for.</summary>
+    [Fact]
+    public async Task PromoteAsync_DraftAskingForReceipts_CarriesBothRequestsOntoTheSend()
+    {
+        // Arrange
+        var harness = Harness();
+        var both = new OutgoingReceiptRequests(DeliveryNotification: true, ReadReceipt: true);
+        var draft = await SaveAsync(harness, "the message as written", receiptRequests: both);
+        var promotion = PromotionOver(harness);
+
+        // Act
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(both, record.ReceiptRequests);
+    }
+
     /// <summary>
     /// A promoted draft is not composed again, so it reaches the signer through the outbox like any composed message: the
     /// draft's own bytes are signed and the signed bytes are what is queued.
@@ -479,6 +496,7 @@ public sealed class MailDraftPromotionTests
                 "their draft",
                 InternetMessageId.Mint("example.test"),
                 Encoding.ASCII.GetBytes("Subject: their draft\r\n\r\ntheirs").AsMemory()),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -600,7 +618,8 @@ public sealed class MailDraftPromotionTests
         MailDraftHarness harness,
         string body,
         bool addressed = true,
-        MailDraftRecipient? recipient = null) =>
+        MailDraftRecipient? recipient = null,
+        OutgoingReceiptRequests receiptRequests = default) =>
         harness.Book.SaveAsync(
             Account,
             SyntheticUser.Deployment,
@@ -610,6 +629,7 @@ public sealed class MailDraftPromotionTests
                 "a draft",
                 InternetMessageId.Mint("example.test"),
                 Encoding.ASCII.GetBytes($"Subject: a draft\r\n\r\n{body}").AsMemory()),
+            receiptRequests,
             revises: null,
             CancellationToken.None);
 

@@ -42,6 +42,7 @@ public interface IMailDraftStore
     /// <param name="author">The authored act that wrote it.</param>
     /// <param name="recipients">The people it is addressed to, which may be nobody, each with where its address came from.</param>
     /// <param name="subject">The subject line the composed message carries.</param>
+    /// <param name="receiptRequests">Which reports the author asked to be told about once the draft is sent.</param>
     /// <param name="mimeByteLength">How many bytes the stored message is.</param>
     /// <param name="composedAt">When it was written down.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
@@ -54,6 +55,7 @@ public interface IMailDraftStore
         OutgoingEmailRequester author,
         IReadOnlyList<MailDraftRecipient> recipients,
         string subject,
+        OutgoingReceiptRequests receiptRequests,
         long mimeByteLength,
         DateTimeOffset composedAt,
         CancellationToken cancellationToken);
@@ -63,6 +65,7 @@ public interface IMailDraftStore
     /// <param name="draftId">The draft being revised.</param>
     /// <param name="recipients">The people the new revision is addressed to, each with where its address came from.</param>
     /// <param name="subject">The subject line the new composed message carries.</param>
+    /// <param name="receiptRequests">Which reports the author asked for on the new revision, which replaces what the previous one asked for.</param>
     /// <param name="mimeByteLength">How many bytes the new stored message is.</param>
     /// <param name="revisedAt">When the revision was written down.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
@@ -80,6 +83,7 @@ public interface IMailDraftStore
         MailDraftId draftId,
         IReadOnlyList<MailDraftRecipient> recipients,
         string subject,
+        OutgoingReceiptRequests receiptRequests,
         long mimeByteLength,
         DateTimeOffset revisedAt,
         CancellationToken cancellationToken);

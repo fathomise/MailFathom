@@ -197,7 +197,7 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
         // Act
         var announced = await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
-                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, token),
+                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, deliveryNotificationCarried: null, token),
             cancellationToken);
 
         // Assert

@@ -191,6 +191,7 @@ public sealed class MailDraftPromotion
             [.. draft.Recipients.Select(recipient => recipient.Recipient)]) with
         {
             Subject = draft.Subject,
+            ReceiptRequests = draft.ReceiptRequests,
         };
 
         // What this caller may be talked into, asked before the record is written and against the addresses the draft

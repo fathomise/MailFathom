@@ -4,6 +4,7 @@
 
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Mail.Delivery.Drafts;
+using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 
 namespace MailFathom.Host.Api;
@@ -18,6 +19,8 @@ namespace MailFathom.Host.Api;
 /// <param name="Bcc">The addresses named in the <c>Bcc</c> header.</param>
 /// <param name="AnsweredEmailId">The stored message being answered, or <see langword="null" /> for a message of its own.</param>
 /// <param name="Answers">Which answer is being written — <c>senderOnly</c>, <c>everyone</c>, or <c>forward</c> — or <see langword="null" /> for a message of its own.</param>
+/// <param name="RequestsDeliveryNotification">Whether the author asks to be told when each recipient's server delivers the message or cannot, off where absent.</param>
+/// <param name="RequestsReadReceipt">Whether the author asks each recipient's mail client for a read receipt, off where absent.</param>
 /// <remarks>
 /// <para>
 /// The two shapes are one request because a revision has to be able to stay whichever shape the draft already is: a
@@ -38,7 +41,19 @@ internal sealed record ClientDraftWriteRequest(
     IReadOnlyList<string>? Cc,
     IReadOnlyList<string>? Bcc,
     Guid? AnsweredEmailId,
-    string? Answers);
+    string? Answers,
+    bool? RequestsDeliveryNotification = null,
+    bool? RequestsReadReceipt = null)
+{
+    /// <summary>Gets the two requests the body states, each off where the body does not state it.</summary>
+    /// <remarks>
+    /// A revision states the whole draft again, these two included, so a revision that leaves one out switches it off
+    /// rather than keeping what the previous revision asked for.
+    /// </remarks>
+    internal OutgoingReceiptRequests ReceiptRequests => new(
+        this.RequestsDeliveryNotification ?? false,
+        this.RequestsReadReceipt ?? false);
+}
 
 /// <summary>The drafts one user is writing, as the client endpoint serves them.</summary>
 /// <param name="Drafts">The drafts, newest edit first.</param>
@@ -77,6 +92,8 @@ internal sealed record ClientDraftListResponse(IReadOnlyList<ClientDraftResponse
 /// <param name="SentAs">The queued send a promotion wrote, or <see langword="null" /> while the draft was never sent.</param>
 /// <param name="Divergence">Why the copy in the folder stopped being one MailFathom may touch, or <see langword="null" /> while none has.</param>
 /// <param name="LastFailureCode">The code of the failure the last attempt on the mailbox ended in, or <see langword="null" /> while none has failed.</param>
+/// <param name="RequestsDeliveryNotification">Whether a send of the draft asks to be told when each recipient's server delivers it or cannot.</param>
+/// <param name="RequestsReadReceipt">Whether the draft asks each recipient's mail client for a read receipt.</param>
 /// <remarks>
 /// <para>
 /// The body is not here at any size. A screen listing drafts draws what each is about and who it is for, and the words
@@ -101,7 +118,9 @@ internal sealed record ClientDraftResponse(
     DateTimeOffset RevisedAt,
     Guid? SentAs,
     string? Divergence,
-    int? LastFailureCode)
+    int? LastFailureCode,
+    bool RequestsDeliveryNotification,
+    bool RequestsReadReceipt)
 {
     /// <summary>Describes one draft for the wire.</summary>
     /// <param name="draft">The record the use case answered with.</param>
@@ -124,7 +143,9 @@ internal sealed record ClientDraftResponse(
             draft.RevisedAt,
             draft.PromotedTo?.Value,
             draft.Divergence?.Reason.ToString(),
-            draft.LastFailure?.Value);
+            draft.LastFailure?.Value,
+            draft.ReceiptRequests.DeliveryNotification,
+            draft.ReceiptRequests.ReadReceipt);
     }
 }
 

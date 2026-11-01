@@ -703,6 +703,43 @@ public sealed class MailOutboxDeliveryTests
         Assert.Equal(claimed.Record.Id, submitted.OutgoingEmailId);
     }
 
+    /// <summary>
+    /// A send asking for a delivery notification hands the request to the session and records whether the server could
+    /// carry it, and is sent either way; a send asking for none records nothing about it.
+    /// </summary>
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, null)]
+    public async Task DeliverAsync_ASendAskingForADeliveryNotificationOrNot_RecordsWhetherTheServerCarriedTheRequest(
+        bool requested,
+        bool advertised,
+        bool? expectedCarried)
+    {
+        // Arrange
+        var context = new DeliveryContext(
+            capabilities: new MailDeliveryCapabilities(MaxMessageBytes: null, true, true)
+            {
+                AcceptsDeliveryStatusNotifications = advertised,
+            });
+        var claimed = await context.ClaimAsync(new OutgoingReceiptRequests(requested, ReadReceipt: false));
+        context.Transmit = (request, envelope, _) =>
+        {
+            AcceptEveryRecipient(request, envelope);
+
+            return Task.FromResult(new MailTransmission(MailTransmissionOutcome.Accepted, 250));
+        };
+
+        // Act
+        var result = await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+
+        // Assert
+        var record = await context.Store.FindAsync(claimed.Record.Id, TestContext.Current.CancellationToken);
+        Assert.Equal(MailOutboxDeliveryOutcome.Sent, result.Outcome);
+        Assert.Equal(requested, Assert.Single(context.Session.Transmitted).RequestsDeliveryNotification);
+        Assert.Equal(expectedCarried, record!.DeliveryNotificationCarried);
+    }
+
     private static void AcceptEveryRecipient(MailTransmissionRequest request, MailEnvelopeLedger envelope)
     {
         foreach (var recipient in request.Recipients)
@@ -873,6 +910,18 @@ public sealed class MailOutboxDeliveryTests
         internal async Task<ClaimedOutgoingEmail> ClaimAsync(params string[] recipientAddresses)
         {
             this.Store.Publish(RequestFor(recipientAddresses), RawMime.Length);
+
+            var claimed = await this.Store.ClaimAsync(
+                OutgoingEmailClaimRequest.Create(Account, batchSize: 10, TimeSpan.FromMinutes(10)),
+                CancellationToken.None);
+
+            return claimed.Single();
+        }
+
+        /// <summary>Claims a send to one recipient that asked for the reports named.</summary>
+        internal async Task<ClaimedOutgoingEmail> ClaimAsync(OutgoingReceiptRequests receiptRequests)
+        {
+            this.Store.Publish(RequestFor(["anna@example.test"]) with { ReceiptRequests = receiptRequests }, RawMime.Length);
 
             var claimed = await this.Store.ClaimAsync(
                 OutgoingEmailClaimRequest.Create(Account, batchSize: 10, TimeSpan.FromMinutes(10)),

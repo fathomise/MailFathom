@@ -153,6 +153,7 @@ public sealed class InMemoryOutgoingEmailStoreTests
                 Session,
                 claimed[0].Lease,
                 opened.Record.Id,
+                deliveryNotificationCarried: null,
                 TestContext.Current.CancellationToken));
 
         // Assert

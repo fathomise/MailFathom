@@ -620,6 +620,7 @@ public sealed class MailOutboxPassTests
                 session,
                 lease,
                 stranded,
+                deliveryNotificationCarried: null,
                 TestContext.Current.CancellationToken);
 
             this.clock.Advance(TimeSpan.FromMinutes(30));
@@ -665,6 +666,7 @@ public sealed class MailOutboxPassTests
                     "a draft",
                     InternetMessageId.Mint("example.test"),
                     RawMime),
+                OutgoingReceiptRequests.None,
                 revises: null,
                 TestContext.Current.CancellationToken);
         }

@@ -65,4 +65,12 @@ public sealed record AuthoredEmail
     /// responder does not answer it — the one header that stops two mailboxes answering each other forever.
     /// </remarks>
     public bool IsAutomaticReply { get; init; }
+
+    /// <summary>Gets whether the author asked for a read receipt, which the composed message asks of its recipients' mail clients.</summary>
+    /// <remarks>
+    /// Such a message carries <c>Disposition-Notification-To</c> naming the sending account's own address, which RFC 8098
+    /// defines. The address is the account's rather than the author's to choose, for the reason there is no sender here at
+    /// all: a receipt sent somewhere else would tell a third party who read the message and when.
+    /// </remarks>
+    public bool RequestsReadReceipt { get; init; }
 }

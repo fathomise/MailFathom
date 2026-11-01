@@ -194,6 +194,12 @@ internal sealed partial class MailKitSmtpConnection : IAsyncDisposable
             .ToArray();
 
         submissionClient.Envelope = new SmtpEnvelopeObserver(request.Recipients, envelope);
+        submissionClient.DeliveryNotificationEnvelopeId = request.RequestsDeliveryNotification
+            ? request.OutgoingEmailId.ToString()
+            : null;
+        submissionClient.DeliveryStatusNotificationType = request.RequestsDeliveryNotification
+            ? DeliveryStatusNotificationType.HeadersOnly
+            : DeliveryStatusNotificationType.Unspecified;
 
         try
         {
@@ -236,6 +242,8 @@ internal sealed partial class MailKitSmtpConnection : IAsyncDisposable
         finally
         {
             submissionClient.Envelope = null;
+            submissionClient.DeliveryNotificationEnvelopeId = null;
+            submissionClient.DeliveryStatusNotificationType = DeliveryStatusNotificationType.Unspecified;
         }
     }
 

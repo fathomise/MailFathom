@@ -156,6 +156,30 @@ public sealed class AuthoredResponseDraftingTests
         Assert.Equal(["carried.pdf", "report.pdf"], composed.Attachments.Select(file => file.FileName));
     }
 
+    /// <summary>An answer asking for both reports keeps them on the draft and composes the read receipt into its message.</summary>
+    [Fact]
+    public async Task SaveAsync_AnAnswerAskingForReceipts_KeepsThemAndComposesTheReadReceipt()
+    {
+        // Arrange
+        var harness = Harness();
+        var drafting = DraftingOverAnsweredMail(harness, out var composer);
+        var both = new OutgoingReceiptRequests(DeliveryNotification: true, ReadReceipt: true);
+
+        // Act
+        var draft = await drafting.SaveAsync(
+            Forward() with { ReceiptRequests = both },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var composed = (AuthoredEmail)composer
+            .ReceivedCalls()
+            .Last(call => call.GetMethodInfo().Name == nameof(IAuthoredEmailComposer.ComposeDraft))
+            .GetArguments()[1]!;
+
+        Assert.Equal(both, draft.ReceiptRequests);
+        Assert.True(composed.RequestsReadReceipt);
+    }
+
     private static MailResponseDraftRequest Request() => new()
     {
         Reader = MailboxReaderKind.Agent,

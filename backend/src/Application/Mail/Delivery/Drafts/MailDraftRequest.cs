@@ -48,6 +48,9 @@ public sealed record MailDraftRequest
     /// <summary>Gets the HTML alternative the author wrote, or <see langword="null" /> when they wrote none.</summary>
     public string? HtmlBody { get; init; }
 
+    /// <summary>Gets which reports the author asked to be told about once the draft is sent, which is neither unless they asked.</summary>
+    public OutgoingReceiptRequests ReceiptRequests { get; init; } = OutgoingReceiptRequests.None;
+
     /// <summary>Gets the authored act writing the draft down.</summary>
     public required OutgoingEmailRequester Author { get; init; }
 

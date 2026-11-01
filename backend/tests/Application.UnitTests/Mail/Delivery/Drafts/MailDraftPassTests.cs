@@ -260,6 +260,7 @@ public sealed class MailDraftPassTests
                 "a draft",
                 InternetMessageId.Mint("example.test"),
                 Encoding.ASCII.GetBytes($"Subject: a draft\r\n\r\n{body}").AsMemory()),
+            OutgoingReceiptRequests.None,
             revises,
             CancellationToken.None);
 

@@ -212,6 +212,7 @@ public sealed class MailFailureNotificationsTests
         Author = OutgoingEmailRequester.Command("client-draft-1"),
         Recipients = [],
         Subject = subject,
+        ReceiptRequests = OutgoingReceiptRequests.None,
         MimeByteLength = 128,
         Revision = 1,
         ComposedAt = DecidedAt,

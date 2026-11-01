@@ -78,6 +78,28 @@ public sealed class MimeKitAuthoredEmailComposerTests
         Assert.Equal(expected, Parse(composition).Headers[HeaderId.AutoSubmitted]);
     }
 
+    /// <summary>
+    /// A draft asking for a read receipt names the sending account's own address in <c>Disposition-Notification-To</c>,
+    /// and one that does not ask carries no such header.
+    /// </summary>
+    [Theory]
+    [InlineData(true, "mailfathom@example.test")]
+    [InlineData(false, null)]
+    public void ComposeDraft_ReadReceiptAskedForOrNot_NamesTheSendingAccountOnTheRequestAlone(bool requestsReadReceipt, string? expected)
+    {
+        // Arrange
+        var composer = CreateComposer();
+
+        // Act
+        var composition = composer.ComposeDraft(
+            Account,
+            Authored() with { RequestsReadReceipt = requestsReadReceipt },
+            Capabilities());
+
+        // Assert
+        Assert.Equal(expected, ParseDraft(composition).Headers[HeaderId.DispositionNotificationTo]?.Trim());
+    }
+
     /// <summary>An endpoint configured without an address to send from composes nothing, and says so as itself.</summary>
     [Fact]
     public void Compose_AccountConfiguringNoSendingAddress_IsRefusedNamingTheSender()

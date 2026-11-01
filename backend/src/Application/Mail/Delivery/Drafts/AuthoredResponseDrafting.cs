@@ -89,9 +89,11 @@ public sealed class AuthoredResponseDrafting(
             request.Revises,
             cancellationToken);
 
-        var authored = staged.Count == 0
-            ? response.Email!
-            : response.Email! with { Attachments = [.. response.Email!.Attachments, .. staged] };
+        var authored = response.Email! with
+        {
+            Attachments = [.. response.Email!.Attachments, .. staged],
+            RequestsReadReceipt = request.ReceiptRequests.ReadReceipt,
+        };
 
         var composition = composer.ComposeDraft(
             response.Account,
@@ -108,6 +110,7 @@ public sealed class AuthoredResponseDrafting(
             authorization.RequireUser(),
             request.Author,
             composed,
+            request.ReceiptRequests,
             request.Revises,
             cancellationToken);
     }

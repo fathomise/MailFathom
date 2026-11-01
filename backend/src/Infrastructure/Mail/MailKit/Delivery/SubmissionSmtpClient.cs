@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailKit;
 using MailKit.Net.Smtp;
 using MimeKit;
 
@@ -27,6 +28,9 @@ internal sealed class SubmissionSmtpClient : SmtpClient, ISubmissionClient
     public SmtpEnvelopeObserver? Envelope { get; set; }
 
     /// <inheritdoc />
+    public string? DeliveryNotificationEnvelopeId { get; set; }
+
+    /// <inheritdoc />
     protected override void OnRecipientAccepted(MimeMessage message, MailboxAddress mailbox, SmtpResponse response) =>
         this.Envelope?.RecipientAnswered(mailbox, response);
 
@@ -45,4 +49,18 @@ internal sealed class SubmissionSmtpClient : SmtpClient, ISubmissionClient
     /// </remarks>
     protected override void OnNoRecipientsAccepted(MimeMessage message) =>
         throw new SmtpNoRecipientsAcceptedException();
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Success, failure, and delay alike, for every recipient, because a sender who asked to be told is asked about once
+    /// rather than per address. <see langword="null" /> writes no <c>NOTIFY</c> parameter, which leaves each server to its
+    /// own default rather than asking it for nothing.
+    /// </remarks>
+    protected override DeliveryStatusNotification? GetDeliveryStatusNotifications(MimeMessage message, MailboxAddress mailbox) =>
+        this.DeliveryNotificationEnvelopeId is null
+            ? null
+            : DeliveryStatusNotification.Success | DeliveryStatusNotification.Failure | DeliveryStatusNotification.Delay;
+
+    /// <inheritdoc />
+    protected override string? GetEnvelopeId(MimeMessage message) => this.DeliveryNotificationEnvelopeId;
 }

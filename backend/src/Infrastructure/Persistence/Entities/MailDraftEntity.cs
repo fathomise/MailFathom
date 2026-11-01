@@ -97,6 +97,12 @@ internal sealed class MailDraftEntity
     /// </remarks>
     public required string Subject { get; set; }
 
+    /// <summary>Gets or sets whether the author asked for a delivery status notification, which reaches the send's envelope rather than the stored message.</summary>
+    public bool RequestsDeliveryNotification { get; set; }
+
+    /// <summary>Gets or sets whether the author asked for a read receipt, which the stored message also carries as <c>Disposition-Notification-To</c>.</summary>
+    public bool RequestsReadReceipt { get; set; }
+
     public ICollection<MailDraftRecipientEntity> Recipients { get; } = [];
 
     /// <summary>Gets the files an author staged against this draft, which every revision is composed with.</summary>

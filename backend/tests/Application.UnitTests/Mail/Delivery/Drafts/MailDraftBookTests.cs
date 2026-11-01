@@ -55,6 +55,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("first version", recipients: []),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -80,6 +81,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("second version"),
+            OutgoingReceiptRequests.None,
             draft.Id,
             CancellationToken.None);
 
@@ -151,6 +153,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("second version"),
+            OutgoingReceiptRequests.None,
             draft.Id,
             CancellationToken.None);
 
@@ -187,6 +190,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("second version"),
+            OutgoingReceiptRequests.None,
             draft.Id,
             CancellationToken.None);
         clock.Advance(ClientSignals.FoldingWindow);
@@ -229,6 +233,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("second version"),
+            OutgoingReceiptRequests.None,
             draft.Id,
             CancellationToken.None);
         clock.Advance(ClientSignals.FoldingWindow);
@@ -343,6 +348,7 @@ public sealed class MailDraftBookTests
                 SyntheticUser.Deployment,
                 OutgoingEmailRequester.Command("mfctl-4f2a"),
                 Composed("second version"),
+                OutgoingReceiptRequests.None,
                 MailDraftId.Create(Guid.CreateVersion7(Moment)),
                 CancellationToken.None));
 
@@ -368,6 +374,7 @@ public sealed class MailDraftBookTests
                 SyntheticUser.Deployment,
                 OutgoingEmailRequester.Command("mfctl-4f2a"),
                 Composed("second version"),
+                OutgoingReceiptRequests.None,
                 draft.Id,
                 CancellationToken.None));
 
@@ -392,6 +399,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Another,
             OutgoingEmailRequester.Command("mfctl-7b19"),
             Composed("their first version"),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -402,6 +410,7 @@ public sealed class MailDraftBookTests
                 SyntheticUser.Deployment,
                 OutgoingEmailRequester.Command("mfctl-7b19"),
                 Composed("second version"),
+                OutgoingReceiptRequests.None,
                 theirs.Id,
                 CancellationToken.None));
 
@@ -427,6 +436,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Another,
             OutgoingEmailRequester.Command("mfctl-3c02"),
             Composed("their draft"),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -459,6 +469,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("first version"),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -499,6 +510,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("first version"),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -527,6 +539,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("first version"),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -554,6 +567,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("first version"),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
         await harness.ConflictObserved;
@@ -581,6 +595,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed("first version"),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -590,6 +605,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2b"),
             Composed("second version"),
+            OutgoingReceiptRequests.None,
             first.Id,
             CancellationToken.None);
 
@@ -631,6 +647,7 @@ public sealed class MailDraftBookTests
                 SyntheticUser.Deployment,
                 OutgoingEmailRequester.Command("mfctl-4f2a"),
                 Composed($"the deployment key is {ScreenedMarker}"),
+                OutgoingReceiptRequests.None,
                 revises: null,
                 CancellationToken.None));
 
@@ -671,6 +688,7 @@ public sealed class MailDraftBookTests
                 SyntheticUser.Deployment,
                 OutgoingEmailRequester.Command("mfctl-4f2a"),
                 Composed("a draft far longer than this deployment analyzes in one scan"),
+                OutgoingReceiptRequests.None,
                 revises: null,
                 CancellationToken.None));
 
@@ -704,6 +722,7 @@ public sealed class MailDraftBookTests
                 SyntheticUser.Deployment,
                 OutgoingEmailRequester.Command("mfctl-4f2a"),
                 Composed("an ordinary covering note"),
+                OutgoingReceiptRequests.None,
                 revises: null,
                 CancellationToken.None));
 
@@ -736,6 +755,7 @@ public sealed class MailDraftBookTests
                 SyntheticUser.Deployment,
                 OutgoingEmailRequester.Command("mfctl-4f2a"),
                 Composed($"now with {ScreenedMarker}"),
+                OutgoingReceiptRequests.None,
                 draft.Id,
                 CancellationToken.None));
 
@@ -796,6 +816,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-9c31"),
             Composed("their first version"),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -826,6 +847,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Another,
             OutgoingEmailRequester.Command("mfctl-2d70"),
             Composed("their first version"),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 
@@ -866,6 +888,7 @@ public sealed class MailDraftBookTests
             SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             Composed(body),
+            OutgoingReceiptRequests.None,
             revises: null,
             CancellationToken.None);
 

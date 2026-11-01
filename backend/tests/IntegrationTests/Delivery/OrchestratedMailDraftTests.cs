@@ -238,6 +238,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
                 OutgoingEmailRequester.Command($"provenance-{Guid.NewGuid():N}"),
                 recipients,
                 "Provenance survives a revision",
+                OutgoingReceiptRequests.None,
                 mimeByteLength: 128,
                 DateTimeOffset.UnixEpoch,
                 token),
@@ -287,6 +288,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
                     OutgoingEmailRequester.Command(subject),
                     [RecipientAtTheMailbox()],
                     subject,
+                    OutgoingReceiptRequests.None,
                     mimeByteLength: 128,
                     DateTimeOffset.UnixEpoch,
                     token);
@@ -374,6 +376,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
                 SyntheticMailAccount.User,
                 OutgoingEmailRequester.Command(subject),
                 new ComposedMailDraft([RecipientAtTheMailbox()], subject, messageId, MimeOf(subject, messageId)),
+                OutgoingReceiptRequests.None,
                 revises,
                 token),
             [MailFathomPermission.MailDraftsWrite],

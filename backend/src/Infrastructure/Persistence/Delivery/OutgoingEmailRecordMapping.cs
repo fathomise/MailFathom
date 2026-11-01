@@ -54,6 +54,8 @@ internal static class OutgoingEmailRecordMapping
             Filings = [.. entity.Filings.Select(ToFiling).OrderBy(filing => filing.Filing.Name, StringComparer.Ordinal)],
             LastFilingFailure = StoredFailureCode.ToErrorCode(entity.LastFilingFailureCode),
             Subject = entity.Subject,
+            ReceiptRequests = new OutgoingReceiptRequests(entity.RequestsDeliveryNotification, entity.RequestsReadReceipt),
+            DeliveryNotificationCarried = entity.DeliveryNotificationCarried,
             Dismissal = ToDismissal(entity),
             AttemptLeaseExpiresAt = entity.LeaseExpiresAt,
         };

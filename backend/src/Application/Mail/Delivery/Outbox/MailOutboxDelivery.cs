@@ -239,10 +239,16 @@ public sealed class MailOutboxDelivery
                 writeSession,
                 claimed.Lease,
                 record.Id,
+                record.ReceiptRequests.DeliveryNotification
+                    ? session.Capabilities.AcceptsDeliveryStatusNotifications
+                    : null,
                 token));
 
         var transmission = await session.TransmitAsync(
-            MailTransmissionRequest.Create(record.Id, sender.Address, outstanding, content.RawMime),
+            MailTransmissionRequest.Create(record.Id, sender.Address, outstanding, content.RawMime) with
+            {
+                RequestsDeliveryNotification = record.ReceiptRequests.DeliveryNotification,
+            },
             envelope,
             attemptToken.Token);
 

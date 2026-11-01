@@ -86,6 +86,14 @@ public sealed record MailDraftRecord
     /// </remarks>
     public required string Subject { get; init; }
 
+    /// <summary>Gets which reports the author asked to be told about once the draft is sent.</summary>
+    /// <remarks>
+    /// Kept on the record rather than read out of the message, because one of the two never reaches the message: the
+    /// delivery notification is envelope data and is carried to the send from here. The read receipt is also written into
+    /// the stored MIME as <c>Disposition-Notification-To</c>, and the value here is what the draft is served with.
+    /// </remarks>
+    public required OutgoingReceiptRequests ReceiptRequests { get; init; }
+
     /// <summary>Gets how many bytes of MIME are stored for the current revision.</summary>
     /// <remarks>
     /// It is kept beside the record for the reason an outgoing record keeps its own: a promotion compares it against

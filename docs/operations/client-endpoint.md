@@ -3305,6 +3305,20 @@ somebody says to save, and holds what they are typing until then.
 reply stays a reply. One of that pair without the other names nothing and is refused. Answering stored mail needs
 `mailfathom.mail.read` beneath the drafting grant, because an answer is derived from the message it answers.
 
+**A save asks for a delivery notification and a read receipt, each on its own and each off unless asked for.**
+`requestsDeliveryNotification` and `requestsReadReceipt` are optional booleans on both the write and the revision, and
+every draft the routes answer with carries both back as `requestsDeliveryNotification` and `requestsReadReceipt`.
+A revision states the whole draft again, so one that leaves either out switches it off. The two travel differently:
+
+- **The read receipt is a header of the message.** A draft asking for one is composed with `Disposition-Notification-To`
+  naming the sending account's own address — never one the author chooses — an answer included, and a revision that
+  switches it off is composed without it. Whether a recipient's mail client answers it is the recipient's to decide.
+- **The delivery notification is envelope data**, not part of the message. It is kept with the draft, carried onto the
+  send it becomes, and written into the SMTP envelope when the message is transmitted: `NOTIFY=SUCCESS,FAILURE,DELAY`
+  for each recipient, `RET=HDRS` so a report returns the headers rather than the message, and `ENVID` set to the send's
+  `outgoingEmailId`. Where the submission server does not advertise `DSN`, the message is sent without the request and
+  the send records that it was not carried, so nothing waits for a delivery report that cannot come.
+
 **An upload is the request body and nothing else.** There is no form to parse and no boundary to trust: the octets are
 the body, the file's name is the `fileName` query value, and what it declares itself to be is the request's own
 `Content-Type` without its parameters — a request declaring none is read as `application/octet-stream` rather than

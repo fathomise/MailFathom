@@ -134,6 +134,15 @@ internal sealed class OutgoingEmailEntity
     /// <summary>Gets or sets the subject the message was composed with, or <see langword="null" /> for a row an earlier build wrote.</summary>
     public string? Subject { get; set; }
 
+    /// <summary>Gets or sets whether the sender asked for a delivery status notification, which every attempt writes into the envelope where the server carries it.</summary>
+    public bool RequestsDeliveryNotification { get; set; }
+
+    /// <summary>Gets or sets whether the sender asked for a read receipt, which the stored message carries as a header of its own.</summary>
+    public bool RequestsReadReceipt { get; set; }
+
+    /// <summary>Gets or sets whether the last transmission carried the delivery-notification request, or <see langword="null" /> while nothing was transmitted or none was asked for.</summary>
+    public bool? DeliveryNotificationCarried { get; set; }
+
     /// <summary>Gets or sets the <c>Message-ID</c> the enqueued MIME carries, or <see langword="null" /> where it carried none or an earlier build wrote the row.</summary>
     /// <remarks>
     /// Read once, when the record is opened, from the bytes every attempt sends. A receiving account of the same

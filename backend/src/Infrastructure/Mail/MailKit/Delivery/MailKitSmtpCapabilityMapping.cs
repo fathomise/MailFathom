@@ -37,6 +37,9 @@ internal static class MailKitSmtpCapabilityMapping
         return new MailDeliveryCapabilities(
             declaredMaximum,
             advertised.HasFlag(SmtpCapabilities.EightBitMime),
-            advertised.HasFlag(SmtpCapabilities.UTF8));
+            advertised.HasFlag(SmtpCapabilities.UTF8))
+        {
+            AcceptsDeliveryStatusNotifications = advertised.HasFlag(SmtpCapabilities.Dsn),
+        };
     }
 }

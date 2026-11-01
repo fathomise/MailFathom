@@ -52,6 +52,11 @@ capability flags:
 declared bound is inclusive, and an undeclared one permits any size. A server advertising `SIZE 0` declares no usable
 bound and is read as unbounded, which is what RFC 1870 leaves it meaning.
 
+A fourth fact sits beside the three and decides nothing about whether a message is sent: whether the server advertised
+`DSN` (RFC 3461). A send that asked for a delivery notification is transmitted with the request in its envelope where
+the server advertised it, and without it where it did not — the message goes out either way, and the send records
+which, as [the record a send is written down as](#the-record-a-send-is-written-down-as-before-anything-is-sent) states.
+
 ## Where a submission endpoint is configured
 
 An account's `Delivery` block names it. The block is optional and an account that omits it configures no submission
@@ -334,7 +339,10 @@ system does. Every message names the product that wrote it as `User-Agent: Fatho
 the name: a version, a runtime, or a platform would tell every recipient which build a deployment runs, which is a
 fingerprint nobody reading the header needs. No `X-Mailer` is written beside it. An [automatic reply](automatic-reply.md) also carries
 `Auto-Submitted: auto-replied`, which is what RFC 3834 asks of a responder so that one on the other side does not
-answer it in turn; nothing else this deployment sends carries the header. A send, a draft, and an occasion of a
+answer it in turn; nothing else this deployment sends carries the header. A draft whose author asked for a read receipt
+carries `Disposition-Notification-To` (RFC 8098) naming the sending account's own address — never an address the author
+supplies, so a receipt can only return to the mailbox the message left from — and one whose author did not ask carries
+none; a revision is composed afresh, which is what takes the header off again. A send, a draft, and an occasion of a
 recurring send all carry it exactly once, because it is written where each of them is serialized and replaces whatever
 a stored draft carried.
 
@@ -569,6 +577,14 @@ is enforced by a unique index rather than by any check. Two callers asking toget
 insert is refused there, and the loser's retry reads back the winner's record. A caller that generates a fresh key per
 attempt has asked twice, and nothing can tell that apart from two genuine sends; what the record guarantees is that one
 key sends once.
+
+**The record keeps which reports the sender asked for.** A send promoted from a draft carries the draft's two requests —
+a delivery notification and a read receipt — and every other send asks for neither. The read receipt is already a
+header of the stored message, so the record only says it was asked for. The delivery notification is not in the
+message at all: each attempt writes it into the envelope from the record — `NOTIFY=SUCCESS,FAILURE,DELAY` for every
+recipient, `RET=HDRS`, and `ENVID` set to the record's own identifier, so a report names the send it is about — and the
+moment the transmission is recorded as begun, the record also states whether this attempt carried the request, which
+is false where the server did not advertise `DSN`. A send that asked for none states nothing either way.
 
 **The message is written once and read back, never recomposed.** A message rebuilt between attempts carries a different
 `Message-ID`, which threads one send as two in every recipient's client, so a second enqueue of the same identity leaves
