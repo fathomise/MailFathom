@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
     contactsPerPage,
     mostContactsPerPage,
@@ -223,10 +223,12 @@ export function useContactBook(
 
     const standing = held.book === book && held.session === session ? held : nothingRead(book, session);
 
-    // What is held as the signal arrives, read in the answer rather than closed over by the subscription.
+    // What is held as the signal arrives, read in the answer rather than closed over by the subscription. Kept in step
+    // as the rows are committed rather than after the browser paints them: a signal arriving between the two would
+    // otherwise read again only the rows held before the last page, and drop that page from the screen.
     const holding = useRef(standing);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         holding.current = standing;
     });
 
