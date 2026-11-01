@@ -169,6 +169,17 @@ public sealed record OutgoingEmailRecord
     /// </remarks>
     public string? Subject { get; init; }
 
+    /// <summary>Gets which reports the sender asked to be told about, which is neither for a send that asked for none.</summary>
+    public OutgoingReceiptRequests ReceiptRequests { get; init; } = OutgoingReceiptRequests.None;
+
+    /// <summary>Gets whether the last transmission carried the delivery-notification request, or <see langword="null" /> while nothing has been transmitted or none was asked for.</summary>
+    /// <remarks>
+    /// <see langword="false" /> means the submission server did not advertise <c>DSN</c>, so the message went out without
+    /// the request and no delivery notification will come back for it. It is recorded rather than left to be inferred, so
+    /// nothing later waits for a delivery mark that cannot arrive.
+    /// </remarks>
+    public bool? DeliveryNotificationCarried { get; init; }
+
     /// <summary>Gets the decision that took this send out of its account's outbox, or <see langword="null" /> while nobody has taken it.</summary>
     /// <remarks>
     /// A dismissal changes nothing else about the send. The stage stays where it stood and the recipients keep what each

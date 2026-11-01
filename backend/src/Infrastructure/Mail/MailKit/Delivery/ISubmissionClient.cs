@@ -23,4 +23,11 @@ internal interface ISubmissionClient : ISmtpClient
 {
     /// <summary>Gets or sets what the current submission's envelope replies are written into, or <see langword="null" /> between submissions.</summary>
     SmtpEnvelopeObserver? Envelope { get; set; }
+
+    /// <summary>Gets or sets the envelope identifier the current submission asks every recipient's server to report its delivery under, or <see langword="null" /> where it asks for no report.</summary>
+    /// <remarks>
+    /// Set beside <see cref="Envelope" /> and cleared with it. The parameters are written only where the server advertised
+    /// <c>DSN</c>; against one that did not, the library leaves them off and the message goes out without the request.
+    /// </remarks>
+    string? DeliveryNotificationEnvelopeId { get; set; }
 }

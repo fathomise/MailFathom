@@ -100,6 +100,7 @@ public sealed class MailDraftBook
     /// <param name="writtenBy">The user writing it, who is the one person among the account's assigned users who reads it.</param>
     /// <param name="author">The authored act writing it down.</param>
     /// <param name="composed">The composed message, its recipients, and the identity this revision carries.</param>
+    /// <param name="receiptRequests">Which reports the author asked to be told about once the draft is sent.</param>
     /// <param name="revises">The draft this replaces, or <see langword="null" /> to write a new one.</param>
     /// <param name="cancellationToken">Cancels the writes and the commands that follow them.</param>
     /// <returns>The draft as it stands once the mailbox has been brought into step with it.</returns>
@@ -118,6 +119,7 @@ public sealed class MailDraftBook
         UserId writtenBy,
         OutgoingEmailRequester author,
         ComposedMailDraft composed,
+        OutgoingReceiptRequests receiptRequests,
         MailDraftId? revises,
         CancellationToken cancellationToken)
     {
@@ -162,6 +164,7 @@ public sealed class MailDraftBook
                         draftId,
                         composed.Recipients,
                         composed.Subject,
+                        receiptRequests,
                         composed.RawMime.Length,
                         writtenAt,
                         attemptCancellationToken)
@@ -172,6 +175,7 @@ public sealed class MailDraftBook
                         author,
                         composed.Recipients,
                         composed.Subject,
+                        receiptRequests,
                         composed.RawMime.Length,
                         writtenAt,
                         attemptCancellationToken);

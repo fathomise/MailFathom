@@ -72,6 +72,7 @@ public sealed class InMemoryMailDraftStoreTests
             draft.Id,
             [],
             "a draft",
+            OutgoingReceiptRequests.None,
             mimeByteLength: 32,
             Moment.AddMinutes(5),
             TestContext.Current.CancellationToken);
@@ -92,7 +93,7 @@ public sealed class InMemoryMailDraftStoreTests
         var draft = await OpenAsync(store);
 
         // Act
-        await store.ReviseAsync(Session, draft.Id, [], "a draft", 32, Moment, TestContext.Current.CancellationToken);
+        await store.ReviseAsync(Session, draft.Id, [], "a draft", OutgoingReceiptRequests.None, 32, Moment, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, draft.Revision);
@@ -114,6 +115,7 @@ public sealed class InMemoryMailDraftStoreTests
             draft.Id,
             [],
             "a draft",
+            OutgoingReceiptRequests.None,
             32,
             Moment,
             TestContext.Current.CancellationToken);
@@ -569,6 +571,7 @@ public sealed class InMemoryMailDraftStoreTests
             OutgoingEmailRequester.Command("one-act"),
             [],
             "a draft",
+            OutgoingReceiptRequests.None,
             mimeByteLength: 16,
             Moment,
             TestContext.Current.CancellationToken);

@@ -360,6 +360,7 @@ public sealed class MailDraftFilerTests
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             [Recipient()],
             "a draft",
+            OutgoingReceiptRequests.None,
             mime.Length,
             Moment,
             CancellationToken.None);
@@ -386,6 +387,7 @@ public sealed class MailDraftFilerTests
             draftId,
             [Recipient()],
             "a draft",
+            OutgoingReceiptRequests.None,
             mime.Length,
             Moment.AddMinutes(1),
             CancellationToken.None);

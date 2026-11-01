@@ -622,6 +622,7 @@ public sealed class OutgoingMailFilingPassTests
                     session,
                     lease,
                     outgoingEmailId,
+                    deliveryNotificationCarried: null,
                     TestContext.Current.CancellationToken);
             }
 

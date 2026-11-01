@@ -392,6 +392,7 @@ internal sealed class InMemoryOutgoingEmailStore(
         IPersistenceSession session,
         OutgoingEmailLease lease,
         OutgoingEmailId outgoingEmailId,
+        bool? deliveryNotificationCarried,
         CancellationToken cancellationToken)
     {
         var row = this.RequireLeased(lease, outgoingEmailId);
@@ -409,6 +410,7 @@ internal sealed class InMemoryOutgoingEmailStore(
         {
             Stage = OutgoingEmailStage.TransmissionBegun,
             StageChangedAt = this.clock.GetUtcNow(),
+            DeliveryNotificationCarried = deliveryNotificationCarried,
         };
 
         return Task.CompletedTask;
@@ -571,6 +573,7 @@ internal sealed class InMemoryOutgoingEmailStore(
             Requester = request.Requester,
             Principal = principal,
             Subject = request.Subject,
+            ReceiptRequests = request.ReceiptRequests,
             Recipients = [.. request.Recipients.Select(OutgoingRecipientOutcome.Unanswered)],
             Stage = OutgoingEmailStage.Recorded,
             MimeByteLength = mimeByteLength,

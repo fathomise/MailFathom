@@ -479,7 +479,7 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
     {
         var committed = await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
-                .RecordTransmissionBegunAsync(session, lease, outgoingEmailId, token),
+                .RecordTransmissionBegunAsync(session, lease, outgoingEmailId, deliveryNotificationCarried: null, token),
             cancellationToken);
 
         Assert.Equal(PersistenceCommitResult.Committed, committed);

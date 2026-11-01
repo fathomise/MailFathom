@@ -92,6 +92,14 @@ public sealed record OutgoingEmailRequest
     /// </remarks>
     public string? Subject { get; init; }
 
+    /// <summary>Gets which reports the sender asked to be told about, which is neither unless whatever composed the send says otherwise.</summary>
+    /// <remarks>
+    /// The read receipt is already a header of the MIME this request is recorded with, so its value here only records that
+    /// it was asked for. The delivery notification is not in the MIME at all: it is written into the SMTP envelope when the
+    /// message is transmitted, from this value and nothing else.
+    /// </remarks>
+    public OutgoingReceiptRequests ReceiptRequests { get; init; } = OutgoingReceiptRequests.None;
+
     /// <summary>Asks for one message to be submitted through an account and delivered to the recipients it names.</summary>
     /// <param name="account">The account the message is sent as, by its generated identifier.</param>
     /// <param name="author">The user who asked, or <see langword="null" /> where the deployment's own configuration did.</param>
@@ -153,6 +161,7 @@ public sealed record OutgoingEmailRequest
         return new OutgoingEmailRequest(this.Account, this.Author, this.Requester, this.Recipients, dueAt)
         {
             Subject = this.Subject,
+            ReceiptRequests = this.ReceiptRequests,
         };
     }
 }

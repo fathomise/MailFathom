@@ -53,6 +53,7 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
         OutgoingEmailRequester author,
         IReadOnlyList<MailDraftRecipient> recipients,
         string subject,
+        OutgoingReceiptRequests receiptRequests,
         long mimeByteLength,
         DateTimeOffset composedAt,
         CancellationToken cancellationToken)
@@ -76,6 +77,8 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
             RequesterOrigin = author.Origin,
             RequesterIdentity = author.Identity,
             Subject = subject,
+            RequestsDeliveryNotification = receiptRequests.DeliveryNotification,
+            RequestsReadReceipt = receiptRequests.ReadReceipt,
             Revision = FirstRevision,
             MimeByteLength = mimeByteLength,
             ComposedAt = composedAt,
@@ -95,6 +98,7 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
         MailDraftId draftId,
         IReadOnlyList<MailDraftRecipient> recipients,
         string subject,
+        OutgoingReceiptRequests receiptRequests,
         long mimeByteLength,
         DateTimeOffset revisedAt,
         CancellationToken cancellationToken)
@@ -118,6 +122,8 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
         entity.Revision++;
         entity.MimeByteLength = mimeByteLength;
         entity.Subject = subject;
+        entity.RequestsDeliveryNotification = receiptRequests.DeliveryNotification;
+        entity.RequestsReadReceipt = receiptRequests.ReadReceipt;
         entity.RevisedAt = revisedAt;
 
         // Replaced outright rather than amended, so the list is the composed message's own rather than an accumulation

@@ -96,6 +96,7 @@ public sealed class AuthoredMailDrafting(
             PlainTextBody = request.PlainTextBody,
             HtmlBody = request.HtmlBody,
             Attachments = attachments,
+            RequestsReadReceipt = request.ReceiptRequests.ReadReceipt,
         };
 
         var composition = composer.ComposeDraft(
@@ -113,6 +114,7 @@ public sealed class AuthoredMailDrafting(
             accountCatalog.User,
             request.Author,
             composed,
+            request.ReceiptRequests,
             request.Revises,
             cancellationToken);
     }

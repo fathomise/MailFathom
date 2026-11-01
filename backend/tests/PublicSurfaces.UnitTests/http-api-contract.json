@@ -2031,6 +2031,12 @@
             },
             "type": "array"
           },
+          "requestsDeliveryNotification": {
+            "type": "boolean"
+          },
+          "requestsReadReceipt": {
+            "type": "boolean"
+          },
           "revisedAt": {
             "format": "date-time",
             "type": "string"
@@ -2078,7 +2084,9 @@
           "revisedAt",
           "sentAs",
           "divergence",
-          "lastFailureCode"
+          "lastFailureCode",
+          "requestsDeliveryNotification",
+          "requestsReadReceipt"
         ],
         "type": "object"
       },
@@ -2152,6 +2160,18 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "requestsDeliveryNotification": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "requestsReadReceipt": {
+            "type": [
+              "null",
+              "boolean"
             ]
           },
           "subject": {

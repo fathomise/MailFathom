@@ -42,6 +42,32 @@ public sealed class MailKitSmtpDeliverySessionTests
             session.Capabilities);
     }
 
+    /// <summary>Whether the server advertised <c>DSN</c> is reported, which is what a send asking for a delivery notification records.</summary>
+    [Theory]
+    [InlineData(SmtpCapabilities.Dsn, true)]
+    [InlineData(SmtpCapabilities.None, false)]
+    public async Task OpenForDeliveryAsync_DsnAdvertisedOrNot_ReportsWhetherADeliveryNotificationCanBeCarried(
+        SmtpCapabilities advertised,
+        bool expected)
+    {
+        // Arrange
+        using var resilience = SmtpDeliveryTestContext.CreateSingleAttemptResilience();
+        using var client = SmtpDeliveryTestContext.CreateClient("PLAIN");
+        using var transport = new ScriptedSubmissionTransport();
+        client.Capabilities.Returns(advertised);
+
+        // Act
+        await using var session = await SmtpDeliveryTestContext
+            .CreateFactory(resilience, client, transport)
+            .OpenForDeliveryAsync(
+                SmtpDeliveryTestContext.Account,
+                SmtpDeliveryTestContext.TlsOnConnectWithPlainPolicy,
+                TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expected, session.Capabilities.AcceptsDeliveryStatusNotifications);
+    }
+
     /// <summary>A server advertising the size extension with no number enforces no fixed maximum rather than a maximum of nothing.</summary>
     [Fact]
     public async Task OpenForDeliveryAsync_SizeAdvertisedWithoutABound_ReportsNoMaximum()

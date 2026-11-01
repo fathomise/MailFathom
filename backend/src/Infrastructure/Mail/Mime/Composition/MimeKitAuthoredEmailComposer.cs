@@ -520,6 +520,13 @@ internal sealed class MimeKitAuthoredEmailComposer(
             message.Headers.Replace(HeaderId.AutoSubmitted, "auto-replied");
         }
 
+        // The sending account's own address and never one the author names, so a receipt can only ever go back to the
+        // mailbox the message left from. A revision is composed afresh, which is what takes the header off again.
+        if (authored.RequestsReadReceipt)
+        {
+            message.Headers.Replace(HeaderId.DispositionNotificationTo, sender.Address.Address);
+        }
+
         message.Body = BuildBody(authored);
 
         return this.Serialize(

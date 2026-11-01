@@ -53,6 +53,7 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
         OutgoingEmailRequester author,
         IReadOnlyList<MailDraftRecipient> recipients,
         string subject,
+        OutgoingReceiptRequests receiptRequests,
         long mimeByteLength,
         DateTimeOffset composedAt,
         CancellationToken cancellationToken)
@@ -65,6 +66,7 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
             Author = author,
             Recipients = [.. recipients],
             Subject = subject,
+            ReceiptRequests = receiptRequests,
             Attachments = [],
             MimeByteLength = mimeByteLength,
             Revision = 1,
@@ -88,6 +90,7 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
         MailDraftId draftId,
         IReadOnlyList<MailDraftRecipient> recipients,
         string subject,
+        OutgoingReceiptRequests receiptRequests,
         long mimeByteLength,
         DateTimeOffset revisedAt,
         CancellationToken cancellationToken)
@@ -105,6 +108,7 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
         {
             Recipients = [.. recipients],
             Subject = subject,
+            ReceiptRequests = receiptRequests,
             MimeByteLength = mimeByteLength,
             RevisedAt = revisedAt,
         };

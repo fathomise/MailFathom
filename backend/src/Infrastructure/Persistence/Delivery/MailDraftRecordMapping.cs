@@ -41,6 +41,7 @@ internal static class MailDraftRecordMapping
             Author = OutgoingEmailRequester.Create(entity.RequesterOrigin, entity.RequesterIdentity),
             Recipients = recipients,
             Subject = entity.Subject,
+            ReceiptRequests = new OutgoingReceiptRequests(entity.RequestsDeliveryNotification, entity.RequestsReadReceipt),
             MimeByteLength = entity.MimeByteLength,
             Revision = entity.Revision,
             ComposedAt = entity.ComposedAt,

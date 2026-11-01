@@ -206,6 +206,7 @@ public sealed class MailDraftDirectoryTests
             OutgoingEmailRequester.Command($"mfctl-{subject}"),
             [],
             subject,
+            OutgoingReceiptRequests.None,
             mimeByteLength: 64,
             Moment,
             TestContext.Current.CancellationToken);

@@ -243,6 +243,51 @@ public sealed class AuthoredMailDraftingTests
         Assert.Equal(["report.pdf"], composed.Attachments.Select(file => file.FileName));
     }
 
+    /// <summary>
+    /// The two requests are kept on the draft and the read receipt is composed into its message; a revision that asks for
+    /// neither switches both off, because each revision states the whole draft again.
+    /// </summary>
+    [Fact]
+    public async Task SaveAsync_ARevisionThatNoLongerAsksForReceipts_SwitchesBothOff()
+    {
+        // Arrange
+        var harness = Harness(new InMemoryOutgoingEmailStore());
+        var composer = ComposingAuthoredEmails.ThatComposesDrafts(ComposedMime);
+        var drafting = DraftingOver(harness, composer: composer);
+        var both = new OutgoingReceiptRequests(DeliveryNotification: true, ReadReceipt: true);
+
+        var asked = await drafting.SaveAsync(
+            new MailDraftRequest
+            {
+                Account = MailAccountSelector.For(Account),
+                Subject = "a draft",
+                PlainTextBody = "Hello.",
+                ReceiptRequests = both,
+                Author = OutgoingEmailRequester.Command("mfctl-4f2a"),
+            },
+            TestContext.Current.CancellationToken);
+
+        var composedAsking = LastComposed(composer);
+
+        // Act
+        var revised = await drafting.SaveAsync(
+            new MailDraftRequest
+            {
+                Account = MailAccountSelector.For(Account),
+                Subject = "a draft",
+                PlainTextBody = "Hello.",
+                Author = OutgoingEmailRequester.Command("mfctl-4f2a"),
+                Revises = asked.Id,
+            },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(both, asked.ReceiptRequests);
+        Assert.True(composedAsking.RequestsReadReceipt);
+        Assert.Equal(OutgoingReceiptRequests.None, revised.ReceiptRequests);
+        Assert.False(LastComposed(composer).RequestsReadReceipt);
+    }
+
     /// <summary>Reads the message the last composition was handed, which is what a test about the draft's files asserts on.</summary>
     private static AuthoredEmail LastComposed(IAuthoredEmailComposer composer) => (AuthoredEmail)composer
         .ReceivedCalls()

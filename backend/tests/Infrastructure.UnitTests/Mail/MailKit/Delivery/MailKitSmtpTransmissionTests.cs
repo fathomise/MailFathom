@@ -136,7 +136,7 @@ public sealed class MailKitSmtpTransmissionTests
             .ThrowsAsync(new SocketException((int)SocketError.ConnectionReset));
 
         // Act
-        var thrown = await Assert.ThrowsAsync<MailDeliveryUnavailableException>(context.TransmitAsync);
+        var thrown = await Assert.ThrowsAsync<MailDeliveryUnavailableException>(() => context.TransmitAsync());
 
         // Assert
         Assert.Equal(SmtpDeliveryTestContext.Account, thrown.AccountId);
@@ -252,6 +252,44 @@ public sealed class MailKitSmtpTransmissionTests
         Assert.Empty(context.Envelope.Replies);
     }
 
+    /// <summary>
+    /// A send asking for a delivery notification hands the client its own record's identifier as the envelope identifier
+    /// and asks for the headers alone, for that submission and no longer; one asking for none hands it neither.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TransmitAsync_ASendAskingForADeliveryNotificationOrNot_WritesTheRequestForThatSubmissionAlone(bool requested)
+    {
+        // Arrange
+        using var context = new TransmissionContext();
+        var request = TransmissionContext.Request() with { RequestsDeliveryNotification = requested };
+        string? envelopeIdAtSend = null;
+        var returnedAtSend = DeliveryStatusNotificationType.Unspecified;
+        context.Client
+            .When(client => client.SendAsync(
+                Arg.Any<FormatOptions>(),
+                Arg.Any<MimeMessage>(),
+                Arg.Any<MailboxAddress>(),
+                Arg.Any<IEnumerable<MailboxAddress>>(),
+                Arg.Any<CancellationToken>()))
+            .Do(_ =>
+            {
+                envelopeIdAtSend = context.Client.DeliveryNotificationEnvelopeId;
+                returnedAtSend = context.Client.DeliveryStatusNotificationType;
+            });
+
+        // Act
+        await context.TransmitAsync(request);
+
+        // Assert
+        Assert.Equal(requested ? request.OutgoingEmailId.ToString() : null, envelopeIdAtSend);
+        Assert.Equal(
+            requested ? DeliveryStatusNotificationType.HeadersOnly : DeliveryStatusNotificationType.Unspecified,
+            returnedAtSend);
+        Assert.Null(context.Client.DeliveryNotificationEnvelopeId);
+    }
+
     /// <summary>Assembles one established session over a scripted submission server.</summary>
     private sealed class TransmissionContext : IDisposable
     {
@@ -279,7 +317,7 @@ public sealed class MailKitSmtpTransmissionTests
                     new MailboxAddress(name: null, "anna@example.test"),
                     new SmtpResponse(statusCode, "answered")));
 
-        internal async Task<MailTransmission> TransmitAsync()
+        internal async Task<MailTransmission> TransmitAsync(MailTransmissionRequest? request = null)
         {
             await using var session = await SmtpDeliveryTestContext
                 .CreateFactory(this.resilience, this.Client, this.transport)
@@ -289,7 +327,7 @@ public sealed class MailKitSmtpTransmissionTests
                     TestContext.Current.CancellationToken);
 
             return await session.TransmitAsync(
-                Request(),
+                request ?? Request(),
                 this.Envelope,
                 TestContext.Current.CancellationToken);
         }
@@ -301,7 +339,7 @@ public sealed class MailKitSmtpTransmissionTests
             this.Client.Dispose();
         }
 
-        private static MailTransmissionRequest Request()
+        internal static MailTransmissionRequest Request()
         {
             Assert.True(EmailAddress.TryCreate(displayName: null, "me@example.test", out var sender));
             Assert.True(EmailAddress.TryCreate(displayName: null, "anna@example.test", out var recipient));

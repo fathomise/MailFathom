@@ -110,6 +110,8 @@ internal sealed class OutgoingEmailStore(MailFathomDbContext readContext, TimePr
             DueAt = request.DueAt?.Instant,
             DueZoneId = request.DueAt?.ZoneId,
             Subject = request.Subject,
+            RequestsDeliveryNotification = request.ReceiptRequests.DeliveryNotification,
+            RequestsReadReceipt = request.ReceiptRequests.ReadReceipt,
         };
 
         // Added through the navigation rather than through their own set, so the recipients are inserted with the
@@ -338,6 +340,7 @@ internal sealed class OutgoingEmailStore(MailFathomDbContext readContext, TimePr
         IPersistenceSession session,
         OutgoingEmailLease lease,
         OutgoingEmailId outgoingEmailId,
+        bool? deliveryNotificationCarried,
         CancellationToken cancellationToken)
     {
         var entity = await RequireLeasedEntityAsync(session, lease, outgoingEmailId, cancellationToken);
@@ -350,6 +353,7 @@ internal sealed class OutgoingEmailStore(MailFathomDbContext readContext, TimePr
 
         entity.Stage = OutgoingEmailStage.TransmissionBegun;
         entity.StageChangedAt = timeProvider.GetUtcNow();
+        entity.DeliveryNotificationCarried = deliveryNotificationCarried;
     }
 
     /// <inheritdoc />

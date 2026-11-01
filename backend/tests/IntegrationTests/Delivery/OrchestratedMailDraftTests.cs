@@ -95,7 +95,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
         var users = Assert.Single(await ReadDraftsAsync(mailbox, cancellationToken), Named(foreign));
 
         // Act
-        var draft = await SaveAsync(services, written, revises: null, cancellationToken);
+        var draft = await SaveAsync(services, written, OutgoingReceiptRequests.None, revises: null, cancellationToken);
 
         // Assert
         Assert.Equal(MailDraftStage.Filed, draft.Stage);
@@ -105,7 +105,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
         Assert.Equal(appended.Uid, draft.CurrentCopy?.Placement.Uid);
 
         // The edit: one append and one removal, and the folder is what says whether both of them happened.
-        var edited = await SaveAsync(services, revised, draft.Id, cancellationToken);
+        var edited = await SaveAsync(services, revised, OutgoingReceiptRequests.None, draft.Id, cancellationToken);
 
         Assert.Equal(MailDraftStage.Filed, edited.Stage);
         Assert.Equal(2, edited.Revision);
@@ -180,7 +180,12 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
             SyntheticMailAccount.DraftCopyFolderPath,
             cancellationToken);
 
-        var draft = await SaveAsync(services, $"draft-reopened-{Guid.NewGuid():N}", revises: null, cancellationToken);
+        var draft = await SaveAsync(
+            services,
+            $"draft-reopened-{Guid.NewGuid():N}",
+            OutgoingReceiptRequests.None,
+            revises: null,
+            cancellationToken);
         var promoted = await PromoteAsync(services, draft.Id, cancellationToken);
         await RefuseAsync(services, promoted.Id, cancellationToken);
 
@@ -199,6 +204,60 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
             (scope, token) => scope.GetRequiredService<IOutgoingEmailStore>().FindAsync(promoted.Id, token),
             cancellationToken);
         Assert.Equal(SyntheticMailAccount.User, send?.Dismissal?.DismissedBy);
+    }
+
+    /// <summary>
+    /// What a draft asks to be told about is kept by each revision in turn and is what its send asks for, read back
+    /// through PostgreSQL at every step.
+    /// </summary>
+    /// <remarks>
+    /// The two requests are two columns on each of two tables, written by an insert, overwritten by a revision, and
+    /// copied by the promotion; every application-level test reaches them through an in-memory store, so a swapped
+    /// column or a revision that kept the old value would leave both suites green. The revision asks for the opposite
+    /// of what the first write asked for, which is what makes a value that was never overwritten fail rather than pass.
+    /// </remarks>
+    [Fact]
+    public async Task SaveAsync_ARevisionAskingForDifferentReceipts_KeepsTheLatestAndPromotesThem()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var mailbox = new OrchestratedMailbox(orchestration.MailServer);
+        await mailbox.RecreateFolderAsync(SyntheticMailAccount.DraftCopyFolderPath, cancellationToken);
+
+        await using var services = await OrchestratedMailFathomServices.StartAsync(
+            orchestration,
+            cancellationToken,
+            keepsDrafts: true);
+
+        await OrchestratedFolderBinding.CommitAsync(
+            services,
+            SyntheticMailAccount.DraftCopyFolderAlias,
+            SyntheticMailAccount.DraftCopyFolderPath,
+            cancellationToken);
+
+        var subject = $"draft-receipts-{Guid.NewGuid():N}";
+        var first = new OutgoingReceiptRequests(DeliveryNotification: true, ReadReceipt: false);
+        var revised = new OutgoingReceiptRequests(DeliveryNotification: false, ReadReceipt: true);
+
+        // Act
+        var draft = await SaveAsync(services, subject, first, revises: null, cancellationToken);
+        var afterOpening = await FindAsync(services, draft.Id, cancellationToken);
+
+        await SaveAsync(services, subject, revised, draft.Id, cancellationToken);
+        var afterRevision = await FindAsync(services, draft.Id, cancellationToken);
+
+        var promoted = await PromoteAsync(services, draft.Id, cancellationToken);
+        var send = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IOutgoingEmailStore>().FindAsync(promoted.Id, token),
+            cancellationToken);
+
+        await RefuseAsync(services, promoted.Id, cancellationToken);
+
+        // Assert
+        Assert.Equal(first, afterOpening?.ReceiptRequests);
+        Assert.Equal(revised, afterRevision?.ReceiptRequests);
+        Assert.Equal(revised, send?.ReceiptRequests);
+        Assert.Null(send?.DeliveryNotificationCarried);
     }
 
     /// <summary>
@@ -238,6 +297,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
                 OutgoingEmailRequester.Command($"provenance-{Guid.NewGuid():N}"),
                 recipients,
                 "Provenance survives a revision",
+                OutgoingReceiptRequests.None,
                 mimeByteLength: 128,
                 DateTimeOffset.UnixEpoch,
                 token),
@@ -287,6 +347,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
                     OutgoingEmailRequester.Command(subject),
                     [RecipientAtTheMailbox()],
                     subject,
+                    OutgoingReceiptRequests.None,
                     mimeByteLength: 128,
                     DateTimeOffset.UnixEpoch,
                     token);
@@ -363,6 +424,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
     private static Task<MailDraftRecord> SaveAsync(
         OrchestratedMailFathomServices services,
         string subject,
+        OutgoingReceiptRequests receiptRequests,
         MailDraftId? revises,
         CancellationToken cancellationToken)
     {
@@ -374,6 +436,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
                 SyntheticMailAccount.User,
                 OutgoingEmailRequester.Command(subject),
                 new ComposedMailDraft([RecipientAtTheMailbox()], subject, messageId, MimeOf(subject, messageId)),
+                receiptRequests,
                 revises,
                 token),
             [MailFathomPermission.MailDraftsWrite],

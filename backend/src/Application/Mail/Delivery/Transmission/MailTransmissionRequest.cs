@@ -51,6 +51,15 @@ public sealed record MailTransmissionRequest
     /// <summary>Gets the composed RFC 822 bytes to transmit.</summary>
     public ReadOnlyMemory<byte> RawMime { get; }
 
+    /// <summary>Gets whether the sender asked for a delivery status notification, which the envelope then asks of every recipient's server.</summary>
+    /// <remarks>
+    /// Where the submission server advertises <c>DSN</c>, the envelope carries <c>NOTIFY=SUCCESS,FAILURE,DELAY</c> for each
+    /// recipient, <c>RET=HDRS</c> so a report returns the headers rather than the message, and <c>ENVID</c> set to
+    /// <see cref="OutgoingEmailId" /> so a report names the send it is about. Where it does not, none of them is written
+    /// and the message goes out regardless.
+    /// </remarks>
+    public bool RequestsDeliveryNotification { get; init; }
+
     /// <summary>States a submission to make.</summary>
     /// <param name="outgoingEmailId">The record this submission belongs to.</param>
     /// <param name="sender">The address the envelope names as the reverse path.</param>

@@ -120,6 +120,7 @@ internal sealed class OutgoingMailTrackingHarness
             session,
             lease,
             outgoingEmailId,
+            deliveryNotificationCarried: null,
             TestContext.Current.CancellationToken);
     }
 

@@ -171,6 +171,68 @@ public sealed class ClientDraftEndpointTests
         Assert.Equal("Hello.", reading.Value.PlainTextBody);
     }
 
+    /// <summary>A draft asking for both reports is served with both, which is what lets a composer show them switched on.</summary>
+    [Fact]
+    public async Task ReadDraftAsync_ADraftAskingForReceipts_AnswersWithBothRequests()
+    {
+        // Arrange
+        var drafts = new InMemoryMailDraftStore();
+        var contents = new InMemoryMailDraftContentStore();
+        var draft = await OpenAsync(
+            drafts,
+            SyntheticUser.Deployment,
+            new OutgoingReceiptRequests(DeliveryNotification: true, ReadReceipt: true));
+
+        await contents.SaveMailDraftContentAsync(
+            Substitute.For<IPersistenceSession>(),
+            draft.Id,
+            PlacedEmailContent.InDatabase(Encoding.ASCII.GetBytes("Subject: a draft\r\n\r\nHello.").AsMemory()),
+            TestContext.Current.CancellationToken);
+
+        // Act
+        var result = await ClientDraftEndpoints.ReadDraftAsync(
+            draft.Id.Value,
+            DirectoryOver(drafts, contents),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var served = Assert.IsType<Ok<ClientDraftReadingResponse>>(result.Result).Value!.Draft;
+        Assert.True(served.RequestsDeliveryNotification);
+        Assert.True(served.RequestsReadReceipt);
+    }
+
+    /// <summary>A write states each request or leaves it out, and one left out is off rather than kept from an earlier revision.</summary>
+    [Theory]
+    [InlineData(null, null, false, false)]
+    [InlineData(true, null, true, false)]
+    [InlineData(false, true, false, true)]
+    public void ReceiptRequests_AWriteStatingEachRequestOrNot_ReadsAnAbsentOneAsOff(
+        bool? deliveryNotification,
+        bool? readReceipt,
+        bool expectedDeliveryNotification,
+        bool expectedReadReceipt)
+    {
+        // Arrange
+        var request = new ClientDraftWriteRequest(
+            "work",
+            "a draft",
+            "Hello.",
+            HtmlBody: null,
+            To: null,
+            Cc: null,
+            Bcc: null,
+            AnsweredEmailId: null,
+            Answers: null,
+            deliveryNotification,
+            readReceipt);
+
+        // Act
+        var requests = request.ReceiptRequests;
+
+        // Assert
+        Assert.Equal(new OutgoingReceiptRequests(expectedDeliveryNotification, expectedReadReceipt), requests);
+    }
+
     /// <summary>A draft another user holds is opened as one nobody holds, so a refusal says nothing about who else writes mail here.</summary>
     [Fact]
     public async Task ReadDraftAsync_ADraftAnotherUserHolds_AnswersAsOneNobodyHolds()
@@ -460,7 +522,10 @@ public sealed class ClientDraftEndpointTests
     }
 
     /// <summary>Writes one draft down for one user, which is the arrangement every test here starts from.</summary>
-    private static Task<MailDraftRecord> OpenAsync(InMemoryMailDraftStore drafts, UserId user) =>
+    private static Task<MailDraftRecord> OpenAsync(
+        InMemoryMailDraftStore drafts,
+        UserId user,
+        OutgoingReceiptRequests receiptRequests = default) =>
         drafts.OpenAsync(
             Substitute.For<IPersistenceSession>(),
             Work,
@@ -468,6 +533,7 @@ public sealed class ClientDraftEndpointTests
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             [],
             "a draft",
+            receiptRequests,
             mimeByteLength: 64,
             Moment,
             TestContext.Current.CancellationToken);

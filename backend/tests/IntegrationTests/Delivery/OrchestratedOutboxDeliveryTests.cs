@@ -131,7 +131,7 @@ public sealed class OrchestratedOutboxDeliveryTests(MailFathomOrchestrationFixtu
 
         await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
-                .RecordTransmissionBegunAsync(session, claimed.Lease, queued.Id, token),
+                .RecordTransmissionBegunAsync(session, claimed.Lease, queued.Id, deliveryNotificationCarried: null, token),
             cancellationToken);
 
         // Act

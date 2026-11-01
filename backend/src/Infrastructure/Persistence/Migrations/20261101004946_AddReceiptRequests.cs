@@ -1,0 +1,76 @@
+// Copyright © 2026 Krzysztof Kasprowicz
+// Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+// Project repository: https://github.com/fathomise/MailFathom
+
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace MailFathom.Infrastructure.Persistence.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddReceiptRequests : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AddColumn<bool>(
+                name: "DeliveryNotificationCarried",
+                table: "outgoing_emails",
+                type: "boolean",
+                nullable: true);
+
+            migrationBuilder.AddColumn<bool>(
+                name: "RequestsDeliveryNotification",
+                table: "outgoing_emails",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
+
+            migrationBuilder.AddColumn<bool>(
+                name: "RequestsReadReceipt",
+                table: "outgoing_emails",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
+
+            migrationBuilder.AddColumn<bool>(
+                name: "RequestsDeliveryNotification",
+                table: "mail_drafts",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
+
+            migrationBuilder.AddColumn<bool>(
+                name: "RequestsReadReceipt",
+                table: "mail_drafts",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropColumn(
+                name: "DeliveryNotificationCarried",
+                table: "outgoing_emails");
+
+            migrationBuilder.DropColumn(
+                name: "RequestsDeliveryNotification",
+                table: "outgoing_emails");
+
+            migrationBuilder.DropColumn(
+                name: "RequestsReadReceipt",
+                table: "outgoing_emails");
+
+            migrationBuilder.DropColumn(
+                name: "RequestsDeliveryNotification",
+                table: "mail_drafts");
+
+            migrationBuilder.DropColumn(
+                name: "RequestsReadReceipt",
+                table: "mail_drafts");
+        }
+    }
+}

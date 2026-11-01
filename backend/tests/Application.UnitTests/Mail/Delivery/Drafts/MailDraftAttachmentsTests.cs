@@ -271,6 +271,7 @@ public sealed class MailDraftAttachmentsTests
             OutgoingEmailRequester.Command("mfctl-4f2a"),
             [],
             "a draft",
+            OutgoingReceiptRequests.None,
             mimeByteLength: 64,
             Moment,
             TestContext.Current.CancellationToken);

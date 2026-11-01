@@ -8,6 +8,7 @@ using MailFathom.Application.Mail.Delivery.Transmission;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
 using MailFathom.Infrastructure.Mail.MailKit.Delivery;
+using MailKit;
 using MailKit.Net.Smtp;
 using MimeKit;
 using Xunit;
@@ -32,6 +33,7 @@ public sealed class SubmissionSmtpClientTests
 {
     private const string Accepted = "anna@example.test";
     private const string Refused = "nobody@example.test";
+    private const string EnvelopeId = "0198f0a2-6c1e-7a4b-9d3f-2b8c5e4a1f70";
 
     /// <summary>An accepted address is written onto the ledger the attempt reads its envelope from.</summary>
     [Fact]
@@ -95,6 +97,43 @@ public sealed class SubmissionSmtpClientTests
         Assert.Throws<SmtpNoRecipientsAcceptedException>(stopping);
     }
 
+    /// <summary>
+    /// A submission asking for a delivery notification asks every recipient's server about success, failure, and delay
+    /// under the envelope identifier it names.
+    /// </summary>
+    [Fact]
+    public void GetDeliveryStatusNotifications_SubmissionAskingForAReport_AsksAboutEveryOutcomeUnderTheEnvelopeId()
+    {
+        // Arrange
+        using var client = new SubmissionSmtpClient { DeliveryNotificationEnvelopeId = EnvelopeId };
+
+        // Act
+        var notify = Invoke(client, "GetDeliveryStatusNotifications", new MimeMessage(), new MailboxAddress(name: null, Accepted));
+        var envelopeId = Invoke(client, "GetEnvelopeId", new MimeMessage());
+
+        // Assert
+        Assert.Equal(
+            DeliveryStatusNotification.Success | DeliveryStatusNotification.Failure | DeliveryStatusNotification.Delay,
+            notify);
+        Assert.Equal(EnvelopeId, envelopeId);
+    }
+
+    /// <summary>A submission asking for no report writes neither parameter, which leaves each server to its own default.</summary>
+    [Fact]
+    public void GetDeliveryStatusNotifications_SubmissionAskingForNoReport_WritesNeitherParameter()
+    {
+        // Arrange
+        using var client = new SubmissionSmtpClient();
+
+        // Act
+        var notify = Invoke(client, "GetDeliveryStatusNotifications", new MimeMessage(), new MailboxAddress(name: null, Accepted));
+        var envelopeId = Invoke(client, "GetEnvelopeId", new MimeMessage());
+
+        // Assert
+        Assert.Null(notify);
+        Assert.Null(envelopeId);
+    }
+
     private static SmtpEnvelopeObserver ObserverFor(MailEnvelopeLedger envelope)
     {
         Assert.True(EmailAddress.TryCreate(displayName: null, Accepted, out var accepted));
@@ -109,7 +148,7 @@ public sealed class SubmissionSmtpClientTests
     }
 
     /// <summary>Calls one of the client's own hooks, reporting what it raised rather than the reflection wrapper.</summary>
-    private static void Invoke(SubmissionSmtpClient client, string hook, params object?[] arguments)
+    private static object? Invoke(SubmissionSmtpClient client, string hook, params object?[] arguments)
     {
         var method = typeof(SubmissionSmtpClient).GetMethod(
             hook,
@@ -119,11 +158,13 @@ public sealed class SubmissionSmtpClientTests
 
         try
         {
-            method.Invoke(client, arguments);
+            return method.Invoke(client, arguments);
         }
         catch (TargetInvocationException wrapper) when (wrapper.InnerException is not null)
         {
             ExceptionDispatchInfo.Capture(wrapper.InnerException).Throw();
+
+            throw;
         }
     }
 }

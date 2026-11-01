@@ -2044,6 +2044,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<bool>("RequestsDeliveryNotification")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RequestsReadReceipt")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset>("RevisedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3178,6 +3184,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
+                    b.Property<bool?>("DeliveryNotificationCarried")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset?>("DismissedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3234,6 +3243,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<bool>("RequestsDeliveryNotification")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RequestsReadReceipt")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Stage")
                         .IsRequired()
