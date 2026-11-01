@@ -33,6 +33,7 @@
     <Compile Include="..\shared\StubEmailProvenanceReader.cs" Link="StubEmailProvenanceReader.cs" />
     <Compile Include="..\shared\StubMailFolderMappings.cs" Link="StubMailFolderMappings.cs" />
     <Compile Include="..\shared\StubMailAccountAssignments.cs" Link="StubMailAccountAssignments.cs" />
+    <Compile Include="..\shared\MailFootings.cs" Link="MailFootings.cs" />
     <Compile Include="..\shared\StatedAdministrativeTargets.cs" Link="StatedAdministrativeTargets.cs" />
     <Compile Include="..\shared\ContactBookOwnerships.cs" Link="ContactBookOwnerships.cs" />
     <!-- Every boundary holding a guarded egress point asserts the same three states of the guard, so the three are

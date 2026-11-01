@@ -217,7 +217,8 @@ public sealed class ReplyDraftAgentTests
                 styleSamples ?? []),
             Selection: null,
             Instruction: null,
-            language);
+            language,
+            ClosesWithFooter: false);
     }
 
     /// <summary>Builds the chat-completion payload a provider answers with.</summary>

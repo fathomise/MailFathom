@@ -70,6 +70,29 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.ProposesOnlyWhatWasAskedMetricName).Value);
     }
 
+    /// <summary>A proposed message is judged by how it closes against whether its account appends the person's footer.</summary>
+    [Theory]
+    [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "You may collect the archive boxes between 14:00 and 16:00.", true)]
+    [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "You may collect the archive boxes between 14:00 and 16:00.\n\nBest regards,\nMara", false)]
+    [InlineData("Agent.Footer.MessageClosesWithoutAFooter", "You may collect the archive boxes between 14:00 and 16:00.\n\nBest regards,\nMara", true)]
+    [InlineData("Agent.Footer.MessageClosesWithoutAFooter", "You may collect the archive boxes between 14:00 and 16:00.", false)]
+    public async Task RunAsync_AMessageFromAnAccountWithOrWithoutAFooter_PassesOnlyWhereItClosesAsThatAccountRequires(
+        string scenario,
+        string body,
+        bool passes)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient(
+            [Propose("courier.desk@example.test", body)],
+            "I proposed a message to courier.desk@example.test; nothing was sent until you accept it.");
+
+        // Act
+        var verdict = await this.RunAsync(Named(scenario), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(SignOff.MetricName).Value);
+    }
+
     /// <summary>A message asked to leave later is judged by the instant it leaves on the person's clock, and one never asked to wait by leaving at once.</summary>
     [Theory]
     [InlineData("Agent.Propose.MessageLeavingWhenAsked", "2026-09-15T08:00:00+02:00", true)]

@@ -423,6 +423,29 @@ internal sealed record AgentConversationScenario(
         {
             Proposes = ["message to courier.desk@example.test"],
         },
+
+        // The same message proposed from an account that appends the person's footer and from one that appends none:
+        // the first ends at its own words, because the footer is its closing, and the second closes as mail does.
+        new(
+            "Agent.Footer.MessageLeavesTheClosingToTheFooter",
+            "Write to courier.desk@example.test from my account to confirm they may collect the archive boxes between 14:00 and 16:00.",
+            UserLanguage.English,
+            [],
+            ["courier", "archive", "box", "collect", "pick", "14:00", "16:00"])
+        {
+            Proposes = ["message to courier.desk@example.test"],
+            ClosesWithFooter = true,
+        },
+        new(
+            "Agent.Footer.MessageClosesWithoutAFooter",
+            "Write to courier.desk@example.test from my account to confirm they may collect the archive boxes between 14:00 and 16:00, and close it the way I close my mail.",
+            UserLanguage.English,
+            [],
+            ["courier", "archive", "box", "collect", "pick", "14:00", "16:00"])
+        {
+            Proposes = ["message to courier.desk@example.test"],
+            ClosesWithFooter = false,
+        },
         new(
             "Agent.Propose.MessageToAnAddressFromMail",
 
@@ -1147,6 +1170,9 @@ internal sealed record AgentConversationScenario(
     /// <remarks>Read off the answer and every proposal together, because a reply drafted to the claim's sender restates it as surely as the answer does.</remarks>
     public AccountClaim? Claim { get; init; }
 
+    /// <summary>Gets whether the person's account appends their footer, which every proposed message must then leave the closing to, and <see langword="false" /> for one appending none, which every proposed message must then close itself; <see langword="null" /> where the case holds the closing to nothing.</summary>
+    public bool? ClosesWithFooter { get; init; }
+
     /// <summary>Gets the tools the question cannot be answered without, each of which the run has to call.</summary>
     public IReadOnlyList<string> Calls { get; init; } = [];
 
@@ -1363,7 +1389,11 @@ internal sealed record AgentConversationScenario(
         {
             NamedEmails = [.. (this.Arrived ?? []).Select(static message => message.Id)],
         };
-        var readers = CorpusReaders.For(AccessAuthorizations.ForCallerGranted([.. this.Grant]), search, UserClocks.Reading(AskedAt, this.Zone));
+        var readers = CorpusReaders.For(
+            AccessAuthorizations.ForCallerGranted([.. this.Grant]),
+            search,
+            UserClocks.Reading(AskedAt, this.Zone),
+            this.ClosesWithFooter is true ? await CorpusReaders.FooterOnTheAccountAsync(cancellationToken) : null);
         var tools = new AgentConversationTools(
             journal,
             retrieval,
@@ -1373,7 +1403,7 @@ internal sealed record AgentConversationScenario(
         var called = new ConcurrentQueue<string>();
         IReadOnlyList<AITool> offered = [.. tools.Create().OfType<AIFunction>().Select(tool => new CalledFunction(tool, called))];
 
-        var composed = AgentConversationAgent.ComposeMessages(brief, tools.NamedAccounts, readers.Clock.Zone());
+        var composed = AgentConversationAgent.ComposeMessages(brief, await tools.NameAccountsAsync(cancellationToken), readers.Clock.Zone());
 
         // Refused rather than sent, as a deployment refuses it: a conversation past the model's bound fails the run.
         ChatRequestBounds.RequireForAttempt(composed, plan);
@@ -1599,6 +1629,28 @@ internal sealed record AgentConversationScenario(
                 carried.Count is 0
                     ? "No proposal carries what a later turn withdrew."
                     : $"A proposal still carries what a later turn withdrew: {string.Join("; ", carried)}.");
+        }
+
+        if (this.ClosesWithFooter is { } closesWithFooter)
+        {
+            var bodies = acts.Select(static act => act switch
+            {
+                AgentMessageSending sending => sending.Body.Value,
+                AgentResponseSending response => response.Body.Value,
+                _ => null,
+            }).OfType<string>().ToList();
+            var shortfalls = bodies.Select(body => SignOff.Shortfall(body, closesWithFooter)).OfType<string>().ToList();
+
+            EvaluationMetrics.Record(
+                verdict,
+                SignOff.MetricName,
+                bodies.Count > 0 && shortfalls.Count is 0,
+                (bodies.Count, shortfalls.Count) switch
+                {
+                    (0, _) => "The run proposed no message to hold to its account's footer.",
+                    (_, 0) => closesWithFooter ? "Every proposed message ends at its own words and leaves the closing to the footer." : "Every proposed message closes itself.",
+                    _ => string.Join(' ', shortfalls),
+                });
         }
 
         if (this.Claim is { } claim)

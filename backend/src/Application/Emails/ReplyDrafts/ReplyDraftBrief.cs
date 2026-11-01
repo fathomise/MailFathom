@@ -11,6 +11,7 @@ namespace MailFathom.Application.Emails.ReplyDrafts;
 /// <param name="Selection">The part of the correspondence the reply is to answer, or <see langword="null" /> to answer it as a whole.</param>
 /// <param name="Instruction">What the person asked the reply to say, or <see langword="null" /> where they asked for nothing in particular.</param>
 /// <param name="Language">The language the person writing reads, which decides a draft answering no correspondence.</param>
+/// <param name="ClosesWithFooter">Whether the account the message is sent from appends the person's footer to it, which then carries the whole closing and leaves the draft to end at its own words.</param>
 /// <remarks>
 /// <para>
 /// The two texts arrive here bounded by the use case rather than by the writer, because they are the one part of a
@@ -26,9 +27,14 @@ namespace MailFathom.Application.Emails.ReplyDrafts;
 /// reads off the sources, for the reason <see cref="Access.IUserLanguages" /> gives — who a derivation is for
 /// stays out of the text sent to a provider.
 /// </para>
+/// <para>
+/// The footer is a yes or a no and never its text. It carries the person's name, title, and phone number, and the one
+/// thing the wording of a draft needs from it is whether it will be there.
+/// </para>
 /// </remarks>
 public sealed record ReplyDraftBrief(
     ReplyDraftSources Sources,
     string? Selection,
     string? Instruction,
-    UserLanguage Language);
+    UserLanguage Language,
+    bool ClosesWithFooter);

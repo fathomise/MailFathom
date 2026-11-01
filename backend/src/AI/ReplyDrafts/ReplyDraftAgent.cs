@@ -24,7 +24,8 @@ namespace MailFathom.AI.ReplyDrafts;
 /// One call, no tools, and one conversation. What leaves this deployment is the subject, each message's author name,
 /// when it was written, what it added and the words its attachments yielded under their file names, whether the person
 /// chose it, the names of the people in it, a few openings of the person's own recent sent mail, and whatever they
-/// typed — every text of them guarded first. <b>No address leaves at all</b>: the people
+/// typed — every text of them guarded first — and whether the account it is sent from appends the person's footer, which
+/// is a yes or a no and never the footer. <b>No address leaves at all</b>: the people
 /// are numbered, a proposal names a number, and the address it resolves to is looked up here afterwards.
 /// </para>
 /// <para>
@@ -247,7 +248,8 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
             messages,
             styleSamples,
             await GuardedOptionalAsync(egressGuard, brief.Selection, cancellationToken),
-            await GuardedOptionalAsync(egressGuard, brief.Instruction, cancellationToken));
+            await GuardedOptionalAsync(egressGuard, brief.Instruction, cancellationToken),
+            brief.ClosesWithFooter);
     }
 
     private static Task<string> GuardedAsync(

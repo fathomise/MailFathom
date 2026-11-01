@@ -137,6 +137,69 @@ public sealed class MailFootersInForceTests
         Assert.Equal(RawMime, footed.ToArray());
     }
 
+    [Fact]
+    public async Task HasFooterAsync_NeitherATemplateNorAnOwnFooter_AnswersNo()
+    {
+        // Arrange
+        var footers = MailFootings.Over(new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, Account));
+
+        // Act
+        var hasFooter = await footers.HasFooterAsync(SyntheticUser.Deployment, Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(hasFooter);
+    }
+
+    [Fact]
+    public async Task HasFooterAsync_AnOwnFooter_AnswersYes()
+    {
+        // Arrange
+        var footers = MailFootings.Over(await StoreWithOwnFooterAsync("<p>Anna</p>"));
+
+        // Act
+        var hasFooter = await footers.HasFooterAsync(SyntheticUser.Deployment, Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(hasFooter);
+    }
+
+    [Fact]
+    public async Task HasFooterAsync_TheOrganizationsTemplateAndNoOwnFooter_AnswersYesWithoutReadingTheMember()
+    {
+        // Arrange
+        var store = new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, Account).Holding(Organization, Account);
+        await store.SaveTemplateAsync(
+            Organization,
+            new MailFooterContent("<p>{{displayName}}</p>", []),
+            TestContext.Current.CancellationToken);
+        var members = Substitute.For<IMemberDirectory>();
+        var footers = MailFootings.Over(store, members: members);
+
+        // Act
+        var hasFooter = await footers.HasFooterAsync(SyntheticUser.Deployment, Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(hasFooter);
+        await members.DidNotReceiveWithAnyArgs().FindAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<UserId>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HasFooterAsync_AnOrganizationWithNoTemplate_AnswersNo()
+    {
+        // Arrange
+        var footers = MailFootings.Over(
+            new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, Account).Holding(Organization, Account));
+
+        // Act
+        var hasFooter = await footers.HasFooterAsync(SyntheticUser.Deployment, Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(hasFooter);
+    }
+
     private static async Task<InMemoryMailFooterStore> StoreWithOwnFooterAsync(string html)
     {
         var store = new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, Account);

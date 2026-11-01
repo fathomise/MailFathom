@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.ReplyDrafts;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -303,6 +304,30 @@ public sealed class ClientReplyDraftingEndpointTests
         Assert.Equal("karolina@example.test", Assert.Single(drafted.ProposedRecipients).Address);
     }
 
+    /// <summary>The account the composer sends from is what decides whether the draft leaves its closing to a footer.</summary>
+    [Fact]
+    public async Task DraftReplyAsync_NamingAnAccountThatAppendsAFooter_TellsTheWriterTheFooterClosesTheMessage()
+    {
+        // Arrange
+        var store = new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, Account);
+        await store.SaveOwnAsync(
+            SyntheticUser.Deployment,
+            Account,
+            new MailFooterContent("<p>Anna Kowalska</p>", []),
+            TestContext.Current.CancellationToken);
+        var writer = DraftingReturning(ReplyDraft.Written("Tuesday at ten works.", [], []));
+
+        // Act
+        await this.DraftAsync(
+            new ClientReplyDraftRequest([Answered.Value], null, null, Account.Value),
+            Drafting(SourceReader(), writer, MailFootings.Over(store)));
+
+        // Assert
+        var brief = (ReplyDraftBrief)writer.ReceivedCalls().Single().GetArguments()[0]!;
+
+        Assert.True(brief.ClosesWithFooter);
+    }
+
     /// <summary>A provider that failed leaves the composer as it was, which is not a failure a client reports.</summary>
     [Fact]
     public async Task DraftReplyAsync_ADraftingThatProducedNothing_AnswersThatNothingWasDrafted()
@@ -390,7 +415,10 @@ public sealed class ClientReplyDraftingEndpointTests
 
     private static MailReplyDrafting Drafting(IReplyDraftWriter writer) => Drafting(SourceReader(), writer);
 
-    private static MailReplyDrafting Drafting(IReplyDraftSourceReader sourceReader, IReplyDraftWriter writer)
+    private static MailReplyDrafting Drafting(
+        IReplyDraftSourceReader sourceReader,
+        IReplyDraftWriter writer,
+        MailFootersInForce? footers = null)
     {
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
         catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Account)]);
@@ -411,6 +439,8 @@ public sealed class ClientReplyDraftingEndpointTests
             SensitiveContentEgressGuards.Inactive(),
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead),
             LanguagesAnswering(UserLanguage.English),
+            new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
+            footers ?? MailFootings.SendingNone(),
             derivesStyleFromSentMail: true);
     }
 

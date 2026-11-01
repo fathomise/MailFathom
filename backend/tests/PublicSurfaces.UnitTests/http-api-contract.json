@@ -5910,6 +5910,12 @@
       },
       "ClientReplyDraftRequest": {
         "properties": {
+          "account": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "contextEmailIds": {
             "items": {
               "format": "uuid",

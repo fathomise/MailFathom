@@ -7,7 +7,6 @@ using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Domain.Access;
-using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -46,7 +45,7 @@ internal static class AgentConversationComposition
     /// <summary>Composes the question's turn: the instant it was asked at and the zone it is read in, the person's accounts where the model is told of them, what they are looking at, and the question.</summary>
     /// <param name="askedAt">When the question was asked, which is what a relative date in it is read against.</param>
     /// <param name="zone">The zone the person's own days are read in, which the anchor is stated in and a time they name is meant in.</param>
-    /// <param name="accounts">The accounts the model is told of, by the deployment's own names for them, or none where no tool it is offered takes one.</param>
+    /// <param name="accounts">The accounts the model is told of, by the deployment's own names for them and with which of them close a message with the person's footer, or none where no tool it is offered takes one.</param>
     /// <param name="scope">What the question was asked about, where it named something.</param>
     /// <param name="namedEmails">The messages a scope naming a merged arrival notification stands for, and none for any other scope.</param>
     /// <param name="question">The question, already guarded for egress.</param>
@@ -64,7 +63,7 @@ internal static class AgentConversationComposition
     internal static string ComposeTurn(
         DateTimeOffset askedAt,
         UserTimeZone zone,
-        IEnumerable<MailAccountId> accounts,
+        IReadOnlyList<AgentNamedAccount> accounts,
         AgentMessageScope? scope,
         IReadOnlyList<StoredEmailId> namedEmails,
         string question)
@@ -79,8 +78,10 @@ internal static class AgentConversationComposition
                 "The person is asking about mail that arrived for them, none of which is still held.\n",
             _ => string.Empty,
         };
-        var named = string.Join(", ", accounts.Select(static account => account.Value));
+        var named = string.Join(", ", accounts.Select(static account => account.Id.Value));
+        var footed = string.Join(", ", accounts.Where(static account => account.ClosesWithFooter).Select(static account => account.Id.Value));
         var holding = named.Length == 0 ? string.Empty : $"The person's accounts: {named}.\n";
+        var closing = footed.Length == 0 ? string.Empty : $"Messages sent from these accounts close with the person's footer: {footed}.\n";
 
         var local = zone.Reading(askedAt);
         var offset = local.Offset;
@@ -90,7 +91,7 @@ internal static class AgentConversationComposition
 
         using var document = new AgentTurnDocument();
 
-        document.WriteStatement($"{AgentTimeAnchor.Stated(local)}\n{zoned}{holding}{looking}\n");
+        document.WriteStatement($"{AgentTimeAnchor.Stated(local)}\n{zoned}{holding}{closing}{looking}\n");
         document.WriteAsk(question);
 
         return document.Complete();

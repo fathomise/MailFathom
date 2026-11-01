@@ -6,6 +6,7 @@ using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -165,6 +166,7 @@ internal static class ClientReplyDraftingEndpoint
                     ContextEmailIds = [.. context.Select(StoredEmailId.Create)],
                     Selection = request.Selection,
                     Instruction = request.Instruction,
+                    SendingAccount = string.IsNullOrWhiteSpace(request.Account) ? null : MailAccountId.Create(request.Account),
                 },
                 cancellationToken);
 
@@ -197,11 +199,17 @@ internal sealed record ClientReplyDraftingResponse(bool DraftsReplies);
 /// <param name="ContextEmailIds">The stored messages the reply is written from, as message rows published them, the one deciding its subject and manner first — at most <see cref="ReplyDraftRequest.MaximumContextMessages" />, from one conversation or several — or empty or <see langword="null" /> where the message being written answers none.</param>
 /// <param name="Selection">The part of the correspondence being answered, or <see langword="null" /> to answer the conversation as a whole.</param>
 /// <param name="Instruction">What the reply should say, or <see langword="null" /> where the person asked for nothing in particular.</param>
+/// <param name="Account">The account the composer sends the message from, or <see langword="null" /> where it names none.</param>
 /// <remarks>
 /// <para>
 /// The messages are named and nothing about them is stated. The conversations, the people, the subject, and the account
 /// whose manner the reply is written in are all read out of the stored copies those identifiers resolve to, so a client
 /// can state none of them and can state none of them wrongly.
+/// </para>
+/// <para>
+/// The account it is sent from is the one thing stated, because it is the person's choice in the composer rather than a
+/// fact of the mail. It decides only whether the draft leaves its closing to the footer that account appends; an
+/// account that is not the person's is read as one appending none rather than refused.
 /// </para>
 /// <para>
 /// Naming none of them is the composer somebody opened with nothing in front of it. There is then no conversation to
@@ -212,7 +220,8 @@ internal sealed record ClientReplyDraftingResponse(bool DraftsReplies);
 internal sealed record ClientReplyDraftRequest(
     IReadOnlyList<Guid>? ContextEmailIds,
     string? Selection,
-    string? Instruction);
+    string? Instruction,
+    string? Account = null);
 
 /// <summary>The drafted reply, as the client endpoint serves it.</summary>
 /// <param name="Drafted">Whether a reply was drafted at all, which is <see langword="false" /> where this deployment drafts none or the provider could not be reached.</param>

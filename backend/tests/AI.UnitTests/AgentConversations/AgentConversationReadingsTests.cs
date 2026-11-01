@@ -40,6 +40,21 @@ public sealed class AgentConversationReadingsTests
         Assert.Null(message.Element(AgentConversationReadings.BodyElementName)?.Attribute(AgentTurnDocument.CutAttributeName));
     }
 
+    /// <summary>A message whose account appends the person's footer says so, so a reply to it is written to end before the footer.</summary>
+    [Theory]
+    [InlineData(true, "true")]
+    [InlineData(false, null)]
+    public void Thread_AMessageInAnAccountWithOrWithoutAFooter_MarksOnlyTheOneWithOne(bool answeredWithFooter, string? marked)
+    {
+        // Act
+        var message = Parsed(AgentConversationReadings.Thread(
+            [new GuardedThreadReading(StoredEmailId.Create(Guid.CreateVersion7()), PresentationCitationId.Create("m1"), SenderAddress: null, SentAt: null, StubEmailProvenanceReader.KnownCorrespondent, Subject: null, "text", BodyCut: false, AnsweredWithFooter: answeredWithFooter)]))
+            .Element(AgentConversationReadings.MessageElementName)!;
+
+        // Assert
+        Assert.Equal(marked, message.Attribute(AgentConversationReadings.FooterAttributeName)?.Value);
+    }
+
     /// <summary>A body cut to what a reading shows says so, so the model does not read the tail it was not given as never written.</summary>
     [Fact]
     public void Thread_ABodyCutToTheReading_IsMarkedCut()

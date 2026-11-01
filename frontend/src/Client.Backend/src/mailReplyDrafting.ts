@@ -98,6 +98,14 @@ export interface MailReplyDraftRequest {
      * asked for nothing in particular.
      */
     readonly instruction: string | null;
+
+    /**
+     * The account the composer sends the message from, or `null` where it has none.
+     *
+     * The one thing about the message the composer states rather than the deployment reads, because the sender is the
+     * person's choice. It decides only whether the draft leaves its closing to the footer that account appends.
+     */
+    readonly account: string | null;
 }
 
 /**
@@ -185,6 +193,7 @@ export function draftMailReply(
                 contextEmailIds: request.contextEmailIds.slice(0, mostDraftContextMessages),
                 selection: shortened(request.selection, longestDraftSelection),
                 instruction: shortened(request.instruction, longestDraftInstruction),
+                account: request.account,
             }),
             longestAnswer: longestDraftAnswer,
         });

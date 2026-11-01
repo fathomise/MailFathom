@@ -27,6 +27,11 @@ namespace MailFathom.Application.Mail.Delivery.Footers;
 /// It asks no grant. It is reached from the outbox, which already admitted whoever asked, and from the reading of a
 /// user's own footers, which asks its own.
 /// </para>
+/// <para>
+/// <see cref="HasFooterAsync" /> asks neither a grant nor whether the account is the user's, so each of its callers
+/// decides both first: the reply drafting asks only about an account assigned to the user drafting, and the Agent's
+/// tools only about the accounts the person's own scope reads, on a run admitted to propose mail.
+/// </para>
 /// </remarks>
 /// <param name="store">Holds the footers and templates.</param>
 /// <param name="members">Reads the member a template is filled for.</param>
@@ -61,6 +66,22 @@ public sealed class MailFootersInForce(
         return sources.Own is { } own
             ? new MailFooter(MailFooterSource.Own, own.Html, markup.ReadPlainText(own.Html), own.Images)
             : null;
+    }
+
+    /// <summary>Reads whether a message one user sends now from one account carries a footer, without filling or reading what it says.</summary>
+    /// <param name="user">The user sending.</param>
+    /// <param name="account">The account sent from.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns><see langword="true" /> where the message carries the user's own footer or the organization's template.</returns>
+    /// <remarks>
+    /// This is what an agent drafting for the user is told in place of the footer: whether the message closes with one
+    /// is all its wording needs, and the footer itself carries the person's name, title, and number.
+    /// </remarks>
+    public async Task<bool> HasFooterAsync(UserId user, MailAccountId account, CancellationToken cancellationToken)
+    {
+        var sources = await store.ReadSourcesAsync(user, account, cancellationToken);
+
+        return sources.IsSetByOrganization || sources.Own is not null;
     }
 
     /// <summary>Appends the footer in force to a message about to be written down for sending.</summary>

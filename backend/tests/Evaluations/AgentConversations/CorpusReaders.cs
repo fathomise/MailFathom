@@ -20,6 +20,7 @@ using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Mail.Delivery.Composition;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Retrieval;
@@ -87,8 +88,13 @@ internal static class CorpusReaders
     /// <param name="authorization">The grant the run acts under.</param>
     /// <param name="search">The search the run's lookups reach.</param>
     /// <param name="clock">The person's clock, standing at the instant the question is asked, in their zone.</param>
+    /// <param name="footers">The footers the person's accounts append, or <see langword="null" /> for a mailbox where none appends one.</param>
     /// <returns>The readers.</returns>
-    public static AgentConversationReaders For(AccessAuthorization authorization, IEmailKnowledgeSearch search, UserClock clock)
+    public static AgentConversationReaders For(
+        AccessAuthorization authorization,
+        IEmailKnowledgeSearch search,
+        UserClock clock,
+        MailFootersInForce? footers = null)
     {
         var scope = ScopeFor(authorization);
         var summaries = new CorpusSummaries();
@@ -121,7 +127,23 @@ internal static class CorpusReaders
                 DeploymentBounds,
                 authorization),
             authorization,
-            clock);
+            clock,
+            footers ?? MailFootings.SendingNone());
+    }
+
+    /// <summary>Gives the person a footer of their own on the corpus account, whose text no turn ever carries.</summary>
+    /// <param name="cancellationToken">Withdraws the write.</param>
+    /// <returns>The footers in force.</returns>
+    public static async Task<MailFootersInForce> FooterOnTheAccountAsync(CancellationToken cancellationToken)
+    {
+        var store = new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, CorpusKnowledgeSearch.Account);
+        await store.SaveOwnAsync(
+            SyntheticUser.Deployment,
+            CorpusKnowledgeSearch.Account,
+            new MailFooterContent("<p>Mara Lindqvist, Office manager</p>", []),
+            cancellationToken);
+
+        return MailFootings.Over(store);
     }
 
     /// <summary>Composes the content reader a deployment would hand one person, under the grant they hold.</summary>

@@ -154,7 +154,7 @@ public sealed class QuotedTextContainmentTests
                 static text => MailAnsweringAgent.ComposeTurn(Now, text),
                 AgentTurnDocument.AskElementName),
             ["agent: question"] = (
-                static text => AgentConversationComposition.ComposeTurn(Now, UserTimeZone.Coordinated, [MailAccountId.Create("primary")], AgentMessageScope.Mailbox(), [], text),
+                static text => AgentConversationComposition.ComposeTurn(Now, UserTimeZone.Coordinated, [new AgentNamedAccount(MailAccountId.Create("primary"), ClosesWithFooter: false)], AgentMessageScope.Mailbox(), [], text),
                 AgentTurnDocument.AskElementName),
             ["agent thread: subject"] = (
                 static text => AgentConversationReadings.Thread([ThreadMessage(subject: text, body: Harmless)]),

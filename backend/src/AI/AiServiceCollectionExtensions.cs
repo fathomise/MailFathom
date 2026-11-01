@@ -26,6 +26,7 @@ using MailFathom.AI.Search;
 using MailFathom.AI.SpamClassification;
 using MailFathom.AI.ThreadStates;
 using MailFathom.Application.Access;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Calendar.Extraction;
@@ -42,6 +43,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Emails.Search.Phrasing;
 using MailFathom.Application.Emails.ThreadStates;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
@@ -673,6 +675,8 @@ public static class AiServiceCollectionExtensions
             provider.GetRequiredService<SensitiveContentEgressGuard>(),
             provider.GetRequiredService<AccessAuthorization>(),
             provider.GetRequiredService<IUserLanguages>(),
+            provider.GetRequiredService<IMailAccountAssignments>(),
+            provider.GetRequiredService<MailFootersInForce>(),
             derivesStyleFromSentMail));
 
         return services;

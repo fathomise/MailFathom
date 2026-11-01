@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Emails.ReplyDrafts;
@@ -64,4 +65,13 @@ public sealed record ReplyDraftRequest
 
     /// <summary>Gets what the person typed about the reply — what it should say, their own draft of it, or both — or <see langword="null" /> where they typed nothing.</summary>
     public string? Instruction { get; init; }
+
+    /// <summary>Gets the account the message is to be sent from, as the composer's sender names it, or <see langword="null" /> where the caller names none.</summary>
+    /// <remarks>
+    /// The one thing about the message a caller states rather than the stored copies, because the sender is a choice the
+    /// person makes in the composer. It decides only whether the draft closes itself: a message from an account that
+    /// appends the person's footer leaves the closing to the footer. An account that is not the person's, or none, is a
+    /// message closing as a draft always has.
+    /// </remarks>
+    public MailAccountId? SendingAccount { get; init; }
 }

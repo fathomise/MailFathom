@@ -9,6 +9,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Mail.Delivery.Authoring;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Tasks;
 
@@ -25,6 +26,7 @@ namespace MailFathom.AI.AgentConversations;
 /// <param name="ResponseAuthoring">Resolves who an answer goes to, without saving it.</param>
 /// <param name="Authorization">Decides which tools the person's grant allows.</param>
 /// <param name="Clock">Reads the person's own zone and the instant they stand at, which a time they name is read against.</param>
+/// <param name="Footers">Answers whether a message the person sends from an account closes with their footer, and never what the footer says.</param>
 internal sealed record AgentConversationReaders(
     MailboxScopeResolver ScopeResolver,
     IEmailKnowledgeSearch KnowledgeSearch,
@@ -35,4 +37,5 @@ internal sealed record AgentConversationReaders(
     OwnTasks Tasks,
     StoredEmailResponseAuthoring ResponseAuthoring,
     AccessAuthorization Authorization,
-    UserClock Clock);
+    UserClock Clock,
+    MailFootersInForce Footers);

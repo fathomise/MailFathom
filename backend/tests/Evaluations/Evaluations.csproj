@@ -56,6 +56,7 @@
          each corpus conversation as a deployment's does. -->
     <Compile Include="..\shared\AssignedMailAccountCatalogs.cs" Link="AssignedMailAccountCatalogs.cs" />
     <Compile Include="..\shared\StubMailAccountAssignments.cs" Link="StubMailAccountAssignments.cs" />
+    <Compile Include="..\shared\MailFootings.cs" Link="MailFootings.cs" />
     <Compile Include="..\shared\SyntheticServedAccount.cs" Link="SyntheticServedAccount.cs" />
     <Compile Include="..\shared\StubMailFolderParticipation.cs" Link="StubMailFolderParticipation.cs" />
     <Compile Include="..\shared\StubDeploymentMailFolders.cs" Link="StubDeploymentMailFolders.cs" />

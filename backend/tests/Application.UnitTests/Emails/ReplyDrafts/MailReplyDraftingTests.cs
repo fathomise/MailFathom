@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.ReplyDrafts;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -496,7 +497,81 @@ public sealed class MailReplyDraftingTests
         Assert.Equal(language, brief.Language);
     }
 
+    [Fact]
+    public async Task DraftAsync_SentFromAnAccountOfTheUsersWithAFooter_TellsTheWriterTheFooterClosesIt()
+    {
+        // Arrange
+        var writer = WriterReturning(Written("We accept."));
+        var drafting = CreateDrafting(SourceReaderReturning(Sources()), writer, footers: await FooterOnAsync(Account));
+
+        // Act
+        await drafting.DraftAsync(Request() with { SendingAccount = Account }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(Brief(writer).ClosesWithFooter);
+    }
+
+    [Fact]
+    public async Task DraftAsync_SentFromAnAccountOfTheUsersWithNoFooter_TellsTheWriterNothingClosesIt()
+    {
+        // Arrange
+        var writer = WriterReturning(Written("We accept."));
+        var drafting = CreateDrafting(SourceReaderReturning(Sources()), writer, footers: MailFootings.SendingNone());
+
+        // Act
+        await drafting.DraftAsync(Request() with { SendingAccount = Account }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(Brief(writer).ClosesWithFooter);
+    }
+
+    [Fact]
+    public async Task DraftAsync_NamingNoSendingAccount_TellsTheWriterNothingClosesIt()
+    {
+        // Arrange
+        var writer = WriterReturning(Written("We accept."));
+        var drafting = CreateDrafting(SourceReaderReturning(Sources()), writer, footers: await FooterOnAsync(Account));
+
+        // Act
+        await drafting.DraftAsync(Request(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(Brief(writer).ClosesWithFooter);
+    }
+
+    /// <summary>An account somebody else is assigned says nothing about its footer, so a drafting cannot be asked whether it has one.</summary>
+    [Fact]
+    public async Task DraftAsync_SentFromAnAccountNotTheUsers_TellsTheWriterNothingClosesItWhateverThatAccountAppends()
+    {
+        // Arrange
+        var elsewhere = MailAccountId.Create("someone-elses");
+        var writer = WriterReturning(Written("We accept."));
+        var drafting = CreateDrafting(SourceReaderReturning(Sources()), writer, footers: await FooterOnAsync(elsewhere));
+
+        // Act
+        await drafting.DraftAsync(Request() with { SendingAccount = elsewhere }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(Brief(writer).ClosesWithFooter);
+    }
+
     private static ReplyDraftRequest Request() => new() { ContextEmailIds = [Answered] };
+
+    private static ReplyDraftBrief Brief(IReplyDraftWriter writer) =>
+        (ReplyDraftBrief)writer.ReceivedCalls().Single().GetArguments()[0]!;
+
+    /// <summary>Gives the acting user a footer of their own on one account, whether or not that account is assigned to them as a mailbox they read.</summary>
+    private static async Task<MailFootersInForce> FooterOnAsync(MailAccountId account)
+    {
+        var store = new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, account);
+        await store.SaveOwnAsync(
+            SyntheticUser.Deployment,
+            account,
+            new MailFooterContent("<p>Anna Kowalska</p>", []),
+            TestContext.Current.CancellationToken);
+
+        return MailFootings.Over(store);
+    }
 
     private static ReplyDraft Written(string body) => ReplyDraft.Written(body, [], []);
 
@@ -554,7 +629,8 @@ public sealed class MailReplyDraftingTests
         SensitiveContentEgressGuard? egressGuard = null,
         UserLanguage language = UserLanguage.English,
         bool derivesStyleFromSentMail = true,
-        MailFolderIdentity[]? foldersWithheldFromAI = null)
+        MailFolderIdentity[]? foldersWithheldFromAI = null,
+        MailFootersInForce? footers = null)
     {
         var accounts = servedAccounts ?? [Account];
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
@@ -578,6 +654,8 @@ public sealed class MailReplyDraftingTests
             egressGuard ?? SensitiveContentEgressGuards.Inactive(),
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead),
             LanguagesAnswering(language),
+            new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, [.. accounts]),
+            footers ?? MailFootings.SendingNone(),
             derivesStyleFromSentMail);
     }
 
