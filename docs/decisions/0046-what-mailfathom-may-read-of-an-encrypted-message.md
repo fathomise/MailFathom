@@ -121,14 +121,21 @@ signatures with no network discovery. The questions it answers are:
 
 **I — who may encrypt to a recipient key:**
 
-- **I1.** A configured key by every account on the deployment; a learned key by the people who may read the message it
-  came from.
-- **I2.** Every key by every account on the deployment.
-- **I3.** Every key by the members of the organization that holds the account it was configured for or learned in.
+- **I1.** Only sends from the mail account the key was configured for or learned in.
+- **I2.** Every account on the deployment.
+- **I3.** The members of the organization that holds the account.
+
+**J — when a message is encrypted, and when it is signed:**
+
+- **J1.** Each is decided by itself, with its own key. Encryption is on by default only for an answer to mail that
+  arrived encrypted. Signing is on for every message where the person switched it on for everything, and otherwise
+  per message.
+- **J2.** Encrypt automatically whenever every recipient has a key, and sign whatever is encrypted.
+- **J3.** Nothing by default: the person chooses both on every message.
 
 ## Decision Outcome
 
-Chosen options: **A1**, **B1**, **C2**, **D1**, **E3**, **F1**, **G1**, **H1**, and **I1**.
+Chosen options: **A1**, **B1**, **C2**, **D1**, **E3**, **F1**, **G1**, **H1**, **I1**, and **J1**.
 
 ### The stored bytes are the bytes that arrived
 
@@ -411,8 +418,8 @@ that it is one is this record's.
 
 ### Outbound: keys come from configuration and from verified signatures, and a missing key refuses the send
 
-Recipient key material comes from two places and no others (G1): **public keys and certificates an operator configures**,
-each naming the addresses it is held for, and **the key or certificate carried by an incoming signature whose
+Recipient key material comes from two places and no others (G1): **public keys and certificates configured on a mail
+account**, each naming the addresses it is held for, and **the key or certificate carried by an incoming signature whose
 verification outcome was `Verified`**, which `stored_email_signer_keys` already keeps for this purpose. A signature that
 did not verify contributes nothing usable, so a forged signature never becomes a key MailFathom would encrypt to (G3 is
 refused). An expired or revoked key is not used.
@@ -437,22 +444,35 @@ to the displayed author, because a valid key for one address can sign a message 
 the `From` would let anybody holding a valid key make MailFathom encrypt somebody else's mail to them, which is the
 planted key G3 was refused for. A key that names no address is learned for none.
 
-**Who may encrypt to a recipient key follows where the key came from (I).**
+**Every recipient key belongs to one mail account, and only a send from that account encrypts to it (I1).**
 
-- **A configured recipient key belongs to the deployment.** It is the operator's statement that a key belongs to an
-  address, held in configuration beside the ring. Any send from any account on the deployment may encrypt to it,
-  because it says nothing about who writes to whom.
-- **A learned key belongs to the message it came from.** It is derived from one stored message, so it inherits that
-  message's access, as every derived row does. The people who may read that message may encrypt to it, from any
-  account they send from. Nobody else may, and that includes another user or another organization on the same
-  deployment who writes to the same address. It is erased with the message, through the cascade that already removes
-  `stored_email_signer_keys` with its email.
-- **No key is shared at the organization level automatically.** Making a correspondent's key available to every
-  member is a configured recipient key. Pooling learned keys across an organization would tell every colleague who
-  receives signed mail from whom.
+- **A configured recipient key is part of the mail account's own record**, beside the account's other declarations
+  and written the same way — `mfctl account add --from-file` or the administrative endpoint. It names the addresses it
+  is held for, and only a send from that account encrypts to it. It is not deployment configuration. Whom an account
+  writes to encrypted is a fact about that account's correspondence, and a deployment-wide list would tell every
+  account on it who each one corresponds with.
+- **A learned key belongs to the account whose stored message carried the verified signature.** It is derived from
+  that message, so it inherits the message's access, as every derived row does. Only a send from that account encrypts
+  to it, and the people assigned to the account are the ones who send from it. It is never offered to another account,
+  even one the same person holds, and never to another user or organization on the deployment who writes to the same
+  address. It is erased with the message, through the cascade that already removes `stored_email_signer_keys` with its
+  email.
+- **Learning keys from signatures is an account setting, on by default.** While it is off, no learned key is offered
+  for that account's sends, and turning it back on offers the keys already held again. The switch decides what may be
+  learned. It is not a second consent to read, which holding a key in the ring stays the only one of, and it changes
+  nothing about verifying a signature, which runs whatever the setting says. Like every new per-account setting, it is
+  held by the service and set through its API, and the client's Settings screen does not draw it yet.
+- **A learned key is used for what the key itself allows.** A certificate whose key usage permits only signing, or an
+  OpenPGP key with no encryption-capable subkey, verifies signatures and is learned for nothing.
 
-Where both kinds are held for one address, the configured key is used. It is the operator's deliberate statement, and
-a learned one is a fact observed in one mailbox.
+Where both kinds are held for one address on one account, the configured key is used. It is a deliberate statement
+about that account, and a learned one is a fact observed in one of its messages.
+
+What [issue 1588](https://github.com/fathomise/MailFathom/issues/1588) verifies decides how much learning can add. An
+S/MIME signature verifies against a certificate authority, so its certificate is often a key nobody configured, and
+that is the case learning exists for. An OpenPGP signature verifies only against a key in
+`MailSynchronization:SignatureVerification:TrustedOpenPgpKeys`. A key learned from one is therefore always a key the
+deployment already trusts for verification, and learning moves it onto that account as a recipient key.
 
 **No network discovery is performed** (G2 is refused): no WKD, no DANE, no key server, no LDAP directory, and no fetch of
 a certificate an incoming message points at. Each of those turns composing a message into a request to a third party
@@ -487,6 +507,48 @@ draft could not be sealed to anybody they can read it back with, and the send re
 anything leaves. On the device path the service still answers which recipients have a key. A deployment that served a
 substituted key could therefore read what the device seals, so the device trusts the service for recipient keys
 exactly as far as it trusts the deployment it signed in to. Issues 1597, 1598, and 1599 build the three halves.
+
+### Signing and encrypting are two acts with two keys
+
+Throughout this record, *sealing* means encrypting. Signing is a separate act. It uses a different key, it is chosen
+separately, and neither ever implies the other.
+
+- **Each key does what its usage allows.** Encryption decrypts what arrives and seals drafts, sent copies, and
+  outgoing messages. Signing signs. The key is an OpenPGP encryption subkey or an S/MIME certificate whose usage permits
+  key encipherment for the first, and an OpenPGP signing key or a certificate permitting digital signatures for the
+  second. A ring entry or a device key may hold either or both, and one that holds both is still used for each act by
+  that act's own rule.
+- **A signature uses the sending account's signing key, from wherever that key is held.** On the service path that is
+  a ring entry for the account, and the service signs. On the device path it is a device key, and the device signs. A
+  signature never needs a recipient's key, so a signed message that is not encrypted refuses for nobody.
+
+**When a message is encrypted (J1):**
+
+| The message | Encryption |
+|---|---|
+| An answer to, or a forward of, a message that arrived encrypted | On by default. It cannot be turned off while the message carries decrypted content (above); it can be turned off once the quotation is removed |
+| A new message, every recipient has a key | Offered and off: the composer shows it can be turned on |
+| Any message with a recipient who has no key | Unavailable, with the reason against that recipient |
+| An automatic reply, a rule, or any other send nobody authored in the moment | Never encrypted, and it never carries decrypted content |
+
+Encryption is not switched on just because every recipient has a key (J2 is refused). A key learned from a signature can
+be one its owner no longer uses, or does not hold on the device they read on. A message encrypted on the strength of it
+would arrive unreadable to the person it was written for, and nobody would have chosen that.
+
+**When a message is signed (J1):**
+
+- **Signing everything is a per-person setting, off by default.** While it is on, every message the person sends is
+  signed, from every account a signing key is held for, on both paths. The setting is held by the service and set
+  through its API, and the client's Settings screen does not draw it yet.
+- **While it is off, signing is chosen per message.** The composer offers it beside encryption, and an answer to signed
+  or encrypted mail does not switch it on by itself.
+- **An account with no signing key cannot sign.** The per-message choice is absent for it. With the setting on, a
+  message from that account goes unsigned, and the composer says so before it is sent. Signing is never the reason a
+  send refuses, because an unsigned message claims nothing false.
+
+**Both choices are made wherever a message is composed**: in the composer, and in the draft an agent prepares in the
+agent view. The two surfaces offer the same two choices with the same defaults. Drafting and sending stay separate
+acts there, as ADR 0013 requires. Where on each surface the choices sit is the design's to draw.
 
 ### What reaches a log, a metric, or a trace
 
@@ -527,8 +589,11 @@ valid configuration.
   imports the key every time they open one.
 - Bad, because on the device path the device takes recipient keys from the deployment it signed in to, so a deployment
   that substitutes a key can read what the device seals to it.
-- Bad, because a key learned in one mailbox is not offered to a colleague. An organization that wants a correspondent
-  reachable by everybody configures that key.
+- Bad, because a recipient key is the account's alone. A key learned in one mailbox is not offered to a colleague or to
+  the same person's other account, and making a correspondent reachable from several accounts means configuring the
+  key on each of them.
+- Bad, because nothing is encrypted automatically on the strength of a known key, so a person who wants a new message
+  encrypted turns it on.
 - Bad, because a recipient certificate revoked after the last signature received from it is still encrypted to until
   it expires or a newer signature reveals the revocation, since sending makes no revocation request.
 - Bad, because S/MIME without integrity protection is opened, so its malleability is answered by withholding remote
@@ -562,9 +627,14 @@ valid configuration.
 - **Send-time revocation is held by unit tests**: an OpenPGP key carrying a revocation signature and a learned S/MIME
   certificate recorded as revoked at its latest verification are both refused, and a send makes no request to any host.
 - **Recipient key provenance is held by unit tests**: a key from a verified signature whose own address differs from the
-  message's `From` is filed under the key's address and is never offered for the `From`. A learned key is offered to
-  a sender who may read the message it came from, and refused to one who may not. A configured key wins over a learned
-  one for the same address.
+  message's `From` is filed under the key's address and is never offered for the `From`. A learned or configured key is
+  offered for sends from its own account and refused for every other account, including another account of the same
+  person. A configured key wins over a learned one for the same address. An account with learning switched off is
+  offered no learned key. A signing-only certificate is learned for nothing.
+- **Signing and encrypting are held apart by unit tests**: a signed message that is not encrypted refuses for no
+  recipient. An encryption key never signs, and a signing key never decrypts or seals. The sign-everything setting
+  signs every message from an account with a signing key and leaves one from an account without one unsigned. An
+  answer to encrypted mail starts encrypted and does not start signed.
 - **The device store is held by the client's unit tests and the desktop suite**: an imported key reaches neither
   `sessionStorage`, `localStorage`, nor IndexedDB on any head. On the desktop the keychain holds only the wrapping key,
   and the data directory holds only sealed material. A passphrase is never written anywhere. An entry imported under
@@ -750,21 +820,42 @@ valid configuration.
 - Bad, because the desktop and Android heads would ask for the key file at every start, which is a cost the
   operating system's protected storage exists to remove.
 
-### I1 — configured keys for the deployment, learned keys for whoever reads their message
+### I1 — every key for its own mail account alone
 
-- Good, because a learned key reveals nothing to anybody who could not already read the message it came from.
-- Good, because erasing the message erases the key, with no lifecycle of its own.
-- Bad, because a colleague cannot reach a correspondent somebody else heard from until the key is configured.
+- Good, because no key tells anybody outside the account who that account corresponds with.
+- Good, because a learned key is erased with its message, with no lifecycle of its own, and a configured one goes with
+  the account's record.
+- Bad, because reaching one correspondent from several accounts means configuring the key on each.
 
 ### I2 — every key for every account
 
 - Good, because the most recipients are reachable.
-- Bad, because a learned key tells every user on the deployment who receives signed mail from whom.
+- Bad, because every key, configured or learned, tells every user on the deployment who corresponds with whom.
 
 ### I3 — every key for the organization
 
 - Good, because colleagues reach each other's correspondents.
 - Bad, because it pools what one mailbox observed across an organization's members without anybody choosing to.
+
+### J1 — encryption and signing decided separately, with narrow defaults
+
+- Good, because the one default that is on, encrypting an answer to encrypted mail, keeps a thread protected without
+  anybody remembering to.
+- Good, because a person who wants every message signed sets it once.
+- Bad, because a new message to somebody whose key is known goes unencrypted unless the person turns it on.
+
+### J2 — encrypt whenever every recipient has a key, and sign what is encrypted
+
+- Good, because the most mail is protected with no act by anybody.
+- Bad, because a learned key can be one its owner cannot read with, so the message arrives unreadable without anybody
+  having chosen that.
+- Bad, because it ties signing to encryption, which are separate acts with separate keys.
+
+### J3 — nothing by default
+
+- Good, because nothing happens that the person did not choose.
+- Bad, because an answer to encrypted mail is one forgotten click away from leaving the thread unencrypted, and the
+  sealing rule would refuse it whenever it quotes.
 
 ## More Information
 
