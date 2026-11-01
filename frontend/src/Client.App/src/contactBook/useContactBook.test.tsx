@@ -246,7 +246,6 @@ describe('useContactBook', () => {
     });
 
     describe('a colleague’s presence', () => {
-        // The directory, and each member read alone, answering whatever the test last said about them.
         // The directory as the deployment walks it, a page at a time from where the cursor says, at the size asked.
         function directory(presence: Map<string, string>): {
             readonly transport: MailFathomTransport;

@@ -242,9 +242,9 @@ A member contact says the colleague is out of office, and until when, while the 
 reply's text, the accounts it answers on, and when it started never reach a colleague, so what a member wrote to the
 people they correspond with is not shown to the people they work with. It is read from the reply on every read of a
 colleague and stored nowhere else, so a reply switched off or past its end stops showing on the next read. A save
-that switches a running reply on or off, or moves when it ends, tells every member of the organization to read the
-colleague again, as a change of presence does; a period beginning or ending with nobody saving anything is announced by
-nothing, and an open client learns of it when it reads the directory again. Like presence, it
+that switches a running reply on or off, or moves when it ends, tells the colleague's own clients alone, as a change of
+presence does; the other members see it when their client reads the directory again on its refresh, exactly as they do
+for a period that begins or ends with nobody saving anything. Like presence, it
 reaches members of the same organization alone and no MCP tool reads it. The client marks the colleague in the
 directory and on their page, and warns when a message is addressed to them in *To* — asking the directory by the
 address, so a colleague the reader also keeps in their own book is found as well.
