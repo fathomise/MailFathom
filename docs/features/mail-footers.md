@@ -38,6 +38,11 @@ this one. In the markup it is wrapped in a `<footer>` element, which the allow-l
 through keeps — so the sent copy, read back out of the Sent folder, still marks where the person's words end. In an
 answer, the footer sits between what the person wrote and the attribution line that opens the quotation.
 
+**Reading it back, the document names it.** The document a reader is served for the copy MailFathom filed of their own
+send says which of its blocks are the footer, so the client can fold it under each message they wrote; the mark is
+honoured on that copy alone, never on a message from anybody else. [The message body
+route](../operations/client-endpoint.md#the-message-body-route) states the field.
+
 **Every outgoing path carries it, and none carries it twice.** The footer goes in at the one place every send passes
 through, the moment the outbox writes the message down: a new message, a reply, a forward, a draft sent from the
 client or a tool, a held send, each occasion of a recurring one, a message an agent sends for the person, and an

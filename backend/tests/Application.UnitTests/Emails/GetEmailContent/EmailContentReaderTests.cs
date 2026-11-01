@@ -1470,6 +1470,34 @@ public sealed class EmailContentReaderTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Only the copy MailFathom filed of its own send has its footer named, because only the send can say a message is the reader's.</summary>
+    /// <remarks>
+    /// The mark is ordinary markup anybody can write, so what decides is the row the send recorded. Honouring it on a
+    /// message from outside would let its sender fold part of what they wrote out of the reader's sight.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReadContentAsync_AnEmailWhetherOrNotFiledFromItsOwnSend_AsksForTheFooterOnlyOnTheFiledCopy(bool isFiledSentCopy)
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create() with { IsFiledSentCopy = isFiledSentCopy };
+        var renderer = RendererReturning(RenderingOf(plainText: "Body") with { Document = DocumentSaying("Words") });
+        var reader = ReaderOver(summary, renderer);
+
+        // Act
+        await reader.ReadContentAsync(
+            RequestFor([summary.StoredEmailId]) with { IncludeMailDocument = true },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await renderer.Received(1).RenderAsync(
+            Arg.Any<StoredEmailContent>(),
+            Arg.Is<EmailContentRenderingBounds>(bounds =>
+                bounds != null && bounds.NamesAppendedFooter == isFiledSentCopy),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>A document of more texts than one read scans is cut at the bound rather than published unscanned.</summary>
     /// <remarks>
     /// The scan is per value, so the count of values is what a sender chooses: a body written as one span per word

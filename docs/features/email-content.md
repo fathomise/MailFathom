@@ -646,6 +646,16 @@ with a reason it can show rather than to an empty frame. `Truncated` says a boun
 of the body, the way `EmailBodyTruncation` says the same about a representation, and it says the same about a scan that
 withheld what it could not reach — every way a document is cut short reads as one flag.
 
+### The reader's own footer is named, never removed
+
+`Footer` is a `MailDocumentFooter` — the first top-level block and how many follow it — on the copy MailFathom filed of
+a message it sent from the account being read, where that message carries [the footer it
+appended](mail-footers.md#where-it-goes-in-a-message), and `null` everywhere else. What decides it is the summary's
+`IsFiledSentCopy`, which the send recorded and nothing in a message can claim, rather than the mark itself, which any
+sender could copy. The blocks stay in `Blocks`, so this is a statement a pane may fold by rather than a reduction, and
+the self-contained markup beside it is unchanged. [The message body
+route](../operations/client-endpoint.md#the-message-body-route) states how a client reads it.
+
 ## The markup a full-HTML surface reads
 
 The two representations above answer two questions and leave a third unanswered. The sanitized markup is what a model

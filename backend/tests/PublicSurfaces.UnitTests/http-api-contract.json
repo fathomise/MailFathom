@@ -9270,6 +9270,16 @@
             },
             "type": "array"
           },
+          "footer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailDocumentFooter"
+              }
+            ]
+          },
           "inlineImageCount": {
             "format": "int32",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -9621,6 +9631,31 @@
         ]
       },
       "MailDocumentColour": {},
+      "MailDocumentFooter": {
+        "properties": {
+          "blockCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "firstBlock": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "firstBlock",
+          "blockCount"
+        ],
+        "type": "object"
+      },
       "MailDocumentLink": {
         "properties": {
           "asciiHost": {

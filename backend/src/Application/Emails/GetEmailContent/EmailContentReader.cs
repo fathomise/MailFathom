@@ -291,6 +291,7 @@ public sealed class EmailContentReader
                 IncludeMailDocument = request.IncludeMailDocument,
                 IncludeSelfContainedHtml = request.IncludeSelfContainedHtml,
                 RetainRemoteImageReferences = request.RetainRemoteImageReferences,
+                NamesAppendedFooter = summary.IsFiledSentCopy,
                 RemainingInlineImageOctetsForRead = Math.Max(remainingImageOctets, 0),
             },
             cancellationToken);

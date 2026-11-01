@@ -51,6 +51,15 @@ public sealed record MailDocument(
     /// </remarks>
     public const int CurrentSchemaVersion = 1;
 
+    /// <summary>Gets which top-level blocks are the footer MailFathom appended, or <see langword="null" /> where the document names none.</summary>
+    /// <remarks>
+    /// Named only on the copy MailFathom filed of a message it sent from one of the reader's own accounts, and only
+    /// where that message carries the footer's mark. It is an addition to the document rather than a change to its
+    /// shape, so <see cref="CurrentSchemaVersion" /> does not move for it: a reader of the first revision ignores it
+    /// and draws every block, which is the message exactly as it was sent.
+    /// </remarks>
+    public MailDocumentFooter? Footer { get; init; }
+
     /// <summary>Creates the document of a body that was reduced.</summary>
     /// <param name="blocks">The blocks, in reading order.</param>
     /// <param name="removedRemoteReferenceCount">How many references to somebody else's server were removed.</param>

@@ -134,6 +134,13 @@ public sealed record EmailSummary
     /// <remarks>Present only on the copy MailFathom filed of a message it sent, which is what ties the stored email to its send.</remarks>
     public OutgoingEmailReceipts? Receipts { get; init; }
 
+    /// <summary>Gets whether the email is the copy MailFathom filed of a message it sent from this account.</summary>
+    /// <remarks>
+    /// Recorded by the send itself rather than read off the message, so nothing a sender writes can set it: it is what
+    /// tells a reader's own sent mail apart from a message that only claims to come from them.
+    /// </remarks>
+    public bool IsFiledSentCopy { get; init; }
+
     /// <summary>Gets where the email sits in the timeline order, which is the boundary a continuation cursor is built from.</summary>
     public EmailTimelinePosition Position => new(this.ReceivedAt, this.StoredEmailId);
 }
