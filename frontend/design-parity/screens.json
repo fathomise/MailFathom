@@ -778,6 +778,114 @@
       ]
     },
     {
+      "id": "status-menu",
+      "route": "/#/mail",
+      "signIn": true,
+      "classes": ["desktop"],
+      "compositions": [
+        "tablet_1133x744",
+        "tablet_1180x820",
+        "tablet",
+        "tablet_1366x1024"
+      ],
+      "narrowedBecause": "The status menu opens from the account control on the rail, which is not drawn where the bottom bar stands in for it: under 700 wide, on a phone on its side, and on an upright or near-square window under a finger, the fold among them.",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Account and preferences"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Your status"
+          }
+        },
+        {
+          "expect": {
+            "text": "Not stated"
+          }
+        }
+      ]
+    },
+    {
+      "id": "status-message",
+      "route": "/#/mail",
+      "signIn": true,
+      "classes": ["desktop"],
+      "compositions": [
+        "tablet_1133x744",
+        "tablet_1180x820",
+        "tablet",
+        "tablet_1366x1024"
+      ],
+      "narrowedBecause": "The status menu opens from the account control on the rail, which is not drawn where the bottom bar stands in for it: under 700 wide, on a phone on its side, and on an upright or near-square window under a finger, the fold among them.",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Account and preferences"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Your status"
+          }
+        },
+        {
+          "click": {
+            "role": "menuitem",
+            "name": "Message"
+          }
+        },
+        {
+          "expect": {
+            "text": "Clears"
+          }
+        }
+      ]
+    },
+    {
+      "id": "status-work",
+      "route": "/#/mail",
+      "signIn": true,
+      "classes": ["desktop"],
+      "compositions": [
+        "tablet_1133x744",
+        "tablet_1180x820",
+        "tablet",
+        "tablet_1366x1024"
+      ],
+      "narrowedBecause": "The status menu opens from the account control on the rail, which is not drawn where the bottom bar stands in for it: under 700 wide, on a phone on its side, and on an upright or near-square window under a finger, the fold among them.",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Account and preferences"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Your status"
+          }
+        },
+        {
+          "click": {
+            "role": "menuitem",
+            "name": "Working from"
+          }
+        },
+        {
+          "expect": {
+            "text": "Office today"
+          }
+        }
+      ]
+    },
+    {
       "id": "full-html",
       "route": "/#/mail",
       "signIn": true,
@@ -1174,6 +1282,23 @@
         {
           "click": {
             "text": "Piotr Zieliński"
+          }
+        },
+        {
+          "expect": {
+            "text": "From Nordwind's directory - read-only"
+          }
+        }
+      ]
+    },
+    {
+      "id": "people-colleague-status",
+      "route": "/#/people",
+      "signIn": true,
+      "steps": [
+        {
+          "click": {
+            "text": "Marta Nowak"
           }
         },
         {

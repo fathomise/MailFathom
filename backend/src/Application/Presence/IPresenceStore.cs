@@ -7,7 +7,7 @@ using MailFathom.Domain.Presence;
 
 namespace MailFathom.Application.Presence;
 
-/// <summary>Where the deployment holds what members' presence is worked out from: a row per open client, and one row per member.</summary>
+/// <summary>Where the deployment holds what members' presence is worked out from — a row per open client, and one row per member — with the status message and work mode beside it.</summary>
 /// <remarks>
 /// <para>
 /// Rows rather than any process's memory, because the replica a client renews against is not the replica a colleague
@@ -69,6 +69,20 @@ public interface IPresenceStore
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>A task that completes when the choice is recorded.</returns>
     Task ChooseAsync(UserId member, PresenceChoice? choice, CancellationToken cancellationToken);
+
+    /// <summary>Records the status message a member wrote, over whatever they wrote before.</summary>
+    /// <param name="member">The member who wrote it.</param>
+    /// <param name="message">The message, or <see langword="null" /> to clear it.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes when the message is recorded.</returns>
+    Task WriteStatusMessageAsync(UserId member, StatusMessage? message, CancellationToken cancellationToken);
+
+    /// <summary>Records where a member said they work from, over whatever they said before.</summary>
+    /// <param name="member">The member who said it.</param>
+    /// <param name="workMode">Where they work from, and until when.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes when the work mode is recorded.</returns>
+    Task ChooseWorkModeAsync(UserId member, WorkModeChoice workMode, CancellationToken cancellationToken);
 
     /// <summary>Removes client rows that expired, across the deployment, up to a bound.</summary>
     /// <param name="removableFrom">The instant a row expiring at or before counts as gone.</param>

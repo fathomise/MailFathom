@@ -47,6 +47,8 @@ function colleagueCalled(id: string, displayName: string): Colleague {
         lastSeen: null,
         outOfOfficeUntil: null,
         usesPhoneApp: false,
+        statusMessage: null,
+        workMode: null,
     };
 }
 

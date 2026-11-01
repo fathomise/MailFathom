@@ -42,7 +42,9 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
         """;
 
     private const string ReadMembersStatement = $"""
-        SELECT "{MemberPresenceEntity.UserIdColumnName}", "{MemberPresenceEntity.ChosenStateColumnName}", "{MemberPresenceEntity.ChoiceDurationColumnName}", "{MemberPresenceEntity.ChoiceEndsAtColumnName}", "{MemberPresenceEntity.LastSeenAtColumnName}"
+        SELECT "{MemberPresenceEntity.UserIdColumnName}", "{MemberPresenceEntity.ChosenStateColumnName}", "{MemberPresenceEntity.ChoiceDurationColumnName}", "{MemberPresenceEntity.ChoiceEndsAtColumnName}", "{MemberPresenceEntity.LastSeenAtColumnName}",
+            "{MemberPresenceEntity.StatusMessageColumnName}", "{MemberPresenceEntity.StatusMessageClearsColumnName}", "{MemberPresenceEntity.StatusMessageClearsAtColumnName}",
+            "{MemberPresenceEntity.WorkModeColumnName}", "{MemberPresenceEntity.WorkModeEndsAtColumnName}"
         FROM "{MemberPresenceEntity.TableName}"
         WHERE "{MemberPresenceEntity.UserIdColumnName}" = ANY(@members);
         """;
@@ -102,6 +104,25 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
             "{MemberPresenceEntity.ChoiceEndsAtColumnName}" = EXCLUDED."{MemberPresenceEntity.ChoiceEndsAtColumnName}";
         """;
 
+    private const string WriteStatusMessageStatement = $"""
+        INSERT INTO "{MemberPresenceEntity.TableName}"
+            ("{MemberPresenceEntity.UserIdColumnName}", "{MemberPresenceEntity.StatusMessageColumnName}", "{MemberPresenceEntity.StatusMessageClearsColumnName}", "{MemberPresenceEntity.StatusMessageClearsAtColumnName}")
+        VALUES (@member, @text, @clears, @clearsAt)
+        ON CONFLICT ("{MemberPresenceEntity.UserIdColumnName}") DO UPDATE
+        SET "{MemberPresenceEntity.StatusMessageColumnName}" = EXCLUDED."{MemberPresenceEntity.StatusMessageColumnName}",
+            "{MemberPresenceEntity.StatusMessageClearsColumnName}" = EXCLUDED."{MemberPresenceEntity.StatusMessageClearsColumnName}",
+            "{MemberPresenceEntity.StatusMessageClearsAtColumnName}" = EXCLUDED."{MemberPresenceEntity.StatusMessageClearsAtColumnName}";
+        """;
+
+    private const string ChooseWorkModeStatement = $"""
+        INSERT INTO "{MemberPresenceEntity.TableName}"
+            ("{MemberPresenceEntity.UserIdColumnName}", "{MemberPresenceEntity.WorkModeColumnName}", "{MemberPresenceEntity.WorkModeEndsAtColumnName}")
+        VALUES (@member, @workMode, @endsAt)
+        ON CONFLICT ("{MemberPresenceEntity.UserIdColumnName}") DO UPDATE
+        SET "{MemberPresenceEntity.WorkModeColumnName}" = EXCLUDED."{MemberPresenceEntity.WorkModeColumnName}",
+            "{MemberPresenceEntity.WorkModeEndsAtColumnName}" = EXCLUDED."{MemberPresenceEntity.WorkModeEndsAtColumnName}";
+        """;
+
     /// <summary>Removes a bounded batch of expired rows, reached through the index on the expiry.</summary>
     private const string RemoveExpiredStatement = $"""
         DELETE FROM "{PresenceClientEntity.TableName}"
@@ -134,7 +155,7 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
 
         Guid[] identifiers = [.. members.Select(member => member.Value)];
         var clients = new Dictionary<Guid, List<OpenPresenceClient>>();
-        var held = new Dictionary<Guid, (PresenceChoice? Choice, DateTimeOffset? LastSeen)>();
+        var held = new Dictionary<Guid, HeldForMember>();
         var phoneAppSessions = new Dictionary<Guid, List<PhoneAppSession>>();
 
         await using var batch = dataSource().CreateBatch();
@@ -175,8 +196,19 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
                 DateTimeOffset? lastSeen = await reader.IsDBNullAsync(4, cancellationToken)
                     ? null
                     : reader.GetFieldValue<DateTimeOffset>(4);
+                var message = await reader.IsDBNullAsync(5, cancellationToken)
+                    ? null
+                    : new StatusMessage(
+                        reader.GetString(5),
+                        await reader.IsDBNullAsync(6, cancellationToken) ? null : (PresenceDuration)reader.GetInt32(6),
+                        await reader.IsDBNullAsync(7, cancellationToken) ? null : reader.GetFieldValue<DateTimeOffset>(7));
+                var workMode = await reader.IsDBNullAsync(8, cancellationToken)
+                    ? null
+                    : new WorkModeChoice(
+                        (WorkMode)reader.GetInt32(8),
+                        await reader.IsDBNullAsync(9, cancellationToken) ? null : reader.GetFieldValue<DateTimeOffset>(9));
 
-                held[reader.GetGuid(0)] = (choice, lastSeen);
+                held[reader.GetGuid(0)] = new HeldForMember(choice, lastSeen, message, workMode);
             }
 
             await reader.NextResultAsync(cancellationToken);
@@ -205,8 +237,10 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
 
                 return new MemberPresence(
                     clients.TryGetValue(member.Value, out var open) ? open : [],
-                    stated.Choice,
-                    stated.LastSeen)
+                    stated?.Choice,
+                    stated?.LastSeen,
+                    stated?.Message,
+                    stated?.WorkMode)
                 {
                     PhoneAppSessions = phoneAppSessions.TryGetValue(member.Value, out var phone) ? phone : [],
                 };
@@ -285,6 +319,41 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
     }
 
     /// <inheritdoc />
+    public async Task WriteStatusMessageAsync(UserId member, StatusMessage? message, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource().CreateCommand(WriteStatusMessageStatement);
+        command.Parameters.AddWithValue("member", member.Value);
+        command.Parameters.Add(new NpgsqlParameter("text", NpgsqlDbType.Varchar)
+        {
+            Value = message is null ? DBNull.Value : message.Text,
+        });
+        command.Parameters.Add(new NpgsqlParameter("clears", NpgsqlDbType.Integer)
+        {
+            Value = message?.Clears is { } clears ? (int)clears : DBNull.Value,
+        });
+        command.Parameters.Add(new NpgsqlParameter("clearsAt", NpgsqlDbType.TimestampTz)
+        {
+            Value = message?.ClearsAt is { } clearsAt ? clearsAt.ToUniversalTime() : DBNull.Value,
+        });
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task ChooseWorkModeAsync(UserId member, WorkModeChoice workMode, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(workMode);
+
+        await using var command = dataSource().CreateCommand(ChooseWorkModeStatement);
+        command.Parameters.AddWithValue("member", member.Value);
+        command.Parameters.AddWithValue("workMode", (int)workMode.Mode);
+        command.Parameters.Add(new NpgsqlParameter("endsAt", NpgsqlDbType.TimestampTz)
+        {
+            Value = workMode.EndsAt is { } end ? end.ToUniversalTime() : DBNull.Value,
+        });
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task RemoveExpiredClientsAsync(
         DateTimeOffset removableFrom,
         int mostRemoved,
@@ -322,4 +391,10 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
 
         return command;
     }
+
+    private sealed record HeldForMember(
+        PresenceChoice? Choice,
+        DateTimeOffset? LastSeen,
+        StatusMessage? Message,
+        WorkModeChoice? WorkMode);
 }

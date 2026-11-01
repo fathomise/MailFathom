@@ -26,6 +26,12 @@ export const presenceRoute = '/presence';
 /** The route the caller's chosen presence is written at, relative to the client prefix. */
 export const presenceChoiceRoute = `${presenceRoute}/choice`;
 
+/** The route the caller's status message is written at, relative to the client prefix. */
+export const statusMessageRoute = `${presenceRoute}/status-message`;
+
+/** The route the caller's work mode is written at, relative to the client prefix. */
+export const workModeRoute = `${presenceRoute}/work-mode`;
+
 /** The route one of the caller's open clients is renewed and closed at, relative to the client prefix. */
 export function presenceClientRoute(client: string): string {
     return `${presenceRoute}/clients/${encodeURIComponent(client)}`;
@@ -48,6 +54,33 @@ export const presenceDurations = ['30m', '1h', '2h', 'today', 'week'] as const;
 
 export type PresenceDuration = (typeof presenceDurations)[number];
 
+/** The most characters a status message holds, counted as a text field counts them. */
+export const longestStatusMessage = 280;
+
+/** Where a member says they work from. */
+export const workModes = ['Office', 'Remote'] as const;
+
+export type WorkMode = (typeof workModes)[number];
+
+/** What a member tells their colleagues they are doing, while it has not cleared. */
+export interface StatusMessage {
+    readonly text: string;
+
+    /** The while it was written for, or `null` where it never clears. */
+    readonly clears: PresenceDuration | null;
+
+    /** When it clears, or `null` where it never does. */
+    readonly clearsAt: string | null;
+}
+
+/** Where a member said they work from, while it holds. */
+export interface StatedWorkMode {
+    readonly mode: WorkMode;
+
+    /** The member's next midnight where they said it for today alone, or `null` where it lasts until changed. */
+    readonly endsAt: string | null;
+}
+
 /** The signed-in member's presence as they see it themselves. */
 export interface OwnPresence {
     /** What they read as to themselves, `Hidden` where they chose to hide. */
@@ -61,10 +94,17 @@ export interface OwnPresence {
 
     /** When the choice runs out, or `null` where it lasts until changed or there is none. */
     readonly choiceEndsAt: string | null;
+
+    /** Their status message, or `null` where there is none or it cleared. */
+    readonly statusMessage: StatusMessage | null;
+
+    /** Where they said they work from, or `null` where they never said or said it for a day that ended. */
+    readonly workMode: StatedWorkMode | null;
 }
 
-// The four fields compose to a few dozen bytes, and a renewal answers with none.
-const longestPresenceAnswer = 1_024;
+// A status message of 280 characters each escaped in six bytes is under two kilobytes; the rest is a few dozen bytes,
+// and a renewal answers with none.
+const longestPresenceAnswer = 4_096;
 const longestInstant = 64;
 
 /** Reads the signed-in member's own presence; a caller in no organization is `missing`. */
@@ -101,6 +141,46 @@ export function choosePresence(
                 path: routeFor(session, presenceChoiceRoute),
                 headers: { ...headersFor(session), 'Content-Type': 'application/json' },
                 body: JSON.stringify({ state, duration }),
+                longestAnswer: longestPresenceAnswer,
+            }),
+        ),
+    );
+}
+
+/** Writes the member's status message, clearing it after a while or never; a message of nothing but spaces clears it. */
+export function writeStatusMessage(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    text: string,
+    clears: PresenceDuration | null,
+): Promise<ClientResult<OwnPresence>> {
+    return spanned(`PUT ${statusMessageRoute}`, async () =>
+        presenceOf(
+            await send(transport, {
+                method: 'PUT',
+                path: routeFor(session, statusMessageRoute),
+                headers: { ...headersFor(session), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, clears }),
+                longestAnswer: longestPresenceAnswer,
+            }),
+        ),
+    );
+}
+
+/** States where the member works from, for today alone or until they change it. */
+export function chooseWorkMode(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    mode: WorkMode,
+    today: boolean,
+): Promise<ClientResult<OwnPresence>> {
+    return spanned(`PUT ${workModeRoute}`, async () =>
+        presenceOf(
+            await send(transport, {
+                method: 'PUT',
+                path: routeFor(session, workModeRoute),
+                headers: { ...headersFor(session), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode, today }),
                 longestAnswer: longestPresenceAnswer,
             }),
         ),
@@ -214,7 +294,62 @@ function parseOwnPresence(value: unknown): OwnPresence | null {
         return null;
     }
 
-    return { state, chosenState, choiceDuration, choiceEndsAt };
+    const said = parseStatusAndWorkMode(record);
+
+    return said === null ? null : { state, chosenState, choiceDuration, choiceEndsAt, ...said };
+}
+
+/**
+ * Reads the status message and the work mode a presence answer carries, which the member's own presence and a
+ * colleague both state in the same shape; `null` where either is not one the service gives.
+ */
+export function parseStatusAndWorkMode(
+    record: Readonly<Record<string, unknown>> | null,
+): { readonly statusMessage: StatusMessage | null; readonly workMode: StatedWorkMode | null } | null {
+    const message = record?.['statusMessage'] ?? null;
+    const stated = record?.['workMode'] ?? null;
+    const statusMessage = message === null ? null : parseStatusMessage(message);
+    const workMode = stated === null ? null : parseWorkMode(stated);
+
+    if ((message !== null && statusMessage === null) || (stated !== null && workMode === null)) {
+        return null;
+    }
+
+    return { statusMessage, workMode };
+}
+
+function parseStatusMessage(value: unknown): StatusMessage | null {
+    const record = asRecord(value);
+    const text = record?.['text'];
+    const clears = record?.['clears'] ?? null;
+    const clearsAt = record?.['clearsAt'] ?? null;
+
+    if (typeof text !== 'string' || text.trim() === '' || text.length > longestStatusMessage) {
+        return null;
+    }
+
+    // The while names when the message clears, so each comes with the other or neither does.
+    if ((clears !== null && !isPresenceDuration(clears)) || (clearsAt !== null && !isInstant(clearsAt))) {
+        return null;
+    }
+
+    return (clears === null) === (clearsAt === null) ? { text, clears, clearsAt } : null;
+}
+
+function parseWorkMode(value: unknown): StatedWorkMode | null {
+    const record = asRecord(value);
+    const mode = record?.['mode'];
+    const endsAt = record?.['endsAt'] ?? null;
+
+    if (!isWorkMode(mode) || (endsAt !== null && !isInstant(endsAt))) {
+        return null;
+    }
+
+    return { mode, endsAt };
+}
+
+function isWorkMode(value: unknown): value is WorkMode {
+    return (workModes as readonly unknown[]).includes(value);
 }
 
 function isPresenceDuration(value: unknown): value is PresenceDuration {

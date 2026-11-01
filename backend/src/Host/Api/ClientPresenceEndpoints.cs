@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>Serves the signed-in member their own presence: the clients they keep open, and the state they choose.</summary>
+/// <summary>Serves the signed-in member their own presence: the clients they keep open, the state they choose, their status message, and where they work from.</summary>
 /// <remarks>
 /// <para>
 /// A running client renews its own row every minute while it is open and removes it when it closes, so what keeps a
@@ -41,9 +41,24 @@ internal static class ClientPresenceEndpoints
     /// <summary>The route the caller's chosen presence is written at, relative to the client prefix.</summary>
     internal const string ChoiceRoute = "/presence/choice";
 
+    /// <summary>The route the caller's status message is written at, relative to the client prefix.</summary>
+    internal const string StatusMessageRoute = "/presence/status-message";
+
+    /// <summary>The route the caller's work mode is written at, relative to the client prefix.</summary>
+    internal const string WorkModeRoute = "/presence/work-mode";
+
     /// <summary>The greatest request body a write here reads before refusing it.</summary>
     /// <remarks>Two short words; anything near this size is not a presence write.</remarks>
     internal const int MaxWriteRequestBytes = 256;
+
+    /// <summary>The greatest request body a status message write reads before refusing it.</summary>
+    /// <remarks>The longest message with every character escaped in six bytes is under two kilobytes.</remarks>
+    internal const int MaxStatusMessageRequestBytes = 4_096;
+
+    /// <summary>What a refused status message is answered with.</summary>
+    /// <remarks>Fixed rather than taken from the exception, so nothing but the domain's own rule can reach the caller in it.</remarks>
+    private static readonly string StatusMessageRefusal =
+        $"State the message as one line of printable text of at most {StatusMessage.MostCharacters} characters, or as nothing to clear it.";
 
     /// <summary>The name each duration is written by on the wire, in both directions.</summary>
     private static readonly (string Name, PresenceDuration Duration)[] DurationNames =
@@ -75,6 +90,14 @@ internal static class ClientPresenceEndpoints
             .RequirePermission(MailFathomPermission.ProfileWrite);
 
         api.MapPut(ChoiceRoute, ChooseAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
+            .RequirePermission(MailFathomPermission.ProfileWrite);
+
+        api.MapPut(StatusMessageRoute, WriteStatusMessageAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxStatusMessageRequestBytes))
+            .RequirePermission(MailFathomPermission.ProfileWrite);
+
+        api.MapPut(WorkModeRoute, ChooseWorkModeAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
             .RequirePermission(MailFathomPermission.ProfileWrite);
     }
@@ -180,6 +203,77 @@ internal static class ClientPresenceEndpoints
             : TypedResults.NotFound();
     }
 
+    /// <summary>Records the status message the caller wrote.</summary>
+    /// <param name="request">The message and when it clears.</param>
+    /// <param name="presence">The caller's own presence.</param>
+    /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
+    /// <returns><c>200</c> with the caller's presence after the write, <c>400</c> for a message the domain refuses — too long, or holding a character that renders as something other than text — or for a while this surface does not know, or <c>404</c> where the caller belongs to no organization.</returns>
+    /// <remarks>A message of nothing but white space clears it.</remarks>
+    internal static async Task<Results<Ok<OwnPresenceResponse>, NotFound, ProblemHttpResult>> WriteStatusMessageAsync(
+        [FromBody] StatusMessageRequest request,
+        [FromServices] OwnPresence presence,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(presence);
+
+        if (request.Text is not { } text)
+        {
+            return Refuse(StatusMessageRefusal);
+        }
+
+        PresenceDuration? clears = null;
+
+        if (request.Clears is not null)
+        {
+            if (DurationNamed(request.Clears) is not { } named)
+            {
+                return Refuse("State when the message clears as 30m, 1h, 2h, today, or week, or leave it out for never.");
+            }
+
+            clears = named;
+        }
+
+        OwnPresenceReading? reading;
+
+        try
+        {
+            reading = await presence.WriteStatusMessageAsync(text, clears, cancellationToken);
+        }
+        catch (ArgumentException)
+        {
+            return Refuse(StatusMessageRefusal);
+        }
+
+        return reading is not null ? TypedResults.Ok(OwnPresenceResponse.For(reading)) : TypedResults.NotFound();
+    }
+
+    /// <summary>Records where the caller works from.</summary>
+    /// <param name="request">Office or remote, and whether for today alone.</param>
+    /// <param name="presence">The caller's own presence.</param>
+    /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
+    /// <returns><c>200</c> with the caller's presence after the write, <c>400</c> for a mode this surface does not know or no word on today, or <c>404</c> where the caller belongs to no organization.</returns>
+    internal static async Task<Results<Ok<OwnPresenceResponse>, NotFound, ProblemHttpResult>> ChooseWorkModeAsync(
+        [FromBody] WorkModeRequest request,
+        [FromServices] OwnPresence presence,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(presence);
+
+        // By name alone, for the reason a presence state is.
+        if (request.Mode is not { } stated
+            || !Enum.GetNames<WorkMode>().Contains(stated, StringComparer.Ordinal)
+            || request.Today is not { } today)
+        {
+            return Refuse("State the work mode as Office or Remote, and today as true or false.");
+        }
+
+        return await presence.ChooseWorkModeAsync(Enum.Parse<WorkMode>(stated), today, cancellationToken) is { } reading
+            ? TypedResults.Ok(OwnPresenceResponse.For(reading))
+            : TypedResults.NotFound();
+    }
+
     private static ClientActivity? ActivityNamed(string? activity) => activity switch
     {
         "active" => ClientActivity.Active,
@@ -213,12 +307,34 @@ internal sealed record PresenceClientRequest(string? Activity = null);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record PresenceChoiceRequest(string? State = null, string? Duration = null);
 
+/// <summary>The status message a member writes.</summary>
+/// <param name="Text">The message, of at most 280 characters on one line; nothing but white space clears it.</param>
+/// <param name="Clears"><c>30m</c>, <c>1h</c>, <c>2h</c>, <c>today</c>, or <c>week</c>, or nothing for never.</param>
+/// <remarks>Bound strictly, so a field this surface never published fails the bind rather than being ignored.</remarks>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record StatusMessageRequest(string? Text = null, string? Clears = null);
+
+/// <summary>Where a member says they work from.</summary>
+/// <param name="Mode"><c>Office</c> or <c>Remote</c>.</param>
+/// <param name="Today"><see langword="true" /> for today alone, <see langword="false" /> until changed.</param>
+/// <remarks>Bound strictly, so a field this surface never published fails the bind rather than being ignored.</remarks>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record WorkModeRequest(string? Mode = null, bool? Today = null);
+
 /// <summary>A member's presence as they see it themselves.</summary>
 /// <param name="State">Their state, <c>Hidden</c> included.</param>
 /// <param name="ChosenState">The state they chose while the choice holds, or nothing where their presence is automatic.</param>
 /// <param name="ChoiceDuration">The while the choice was made for, named as a choice states it — <c>30m</c>, <c>1h</c>, <c>2h</c>, <c>today</c>, or <c>week</c> — or nothing where it lasts until changed or there is none.</param>
 /// <param name="ChoiceEndsAt">When the choice runs out, or nothing where it lasts until changed or there is none.</param>
-internal sealed record OwnPresenceResponse(string State, string? ChosenState, string? ChoiceDuration, DateTimeOffset? ChoiceEndsAt)
+/// <param name="StatusMessage">Their status message while it has not cleared, or nothing.</param>
+/// <param name="WorkMode">Where they said they work from while it holds, or nothing.</param>
+internal sealed record OwnPresenceResponse(
+    string State,
+    string? ChosenState,
+    string? ChoiceDuration,
+    DateTimeOffset? ChoiceEndsAt,
+    StatusMessageResponse? StatusMessage,
+    WorkModeResponse? WorkMode)
 {
     /// <summary>Describes a member's own presence.</summary>
     /// <param name="reading">Their presence as they see it.</param>
@@ -232,6 +348,39 @@ internal sealed record OwnPresenceResponse(string State, string? ChosenState, st
             reading.State.ToString(),
             reading.Choice?.State.ToString(),
             reading.Choice?.Duration is { } duration ? ClientPresenceEndpoints.NameOf(duration) : null,
-            reading.Choice?.EndsAt);
+            reading.Choice?.EndsAt,
+            StatusMessageResponse.For(reading.Message),
+            WorkModeResponse.For(reading.WorkMode));
     }
+}
+
+/// <summary>What a member tells the other members of their organization they are doing.</summary>
+/// <param name="Text">The message.</param>
+/// <param name="Clears">The while it was written for, named as a write states it, or nothing where it never clears.</param>
+/// <param name="ClearsAt">When it clears, or nothing where it never does.</param>
+/// <remarks>Personal data about the member, travelling to them and to the members of their organization alone.</remarks>
+internal sealed record StatusMessageResponse(string Text, string? Clears, DateTimeOffset? ClearsAt)
+{
+    /// <summary>Describes a status message.</summary>
+    /// <param name="message">The message in effect, or <see langword="null" />.</param>
+    /// <returns>The response body, or <see langword="null" /> where there is no message.</returns>
+    internal static StatusMessageResponse? For(StatusMessage? message) =>
+        message is null
+            ? null
+            : new StatusMessageResponse(
+                message.Text,
+                message.Clears is { } clears ? ClientPresenceEndpoints.NameOf(clears) : null,
+                message.ClearsAt);
+}
+
+/// <summary>Where a member said they work from.</summary>
+/// <param name="Mode"><c>Office</c> or <c>Remote</c>.</param>
+/// <param name="EndsAt">The member's next midnight where they said it for today alone, or nothing where it lasts until changed.</param>
+internal sealed record WorkModeResponse(string Mode, DateTimeOffset? EndsAt)
+{
+    /// <summary>Describes a work mode.</summary>
+    /// <param name="workMode">The work mode in effect, or <see langword="null" />.</param>
+    /// <returns>The response body, or <see langword="null" /> where none is stated.</returns>
+    internal static WorkModeResponse? For(WorkModeChoice? workMode) =>
+        workMode is null ? null : new WorkModeResponse(workMode.Mode.ToString(), workMode.EndsAt);
 }

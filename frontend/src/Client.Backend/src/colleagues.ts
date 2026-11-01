@@ -18,7 +18,14 @@ import {
 import { failed, failureReasonForStatus, read, type ClientFailureReason, type ClientResult } from './failure';
 import { asRecord, parseEach } from './json';
 import { largestPortraitOctets, portraitImageTypes } from './ownPortrait';
-import { isInstant, isPresenceState, type ColleaguePresence } from './presence';
+import {
+    isInstant,
+    isPresenceState,
+    parseStatusAndWorkMode,
+    type ColleaguePresence,
+    type StatedWorkMode,
+    type StatusMessage,
+} from './presence';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { reported, spanned } from './telemetry';
 import { send, type ClientRequest, type MailFathomTransport } from './transport';
@@ -109,6 +116,12 @@ export interface Colleague {
      * and never for a member who chose to hide.
      */
     readonly usesPhoneApp: boolean;
+
+    /** What they tell the organization they are doing, while it has not cleared. */
+    readonly statusMessage: StatusMessage | null;
+
+    /** Where they said they work from, while it holds. */
+    readonly workMode: StatedWorkMode | null;
 }
 
 /** A day of the week as the service names one. */
@@ -435,7 +448,9 @@ export function parseColleague(value: unknown): Colleague | null {
         return null;
     }
 
-    if ((outOfOfficeUntil !== null && !isInstant(outOfOfficeUntil)) || typeof usesPhoneApp !== 'boolean') {
+    const said = parseStatusAndWorkMode(record);
+
+    if ((outOfOfficeUntil !== null && !isInstant(outOfOfficeUntil)) || typeof usesPhoneApp !== 'boolean' || said === null) {
         return null;
     }
 
@@ -455,6 +470,7 @@ export function parseColleague(value: unknown): Colleague | null {
         lastSeen,
         outOfOfficeUntil,
         usesPhoneApp,
+        ...said,
     };
 }
 

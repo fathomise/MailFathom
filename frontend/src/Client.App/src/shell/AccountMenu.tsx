@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useId, useRef, useState } from 'react';
-import type { MailAccount, PresenceState } from '@mailfathom/client-backend';
+import type { MailAccount, OwnPresence } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { MailboxMark } from '../controls/MailboxMark';
 import { PersonAvatar } from '../controls/PersonAvatar';
@@ -81,7 +81,7 @@ export function AccountMenu({
     readonly profile: OwnProfileInForce;
 
     /** What the member reads as to themselves, or `null` for a reader with no presence — one in no organization. */
-    readonly presence: PresenceState | null;
+    readonly presence: OwnPresence | null;
 
     readonly onSignOut: () => void;
 }) {
@@ -152,7 +152,7 @@ export function AccountMenu({
                 <span className="relative shrink-0">
                     <PersonAvatar displayName={profile.displayName} picture={profile.picture} place="menu" />
                     {presenceDrawn === null ? null : (
-                        <PresenceDot presence={presenceDrawn} place="rail" id={presenceNamed} />
+                        <PresenceDot presence={presenceDrawn.state} place="rail" id={presenceNamed} />
                     )}
                 </span>
                 {inRail ? null : <span className="truncate">{translate('shell.account')}</span>}

@@ -1162,6 +1162,11 @@ is the decision.
 | `member_presence.ChoiceDuration` | The while the choice was made for — thirty minutes, an hour, two hours, today, or this week — as the domain's numeric value, or `NULL` for until changed. Kept beside the end because the status menu names the while a member picked, which the instant alone cannot say |
 | `member_presence.ChoiceEndsAt` | When the choice runs out, or `NULL` for until changed. Nothing clears a choice that ran out: a read compares this with its own time |
 | `member_presence.LastSeenAt` | When the member was last present, moved by every renewal except while the chosen state is `Hidden` or `Offline` |
+| `member_presence.StatusMessage` | What the member says they are doing, at most 280 characters on one line, or `NULL` where they say nothing. Writing a blank one clears all three of its columns |
+| `member_presence.StatusMessageClears` | The while the message clears after, from the same five a chosen state takes, as the domain's numeric value, or `NULL` for never, kept beside the instant for the reason `ChoiceDuration` is |
+| `member_presence.StatusMessageClearsAt` | When the message clears, or `NULL` for never. Nothing clears a message that ran out: a read compares this with its own time |
+| `member_presence.WorkMode` | Where the member works from, `0` `Office` or `1` `Remote`, or `NULL` where they never stated one |
+| `member_presence.WorkModeEndsAt` | Midnight in the member's own zone for a place of work stated for today, or `NULL` for until changed; read as `StatusMessageClearsAt` is |
 
 **A client row cannot grow without bound.** A member keeps at most sixteen, counted in the statement that writes the
 row; a renewal removes the member's own expired rows first, and each replica removes up to a thousand expired rows of
@@ -2687,7 +2692,7 @@ account reach these four tables through the same cascade every other table is re
 | `IX_client_signal_tickets_UserId` | `(UserId)` | The foreign key onto the user record, which is what erasing a person reaches their unspent tickets by rather than scanning |
 | `PK_presence_clients` | `(UserId, ClientId)`, unique | The upsert a renewal is, and the order one member's open clients are read in |
 | `ix_presence_clients_expires_at` | `(ExpiresAt)` | The order expired client rows are swept through. No read reaches a row by its expiry; every read goes through the key and leaves an expired row out |
-| `PK_member_presence` | `(UserId)`, unique | One row per member, which the colleague read joins and both writes upsert |
+| `PK_member_presence` | `(UserId)`, unique | One row per member, which the colleague read joins and every write upserts |
 | `PK_client_sessions` | `(Identifier)`, unique | The one read every authenticated request on the client surface makes, and what both removals reach a row by. A renewal's removal and a revocation's carry the digest in the same statement, so two requests presenting one token leave exactly one live session whichever replica each of them reached |
 | `ix_client_sessions_expires_at` | `(ExpiresAt)` | The order the expired sessions are aged out through, indexed for the removal alone for the reason the tickets' expiry is: nothing reads a session by its age |
 | `IX_client_sessions_UserId` | `(UserId)` | The foreign key onto the user record, which is what erasing a person reaches their sessions by — including the ones naming no credential at all |

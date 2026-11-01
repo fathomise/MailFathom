@@ -8,7 +8,7 @@ using System.Text;
 
 namespace MailFathom.Domain.Contacts;
 
-/// <summary>Decides which characters the two free-text values of a contact may not carry.</summary>
+/// <summary>Decides which characters the two free-text values of a contact, and a member's status message, may not carry.</summary>
 /// <remarks>
 /// <para>
 /// A name and a note are published into listings of the other contacts, into an answer an agent reads, and into an

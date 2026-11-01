@@ -37,6 +37,8 @@ const member = {
     lastSeen: null,
     outOfOfficeUntil: null,
     usesPhoneApp: false,
+    statusMessage: null,
+    workMode: null,
 };
 
 type Answer = Omit<ClientResponse, 'headers'>;
@@ -342,6 +344,25 @@ describe('parseColleague', () => {
 
         expect(parseColleague(away)).toEqual(away);
         expect(parseColleague(unstated)?.outOfOfficeUntil).toBeNull();
+    });
+
+    it('reads what a member says they are doing and where they work from, stated or not', () => {
+        const said = {
+            ...member,
+            statusMessage: { text: 'Ask me about the UAT environment', clears: null, clearsAt: null },
+            workMode: { mode: 'Office', endsAt: '2026-10-31T23:00:00Z' },
+        };
+        const unstated = Object.fromEntries(
+            Object.entries(member).filter(([field]) => field !== 'statusMessage' && field !== 'workMode'),
+        );
+
+        expect(parseColleague(said)).toEqual(said);
+        expect(parseColleague(unstated)).toMatchObject({ statusMessage: null, workMode: null });
+    });
+
+    it('refuses a status message or a place of work of the wrong shape', () => {
+        expect(parseColleague({ ...member, statusMessage: 'On call' })).toBeNull();
+        expect(parseColleague({ ...member, workMode: { mode: 'Home', endsAt: null } })).toBeNull();
     });
 
     it('refuses an out-of-office end that is not an instant', () => {

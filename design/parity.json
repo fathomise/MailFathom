@@ -400,6 +400,108 @@
         }
       ]
     },
+    "status-menu": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "KK"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Your status"
+          }
+        },
+        {
+          "expect": {
+            "text": "Not stated"
+          }
+        }
+      ]
+    },
+    "status-message": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "KK"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Your status"
+          }
+        },
+        {
+          "click": {
+            "role": "menuitem",
+            "name": "Message"
+          }
+        },
+        {
+          "expect": {
+            "text": "Clears"
+          }
+        }
+      ]
+    },
+    "status-work": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "KK"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Your status"
+          }
+        },
+        {
+          "click": {
+            "role": "menuitem",
+            "name": "Working from"
+          }
+        },
+        {
+          "expect": {
+            "text": "Office today"
+          }
+        }
+      ]
+    },
     "full-html": {
       "file": "prototype.dc.html",
       "properties": {
@@ -655,6 +757,26 @@
         {
           "click": {
             "text": "Piotr Zieliński"
+          }
+        },
+        {
+          "expect": {
+            "text": "From Nordwind's directory - read-only"
+          }
+        }
+      ]
+    },
+    "people-colleague-status": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "people",
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Marta Nowak"
           }
         },
         {

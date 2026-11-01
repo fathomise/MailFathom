@@ -18,6 +18,10 @@ internal sealed class InMemoryPresenceStore : IPresenceStore
 
     private readonly Dictionary<UserId, DateTimeOffset> lastSeen = [];
 
+    private readonly Dictionary<UserId, StatusMessage?> messages = [];
+
+    private readonly Dictionary<UserId, WorkModeChoice> workModes = [];
+
     private readonly Dictionary<Guid, IReadOnlyList<UserId>> organizations = [];
 
     /// <summary>Gets how many sweeps of expired clients were asked for.</summary>
@@ -76,7 +80,9 @@ internal sealed class InMemoryPresenceStore : IPresenceStore
         new(
             [.. this.clients.Where(entry => entry.Key.Member == member).Select(entry => entry.Value)],
             this.choices.GetValueOrDefault(member),
-            this.lastSeen.TryGetValue(member, out var seen) ? seen : null);
+            this.lastSeen.TryGetValue(member, out var seen) ? seen : null,
+            this.messages.GetValueOrDefault(member),
+            this.workModes.GetValueOrDefault(member));
 
     /// <inheritdoc />
     public Task<IReadOnlyDictionary<UserId, MemberPresence>> ReadAsync(
@@ -127,6 +133,22 @@ internal sealed class InMemoryPresenceStore : IPresenceStore
     public Task ChooseAsync(UserId member, PresenceChoice? choice, CancellationToken cancellationToken)
     {
         this.choices[member] = choice;
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task WriteStatusMessageAsync(UserId member, StatusMessage? message, CancellationToken cancellationToken)
+    {
+        this.messages[member] = message;
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task ChooseWorkModeAsync(UserId member, WorkModeChoice workMode, CancellationToken cancellationToken)
+    {
+        this.workModes[member] = workMode;
 
         return Task.CompletedTask;
     }

@@ -2,11 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { PresenceDuration, PresenceState } from '@mailfathom/client-backend';
+import type { PresenceDuration, PresenceState, StatedWorkMode, WorkMode } from '@mailfathom/client-backend';
 import type { MessageKey } from '../localization/en';
 import type { Locale } from '../localization/locale';
 
-// What each state and each while is called, which is the screen's rather than the wire's.
+// What each state, each while, and each place of work is called, which is the screen's rather than the wire's.
 
 /** The word for each of the six states, which is what stands beside every dot so the dot is never the only telling. */
 export const presenceSaid: Readonly<Record<PresenceState, MessageKey>> = {
@@ -17,6 +17,28 @@ export const presenceSaid: Readonly<Record<PresenceState, MessageKey>> = {
     Offline: 'presence.offline',
     Hidden: 'presence.hidden',
 };
+
+/** The four places *Working from* offers, in the design's order, each with what it is called. */
+export const statedWorkModes: readonly {
+    readonly mode: WorkMode;
+    readonly today: boolean;
+    readonly key: MessageKey;
+}[] = [
+    { mode: 'Office', today: true, key: 'presence.officeToday' },
+    { mode: 'Office', today: false, key: 'presence.officeUntilChanged' },
+    { mode: 'Remote', today: true, key: 'presence.remoteToday' },
+    { mode: 'Remote', today: false, key: 'presence.remoteUntilChanged' },
+];
+
+/** Where somebody works from as the design words it — *Office today*, *Remote until changed*. */
+export function workModeSaid(stated: StatedWorkMode): MessageKey {
+    const today = stated.endsAt !== null;
+
+    return (
+        statedWorkModes.find((offered) => offered.mode === stated.mode && offered.today === today)?.key ??
+        'presence.notStated'
+    );
+}
 
 /** A while as the *Reset status after* select names it — *30 minutes*, *Today*. */
 export function wordDuration(

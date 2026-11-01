@@ -280,6 +280,45 @@ public sealed class MemberPresenceTests
         Assert.Equal(expected, reading.UsesPhoneApp);
     }
 
+    [Fact]
+    public void SeenByOthersAt_HiddenWithAMessageAndAWorkMode_ShowsBothWhileTheyHold()
+    {
+        // Arrange
+        var message = new StatusMessage("Release testing", Clears: null, ClearsAt: null);
+        var workMode = new WorkModeChoice(WorkMode.Remote, EndsAt: null);
+        var presence = new MemberPresence(
+            [Open(ClientActivity.Active)],
+            new PresenceChoice(PresenceState.Hidden, Duration: null, EndsAt: null),
+            Earlier,
+            message,
+            workMode);
+
+        // Act
+        var reading = presence.SeenByOthersAt(Now);
+
+        // Assert
+        Assert.Equal(new PresenceReading(PresenceState.Offline, LastSeen: null, UsesPhoneApp: false, message, workMode), reading);
+    }
+
+    [Fact]
+    public void SeenByOthersAt_MessageClearedAndWorkModeRunOut_ShowsNeither()
+    {
+        // Arrange
+        var presence = new MemberPresence(
+            [],
+            Choice: null,
+            LastSeen: null,
+            new StatusMessage("Back at noon", PresenceDuration.OneHour, Now),
+            new WorkModeChoice(WorkMode.Office, Now));
+
+        // Act
+        var reading = presence.SeenByOthersAt(Now);
+
+        // Assert
+        Assert.Null(reading.Message);
+        Assert.Null(reading.WorkMode);
+    }
+
     private static DateOnly Today => DateOnly.FromDateTime(Now.UtcDateTime);
 
     private static OpenPresenceClient Open(ClientActivity activity) => new(activity, Now.AddSeconds(30));

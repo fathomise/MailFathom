@@ -184,7 +184,18 @@ function renderMenu({
                                 writesProfile
                                 preferences={preferences}
                                 profile={profile}
-                                presence={presence}
+                                presence={
+                                    presence === null
+                                        ? null
+                                        : {
+                                              state: presence,
+                                              chosenState: null,
+                                              choiceDuration: null,
+                                              choiceEndsAt: null,
+                                              statusMessage: null,
+                                              workMode: null,
+                                          }
+                                }
                                 onSignOut={onSignOut}
                             />
                         </ConnectionStatusContext>
@@ -338,7 +349,7 @@ describe('AccountMenu', () => {
         expect(
             screen.getByRole('button', {
                 name: 'Your status',
-                description: 'Hidden - others see you as Offline',
+                description: 'Hidden - others see you as Offline Set a status message',
                 hidden: true,
             }),
         ).toBeDefined();

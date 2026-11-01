@@ -181,6 +181,48 @@ export function wordLastSeen(instant: string, locale: Locale, now: number, timeZ
     return wordedIn(locale, { dateStyle: 'short', timeStyle: 'short' }, timeZone).format(at);
 }
 
+/** When a status message clears, in the three ways the design words it after the message. */
+export type MessageClearing =
+    | { readonly on: 'today'; readonly time: string }
+    | { readonly on: 'tonight' }
+    | { readonly on: 'later'; readonly day: string };
+
+/**
+ * When a colleague's status message clears, read on the reader's clock: the time where it clears later today, *tonight*
+ * where it clears at the coming midnight, and the weekday for a later day — which is never more than a week out, since
+ * the longest while a message is written for is the rest of the week.
+ *
+ * What the service states is the first instant the message is no longer shown, so a message clearing at midnight is
+ * said on the day before it, as an absence is.
+ *
+ * @param instant When the message clears, as the service sent it.
+ * @param locale The language it is worded in.
+ * @param now The instant it is being drawn at.
+ * @param timeZone The zone the reader's record states their days are read in, or `null` for the runtime's own.
+ */
+export function wordMessageClearing(
+    instant: string,
+    locale: Locale,
+    now: number,
+    timeZone: string | null,
+): MessageClearing | null {
+    const clears = Date.parse(instant);
+
+    if (Number.isNaN(clears)) {
+        return null;
+    }
+
+    const today = calendarDayIn(now, timeZone);
+
+    if (calendarDayIn(clears - 1, timeZone) !== today) {
+        return { on: 'later', day: wordedIn(locale, { weekday: 'long' }, timeZone).format(clears - 1) };
+    }
+
+    return calendarDayIn(clears, timeZone) === today
+        ? { on: 'today', time: wordedIn(locale, { timeStyle: 'short' }, timeZone).format(clears) }
+        : { on: 'tonight' };
+}
+
 /**
  * The last day a colleague is out of office, as the design words it after *out of office until*: the day and the month.
  *

@@ -1178,3 +1178,22 @@ test('answers the presence the person chose on every later read, and takes a ren
     expect(ask(deployment, 'DELETE', client)).toBe(204);
     expect(deployment.unimplemented).toEqual([]);
 });
+
+test('answers the status message and the place of work the person stated on every later read, a blank message clearing it', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    ask(deployment, 'PUT', '/presence/status-message', { text: 'On call', clears: null });
+    ask(deployment, 'PUT', '/presence/work-mode', { mode: 'Office', today: false });
+    ask(deployment, 'PUT', '/presence/choice', { state: 'Busy', duration: null });
+
+    expect(ask(deployment, 'GET', '/presence')).toMatchObject({
+        state: 'Busy',
+        statusMessage: { text: 'On call', clears: null, clearsAt: null },
+        workMode: { mode: 'Office', endsAt: null },
+    });
+
+    ask(deployment, 'PUT', '/presence/status-message', { text: '', clears: null });
+
+    expect(ask(deployment, 'GET', '/presence')).toMatchObject({ statusMessage: null });
+    expect(deployment.unimplemented).toEqual([]);
+});

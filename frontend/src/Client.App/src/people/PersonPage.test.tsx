@@ -49,6 +49,8 @@ const piotr: Colleague = {
     lastSeen: null,
     outOfOfficeUntil: null,
     usesPhoneApp: false,
+    statusMessage: null,
+    workMode: null,
 };
 
 const officeHours = {
@@ -424,6 +426,37 @@ describe('PersonPage', () => {
             drawPage({ contact: piotr });
 
             expect(screen.queryByText('Uses the phone app')).toBeNull();
+        });
+
+        it('says where a colleague works from, and what they say they are doing with when it clears', () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-31T09:00:00Z'));
+            drawPage({
+                contact: {
+                    ...piotr,
+                    workMode: { mode: 'Remote', endsAt: '2026-10-31T23:00:00Z' },
+                    statusMessage: { text: 'In workshops', clears: 'today', clearsAt: '2026-10-31T23:00:00Z' },
+                },
+                readerZone: 'Europe/Warsaw',
+            });
+
+            expect(screen.getByText('Remote today')).toBeDefined();
+            expect(screen.getByText('In workshops')).toBeDefined();
+            expect(screen.getByText('· clears tonight')).toBeDefined();
+        });
+
+        it('says no clearing for a message that never clears, and nothing for a colleague who stated neither', () => {
+            const { rerender } = drawPage({
+                contact: { ...piotr, statusMessage: { text: 'Ask me about invoices', clears: null, clearsAt: null } },
+            });
+
+            expect(screen.getByText('Ask me about invoices')).toBeDefined();
+            expect(screen.queryByText(/clears/u)).toBeNull();
+
+            rerender(pageOf({ contact: piotr }));
+
+            expect(screen.queryByText('Ask me about invoices')).toBeNull();
+            expect(screen.queryByText(/today|until changed/u)).toBeNull();
         });
 
         it('says nothing about being away for a colleague whose automatic reply is not running', () => {

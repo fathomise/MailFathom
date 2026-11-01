@@ -709,9 +709,9 @@ const choiceLasts: Readonly<Record<string, number>> = {
 };
 
 /**
- * The member's own presence, and the two writes to it. A renewal and a close are taken and answer nothing, and a choice
- * is held so the next read answers it — `Active` until changed being the member's clients deciding again, as on the
- * route.
+ * The member's own presence, and the writes to it. A renewal and a close are taken and answer nothing, and a choice, a
+ * status message, and a place of work are each held so the next read answers them — `Active` until changed being the
+ * member's clients deciding again and a blank message being none, as on the routes.
  */
 function presenceAnswer(route: string, request: ClientRequest, state: FixtureDeploymentState): ClientResponse {
     if (route.startsWith('/presence/clients/')) {
@@ -726,10 +726,45 @@ function presenceAnswer(route: string, request: ClientRequest, state: FixtureDep
 
         if (typeof chosen === 'string') {
             state.presence = {
+                ...state.presence,
                 state: chosen,
                 chosenState: chosen === 'Active' && lasting === undefined ? null : chosen,
                 choiceDuration: lasting === undefined ? null : duration,
                 choiceEndsAt: lasting === undefined ? null : new Date(Date.now() + lasting).toISOString(),
+            };
+        }
+    }
+
+    if (route === '/presence/status-message') {
+        const stated = recordIn(request.body);
+        const text = stated?.['text'];
+        const clears = String(stated?.['clears']);
+        const lasting = choiceLasts[clears];
+
+        if (typeof text === 'string') {
+            state.presence = {
+                ...state.presence,
+                statusMessage:
+                    text.trim() === ''
+                        ? null
+                        : {
+                              text: text.trim(),
+                              clears: lasting === undefined ? null : clears,
+                              clearsAt: lasting === undefined ? null : new Date(Date.now() + lasting).toISOString(),
+                          },
+            };
+        }
+    }
+
+    if (route === '/presence/work-mode') {
+        const stated = recordIn(request.body);
+        const mode = stated?.['mode'];
+        const lasting = stated?.['today'] === true ? choiceLasts['today'] : undefined;
+
+        if (typeof mode === 'string') {
+            state.presence = {
+                ...state.presence,
+                workMode: { mode, endsAt: lasting === undefined ? null : new Date(Date.now() + lasting).toISOString() },
             };
         }
     }

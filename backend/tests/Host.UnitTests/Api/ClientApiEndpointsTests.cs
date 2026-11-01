@@ -243,6 +243,8 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientPresenceEndpoints.ChoiceRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientPresenceEndpoints.ClientRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientPresenceEndpoints.ClientRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientPresenceEndpoints.StatusMessageRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientPresenceEndpoints.WorkModeRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientUserRecordEndpoint.RecordRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientUserRecordEndpoint.RecordRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientUserRecordEndpoint.MailAccountsRoute}",
@@ -449,6 +451,8 @@ public sealed class ClientApiEndpointsTests
                 $"PUT {prefix}{ClientDraftEndpoints.DraftRoute} -> {MailFathomPermission.MailDraftsWrite.Name}",
                 $"PUT {prefix}{ClientPresenceEndpoints.ChoiceRoute} -> {MailFathomPermission.ProfileWrite.Name}",
                 $"PUT {prefix}{ClientPresenceEndpoints.ClientRoute} -> {MailFathomPermission.ProfileWrite.Name}",
+                $"PUT {prefix}{ClientPresenceEndpoints.StatusMessageRoute} -> {MailFathomPermission.ProfileWrite.Name}",
+                $"PUT {prefix}{ClientPresenceEndpoints.WorkModeRoute} -> {MailFathomPermission.ProfileWrite.Name}",
                 $"PUT {prefix}{ClientTaskEndpoints.TaskRoute} -> {MailFathomPermission.TasksWrite.Name}",
             ],
             PublishedAllocation(endpoints).Order(StringComparer.Ordinal));

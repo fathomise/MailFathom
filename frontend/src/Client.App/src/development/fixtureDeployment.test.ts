@@ -216,7 +216,31 @@ describe('fixtureAnswer', () => {
             chosenState: null,
             choiceDuration: null,
             choiceEndsAt: null,
+            statusMessage: null,
+            workMode: null,
         });
+    });
+
+    it('holds a status message and a place of work beside the chosen state, a blank message clearing it', () => {
+        const state = fixtureDeploymentState();
+        const writing = (route: string, body: unknown): ClientResponse | null =>
+            fixtureAnswer(asking(route, 'PUT', JSON.stringify(body)), fixtureDeploymentDefaults, 1, state);
+
+        writing('/presence/status-message', { text: 'On call', clears: null });
+        writing('/presence/work-mode', { mode: 'Remote', today: false });
+        writing('/presence/choice', { state: 'Busy', duration: null });
+
+        const held = fixtureAnswer(asking('/presence'), fixtureDeploymentDefaults, 1, state);
+
+        expect(held === null ? null : stated(held)).toMatchObject({
+            state: 'Busy',
+            statusMessage: { text: 'On call', clears: null, clearsAt: null },
+            workMode: { mode: 'Remote', endsAt: null },
+        });
+
+        const cleared = writing('/presence/status-message', { text: '', clears: null });
+
+        expect(cleared === null ? null : stated(cleared)['statusMessage']).toBeNull();
     });
 
     it('takes a renewal and a close of an open client and answers neither', () => {

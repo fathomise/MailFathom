@@ -152,6 +152,8 @@ function colleague(
         lastSeen,
         outOfOfficeUntil,
         usesPhoneApp,
+        statusMessage: null,
+        workMode: null,
     };
 }
 
@@ -170,7 +172,9 @@ function hoursOn(days: readonly string[], start: string, end: string) {
  * and the two who are simply offline were last seen the evening before the corpus's own day. Piotr Zieliński's
  * automatic reply runs to the end of the day the artboard draws him out of office until. Marta Nowak, Oliver Grant,
  * and Piotr Zieliński use the phone app, as the artboard marks them — Piotr while offline, since the marker is not his
- * presence.
+ * presence. The three the artboard gives a status message say it here too — Marta Nowak's clearing at the end of the
+ * week and Hanna Mazur's at 14:00 on the corpus's own day, Oliver Grant's never — and the two it gives a place of work
+ * work from it for that day alone.
  */
 export const colleaguePage = {
     contacts: [
@@ -184,16 +188,23 @@ export const colleaguePage = {
             [{ number: '+48 22 555 01 10', label: 'Work' }],
             'Away',
         ),
-        colleague(
-            'member-hanna',
-            'Hanna Mazur',
-            'QA Lead',
-            ['h.mazur@nordwind.example'],
-            null,
-            hoursOn(['Monday', 'Tuesday', 'Wednesday', 'Thursday'], '07:00', '15:00'),
-            [],
-            'DoNotDisturb',
-        ),
+        {
+            ...colleague(
+                'member-hanna',
+                'Hanna Mazur',
+                'QA Lead',
+                ['h.mazur@nordwind.example'],
+                null,
+                hoursOn(['Monday', 'Tuesday', 'Wednesday', 'Thursday'], '07:00', '15:00'),
+                [],
+                'DoNotDisturb',
+            ),
+            statusMessage: {
+                text: 'Release testing - mentions only',
+                clears: '2h',
+                clearsAt: '2026-10-31T13:00:00+00:00',
+            },
+        },
         colleague(
             'member-igor',
             'Igor Pawlak',
@@ -204,35 +215,47 @@ export const colleaguePage = {
             [],
             'Offline',
         ),
-        colleague(
-            'member-marta',
-            'Marta Nowak',
-            'Controller',
-            ['m.nowak@nordwind.example', 'm.nowak@company.example'],
-            'Europe/Warsaw',
-            hoursOn(mondayToFriday, '08:00', '16:00'),
-            [
-                { number: '+48 22 555 01 14', label: 'Work' },
-                { number: '+48 601 555 014', label: 'Mobile' },
-            ],
-            'Busy',
-            null,
-            null,
-            true,
-        ),
-        colleague(
-            'member-oliver',
-            'Oliver Grant',
-            'Delivery Engineer',
-            ['o.grant@nordwind.example'],
-            'Europe/London',
-            hoursOn(mondayToFriday, '09:00', '17:30'),
-            [{ number: '+44 20 7946 0321', label: 'Work' }],
-            'Active',
-            null,
-            null,
-            true,
-        ),
+        {
+            ...colleague(
+                'member-marta',
+                'Marta Nowak',
+                'Controller',
+                ['m.nowak@nordwind.example', 'm.nowak@company.example'],
+                'Europe/Warsaw',
+                hoursOn(mondayToFriday, '08:00', '16:00'),
+                [
+                    { number: '+48 22 555 01 14', label: 'Work' },
+                    { number: '+48 601 555 014', label: 'Mobile' },
+                ],
+                'Busy',
+                null,
+                null,
+                true,
+            ),
+            statusMessage: {
+                text: 'Closing the 2027 budget - quickest by phone',
+                clears: 'week',
+                clearsAt: '2026-11-01T23:00:00+00:00',
+            },
+            workMode: { mode: 'Office', endsAt: '2026-10-31T23:00:00+00:00' },
+        },
+        {
+            ...colleague(
+                'member-oliver',
+                'Oliver Grant',
+                'Delivery Engineer',
+                ['o.grant@nordwind.example'],
+                'Europe/London',
+                hoursOn(mondayToFriday, '09:00', '17:30'),
+                [{ number: '+44 20 7946 0321', label: 'Work' }],
+                'Active',
+                null,
+                null,
+                true,
+            ),
+            statusMessage: { text: 'Ask me about the UAT environment', clears: null, clearsAt: null },
+            workMode: { mode: 'Remote', endsAt: '2026-11-01T00:00:00+00:00' },
+        },
         colleague(
             'member-piotr',
             'Piotr Zieliński',
