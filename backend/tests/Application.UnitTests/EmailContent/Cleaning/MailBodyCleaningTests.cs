@@ -59,6 +59,29 @@ public sealed class MailBodyCleaningTests
         Assert.Equal([document.Blocks[1]], cleaned.Document!.Blocks);
     }
 
+    /// <summary>A footer named among the blocks the body route served names nothing once some of them are gone.</summary>
+    [Fact]
+    public async Task CleanAsync_ADocumentNamingTheReadersOwnFooter_ServesTheCleanedDocumentNamingNone()
+    {
+        // Arrange
+        var document = DocumentSaying("Preheader", "Your code is 558132", "Anna Kowalska") with
+        {
+            Footer = new MailDocumentFooter(2, 1),
+        };
+        var cleaner = ScriptedMailBodyCleaner.Keeping(new MailBodyCleaningSegment(0, 0, Keep: false), new MailBodyCleaningSegment(1, 2, Keep: true));
+
+        // Act
+        var cleaned = await CleaningOf(document, cleaner).CleanAsync(
+            Message,
+            retainRemoteImageReferences: false,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailBodyCleaningOutcome.Cleaned, cleaned!.Outcome);
+        Assert.Equal(2, cleaned.Document!.Blocks.Count);
+        Assert.Null(cleaned.Document.Footer);
+    }
+
     /// <summary>
     /// The one retry. A first answer the reading refuses is asked again, and the second answer is the one served — which
     /// is what stops a producer's single misnumbered turn from costing the reader the view.

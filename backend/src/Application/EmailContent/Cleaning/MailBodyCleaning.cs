@@ -191,11 +191,13 @@ public sealed class MailBodyCleaning
 
             // Nothing kept is an answer this cannot use rather than a message with nothing in it, so it is asked again
             // exactly as a partition that did not describe the document is. A reader is never shown an empty pane.
+            // The footer is named by position among the blocks the body route served, and a cleaned document keeps only
+            // some of them, so the statement would point at the wrong blocks rather than merely at fewer.
             if (MailBodyCleaningSegments.Read(proposal.Segments, document.Blocks.Count) is { Count: > 0 } kept)
             {
                 return new CleanedMailBody(
                     MailBodyCleaningOutcome.Cleaned,
-                    document with { Blocks = [.. kept.Select(index => document.Blocks[index])] });
+                    document with { Blocks = [.. kept.Select(index => document.Blocks[index])], Footer = null });
             }
         }
 

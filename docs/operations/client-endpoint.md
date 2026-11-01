@@ -2094,6 +2094,10 @@ frame rather than their message absent, and every block it keeps identical to wh
 }
 ```
 
+`footer` is `null` on a `Cleaned` document even where the body route names the reader's own footer, because it counts
+the blocks the body route served and the cleaning kept only some of them. Every other value serves the body route's
+document unchanged, `footer` included.
+
 **`cleaning` says what happened, and `document` is what to draw whichever value it carries.**
 
 | Value | What it means |
