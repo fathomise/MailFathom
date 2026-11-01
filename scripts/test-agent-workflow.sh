@@ -7631,6 +7631,13 @@ coherence_relates_no_generated_file() {
     "$migrations/20261102000000_AddGadgets.cs $migrations/20261102000000_AddGadgets.Designer.cs $migrations/MailFathomDbContextModelSnapshot.cs"
 
   assert_json '[]' '.' "$test_directory/coherence-generated.json"
+
+  # The other direction: generated files that landed, against a page and an `AGENTS.md` this side
+  # changed that would describe and govern them.
+  run_coherence generated-landed "$migrations/20261101000000_AddWidgets.cs $migrations/MailFathomDbContextModelSnapshot.cs" \
+    'docs/architecture/widget-storage.md backend/src/Infrastructure/Persistence/AGENTS.md'
+
+  assert_json '[]' '.' "$test_directory/coherence-generated-landed.json"
 }
 
 coherence_still_relates_a_page_to_the_model_beside_its_migrations() {
