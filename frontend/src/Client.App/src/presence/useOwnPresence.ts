@@ -19,9 +19,8 @@ import type { SignalledChanges } from '../signals/signalledChanges';
 //
 // It is read when the session starts and again whenever it may have moved: a presence change was signalled, a refresh
 // was asked for, or the while the member chose ran out — which no request marks, so the client that knows the instant
-// reads again at it. The signal names members by their user identity and nothing tells this client its own, so every
-// presence change reads the member's own presence again: it is one small read, and guessing which change was theirs
-// would be the client deciding something the deployment knows.
+// reads again at it. A presence change reaches only the member's own clients, so it is always about this reader: the
+// state they chose on another device, a client they closed, or an out-of-office period they saved.
 //
 // A caller in no organization is answered `404`, and is drawn no presence at all, which is what the design draws for a
 // reader outside one.

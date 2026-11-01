@@ -5,7 +5,6 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.AutomaticReplies;
-using MailFathom.Application.Presence;
 using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -156,7 +155,6 @@ public sealed class ClientAutomaticReplyEndpointTests : IAsyncDisposable
             store,
             assignments,
             Substitute.For<IAdministrativeTargets>(),
-            Substitute.For<IPresenceStore>(),
             this.signals,
             new FakeTimeProvider());
     }

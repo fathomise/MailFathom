@@ -76,7 +76,7 @@ describe('useOwnPresence', () => {
         expect(result.current).toBeNull();
     });
 
-    it('reads the member’s presence again when a presence change is signalled, whoever it names', async () => {
+    it('reads the member’s presence again when a presence change is signalled from their other clients', async () => {
         const { transport, answer } = deployment({ status: 200, body: busy });
         const { signalled, say } = channel();
         const { result } = renderHook(() => useOwnPresence(session, transport, signalled));
@@ -87,7 +87,7 @@ describe('useOwnPresence', () => {
 
         answer({ status: 200, body: { state: 'Away', chosenState: null, choiceEndsAt: null } });
         act(() => {
-            say({ kind: 'presence.changed', members: ['someone-else'] });
+            say({ kind: 'presence.changed' });
         });
 
         await waitFor(() => {

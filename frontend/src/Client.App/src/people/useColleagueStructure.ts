@@ -16,7 +16,8 @@ import { useSignalledChanges } from '../signals/signalledChanges';
 // It is read apart from the colleague because the directory composes it out of every member while the colleague is one
 // row, so the card it feeds draws its own wait rather than holding the page up — and it is keyed on the colleague and
 // the credential for the reason `useContactCorrespondence.ts` is: an answer for the person just left is never drawn
-// under the person just opened.
+// under the person just opened. It is read again on the refresh alone, which is what keeps the presence of the
+// people in it current: nobody is told when a colleague's presence moves.
 
 /** What one colleague's structure says, and the way out of a read that did not answer. */
 export interface ColleagueStructureInForce {
@@ -66,10 +67,6 @@ export function useColleagueStructure(
     const latest = useRef(0);
     const signalled = useSignalledChanges();
 
-    // Who the structure last read names, so a presence change about one of them reads it again and one about anybody
-    // else does not.
-    const named = useRef<readonly string[]>([]);
-
     const read = useCallback(async (): Promise<void> => {
         if (session === null || colleagueId === null) {
             return;
@@ -82,10 +79,6 @@ export function useColleagueStructure(
             return;
         }
 
-        named.current =
-            answer.outcome === 'read'
-                ? [...answer.value.managers, ...answer.value.directReports].map(({ id }) => id)
-                : [];
         setHeld({
             colleagueId,
             session,
@@ -102,11 +95,7 @@ export function useColleagueStructure(
     useEffect(
         () =>
             signalled.listen((change) => {
-                if (
-                    change.kind === 'refresh' ||
-                    (change.kind === 'presence.changed' &&
-                        (change.members.length === 0 || change.members.some((id) => named.current.includes(id))))
-                ) {
+                if (change.kind === 'refresh') {
                     void read();
                 }
             }),

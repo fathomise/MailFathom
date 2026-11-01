@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     contactsPerPage,
     mostContactsPerPage,
-    readColleague,
     readColleagues,
     readCollectedContacts,
     readOwnContacts,
@@ -40,11 +39,11 @@ import { useSignalledChanges, type SignalledChange } from '../signals/signalledC
 //
 // **What is held moves while the book is open**, and is read again in place rather than from nothing. A book of
 // contacts is read again when the deployment says one of the reader's books was written — by them on another device, by
-// an agent, by an administrator, or by collection from arriving mail — and on every refresh. A colleague's presence is
-// read again by member where a presence change names them, and the pages held read again where it names nobody or a
-// refresh was asked for — which is also how a colleague whose client simply expired comes to read as gone. Each answer
-// replaces the record it read rather than editing one, so the deployment stays the one deciding what a reader may see
-// of somebody.
+// an agent, by an administrator, or by collection from arriving mail — and on every refresh. The colleagues are read
+// again on the refresh alone: nobody is told when a colleague's presence moves, so the refresh is what keeps it current,
+// and how a colleague whose client simply expired comes to read as gone. Every row held is read again, in as many pages
+// as that takes, and the answer replaces what was held only once every page has answered — so the deployment stays the
+// one deciding what a reader may see of somebody, and a reader deep in a long directory keeps every row they reached.
 
 /** Which book a screen is reading: the reader's own, their organization's members, or what their mail collected. */
 export type ContactBookName = 'own' | 'colleagues' | 'collected';
@@ -88,6 +87,12 @@ interface HeldBook {
     readonly failure: ClientFailureReason | null;
 }
 
+// What one book's pages read again from the leading end answered: every row, and where the walk continues.
+interface ReadAgain {
+    readonly contacts: readonly Person[];
+    readonly nextCursor: string | null;
+}
+
 // One page of whichever book is asked for, in the one shape this holds. The directory answers its members under a
 // name of its own, which is the only difference between reading it and reading a book.
 async function pageOf(
@@ -105,6 +110,36 @@ async function pageOf(
     return answer.outcome === 'failed'
         ? answer
         : { outcome: 'read', value: { contacts: answer.value.colleagues, nextCursor: answer.value.nextCursor } };
+}
+
+/**
+ * Reads a book again from the leading end until at least as many rows as were held have answered, or the book ends, in
+ * pages of at most what one page may hold; `null` where any page did not answer, so what is drawn is never half old and
+ * half new.
+ */
+async function readHeldPagesAgain(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    book: ContactBookName,
+    held: number,
+): Promise<ReadAgain | null> {
+    const wanted = Math.max(held, contactsPerPage);
+    const contacts: Person[] = [];
+    let cursor: string | null = null;
+
+    do {
+        const pageSize = Math.min(Math.max(wanted - contacts.length, contactsPerPage), mostContactsPerPage);
+        const answer = await pageOf(session, transport, book, { cursor, pageSize });
+
+        if (answer.outcome === 'failed') {
+            return null;
+        }
+
+        contacts.push(...answer.value.contacts);
+        cursor = answer.value.nextCursor;
+    } while (cursor !== null && contacts.length < wanted);
+
+    return { contacts, nextCursor: cursor };
 }
 
 function nothingRead(book: ContactBookName, session: ClientSession | null): HeldBook {
@@ -203,68 +238,33 @@ export function useContactBook(
             return;
         }
 
-        // Replaces whoever an answer names in what is held, when the book and the credential are still the ones asked for.
-        const replaced = (read: readonly Person[], window: number | null, nextCursor: string | null): void => {
-            setHeld((current) => {
-                if (current.book !== book || current.session !== session) {
-                    return current;
-                }
-
-                if (window === null) {
-                    return {
-                        ...current,
-                        contacts: current.contacts.map((held) => read.find(({ id }) => id === held.id) ?? held),
-                    };
-                }
-
-                const tail = current.contacts.slice(window);
-
-                return {
-                    ...current,
-                    contacts: [...read, ...tail],
-                    cursor: tail.length === 0 ? nextCursor : current.cursor,
-                    complete: tail.length === 0 ? nextCursor === null : current.complete,
-                };
-            });
-        };
-
-        // The pages held are read again as one window, of at most what one page may hold: a reader who has scrolled past
-        // that many people keeps the rest as last read until a later change reaches them. Reading every page again
-        // would be the upgrade if a directory that long turns out to be read that far.
         const readHeldAgain = async (): Promise<void> => {
-            const window = Math.min(Math.max(holding.current.contacts.length, contactsPerPage), mostContactsPerPage);
             const asked = ++rereads.current;
-            const answer = await pageOf(session, transport, book, { pageSize: window });
+            const answer = await readHeldPagesAgain(session, transport, book, holding.current.contacts.length);
 
-            if (asked === rereads.current && answer.outcome === 'read') {
-                replaced(answer.value.contacts, window, answer.value.nextCursor);
+            if (asked !== rereads.current || answer === null) {
+                return;
             }
-        };
 
-        const readNamedAgain = async (members: readonly string[]): Promise<void> => {
-            const named = holding.current.contacts.filter(({ id }) => members.includes(id));
-            const answers = await Promise.all(named.map(({ id }) => readColleague(session, transport, id)));
-
-            replaced(
-                answers.flatMap((answer) => (answer.outcome === 'read' ? [answer.value] : [])),
-                null,
-                null,
+            setHeld((current) =>
+                current.book === book && current.session === session
+                    ? {
+                          ...current,
+                          contacts: answer.contacts,
+                          cursor: answer.nextCursor,
+                          complete: answer.nextCursor === null,
+                      }
+                    : current,
             );
         };
 
-        // A contacts change says nothing of the directory, which is read from user records rather than from a book, and a
-        // presence change says nothing of a book.
+        // A contacts change says nothing of the directory, which is read from user records rather than from a book.
         const everyHeldChanged = (change: SignalledChange): boolean =>
-            change.kind === 'refresh' ||
-            (book === 'colleagues'
-                ? change.kind === 'presence.changed' && change.members.length === 0
-                : change.kind === 'contacts.changed');
+            change.kind === 'refresh' || (book !== 'colleagues' && change.kind === 'contacts.changed');
 
         return signalled.listen((change) => {
             if (everyHeldChanged(change)) {
                 void readHeldAgain();
-            } else if (book === 'colleagues' && change.kind === 'presence.changed') {
-                void readNamedAgain(change.members);
             }
         });
     }, [book, session, transport, signalled]);

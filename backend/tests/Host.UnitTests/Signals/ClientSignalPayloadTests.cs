@@ -6,7 +6,6 @@ using System.Text.Json;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Discovery.Streaming;
 using MailFathom.Application.Signals;
-using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
@@ -60,7 +59,7 @@ public sealed class ClientSignalPayloadTests
 
         // Assert
         AssertPayloadIs(
-            new ClientSignalPayload("mail.arrived", "work", Inbox.ToString(), 4, [], [], null, null, null, null, null, 0, []),
+            new ClientSignalPayload("mail.arrived", "work", Inbox.ToString(), 4, [], [], null, null, null, null, null, 0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -90,8 +89,7 @@ public sealed class ClientSignalPayloadTests
                 null,
                 null,
                 null,
-                0,
-                []),
+                0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -124,8 +122,7 @@ public sealed class ClientSignalPayloadTests
                 null,
                 null,
                 null,
-                0,
-                []),
+                0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -142,7 +139,7 @@ public sealed class ClientSignalPayloadTests
 
         // Assert
         AssertPayloadIs(
-            new ClientSignalPayload("folders.changed", "work", null, 0, [], [], null, null, null, null, null, 0, []),
+            new ClientSignalPayload("folders.changed", "work", null, 0, [], [], null, null, null, null, null, 0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -159,7 +156,7 @@ public sealed class ClientSignalPayloadTests
 
         // Assert
         AssertPayloadIs(
-            new ClientSignalPayload("outbox.changed", "work", null, 0, [], [], null, null, null, null, null, 0, []),
+            new ClientSignalPayload("outbox.changed", "work", null, 0, [], [], null, null, null, null, null, 0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -200,8 +197,7 @@ public sealed class ClientSignalPayloadTests
                 "Four messages arrived in work.",
                 null,
                 null,
-                0,
-                []),
+                0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -218,7 +214,7 @@ public sealed class ClientSignalPayloadTests
 
         // Assert
         AssertPayloadIs(
-            new ClientSignalPayload("account.state", "work", null, 0, [], [], null, null, null, null, null, 0, []),
+            new ClientSignalPayload("account.state", "work", null, 0, [], [], null, null, null, null, null, 0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -253,8 +249,7 @@ public sealed class ClientSignalPayloadTests
                 null,
                 run.Value.ToString(),
                 null,
-                7,
-                []),
+                7),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -285,26 +280,24 @@ public sealed class ClientSignalPayloadTests
                 null,
                 run.Value.ToString(),
                 conversation.Value.ToString(),
-                12,
-                []),
+                12),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
 
-    /// <summary>A presence change names the colleague by the identity their contact is read under, and nothing about them.</summary>
+    /// <summary>A presence change reaches the member's own clients and names nothing, not even the member.</summary>
     [Fact]
-    public void For_PresenceChanged_RendersTheNamedMemberAndNothingElse()
+    public void For_PresenceChanged_RendersTheKindAndNothingElse()
     {
         // Arrange
-        var member = UserId.Create(Guid.CreateVersion7(Instant));
-        var signal = ClientSignal.PresenceChanged(SyntheticUser.Deployment, member);
+        var signal = ClientSignal.PresenceChanged(SyntheticUser.Deployment);
 
         // Act
         var payload = ClientSignalPayload.For(signal);
 
         // Assert
         AssertPayloadIs(
-            new ClientSignalPayload("presence.changed", null, null, 0, [], [], null, null, null, null, null, 0, [member.Value.ToString()]),
+            new ClientSignalPayload("presence.changed", null, null, 0, [], [], null, null, null, null, null, 0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -317,10 +310,9 @@ public sealed class ClientSignalPayloadTests
     {
         Assert.Equal(expected.Emails, actual.Emails);
         Assert.Equal(expected.Flags, actual.Flags);
-        Assert.Equal(expected.Members, actual.Members);
         Assert.Equal(
-            expected with { Emails = [], Flags = [], Members = [] },
-            actual with { Emails = [], Flags = [], Members = [] });
+            expected with { Emails = [], Flags = [] },
+            actual with { Emails = [], Flags = [] });
     }
 
     private static void AssertNothingAboutMailOrTheUserCrossed(ClientSignalPayload payload)

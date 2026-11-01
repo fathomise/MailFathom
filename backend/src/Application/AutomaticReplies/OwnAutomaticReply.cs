@@ -4,7 +4,6 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
-using MailFathom.Application.Presence;
 using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.AutomaticReplies;
@@ -16,15 +15,13 @@ namespace MailFathom.Application.AutomaticReplies;
 /// <param name="store">Holds the reply.</param>
 /// <param name="assignments">Answers which accounts are the user's and which of them are shared.</param>
 /// <param name="placements">Answers which organization the user is a member of.</param>
-/// <param name="organizations">Answers who else is a member of that organization.</param>
-/// <param name="signals">Tells those members when the user starts or stops reading to them as out of office.</param>
+/// <param name="signals">Tells the user's own clients when they start or stop reading to their colleagues as out of office.</param>
 /// <param name="time">Says which part of a period has begun.</param>
 public sealed class OwnAutomaticReply(
     AccessAuthorization authorization,
     IAutomaticReplyStore store,
     IMailAccountAssignments assignments,
     IAdministrativeTargets placements,
-    IPresenceStore organizations,
     ClientSignals signals,
     TimeProvider time)
 {
@@ -58,8 +55,8 @@ public sealed class OwnAutomaticReply(
     /// </para>
     /// <para>
     /// A save that changes whether, or until when, the user reads to their colleagues as out of office raises
-    /// <see cref="ClientSignal.PresenceChanged" /> to every member of their organization, so an open directory reads them
-    /// again. A period beginning or ending with nobody saving anything raises nothing.
+    /// <see cref="ClientSignal.PresenceChanged" /> to the user's own clients alone; colleagues read it on their own
+    /// refresh. A period beginning or ending with nobody saving anything raises nothing.
     /// </para>
     /// </remarks>
     public async Task<AutomaticReplyWrite> SaveAsync(AutomaticReply reply, CancellationToken cancellationToken)
@@ -97,15 +94,12 @@ public sealed class OwnAutomaticReply(
         var now = time.GetUtcNow();
 
         if (before?.OutOfOfficeUntil(now) == after.OutOfOfficeUntil(now)
-            || (await placements.PlaceUserAsync(user, cancellationToken)).Organization is not { } organization)
+            || (await placements.PlaceUserAsync(user, cancellationToken)).Organization is null)
         {
             return;
         }
 
-        foreach (var recipient in await organizations.ReadOrganizationUsersAsync(organization, cancellationToken))
-        {
-            signals.Publish(ClientSignal.PresenceChanged(recipient, user));
-        }
+        signals.Publish(ClientSignal.PresenceChanged(user));
     }
 
     private async Task<AutomaticReplyWrite?> RefuseAsync(

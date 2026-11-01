@@ -7,7 +7,7 @@ consulted:
 informed:
 ---
 
-# Work out a member's presence when it is read from a row each open client renews and the one state the member chose, hold no history of it, tell the other members that it changed over the backplane, and let an expiry rather than a replica end it
+# Work out a member's presence when it is read from a row each open client renews and the one state the member chose, hold no history of it, tell only the member's own clients that it changed while colleagues read it on their refresh, and let an expiry rather than a replica end it
 
 <!-- describes: backend/src/Host/Api/ColleagueResponses.cs, backend/src/Domain/Presence/**, backend/src/Application/Presence/**, backend/src/Infrastructure/Persistence/Presence/**, frontend/src/Client.App/src/presence/** -->
 
@@ -161,26 +161,31 @@ erases it.
   operator can read the two tables, as they can read everything else in the database, and the personal-data
   documentation says so.
 
-### A change reaches the other members as a signal that names the member
+### A change reaches the member's own clients, and colleagues read it on their refresh
 
-A new client signal kind, `presence.changed`, carries the identifiers of the members whose presence a reader might see
-differently, and nothing else: no state and no timestamp. The deployment publishes it to the user group of every member
-of the organization, the member included — every person the member directory lists, under the same bound, and no
-service account, which has no colleague to draw — resolved when it is published, so somebody who has just left the
-organization receives nothing. It crosses replicas over the backplane exactly as every other signal does, and the
-client answers it by re-reading the presence it draws.
+A client signal kind, `presence.changed`, tells the member's own clients that how the other members see them may have
+changed, and carries nothing at all: no member, no state, and no timestamp. The deployment publishes it to the member's
+own user group alone, so the member's other devices re-read the member's own presence — a state chosen on the laptop
+shows on the phone at once. It crosses replicas over the backplane exactly as every other signal addressed to one user
+does.
 
-The signal carries no state, so that what a reader may see — `Offline` for `Hidden`, *Last seen* withheld — is decided
-in one place, the read. A state in the payload would need a payload per reader.
+**No other member is told.** Every client already re-reads what it draws every five minutes while its window is
+visible (ADR 0032), and the colleague screens re-read their colleagues' data and presence on that refresh, every row the
+reader holds included. A signal to every member of the organization would cost one send per member for each change —
+over the hub, over the backplane, and in the per-replica folding every other kind of signal shares — and every client
+would answer each one with requests, so in a large organization presence would crowd out mail signals and flood the
+backplane. So one member's change costs one signal however large the organization, and reaches colleagues within five
+minutes.
+
+The signal carries no state for the reason it never did: what a reader may see — `Offline` for `Hidden`, *Last seen*
+withheld — is decided in one place, the read.
 
 It is published when a write changes what the other members see: a renewal that opens the member's first client or
-moves them between `Active` and `Away`, a delete that closes their last client, and a choice. **A change that no write
-causes is not signalled.** A client that crashed expires, and a duration runs out, and no request marks the moment. A
-reader's view of that catches up on the client's five-minute re-read (ADR 0032), and the member's own client re-reads
-at the instant its choice ends, because it knows the instant. So a crash or an expired duration takes up to five
-minutes to reach colleagues, and every other change arrives at once. A sweep that looked for expiries and signalled
-them would close that gap. It would be work that must not run twice, so it would need a lease, for a gap that the
-re-read already bounds. Revisit it if five minutes proves too long for the people reading it.
+moves them between `Active` and `Away`, a delete that closes their last client, a choice, and an automatic reply saved
+so that the member starts or stops reading as out of office now. **A change that no write causes is not signalled.** A
+client that crashed expires, and a duration runs out, and no request marks the moment. The member's own client re-reads
+at the instant its choice ends, because it knows the instant, and every other reader catches up on its refresh, as it
+does for every change.
 
 ### What is held, and what never is
 
@@ -197,8 +202,9 @@ re-read already bounds. Revisit it if five minutes proves too long for the peopl
   client makes, so this is stated rather than assumed. The presence routes record no audit entry, because they change
   no mail and an entry per renewal would be exactly the history this record refuses. Counters may count renewals and
   open clients for the deployment as a whole.
-- **The backplane carries identifiers.** `presence.changed` carries member identifiers the way every signal already
-  carries a user's identifier in its group name, under ADR 0032's confidentiality requirements, and stores nothing.
+- **The backplane carries no presence.** `presence.changed` names nobody and travels in the member's own user group,
+  whose name carries their identifier the way every signal addressed to one user already does, under ADR 0032's
+  confidentiality requirements, and stores nothing.
 
 The personal-data documentation and `docs/features/contacts.md` state what is tracked, who sees it, and how long it
 lasts, in the change that builds it.
@@ -216,12 +222,14 @@ on `ColleagueResponse`. No configuration key, MCP tool, or deployment asset chan
 - Good, because the visibility rules live in one read, so `Hidden`, *Last seen*, and the organization boundary cannot
   disagree between a list, a contact, and a signal.
 - Good, because what is held is the present alone, and it is erased with the user.
+- Good, because a change costs one signal to the member's own clients however large the organization, so presence
+  never crowds out mail signals, fills the per-replica folding, or floods the backplane.
 - Neutral, because a renewal a minute for each open client is new traffic: one small write per client per minute,
   against a surface that already re-reads whole screens every five minutes.
 - Neutral, because `Active` until changed is the way back to automatic presence rather than a choice, which the
   status menu has no other way to express.
-- Bad, because a crash or a duration running out reaches colleagues on their next re-read, up to five minutes later,
-  rather than at once.
+- Bad, because every change to a colleague's presence reaches a reader on their next refresh, up to five minutes
+  later, rather than at once.
 - Bad, because a client the operating system suspends without `pagehide` — a phone putting a web view to sleep —
   shows its member present for up to three minutes after they left.
 - Bad, because the client's own measure of idleness is trusted: a client can report itself `active` forever. That is
@@ -240,6 +248,10 @@ on `ColleagueResponse`. No configuration key, MCP tool, or deployment asset chan
   record states none.
 - Unit tests over the client's idleness at ten minutes, its immediate renewal when input returns, and its `keepalive`
   delete on `pagehide`.
+- Unit tests over the signal's addressing: a change reaches the member's own user and no colleague, and a write that
+  changes nothing the others see raises nothing.
+- Unit tests over the client's refresh of a long directory: every colleague held is read again, past what one page
+  holds.
 - Review against this record for any log, metric, trace, or audit entry naming a person's presence.
 
 ## Pros and Cons of the Options
@@ -287,5 +299,6 @@ the connections it holds.
 - Issue 2793 builds this record. Issue 2794 adds the status message and work mode beside it, issue 2798 the
   calendar-derived `Busy` and `Do not disturb`, and issue 2795 the phone-app marker, which is derived from sessions
   and not from this table.
-- Revisit the five-minute delay for a crash or an expired duration if the people reading presence find it too long.
-  That is when a leased sweep that signals expiries earns its place.
+- Revisit the five-minute delay if the people reading presence find it too long. A signal that reaches colleagues
+  again would have to be addressed to the readers actually drawing the member rather than to the whole organization,
+  so that its cost stays independent of the organization's size.

@@ -211,9 +211,10 @@ member holding the chosen state, the while it was chosen for, when it ends, and 
 nothing keeps what it said before, so no history of anybody's presence exists. Both go with the user when they are
 erased. Members of the same organization see a colleague's presence and nobody else: no MCP tool, administrative route,
 or `mfctl` command reads it. A user in no organization is recorded nothing. No log line, metric, trace, or audit entry
-names a person's presence or a renewal. A change another member could see is announced over the signal channel by
-naming the member and nothing about them, and a client re-reads that colleague; a client that crashed or a duration
-that ran out reaches colleagues on their client's own re-read, within five minutes. [The client endpoint § The
+names a person's presence or a renewal. A change another member could see is announced over the signal channel to the
+member's own clients alone, naming nothing, so their other devices show it at once; colleagues are told nothing and see
+it on their client's own refresh, within five minutes, which re-reads every colleague the reader holds however far down
+the directory they reached. [The client endpoint § The
 presence routes](../operations/client-endpoint.md#the-presence-routes) holds the routes.
 
 ### A colleague who uses the phone app

@@ -247,7 +247,8 @@ describe('useContactBook', () => {
 
     describe('a colleague’s presence', () => {
         // The directory, and each member read alone, answering whatever the test last said about them.
-        function directory(presence: Record<string, string>): {
+        // The directory as the deployment walks it, a page at a time from where the cursor says, at the size asked.
+        function directory(presence: Map<string, string>): {
             readonly transport: MailFathomTransport;
             readonly asked: () => readonly string[];
         } {
@@ -258,51 +259,79 @@ describe('useContactBook', () => {
                 transport: ({ path }) => {
                     asked.push(path);
 
-                    const member = /\/contacts\/colleagues\/([a-z]+)$/u.exec(path)?.[1];
-                    const body =
-                        member === undefined
-                            ? pageOf(
-                                  Object.entries(presence).map(([id, state]) => colleague(id, id, state)),
-                                  null,
-                              )
-                            : JSON.stringify(colleague(member, member, presence[member]));
+                    const query = new URLSearchParams(path.slice(path.indexOf('?') + 1));
+                    const from = Number(query.get('cursor') ?? '0');
+                    const until = from + Number(query.get('pageSize'));
+                    const members = [...presence].slice(from, until);
+                    const body = pageOf(
+                        members.map(([id, state]) => colleague(id, id, state)),
+                        until < presence.size ? String(until) : null,
+                    );
 
                     return Promise.resolve({ status: 200, body, headers: {} });
                 },
             };
         }
 
-        it('reads again each member a presence change names, and only them', async () => {
-            const presence: Record<string, string> = { marta: 'Busy', piotr: 'Active' };
-            const { transport, asked } = directory(presence);
-            const channel = told();
-
-            drawBook(transport, channel, 'colleagues');
-            expect(await screen.findByText('Busy')).toBeDefined();
-
-            presence['piotr'] = 'Away';
-            act(() => {
-                channel.say({ kind: 'presence.changed', members: ['piotr'] });
-            });
-
-            expect(await screen.findByText('Away')).toBeDefined();
-            expect(asked().slice(1)).toEqual(['https://mail.example.invalid/api/client/contacts/colleagues/piotr']);
-        });
-
-        it('reads the members held again where a presence change names nobody', async () => {
-            const presence: Record<string, string> = { marta: 'Busy' };
+        it('reads the colleagues held again on a refresh, with the presence they have now', async () => {
+            const presence = new Map([['marta', 'Busy']]);
             const { transport } = directory(presence);
             const channel = told();
 
             drawBook(transport, channel, 'colleagues');
             expect(await screen.findByText('Busy')).toBeDefined();
 
-            presence['marta'] = 'Offline';
+            presence.set('marta', 'Offline');
             act(() => {
-                channel.say({ kind: 'presence.changed', members: [] });
+                channel.say({ kind: 'refresh' });
             });
 
             expect(await screen.findByText('Offline')).toBeDefined();
+        });
+
+        it('reads nothing again for a presence change, which is about the reader rather than a colleague', async () => {
+            const { transport, asked } = directory(new Map([['marta', 'Busy']]));
+            const channel = told();
+
+            drawBook(transport, channel, 'colleagues');
+            expect(await screen.findByText('Busy')).toBeDefined();
+
+            act(() => {
+                channel.say({ kind: 'presence.changed' });
+            });
+
+            expect(asked()).toHaveLength(1);
+        });
+
+        it('reads every colleague held again past what one page holds, so a reader deep in the directory keeps them all', async () => {
+            const presence = new Map<string, string>(
+                Array.from({ length: 260 }, (_, at) => [`member-${String(at).padStart(3, '0')}`, 'Active']),
+            );
+            const { transport, asked } = directory(presence);
+            const channel = told();
+
+            drawBook(transport, channel, 'colleagues');
+
+            for (const held of [50, 100, 150, 200, 250]) {
+                expect(await screen.findByText(`member-${String(held - 1).padStart(3, '0')}`)).toBeDefined();
+                fireEvent.click(screen.getByRole('button', { name: asksForMore }));
+            }
+
+            expect(await screen.findByText('member-259')).toBeDefined();
+
+            presence.set('member-255', 'Away');
+            const before = asked().length;
+            act(() => {
+                channel.say({ kind: 'refresh' });
+            });
+
+            expect(await screen.findByText('Away')).toBeDefined();
+            expect(screen.getAllByRole('listitem')).toHaveLength(260);
+            expect(
+                asked()
+                    .slice(before)
+                    .map((path) => path.slice(path.indexOf('?') + 1)),
+            ).toEqual(['pageSize=200', 'pageSize=60&cursor=200']);
         });
 
         it('reads nothing again for a book that holds no colleagues', async () => {
@@ -313,7 +342,7 @@ describe('useContactBook', () => {
             expect(await screen.findByText('Anna Kowalska')).toBeDefined();
 
             act(() => {
-                channel.say({ kind: 'presence.changed', members: [] });
+                channel.say({ kind: 'presence.changed' });
             });
 
             expect(asked()).toHaveLength(1);

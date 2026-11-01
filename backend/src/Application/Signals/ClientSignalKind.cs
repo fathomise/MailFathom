@@ -69,10 +69,10 @@ public readonly record struct ClientSignalKind
     /// </remarks>
     public static ClientSignalKind OutboxChanged { get; } = new("outbox.changed");
 
-    /// <summary>Gets the kind raised when how a member of the reader's organization reads to the others may have changed.</summary>
+    /// <summary>Gets the kind raised when how the reader reads to the other members of their organization may have changed.</summary>
     /// <remarks>
-    /// It names the members and nothing about them, so the client re-reads their presence over the colleague routes,
-    /// where who may see what is decided.
+    /// It reaches the member's own clients alone and names nothing, so each re-reads the member's own presence; colleagues
+    /// are read again on the client's own refresh rather than told.
     /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0045-a-members-presence-from-the-clients-it-keeps-open-and-the-state-it-chose.md">ADR 0045</see>
     /// decides it.
     /// </remarks>

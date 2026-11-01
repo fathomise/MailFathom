@@ -3261,11 +3261,10 @@ period, and `on` defaults to `true`; switching a reply off early is a write with
 the reply a write replaces is answered once more under the new one, which is what a person changing their text
 expects.
 
-**A write that changes whether, or until when, the person reads as out of office tells their colleagues.** It raises
-`presence.changed` on [the signal channel](#the-signal-channel) naming the person to every member of their
-organization, themselves included, so an open directory reads them again; a write that leaves `outOfOfficeUntil` as it
-was raises nothing. A period beginning or ending on its own is announced by nobody, and reaches an open client on its
-next read of the directory.
+**A write that changes whether, or until when, the person reads as out of office tells their own clients.** It raises
+`presence.changed` on [the signal channel](#the-signal-channel) to the person alone, and only where they belong to an
+organization; a write that leaves `outOfOfficeUntil` as it was raises nothing. Colleagues are not told: an open client
+reads the directory again on its own refresh, and a period beginning or ending on its own reaches them the same way.
 
 **What the body may hold is refused with `400` naming the reason**: an `outsideText` that is missing or blank, a text
 past 8000 characters, no account or more than 64, an account named twice or by nothing, a period without both ends or
@@ -3820,7 +3819,7 @@ smaller grant reaches an act that cannot be undone.
 relieved of a photo — over these routes, through a tool on the MCP surface, or by an Agent act — and a contact a run
 collected from arriving mail each raise `contacts.changed` on [the signal channel](#the-signal-channel), naming nothing
 of the record, and the client reads the book again. The colleagues are not part of it: they are the organization's
-members rather than a book anybody writes, and what changes about them is said by `presence.changed`.
+members rather than a book anybody writes, and an open client reads them again on its own refresh.
 
 ### The contact photo routes
 
@@ -4058,8 +4057,9 @@ refused `400` before anything is written. Reading is `mailfathom.profile.read`, 
 
 **Nothing here is audited or logged.** A renewal changes no mail, and an entry per renewal would be a history of
 somebody's working day. A write that changes how this user reads to the others raises `presence.changed` on [the
-signal channel](#the-signal-channel) to every member of the organization the member directory lists, the user included
-for their other devices; a service account is not told, having no colleague to draw.
+signal channel](#the-signal-channel) to this user alone, for their other devices; a write that changes nothing the
+others see raises nothing. No colleague is told, so one member's change costs one signal however large the
+organization, and an open client reads its colleagues' presence again on its own refresh.
 
 ### The notification routes
 
@@ -4990,7 +4990,7 @@ record's already-derived text and reach a client entitled to read that record ov
 | `notification.raised` | A notification was written, with its kind, its two lines, and how many now stand unread |
 | `account.state` | An account's synchronization run finished, so what a client says about it is out of date |
 | `run.advanced` | A [Discover run](../features/discovery-run.md#a-run-is-watched-rather-than-waited-for) or an [Agent conversation](#the-agent-conversation-routes) had something written, naming the run, the conversation where it is one, and the place reached — and no part of what was written |
-| `presence.changed` | How up to 100 colleagues read to the other members of the organization — their presence, or whether they are out of office — may have changed, naming their user identities in `members` and nothing about them; an empty `members` names every colleague. A client re-reads them over [the contact routes](#the-contact-routes) |
+| `presence.changed` | How this user reads to the other members of their organization — their presence, or whether they are out of office — may have changed after a write of theirs, which their other devices need to show; it names nothing, and a client re-reads [`GET /api/client/presence`](#the-presence-routes). Colleagues are never signalled, and a client reads them again on its refresh |
 | `calendar.changed` | One person's [calendar](#the-calendar-routes) was written, whoever wrote it, naming nothing of any event; it reaches that person alone |
 | `tasks.changed` | One person's [task list](#the-task-routes) was written, whoever wrote it, naming nothing of any task; it reaches that person alone |
 | `contacts.changed` | A [contact book](#the-contact-routes) was written, whoever wrote it, naming nothing of any record. One person's own book reaches that person, a mailbox's collected book reaches everybody that mailbox serves and names the account, and the organization's book reaches every member |
