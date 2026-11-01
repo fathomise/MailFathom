@@ -187,8 +187,15 @@ to the person signed in, and the device decrypts and reduces it in memory. Nothi
 service in the clear, written to device storage, indexed, chunked, embedded, logged, or reported to telemetry —
 [ADR 0028](0028-no-mail-on-the-device-and-an-honest-client-with-no-route-to-its-deployment.md)'s rule that the device
 keeps no mail holds for plaintext as it does for everything else. A reply or a draft that quotes such a message is
-sealed on the device before it leaves (below), so what reaches the service is ciphertext. No model, no search, and no answer reaches such a message's body, and the surfaces that offer one say why rather than
-offering an empty result.
+sealed on the device before it leaves (below), so what reaches the service is ciphertext. No model, no search, and no
+answer reaches such a message's body, and the surfaces that offer one say why rather than offering an empty result.
+
+**A composition carrying content a device key opened is held in memory only, and is never written to the kept
+composition.** This is the one carve-out from ADR 0028's allowance for what somebody is typing. That allowance keeps the
+words in the session's store, as plaintext any script on the origin can read and that survives a reload, so it would
+put device-decrypted text in device storage. The durable copy of such a composition is its draft, sealed on the device
+to the author's own key and saved through the drafts routes. A reload recovers the composition from that draft. What
+the person typed after the last save is lost, and the compose screen does not tell them their words are kept here.
 
 **A reader whose reads are redacted does not get the device row.** Where a sensitive-content scanner covers any account
 a reader is assigned, the source route already refuses to serve raw source, because a raw source cannot be redacted. The
@@ -226,6 +233,11 @@ that dropped it would be the silent degradation the drivers refuse. So:
   refused send back to its draft, decrypts it in flight with that same key. A ring-path draft for an account the ring
   holds no key for cannot be sealed. It is refused rather than saved in the clear, so sending encrypted through the
   service needs a ring key for the sending account.
+- **A subject decrypted under E3 is decrypted content under this rule**, even though it is stored as the message's
+  subject. A sealed message or a sealed draft carries a subject derived from it — `Re:` and all — only inside protected
+  headers (RFC 9788), behind a placeholder outer `Subject`. A send that is not sealed and concerns such a message, such
+  as a read receipt, takes its subject from the outer `Subject` the message arrived with and never from the stored one.
+  The mail servers on both sides then see what they saw on the way in and nothing more.
 
 ### Holding a key is the whole opt-in, and the key says whose mail it opens
 
@@ -246,19 +258,29 @@ message to themselves and read it. The account list is not a second consent: it 
 where the key is, and a key that serves one account names one address. This adds one field to what issue 1589's ring
 entry carries.
 
-### Removing a key stops future reads and retracts nothing
+### Removing a key stops future reads and retracts nothing by itself
 
 Removing an entry from the ring stops every read that would have needed it from then on: a body read, a download, and
-the next extraction of the message all take the unkeyed path. **It does not retract a chunk, a search document, a
-vector, an attachment reading, or anything else already derived while the key was held** (D2 is refused). Those rows
-are readable text that existed while the deployment was allowed to read it, and deleting them would be an erasure
-presented as a configuration change: incomplete wherever the text has already left — a model's answer, an export, a
-person's own reading — and invisible as an act of erasure to the accountability this project keeps for erasure.
+the next extraction of the message all take the unkeyed path. **The removal itself does not retract a chunk, a search
+document, a vector, an attachment reading, the stored subject, or anything else already derived while the key was
+held** (D2 is refused). Those rows are readable text that existed while the deployment was allowed to read it.
+Deleting them on removal would be an erasure presented as a configuration change. It would be incomplete wherever the
+text has already left — a model's answer, an export, a person's own reading — and invisible to the accountability this
+project keeps for erasure.
+
+**Derived rows are what the current configuration produces from the stored bytes whenever they are rebuilt, and a key
+is part of that configuration.** So the next re-derivation of such a message, for whatever reason it runs, takes the
+unkeyed path like every other read. It rewrites that message's derived rows and its stored subject to what an unkeyed
+message has: the envelope and nothing body-derived. That is the same rule that already makes a rebuild apply a changed
+sensitive-content posture. A re-derivation that kept rows derived under a key it no longer holds would need every
+derived row to record which key produced it, and would leave those rows stuck forever behind any later posture change.
+So removal retracts nothing by itself and gives no promise of retention either. It leaves the derived text in place
+until the message is erased or next re-derived.
 
 So the operator is told rather than surprised. The page that documents the ring states, where the ring is configured,
-that removing a key is not an erasure, that what was derived under it stays readable and searchable until the messages
-are erased, and that erasing the messages is the way to retract it — the cascade from the stored email reaches every
-derived row. Issue 1591 writes that page's paragraph and builds the reverse case: a key *added* to the ring makes the
+that removing a key is not an erasure. It states that what was derived under the key stays readable and searchable
+until the messages are erased or next re-derived, and that erasing the messages is the way to retract it on purpose —
+the cascade from the stored email reaches every derived row. Issue 1591 writes that page's paragraph and builds the reverse case: a key *added* to the ring makes the
 existing extraction backfill re-derive the stored messages it now opens, without a re-synchronization.
 
 ### Protected headers: the subject becomes the stored subject, and nothing that names a person does
@@ -424,8 +446,10 @@ valid configuration.
   it expires or a newer signature reveals the revocation, since sending makes no revocation request.
 - Bad, because S/MIME without integrity protection is opened, so its malleability is answered by withholding remote
   pictures and by reducing the envelope on its own, not by the cipher.
-- Bad, because removing a key is not a retraction, and an operator who expects it to be will be wrong. The page states
-  it where the ring is configured, which is the most this record can do short of making removal an erasure.
+- Bad, because removing a key is not a retraction. The derived text goes only when the message is erased or next
+  re-derived, and an operator who expects either more or less will be wrong. The page states it where the ring is
+  configured, which is the most this record can do short of making removal an erasure.
+- Bad, because a composition quoting a device-opened message is not kept across a reload beyond its last sealed draft.
 - Bad, because the client takes a MIME parser, an OpenPGP implementation, and a CMS implementation, which are a supply
   chain and a patch obligation it did not have, and a second reduction of mail that has to be kept equal to the first
   for as long as both exist.
@@ -456,7 +480,13 @@ valid configuration.
   and each blind-copied recipient's copy names that recipient alone.
 - **Decrypted content leaving only sealed is held by unit tests**: an answer, forward, or draft that quotes a decrypted
   message is sealed, or refuses, for both rows. An automatic reply never carries decrypted content. A saved draft of
-  such a message is ciphertext in this deployment and in the drafts folder.
+  such a message is ciphertext in this deployment and in the drafts folder. A sealed answer to a message whose subject
+  was protected carries the derived subject only in its protected headers, and a read receipt for it takes the outer
+  subject the message arrived with.
+- **The device's own storage is held by the client's unit tests**: a composition quoting a device-opened message never
+  reaches the kept composition.
+- **Removal is held by unit tests on the extraction path**: re-deriving a message whose key was removed writes the rows
+  and the stored subject an unkeyed message has.
 - **What is opened is held by the adversarial corpus**: captured ciphertext between clear siblings is an attachment and
   never joins the body, an OpenPGP message without integrity protection or with a failing check is not opened, and an
   integrity-unprotected S/MIME message offers no remote pictures.
@@ -532,11 +562,14 @@ valid configuration.
 - Bad, because it is a second spelling of the consent the key already is, and it can disagree with the key.
 - Bad, because it still needs C2's scope, or it does not close the oracle.
 
-### D1 — removal stops future reads and retracts nothing
+### D1 — removal stops future reads and retracts nothing by itself
 
 - Good, because removing a key is a configuration change and behaves like one.
 - Good, because erasure stays one act with one accountable path.
-- Bad, because an operator can mistake it for a retraction, which the documentation has to prevent.
+- Good, because a re-derivation keeps meaning one thing, namely what the current configuration produces from the stored
+  bytes.
+- Bad, because an operator can mistake it for a retraction, or for a promise of retention, and the documentation has to
+  prevent both.
 
 ### D2 — removal deletes the rows derived under the key
 
