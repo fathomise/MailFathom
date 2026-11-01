@@ -14,8 +14,10 @@ client offers either yet.
 ## Whose footer a message carries
 
 **A footer belongs to one person on one account.** It hangs off the assignment that gives the person the account, so on
-a shared mailbox each person assigned it writes their own and a message carries the footer of whoever sent it. It is
-deleted with that assignment and with the person, and nothing else holds a copy.
+a shared mailbox each person assigned it writes their own and a message carries the footer of whoever sent it. The
+footer as written is deleted with that assignment and with the person. A message already sent keeps the footer it went
+out with: its outbox record and its filed sent copy hold the message as sent, footer included, and leave with that mail
+rather than with the assignment.
 
 **While the organization holding the account sets a template, the template is the footer.** It is filled for the
 person sending — `{{displayName}}`, `{{jobTitle}}`, and `{{phoneNumber}}`, from the organization's member directory,
@@ -23,8 +25,10 @@ each encoded for markup and empty where the member has none — and the person's
 sent nor writable until the template is cleared. An account in no organization, or in one with no template, sends the
 person's own.
 
-**What goes out is what is in force when the message is sent**, not when it was written. A message held for later, a
-draft sent days after it was saved, and each occasion of a recurring send carry the footer of that moment.
+**What goes out is what is in force when the message is sent**, not when it was written. A draft sent days after it
+was saved and each occasion of a recurring send carry the footer of that moment. A send held for later is different:
+it is footed, screened, and signed when it is queued, so it carries the footer in force then, and a footer changed while
+it waits does not reach it.
 
 ## Where it goes in a message
 
@@ -79,5 +83,7 @@ would edit.
 ## Personal data
 
 A footer usually names its writer and carries their phone number, so it is personal data about them. It is never
-logged, it is stored only beside the assignment or the organization it belongs to, and it is deleted with either. No
-export of a person's data exists in this release for it to be added to.
+logged, the footer as written is stored only beside the assignment or the organization it belongs to, and it is deleted
+with either. Every message it went out on carries a copy, as any sent message carries what its author wrote: the
+outbox record and the filed sent copy keep it under the retention that mail has, not the footer's. No export of a
+person's data exists in this release for it to be added to.
