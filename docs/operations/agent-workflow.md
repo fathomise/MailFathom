@@ -1310,12 +1310,12 @@ Each required check answers the group in the way its question allows:
   request that was current and first in the queue therefore merges without a second build.
 - `Coherence` asks its own question again against everything that landed under the pull request,
   the entries ahead of it included.
+- `Duplicate definitions` asks a model whether the pull request adds a definition doing the job of
+  one that landed while it was written; on the pull request itself it skips, because a sibling still
+  open beside it cannot be seen from there.
 - `Protected paths`, `Typo check`, and `license/cla` are properties of the pull request — its author
   and the words it changes — so the group is handed the verdict the pull request's head already
   carries rather than a second judgement.
-
-[`Duplicate definitions`](#duplicate-definitions) runs on the group as well and is not one of them:
-it reports and never removes a pull request.
 
 A push to `main` still runs `CI`, but a queue merge reaches `main` as the group's own commit, which
 already carries the `Required CI` the group earned, so `Detect changes` reads it and the run stops
@@ -1326,9 +1326,11 @@ the full run.
 `Required CI` is a break between this pull request and something it was combined with: read the run,
 fix it on the branch, and push. A red `Coherence` names each related pair and the pull request that
 introduced the landed side, and [When it fails](#coherence) below is what to do — wait for any pull
-request named as still ahead in the queue to land, rebase once it has, read each pair, and push. In
-either case the push dismisses the approval, so the pull request returns to the queue only once it
-is reviewed again.
+request named as still ahead in the queue to land, rebase once it has, read each pair, and push. A
+red `Duplicate definitions` names each definition this pull request adds that does the job of one
+that landed, and [When it fails](#duplicate-definitions) below is what to do — consolidate and push,
+or keep the pair, say why, and label the pull request. A push dismisses the approval, so the pull
+request returns to the queue only once it is reviewed again.
 
 ## Coherence
 
@@ -1353,6 +1355,15 @@ changed one when
 - the lines one side added to a code file name the other side's code file, by its path or by a file
   name no other file in the tree carries — a script calling another, or a comment saying which file
   holds the rule it follows.
+
+Generated files are on no end of any relation: a migration, its designer file, the model snapshot,
+source-generator output, a rendered golden manifest, a declaration file, or a lock file. A page
+describing a directory of them, or an `AGENTS.md` above one, is about the change that generated
+them, which sits on the same side and which the relations above already find. Two pull requests
+that each add a migration on the same model snapshot are not a pair either: the merge group's build
+compares the model with the combined snapshot and applies every migration to a fresh and to an
+upgraded database, so a pair of migrations that disagree fails `Required CI` there, and a pair that
+does not costs nothing.
 
 A code file both sides changed is not a pair on its own. Whether two code changes still agree is
 what the build and the tests on the combined tree answer, and a check failing on every shared file
@@ -1384,13 +1395,20 @@ pull request that changes one paragraph of a page is related to every other pull
 changed any part of it. A code file's added lines are read from `git diff --unified=0`, which is the
 only content the check reads; git fetches the blobs it needs in one batch.
 
-The workflow leaves four kinds of file out of both lists before it relates them: every `AGENTS.md`,
-at any depth, this page and [`local-development.md`](local-development.md), and
-`THIRD_PARTY_LICENSES.md`. The first three relate to nearly every change — an `AGENTS.md` through
-the directory it governs, the two pages through `describes:` markers that cover most of `scripts/`,
-`.github/`, and the toolchain, and all of them because most pull requests edit them — so a pair
-through one of them stopped almost any two pull requests open together, and the merge queue removed
-one of them for a reading that rarely changed anything. The register is edited by every dependency
+The workflow leaves six kinds of file out of both lists before it relates them: every `AGENTS.md`,
+at any depth, this page and [`local-development.md`](local-development.md),
+[`client-endpoint.md`](client-endpoint.md),
+[`stored-email-schema.md`](../architecture/stored-email-schema.md), and `THIRD_PARTY_LICENSES.md`.
+The first five relate to nearly every change in what they cover — an `AGENTS.md` through the
+directory it governs, the two operations pages through `describes:` markers that cover most of
+`scripts/`, `.github/`, and the toolchain, the client endpoint's page through a marker naming every
+route of the client API, the stored schema's page through one covering all of persistence, and all
+of them because most pull requests in their part of the tree edit them — so a pair through one of
+them stopped almost any two pull requests open together, and the merge queue removed one of them for
+a reading that rarely changed anything. Over the check's first two weeks, 23 of its 38 failures
+ended in a pull request whose change to every flagged file was the same at the merge as at the
+alarm, and 8 of its 10 removals from the queue were among them; most went through these two pages,
+the generated files above, and the design files below. The register is edited by every dependency
 change, one independent row each, so two of them never disagree, and a conflict on the same row is
 textual and git's to report. The exclusion is the workflow's alone: `relate-changes.sh` still
 relates these files, and the report below still lists them before a change is published, which is
@@ -1411,10 +1429,12 @@ here, because the workflow leaves every `AGENTS.md` out; only the report before 
 one. A pair reads, for example, *`docs/features/automatic-embedding.md`, changed by
 `https://github.com/fathomise/MailFathom/pull/2472` (on main), has a describes: marker covering
 `backend/src/Infrastructure/Embeddings/BoundedEmailEmbeddingBacklog.cs`, which this pull request
-changes.* The job summary lists the same pairs as a table. A pair in which one side's code names
-the other's file is annotated the same way as a warning, under the title *File named across pull
-requests*, and is a row of the same table; on its own it leaves the check green, and it is read the
-same way. For each pair:
+changes.* The job summary lists the same pairs as a table. Two kinds of pair are annotated the same
+way as a warning and are rows of the same table, but on their own leave the check green: one side's code naming the other's file, under the title *File named across pull requests*,
+and both sides changing one file under `design/`, under *Design file changed across pull requests*
+— nearly every design change edits the same artboard, its logic, and the state inventory, and two
+edits to the same lines of one are a conflict git reports. Both are read the same way. For each
+pair:
 
 1. Read the landed side as it now stands and the pull request's side together, and decide whether
    they still agree: whether the page still describes the file, whether the changed file follows
@@ -1465,16 +1485,17 @@ except for the files `Coherence` leaves out above, which only this report ever p
 
 ## Duplicate definitions
 
-`Duplicate definitions` names a pull request in the merge queue that adds a definition doing the
-same job as one that landed on `main` while it was being written, or a second version of it: a
+`Duplicate definitions` takes a pull request out of the merge queue when it adds a definition doing
+the same job as one that landed on `main` while it was being written, or a second version of it: a
 helper, a test double, a type, or a script that two pull requests written in parallel each added.
 `Coherence` relates code to code only where one names the other's file, and leaves the rest to the
 build and the tests, which prove the combined tree behaves and never that it does one thing once.
 
-It runs on `merge_group` only, because that is where what landed is final — `main` plus the entries
+It asks only on `merge_group`, because that is where what landed is final — `main` plus the entries
 ahead in the queue — and a sibling pull request still open beside this one is invisible to the
-pull request's own run. The pull request's side is what it changes since its merge base, as
-`Coherence` resolves it. The landed side is not measured from that merge base, because almost every
+pull request's own run. On `pull_request` its one job is skipped, which is the conclusion a required
+check has to report on the pull request's head before the queue takes it. The pull request's side
+is what it changes since its merge base, as `Coherence` resolves it. The landed side is not measured from that merge base, because almost every
 pull request here is rebased onto `main` before it merges, and a rebase onto a sibling that merged
 first puts the sibling's helper inside the base where no comparison sees it — replayed over sixty
 merged pull requests, fifty-eight had nothing landed since their merge base at all. It is measured
@@ -1520,25 +1541,41 @@ merges onto.
    author who is not a maintainer until a maintainer approves its head.
 3. `.github/duplicate-definitions/report-verdict.sh` shows a pair only when both of its sides are
    definitions step 1 listed, copied exactly, and drops and counts any other as one the model
-   invented. Each pair it keeps is a warning annotation — *Duplicate definition* or *Overlapping
-   definition* — and a row in the job summary.
+   invented. Each pair it keeps is an error annotation — *Duplicate definition* or *Overlapping
+   definition* — and a row in the job summary, and the check fails.
 
 The prefilter is deliberately loose. It decides whether the model is asked, never whether two
 definitions are the same, so a definition it lists that duplicates nothing costs one call answered
 `none`, while one it misses is a duplicate nobody looks at.
 
-**It reports and never blocks.** It is not a required check, so the queue neither waits for it nor
-reads its result, and it ends green on every outcome inside its bounds: a failure to resolve the two
-sides, which leaves its step failed and asks no model, a model step past its three minutes, a spent
-quota, or a model step that answered nothing reads as *no verdict* in the summary. The whole job is
-bounded at five minutes and takes about two — the action's own setup is most of that. It spends the
-owner's Claude subscription under the same `CLAUDE_CODE_PROFILE` selection as
+**A pair it keeps removes the pull request from the queue.** It is a required check, so the failure
+is what takes the pull request out, and it ends green on every other outcome inside its bounds — a
+failure to resolve the two sides, which leaves its step failed and asks no model, a model step past
+its three minutes, a spent quota, or a model step that answered nothing reads as *no verdict* in the
+summary. The one failure without a pair is the whole job running past its five minutes, which
+removes the pull request like any other required check that timed out. Over its first two weeks of reporting alone it asked the model on 97 of
+184 queue entries and kept 9 pairs in 5 of them — a test helper repeated with an identical body, two
+writers of one message element, two readers of one header's tags — and every one of them was still
+on `main` afterwards, which is why a warning was not enough. The whole job is bounded at five
+minutes and takes about two — the action's own setup is most of that. It spends the owner's Claude
+subscription under the same `CLAUDE_CODE_PROFILE` selection as
 [`Fathom review`](#provisioning-the-app), once per queue entry whose two sides both define
-something. Whether it earns a required check is decided from what it reports on real queue
-entries; until then a warning is something to read, and acting on one is a follow-up pull request
-rather than a removal from the queue. It cannot be made required as it stands either: the ruleset
-asks a required check of the pull request's own head before the queue takes it, and this one runs
-on the merge group alone.
+something.
+
+**When it fails**, read each pair in the job summary against the definition that landed:
+
+1. A duplicate is deleted, and its callers pointed at the definition that landed. An overlap is
+   resolved by extending one of the two to serve both callers. Rebase onto `main` first when the
+   landed definition is not in the branch's base yet, and wait for a pull request still ahead in the
+   queue to merge before rebasing onto it, as for `Coherence`.
+2. A pair worth keeping — the model was wrong, or the two are kept apart on purpose — is answered on
+   the pull request: a comment naming the pair and why it stays, and the `duplicate-definitions-read`
+   label. The label is read when the next queue entry is judged, and turns that pull request's pairs
+   into warnings that fail nothing, so a finding the author rejected cannot remove it again. It
+   holds for every later entry of that pull request, a pair found after a later rebase included, so
+   it is added once the pairs on the table were read and not before.
+3. Push, or put the pull request back with `gh pr merge <n> --auto` when only the label changed. A
+   push dismisses the approval, as any push does.
 
 ## Review on the pull request
 

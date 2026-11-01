@@ -26,6 +26,14 @@
 #     lock files are on neither end of it, and both sides changing the same code file is still no
 #     pair.
 #
+# Generated files — migrations, their designer files and the model snapshot, source-generator
+# output, rendered goldens, declaration files, and lock files — are on no end of any relation. A page
+# describing a directory of them, or an `AGENTS.md` above one, is about what generates them, and the
+# change that generated them sits on the same side, where the relations above already find it. Two
+# migrations generated from one model snapshot are the merge group's to judge: its build compares the
+# model with the combined snapshot and applies every migration to a fresh and to an upgraded
+# database.
+#
 # The markers are read from the repository root given, which is the combined tree — the base with
 # the pull request applied. That is what makes both orders a pair: a page that landed and describes
 # a path this pull request changes, and a page this pull request adds that describes a path that
@@ -82,10 +90,13 @@ awk -F'\t' '
     return path ~ /\.md$/ || path ~ /^design\//
   }
 
+  function is_generated(path) {
+    return path ~ /(^|\/)Migrations\/|\.Designer\.cs$|\.g\.cs$|\/ci\/golden\/|\.d\.ts$/ \
+      || path ~ /(^|\/)(pnpm-lock\.yaml|Cargo\.lock|packages\.lock\.json)$/
+  }
+
   function is_code(path) {
-    return !is_prose(path) \
-      && path !~ /(^|\/)Migrations\/|\.Designer\.cs$|\.g\.cs$|\/ci\/golden\/|\.d\.ts$/ \
-      && path !~ /(^|\/)(pnpm-lock\.yaml|Cargo\.lock|packages\.lock\.json)$/
+    return !is_prose(path) && !is_generated(path)
   }
 
   function is_test(path) {
@@ -189,6 +200,7 @@ awk -F'\t' '
   END {
     for (l in landed) {
       for (c in changed) {
+        if (is_generated(l) || is_generated(c)) continue
         reason = ""
         if (l == c) {
           if (is_prose(l)) reason = "same prose file"

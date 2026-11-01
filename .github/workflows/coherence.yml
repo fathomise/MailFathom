@@ -13,9 +13,10 @@ name: Coherence
 # merge base with what the pull request changes, and fails on every pair
 # `.github/coherence/relate-changes.sh` relates through prose. An unrelated merge costs the pull
 # request nothing, which is what a branch-must-be-current rule cannot offer. Every `AGENTS.md`, the
-# two operations pages, and the licence register are left out of both sides; the step below says
-# why. A pair in which one side's code names the other side's file is a warning and fails nothing,
-# until what it reports shows whether it should.
+# two operations pages, the client endpoint's and the stored schema's pages, and the licence
+# register are left out of both sides; the step below says why. A pair in which one side's code
+# names the other side's file, or both sides changed one file under `design/`, is a warning and
+# fails nothing.
 #
 # It runs on `merge_group` as well, where what landed is everything between the merge base and what
 # the queue entry merges onto — `main` plus the pull requests ahead of it — so the pair a queue would combine
@@ -100,14 +101,18 @@ jobs:
 
           merge_base="$(git merge-base "$merge_onto" "$pull_request_head")"
 
-          # Every `AGENTS.md` and the two operations pages relate to nearly every change — through the
-          # directory an `AGENTS.md` governs, the `describes:` markers those pages carry, and how
-          # often both sides edit them — so a pair through one of them stopped almost any two pull
-          # requests open together. The licence register is edited by every dependency change, one
-          # independent row each, so two of them never disagree and a conflict on one row is git's to
-          # report. They stay out of both sides here, and only here:
+          # Every `AGENTS.md`, the two operations pages, the client endpoint's page, and the stored
+          # schema's page relate to nearly every change in what they cover — through the directory an
+          # `AGENTS.md` governs, the `describes:` markers the pages carry, and how often both sides
+          # edit them — so a pair through one of them stopped almost any two pull requests open
+          # together and was reconciled by a rebase alone. Two migrations on one model snapshot, the
+          # pair the schema's page would otherwise have stood in for, are what the merge group's
+          # build answers: it checks the model against the combined snapshot and applies every
+          # migration. The licence register is edited by every dependency change, one independent
+          # row each, so two of them never disagree and a conflict on one row is git's to report.
+          # They stay out of both sides here, and only here:
           # `scripts/report-related-pull-requests.sh` still relates them before publication.
-          hub_documents='(^|/)AGENTS\.md$|^docs/operations/(agent-workflow|local-development)\.md$|^THIRD_PARTY_LICENSES\.md$'
+          hub_documents='(^|/)AGENTS\.md$|^docs/operations/(agent-workflow|local-development|client-endpoint)\.md$|^docs/architecture/stored-email-schema\.md$|^THIRD_PARTY_LICENSES\.md$'
 
           # `--no-renames` keeps both ends of a move, and keeps git from fetching blobs to detect one.
           git diff --name-only --no-renames "$merge_base" "$merge_onto" \
@@ -125,7 +130,7 @@ jobs:
             "$work_directory/landed.diff" "$work_directory/changed.diff" "$work_directory/pairs.json"
 
           pair_count="$(jq 'length' "$work_directory/pairs.json")"
-          failing_count="$(jq '[.[] | select(.reason | test(" names ") | not)] | length' "$work_directory/pairs.json")"
+          failing_count=0
           landed_count="$(grep -c . "$work_directory/landed" || true)"
 
           if (( pair_count == 0 )); then
@@ -165,7 +170,7 @@ jobs:
           {
             echo '### Other pull requests changed files related to this one'
             echo
-            echo "Each row pairs a file this pull request changes with a file another pull request changed after this branch's merge base \`${merge_base:0:12}\`. Read the two together, reconcile whichever one no longer agrees, and rebase onto \`main\` once the other pull request is on it. A row in which one file names the other is a warning and does not fail the check."
+            echo "Each row pairs a file this pull request changes with a file another pull request changed after this branch's merge base \`${merge_base:0:12}\`. Read the two together, reconcile whichever one no longer agrees, and rebase onto \`main\` once the other pull request is on it. A row in which one file names the other, or both changed one file under \`design/\`, is a warning and does not fail the check."
             echo
             echo '| Changed by this pull request | Changed by another pull request | Which pull request | How they relate |'
             echo '|---|---|---|---|'
@@ -181,6 +186,12 @@ jobs:
               'same prose file')
                 relation='both changed this prose file'
                 message="${changed} is changed by this pull request and was also changed by ${source_of_landed}."
+                # Nearly every design change edits the same three files, and two edits to the same
+                # lines of one of them are a conflict git reports.
+                if [[ "$changed" == design/* ]]; then
+                  severity='warning'
+                  title='Design file changed across pull requests'
+                fi
                 ;;
               'landed describes changed')
                 relation="the other pull request's page has a \`describes:\` marker covering the file here"
@@ -216,11 +227,14 @@ jobs:
                 ;;
             esac
 
+            if [[ "$severity" == 'error' ]]; then
+              failing_count=$((failing_count + 1))
+            fi
             echo "::${severity} title=${title}::${message} Read the two together."
             echo "| \`${changed}\` | \`${landed}\` | ${source_of_landed} | ${relation} |" >> "$GITHUB_STEP_SUMMARY"
           done < <(jq -r '.[] | [.landed, .changed, .reason] | @tsv' "$work_directory/pairs.json")
 
-          echo "${pair_count} file(s) changed by other pull requests relate to files this pull request changes, ${failing_count} of them through prose; the job summary lists them."
+          echo "${pair_count} file(s) changed by other pull requests relate to files this pull request changes, ${failing_count} of them failing the check; the job summary lists them."
           if (( failing_count > 0 )); then
             exit 1
           fi

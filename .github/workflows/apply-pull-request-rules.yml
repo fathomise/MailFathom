@@ -96,6 +96,7 @@ on:
       - CI
       - Coherence
       - Contributor licence
+      - Duplicate definitions
       - Fathom review
       - Protected paths
       - Publish the documentation

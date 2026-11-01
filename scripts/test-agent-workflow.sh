@@ -7490,7 +7490,8 @@ create_coherence_fixture() {
   local fixture_root="$1"
 
   rm -rf "$fixture_root"
-  mkdir -p "$fixture_root/backend/src/Application/Emails" "$fixture_root/docs/features"
+  mkdir -p "$fixture_root/backend/src/Application/Emails" "$fixture_root/docs/features" "$fixture_root/docs/architecture" \
+    "$fixture_root/design"
 
   printf 'internal sealed class MailboxWidget;\n' > "$fixture_root/backend/src/Application/Emails/MailboxWidget.cs"
   printf '%s\n' \
@@ -7498,6 +7499,12 @@ create_coherence_fixture() {
     '' \
     '<!-- describes: backend/src/Application/Emails/** -->' \
     > "$fixture_root/docs/features/widgets.md"
+  printf '%s\n' \
+    '# Widget storage' \
+    '' \
+    '<!-- describes: backend/src/Infrastructure/Persistence/** -->' \
+    > "$fixture_root/docs/architecture/widget-storage.md"
+  printf '%s\n' '# State inventory' > "$fixture_root/design/state-inventory.md"
 }
 
 run_coherence() {
@@ -7613,6 +7620,27 @@ coherence_does_not_relate_a_mention_that_is_no_dependency() {
     "$test_directory/coherence-names.json"
 }
 
+# A generated file is on no end of a relation: a page describing the directory migrations sit in
+# relates to none of them, and two migrations on one model snapshot are the merge group's build to
+# judge rather than a pair to read.
+coherence_relates_no_generated_file() {
+  local migrations='backend/src/Infrastructure/Persistence/Migrations'
+
+  run_coherence generated \
+    "$migrations/20261101000000_AddWidgets.cs $migrations/20261101000000_AddWidgets.Designer.cs $migrations/MailFathomDbContextModelSnapshot.cs docs/architecture/widget-storage.md" \
+    "$migrations/20261102000000_AddGadgets.cs $migrations/20261102000000_AddGadgets.Designer.cs $migrations/MailFathomDbContextModelSnapshot.cs"
+
+  assert_json '[]' '.' "$test_directory/coherence-generated.json"
+}
+
+coherence_still_relates_a_page_to_the_model_beside_its_migrations() {
+  run_coherence model 'docs/architecture/widget-storage.md' \
+    'backend/src/Infrastructure/Persistence/WidgetConfiguration.cs backend/src/Infrastructure/Persistence/Migrations/20261102000000_AddGadgets.cs'
+
+  assert_json '[{"landed":"docs/architecture/widget-storage.md","changed":"backend/src/Infrastructure/Persistence/WidgetConfiguration.cs","reason":"landed describes changed"}]' \
+    '.' "$test_directory/coherence-model.json"
+}
+
 # The workflow, unlike the relation above, leaves every `AGENTS.md`, the two operations pages, and the
 # licence register out of both sides. Its step runs verbatim against a pull request's merge commit:
 # the landed side is `main`'s commit since the merge base, the changed side the pull request's, which
@@ -7703,6 +7731,26 @@ coherence_workflow_warns_on_code_that_names_a_landed_file_and_passes() {
   [[ "$coherence_workflow_status" -eq 0 ]]
 }
 
+# The client endpoint's page and the stored schema's page describe nearly every change in what they
+# cover, so a pair through either one is left out like a pair through an `AGENTS.md`.
+coherence_workflow_leaves_the_client_endpoint_and_schema_pages_out() {
+  run_coherence_workflow broad-pages 'backend/src/Application/Emails/MailboxWidget.cs' \
+    'docs/operations/client-endpoint.md docs/architecture/stored-email-schema.md' '<!-- describes: backend/** -->'
+
+  assert_contains 'Nothing related to this pull request landed' "$test_directory/coherence-workflow-broad-pages-output"
+  [[ "$coherence_workflow_status" -eq 0 ]]
+}
+
+# Nearly every design change edits the same few files, so both sides changing one of them is read
+# and does not fail the check.
+coherence_workflow_warns_on_a_design_file_both_sides_changed_and_passes() {
+  run_coherence_workflow design 'design/state-inventory.md' 'design/state-inventory.md'
+
+  assert_contains '::warning title=Design file changed across pull requests::design/state-inventory.md is changed by this pull request and was also changed by https://github.com/fathomise/MailFathom/pull/1 (on main). Read the two together.' \
+    "$test_directory/coherence-workflow-design-output"
+  [[ "$coherence_workflow_status" -eq 0 ]]
+}
+
 # `Duplicate definitions` asks a model only about what its prefilter lists, so the prefilter is what decides
 # whether a duplicate is ever looked at. One side of a change, in a repository of its own: every kind
 # of definition it reads, a line that defines nothing, and generated code it leaves out.
@@ -7754,7 +7802,7 @@ duplicate_definitions_lists_what_each_kind_of_file_newly_defines() {
 }
 
 run_duplicate_definitions_report() {
-  local name="$1" verdict="$2"
+  local name="$1" verdict="$2" severity="${3:-error}"
 
   printf 'scripts/a.sh\tparse_items\nscripts/a.sh\tread_version\n' > "$test_directory/duplicate-definitions-$name-landed.tsv"
   printf 'scripts/b.sh\tdeclared_version\nscripts/b.sh\tlisted_items\n' > "$test_directory/duplicate-definitions-$name-changed.tsv"
@@ -7764,28 +7812,65 @@ run_duplicate_definitions_report() {
   bash "$source_repository_root/.github/duplicate-definitions/report-verdict.sh" \
     "$test_directory/duplicate-definitions-$name-landed.tsv" "$test_directory/duplicate-definitions-$name-changed.tsv" \
     "$test_directory/duplicate-definitions-$name-verdict.json" "$test_directory/duplicate-definitions-$name-summary.md" \
-    > "$test_directory/duplicate-definitions-$name-annotations"
+    "$severity" > "$test_directory/duplicate-definitions-$name-annotations" && duplicate_definitions_status=0 ||
+    duplicate_definitions_status=$?
 }
 
-# A pair is shown only when both of its sides were listed, because anything else is a definition the
-# model made up — and what it wrote about them is one line, escaped for the table and the command. A
-# duplicate and an overlap are told apart in both, since only the first is a drop-in for the other.
-duplicate_definitions_reports_only_a_pair_the_prefilter_listed() {
-  run_duplicate_definitions_report listed '{"verdict":"found","pairs":[
+duplicate_definitions_verdict_with_two_listed_pairs='{"verdict":"found","pairs":[
     {"kind":"duplicate","landed_path":"scripts/a.sh","landed_name":"read_version","changed_path":"scripts/b.sh","changed_name":"declared_version","what_both_do":"print the 100% version\nof a | b"},
     {"kind":"overlap","landed_path":"scripts/a.sh","landed_name":"parse_items","changed_path":"scripts/b.sh","changed_name":"listed_items","what_both_do":"parse a bulleted list; only one refuses an item named twice"},
     {"kind":"duplicate","landed_path":"scripts/a.sh","landed_name":"invented","changed_path":"scripts/b.sh","changed_name":"declared_version","what_both_do":"anything"}]}'
 
+# A pair is shown only when both of its sides were listed, because anything else is a definition the
+# model made up — and what it wrote about them is one line, escaped for the table and the command. A
+# duplicate and an overlap are told apart in both, since only the first is a drop-in for the other.
+# Either one fails the check, which is what removes the pull request from the merge queue.
+duplicate_definitions_reports_only_a_pair_the_prefilter_listed() {
+  run_duplicate_definitions_report listed "$duplicate_definitions_verdict_with_two_listed_pairs"
+
   assert_file_content "$(printf '%s\n' \
-    '::warning title=Duplicate definition::declared_version in scripts/b.sh, which this pull request adds, does what read_version in scripts/a.sh already does: print the 100%25 version of a | b' \
-    '::warning title=Overlapping definition::listed_items in scripts/b.sh, which this pull request adds, overlaps parse_items in scripts/a.sh: parse a bulleted list; only one refuses an item named twice')" \
+    '::error title=Duplicate definition::declared_version in scripts/b.sh, which this pull request adds, does what read_version in scripts/a.sh already does: print the 100%25 version of a | b' \
+    '::error title=Overlapping definition::listed_items in scripts/b.sh, which this pull request adds, overlaps parse_items in scripts/a.sh: parse a bulleted list; only one refuses an item named twice')" \
     "$test_directory/duplicate-definitions-listed-annotations"
+  [[ "$duplicate_definitions_status" -eq 1 ]]
   assert_contains '| duplicate | `scripts/b.sh` `declared_version` | `scripts/a.sh` `read_version` | print the 100% version of a \| b |' \
     "$test_directory/duplicate-definitions-listed-summary.md"
   assert_contains '| overlap | `scripts/b.sh` `listed_items` | `scripts/a.sh` `parse_items` |' \
     "$test_directory/duplicate-definitions-listed-summary.md"
   assert_contains '1 pair(s) the model named were not among the listed definitions and were dropped.' \
     "$test_directory/duplicate-definitions-listed-summary.md"
+}
+
+# A pull request whose author read the pairs and kept them carries the label, and the workflow then
+# asks for warnings: the same pairs are reported and nothing fails.
+duplicate_definitions_warns_and_passes_on_pairs_the_author_kept() {
+  run_duplicate_definitions_report kept "$duplicate_definitions_verdict_with_two_listed_pairs" warning
+
+  assert_contains '::warning title=Duplicate definition::declared_version in scripts/b.sh' \
+    "$test_directory/duplicate-definitions-kept-annotations"
+  assert_excludes '::error' "$test_directory/duplicate-definitions-kept-annotations"
+  assert_contains 'carries the `duplicate-definitions-read` label' "$test_directory/duplicate-definitions-kept-summary.md"
+  [[ "$duplicate_definitions_status" -eq 0 ]]
+}
+
+# `Duplicate definitions` is a required check, so it reports on the pull request as a skipped job and
+# asks only on the merge group, and a kept pair is an error unless the pull request carries the label
+# its author adds after reading the pairs. Dropping the condition, the trigger, or the label read would
+# leave the report script's own tests green while every kept pair removed its pull request for good.
+duplicate_definitions_is_skipped_on_a_pull_request_and_reads_the_label() {
+  python3 - "$source_repository_root/.github/workflows/duplicate-definitions.yml" <<'PYTHON'
+import sys, yaml
+workflow = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+triggers = workflow[True]
+assert "pull_request" in triggers and "merge_group" in triggers, triggers
+job = workflow["jobs"]["duplicate-definitions"]
+assert job["name"] == "Duplicate definitions", job["name"]
+assert job["if"] == "github.event_name == 'merge_group'", job["if"]
+report = next(step for step in job["steps"] if step.get("name") == "Report the verdict")
+assert "severity='error'" in report["run"], report["run"]
+assert "grep -qxF 'duplicate-definitions-read'" in report["run"], report["run"]
+assert '"$severity"' in report["run"], report["run"]
+PYTHON
 }
 
 # The check fails open: a model step that answered nothing is no verdict and no warning, and the
@@ -7796,6 +7881,7 @@ duplicate_definitions_reports_no_verdict_when_the_model_answered_nothing() {
   assert_file_content '' "$test_directory/duplicate-definitions-empty-annotations"
   assert_file_content 'No verdict: the model step failed or returned nothing readable, so nothing is reported.' \
     "$test_directory/duplicate-definitions-empty-summary.md"
+  [[ "$duplicate_definitions_status" -eq 0 ]]
 }
 
 # The same relation asked before publishing, against pull requests still open rather than changes
@@ -10276,14 +10362,15 @@ only_the_recorded_workflows_use_pull_request_target() {
 # the merge group's own commit. A workflow publishing one that does not listen on `merge_group` leaves
 # that check unreported there, and every pull request then sits in the queue until the check-response
 # timeout removes it. `checks_requested` is the one activity type GitHub raises for a group, so a
-# trigger naming any other never fires. The ruleset lives in repository settings, so the five
+# trigger naming any other never fires. The ruleset lives in repository settings, so the six
 # workflows below are the required checks as `docs/operations/local-development.md` § *Branch
 # protection* records them.
 every_required_check_reports_on_a_merge_group() {
   local workflow
   local failures=''
 
-  for workflow in ci.yml coherence.yml contributor-licence-merge-group.yml protected-paths.yml typo-check.yml; do
+  for workflow in ci.yml coherence.yml contributor-licence-merge-group.yml duplicate-definitions.yml protected-paths.yml \
+    typo-check.yml; do
     if ! grep -A2 -E '^  merge_group:' "$source_repository_root/.github/workflows/$workflow" |
       grep -qF 'checks_requested'; then
       failures+="$workflow publishes a required check and does not run on merge_group's checks_requested. "
@@ -12863,12 +12950,18 @@ run_test coherence_passes_shared_code_without_a_prose_link
 run_test coherence_relates_the_same_prose_file_and_an_instructions_scope
 run_test coherence_relates_code_that_names_a_file_the_other_side_changed
 run_test coherence_does_not_relate_a_mention_that_is_no_dependency
+run_test coherence_relates_no_generated_file
+run_test coherence_still_relates_a_page_to_the_model_beside_its_migrations
 run_test coherence_workflow_leaves_agents_files_the_operations_pages_and_the_register_out
 run_test coherence_workflow_leaves_hub_documents_out_of_the_changed_side
 run_test coherence_workflow_still_fails_on_any_other_related_change
 run_test coherence_workflow_warns_on_code_that_names_a_landed_file_and_passes
+run_test coherence_workflow_leaves_the_client_endpoint_and_schema_pages_out
+run_test coherence_workflow_warns_on_a_design_file_both_sides_changed_and_passes
 run_test duplicate_definitions_lists_what_each_kind_of_file_newly_defines
 run_test duplicate_definitions_reports_only_a_pair_the_prefilter_listed
+run_test duplicate_definitions_warns_and_passes_on_pairs_the_author_kept
+run_test duplicate_definitions_is_skipped_on_a_pull_request_and_reads_the_label
 run_test duplicate_definitions_reports_no_verdict_when_the_model_answered_nothing
 run_test related_pull_requests_names_the_open_pull_request_a_pair_comes_from
 run_test related_pull_requests_names_an_open_pull_request_whose_file_the_change_names
