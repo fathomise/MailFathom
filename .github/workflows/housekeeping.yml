@@ -7,12 +7,12 @@ name: Housekeeping
 # Routine upkeep of the repository's own tracker, on a schedule rather than on an event. It is named for the kind of
 # work rather than for its first job, because further upkeep of the same shape belongs here as another job beside it.
 #
-# Every two hours from 08:00 to 22:00 Warsaw time, which is when anybody acts on the board, and seventeen minutes past
-# the hour because GitHub delays the schedules that land on it. A manual dispatch runs it at once and can be told to
-# change nothing.
+# Once a night, because nothing it does is urgent: at 04:17 Warsaw time, clear of the hour a change of clock skips or
+# repeats, and seventeen minutes past the hour because GitHub delays the schedules that land on it. A manual dispatch
+# runs it at once and can be told to change nothing.
 on:
   schedule:
-    - cron: '17 8-22/2 * * *'
+    - cron: '17 4 * * *'
       timezone: Europe/Warsaw
   workflow_dispatch:
     inputs:
