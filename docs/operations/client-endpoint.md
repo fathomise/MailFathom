@@ -3720,7 +3720,7 @@ up from mail that arrived, and the four things they do about either.
 | `GET /api/client/contacts/colleagues/{userId}` | Reads one of them |
 | `GET /api/client/contacts/colleagues/{userId}/photo` | Serves that colleague's portrait, or `404` where they have none |
 | `POST /api/client/contacts/photos` | Resolves which photo each of a set of addresses is drawn by — [§ The person photo route](#the-person-photo-route) |
-| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence`, `lastSeen`, `outOfOfficeUntil`, and `usesPhoneApp`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
+| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence`, `lastSeen`, `outOfOfficeUntil`, `usesPhoneApp`, `statusMessage`, and `workMode`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
 | `POST /api/client/contacts/colleagues/{userId}/promotion` | Writes a copy of that colleague into this user's own book |
 
 **The book is read as two, because it is two.** What somebody wrote down and what their mailboxes picked up are
@@ -3765,7 +3765,8 @@ answered only for an `Offline` colleague who did not choose to hide, as [the pre
 describe — `outOfOfficeUntil`, the instant the colleague's automatic reply stops answering, answered only while it
 is switched on and in its period and `null` otherwise, and never the reply's text — and `usesPhoneApp`, whether a phone
 session of theirs opened within the last seven days still stands, always `false` for one who chose to hide, and never
-the day. A colleague whose address this user's own book holds is left out, because the user's own record of them
+the day — and `statusMessage` and `workMode`, what they stated while it lasts, as the presence routes describe. A
+colleague whose address this user's own book holds is left out, because the user's own record of them
 answers for them — in the listing, and not in the reads that name a colleague by an identifier or by an address, which
 answer for the person named; the two listings above leave out an organization contact and a collected contact holding a
 colleague's address, for the same reason in the other direction. [Contacts § The organization's member

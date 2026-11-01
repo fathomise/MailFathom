@@ -114,6 +114,8 @@ describe('ContactRow', () => {
             lastSeen: null,
             outOfOfficeUntil: null,
             usesPhoneApp: true,
+            statusMessage: null,
+            workMode: null,
         };
 
         drawRow({ contact: oliver });

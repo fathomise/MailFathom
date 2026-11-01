@@ -450,7 +450,11 @@ export function parseColleague(value: unknown): Colleague | null {
 
     const said = parseStatusAndWorkMode(record);
 
-    if ((outOfOfficeUntil !== null && !isInstant(outOfOfficeUntil)) || typeof usesPhoneApp !== 'boolean' || said === null) {
+    if (
+        (outOfOfficeUntil !== null && !isInstant(outOfOfficeUntil)) ||
+        typeof usesPhoneApp !== 'boolean' ||
+        said === null
+    ) {
         return null;
     }
 
