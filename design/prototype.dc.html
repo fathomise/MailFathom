@@ -3493,17 +3493,14 @@ Project repository: https://github.com/fathomise/MailFathom
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--faint)">search</span>
               <input value="{{ settingsQuery }}" onChange="{{ onSettingsQuery }}" placeholder="Find a setting" style="flex:1;min-width:0;border:none;outline:none;font-size:14px;color:var(--text);background:transparent" />
             </div>
-            <sc-for list="{{ settingsNavGroups }}" as="sg" hint-placeholder-count="3">
-              <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--faint);padding:4px 12px 6px">{{ sg.label }}</div>
-                <sc-for list="{{ sg.items }}" as="tab" hint-placeholder-count="2">
-                  <div onClick="{{ tab.pick }}" style="{{ tab.navStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">
-                    <span style="{{ tab.iconStyle }}">{{ tab.icon }}</span>
-                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ tab.label }}</span>
-                  </div>
-                </sc-for>
-              </div>
-            </sc-for>
+            <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
+              <sc-for list="{{ settingsNavItems }}" as="tab" hint-placeholder-count="8">
+                <div onClick="{{ tab.pick }}" style="{{ tab.navStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">
+                  <span style="{{ tab.iconStyle }}">{{ tab.icon }}</span>
+                  <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ tab.label }}</span>
+                </div>
+              </sc-for>
+            </div>
             <sc-if value="{{ settingsNavEmpty }}" hint-placeholder-val="{{ false }}">
               <div style="font-size:13px;color:var(--muted);padding:6px 12px">No section matches.</div>
             </sc-if>

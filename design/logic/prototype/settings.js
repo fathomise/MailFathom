@@ -98,14 +98,14 @@ MailFathomDesign.settingsPanel = (self, env) => {
 
   /* ---------- The sections ---------- */
   const SECTIONS = [
-    { v: "profil", label: "Profile", icon: "person", group: "You", hint: "Your name and picture, your language and time zone, and how colleagues reach you.", words: "name photo picture language time zone phone number address" },
-    { v: "away", label: "Availability", icon: "event_available", group: "You", hint: "When you work, and what MailFathom answers while you are away.", words: "working hours automatic reply out of office away vacation" },
-    { v: "accounts", label: "Accounts", icon: "alternate_email", group: "Mail", hint: "The mail accounts your administrator gave you, and everything about each that is yours to decide: its name and language, deleting, spam, contacts, scanning, sending, its folders and its footer.", words: "account name language push polling delete deletion permanently expunge spam junk contacts collect exclusions scan secrets personal data screen outgoing sender trust strict domains send from signing smime openpgp folder synchronize footer signature embeddings" },
-    { v: "certs", label: "Certificates", icon: "key", group: "Mail", hint: "The certificates and keys you sign and encrypt mail with, added once and chosen for each account.", words: "certificate key smime s/mime openpgp pgp gpg sign signing signature encrypt encryption p12 pfx asc" },
-    { v: "reading", label: "Reading", icon: "chrome_reader_mode", group: "Mail", hint: "How a message opens, and what opening it does.", words: "message view simplified original expand thread mark read ai filters" },
-    { v: "ai", label: "AI", icon: "auto_awesome", group: "Assistant", hint: "The language the assistant writes in, and when it follows the message instead.", words: "language reply match" },
-    { v: "notif", label: "Notifications", icon: "notifications", group: "Assistant", hint: "What reaches you, on which device, and for how long it stays.", words: "notification device seconds remove" },
-    { v: "app", label: "Application", icon: "tune", group: "General", hint: "The interface language, the theme, how mail is laid out, and what this device sends.", words: "language theme dark light tabs list conversations images telemetry layout" },
+    { v: "profil", label: "Profile", icon: "person", hint: "Your name and picture, your language and time zone, and how colleagues reach you.", words: "name photo picture language time zone phone number address" },
+    { v: "away", label: "Availability", icon: "event_available", hint: "When you work, and what MailFathom answers while you are away.", words: "working hours automatic reply out of office away vacation" },
+    { v: "accounts", label: "Accounts", icon: "alternate_email", hint: "The mail accounts your administrator gave you, and everything about each that is yours to decide: its name and language, deleting, spam, contacts, scanning, sending, its folders and its footer.", words: "account name language push polling delete deletion permanently expunge spam junk contacts collect exclusions scan secrets personal data screen outgoing sender trust strict domains send from signing smime openpgp folder synchronize footer signature embeddings" },
+    { v: "certs", label: "Certificates", icon: "key", hint: "The certificates and keys you sign and encrypt mail with, added once and chosen for each account.", words: "certificate key smime s/mime openpgp pgp gpg sign signing signature encrypt encryption p12 pfx asc" },
+    { v: "reading", label: "Reading", icon: "chrome_reader_mode", hint: "How a message opens, and what opening it does.", words: "message view simplified original expand thread mark read ai filters" },
+    { v: "ai", label: "AI", icon: "auto_awesome", hint: "The language the assistant writes in, and when it follows the message instead.", words: "language reply match" },
+    { v: "notif", label: "Notifications", icon: "notifications", hint: "What reaches you, on which device, and for how long it stays.", words: "notification device seconds remove" },
+    { v: "app", label: "Application", icon: "tune", hint: "The interface language, the theme, how mail is laid out, and what this device sends.", words: "language theme dark light tabs list conversations images telemetry layout" },
   ];
   const ORDER = SECTIONS.map(x => x.v);
   const cur = ORDER.includes(st.settingsTab) ? st.settingsTab : "profil";
@@ -473,9 +473,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
     settingsSectionTitle: curSec.label,
     settingsSectionHint: curSec.hint,
     settingsNavEmpty: shown.length === 0,
-    settingsNavGroups: ["You", "Mail", "Assistant", "General"]
-      .map(g => ({ label: g, items: shown.filter(x => x.group === g).map(navItem) }))
-      .filter(g => g.items.length),
+    settingsNavItems: shown.map(navItem),
     settingsSwipe: touch && env.singlePane ? self.tabSwipe(ORDER, cur, pickSection) : {},
     settingsTabs: SECTIONS.map(x => ({
       label: x.label,
