@@ -100,7 +100,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
   const SECTIONS = [
     { v: "profil", label: "Profile", icon: "person", group: "You", hint: "Your name and picture, your language and time zone, and how colleagues reach you.", words: "name photo picture language time zone phone number address" },
     { v: "away", label: "Availability", icon: "event_available", group: "You", hint: "When you work, and what MailFathom answers while you are away.", words: "working hours automatic reply out of office away vacation" },
-    { v: "accounts", label: "Accounts", icon: "alternate_email", group: "Mail", hint: "The mail accounts your administrator gave you, and everything about each that is yours to decide: its name and language, deleting, spam, contacts, scanning, sending, its folders and its footer.", words: "account name language push polling delete deletion tombstone expunge spam junk contacts collect exclusions scan secrets personal data screen outgoing sender trust strict domains send from signing smime openpgp folder synchronize footer signature embeddings" },
+    { v: "accounts", label: "Accounts", icon: "alternate_email", group: "Mail", hint: "The mail accounts your administrator gave you, and everything about each that is yours to decide: its name and language, deleting, spam, contacts, scanning, sending, its folders and its footer.", words: "account name language push polling delete deletion permanently expunge spam junk contacts collect exclusions scan secrets personal data screen outgoing sender trust strict domains send from signing smime openpgp folder synchronize footer signature embeddings" },
     { v: "reading", label: "Reading", icon: "chrome_reader_mode", group: "Mail", hint: "How a message opens, and what opening it does.", words: "message view simplified original expand thread mark read ai filters" },
     { v: "ai", label: "AI", icon: "auto_awesome", group: "Assistant", hint: "The language the assistant writes in, and when it follows the message instead.", words: "language reply match" },
     { v: "notif", label: "Notifications", icon: "notifications", group: "Assistant", hint: "What reaches you, on which device, and for how long it stays.", words: "notification device seconds remove" },
@@ -330,11 +330,13 @@ MailFathomDesign.settingsPanel = (self, env) => {
       item.seg("Language", "What MailFathom writes about this mailbox's mail on its own - readings, summaries, classifications - is in this language, for everyone the account is assigned to.", "language", [["English", "English"], ["Polish", "Polski"]]),
       item.seg("New mail", decl.mode === "Push" ? "The mail server tells MailFathom the moment something changes, so mail appears at once. It keeps one connection open for the account." : "MailFathom asks the mail server on the deployment's schedule, every few minutes.", "mode", [["Polling", "On a schedule"], ["Push", "As it arrives"]]),
     ] },
-    { title: "Deleting", hint: "What deleting does here and on the mail server. A change governs what is deleted from then on.", items: [
-      item.select("When the mail server no longer holds a message", "Somebody deleted it in another mail client, or the server's own retention removed it.", "remotelyDeleted", [["EraseLocalCopy", "Erase MailFathom's copy too"], ["RetainTombstone", "Keep a hidden record that it existed"]]),
-      item.select("When you delete a message here, MailFathom's copy", "Deleting a message always removes it from the mail server; this is what stays behind here.", "authoredDelete", [["EraseLocalCopy", "Is erased"], ["RetainTombstone", "Becomes a hidden record that it existed"], ["RetainLocalCopy", "Stays readable and searchable"]]),
-      item.select("On the mail server, a message you delete is", "Flagged only, another mail client that offers an undelete can still bring it back until the server removes it.", "authoredDeleteServer", [["Expunge", "Removed at once"], ["FlagDeleted", "Only flagged as deleted"]]),
-      item.select("Deleting a folder here", "Removed from MailFathom only, the folder and its mail stay on the mail server and nothing there is touched.", "authoredFolderDelete", [["DeleteOnServer", "Deletes it on the mail server too, with its mail"], ["MarkDeletedLocally", "Removes it from MailFathom only"]]),
+    { title: "Deleting", hint: "", items: [
+      { isSwitch: true, label: "Delete mail permanently - here and on the mail server",
+        hint: decl.authoredDeleteServer === "Expunge"
+          ? "A message you delete is removed from the mail server at once. MailFathom's own copy is always erased."
+          : "A message you delete is only flagged as deleted on the mail server, so another mail client that offers an undelete can still bring it back until the server removes it. MailFathom's own copy is always erased.",
+        tip: lockTip, refused: folderLocked, rowStyle: row(folderLocked), switchStyle: sw(decl.authoredDeleteServer === "Expunge", folderLocked),
+        toggle: () => putAt("authoredDeleteServer", decl.authoredDeleteServer === "Expunge" ? "FlagDeleted" : "Expunge") },
     ] },
     { title: "Recognizing senders", hint: "How the mark beside a sender is decided on this account.", items: [
       item.text("Server whose checks this account believes", "The one server whose SPF, DKIM and DMARC results count. Left empty, MailFathom takes the one it knows for this account's mail server, or believes none.", "trustedAuthServer", { mono: true, empty: null, placeholder: "Taken from what MailFathom knows" }),

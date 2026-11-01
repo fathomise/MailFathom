@@ -7047,8 +7047,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         createFolder: this.saveFolder,
         delFolderOpen: !!st.delFolder,
         delFolderName: st.delFolder ? st.delFolder.path.split("/").pop() : "",
-        /* Nested folders go too, and what becomes of them and their mail is the account's own folder-delete setting
-           (Settings > Accounts > Deleting): on the mail server too, or in MailFathom alone. */
+        /* Nested folders go too, and what becomes of them and their mail is the account's folder-delete setting, which
+           the administrator sets: on the mail server too, or in MailFathom alone. */
         delFolderText: (() => {
           const df = st.delFolder;
           if (!df) return "";
@@ -7056,7 +7056,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const names = [df.path].concat(nested).map(p => p.split("/").pop());
           const held = Object.keys(df.moved || {}).filter(id => names.indexOf((df.moved || {})[id]) >= 0).length;
           const acc = (st.setAccounts || MailFathomDesign.data.mailAccounts).find(a => a.id === (df.key === "acc2" ? "a2" : "a1"));
-          const local = !!acc && acc.settings.authoredFolderDelete === "MarkDeletedLocally";
+          const local = !!acc && acc.folderDelete === "MarkDeletedLocally";
           const what = nested.length
             ? "The folder and the " + (nested.length === 1 ? "folder nested" : nested.length + " folders nested") + " inside it"
             : "The folder";
