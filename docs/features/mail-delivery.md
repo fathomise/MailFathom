@@ -339,12 +339,13 @@ system does. Every message names the product that wrote it as `User-Agent: Fatho
 the name: a version, a runtime, or a platform would tell every recipient which build a deployment runs, which is a
 fingerprint nobody reading the header needs. No `X-Mailer` is written beside it. An [automatic reply](automatic-reply.md) also carries
 `Auto-Submitted: auto-replied`, which is what RFC 3834 asks of a responder so that one on the other side does not
-answer it in turn; nothing else this deployment sends carries the header. A draft whose author asked for a read receipt
-carries `Disposition-Notification-To` (RFC 8098) naming the sending account's own address — never an address the author
-supplies, so a receipt can only return to the mailbox the message left from — and one whose author did not ask carries
-none; a revision is composed afresh, which is what takes the header off again. A send, a draft, and an occasion of a
-recurring send all carry it exactly once, because it is written where each of them is serialized and replaces whatever
-a stored draft carried.
+answer it in turn; nothing else this deployment sends carries the header. A send, a draft, and an occasion of a
+recurring send all carry `User-Agent` exactly once, because it is written where each of them is serialized and replaces
+whatever a stored draft carried. A draft whose author asked for a read receipt carries `Disposition-Notification-To`
+(RFC 8098) naming the sending account's own address — never an address the author supplies, so a receipt can only
+return to the mailbox the message left from — and one whose author did not ask carries none; a revision is composed
+afresh, which is what takes the header off again. A draft, and the send promoted from it byte for byte, are the only
+messages that can carry it.
 
 **The threading headers are owned here too.** `In-Reply-To` and `References` are what every mail client threads by and are
 the whole of what it threads by, so a message answering another carries both or neither. Nothing above the composer
