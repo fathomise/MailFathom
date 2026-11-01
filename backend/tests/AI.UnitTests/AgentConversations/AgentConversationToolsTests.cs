@@ -18,6 +18,7 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent;
@@ -415,6 +416,43 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         // Assert
         Assert.StartsWith("That time has already passed", answer?.ToString(), StringComparison.Ordinal);
         Assert.Empty(this.written.OfType<AgentActionProposed>());
+    }
+
+    /// <summary>An answer's draft names the account the answered message was received into, which is the one it leaves from.</summary>
+    [Fact]
+    public async Task ProposeReply_AMessageReceivedIntoAnotherAccount_ProposesADraftNamingThatAccount()
+    {
+        // Arrange
+        const string AnsweredId = "0199c0de-0000-7000-8000-000000000042";
+        var answered = StoredEmailId.Create(Guid.Parse(AnsweredId));
+        var travel = MailAccountId.Create("travel");
+        var authorization = AccessAuthorizations.ForCallerGranted(
+            MailFathomPermission.MailRead,
+            MailFathomPermission.MailDraftsWrite,
+            MailFathomPermission.MailSend);
+        this.tools = this.Tools(
+            authorization,
+            SensitiveContentEgressGuards.Inactive(),
+            responseAuthoring: ResponseAuthorings.Answering(answered, travel, "bays@example.org", authorization));
+        var tool = Assert.IsType<AIFunction>(
+            Assert.Single(this.tools.Create(), static tool => tool.Name == "propose_reply"),
+            exactMatch: false);
+
+        // Act
+        await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?>
+            {
+                ["messageId"] = AnsweredId,
+                ["act"] = "reply",
+                ["body"] = "Thank you, four bays suit us.",
+                ["recipients"] = null,
+                ["sendAt"] = null,
+            }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var proposal = Assert.Single(this.written.OfType<AgentActionProposed>());
+        Assert.Equal("travel", Assert.IsType<DraftBlock>(proposal.Block).Account?.Value);
     }
 
     /// <summary>An account the person does not read is refused back to the model and nothing is proposed.</summary>
@@ -937,7 +975,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         OwnCalendar? calendar = null,
         OwnTasks? tasks = null,
         IEmailProvenanceReader? provenanceReader = null,
-        UserClock? clock = null)
+        UserClock? clock = null,
+        StoredEmailResponseAuthoring? responseAuthoring = null)
     {
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.knowledgeSearch,
@@ -953,7 +992,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             StateBrowser: null!,
             calendar!,
             tasks!,
-            ResponseAuthoring: null!,
+            ResponseAuthoring: responseAuthoring!,
             authorization,
             clock ?? UserClocks.Reading(Now, "Europe/Warsaw"));
 

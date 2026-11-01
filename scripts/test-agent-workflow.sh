@@ -12277,6 +12277,7 @@ deployment.ts spamFolder GET /api/client/folders
 deployment.ts mailFolders GET /api/client/folders
 deployment.ts troubledFolders GET /api/client/folders
 deployment.ts ownTimeZone GET /api/client/time-zone
+deployment.ts footer GET /api/client/mail-footers
 deployment.ts mailFooters GET /api/client/mail-footers
 deployment.ts ownPresence GET /api/client/presence
 deployment.ts managedFolders GET /api/client/managed-folders
