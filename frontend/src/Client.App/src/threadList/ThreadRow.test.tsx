@@ -65,12 +65,11 @@ describe('ThreadRow', () => {
     });
 
     it('frames the title a model wrote, with where the conversation stands under its topic', () => {
-        const row = drawing(thread());
+        drawing(thread());
 
         expect(screen.getByText('AI title:')).toBeDefined();
         expect(screen.getByText('Quarterly figures for the audit')).toBeDefined();
         expect(screen.getByText('Anna is waiting for the signed copy.')).toBeDefined();
-        expect(row.closest('[data-thread-row]')?.getAttribute('data-thread-row')).toBe('standing');
     });
 
     it('stands under its subject, with no frame, where no derivation has named it', () => {

@@ -3,12 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 // Which rows of a list of mail are in the document, which is the whole of what keeps a mailbox of two hundred thousand
-// messages costing what a screenful costs. It is arithmetic over four numbers rather than a package, and the
-// measurement that decided it is in `frontend/README.md`: every row of these lists is one height, so the only thing a
-// virtualizer would add over this file is the machinery for measuring rows that are not.
+// messages costing what a screenful costs. It is arithmetic over a few numbers rather than a package, and the
+// measurement that decided it is in `frontend/README.md`: every row of the folder's list and the search's results is one
+// height, which both window the same row the same way, and the list read by conversation has three, one per variant of
+// its row, each measured from a drawn row of it. `windowOfHeights` walks those heights; a virtualizer would add nothing
+// for a list whose heights come in so few kinds.
 //
-// It sits beside the row rather than inside a screen because both the folder's list and the search's results window
-// the same row the same way.
+// It sits beside the message row rather than inside a screen because more than one list windows its rows here.
 //
 // The height itself is measured from a rendered row rather than written here, because the row's height is a token
 // decision and a number repeated in JavaScript is a second copy of it that drifts on the first change of the type

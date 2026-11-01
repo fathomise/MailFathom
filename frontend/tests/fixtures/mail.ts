@@ -724,10 +724,10 @@ function listedThread(threadId: string, said: Readonly<Record<string, unknown>>)
     };
 }
 
-/** The newest message of a listed conversation, written by `from` at `receivedAt`. */
+/** The newest message of a listed conversation, written by the correspondent named second at `receivedAt`. */
 function newestOf(
     id: string,
-    from: Correspondent,
+    { address, displayName, reader }: Correspondent,
     subject: string,
     receivedAt: string,
     preview: string,
@@ -736,10 +736,10 @@ function newestOf(
         id,
         subject,
         receivedAt,
-        senderAddress: from.address,
-        senderDisplayName: from.displayName,
+        senderAddress: address,
+        senderDisplayName: displayName,
         preview,
-        own: from.reader,
+        own: reader,
         senderPhoto: null,
     };
 }

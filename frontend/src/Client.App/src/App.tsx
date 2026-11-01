@@ -1464,9 +1464,20 @@ export function App({
                                                                                                                     mode={
                                                                                                                         preferences.listMode
                                                                                                                     }
-                                                                                                                    onChoose={
-                                                                                                                        preferences.chooseListMode
-                                                                                                                    }
+                                                                                                                    // The Outbox is reached from a folder row, which the list read by
+                                                                                                                    // conversation has none of, so turning the list over closes it.
+                                                                                                                    onChoose={(
+                                                                                                                        mode,
+                                                                                                                    ) => {
+                                                                                                                        preferences.chooseListMode(
+                                                                                                                            mode,
+                                                                                                                        );
+                                                                                                                        revise(
+                                                                                                                            {
+                                                                                                                                outbox: null,
+                                                                                                                            },
+                                                                                                                        );
+                                                                                                                    }}
                                                                                                                 />
                                                                                                             )
                                                                                                         }

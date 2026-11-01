@@ -129,6 +129,19 @@ describe('readMailThreadList', () => {
         ['a participant with no address', { ...thread, participants: [{ displayName: 'Nobody', reader: false }] }],
         ['a negative count', { ...thread, unreadCount: -1 }],
         ['sender facts that are not sender facts', { ...thread, newestReceivedSender: 'Authenticated' }],
+        [
+            'more participants than a row names',
+            {
+                ...thread,
+                participants: Array.from({ length: 17 }, (_, at) => ({
+                    address: `person-${String(at)}@example.invalid`,
+                    displayName: null,
+                    reader: false,
+                })),
+            },
+        ],
+        ['an attachment mark that is not a yes or a no', { ...thread, hasAttachments: 'yes' }],
+        ['a say on unnamed participants that is not a yes or a no', { ...thread, moreParticipantsNotNamed: 1 }],
     ])('refuses %s', async (_, row) => {
         const answer = await readMailThreadList(
             session,
@@ -152,10 +165,35 @@ describe('readMailThreadList', () => {
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
-    it('reports a refusal by the reason its status names', async () => {
-        const answer = await readMailThreadList(session, recording(403, {}).transport, null, null);
+    it.each([
+        ['an empty cursor', { ...page, nextCursor: '' }],
+        ['a cursor longer than any the deployment issues', { ...page, nextCursor: 'c'.repeat(4097) }],
+        ['a page that is not an object', [page]],
+    ])('refuses a page carrying %s', async (_, body) => {
+        const answer = await readMailThreadList(session, recording(200, body).transport, null, null);
 
-        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
+    it('refuses an answer that is not JSON', async () => {
+        const answer = await readMailThreadList(
+            session,
+            () => Promise.resolve({ status: 200, body: '<html>', headers: {} }),
+            null,
+            null,
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
+    it.each([
+        [401, 'unauthenticated'],
+        [403, 'unauthorized'],
+        [500, 'unavailable'],
+    ] as const)('reports a %i by the reason it names', async (status, reason) => {
+        const answer = await readMailThreadList(session, recording(status, {}).transport, null, null);
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason, status } });
     });
 
     it('reports a deployment that did not answer as unavailable', async () => {

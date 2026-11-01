@@ -705,8 +705,18 @@ export class FakeDeployment {
                 return this.folderDeleted(request.body);
             case 'GET /emails':
                 return answering(this.folderPage(request.query));
-            case 'GET /threads':
-                return answering(mail.threadList);
+            // Narrowed by the account asked for, as the route narrows it: every corpus conversation is the work
+            // account's, so the other accounts read as holding none.
+            case 'GET /threads': {
+                const account = request.query.get('account');
+
+                return answering({
+                    ...mail.threadList,
+                    threads: mail.threadList.threads.filter(
+                        (thread) => account === null || thread['account'] === account,
+                    ),
+                });
+            }
             case 'GET /emails/search': {
                 const found = this.findingAcrossTheFolder ? mail.searchResultsAcrossTheFolder : mail.searchResults;
 

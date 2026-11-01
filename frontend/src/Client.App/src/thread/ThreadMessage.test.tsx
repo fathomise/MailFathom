@@ -264,7 +264,8 @@ describe('ThreadMessage', () => {
     it('draws no place where the client knows neither the folder nor the account by name', () => {
         drawing(message(), {}, nothingMarkedRead, null, null, [], null);
 
-        expect(document.querySelector('[data-message-place]')).toBeNull();
+        expect(screen.getByText('The figures you asked for are attached.')).toBeDefined();
+        expect(screen.queryByText(/Sent|Work/u)).toBeNull();
     });
 
     // An identifier is how the deployment is asked, never what a reader knows a mailbox by — so an account the client

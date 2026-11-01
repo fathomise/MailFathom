@@ -43,7 +43,7 @@ export function MessagePlace({ message }: { readonly message: MailMessage }) {
               : translate('message.place', { folder: folderName, account: accountName });
 
     return said === null ? null : (
-        <p data-message-place className="-mt-1 flex min-w-0 items-center gap-1.5 text-sm text-faint">
+        <p className="-mt-1 flex min-w-0 items-center gap-1.5 text-sm text-faint">
             <Icon name="folder_open" className="size-icon-sm shrink-0" />
             <span className="truncate">{said}</span>
         </p>

@@ -5,6 +5,7 @@
 import { expect } from '@playwright/test';
 
 import { openSignedIn, test } from './client.harness';
+import { failingAccount } from './fixtures/deployment';
 
 // The list read by conversation, as a journey across the switch, the mailbox column, the list, and the preference that
 // remembers the choice: a unit test of each proves what it draws for what it was handed, and whether pressing one moves
@@ -38,4 +39,24 @@ test('reads the list by conversation once the switch is pressed, and opens in it
 
     await expect(page.getByRole('list', { name: 'Threads' }).getByRole('listitem')).toHaveCount(4);
     await expect(page.getByRole('button', { name: 'Threads, switch to messages', exact: true })).toBeVisible();
+});
+
+test('lists the conversations of the account picked, and of every account again', async ({ page, deployment }) => {
+    deployment.troubleTheAccounts();
+    await openSignedIn(page, '/#/mail');
+    await page.getByRole('button', { name: 'Messages, switch to threads', exact: true }).click();
+
+    const accounts = page.getByRole('navigation', { name: 'Accounts' });
+
+    await expect(page.getByRole('list', { name: 'Threads' }).getByRole('listitem')).toHaveCount(4);
+
+    await accounts.getByRole('button', { name: 'Club' }).click();
+
+    await expect(page.getByText('There is no conversation here yet.')).toBeVisible();
+    expect(deployment.requests('GET', '/threads').at(-1)?.query.get('account')).toBe(failingAccount.id);
+
+    await accounts.getByRole('button', { name: 'All accounts' }).click();
+
+    await expect(page.getByRole('list', { name: 'Threads' }).getByRole('listitem')).toHaveCount(4);
+    expect(deployment.requests('GET', '/threads').at(-1)?.query.get('account')).toBeNull();
 });

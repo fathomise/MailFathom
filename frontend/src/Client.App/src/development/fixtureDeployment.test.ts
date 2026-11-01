@@ -286,6 +286,7 @@ describe('fixtureAnswer', () => {
         expect(stated(answered('/contacts/collected', { emptyCollections: true }))).toStrictEqual(
             contacts.emptyContactPage,
         );
+        expect(stated(answered('/threads?pageSize=25', { emptyCollections: true }))['threads']).toStrictEqual([]);
     });
 
     it('answers erasing somebody with what was removed rather than with the record', () => {
