@@ -82,7 +82,7 @@ describe('useColleagueStructure', () => {
         expect(screen.getByText('settled')).toBeDefined();
     });
 
-    it('reads the structure again when somebody in it changes presence, and not for anybody else', async () => {
+    it('reads the structure again on a refresh, and not for a presence change, which is about the reader', async () => {
         let presence = 'Active';
         const asked: string[] = [];
         const transport: MailFathomTransport = ({ path }) => {
@@ -116,11 +116,11 @@ describe('useColleagueStructure', () => {
         expect(await screen.findByText('Active')).toBeDefined();
 
         act(() => {
-            say({ kind: 'presence.changed', members: ['somebody-else'] });
+            say({ kind: 'presence.changed' });
         });
         presence = 'Away';
         act(() => {
-            say({ kind: 'presence.changed', members: ['Hanna Mazur-id'] });
+            say({ kind: 'refresh' });
         });
 
         expect(await screen.findByText('Away')).toBeDefined();

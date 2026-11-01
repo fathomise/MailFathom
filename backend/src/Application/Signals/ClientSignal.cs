@@ -50,9 +50,6 @@ public sealed class ClientSignal
     /// </remarks>
     public const int MostNamedEmails = 100;
 
-    /// <summary>The most members one presence change names before it names none, which a client reads as every colleague.</summary>
-    public const int MostNamedMembers = 100;
-
     private ClientSignal(
         ClientSignalKind kind,
         UserId? user,
@@ -67,7 +64,6 @@ public sealed class ClientSignal
         Guid? run,
         AgentConversationId? conversation,
         long sequence,
-        IReadOnlyList<UserId>? members = null,
         Guid? organization = null)
     {
         this.Kind = kind;
@@ -83,7 +79,6 @@ public sealed class ClientSignal
         this.Run = run;
         this.Conversation = conversation;
         this.Sequence = sequence;
-        this.Members = members ?? [];
         this.Organization = organization;
     }
 
@@ -137,10 +132,6 @@ public sealed class ClientSignal
     /// <summary>Gets how far that run or conversation has got, counted the way its own record is, and zero for every other kind.</summary>
     /// <remarks>A place in the record rather than a quantity of anything, which is why it is not the count above: a client holds it as the cursor it reads the tail from.</remarks>
     public long Sequence { get; }
-
-    /// <summary>Gets the members of the reader's organization whose presence a presence change names, bounded by <see cref="MostNamedMembers" /> and empty for every other kind.</summary>
-    /// <remarks>Empty on a presence change means more changed than one signal names, which a client answers by re-reading every colleague it draws.</remarks>
-    public IReadOnlyList<UserId> Members { get; }
 
     /// <summary>Gets the organization whose members a change reaches, where the change is to that organization's contact book.</summary>
     /// <remarks>
@@ -433,37 +424,20 @@ public sealed class ClientSignal
             this.Run,
             this.Conversation,
             later.Sequence,
-            FoldedMembers(this.Members, later.Members),
             this.Organization);
     }
 
-    /// <summary>States that how one member of the reader's organization reads to the others may have changed.</summary>
-    /// <param name="recipient">The member of the organization whose connections are told.</param>
-    /// <param name="member">The member whose presence moved, which is whose presence the client re-reads.</param>
+    /// <summary>States that how one member reads to the others of their organization may have changed, which only that member's own clients are told.</summary>
+    /// <param name="member">The member whose presence moved, which is whose connections are told.</param>
     /// <returns>The signal.</returns>
     /// <remarks>
-    /// It names the member and nothing about them — no state and no time — so that what a reader may see is decided
-    /// by the read alone: a member who chose to hide reads as offline, and their last-seen time is withheld, and a
-    /// state in the payload would need a payload per reader to keep that.
+    /// It names nothing about the member — no state and no time — so the client re-reads its own presence over its own
+    /// route. Nobody else is told: colleagues catch up on the re-read every client already makes, so one member's change
+    /// costs one signal however large the organization.
     /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0045-a-members-presence-from-the-clients-it-keeps-open-and-the-state-it-chose.md">ADR 0045</see>
     /// decides it.
     /// </remarks>
-    public static ClientSignal PresenceChanged(UserId recipient, UserId member) =>
-        new(
-            ClientSignalKind.PresenceChanged,
-            recipient,
-            account: null,
-            folder: null,
-            count: 0,
-            emails: [],
-            flags: [],
-            notificationKind: null,
-            headline: null,
-            secondLine: null,
-            run: null,
-            conversation: null,
-            sequence: 0,
-            members: [member]);
+    public static ClientSignal PresenceChanged(UserId member) => OnesOwn(ClientSignalKind.PresenceChanged, member);
 
     /// <summary>States that something on one person's calendar was written, amended, accepted, or deleted.</summary>
     /// <param name="owner">Whose calendar it is, which is whose connections are told.</param>
@@ -505,20 +479,6 @@ public sealed class ClientSignal
             conversation: null,
             sequence: 0,
             organization: book.Organization);
-    }
-
-    /// <summary>Joins two windows' named members, or names none once more changed than one signal names, which a client reads as everybody.</summary>
-    /// <remarks>A presence change always names a member, so an empty side is one that already named everybody, and the fold keeps naming everybody.</remarks>
-    private static UserId[] FoldedMembers(IReadOnlyList<UserId> earlier, IReadOnlyList<UserId> later)
-    {
-        if (earlier.Count == 0 || later.Count == 0)
-        {
-            return [];
-        }
-
-        UserId[] joined = [.. earlier.Concat(later).Distinct()];
-
-        return joined.Length > MostNamedMembers ? [] : joined;
     }
 
     private static ClientSignal OnesOwn(ClientSignalKind kind, UserId user) =>

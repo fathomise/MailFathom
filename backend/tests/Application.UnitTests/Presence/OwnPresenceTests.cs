@@ -41,7 +41,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
     public OwnPresenceTests() => this.signals = new ClientSignals([this.channel], this.clock);
 
     [Fact]
-    public async Task RenewAsync_FirstClientOpened_IsActiveAndTellsTheOrganization()
+    public async Task RenewAsync_FirstClientOpened_IsActiveAndTellsOnlyTheMembersOwnClients()
     {
         // Act
         var outcome = await this.Presence().RenewAsync(Laptop, ClientActivity.Active, TestContext.Current.CancellationToken);
@@ -51,12 +51,9 @@ public sealed class OwnPresenceTests : IAsyncDisposable
         // Assert
         Assert.Equal(PresenceWriteOutcome.Recorded, outcome);
         Assert.Equal(PresenceState.Active, this.store.Of(Member).OwnStateAt(Now));
-        Assert.Equal(
-            [(Member, Member), (Colleague, Member)],
-            this.channel.Published
-                .Select(signal => (Recipient: signal.User!.Value, Named: Assert.Single(signal.Members)))
-                .OrderBy(pair => pair.Recipient.Value));
-        Assert.All(this.channel.Published, signal => Assert.Equal(ClientSignalKind.PresenceChanged, signal.Kind));
+        var signal = Assert.Single(this.channel.Published);
+        Assert.Equal(ClientSignalKind.PresenceChanged, signal.Kind);
+        Assert.Equal(Member, signal.User);
     }
 
     [Fact]
@@ -163,7 +160,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task CloseAsync_TheLastOpenClient_ReadsOfflineAndTellsTheOrganization()
+    public async Task CloseAsync_TheLastOpenClient_ReadsOfflineAndTellsOnlyTheMembersOwnClients()
     {
         // Arrange
         this.store.WithClient(Member, Laptop, ClientActivity.Active, Now.AddSeconds(30));
@@ -175,7 +172,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
 
         // Assert
         Assert.Equal(PresenceState.Offline, this.store.Of(Member).OwnStateAt(Now));
-        Assert.Equal(2, this.channel.Published.Count);
+        Assert.Equal(Member, Assert.Single(this.channel.Published).User);
     }
 
     [Fact]
@@ -197,7 +194,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task ChooseAsync_BusyForAnHour_IsBusyUntilThenAndTellsTheOrganization()
+    public async Task ChooseAsync_BusyForAnHour_IsBusyUntilThenAndTellsOnlyTheMembersOwnClients()
     {
         // Arrange
         this.store.WithClient(Member, Laptop, ClientActivity.Active, Now.AddSeconds(30));
@@ -209,7 +206,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
 
         // Assert
         Assert.Equal(new OwnPresenceReading(PresenceState.Busy, new PresenceChoice(PresenceState.Busy, PresenceDuration.OneHour, Now.AddHours(1))), reading);
-        Assert.Equal(2, this.channel.Published.Count);
+        Assert.Equal(Member, Assert.Single(this.channel.Published).User);
     }
 
     [Fact]

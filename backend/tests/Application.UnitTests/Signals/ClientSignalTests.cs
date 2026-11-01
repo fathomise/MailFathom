@@ -239,57 +239,23 @@ public sealed class ClientSignalTests
             [.. names.Order(StringComparer.Ordinal)]);
     }
 
-    /// <summary>A presence change names the member and nothing about them, so what a reader may see stays the read's to decide.</summary>
+    /// <summary>A presence change reaches the member's own clients and names nothing about them, so the client re-reads its own presence.</summary>
     [Fact]
-    public void PresenceChanged_ForOneMember_NamesThatMemberToTheRecipientAndNothingElse()
+    public void PresenceChanged_ForOneMember_ReachesThatMemberAndNamesNothingElse()
     {
         // Arrange
-        var recipient = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d001"));
         var member = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d002"));
 
         // Act
-        var signal = ClientSignal.PresenceChanged(recipient, member);
+        var signal = ClientSignal.PresenceChanged(member);
 
         // Assert
         Assert.Equal(ClientSignalKind.PresenceChanged, signal.Kind);
-        Assert.Equal(recipient, signal.User);
-        Assert.Equal([member], signal.Members);
+        Assert.Equal(member, signal.User);
         Assert.Null(signal.Account);
+        Assert.Null(signal.Organization);
+        Assert.Empty(signal.Emails);
         Assert.Equal(0, signal.Count);
-    }
-
-    [Fact]
-    public void FoldedWith_TwoPresenceChangesForOneRecipient_NamesBothMembers()
-    {
-        // Arrange
-        var recipient = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d001"));
-        var first = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d002"));
-        var second = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d003"));
-
-        // Act
-        var folded = ClientSignal.PresenceChanged(recipient, first)
-            .FoldedWith(ClientSignal.PresenceChanged(recipient, second))
-            .FoldedWith(ClientSignal.PresenceChanged(recipient, first));
-
-        // Assert
-        Assert.Equal([first, second], folded.Members);
-    }
-
-    /// <summary>Past the bound a signal names nobody, which a client reads as every colleague, and it keeps naming nobody.</summary>
-    [Fact]
-    public void FoldedWith_MorePresenceChangesThanOneSignalNames_NamesEverybody()
-    {
-        // Arrange
-        var recipient = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000d001"));
-        var changes = Enumerable.Range(1, ClientSignal.MostNamedMembers + 2)
-            .Select(index => ClientSignal.PresenceChanged(recipient, UserId.Create(new Guid(index, 0, 0, new byte[8]))))
-            .ToArray();
-
-        // Act
-        var folded = changes.Aggregate((held, later) => held.FoldedWith(later));
-
-        // Assert
-        Assert.Empty(folded.Members);
     }
 
     /// <summary>A calendar or a task list is one person's, so each change names that person and nothing about the record.</summary>

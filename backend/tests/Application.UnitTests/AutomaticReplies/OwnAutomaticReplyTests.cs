@@ -30,9 +30,6 @@ public sealed class OwnAutomaticReplyTests : IAsyncDisposable
 
     private readonly InMemoryAutomaticReplyStore store = new();
 
-    private readonly InMemoryPresenceStore organizations = new InMemoryPresenceStore()
-        .WithOrganization(Organization, SyntheticUser.Deployment, SyntheticUser.Another);
-
     private readonly FakeTimeProvider clock = new(StartsAt.AddDays(1));
 
     private readonly RecordingClientSignalChannel channel = new();
@@ -117,7 +114,6 @@ public sealed class OwnAutomaticReplyTests : IAsyncDisposable
             this.store,
             this.assignments,
             new StatedAdministrativeTargets(),
-            this.organizations,
             this.signals,
             this.clock);
 
@@ -126,9 +122,9 @@ public sealed class OwnAutomaticReplyTests : IAsyncDisposable
             () => replies.SaveAsync(Reply([Work]), TestContext.Current.CancellationToken));
     }
 
-    /// <summary>A reply that makes the user out of office now tells every member of their organization to read them again.</summary>
+    /// <summary>A reply that makes the user out of office now tells the user's own clients alone, and no colleague, to read their presence again.</summary>
     [Fact]
-    public async Task SaveAsync_AReplyRunningNow_TellsTheOrganizationTheUsersPresenceMoved()
+    public async Task SaveAsync_AReplyRunningNow_TellsOnlyTheUsersOwnClientsTheirPresenceMoved()
     {
         // Act
         await this.Replies(organization: Organization).SaveAsync(Reply([Work]), TestContext.Current.CancellationToken);
@@ -136,23 +132,18 @@ public sealed class OwnAutomaticReplyTests : IAsyncDisposable
         await this.signals.DrainAsync();
 
         // Assert
-        Assert.Equal(
-            [SyntheticUser.Deployment, SyntheticUser.Another],
-            this.channel.Published.Select(signal => signal.User!.Value).OrderBy(user => user.Value));
-        Assert.All(this.channel.Published, signal =>
-        {
-            Assert.Equal(ClientSignalKind.PresenceChanged, signal.Kind);
-            Assert.Equal(SyntheticUser.Deployment, Assert.Single(signal.Members));
-        });
+        var signal = Assert.Single(this.channel.Published);
+        Assert.Equal(ClientSignalKind.PresenceChanged, signal.Kind);
+        Assert.Equal(SyntheticUser.Deployment, signal.User);
     }
 
-    /// <summary>Switching a running reply off, or moving when it ends, changes what colleagues see and tells the organization.</summary>
+    /// <summary>Switching a running reply off, or moving when it ends, changes what colleagues see and tells the user's own clients.</summary>
     /// <param name="isOn">Whether the reply saved over the running one is switched on.</param>
     /// <param name="daysUntilItEnds">How many days after its start the reply saved over the running one ends.</param>
     [Theory]
     [InlineData(false, 7)]
     [InlineData(true, 3)]
-    public async Task SaveAsync_ARunningReplySwitchedOffOrItsEndMoved_TellsTheOrganization(bool isOn, int daysUntilItEnds)
+    public async Task SaveAsync_ARunningReplySwitchedOffOrItsEndMoved_TellsTheUsersOwnClients(bool isOn, int daysUntilItEnds)
     {
         // Arrange
         await this.store.SaveAsync(SyntheticUser.Deployment, Reply([Work]), TestContext.Current.CancellationToken);
@@ -165,9 +156,7 @@ public sealed class OwnAutomaticReplyTests : IAsyncDisposable
         await this.signals.DrainAsync();
 
         // Assert
-        Assert.Equal(
-            [SyntheticUser.Deployment, SyntheticUser.Another],
-            this.channel.Published.Select(signal => signal.User!.Value).OrderBy(user => user.Value));
+        Assert.Equal(SyntheticUser.Deployment, Assert.Single(this.channel.Published).User);
     }
 
     /// <summary>A running reply saved again with the same end, only its text changed, changes nothing a colleague sees and tells nobody.</summary>
@@ -261,7 +250,6 @@ public sealed class OwnAutomaticReplyTests : IAsyncDisposable
         this.store,
         this.assignments,
         new StatedAdministrativeTargets().WithUser(SyntheticUser.Deployment, organization),
-        this.organizations,
         this.signals,
         this.clock);
 

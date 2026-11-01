@@ -17,10 +17,10 @@ namespace MailFathom.Application.Presence;
 /// <see cref="PresenceWriteOutcome.NotInOrganization" /> and nothing is recorded about them.
 /// </para>
 /// <para>
-/// A write that changes what the other members see announces it to every user of the organization, the member included
-/// for their other devices, with a signal that names the member and nothing about them. A change no write causes — a
-/// client that crashed and expired, a duration that ran out — is not announced; a reader catches up on the client's own
-/// re-read.
+/// A write that changes what the other members see tells the member's own clients alone, so their other devices re-read
+/// the member's own presence. The other members are never told: they read colleagues again on their client's own
+/// refresh, which keeps one change at one signal however large the organization. A change no write causes — a client
+/// that crashed and expired, a duration that ran out — is not announced either.
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0045-a-members-presence-from-the-clients-it-keeps-open-and-the-state-it-chose.md">ADR 0045</see>
 /// decides it.
 /// </para>
@@ -41,7 +41,7 @@ public sealed class OwnPresence
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="store">Holds what presence is worked out from.</param>
-    /// <param name="signals">Announces a change to the members looking at it.</param>
+    /// <param name="signals">Tells the member's own clients that what the others see of them changed.</param>
     /// <param name="ownership">Answers who the caller is and which organization they belong to.</param>
     /// <param name="authorization">Answers what the caller holds.</param>
     /// <param name="timeZones">Answers the zone a duration ends in.</param>
@@ -82,13 +82,13 @@ public sealed class OwnPresence
     {
         this.authorization.RequirePermission(MailFathomPermission.ProfileRead);
 
-        if (await this.ReadMembershipAsync(cancellationToken) is not { } membership)
+        if (await this.ReadMemberAsync(cancellationToken) is not { } member)
         {
             return null;
         }
 
         var now = this.time.GetUtcNow();
-        var presence = await this.ReadAsync(membership.Member, cancellationToken);
+        var presence = await this.ReadAsync(member, cancellationToken);
 
         return new OwnPresenceReading(presence.OwnStateAt(now), presence.ChoiceInEffectAt(now));
     }
@@ -107,16 +107,16 @@ public sealed class OwnPresence
     {
         this.authorization.RequirePermission(MailFathomPermission.ProfileWrite);
 
-        if (await this.ReadMembershipAsync(cancellationToken) is not { } membership)
+        if (await this.ReadMemberAsync(cancellationToken) is not { } member)
         {
             return PresenceWriteOutcome.NotInOrganization;
         }
 
         var now = this.time.GetUtcNow();
-        var before = await this.ReadAsync(membership.Member, cancellationToken);
+        var before = await this.ReadAsync(member, cancellationToken);
 
         if (!await this.store.RenewClientAsync(
-                membership.Member,
+                member,
                 client,
                 activity,
                 now,
@@ -126,7 +126,7 @@ public sealed class OwnPresence
             return PresenceWriteOutcome.TooManyClients;
         }
 
-        await this.AnnounceIfSeenDifferentlyAsync(membership, before, now, cancellationToken);
+        await this.AnnounceIfSeenDifferentlyAsync(member, before, now, cancellationToken);
         await this.SweepIfDueAsync(now, cancellationToken);
 
         return PresenceWriteOutcome.Recorded;
@@ -141,16 +141,16 @@ public sealed class OwnPresence
     {
         this.authorization.RequirePermission(MailFathomPermission.ProfileWrite);
 
-        if (await this.ReadMembershipAsync(cancellationToken) is not { } membership)
+        if (await this.ReadMemberAsync(cancellationToken) is not { } member)
         {
             return PresenceWriteOutcome.NotInOrganization;
         }
 
         var now = this.time.GetUtcNow();
-        var before = await this.ReadAsync(membership.Member, cancellationToken);
+        var before = await this.ReadAsync(member, cancellationToken);
 
-        await this.store.RemoveClientAsync(membership.Member, client, cancellationToken);
-        await this.AnnounceIfSeenDifferentlyAsync(membership, before, now, cancellationToken);
+        await this.store.RemoveClientAsync(member, client, cancellationToken);
+        await this.AnnounceIfSeenDifferentlyAsync(member, before, now, cancellationToken);
 
         return PresenceWriteOutcome.Recorded;
     }
@@ -173,39 +173,34 @@ public sealed class OwnPresence
     {
         this.authorization.RequirePermission(MailFathomPermission.ProfileWrite);
 
-        if (await this.ReadMembershipAsync(cancellationToken) is not { } membership)
+        if (await this.ReadMemberAsync(cancellationToken) is not { } member)
         {
             return null;
         }
 
         var now = this.time.GetUtcNow();
-        var before = await this.ReadAsync(membership.Member, cancellationToken);
-        var choice = PresenceChoice.Made(state, duration, now, this.timeZones.ZoneOf(membership.Member));
+        var before = await this.ReadAsync(member, cancellationToken);
+        var choice = PresenceChoice.Made(state, duration, now, this.timeZones.ZoneOf(member));
 
-        await this.store.ChooseAsync(membership.Member, choice, cancellationToken);
-        var after = await this.AnnounceIfSeenDifferentlyAsync(membership, before, now, cancellationToken);
+        await this.store.ChooseAsync(member, choice, cancellationToken);
+        var after = await this.AnnounceIfSeenDifferentlyAsync(member, before, now, cancellationToken);
 
         return new OwnPresenceReading(after.OwnStateAt(now), after.ChoiceInEffectAt(now));
     }
 
-    /// <summary>Re-reads the member after a write and tells the organization when what they see of the member moved.</summary>
+    /// <summary>Re-reads the member after a write and tells the member's own clients when what the others see of them moved.</summary>
     /// <returns>The member's presence after the write.</returns>
     private async Task<MemberPresence> AnnounceIfSeenDifferentlyAsync(
-        Membership membership,
+        UserId member,
         MemberPresence before,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var after = await this.ReadAsync(membership.Member, cancellationToken);
+        var after = await this.ReadAsync(member, cancellationToken);
 
-        if (before.SeenByOthersAt(now) == after.SeenByOthersAt(now))
+        if (before.SeenByOthersAt(now) != after.SeenByOthersAt(now))
         {
-            return after;
-        }
-
-        foreach (var recipient in await this.store.ReadOrganizationUsersAsync(membership.Organization, cancellationToken))
-        {
-            this.signals.Publish(ClientSignal.PresenceChanged(recipient, membership.Member));
+            this.signals.Publish(ClientSignal.PresenceChanged(member));
         }
 
         return after;
@@ -222,12 +217,11 @@ public sealed class OwnPresence
     private async Task<MemberPresence> ReadAsync(UserId member, CancellationToken cancellationToken) =>
         (await this.store.ReadAsync([member], cancellationToken)).GetValueOrDefault(member, MemberPresence.Unknown);
 
-    private async Task<Membership?> ReadMembershipAsync(CancellationToken cancellationToken)
+    /// <summary>Reads who the caller is, or nothing where they belong to no organization and so have no presence.</summary>
+    private async Task<UserId?> ReadMemberAsync(CancellationToken cancellationToken)
     {
         var scope = await this.ownership.ReadScopeAsync(cancellationToken);
 
-        return scope.OrganizationBook?.Organization is { } organization ? new Membership(scope.User, organization) : null;
+        return scope.OrganizationBook?.Organization is null ? null : scope.User;
     }
-
-    private sealed record Membership(UserId Member, Guid Organization);
 }

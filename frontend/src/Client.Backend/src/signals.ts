@@ -45,9 +45,6 @@ const longestSignalText = 4_096;
 /** The most stored identities one signal names, which is the deployment's own bound on the same list. */
 export const mostNamedSignalEmails = 100;
 
-/** The most members one presence change names, which is the deployment's own bound on the same list. */
-const mostNamedSignalMembers = 100;
-
 /** What part of MailFathom a raised notification was about, which is the same closed set the record routes publish. */
 export type SignalNotificationKind = 'Mail' | 'Calendar' | 'Task' | 'System';
 
@@ -107,15 +104,12 @@ export type ClientSignal =
           readonly conversation: string | null;
           readonly sequence: number;
       }
-    | {
-          /**
-           * How some members of the reader's organization read may have changed. It names them and nothing about
-           * them, so a reader reads their presence again over the routes that decide what it may see — and names
-           * nobody where every member it draws is to be read again.
-           */
-          readonly kind: 'presence.changed';
-          readonly members: readonly string[];
-      }
+    /**
+     * How the reader reads to the other members of their organization may have changed — by them on another device, or
+     * by an out-of-office period they saved. It names nothing, so a reader reads its own presence again; colleagues are
+     * read again on the refresh rather than signalled.
+     */
+    | { readonly kind: 'presence.changed' }
     /**
      * Something on the reader's own calendar, task list, or one of the contact books they read was written — by them
      * somewhere else, by an agent, or by MailFathom itself. Each names nothing about the record, so a reader reads again
@@ -251,10 +245,10 @@ export function parseClientSignal(payload: unknown): ClientSignal | null {
             return isIdentity(record['account']) ? { kind: 'account.state', account: record['account'] } : null;
         case 'run.advanced':
             return parseRunAdvance(record);
-        case 'presence.changed':
-            return parsePresenceChange(record);
         // Whatever else the payload carries is not read: these say only which space to read again, and a contact
         // book's account is a book the reader re-reads whichever it was.
+        case 'presence.changed':
+            return { kind: 'presence.changed' };
         case 'calendar.changed':
             return { kind: 'calendar.changed' };
         case 'tasks.changed':
@@ -575,16 +569,6 @@ function parseRunAdvance(record: Readonly<Record<string, unknown>>): ClientSigna
     }
 
     return { kind: 'run.advanced', run, conversation, sequence };
-}
-
-function parsePresenceChange(record: Readonly<Record<string, unknown>>): ClientSignal | null {
-    const named = record['members'];
-
-    if (!Array.isArray(named) || named.length > mostNamedSignalMembers || !named.every(isIdentity)) {
-        return null;
-    }
-
-    return { kind: 'presence.changed', members: [...named] };
 }
 
 // `undefined` reports a value that is neither an identity nor absent, for the reason `optionalFlag` gives.
