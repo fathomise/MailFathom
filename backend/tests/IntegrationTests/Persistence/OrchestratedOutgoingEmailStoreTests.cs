@@ -266,6 +266,57 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
     }
 
     /// <summary>
+    /// What a send asked to be told about, and whether the server it was handed to could carry the delivery
+    /// notification, are both read back as written.
+    /// </summary>
+    /// <remarks>
+    /// The requests are written by the insert and the answer by the statement that records the transmission as begun,
+    /// and every application-level test reaches either through an in-memory store. Both answers are asserted, because a
+    /// column the update never wrote reads back as absent and would pass for neither.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RecordTransmissionBegunAsync_ASendAskingForReceipts_ReadsTheRequestsAndWhetherTheyWereCarriedBack(
+        bool carried)
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var receiptRequests = new OutgoingReceiptRequests(DeliveryNotification: true, ReadReceipt: true);
+        var request = CreateRequest($"outbox-receipts-{carried}-{Guid.NewGuid():N}", "dora@example.test") with
+        {
+            ReceiptRequests = receiptRequests,
+        };
+        var enqueued = await EnqueueAsync(services, request, MimeOf($"receipts-{carried}"), cancellationToken);
+        var claimed = await ClaimAsync(services, enqueued.Id, cancellationToken);
+
+        // Act
+        var announced = await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
+                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, carried, token),
+            cancellationToken);
+
+        // Assert
+        Assert.Equal(PersistenceCommitResult.Committed, announced);
+
+        var found = await FindAsync(services, enqueued.Id, cancellationToken);
+        Assert.NotNull(found);
+        Assert.Equal(receiptRequests, found.ReceiptRequests);
+        Assert.Equal(carried, found.DeliveryNotificationCarried);
+
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>().AdvanceAsync(
+                session,
+                claimed.Lease,
+                enqueued.Id,
+                OutgoingEmailStage.Refused,
+                replyCode: 554,
+                token),
+            cancellationToken);
+    }
+
+    /// <summary>
     /// A partial acceptance and the attempt that follows it: the recipient the message reached is never offered again,
     /// the one permanently refused is never offered again either, and the one a server deferred is what is left.
     /// </summary>

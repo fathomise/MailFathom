@@ -252,7 +252,6 @@ public sealed class MailKitSmtpTransmissionTests
         Assert.Empty(context.Envelope.Replies);
     }
 
-    /// <summary>Assembles one established session over a scripted submission server.</summary>
     /// <summary>
     /// A send asking for a delivery notification hands the client its own record's identifier as the envelope identifier
     /// and asks for the headers alone, for that submission and no longer; one asking for none hands it neither.
@@ -291,6 +290,7 @@ public sealed class MailKitSmtpTransmissionTests
         Assert.Null(context.Client.DeliveryNotificationEnvelopeId);
     }
 
+    /// <summary>Assembles one established session over a scripted submission server.</summary>
     private sealed class TransmissionContext : IDisposable
     {
         private readonly OutboundResilienceTestHost resilience =
