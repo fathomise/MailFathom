@@ -21,6 +21,15 @@ export interface Workspace {
     readonly scope: MailScope;
 
     /**
+     * The account the list is read under while it is read by conversation, or `null` for every account.
+     *
+     * Beside the scope rather than one of its kinds, because the two lists are narrowed by different things: a
+     * conversation gathers its messages from every folder, so all that narrows it is an account, and the folder last
+     * picked while reading by message decides nothing here. It is the session's, so a reload starts on every account.
+     */
+    readonly threadListAccount: string | null;
+
+    /**
      * The rows of the folder tree somebody has moved away from the fold they open at, by each row's own key.
      *
      * Two kinds of row open two ways: a mailbox opens showing its folders, because a column of closed mailboxes says
@@ -203,6 +212,7 @@ export type WorkspaceChange = Partial<Workspace> | ((current: Workspace) => Part
 // on every folder of every account, sent and deleted mail among them.
 export const emptyWorkspace: Workspace = {
     scope: { kind: 'role', role: 'Inbox' },
+    threadListAccount: null,
     foldsToggled: [],
     mailboxesFolded: null,
     panelsHidden: false,

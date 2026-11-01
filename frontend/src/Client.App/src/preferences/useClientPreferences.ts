@@ -9,6 +9,7 @@ import {
     unsetClientPreferences,
     wentUnanswered,
     writeClientPreferences,
+    type ClientMailListMode,
     type ClientMessageView,
     type ClientPreferences,
     type ClientSession,
@@ -95,6 +96,9 @@ export interface ClientPreferencesInForce {
      */
     readonly trustedLinkDomains: readonly string[];
 
+    /** Whether the mail list draws one message or one conversation per row. */
+    readonly listMode: ClientMailListMode;
+
     /** Whether the deployment refused the last change, which is the one thing about this a screen has to say out loud. */
     readonly notStated: boolean;
 
@@ -110,6 +114,7 @@ export interface ClientPreferencesInForce {
     readonly chooseThreadExpansion: (expandWholeThread: boolean) => void;
     readonly chooseMessageView: (messageView: ClientMessageView) => void;
     readonly chooseAiFilters: (aiFiltersShown: boolean) => void;
+    readonly chooseListMode: (listMode: ClientMailListMode) => void;
 
     /**
      * States how long a notification stands, in whole seconds.
@@ -354,6 +359,7 @@ export function useClientPreferences(
         aiFiltersShown: inForce.preferences.aiFiltersShown,
         notificationSeconds: inForce.preferences.notificationSeconds,
         trustedLinkDomains: inForce.preferences.trustedLinkDomains,
+        listMode: inForce.preferences.listMode,
         notStated: inForce.notStated,
         stateUnknown: inForce.stateUnknown,
         chooseTheme: (choice) => {
@@ -374,6 +380,9 @@ export function useClientPreferences(
         },
         chooseAiFilters: (aiFiltersShown) => {
             state({ ...composedFrom(), aiFiltersShown });
+        },
+        chooseListMode: (listMode) => {
+            state({ ...composedFrom(), listMode });
         },
         chooseNotificationSeconds: (notificationSeconds) => {
             // Refused rather than brought inside the bound, which is the deployment's own answer to the same value:

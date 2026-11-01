@@ -44,6 +44,16 @@ function counts(deployment: FakeDeployment, folderId: string): { stored: number;
     return { stored: folder?.storedEmailCount ?? Number.NaN, unread: folder?.unreadEmailCount ?? Number.NaN };
 }
 
+test('answers the conversations of the account asked for, and of every account where none is named', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const threadsOf = (query: string) =>
+        (ask(deployment, 'GET', `/threads?pageSize=25${query}`) as { threads: unknown[] }).threads.length;
+
+    expect(threadsOf('')).toBe(mail.threadList.threads.length);
+    expect(threadsOf(`&account=${fixtures.workAccount.id}`)).toBe(mail.threadList.threads.length);
+    expect(threadsOf(`&account=${fixtures.failingAccount.id}`)).toBe(0);
+});
+
 test('leaves a deleted message out of every later read, and puts it back when the delete is withdrawn', () => {
     const deployment = new FakeDeployment('0.0.0');
 

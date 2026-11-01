@@ -357,6 +357,10 @@ function answerFor(
         return answering(mail.timelinePage(asked.get('direction') === 'backward' ? cursor - mail.rowsPerPage : cursor));
     }
 
+    if (route === '/threads') {
+        return answering(options.emptyCollections ? { ...mail.threadList, threads: [] } : mail.threadList);
+    }
+
     if (route === '/citations/resolution') {
         const wholeMessages = messagesIn(request.body);
 

@@ -87,3 +87,36 @@ export function arrivalMark(
 
     return 'list';
 }
+
+/**
+ * What arrived in a conversation since it was last read, which opening it from a row of the list read by conversation
+ * draws unfolded: every message from the first new one to the newest, the reader's own replies among them included as
+ * context, with only what was read before folded behind the control.
+ */
+export interface FreshMessages {
+    /** The first message drawn unfolded, which is the oldest new one. */
+    readonly firstNew: string;
+
+    /** The messages marked new, which are the received ones among them — the reader's own are never news. */
+    readonly news: ReadonlySet<string>;
+}
+
+/**
+ * What is new in a conversation, decided once on opening and never again, so the marks it draws are shown that once:
+ * every new message stands unfolded, drawing it marks it read, and a later read would find nothing new.
+ *
+ * @param messages The conversation as read on opening, in its own order.
+ * @param isNew Whether a message is one somebody else sent that nobody has read.
+ * @returns The new messages, or `null` where there are none and the conversation opens as a read one does.
+ */
+export function freshIn(
+    messages: readonly MailThreadMessage[],
+    isNew: (message: MailThreadMessage) => boolean,
+): FreshMessages | null {
+    const news = messages.filter(isNew);
+    const first = news[0];
+
+    return first === undefined
+        ? null
+        : { firstNew: first.email.id, news: new Set(news.map((message) => message.email.id)) };
+}

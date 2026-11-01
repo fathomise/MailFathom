@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { MailThreadMessage, MailThreadPage } from '@mailfathom/client-backend';
-import { arrivalMark, arrivesAt, holdsMessage, messagesOf } from './threadOpening';
+import { arrivalMark, arrivesAt, freshIn, holdsMessage, messagesOf } from './threadOpening';
 
 function message(id: string, position: number, unread = false): MailThreadMessage {
     return {
@@ -145,5 +145,23 @@ describe('arrivalMark', () => {
         expect(arrivalMark({ threadId: 'a-conversation', openAt: 'three', fromResult: true }, theLatest, false)).toBe(
             'result',
         );
+    });
+});
+
+describe('freshIn', () => {
+    const unread = (held: MailThreadMessage) => held.email.unread;
+
+    it('opens at the oldest new message and marks every new one, the reader’s own between them left unmarked', () => {
+        const fresh = freshIn(
+            [message('one', 0), message('two', 1, true), message('mine', 2, true), message('three', 3, true)],
+            (held) => held.email.id !== 'mine' && unread(held),
+        );
+
+        expect(fresh?.firstNew).toBe('two');
+        expect([...(fresh?.news ?? [])]).toStrictEqual(['two', 'three']);
+    });
+
+    it('finds nothing new in a conversation read to its end, which then opens as any read one does', () => {
+        expect(freshIn([message('one', 0), message('two', 1)], unread)).toBeNull();
     });
 });

@@ -27,6 +27,35 @@
         }
       ]
     },
+    "mail-threads": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Messages, switch to threads",
+            "exact": true
+          }
+        }
+      ]
+    },
     "mail-outbox": {
       "file": "prototype.dc.html",
       "properties": {

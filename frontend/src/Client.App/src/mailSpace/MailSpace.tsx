@@ -84,6 +84,7 @@ import { paneArrival, usePaneMotion } from '../shell/paneMotion';
 // over the whole space rather than over one column of it — and that the narrow shape draws none of it.
 
 export function MailSpace({
+    listMode = null,
     folders,
     list,
     mail,
@@ -92,7 +93,10 @@ export function MailSpace({
     status,
     person,
 }: {
-    /** The scope selector, which is the mailbox column's first thing. */
+    /** The control choosing whether the list is read by message or by conversation, standing over the scope selector. */
+    readonly listMode?: ReactNode;
+
+    /** The scope selector, which is the mailbox column's first thing under that control. */
     readonly folders: ReactNode;
 
     /** The mail in scope, searchable, which is the middle column. */
@@ -355,7 +359,13 @@ export function MailSpace({
                             className={`flex shrink-0 flex-col bg-sunken ${folded ? 'w-mailboxes-folded border-e border-line' : ''}`}
                             style={folded ? undefined : { width: `${String(mailboxesWidth)}px` }}
                         >
-                            <Mailboxes folders={folders} status={status} folded={folded} drawerHead={null} />
+                            <Mailboxes
+                                listMode={listMode}
+                                folders={folders}
+                                status={status}
+                                folded={folded}
+                                drawerHead={null}
+                            />
                         </aside>
 
                         {/* The boundary is only there where the column is drawn as one: folded to its rail it is the
@@ -395,6 +405,7 @@ export function MailSpace({
                     >
                         <div className="flex h-full flex-col">
                             <Mailboxes
+                                listMode={listMode}
                                 folders={folders}
                                 status={status}
                                 folded={false}
@@ -548,8 +559,9 @@ export function MailSpace({
 }
 
 // The mailbox column's contents, drawn once for the two places they stand: the column beside the list, and the drawer
-// in front of it. The AI filters first and every account under them, scrolling together as one region once they are
-// taller than the column, and the connection at the foot, which stays where it is.
+// in front of it. The control that turns the list between messages and conversations first, outside the scroll so it
+// never scrolls away; then the AI filters and every account under them, scrolling together as one region once they are
+// taller than the column; and the connection at the foot, which stays where it is.
 //
 // The column carries no head of its own: the control that hides and shows it leads the mail toolbar, where a long tree
 // cannot scroll it away. The drawer is the one place with a head, its name and the way to close it, because the
@@ -559,11 +571,13 @@ export function MailSpace({
 // the width to the list while keeping the mailboxes one click away. What the rail does drop is the connection line at
 // the foot, which is a sentence and has nowhere to wrap to.
 function Mailboxes({
+    listMode,
     folders,
     status,
     folded,
     drawerHead,
 }: {
+    readonly listMode: ReactNode;
     readonly folders: ReactNode;
     readonly status: ReactNode;
     readonly folded: boolean;
@@ -574,6 +588,8 @@ function Mailboxes({
     return (
         <>
             {drawerHead}
+
+            {listMode}
 
             <div
                 className={`flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto ${

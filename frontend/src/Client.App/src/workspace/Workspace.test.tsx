@@ -248,6 +248,12 @@ describe('the Outbox in place of the list', () => {
         expect(carried().scope).toEqual(sent);
     });
 
+    it('closes the Outbox when an account is picked for the list read by conversation, every account included', () => {
+        applying([{ outbox }, { threadListAccount: null }]);
+
+        expect(carried().outbox).toBeNull();
+    });
+
     it('closes the Outbox when a message is opened anywhere', () => {
         applying([{ outbox }, { selection: 'a-message' }]);
 

@@ -552,7 +552,7 @@ messages that has to stay smooth, a reading position that has to survive leaving
 multi-selection the rest of the client reads as scope for the question it is about to ask.
 
 Three bounds hold that up, and each is one module. **The document holds a window of rows rather than the folder** —
-`src/messageRows/rowWindow.ts` is arithmetic over four numbers, and the number of rows in the document is the same on
+`src/messageRows/rowWindow.ts` is arithmetic over a few numbers, and the number of rows in the document is the same on
 the first screen as at message forty thousand. A composition that draws its rows at another height — a phone unfolding
 into a foldable, whose list narrows to a strip of rows half as tall — keeps the reader on the row they were on rather
 than at the same offset, which over shorter rows would be further down the folder. **The list holds a window of pages rather than every page it has read** —
@@ -601,16 +601,23 @@ up. A conversation opens at the message somebody arrived at, else at what they h
 and that is decided once from what is held when it is first drawn so a page arriving later cannot close what somebody is
 reading. A conversation longer than one page is read on rather than cut off, and says which of the two it is.
 
-**No package windows it, and that is a measurement rather than a preference.** Every row of this list is one height,
-because the row is a fixed three lines by design — who wrote, what about, and a line for a sentence about the message
-rather than from it, which carries why a search result matched today and what MailFathom made of the message when
-stage 3 lands — and the browser suite asserts that every drawn row measures the same. What a
-virtualizer buys over sixty lines of arithmetic is the machinery for measuring rows that are _not_ one height, which
-this list has no use for; what it costs is a dependency, a licence review, and a census in
-[the third-party register](../THIRD_PARTY_LICENSES.md). So the arithmetic stays, the one height it depends on is
-measured off a rendered row rather than written down twice, and the assertion that keeps it true runs on every pull
-request. A row that ever stops being one height is the argument for reopening this, and it fails a test rather than
-degrading quietly.
+`src/threadList/` is the same mail read by conversation rather than by message, which the switch above the mailbox
+column chooses and the deployment remembers as `listMode`. It reads `/api/client/threads` for one account or for every
+account, and the column beside it offers the accounts rather than the folders, because a conversation spans folders.
+Opening a row opens the conversation above with what arrived since it was last read unfolded and marked new.
+
+**No package windows either list, and that is a measurement rather than a preference.** Every row of the folder's list
+and of a search's results is one height, because the row is a fixed three lines by design — who wrote, what about, and
+a line for a sentence about the message rather than from it, which carries why a search result matched today and what
+MailFathom made of the message when stage 3 lands — and the browser suite asserts that every drawn row measures the
+same. A row of the list read by conversation is one of three heights rather than one, because it draws its subject
+alone, under a topic, or under a topic and its standing; every row of a variant draws the same lines, so one drawn row
+of it measures them all, and `windowOfHeights` lays the window out from those three. What a virtualizer buys over that
+arithmetic is the machinery for measuring rows of any height, which neither list has; what it costs is a dependency, a
+licence review, and a census in [the third-party register](../THIRD_PARTY_LICENSES.md). So the arithmetic stays, every
+height it depends on is measured off a rendered row rather than written down twice, and the assertion that keeps the
+folder's rows one height runs on every pull request. A list whose rows stop coming in a few measured kinds is the
+argument for reopening this.
 
 `src/fullHtml/` is the second surface [ADR 0024](../docs/decisions/0024-rendering-mail-in-the-client-as-a-closed-document-tree.md)
 takes, and where somebody works in tabs it opens as a tab of its own. Where they do not it is drawn in a window over

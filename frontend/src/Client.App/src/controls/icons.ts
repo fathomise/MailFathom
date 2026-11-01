@@ -17,6 +17,7 @@
 
 /** Every symbol the client draws, by the name Google's catalogue gives it. */
 export const iconNames = [
+    'account_circle',
     'add',
     'add_a_photo',
     'add_task',
@@ -70,6 +71,7 @@ export const iconNames = [
     'filter_alt',
     'flag',
     'folder',
+    'folder_open',
     'format_clear',
     'format_quote',
     'forum',
@@ -127,6 +129,7 @@ export const iconNames = [
     'settings',
     'shield',
     'signature',
+    'swap_vert',
     'sync',
     'sync_problem',
     'tab',

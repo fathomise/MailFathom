@@ -66,6 +66,7 @@ function stated(answer: ClientResponse): Record<string, unknown> {
 
 const readRoutes: readonly (readonly [string, unknown])[] = [
     ['/folders', deployment.troubledFolders],
+    ['/threads?pageSize=25', mail.threadList],
     [`/threads/${mail.conversationId}`, mail.conversation()],
     [`/threads/${mail.conversationId}?content=true`, mail.conversation({ content: true })],
     ['/emails/search?text=renewal', mail.searchResults],
@@ -285,6 +286,7 @@ describe('fixtureAnswer', () => {
         expect(stated(answered('/contacts/collected', { emptyCollections: true }))).toStrictEqual(
             contacts.emptyContactPage,
         );
+        expect(stated(answered('/threads?pageSize=25', { emptyCollections: true }))['threads']).toStrictEqual([]);
     });
 
     it('answers erasing somebody with what was removed rather than with the record', () => {

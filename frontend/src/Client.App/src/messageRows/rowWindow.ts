@@ -3,12 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 // Which rows of a list of mail are in the document, which is the whole of what keeps a mailbox of two hundred thousand
-// messages costing what a screenful costs. It is arithmetic over four numbers rather than a package, and the
-// measurement that decided it is in `frontend/README.md`: every row of these lists is one height, so the only thing a
-// virtualizer would add over this file is the machinery for measuring rows that are not.
+// messages costing what a screenful costs. It is arithmetic over a few numbers rather than a package, and the
+// measurement that decided it is in `frontend/README.md`: every row of the folder's list and the search's results is one
+// height, which both window the same row the same way, and the list read by conversation has three, one per variant of
+// its row, each measured from a drawn row of it. `windowOfHeights` walks those heights; a virtualizer would add nothing
+// for a list whose heights come in so few kinds.
 //
-// It sits beside the row rather than inside a screen because both the folder's list and the search's results window
-// the same row the same way.
+// It sits beside the message row rather than inside a screen because more than one list windows its rows here.
 //
 // The height itself is measured from a rendered row rather than written here, because the row's height is a token
 // decision and a number repeated in JavaScript is a second copy of it that drifts on the first change of the type
@@ -112,4 +113,42 @@ export function leadingRow(scrollTop: number, rowHeight: number): number {
  */
 export function offsetKeptAcross(scrollTop: number, fromRowHeight: number, toRowHeight: number): number {
     return fromRowHeight <= 0 ? scrollTop : Math.round((Math.max(scrollTop, 0) * toRowHeight) / fromRowHeight);
+}
+
+/**
+ * The rows a scroller shows at this offset where the rows are not all one height, with the overscan either side.
+ *
+ * The conversation list is the case: a row is as tall as what its title says, and each variant is measured rather than
+ * assumed. A walk rather than a search, because the heights arrive a page at a time and a list somebody has scrolled
+ * through holds hundreds of rows rather than a mailbox — so the arithmetic costs the scroll handler, not the render.
+ *
+ * @param heights What each row measures, in pixels, in the order they are drawn.
+ * @param scrollTop How far the scroller has been scrolled, in pixels.
+ * @param viewportHeight How tall the scroller is, in pixels.
+ * @returns The window of rows to draw and the space standing in for the rest.
+ */
+export function windowOfHeights(heights: readonly number[], scrollTop: number, viewportHeight: number): RowWindow {
+    const reached = Math.max(scrollTop, 0);
+    let top = 0;
+    let visible = 0;
+
+    while (visible < heights.length - 1 && top + (heights[visible] ?? 0) <= reached) {
+        top += heights[visible] ?? 0;
+        visible += 1;
+    }
+
+    let bottom = top;
+    let past = visible;
+
+    while (past < heights.length && bottom < reached + viewportHeight) {
+        bottom += heights[past] ?? 0;
+        past += 1;
+    }
+
+    const first = Math.max(visible - overscanRows, 0);
+    const end = Math.min(past + overscanRows, heights.length);
+    const sum = (from: number, to: number): number =>
+        heights.slice(from, to).reduce((total, height) => total + height, 0);
+
+    return { first, count: end - first, above: sum(0, first), below: sum(end, heights.length) };
 }

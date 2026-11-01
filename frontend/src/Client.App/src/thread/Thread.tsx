@@ -24,12 +24,22 @@ import { drawnSpam, useMailboxActs, type ActedMessage } from '../mailboxActs/use
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { MessageWaiting } from '../messageBody/Message';
 import { MessageHeaders } from '../readingPane/MessageHeaders';
+import { drawnUnread, useReadMarking } from '../readMarking/useReadMarking';
+import { marksSender } from '../senderMark/senderMarks';
 import { animationsReported, departureFinished } from '../shell/departure';
 import { useTwoPanes } from '../shell/useWideWorkspace';
 import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
 import type { OpenConversation } from '../workspace/openConversation';
 import { useWorkspace } from '../workspace/useWorkspace';
-import { arrivalMark, arrivesAt, holdsMessage, messagesOf, type Arrival } from './threadOpening';
+import {
+    arrivalMark,
+    arrivesAt,
+    freshIn,
+    holdsMessage,
+    messagesOf,
+    type Arrival,
+    type FreshMessages,
+} from './threadOpening';
 import { ThreadMessage, type HistoryMotion } from './ThreadMessage';
 import { ThreadState } from './ThreadState';
 
@@ -152,6 +162,10 @@ export function Thread({
     // placed on and what the mark is decided from, and it never moves afterwards.
     const [arrival, setArrival] = useState<Arrival | null>(null);
 
+    // What arrived since the conversation was last read, decided with the arrival and never again, or `null` where it
+    // was opened from anywhere but a row of the list read by conversation, or nothing in it was new.
+    const [fresh, setFresh] = useState<FreshMessages | null>(null);
+
     // Whether a landing has had its time. It starts unsettled and is never unset, because settling is what a landing
     // does: nothing in a conversation brings one back, and a conversation reached a second time is a second mount.
     const [settled, setSettled] = useState(false);
@@ -218,12 +232,28 @@ export function Thread({
     // What stands on the screen: the whole correspondence, or the one message it was opened at. The design draws the
     // second as the message somebody came for and nothing else — which is not the same as the latest message, because a
     // conversation opened at a message in the middle of its history was opened at that one.
+    //
+    // Opened with news in it, every message from the first new one on stands, and only what was read before is hidden.
     const opened = held.find((message) => message.email.id === arrival?.storedEmailId) ?? held.at(-1) ?? null;
-    const drawn = historyShown || opened === null ? held : [opened];
+    const firstNewAt = fresh === null ? -1 : held.findIndex((message) => message.email.id === fresh.firstNew);
+    const drawn = historyShown || opened === null ? held : firstNewAt >= 0 ? held.slice(firstNewAt) : [opened];
+    const hiddenCount = firstNewAt >= 0 ? firstNewAt : held.length - 1;
 
     // A conversation standing on a message marked spam offers nothing that reads it or answers it: no state, no agent
     // field, and no way to reply under it, since the message is read-only and nothing about it is worth deriving.
     const acts = useMailboxActs();
+    const marking = useReadMarking();
+
+    // Whether somebody else wrote the message, read from the folder it is kept in as the sender mark is: what stands in
+    // Sent or Drafts is the reader's own.
+    const received = (message: MailThreadMessage): boolean => marksSender(acts.folderRoleOf(actedOn(message)));
+
+    // The newest message somebody else wrote carries the conversation's AI summary in its head, and none marked spam.
+    const summarizedId =
+        held.findLast(
+            (message) =>
+                received(message) && !isSpam(drawnSpam(acts, { id: message.email.id, spam: message.email.spam })),
+        )?.email.id ?? null;
     const standsOnSpam = opened !== null && isSpam(drawnSpam(acts, { id: opened.email.id, spam: opened.email.spam }));
 
     // What stands first in the column under the head, which is what decides whether arriving has anywhere to scroll to.
@@ -257,6 +287,15 @@ export function Thread({
 
         if (arriveAt !== null) {
             setArrival(arriveAt);
+
+            if (conversation.byThread === true) {
+                setFresh(
+                    freshIn(
+                        held,
+                        (message) => received(message) && drawnUnread(marking, message.email.id, message.email.unread),
+                    ),
+                );
+            }
         }
     }
 
@@ -387,15 +426,20 @@ export function Thread({
     // different arrival is a different mount.
     //
     // A conversation holding no message has nothing to arrive at, and the empty state says so where focus already is.
+    //
+    // Opened with news in it, the reader lands on the first new message rather than on the newest: the news is what they
+    // came for, and it reads from the top.
+    const landing = fresh?.firstNew ?? arrival?.storedEmailId ?? null;
+
     useEffect(() => {
-        if (arrival === null || arrivedAt.current !== null) {
+        if (landing === null || arrivedAt.current !== null) {
             return;
         }
 
-        const region = regions.current.get(arrival.storedEmailId);
+        const region = regions.current.get(landing);
 
         if (region !== undefined) {
-            arrivedAt.current = arrival.storedEmailId;
+            arrivedAt.current = landing;
 
             // Focus already inside the conversation was placed there on purpose — the AI button at its foot, which a
             // closing composer hands the keyboard back to — and arriving does not take it away again.
@@ -403,11 +447,11 @@ export function Thread({
                 region.focus({ preventScroll: true });
             }
 
-            if (firstDrawnId !== arrival.storedEmailId) {
+            if (firstDrawnId !== landing) {
                 region.scrollIntoView({ block: 'start' });
             }
         }
-    }, [arrival, firstDrawnId]);
+    }, [landing, firstDrawnId]);
 
     // A landing says the client took somebody where they asked to go, so it is timed from the message being on the
     // screen rather than from the conversation being opened: a mark that ran out while the conversation was still
@@ -580,7 +624,7 @@ export function Thread({
                         the correspondence* rather than what came before: a conversation opened at a message in the
                         middle of its history has messages on both sides of it, and a control offering to show the
                         earlier ones there would be offering something other than what it does. */}
-                    {held.length < 2 ? null : (
+                    {hiddenCount < 1 ? null : (
                         <div className="flex items-center gap-2.5">
                             <span className="h-px flex-1 bg-line" />
 
@@ -599,8 +643,8 @@ export function Thread({
                                     }
                                 }}
                             >
-                                {translate(revealLabel(historyStanding, openedIsLatest, held.length - 1, locale), {
-                                    count: new Intl.NumberFormat(locale).format(held.length - 1),
+                                {translate(revealLabel(historyStanding, openedIsLatest, hiddenCount, locale), {
+                                    count: new Intl.NumberFormat(locale).format(hiddenCount),
                                 })}
                             </button>
 
@@ -615,7 +659,15 @@ export function Thread({
                                 session={session}
                                 transport={transport}
                                 message={message}
-                                motion={message === opened ? null : historyMotion}
+                                // What stands while the history is hidden stands still as it is shown or hidden: the
+                                // message opened at, or every message from the first new one on.
+                                motion={
+                                    message === opened || (firstNewAt >= 0 && held.indexOf(message) >= firstNewAt)
+                                        ? null
+                                        : historyMotion
+                                }
+                                fresh={fresh?.news.has(message.email.id) === true}
+                                summarized={message.email.id === summarizedId}
                                 // A rule pointing at the only message on the screen points at nothing, so the mark
                                 // waits for the rest of the correspondence to stand beside it. Asked here rather than
                                 // where the arrival is decided, because it is a question about what is drawn: showing

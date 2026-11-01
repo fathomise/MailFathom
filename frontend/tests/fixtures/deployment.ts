@@ -102,6 +102,7 @@ export const clientPreferences = {
     aiFiltersShown: true,
     notificationSeconds: 5,
     trustedLinkDomains: [],
+    listMode: 'messages',
 };
 
 /** The mailbox everything else in the corpus belongs to, up to date and with nothing to say about itself. */

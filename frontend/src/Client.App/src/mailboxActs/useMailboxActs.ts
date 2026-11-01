@@ -3,7 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { createContext, useContext } from 'react';
-import { isSpam, type MailFolderRole, type MailSpamVerdict, type MailTimelineEntry } from '@mailfathom/client-backend';
+import {
+    isSpam,
+    type MailFolder,
+    type MailFolderRole,
+    type MailSpamVerdict,
+    type MailTimelineEntry,
+} from '@mailfathom/client-backend';
 import type { ActRefusal, MoveDestination, MoveDestinationGroup } from './mailboxDestinations';
 
 // The things a person does to their own mailbox from the Mail space, as an operation on messages rather than as
@@ -179,6 +185,12 @@ export interface MailboxActs {
      */
     readonly folderRoleOf: (message: ActedMessage) => MailFolderRole | null;
 
+    /**
+     * The folder that message is in, or `null` where this client has not read the user's folders or holds none by that
+     * identity — read out of the same tree, so a message's foot names the folder the tree names.
+     */
+    readonly folderOf: (message: ActedMessage) => MailFolder | null;
+
     /** The folders those messages could be filed into, under the one account they are all in. */
     readonly destinationsOf: (messages: readonly ActedMessage[]) => readonly MoveDestinationGroup[];
 
@@ -244,6 +256,7 @@ export const nothingActed: MailboxActs = {
     asked: new Map(),
     refusalOf: () => 'notOffered',
     folderRoleOf: () => null,
+    folderOf: () => null,
     destinationsOf: () => [],
     deletesPermanently: () => false,
     perform: () => undefined,

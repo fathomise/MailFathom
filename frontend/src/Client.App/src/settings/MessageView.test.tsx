@@ -26,6 +26,7 @@ function inForce(
         markReadOnOpen: true,
         expandWholeThread: false,
         aiFiltersShown: true,
+        listMode: 'messages',
         messageView,
         notificationSeconds: 5,
         trustedLinkDomains: [],
@@ -36,6 +37,7 @@ function inForce(
         chooseMessageView,
         chooseAiFilters: () => undefined,
         chooseNotificationSeconds: () => undefined,
+        chooseListMode: () => undefined,
     };
 }
 

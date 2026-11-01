@@ -40,11 +40,15 @@ function withoutAStaleFront(current: Workspace, change: Partial<Workspace>): Par
     };
 }
 
-// An open Outbox stands in place of the list and the pane, so whatever names a folder to list or a message to read is
-// what closes it — pressing a folder row, the same Sent row included, or a citation opening a message anywhere. A change
-// that names the Outbox itself is the one that opened it or moves within it, and is left as it was asked.
+// An open Outbox stands in place of the list and the pane, so whatever names a folder to list, an account whose
+// conversations to list, or a message to read is what closes it — pressing a folder row, the same Sent row included, an
+// account row of the list read by conversation, or a citation opening a message anywhere. A change that names the
+// Outbox itself is the one that opened it or moves within it, and is left as it was asked.
 function withoutAStaleOutbox(current: Workspace, change: Partial<Workspace>): Partial<Workspace> {
-    const leavesForMail = change.scope !== undefined || (change.selection !== undefined && change.selection !== null);
+    const leavesForMail =
+        change.scope !== undefined ||
+        change.threadListAccount !== undefined ||
+        (change.selection !== undefined && change.selection !== null);
 
     return current.outbox === null || change.outbox !== undefined || !leavesForMail
         ? change

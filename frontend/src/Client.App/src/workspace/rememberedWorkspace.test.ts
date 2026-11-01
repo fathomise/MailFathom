@@ -10,6 +10,7 @@ const storageKey = 'mailfathom.workspace';
 
 const kept: Workspace = {
     scope: { kind: 'folder', accountId: 'work', folderId: 'INBOX' },
+    threadListAccount: null,
     foldsToggled: ['account:personal'],
     mailboxesFolded: true,
     panelsHidden: true,
