@@ -9,7 +9,7 @@ informed:
 
 # Show every person in an organization to the other members as a read-only contact derived from their user record when it is read, never copied into a contact row, read after a person's own book and before the organization's, and recognized by the trust lookup beside the organization's contacts
 
-<!-- describes: backend/src/Application/Contacts/ContactBookScope.cs, backend/src/Application/Contacts/ContactBookHolder.cs, backend/src/Application/Contacts/IContactDirectory.cs, backend/src/Application/Emails/Trust/ISenderTrustBooks.cs, backend/src/Infrastructure/Persistence/Contacts/** -->
+<!-- describes: backend/src/Application/Contacts/ContactBookScope.cs, backend/src/Application/Contacts/ContactBookHolder.cs, backend/src/Application/Contacts/IContactDirectory.cs, backend/src/Infrastructure/Persistence/Contacts/** -->
 
 ## Context and Problem Statement
 
