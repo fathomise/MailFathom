@@ -9,7 +9,7 @@ using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Mail.Delivery.Receipts;
 
-/// <summary>Finds the account's own message a report names, and records what an arriving message said about receipts.</summary>
+/// <summary>Finds the account's own message a report names, and records what an arriving or an opened message says about receipts.</summary>
 public interface IReceiptReportStore
 {
     /// <summary>Finds one of the account's own outgoing emails by its identifier.</summary>
@@ -39,12 +39,31 @@ public interface IReceiptReportStore
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <remarks>
     /// Each outcome is applied under <see cref="Domain.Delivery.Receipts.ReceiptOutcomes.Replaces" />, so recording the same
-    /// message twice — a retried commit, or the same report met again — leaves what the first recording left.
+    /// message twice — a retried commit, or the same report met again — leaves what the first recording left. An
+    /// organization's delivery is recorded against the message just stored as well as against the send, so it is erased
+    /// with that message.
     /// </remarks>
     Task RecordArrivalAsync(
         IPersistenceSession session,
         StoredEmailId storedEmailId,
         ArrivedReceipts receipts,
+        CancellationToken cancellationToken);
+
+    /// <summary>Records that a person opened messages an organization's delivery was recorded on, as their read.</summary>
+    /// <param name="session">The transaction to record in.</param>
+    /// <param name="opened">The messages the person opened.</param>
+    /// <param name="openedAt">When they opened them.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes when every read is staged.</returns>
+    /// <remarks>
+    /// A message no organization's delivery was recorded on records nothing, so opening any other mail reports nothing
+    /// to anybody. Each read is applied under <see cref="Domain.Delivery.Receipts.ReceiptOutcomes.Replaces" />, so opening
+    /// a message again keeps the first read.
+    /// </remarks>
+    Task RecordOpenedAsync(
+        IPersistenceSession session,
+        IReadOnlyCollection<StoredEmailId> opened,
+        DateTimeOffset openedAt,
         CancellationToken cancellationToken);
 
     /// <summary>Claims the one read receipt a stored message may be answered with.</summary>

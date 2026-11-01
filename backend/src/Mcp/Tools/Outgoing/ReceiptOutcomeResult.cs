@@ -39,6 +39,7 @@ internal sealed record ReceiptOutcomeResult
             Source = outcome.Source switch
             {
                 ReceiptOutcomeSource.Report => ReceiptOutcomeOrigin.Report,
+                ReceiptOutcomeSource.Organization => ReceiptOutcomeOrigin.Organization,
                 _ => throw new ArgumentOutOfRangeException(
                     nameof(outcome),
                     outcome.Source,

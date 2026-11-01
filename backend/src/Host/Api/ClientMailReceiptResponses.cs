@@ -129,7 +129,7 @@ internal sealed record ClientMailRecipientReceiptsResponse(
 /// <summary>One recorded outcome.</summary>
 /// <param name="Outcome">What the report said, spelled as on <see cref="ClientMailReportRecipientResponse" />.</param>
 /// <param name="ReportedAt">When the report says it was written.</param>
-/// <param name="Source">Where the outcome came from: <c>Report</c>, a report that arrived as mail.</param>
+/// <param name="Source">Where the outcome came from: <c>Report</c>, a report that arrived as mail, or <c>Organization</c>, this deployment observing it between two accounts of one organization.</param>
 /// <param name="Status">A delivery report's RFC 3463 status code, such as <c>5.1.1</c>, where it gave one.</param>
 /// <param name="ReportingServer">The server a delivery report names as having reported it, where it named one.</param>
 internal sealed record ClientMailReceiptOutcomeResponse(

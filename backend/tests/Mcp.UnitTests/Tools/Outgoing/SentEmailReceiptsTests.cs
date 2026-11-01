@@ -88,4 +88,21 @@ public sealed class SentEmailReceiptsTests
         // Assert
         Assert.Equal(outcomes.Select(outcome => outcome.ToString()), published);
     }
+
+    /// <summary>Every source an outcome can come from has a published origin, so a caller can tell a report from what this deployment saw itself.</summary>
+    [Fact]
+    public void From_EverySource_HasAPublishedOrigin()
+    {
+        // Arrange
+        var sources = Enum.GetValues<ReceiptOutcomeSource>();
+
+        // Act
+        var published = sources
+            .Select(source => ReceiptOutcomeResult.From(new RecordedReceiptOutcome(ReceiptOutcome.Delivered, Reported, source, null, null))!.Source)
+            .Select(origin => origin.ToString())
+            .ToArray();
+
+        // Assert
+        Assert.Equal(sources.Select(source => source.ToString()), published);
+    }
 }

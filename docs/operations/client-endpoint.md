@@ -1859,7 +1859,8 @@ draws and the badge on its row cannot disagree. [The mail list route](#the-mail-
 **`report` is the list row's object too, and `receipts` is the row's summary taken apart recipient by recipient.**
 `receipts` carries `deliveryRequested`, `readRequested`, and per recipient its `address` with a `delivery` and a `read`
 outcome, each `null` where no report came back and otherwise holding the `outcome`, `reportedAt`, its `source`
-(`Report`), and for a delivery the RFC 3463 `status` and the `reportingServer` where the report named them.
+(`Report`, or `Organization` where this deployment saw the delivery or the reading itself between two accounts of one
+organization), and for a delivery the RFC 3463 `status` and the `reportingServer` where the report named them.
 `readReceiptRequest` is present where the message asks the reader for a read receipt: the `address` it would go to,
 whether that `namesAnotherAddress` than the message's `Return-Path` and `From` — a redirection a screen points out — and
 `sentAt` once one was sent. It is `null` on a message held as spam, on a filed copy of the account's own send, and on a
@@ -2405,7 +2406,8 @@ Content-Type: application/json
       "flags": { "seen": true, "flagged": null },
       "tags": { "change": "add", "keywords": ["$Todo"] }
     }
-  ]
+  ],
+  "opened": false
 }
 ```
 
@@ -2443,6 +2445,13 @@ else. What MailFathom's own client does with that is
 [ADR 0026](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0026-marking-a-message-read-when-a-person-opens-it-in-the-client.md)'s
 answer rather than this route's: a person opening a message has the client submit one change here, unless they turned
 [`markReadOnOpen`](#the-preferences-routes) off or the credential was never granted `mailfathom.mail.flags.write`.
+
+**`opened` says the batch is an opening.** The client sets it to `true` on the change it submits because a person
+opened the messages, and on nothing else — not *mark as read*, not marking a conversation or a folder read. It changes
+nothing about the flags. What it adds is that every message the batch marked read, and whose change was `recorded` or
+`applied`, counts as opened, which is the one act that reports a colleague's message *read* to the colleague who sent it,
+under [delivery and read receipts](../features/delivery-and-read-receipts.md#between-two-accounts-of-one-organization);
+a person whose `markReadOnOpen` is off reports nothing whatever the batch says. Absent and `false` are the same answer.
 
 **A move names the folder by its `id`**, exactly as [the folders route](#the-folders-route) publishes it, rather than
 by its place: the identity keeps its meaning when the folder is renamed or moved, and it names a folder the same way on
@@ -3035,7 +3044,8 @@ the sign-in screen — and what this answers replaces that device value once a s
 value rather than one per mailbox because read state is what must not differ between the machines somebody reads on, and
 a client whose user has turned it off shows what their mail server last reported and remembers no reading of its own.
 It governs opening a message and nothing else: marking a message read or unread deliberately, through the flag
-mutations above, is unaffected by it.
+mutations above, is unaffected by it. Off, it also means a colleague who sent the message is never told it was read, because an
+opening is what [reports a reading between two accounts of one organization](../features/delivery-and-read-receipts.md#between-two-accounts-of-one-organization).
 [ADR 0026](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0026-marking-a-message-read-when-a-person-opens-it-in-the-client.md)
 holds the reasoning, including why an operator's lever here is
 [`mailfathom.mail.flags.write`](permissions.md#the-published-set) rather than a key of their own.

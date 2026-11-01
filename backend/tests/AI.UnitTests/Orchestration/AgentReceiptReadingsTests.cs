@@ -51,6 +51,30 @@ public sealed class AgentReceiptReadingsTests
                 recipient.Attribute(AgentReceiptReadings.DeliverySourceAttributeName)?.Value)));
     }
 
+    /// <summary>What this deployment saw itself between two accounts of one organization is told apart from what a report said.</summary>
+    [Fact]
+    public void Thread_AnOrganizationsOutcome_CarriesItsSource()
+    {
+        // Arrange
+        var receipts = new OutgoingEmailReceipts(
+            OutgoingReceiptRequests.None,
+            [
+                new RecipientReceipts(
+                    "anna@example.test",
+                    new RecordedReceiptOutcome(ReceiptOutcome.Delivered, Reported, ReceiptOutcomeSource.Organization, null, null),
+                    new RecordedReceiptOutcome(ReceiptOutcome.Displayed, Reported.AddHours(1), ReceiptOutcomeSource.Organization, null, null)),
+            ]);
+
+        // Act
+        var recipient = Assert.Single(ReceiptsOf(receipts)!.Elements(AgentReceiptReadings.RecipientElementName));
+
+        // Assert
+        Assert.Equal(
+            (AgentReceiptReadings.OrganizationSource, AgentReceiptReadings.OrganizationSource),
+            (recipient.Attribute(AgentReceiptReadings.DeliverySourceAttributeName)?.Value,
+                recipient.Attribute(AgentReceiptReadings.ReadSourceAttributeName)?.Value));
+    }
+
     /// <summary>A message with nothing to say about delivery carries no element, rather than one a model would read as an answer.</summary>
     [Fact]
     public void Thread_AMessageWithNoReceipts_CarriesNoReceiptsElement()

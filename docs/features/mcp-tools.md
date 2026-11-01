@@ -605,7 +605,9 @@ A summary of a message the account sent also carries `receipts` where that messa
 or a read receipt, or got a report back: `deliveryRequested`, `readRequested`, and per recipient its `address` with a
 `delivery` and a `read` outcome — each absent where nothing came back, and otherwise holding the `outcome`
 (`delivered`, `relayed`, `expanded`, `failed`, `delayed`, `displayed`, `deleted`, `dispatched`, `processed`), when it
-was `reportedAt`, its `source` (`report`), and for a delivery the RFC 3463 `status`. It is read from the outcomes
+was `reportedAt`, its `source` (`report`, or `organization` where this deployment saw the delivery or the reading
+itself because the recipient is another account of the sender's organization), and for a delivery the RFC 3463
+`status`. It is read from the outcomes
 recorded when the reports arrived, never from the reports themselves, which no tool here returns; a report is
 information somebody's server or mail app chose to send, not proof, and its absence says nothing.
 [Delivery and read receipts](delivery-and-read-receipts.md) records how a report is matched and what is kept.

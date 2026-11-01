@@ -23,6 +23,8 @@ public sealed class ReceiptArrivalsTests
 {
     private const string OwnAddress = "owner@example.test";
 
+    private const string ColleagueAddress = "colleague@example.test";
+
     private static readonly MailAccountId Account = SyntheticMailAccount.Deployment;
 
     private static readonly DateTimeOffset ReportWrittenAt = new(2026, 10, 1, 9, 30, 0, TimeSpan.Zero);
@@ -34,6 +36,17 @@ public sealed class ReceiptArrivalsTests
     private static readonly string[] ReferencedNearestFirst = ["parent@example.test", "newer@example.test", "older@example.test"];
 
     private static readonly ReportedOutgoingEmail Sent = new(SentId, "Lunch", ["anna@example.test", "bert@example.test"]);
+
+    private static readonly Guid Organization = Guid.Parse("0192a1b2-0000-7000-8000-0000000000f0");
+
+    private static readonly MailAccountId Colleague = MailAccountId.Create("0192a1b2-0000-7000-8000-0000000000c0");
+
+    private static readonly OutgoingEmailId ColleagueSentId = OutgoingEmailId.Create(Guid.Parse("0192a1b2-0000-7000-8000-000000000002"));
+
+    private static readonly string[] ColleagueMessageIds = ["colleague-1@example.test"];
+
+    private static readonly ReportedOutgoingEmail ColleagueSent =
+        new(ColleagueSentId, "Budget", ["anna@example.test", "Owner@Example.test", "bert@example.test"]);
 
     private readonly IReceiptReportStore store = Substitute.For<IReceiptReportStore>();
 
@@ -211,6 +224,108 @@ public sealed class ReceiptArrivalsTests
         // Assert
         Assert.Null(receipts);
     }
+
+    /// <summary>A colleague's signed send arriving here is delivered to this account, with no report and nothing asked for.</summary>
+    [Fact]
+    public async Task ReadAsync_AColleaguesSignedSendNamingThisAccount_MarksThisAccountDelivered()
+    {
+        // Arrange
+        this.store.FindOutgoingEmailByMessageIdAsync(Colleague, Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(ColleagueMessageIds)), Arg.Any<CancellationToken>())
+            .Returns(ColleagueSent);
+
+        // Act
+        var receipts = await this.arrivals.ReadAsync(Account, FromColleague(), isFiledCopy: false, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(receipts);
+        Assert.Null(receipts.Report);
+        Assert.NotNull(receipts.OrganizationDelivery);
+        Assert.Equal(ColleagueSentId, receipts.OrganizationDelivery.OutgoingEmail);
+        var update = Assert.Single(receipts.OrganizationDelivery.Outcomes);
+        Assert.Equal(1, update.RecipientOrdinal);
+        Assert.Equal(
+            new RecordedReceiptOutcome(ReceiptOutcome.Delivered, ReportWrittenAt.AddDays(1), ReceiptOutcomeSource.Organization, null, null),
+            update.Outcome);
+    }
+
+    /// <summary>
+    /// Nothing but the organization's signature proves which send arrived: an unsigned message, one another organization
+    /// signed, and one into an account in no organization each carry no proof of membership and mark nobody.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReadAsync_AMessageNoSignatureOfThisOrganizationProves_MarksNothingDelivered(bool verifiedWithoutMembership)
+    {
+        // Arrange
+        this.store.FindOutgoingEmailByMessageIdAsync(Arg.Any<MailAccountId>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ColleagueSent);
+        var metadata = FromColleague() with
+        {
+            OrganizationVerification = verifiedWithoutMembership ? new OrganizationSenderVerification(Organization, SenderIsMember: false) : null,
+        };
+
+        // Act
+        var receipts = await this.arrivals.ReadAsync(Account, metadata, isFiledCopy: false, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(receipts);
+    }
+
+    /// <summary>A <c>Message-ID</c> the author's own outbox does not hold names no send, however well the message is signed.</summary>
+    [Fact]
+    public async Task ReadAsync_ASignedMessageNoSendOfTheAuthorCarries_MarksNothingDelivered()
+    {
+        // Arrange
+        this.store.FindOutgoingEmailByMessageIdAsync(Account, Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ColleagueSent);
+
+        // Act
+        var receipts = await this.arrivals.ReadAsync(Account, FromColleague(), isFiledCopy: false, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(receipts);
+    }
+
+    /// <summary>A send none of whose recipients is this account's address — an alias or a forward delivered it — marks nobody.</summary>
+    [Fact]
+    public async Task ReadAsync_ASignedSendNotNamingThisAccountsAddress_MarksNothingDelivered()
+    {
+        // Arrange
+        this.store.FindOutgoingEmailByMessageIdAsync(Colleague, Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ColleagueSent with { RecipientAddresses = ["anna@example.test", "bert@example.test"] });
+
+        // Act
+        var receipts = await this.arrivals.ReadAsync(Account, FromColleague(), isFiledCopy: false, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(receipts);
+    }
+
+    /// <summary>The account's own filed copy of a send is not a delivery to it, even signed.</summary>
+    [Fact]
+    public async Task ReadAsync_AFiledCopy_MarksNothingDelivered()
+    {
+        // Arrange
+        this.store.FindOutgoingEmailByMessageIdAsync(Arg.Any<MailAccountId>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ColleagueSent);
+
+        // Act
+        var receipts = await this.arrivals.ReadAsync(Account, FromColleague(), isFiledCopy: true, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(receipts);
+    }
+
+    private static ExtractedEmailMetadata FromColleague() =>
+        Metadata(ColleagueAddress) with
+        {
+            ThreadReferences = EmailThreadReferences.Create(ColleagueMessageIds[0], null, []),
+            OrganizationVerification = new OrganizationSenderVerification(Organization, SenderIsMember: true)
+            {
+                AuthorAccounts = [Colleague],
+            },
+        };
 
     private static ExtractedEmailMetadata Arriving(ReceiptReport report) =>
         Metadata("mailer-daemon@relay.example.test") with { Report = report, SentAt = ReportWrittenAt };

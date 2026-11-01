@@ -13,4 +13,11 @@ public enum ReceiptOutcomeSource
 {
     /// <summary>A report that arrived as mail and named the account's own message.</summary>
     Report = 0,
+
+    /// <summary>
+    /// This deployment itself, which stored the message in the recipient's account or saw that account's user open it.
+    /// It applies only between two accounts of one organization, where the organization's signature proved the message
+    /// came from the sending account, so it is proof rather than information and takes precedence over any report.
+    /// </summary>
+    Organization = 1,
 }

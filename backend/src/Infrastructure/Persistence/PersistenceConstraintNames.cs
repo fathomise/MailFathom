@@ -516,6 +516,9 @@ internal static class PersistenceConstraintNames
     /// <summary>The foreign key that erases a recipient's report outcomes with the recipient, and so with the send and its account.</summary>
     internal const string OutgoingEmailReceiptOutcomeRecipientForeignKeyName = "fk_outgoing_email_receipt_outcomes_recipients";
 
+    /// <summary>The foreign key from an organization's outcome onto the received message it was observed on, which erases the outcome with that message.</summary>
+    internal const string OutgoingEmailReceiptOutcomeObservedInForeignKeyName = "fk_outgoing_email_receipt_outcomes_stored_emails";
+
     /// <summary>The foreign key that removes the stored MIME with the record that says who it was for.</summary>
     /// <remarks>Named for the reason above: the composed name would be truncated and permanent.</remarks>
     internal const string OutgoingEmailContentForeignKeyName = "fk_outgoing_email_contents_emails";

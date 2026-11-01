@@ -41,5 +41,13 @@ internal sealed class OutgoingEmailReceiptOutcomeConfiguration : IEntityTypeConf
             .HasForeignKey(outcome => new { outcome.OutgoingEmailId, outcome.RecipientOrdinal })
             .HasConstraintName(PersistenceConstraintNames.OutgoingEmailReceiptOutcomeRecipientForeignKeyName)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // The recipient's own copy is what an organization's delivery and read were observed on, so erasing that copy —
+        // or the receiving account with it — erases what was reported about it, whatever happens to the send.
+        entity.HasOne<StoredEmailEntity>()
+            .WithMany()
+            .HasForeignKey(outcome => outcome.ObservedInStoredEmailId)
+            .HasConstraintName(PersistenceConstraintNames.OutgoingEmailReceiptOutcomeObservedInForeignKeyName)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

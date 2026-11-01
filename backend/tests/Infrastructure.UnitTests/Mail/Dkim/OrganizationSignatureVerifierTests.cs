@@ -37,6 +37,7 @@ public sealed class OrganizationSignatureVerifierTests
         Assert.NotNull(verification);
         Assert.Equal(Organization, verification.ReceivingOrganizationId);
         Assert.True(verification.SenderIsMember);
+        Assert.Equal([Author], verification.AuthorAccounts);
     }
 
     /// <summary>A receiving account in no organization verifies nothing and reads no key.</summary>
@@ -268,6 +269,7 @@ public sealed class OrganizationSignatureVerifierTests
 
         // Assert
         Assert.False(verification?.SenderIsMember);
+        Assert.Empty(verification?.AuthorAccounts ?? []);
     }
 
     /// <summary>A message carrying no <c>Message-ID</c> can never be found on a send record, so a blind copy of it proves nothing.</summary>

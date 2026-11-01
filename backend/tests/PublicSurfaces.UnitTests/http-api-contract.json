@@ -2826,6 +2826,12 @@
             },
             "type": "array"
           },
+          "opened": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
           "requestId": {
             "type": [
               "null",

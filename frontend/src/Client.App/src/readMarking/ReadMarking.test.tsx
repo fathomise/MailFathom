@@ -110,6 +110,21 @@ describe('ReadMarkingProvider', () => {
         });
     });
 
+    // An opening is the one act that reports a colleague's message read to its sender, so the batch says it is one.
+    it('says the change it submits is an opening', async () => {
+        const { transport, requests } = recording();
+        const { result } = marking(transport);
+
+        act(() => {
+            result.current.markRead(opened('first'));
+        });
+
+        await waitFor(() => {
+            expect(requests).toHaveLength(1);
+        });
+        expect((JSON.parse(requests[0]?.body ?? '{}') as { opened?: boolean }).opened).toBe(true);
+    });
+
     // The pane reports the body drawn rather than the selection moved, and asking for the sender's pictures re-reads
     // the same message — so the one thing this must never do is report a message opened twice.
     it('submits nothing a second time for a message already marked', async () => {

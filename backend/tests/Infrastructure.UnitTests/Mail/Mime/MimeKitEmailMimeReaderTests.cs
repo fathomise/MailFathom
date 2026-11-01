@@ -792,7 +792,10 @@ public sealed class MimeKitEmailMimeReaderTests
         var result = await reader.ReadMetadataAsync(MimeFixtures.Account, OrganizationSigned(key), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(new OrganizationSenderVerification(SigningOrganization, SenderIsMember: true), result.Metadata?.OrganizationVerification);
+        var verification = result.Metadata?.OrganizationVerification;
+        Assert.Equal(SigningOrganization, verification?.ReceivingOrganizationId);
+        Assert.True(verification?.SenderIsMember);
+        Assert.Equal([Colleague], verification?.AuthorAccounts ?? []);
     }
 
     /// <summary>A message altered after it was signed proves nothing, and the broken signature is never a warning on its own.</summary>

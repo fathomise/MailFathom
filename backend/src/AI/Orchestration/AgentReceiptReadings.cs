@@ -58,6 +58,9 @@ internal static class AgentReceiptReadings
     /// <summary>The value a source attribute carries for an outcome read from a report that arrived as mail.</summary>
     internal const string ReportSource = "report";
 
+    /// <summary>The value a source attribute carries for an outcome this deployment observed between two accounts of one organization.</summary>
+    internal const string OrganizationSource = "organization";
+
     private const string TrueValue = "true";
 
     /// <summary>Guards every recipient address the receipts name, before any of them is written for a model.</summary>
@@ -160,6 +163,7 @@ internal static class AgentReceiptReadings
     private static string Published(ReceiptOutcomeSource source) => source switch
     {
         ReceiptOutcomeSource.Report => ReportSource,
+        ReceiptOutcomeSource.Organization => OrganizationSource,
         _ => throw new ArgumentOutOfRangeException(nameof(source), source, "The receipt outcome source has no word this writer publishes."),
     };
 }

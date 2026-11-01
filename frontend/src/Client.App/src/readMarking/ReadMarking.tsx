@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-    markMailRead,
+    markMailOpened,
     mostMessagesPerMutation,
     wentUnanswered,
     type ClientSession,
@@ -152,7 +152,7 @@ export function ReadMarkingProvider({
             }),
         );
 
-        void markMailRead(asking, transport, batch).then((answer) => {
+        void markMailOpened(asking, transport, batch).then((answer) => {
             if (submitted.current.signedInAs !== askingFor) {
                 return;
             }

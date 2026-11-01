@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
     changeMailFlags,
     deleteMail,
+    markMailOpened,
     markMailRead,
     markMailSpam,
     mostMessagesPerMutation,
@@ -52,6 +53,20 @@ function recorded(...storedEmailIds: readonly string[]): Answer {
         }),
     };
 }
+
+describe('markMailOpened', () => {
+    it('marks each message read and says the batch is an opening', async () => {
+        const { transport, requests } = recording(recorded(storedEmailId));
+
+        await markMailOpened(session, transport, [storedEmailId]);
+
+        expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/mutations/flags');
+        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            changes: [{ storedEmailId, flags: { seen: true } }],
+            opened: true,
+        });
+    });
+});
 
 describe('markMailRead', () => {
     it('states the seen flag on the client surface’s flag route for each message named', async () => {

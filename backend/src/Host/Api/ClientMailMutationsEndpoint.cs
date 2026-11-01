@@ -4,6 +4,7 @@
 
 using System.Text.Json;
 using MailFathom.Application.Access;
+using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Preferences;
@@ -238,19 +239,24 @@ internal static class ClientMailMutationsEndpoint
     /// <summary>Writes down the flag and tag changes one batch asks for, one message at a time.</summary>
     /// <param name="request">The messages to change and what to change about each.</param>
     /// <param name="recorder">Writes one message's changes down.</param>
+    /// <param name="openings">Reports a colleague's send as read where the batch says the reader opened it.</param>
     /// <param name="cancellationToken">Cancels the writes when the client disconnects.</param>
     /// <returns><c>200</c> with one result per message, <c>400</c> when the batch itself is not one this boundary accepts, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.flags.write</c>.</returns>
     /// <remarks>
     /// A refusal about one message is that message's result rather than the request's, which is what lets a batch over
     /// mail that has moved on since the screen drew it report exactly which entries did not apply. The refusals are
-    /// caught here because this is where the caller acts on them and carries on; every other failure travels.
+    /// caught here because this is where the caller acts on them and carries on; every other failure travels. Where the
+    /// batch is an opening, every message it marked read is an opening too, which is the one act a colleague's send is
+    /// reported read by.
     /// </remarks>
     internal static async Task<Results<Ok<ClientMailFlagChangesResponse>, ProblemHttpResult>> SubmitFlagChangesAsync(
         [FromBody] ClientMailFlagChangesRequest? request,
         [FromServices] MailFlagChangeRecorder recorder,
+        [FromServices] OpenedMailReceipts openings,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(recorder);
+        ArgumentNullException.ThrowIfNull(openings);
 
         if (request?.Changes is not { Count: > 0 } changes)
         {
@@ -274,6 +280,11 @@ internal static class ClientMailMutationsEndpoint
         foreach (var change in changes)
         {
             results.Add(await RecordFlagChangeAsync(recorder, change, requester, cancellationToken));
+        }
+
+        if (request.Opened is true)
+        {
+            await openings.RecordAsync(MarkedRead(changes, results), cancellationToken);
         }
 
         return TypedResults.Ok(new ClientMailFlagChangesResponse(results));
@@ -462,6 +473,18 @@ internal static class ClientMailMutationsEndpoint
 
         return TypedResults.Ok(ClientMailChangesResponse.For(answered));
     }
+
+    /// <summary>Names the messages a batch asked to mark read and whose change was accepted.</summary>
+    private static StoredEmailId[] MarkedRead(
+        IReadOnlyList<ClientMailFlagChangeRequest> changes,
+        IReadOnlyList<ClientMailFlagChangeResultResponse> results) =>
+    [
+        .. changes
+            .Zip(results)
+            .Where(static pair => pair.First?.Flags?.Seen is true
+                && pair.Second.Outcome is ClientMailChangeOutcomes.Applied or ClientMailChangeOutcomes.Recorded)
+            .Select(static pair => StoredEmailId.Create(pair.Second.StoredEmailId)),
+    ];
 
     /// <summary>Writes one message's flag and tag changes down, reporting a refusal about it as that message's result.</summary>
     private static async Task<ClientMailFlagChangeResultResponse> RecordFlagChangeAsync(
@@ -711,10 +734,16 @@ internal static class ClientMailTagChanges
 /// <summary>One batch of flag and tag changes, each naming the message it is about.</summary>
 /// <param name="RequestId">The caller's own identity for this request, or <see langword="null" /> to have one generated.</param>
 /// <param name="Changes">The messages to change, at most the batch bound this surface publishes.</param>
+/// <param name="Opened">
+/// <see langword="true" /> where the reader opened the messages and that is why they are being marked read (ADR 0026),
+/// and <see langword="null" /> or <see langword="false" /> for every other change, <em>mark as read</em> among them. An
+/// opening is what reports a colleague's message read to its sender, so nothing else may claim to be one.
+/// </param>
 /// <remarks>The identity makes a retried request the same request: the batch is answered from the records the first call opened rather than opening a second set. A new value, or none, is a new request, which is what lets somebody star a message, unstar it, and star it again.</remarks>
 internal sealed record ClientMailFlagChangesRequest(
     string? RequestId,
-    IReadOnlyList<ClientMailFlagChangeRequest> Changes);
+    IReadOnlyList<ClientMailFlagChangeRequest> Changes,
+    bool? Opened = null);
 
 /// <summary>The changes one message is asked for, with the mail server's flags and its tags stated apart.</summary>
 /// <param name="StoredEmailId">The message to change, as a list row, a conversation, or a search published it.</param>
