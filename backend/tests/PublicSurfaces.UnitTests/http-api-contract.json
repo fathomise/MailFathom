@@ -2090,6 +2090,29 @@
         ],
         "type": "object"
       },
+      "ClientDraftSendRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "dueAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dueTimeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "dueAt",
+          "dueTimeZone"
+        ],
+        "type": "object"
+      },
       "ClientDraftSendResponse": {
         "properties": {
           "draftId": {
@@ -21099,6 +21122,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClientDraftSendRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {

@@ -131,7 +131,7 @@ public sealed class AgentActPerformer : IAgentActPerformer
     {
         var draft = await this.SaveAsync(act, OutgoingEmailRequester.Command(proposal), cancellationToken);
 
-        await this.drafts.SendAsync(draft, cancellationToken);
+        await this.drafts.SendAsync(draft, dueAt: null, cancellationToken);
 
         return true;
     }

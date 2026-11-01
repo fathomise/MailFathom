@@ -462,10 +462,38 @@ describe('sendMailDraft', () => {
         const answer = await sendMailDraft(session, transport, draftId);
 
         expect(requests[0]?.path).toBe(`https://mail.example.invalid/api/client/drafts/${draftId}/send`);
+        expect(requests[0]?.body).toBeUndefined();
         expect(answer).toStrictEqual({
             outcome: 'read',
             value: { queued: true, outgoingEmailId: 'e9d1a2b3-0000-4000-8000-00000000abcd' },
         });
+    });
+
+    it('states the time a message sent later leaves at, and the zone it was named in', async () => {
+        const { transport, requests } = recording({
+            status: 200,
+            body: JSON.stringify({ draftId, outgoingEmail: 'e9d1a2b3-0000-4000-8000-00000000abcd', stage: 'Recorded' }),
+        });
+
+        await sendMailDraft(session, transport, draftId, {
+            instant: '2026-08-28T06:00:00.000Z',
+            timeZone: 'Europe/Warsaw',
+        });
+
+        expect(requests[0]?.headers['Content-Type']).toBe('application/json');
+        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            dueAt: '2026-08-28T06:00:00.000Z',
+            dueTimeZone: 'Europe/Warsaw',
+        });
+    });
+
+    it('reads a time that had already gone as a refusal of the send rather than a failed request', async () => {
+        const answer = await sendMailDraft(session, answering(refusing(400, 51_015)), draftId, {
+            instant: '2026-08-27T06:00:00.000Z',
+            timeZone: 'Europe/Warsaw',
+        });
+
+        expect(answer).toStrictEqual({ outcome: 'read', value: { queued: false, refusal: 'dueTimePassed' } });
     });
 
     it.each<{ status: number; errorCode: number; refusal: MailSendRefusal }>([

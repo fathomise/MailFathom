@@ -765,8 +765,11 @@ a record an attempt holds a live lease on is refused to both. During the hold th
 [its account's outbox](../operations/client-endpoint.md#the-outbox-routes), which is read from the record itself, so
 what a client shows waiting is exactly what will be sent.
 
-Today the due time is a property of the application-level submission rather than an argument on an MCP tool:
-[`send_email`](mcp-tools.md#send_email) names no time, so every message a tool call submits is due at once.
+One surface names a due time today: a draft sent from the client, through
+[the draft send route](../operations/client-endpoint.md#the-drafts-routes), which hands the instant and its zone to the
+promotion. The time belongs to that send rather than to the draft — a retry of a draft already promoted answers with the
+first send and leaves its time where it was. No MCP tool takes one: [`send_email`](mcp-tools.md#send_email) and
+`send_draft` name no time, so every message a tool call submits is due at once.
 
 ## A message the user asked to be sent again
 

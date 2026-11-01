@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json.Serialization;
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Domain.Delivery;
@@ -263,6 +264,16 @@ internal sealed record ClientDraftDiscardResponse(
             result.Failure?.Value);
     }
 }
+
+/// <summary>When a draft being sent is to leave, which a send at once states nothing about.</summary>
+/// <param name="DueAt">The instant the message leaves at, or <see langword="null" /> for as soon as it can.</param>
+/// <param name="DueTimeZone">The IANA zone the time was named in, stated exactly when <paramref name="DueAt" /> is.</param>
+/// <remarks>
+/// Bound strictly: a key nothing here binds fails the bind rather than being ignored, because a body whose time was
+/// misspelt would otherwise read as naming no time and the message would leave at once, which nothing can take back.
+/// </remarks>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record ClientDraftSendRequest(DateTimeOffset? DueAt, string? DueTimeZone);
 
 /// <summary>What one draft became when it was sent, which is an ordinary queued send.</summary>
 /// <param name="DraftId">The draft the send was written from.</param>

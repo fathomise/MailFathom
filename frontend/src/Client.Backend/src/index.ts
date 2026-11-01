@@ -307,6 +307,7 @@ export {
     type MailDraftRecipient,
     type MailDraftServerCopy,
     type MailRecipientRole,
+    type MailSendDueTime,
     type MailSendOutcome,
     type MailSendRefusal,
     type MailStagedAttachment,

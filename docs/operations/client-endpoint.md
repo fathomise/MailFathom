@@ -3319,6 +3319,19 @@ A revision states the whole draft again, so one that leaves either out switches 
   `outgoingEmailId`. Where the submission server does not advertise `DSN`, the message is sent without the request and
   the send records that it was not carried, so nothing waits for a delivery report that cannot come.
 
+**A send may name the time the message leaves.** The send route takes no body for a message sent at once, or a body
+stating `dueAt` — an instant with its offset — and `dueTimeZone`, the IANA zone that time was named in, such as
+`Europe/Warsaw`. The two come together or not at all: one without the other, a zone this deployment does not know, or
+a zone longer than 64 characters is refused with `400` before the draft is read, and the body is bounded at 1 KiB. The
+body is bound strictly: a key nothing binds is refused with `400`, so a misspelt time is never read as sending at once. The
+instant alone decides when the message leaves; the zone is kept so the Outbox says the time back as it was named. A
+message sent later is queued exactly as one sent at once and held until then, so it stands in the account's Outbox
+as a *Scheduled* entry that can be cancelled until it leaves. A time at or before the moment the send is asked for is
+refused with `400` and error code `51015` — the code a submission naming a time already gone answers with — with
+nothing queued and the draft left as it was. A send of a draft already sent answers with the send the first ask
+opened whatever time it names, so a retry never moves a time: cancelling the send in the Outbox is how one is changed.
+The time belongs to the send rather than to the draft, so a draft keeps none.
+
 **An upload is the request body and nothing else.** There is no form to parse and no boundary to trust: the octets are
 the body, the file's name is the `fileName` query value, and what it declares itself to be is the request's own
 `Content-Type` without its parameters — a request declaring none is read as `application/octet-stream` rather than

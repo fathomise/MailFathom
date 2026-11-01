@@ -120,6 +120,7 @@ internal sealed class SendDraftTool(UserMailDrafts promotion)
     {
         var record = await promotion.SendAsync(
             AuthoredMailArguments.HeldDraft(draftId),
+            dueAt: null,
             cancellationToken);
 
         return SendEmailToolResult.From(record);

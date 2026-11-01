@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
 import { DepartureContext } from '../shell/departure';
@@ -48,6 +48,19 @@ export interface ContextMenuItem {
      * one visit.
      */
     readonly checked?: boolean;
+
+    /**
+     * Whether the item is one of a set of which one is taken rather than one that is turned over — a time to send a
+     * message at. Such an item announces whether it is the one taken, from `checked`, and choosing it takes it and
+     * closes the menu, as an act does.
+     */
+    readonly takesOne?: boolean;
+
+    /** What the item comes to, said at its end in quieter figures — the date a ready time resolves to. */
+    readonly hint?: string;
+
+    /** The name of the group this item opens, drawn above it as a rule and that name. */
+    readonly opensGroup?: string;
 
     readonly choose: () => void;
 }
@@ -261,50 +274,80 @@ export function ContextMenu({
                         thing to walk past. */}
                     <div role="menu" aria-labelledby={names} className="flex flex-col gap-0.5">
                         {items.map((item) => (
-                            <button
-                                key={item.label}
-                                type="button"
-                                role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-                                aria-checked={item.checked}
-                                // Focus is moved by the arrow keys rather than by Tab, which is what a menu is: one
-                                // stop on the way in, and the items reached from there.
-                                tabIndex={-1}
-                                aria-disabled={refusedItem(item) ? true : undefined}
-                                className={`${menuItem} ${item.destroys ? 'text-error-text' : ''} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
-                                onClick={() => {
-                                    if (refusedItem(item)) {
-                                        return;
-                                    }
-
-                                    if (item.checked === undefined) {
-                                        onClose();
-                                    }
-
-                                    item.choose();
-                                }}
-                            >
-                                {/* The symbol keeps its own column so every label starts in the same place, which is
-                                    what the design draws and what makes the list readable as a column. */}
-                                <span className="flex w-6 shrink-0 justify-center">
-                                    <Icon name={item.icon} className="size-icon-lg" />
-                                </span>
-
-                                {refusedItem(item) ? (
-                                    <span className="py-1.5">{item.refused}</span>
-                                ) : (
-                                    <span className="truncate">{item.label}</span>
+                            <Fragment key={item.label}>
+                                {item.opensGroup === undefined ? null : (
+                                    <div
+                                        role="separator"
+                                        aria-label={item.opensGroup}
+                                        className="mx-1.5 mt-1 border-t border-line px-1.5 pt-2 pb-1 text-xs font-semibold text-muted"
+                                    >
+                                        {item.opensGroup}
+                                    </div>
                                 )}
+                                <button
+                                    type="button"
+                                    role={roleOf(item)}
+                                    aria-checked={item.checked}
+                                    // Focus is moved by the arrow keys rather than by Tab, which is what a menu is: one
+                                    // stop on the way in, and the items reached from there.
+                                    tabIndex={-1}
+                                    aria-disabled={refusedItem(item) ? true : undefined}
+                                    className={`${menuItem} ${item.destroys ? 'text-error-text' : ''} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
+                                    onClick={() => {
+                                        if (refusedItem(item)) {
+                                            return;
+                                        }
 
-                                {item.checked === true ? (
-                                    <Icon name="check" className="ms-auto size-icon-lg shrink-0 text-accent-deep" />
-                                ) : null}
-                            </button>
+                                        if (item.checked === undefined || item.takesOne === true) {
+                                            onClose();
+                                        }
+
+                                        item.choose();
+                                    }}
+                                >
+                                    {/* The symbol keeps its own column so every label starts in the same place, which is
+                                    what the design draws and what makes the list readable as a column. */}
+                                    <span className="flex w-6 shrink-0 justify-center">
+                                        <Icon name={item.icon} className="size-icon-lg" />
+                                    </span>
+
+                                    {refusedItem(item) ? (
+                                        <span className="py-1.5">{item.refused}</span>
+                                    ) : (
+                                        <span className="truncate">{item.label}</span>
+                                    )}
+
+                                    {item.hint === undefined || item.hint === '' ? null : (
+                                        <span className="ms-auto shrink-0 text-sm text-muted tabular-nums">
+                                            {item.hint}
+                                        </span>
+                                    )}
+
+                                    {/* One of a set keeps the check's room whether or not it is the one taken, so the dates
+                                    beside every item stand in one column. */}
+                                    {item.checked === true || item.takesOne === true ? (
+                                        <Icon
+                                            name="check"
+                                            className={`size-icon-lg shrink-0 text-accent-deep ${item.hint === undefined || item.hint === '' ? 'ms-auto' : ''} ${item.checked === true ? '' : 'invisible'}`}
+                                        />
+                                    ) : null}
+                                </button>
+                            </Fragment>
                         ))}
                     </div>
                 </div>
             </div>
         </>
     );
+}
+
+/** What the item announces as: an act, a request turned over, or one of a set of which one is taken. */
+function roleOf(item: ContextMenuItem): 'menuitem' | 'menuitemcheckbox' | 'menuitemradio' {
+    if (item.checked === undefined) {
+        return 'menuitem';
+    }
+
+    return item.takesOne === true ? 'menuitemradio' : 'menuitemcheckbox';
 }
 
 /** Whether the item says why it cannot act rather than acting. */
@@ -316,7 +359,11 @@ function refusedItem(item: ContextMenuItem): boolean {
 function walkable(panel: HTMLElement | null): readonly HTMLElement[] {
     return panel === null
         ? []
-        : Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]'));
+        : Array.from(
+              panel.querySelectorAll<HTMLElement>(
+                  '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]',
+              ),
+          );
 }
 
 /**

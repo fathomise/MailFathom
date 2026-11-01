@@ -16,6 +16,7 @@ import {
     type MailAttachment,
     type MailDraft,
     type MailDraftAnswer,
+    type MailSendDueTime,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
@@ -25,6 +26,7 @@ import type { MessageKey } from '../localization/en';
 import type { Locale } from '../localization/locale';
 import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
+import { useReadingZone } from '../localization/useReadingZone';
 import { disconnected, saidByTheStatus, useConnectionStatus } from '../shell/connectionStatus';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
@@ -51,8 +53,19 @@ import type { RecipientSuggestion } from './recipientSuggestions';
 import { AbsentRecipients } from './AbsentRecipients';
 import { RecipientField } from './RecipientField';
 import { SendConfirmation } from './SendConfirmation';
+import { SendLaterPicker } from './SendLaterPicker';
+import {
+    instantStillAhead,
+    namedZone,
+    readyTimeOf,
+    readyTimes,
+    type ChosenSendTime,
+    type SendTime,
+    type SendTimeWording,
+} from './sendLater';
 import { useDraftAtDeployment, type AttachedFile, type DraftStanding } from './useDraftAtDeployment';
 import { useSendingOptions } from './useSendingOptions';
+import { useSendTimeWording } from './useSendTimeWording';
 import { WrittenMessage } from './WrittenMessage';
 import type { WrittenNode } from './writtenText';
 
@@ -93,6 +106,7 @@ const refusalSaid = {
     notFullyScanned: 'compose.refusedNotScanned',
     attachmentNotRead: 'compose.refusedAttachmentNotRead',
     screeningUnavailable: 'compose.refusedScreeningUnavailable',
+    dueTimePassed: 'compose.refusedDueTimePassed',
     refusedForAnotherReason: 'compose.refusedForAnotherReason',
 } as const satisfies Readonly<Record<string, MessageKey>>;
 
@@ -109,6 +123,7 @@ const saveRefusalSaid = {
     notFullyScanned: 'compose.saveRefusedNotScanned',
     attachmentNotRead: 'compose.saveRefusedAttachmentNotRead',
     screeningUnavailable: 'compose.saveRefusedScreeningUnavailable',
+    dueTimePassed: 'compose.saveRefusedForAnotherReason',
     refusedForAnotherReason: 'compose.saveRefusedForAnotherReason',
 } as const satisfies Readonly<Record<string, MessageKey>>;
 
@@ -204,6 +219,16 @@ export function Composer({
     const writeRefused = useWriteRefusal();
     const { disconnectedNow } = useConnectionStatus();
     const draft = useDraftAtDeployment(session, transport);
+    const zone = useReadingZone();
+
+    // When the message leaves, which belongs to the send rather than to the draft: it is held here and nowhere else,
+    // so a draft saved with a time keeps none and one opened again sends at once until a time is chosen.
+    const [sendAt, setSendAt] = useState<ChosenSendTime | null>(null);
+    const [picking, setPicking] = useState<{ readonly asking: SendTime; readonly openedAt: number } | null>(null);
+    const picker = useRef<HTMLDialogElement>(null);
+    const [shownAt] = useState(() => Date.now());
+    const wordSendTime = useSendTimeWording(shownAt, zone);
+    const leaves = sendAt === null ? null : wordSendTime(sendAt);
 
     // Who the message is for, joined the way the active language joins a list rather than with a comma written here.
     const addresses = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' });
@@ -582,6 +607,33 @@ export function Composer({
         return holder === null || holder === document.body || (frame.current?.contains(holder) ?? false);
     }
 
+    // The picker, opened on a time: the one already chosen, the first ready time, or one the deployment refused.
+    function pickOn(asking: SendTime | null): void {
+        const openedAt = Date.now();
+
+        setPicking({ asking: asking ?? readyTimes(openedAt, zone).tomorrowMorning, openedAt });
+        picker.current?.showModal();
+    }
+
+    // The confirmation's own act. A time that passed while the message was being written is refused before anything is
+    // handed over, by opening the picker on it with its refusal — which the deployment's refusal of a time already
+    // gone is the reason for.
+    function sendAsked(sending: Composition, written: Composition): void {
+        const leavesAt = sendAt === null ? null : instantStillAhead(sendAt, zone);
+
+        if (sendAt !== null && leavesAt === null) {
+            pickOn(sendAt);
+
+            return;
+        }
+
+        sendAndReport(
+            sending,
+            written,
+            leavesAt === null ? null : { instant: new Date(leavesAt).toISOString(), timeZone: namedZone(zone) },
+        );
+    }
+
     // Sending, said where the design says it: a toast stands over whatever the person turned to next and
     // follows the send until the deployment has answered it. **The composer closes once the deployment has the
     // message** — queued, or taken back into the drafts folder by a stop — rather than on the press, which is one round
@@ -596,27 +648,42 @@ export function Composer({
     // opened meanwhile opens empty rather than on a copy of what is already on its way; only a send refused or failed
     // after the window closed hands the words back to the tab, for the next composer to open on — unless the tab is
     // keeping something written since.
-    function sendAndReport(sending: Composition, written: Composition): void {
+    function sendAndReport(sending: Composition, written: Composition, dueAt: MailSendDueTime | null): void {
         // Whether somebody stopped it, which takes the toast following it away. What the stop came to — taken back, or
         // already on its way — is then said by a toast of its own, because the one it would have settled has gone.
         let stopped = false;
+        const scheduled = sendAt;
 
-        const settled = toasts.raiseOperation({
-            title: translate('compose.sendingTitle'),
-            body: translate('compose.confirmTo', { addresses: addresses.format(sending.to) }),
-            stoppingLeavesBehind: translate('compose.stoppingSendLeavesBehind'),
-            stoppedLeftBehind: translate('compose.stoppedSendLeftBehind'),
-            stop: () => {
-                stopped = true;
-                withdrawAndReport();
-            },
-        });
+        // A message scheduled for later is not being sent, so no *Sending your message…* stands over it: what it
+        // came to is said once the deployment has answered.
+        const settled =
+            dueAt === null
+                ? toasts.raiseOperation({
+                      title: translate('compose.sendingTitle'),
+                      body: translate('compose.confirmTo', { addresses: addresses.format(sending.to) }),
+                      stoppingLeavesBehind: translate('compose.stoppingSendLeavesBehind'),
+                      stoppedLeftBehind: translate('compose.stoppedSendLeftBehind'),
+                      stop: () => {
+                          stopped = true;
+                          withdrawAndReport();
+                      },
+                  })
+                : (report: Toast) => {
+                      toasts.raise(report);
+                  };
 
-        void draft.send(sending).then((outcome) => {
+        void draft.send(sending, dueAt).then((outcome) => {
+            const report = sendReport(outcome, sending.account, dueAt === null ? null : leaves);
+
             if (stopped) {
-                toasts.raise(sendReport(outcome, sending.account));
+                toasts.raise(report);
             } else {
-                settled(sendReport(outcome, sending.account));
+                settled(report);
+            }
+
+            // The time went while the deployment read it, so the picker opens on it again to say so.
+            if (present.current && outcome.kind === 'refused' && outcome.refusal === 'dueTimePassed') {
+                pickOn(scheduled);
             }
 
             const deploymentHasIt = outcome.kind === 'queued' || outcome.kind === 'withdrawn';
@@ -666,13 +733,16 @@ export function Composer({
     // with: the one act that would have to outlive the composer is the one the composer is gone for. What it offers
     // instead is the send itself, in its account's Outbox, which is where withdrawing it is offered for as long as it
     // can be.
-    function sendReport(outcome: DraftStanding, account: string): Toast {
+    function sendReport(outcome: DraftStanding, account: string, scheduled: SendTimeWording | null): Toast {
         switch (outcome.kind) {
             case 'queued':
                 return {
                     kind: 'success',
-                    title: translate('compose.sentTitle'),
-                    body: translate('compose.queued'),
+                    title: translate(scheduled === null ? 'compose.sentTitle' : 'compose.scheduledTitle'),
+                    body:
+                        scheduled === null
+                            ? translate('compose.queued')
+                            : translate('compose.scheduled', { when: scheduled.long }),
                     ...(showsOutbox
                         ? {
                               action: {
@@ -754,6 +824,12 @@ export function Composer({
             requestsReadReceipt: composition?.requestsReadReceipt ?? false,
         },
         onTurned: revise,
+        sendAt,
+        zone,
+        onSendAt: setSendAt,
+        onPick: () => {
+            pickOn(sendAt);
+        },
     });
 
     const title = translate(titles[opening.kind === 'answer' ? opening.answers : opening.kind]);
@@ -1042,12 +1118,13 @@ export function Composer({
                         }}
                     />
 
-                    <WhatIsHappening standing={draft.standing} online={online} />
+                    <WhatIsHappening standing={draft.standing} online={online} timeChosen={sendAt !== null} />
 
                     {/* The line saying what the message asks for stands with the foot, so a long message scrolled to its
                         start still says it beside the control that sends it. */}
                     <div className={`sticky z-10 shrink-0 ${wide ? 'bottom-0' : 'bottom-safe-bottom'}`}>
                         {sendingOptions.line}
+                        {sendingOptions.timeLine}
 
                         <div className="flex flex-wrap items-center gap-2.5 border-t border-line bg-sunken px-3.75 py-2.75">
                             <SendConfirmation
@@ -1056,8 +1133,9 @@ export function Composer({
                                 draftUnaccepted={beforeDrafting !== null}
                                 disabled={!sendable}
                                 refused={sendRefused}
+                                leaves={leaves === null ? null : { ...leaves, zone: namedZone(zone) }}
                                 onSend={() => {
-                                    sendAndReport(sentAs(composition, copiesShown), composition);
+                                    sendAsked(sentAs(composition, copiesShown), composition);
                                 }}
                             />
 
@@ -1110,12 +1188,31 @@ export function Composer({
                             {saveRefused === null ? null : saveName.tip}
 
                             <p className="ms-auto text-xs text-faint pointer-coarse:hidden">
-                                {translate('compose.shortcutSends')}
+                                {translate(sendAt === null ? 'compose.shortcutSends' : 'compose.shortcutSchedules')}
                             </p>
 
                             {sendingOptions.control}
                         </div>
                     </div>
+
+                    <SendLaterPicker
+                        asked={picker}
+                        asking={picking?.asking ?? null}
+                        now={picking?.openedAt ?? shownAt}
+                        zone={zone}
+                        onAsking={(asking) => {
+                            setPicking((standing) => (standing === null ? null : { ...standing, asking }));
+                        }}
+                        onSchedule={(chosen) => {
+                            setSendAt({
+                                ...chosen,
+                                readyTime: readyTimeOf(chosen, picking?.openedAt ?? shownAt, zone),
+                            });
+                        }}
+                        onClosed={() => {
+                            setPicking(null);
+                        }}
+                    />
                 </>
             )}
         </section>
@@ -1265,7 +1362,17 @@ function AttachedFiles({
 // **Without a connection the words are not safe, and the line says so.** What is being written is held in this tab's
 // session store alone, so closing the tab or the window loses it; that is said whenever the server is out of reach —
 // no network, or a server not answering — rather than only when this machine is offline.
-function WhatIsHappening({ standing, online }: { readonly standing: DraftStanding; readonly online: boolean }) {
+function WhatIsHappening({
+    standing,
+    online,
+    timeChosen,
+}: {
+    readonly standing: DraftStanding;
+    readonly online: boolean;
+
+    /** Whether a time to send at is chosen, which a saved draft does not keep and the line then says so. */
+    readonly timeChosen: boolean;
+}) {
     const { locale, translate } = useLocalization();
     const status = useConnectionStatus();
 
@@ -1290,7 +1397,7 @@ function WhatIsHappening({ standing, online }: { readonly standing: DraftStandin
         case 'saving':
             return <Said text={translate('compose.saving')} />;
         case 'saved':
-            return <Said text={translate('compose.saved')} />;
+            return <Said text={translate(timeChosen ? 'compose.savedWithoutTime' : 'compose.saved')} />;
         case 'attaching':
             return <Said text={translate('compose.attaching', { name: standing.fileName })} />;
         case 'carrying':

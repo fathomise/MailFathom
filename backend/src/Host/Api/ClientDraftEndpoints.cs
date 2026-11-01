@@ -16,6 +16,7 @@ using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Scheduling;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -91,6 +92,10 @@ internal static class ClientDraftEndpoints
     /// </remarks>
     internal const int MaxWriteRequestBytes = 2 * 1024 * 1024;
 
+    /// <summary>The greatest request body the send route reads before refusing it.</summary>
+    /// <remarks>An instant and one zone identifier bounded at <see cref="ZonedInstant.MaximumZoneIdLength" /> characters, with room for the widest UTF-8 encoding of each and the JSON around them. A body past it is answered <c>413</c> before the handler is reached.</remarks>
+    internal const int MaxSendRequestBytes = 1024;
+
     /// <summary>What the upload route declares it takes, which is octets of whatever the file says it is.</summary>
     /// <remarks>
     /// The declared type is recorded against the file rather than checked, because what an author attaches is theirs to
@@ -140,6 +145,7 @@ internal static class ClientDraftEndpoints
             .RequirePermission(MailFathomPermission.MailDraftsWrite);
 
         api.MapPost(DraftSendRoute, SendDraftAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxSendRequestBytes))
             .RequirePermission(MailFathomPermission.MailSend);
 
         api.MapPost(DraftAttachmentsRoute, StageAttachmentAsync)
@@ -276,16 +282,26 @@ internal static class ClientDraftEndpoints
 
     /// <summary>Queues one of the acting user's drafts for delivery, which is the one act here that reaches anybody else.</summary>
     /// <param name="draftId">The draft to send.</param>
+    /// <param name="request">When the message is to leave, or <see langword="null" /> — no body at all — for as soon as it can.</param>
     /// <param name="drafts">Performs the act, for the user the credential names.</param>
     /// <param name="cancellationToken">Cancels the reads and the write.</param>
-    /// <returns><c>200</c> with the queued send, <c>404</c> where this user holds no such draft, <c>409</c> where a rule of this deployment refused the message, or <c>503</c> where screening could not run.</returns>
+    /// <returns><c>200</c> with the queued send, <c>400</c> where the time is stated without its zone, names a zone this deployment does not know, or has already passed, <c>404</c> where this user holds no such draft, <c>409</c> where a rule of this deployment refused the message, or <c>503</c> where screening could not run.</returns>
     /// <remarks>
+    /// <para>
     /// Nothing has been transmitted when this answers: the message is queued and the outbox routes are where a client
     /// watches what becomes of it. A refusal names which rule refused — screening, the recipient policy, or a spending
     /// ceiling — through the code beside the sentence, and echoes nothing of what triggered it.
+    /// </para>
+    /// <para>
+    /// A message asked to leave later is queued the same way and held until then, so it stands in the outbox as a
+    /// scheduled send that can be cancelled until it leaves. The zone is the one the time was named in, which the outbox
+    /// says it back in; the instant alone decides when it leaves. A retry of a draft already sent answers with the send
+    /// the first ask opened, whatever time it names.
+    /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<ClientDraftSendResponse>, ProblemHttpResult>> SendDraftAsync(
         [FromRoute] Guid draftId,
+        [FromBody] ClientDraftSendRequest? request,
         [FromServices] UserMailDrafts drafts,
         CancellationToken cancellationToken)
     {
@@ -296,9 +312,15 @@ internal static class ClientDraftEndpoints
             return NoDraftNamed();
         }
 
+        if (!TryReadDueTime(request, out var dueAt))
+        {
+            return Refuse(
+                $"A message sent later states the time it leaves together with the IANA zone that time was named in, such as 'Europe/Warsaw', at most {ZonedInstant.MaximumZoneIdLength} characters; a message sent at once states neither.");
+        }
+
         try
         {
-            var record = await drafts.SendAsync(identifier, cancellationToken);
+            var record = await drafts.SendAsync(identifier, dueAt, cancellationToken);
 
             return TypedResults.Ok(
                 new ClientDraftSendResponse(draftId, record.Id.Value, record.Stage.ToString()));
@@ -482,6 +504,23 @@ internal static class ClientDraftEndpoints
         }
     }
 
+    /// <summary>Reads when a send is to leave: at once where the request states neither half, later where it states both and the zone resolves.</summary>
+    internal static bool TryReadDueTime(ClientDraftSendRequest? request, out ZonedInstant? dueAt)
+    {
+        dueAt = null;
+
+        switch (request)
+        {
+            case null or { DueAt: null, DueTimeZone: null }:
+                return true;
+            case { DueAt: { } instant } when UserTimeZone.TryRead(request.DueTimeZone, out var zone):
+                dueAt = ZonedInstant.Restore(instant, zone.Id);
+                return true;
+            default:
+                return false;
+        }
+    }
+
     /// <summary>Composes the request for a draft of a message of its own, which states its own account and subject.</summary>
     /// <exception cref="MailDraftRefusedException">Thrown when the request states neither, or names an account no account could be named by.</exception>
     private static MailDraftRequest OwnMessageRequest(
@@ -621,7 +660,7 @@ internal static class ClientDraftEndpoints
     /// else is something the author can change, so it is <c>400</c>. The code travels beside every one of them, so a
     /// client matches the failure rather than parsing the sentence.
     /// </remarks>
-    private static ProblemHttpResult Refused(MailDraftRefusedException refusal) => Coded(
+    internal static ProblemHttpResult Refused(MailDraftRefusedException refusal) => Coded(
         refusal,
         refusal.ErrorCode == MailFathomErrorCode.MailDraftNotFound
             ? StatusCodes.Status404NotFound

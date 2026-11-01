@@ -4,6 +4,7 @@
 
 import { type RefObject } from 'react';
 import { Confirmation } from '../confirmation/Confirmation';
+import { Icon } from '../controls/Icon';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -34,6 +35,7 @@ export function SendConfirmation({
     draftUnaccepted,
     disabled,
     refused = null,
+    leaves = null,
     onSend,
 }: {
     /**
@@ -64,10 +66,17 @@ export function SendConfirmation({
      */
     readonly refused?: string | null;
 
+    /**
+     * When the message leaves where a time was chosen for it, said short on the control and in full in the question —
+     * which then asks to schedule rather than to send — or `null` for a message sent at once.
+     */
+    readonly leaves?: { readonly short: string; readonly long: string; readonly zone: string } | null;
+
     readonly onSend: () => void;
 }) {
     const { locale, translate } = useLocalization();
-    const refusal = useTip({ says: refused ?? translate('compose.send'), describes: true, onPress: () => undefined });
+    const sendSaid = leaves === null ? translate('compose.send') : translate('compose.sendAt', { when: leaves.long });
+    const refusal = useTip({ says: refused ?? sendSaid, describes: true, onPress: () => undefined });
     const missing = whatWouldBeMissing(composition);
 
     const cautions = [
@@ -99,22 +108,24 @@ export function SendConfirmation({
                 type="button"
                 disabled={disabled && refused === null}
                 aria-disabled={refused === null ? undefined : true}
-                className="flex items-center rounded-md bg-accent px-4.5 py-2.25 text-base font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:px-5 pointer-coarse:text-md"
+                {...(leaves === null || refused !== null ? {} : { 'aria-label': sendSaid })}
+                className="flex items-center gap-1.5 rounded-md bg-accent px-4.5 py-2.25 text-base font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:px-5 pointer-coarse:text-md"
             >
-                {translate('compose.send')}
+                {leaves === null ? null : <Icon name="schedule_send" className="size-icon-md shrink-0" />}
+                {leaves === null ? translate('compose.send') : translate('compose.sendAt', { when: leaves.short })}
             </button>
             {refused === null ? null : refusal.tip}
 
             <Confirmation
                 asked={asked}
-                mark="send"
-                question={translate('compose.confirmQuestion')}
+                mark={leaves === null ? 'send' : 'schedule_send'}
+                question={translate(leaves === null ? 'compose.confirmQuestion' : 'compose.scheduleQuestion')}
                 cautions={cautions}
                 reversal={{ kind: 'recallable', said: translate('compose.confirmRecallable') }}
                 ways={[
                     { said: translate('compose.backToEditing'), manner: 'back' },
                     {
-                        said: translate(cautions.length === 0 ? 'compose.send' : 'compose.sendAnyway'),
+                        said: translate(actSaid(leaves !== null, cautions.length > 0)),
                         manner: 'act',
                         run: onSend,
                     },
@@ -139,9 +150,24 @@ export function SendConfirmation({
                                         : composition.subject,
                             })}
                         </p>
+
+                        {leaves === null ? null : (
+                            <p className="text-base font-semibold text-text text-pretty">
+                                {translate('compose.scheduleLeaves', { when: leaves.long, zone: leaves.zone })}
+                            </p>
+                        )}
                     </>
                 }
             />
         </>
     );
+}
+
+/** What the confirmation's own act is called: sending or scheduling, and either one anyway where there are cautions. */
+function actSaid(scheduled: boolean, cautioned: boolean): MessageKey {
+    if (scheduled) {
+        return cautioned ? 'compose.scheduleAnyway' : 'compose.schedule';
+    }
+
+    return cautioned ? 'compose.sendAnyway' : 'compose.send';
 }

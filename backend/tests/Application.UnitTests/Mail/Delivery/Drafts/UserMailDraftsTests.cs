@@ -18,6 +18,7 @@ using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Scheduling;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -95,10 +96,27 @@ public sealed class UserMailDraftsTests
         var drafts = UserDraftsOver(harness, outgoingEmails: outgoingEmails);
 
         // Act
-        var queued = await drafts.SendAsync(draft.Id, TestContext.Current.CancellationToken);
+        var queued = await drafts.SendAsync(draft.Id, dueAt: null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(queued.Id, harness.Drafts.Peek(draft.Id)!.PromotedTo);
+    }
+
+    /// <summary>A time the user named for the send reaches the record it is queued as, so the message is held until then.</summary>
+    [Fact]
+    public async Task SendAsync_ADueTimeNamed_QueuesTheSendHeldUntilThen()
+    {
+        // Arrange
+        var harness = Harness();
+        var draft = await SaveAsync(harness, Account);
+        var drafts = UserDraftsOver(harness);
+        var dueAt = ZonedInstant.Restore(Moment.AddHours(23), "Europe/Warsaw");
+
+        // Act
+        var queued = await drafts.SendAsync(draft.Id, dueAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(dueAt, queued.DueAt);
     }
 
     /// <summary>A draft another user wrote in the mailbox both are assigned is refused, and nothing is queued.</summary>
@@ -113,7 +131,7 @@ public sealed class UserMailDraftsTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<MailDraftRefusedException>(
-            () => drafts.SendAsync(theirs.Id, TestContext.Current.CancellationToken));
+            () => drafts.SendAsync(theirs.Id, dueAt: null, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.MailDraftNotFound, refusal.ErrorCode);
@@ -173,7 +191,8 @@ public sealed class UserMailDraftsTests
                 MaxMessageBytes = 1_000_000,
             },
             AuthoredSendGovernors.Permitting(),
-            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend));
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
+            new FakeTimeProvider(Moment));
     }
 
     /// <summary>Builds a commit policy whose every attempt commits.</summary>

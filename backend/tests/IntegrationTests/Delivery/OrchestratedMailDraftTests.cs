@@ -447,7 +447,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
         OrchestratedMailFathomServices services,
         MailDraftId draftId,
         CancellationToken cancellationToken) => services.AsCallerInScopeAsync(
-            (scope, token) => scope.GetRequiredService<MailDraftPromotion>().PromoteAsync(draftId, SyntheticMailAccount.User, token),
+            (scope, token) => scope.GetRequiredService<MailDraftPromotion>().PromoteAsync(draftId, SyntheticMailAccount.User, dueAt: null, token),
             [MailFathomPermission.MailSend],
             cancellationToken);
 

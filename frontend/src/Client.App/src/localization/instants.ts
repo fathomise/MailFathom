@@ -360,3 +360,38 @@ export function wordLasting(
 
     return lasting.count % 60 === 0 ? unit('hour', lasting.count / 60) : unit('minute', lasting.count);
 }
+
+/**
+ * A zone's offset from UTC at an instant, in minutes, or `null` where this runtime does not know the zone: the wall
+ * clock it reads there, taken as if it were UTC, less the instant itself. Read in a fixed numbering because these are
+ * numbers to compute with rather than words to show.
+ *
+ * @param zone The IANA zone, or `null` for the runtime's own.
+ */
+export function zoneOffsetAt(zone: string | null, at: number): number | null {
+    const fields: Intl.DateTimeFormatOptions = {
+        hourCycle: 'h23',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+    };
+
+    let parts: Intl.DateTimeFormatPart[];
+
+    try {
+        parts = new Intl.DateTimeFormat('en-US', zone === null ? fields : { ...fields, timeZone: zone }).formatToParts(
+            at,
+        );
+    } catch {
+        return null;
+    }
+
+    const field = (type: Intl.DateTimeFormatPartTypes): number =>
+        Number(parts.find((part) => part.type === type)?.value);
+    const wall = Date.UTC(field('year'), field('month') - 1, field('day'), field('hour'), field('minute'));
+    const minute = Math.floor(at / 60_000) * 60_000;
+
+    return Number.isNaN(wall) ? null : Math.round((wall - minute) / 60_000);
+}
