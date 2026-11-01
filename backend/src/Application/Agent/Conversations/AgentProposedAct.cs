@@ -41,12 +41,14 @@ public abstract record AgentProposedAct
 /// <param name="Recipients">Who it is addressed to.</param>
 /// <param name="Subject">Its subject.</param>
 /// <param name="Body">Its body, as plain text.</param>
+/// <param name="DueAt">When it leaves, where the person asked for a later send, or <see langword="null" /> to send it once accepted.</param>
 /// <remarks>The account is carried as the identifier's text because a stored document is read back by a serializer that cannot construct the identifier's own type.</remarks>
 public sealed record AgentMessageSending(
     string Account,
     IReadOnlyList<EmailAddress> Recipients,
     PresentationText Subject,
-    PresentationText Body)
+    PresentationText Body,
+    AgentSendTime? DueAt = null)
     : AgentProposedAct
 {
     /// <summary>The value the type discriminator carries.</summary>
@@ -62,11 +64,13 @@ public sealed record AgentMessageSending(
 /// <param name="Act">How it is answered.</param>
 /// <param name="Recipients">Who the answer is addressed to beyond what the act itself addresses, and the whole of it for a forward.</param>
 /// <param name="Body">What the person says, as plain text; the quotation of the answered message is composed when it is sent.</param>
+/// <param name="DueAt">When it leaves, where the person asked for a later send, or <see langword="null" /> to send it once accepted.</param>
 public sealed record AgentResponseSending(
     StoredEmailId AnsweredEmailId,
     AuthoredResponseAct Act,
     IReadOnlyList<EmailAddress> Recipients,
-    PresentationText Body)
+    PresentationText Body,
+    AgentSendTime? DueAt = null)
     : AgentProposedAct
 {
     /// <summary>The value the type discriminator carries.</summary>

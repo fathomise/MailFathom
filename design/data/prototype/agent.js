@@ -34,6 +34,14 @@
     nav: [{ label: "Open the thread", icon: "forum", kind: "thread", tid: "contoso" }],
   };
 
+  /* The same reply, asked to leave later. The time is the Agent's proposal as it stands: the block shows it and sends
+     at it, and nothing in the block clears or moves it — asking the Agent for another time is how it changes, and
+     *Edit here* keeps it. */
+  const BK_DRAFT_CONTOSO_LATER = Object.assign({}, BK_DRAFT_CONTOSO, {
+    sendAt: { short: "Fri 08:00", long: "Fri 28.08 at 08:00", zone: "Europe/Warsaw" },
+    done: "Scheduled - it leaves Fri 28.08 at 08:00 and waits in the Outbox, where it can still be cancelled",
+  });
+
   /* REAL EXAMPLE — a scripted conversation played back in real time. Content never arrives token
      by token: a widget appears only once it is whole. Between arrivals the status line says what
      the agent is doing right now, and it changes as the work moves on.
@@ -222,6 +230,17 @@
       ],
     },
     {
+      id: "c-later", title: "Reply to Contoso tomorrow at 8", when: "10:47",
+      msgs: [
+        { role: "user", text: "Reply to Contoso accepting the SLA, and send it tomorrow at 8", ts: atToday(10, 47) },
+        {
+          role: "bot", ts: atToday(10, 47), scope: "thread · 6 messages",
+          text: "I proposed the reply to leave tomorrow, 28 August, at 08:00. Until then it waits in the Outbox.",
+          blocks: [Object.assign({ phase: "pending" }, BK_DRAFT_CONTOSO_LATER)],
+        },
+      ],
+    },
+    {
       id: "c-summary", title: "Summarise the addendum thread", when: "15:52",
       ctx: "thread “Contract addendum - signatures”",
       msgs: [
@@ -285,6 +304,10 @@
               items: [{ n: "1", source: "Q4 delivery dates", badge: "mail", snippet: "“Delivery moved to 12.11…”", freshness: "yesterday · Tomasz Zieliński" }],
               partialNote: "Fabrikam’s archive is still being read - more sources may appear.",
             },
+            Object.assign({}, BK_DRAFT_CONTOSO_LATER, {
+              phase: "accepted", failed: true,
+              result: "Could not schedule it. If its time has passed, ask for a later one. · 07:31",
+            }),
             {
               type: "action", meta: "one step", phase: "accepted", failed: true,
               title: "Label the Fabrikam thread with the 12.11 date",
@@ -403,6 +426,13 @@
           nav: [{ label: "Open the Fabrikam thread", icon: "forum", kind: "thread", tid: "fabrikam1" }],
         },
       ],
+    },
+    {
+      match: /send it (later|tomorrow|at)|tomorrow at \d/i,
+      scope: "thread: Contract addendum - 6 messages",
+      text: "I proposed the reply to leave tomorrow, 28 August, at 08:00. Until then it waits in the Outbox.",
+      bullets: [],
+      blocks: [Object.assign({ phase: "pending" }, BK_DRAFT_CONTOSO_LATER)],
     },
     {
       match: /contoso|addendum|cpi|reply|write|draft/i,

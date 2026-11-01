@@ -24,6 +24,7 @@ namespace MailFathom.AI.AgentConversations;
 /// <param name="Tasks">Reads the person's tasks.</param>
 /// <param name="ResponseAuthoring">Resolves who an answer goes to, without saving it.</param>
 /// <param name="Authorization">Decides which tools the person's grant allows.</param>
+/// <param name="Clock">Reads the person's own zone and the instant they stand at, which a time they name is read against.</param>
 internal sealed record AgentConversationReaders(
     MailboxScopeResolver ScopeResolver,
     IEmailKnowledgeSearch KnowledgeSearch,
@@ -33,4 +34,5 @@ internal sealed record AgentConversationReaders(
     OwnCalendar Calendar,
     OwnTasks Tasks,
     StoredEmailResponseAuthoring ResponseAuthoring,
-    AccessAuthorization Authorization);
+    AccessAuthorization Authorization,
+    UserClock Clock);

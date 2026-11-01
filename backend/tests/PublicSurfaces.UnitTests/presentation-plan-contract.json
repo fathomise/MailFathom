@@ -2,7 +2,7 @@
   "blockCatalogue": {
     "answer": 2,
     "attachmentGallery": 1,
-    "draft": 1,
+    "draft": 2,
     "eventProposal": 1,
     "evidenceList": 1,
     "factTable": 1,
@@ -757,6 +757,14 @@
                     "Composed",
                     "Saved",
                     "Queued"
+                  ]
+                },
+                "dueAt": {
+                  "default": null,
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
                   ]
                 },
                 "evidence": {

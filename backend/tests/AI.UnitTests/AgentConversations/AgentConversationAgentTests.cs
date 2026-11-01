@@ -394,7 +394,8 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                 ResponseAuthoring: null!,
                 search is null
                     ? AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse)
-                    : AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead));
+                    : AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead),
+                UserClocks.Reading(Now));
 
             return new AgentConversationAgent(
                 plan,

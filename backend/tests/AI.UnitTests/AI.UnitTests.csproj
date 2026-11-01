@@ -23,6 +23,7 @@
     <Compile Include="..\shared\RecordingLoggerFactory.cs" Link="RecordingLoggerFactory.cs" />
     <Compile Include="..\shared\SyntheticUser.cs" Link="SyntheticUser.cs" />
     <Compile Include="..\shared\AccessAuthorizations.cs" Link="AccessAuthorizations.cs" />
+    <Compile Include="..\shared\UserClocks.cs" Link="UserClocks.cs" />
     <Compile Include="..\shared\ClientSignalPublishers.cs" Link="ClientSignalPublishers.cs" />
     <Compile Include="..\shared\RecordingClientSignalChannel.cs" Link="RecordingClientSignalChannel.cs" />
     <Compile Include="..\shared\SyntheticServedAccount.cs" Link="SyntheticServedAccount.cs" />

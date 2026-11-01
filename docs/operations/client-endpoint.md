@@ -4707,7 +4707,11 @@ The answer is `200` with the place the decision was written at, `400` for any de
 which is also what a second press gets, so an act is never carried out twice. Accepting is recorded first and the act
 carried out after it — a message sent, or an answer to a message sent, through the same drafting and sending a person
 composing it by hand goes through — and an act this deployment refuses ends the proposal as `failed`, which is what the
-conversation then shows. The one decided proposal that can still be answered is a `failed` one, and only by
+conversation then shows. A message the person asked to leave later carries that time, read in the zone their record
+states, and accepting it sends it later in exactly the way [a send naming a time](#the-drafts-routes) does: it is held in
+the Outbox as a *Scheduled* entry that can be cancelled until it leaves. A time that has passed by the moment the
+proposal is accepted ends it `failed` with nothing saved or queued, and asking the Agent for a later time is how it is
+tried again. The one decided proposal that can still be answered is a `failed` one, and only by
 `accepted`, which is how it is tried again; declining a `failed` proposal is `409`, as is answering a declined or an
 accepted one either way. A caller whose grant does not carry every permission the act needs — `mailfathom.mail.drafts.write`
 and `mailfathom.mail.send` for a message, `mailfathom.mail.read` as well for an answer to one,

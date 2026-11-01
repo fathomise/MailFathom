@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
+
 namespace MailFathom.Application.Access;
 
 /// <summary>Reads the wall clock the person this work is being done for is standing on.</summary>
@@ -48,5 +50,10 @@ public sealed class UserClock
     /// <summary>Reads the instant the acting person is standing on, carrying their own offset.</summary>
     /// <returns>The current instant as their clock reads it.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the work was reached under no principal, or under one acting for no user.</exception>
-    public DateTimeOffset Now() => this.zones.ZoneOf(this.authorization.RequireUser()).Reading(this.time.GetUtcNow());
+    public DateTimeOffset Now() => this.Zone().Reading(this.time.GetUtcNow());
+
+    /// <summary>Reads the zone the acting person's own days are read in, which is where a time they name is meant.</summary>
+    /// <returns>Their zone, or the coordinated one where their record states none.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the work was reached under no principal, or under one acting for no user.</exception>
+    public UserTimeZone Zone() => this.zones.ZoneOf(this.authorization.RequireUser());
 }

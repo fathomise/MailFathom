@@ -28,6 +28,7 @@ using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Tasks;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
@@ -153,7 +154,7 @@ public sealed class QuotedTextContainmentTests
                 static text => MailAnsweringAgent.ComposeTurn(Now, text),
                 AgentTurnDocument.AskElementName),
             ["agent: question"] = (
-                static text => AgentConversationComposition.ComposeTurn(Now, [MailAccountId.Create("primary")], AgentMessageScope.Mailbox(), [], text),
+                static text => AgentConversationComposition.ComposeTurn(Now, UserTimeZone.Coordinated, [MailAccountId.Create("primary")], AgentMessageScope.Mailbox(), [], text),
                 AgentTurnDocument.AskElementName),
             ["agent thread: subject"] = (
                 static text => AgentConversationReadings.Thread([ThreadMessage(subject: text, body: Harmless)]),

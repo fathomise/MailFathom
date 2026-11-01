@@ -132,6 +132,8 @@ const looks: Readonly<Record<ProposalLook['kind'], { readonly icon: IconName; re
  * @param controls What answers it while it is pending.
  * @param state What the block is doing, which a proposal shares with every other block.
  * @param onRetry What the way out of a failed block does.
+ * @param outcome What it says once answered, where this proposal says more than its kind does — a send held until a
+ *   time names the time.
  */
 export function ProposalCard({
     kind,
@@ -143,6 +145,7 @@ export function ProposalCard({
     controls,
     state = 'ready',
     onRetry,
+    outcome,
     children,
 }: {
     readonly kind: ProposalKind;
@@ -154,6 +157,7 @@ export function ProposalCard({
     readonly controls: readonly ProposalControl[];
     readonly state?: AnswerBlockState;
     readonly onRetry?: (() => void) | undefined;
+    readonly outcome?: { readonly done: string; readonly failed: string } | undefined;
     readonly children: ReactNode;
 }) {
     const { translate } = useLocalization();
@@ -292,7 +296,9 @@ export function ProposalCard({
                                 className={`size-icon-sm shrink-0 ${phase === 'failed' ? 'text-highlight-line' : ''}`}
                                 name={phase === 'accepted' ? 'check_circle' : 'error'}
                             />
-                            {translate(phase === 'accepted' ? wording.done : wording.failed)}
+                            {phase === 'accepted'
+                                ? (outcome?.done ?? translate(wording.done))
+                                : (outcome?.failed ?? translate(wording.failed))}
                         </p>
                     ) : null}
                 </>

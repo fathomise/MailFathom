@@ -19,6 +19,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
@@ -120,12 +121,13 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             brief.Question.AskedAt);
         var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds);
         var accounts = tools.NamedAccounts;
+        var zone = this.readers.Clock.Zone();
         var stickySession = StickySessionOf(brief.Question.Conversation);
 
         var answer = await ChatModelFallThrough.RunAsync(
             this.plan,
             this.logger,
-            (model, attemptToken) => this.AskAsync(model, brief, accounts, tools, journal, runLedger, stickySession, attemptToken),
+            (model, attemptToken) => this.AskAsync(model, brief, accounts, zone, tools, journal, runLedger, stickySession, attemptToken),
             () => !tools.HasProposed,
             cancellationToken);
 
@@ -185,14 +187,19 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <summary>Composes what the model is sent: every earlier turn of the conversation, then the question's own turn.</summary>
     /// <param name="brief">The question, the language it is answered in, and the conversation before it.</param>
     /// <param name="accounts">The accounts the turn names, which are the ones a tool the model is offered takes.</param>
+    /// <param name="zone">The zone the person's own days are read in, which the turn names.</param>
     /// <returns>The conversation, oldest turn first.</returns>
-    internal static IReadOnlyList<ChatMessage> ComposeMessages(AgentAnswerBrief brief, IReadOnlyList<MailAccountId> accounts) =>
-        ComposeMessages(brief, accounts, brief.History, brief.Question.Text.Value);
+    internal static IReadOnlyList<ChatMessage> ComposeMessages(
+        AgentAnswerBrief brief,
+        IReadOnlyList<MailAccountId> accounts,
+        UserTimeZone zone) =>
+        ComposeMessages(brief, accounts, zone, brief.History, brief.Question.Text.Value);
 
     /// <summary>Composes the conversation from a history and a question standing in for the ones the brief carries.</summary>
     private static IReadOnlyList<ChatMessage> ComposeMessages(
         AgentAnswerBrief brief,
         IReadOnlyList<MailAccountId> accounts,
+        UserTimeZone zone,
         IReadOnlyList<AgentHistoryTurn> history,
         string question) =>
     [
@@ -201,6 +208,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             ChatRole.User,
             AgentConversationComposition.ComposeTurn(
                 brief.Question.AskedAt,
+                zone,
                 accounts,
                 brief.Question.Scope,
                 brief.NamedEmails,
@@ -234,6 +242,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     private async Task<IReadOnlyList<ChatMessage>> GuardAsync(
         AgentAnswerBrief brief,
         IReadOnlyList<MailAccountId> accounts,
+        UserTimeZone zone,
         CancellationToken cancellationToken)
     {
         var history = await AgentHistoryDocument.GuardAsync(this.egressGuard, brief.History, cancellationToken);
@@ -242,13 +251,14 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             brief.Question.Text.Value,
             cancellationToken);
 
-        return ComposeMessages(brief, accounts, history, question);
+        return ComposeMessages(brief, accounts, zone, history, question);
     }
 
     private async Task<PresentationText> AskAsync(
         ChatGenerationPlan model,
         AgentAnswerBrief brief,
         IReadOnlyList<MailAccountId> accounts,
+        UserTimeZone zone,
         AgentConversationTools tools,
         AgentAnswerJournal journal,
         MailAnsweringRunLedger runLedger,
@@ -256,10 +266,10 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         CancellationToken cancellationToken)
     {
         // Against this model's own bounds, and before the scan, so a conversation refused by a ceiling costs no scan.
-        ChatRequestBounds.RequireForAttempt(ComposeMessages(brief, accounts), model);
+        ChatRequestBounds.RequireForAttempt(ComposeMessages(brief, accounts, zone), model);
         tools.ForgetEndingReports();
 
-        var guarded = await this.GuardAsync(brief, accounts, cancellationToken);
+        var guarded = await this.GuardAsync(brief, accounts, zone, cancellationToken);
 
         var endpoint = model.Endpoint;
 

@@ -161,6 +161,47 @@ public sealed class AgentConversationEntrySerializationTests
         Assert.Equal(acts[2..], read[2..]);
     }
 
+    /// <summary>A message asked to leave later keeps its time and zone, and one stored before a time could be asked for leaves once accepted.</summary>
+    [Fact]
+    public void Serialize_AMessageAskedToLeaveLater_ReadsBackItsTimeAndZone()
+    {
+        // Arrange
+        var due = new AgentSendTime(PresentationPlanExample.ObservedAt.AddDays(1), "Europe/Warsaw");
+        var act = (AgentMessageSending)AgentConversationExample.Act() with { DueAt = due };
+        var entry = new AgentActionProposed(AgentMessageId.New(), AgentConversationExample.Actionable(), act);
+        var stored = JsonSerializer.SerializeToNode(entry, AgentConversationEntryJsonContext.Default.AgentConversationEntry)!;
+        stored["act"]!.AsObject().Remove("dueAt");
+
+        // Act
+        var read = Assert.IsType<AgentMessageSending>(Assert.IsType<AgentActionProposed>(RoundTrip(entry)).Act);
+        var earlier = Assert.IsType<AgentMessageSending>(Assert.IsType<AgentActionProposed>(
+            stored.Deserialize(AgentConversationEntryJsonContext.Default.AgentConversationEntry)).Act);
+
+        // Assert
+        Assert.Equal((due, (AgentSendTime?)null), (read.DueAt, earlier.DueAt));
+    }
+
+    /// <summary>An answer to a message asked to leave later keeps its time and zone the same way a new message does.</summary>
+    [Fact]
+    public void Serialize_AnAnswerAskedToLeaveLater_ReadsBackItsTimeAndZone()
+    {
+        // Arrange
+        var due = new AgentSendTime(PresentationPlanExample.ObservedAt.AddDays(1), "Europe/Warsaw");
+        var act = new AgentResponseSending(
+            StoredEmailId.Create(Guid.NewGuid()),
+            AuthoredResponseAct.Reply,
+            [],
+            PresentationText.Create("Thank you, we accept."),
+            due);
+
+        // Act
+        var read = Assert.IsType<AgentActionProposed>(
+            RoundTrip(new AgentActionProposed(AgentMessageId.New(), AgentConversationExample.Actionable(), act))).Act;
+
+        // Assert
+        Assert.Equal(due, Assert.IsType<AgentResponseSending>(read).DueAt);
+    }
+
     [Fact]
     public void Serialize_AQuestionAskedAboutAThread_ReadsItsScopeBack()
     {

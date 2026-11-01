@@ -59,6 +59,10 @@ internal static class AgentConversationInstructions
         send nothing, so never say that a message was sent, saved, or scheduled; say that you proposed it. Propose only
         what the person asked for or clearly needs, and one proposal per act.
 
+        A proposed message leaves as soon as the person accepts it. Give it a send time only where the person asked in
+        this conversation for it to leave later — "send it tomorrow at 8" — and read that time on their clock, in the
+        time zone the turn names. Never delay a message on your own judgement.
+
         When a next question naturally follows from your answer, suggest up to
         {AgentConversationBounds.MaximumFollowUps} with suggest_follow_ups before you answer: each short, in {language},
         on the subject the person asked about, and written as they would ask it of you. A suggestion is a question and

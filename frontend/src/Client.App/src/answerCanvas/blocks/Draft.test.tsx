@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
     AgentProposalDecision,
     AnswerBlock,
@@ -13,6 +13,7 @@ import type {
     DraftDisposition,
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../../localization/Localization';
+import { ReadingZoneContext } from '../../localization/useReadingZone';
 import { AnswerSourcesContext } from '../answerSources';
 import { ProposalAnsweringContext, type ProposalAnswering, type ProposalPhase } from '../proposalAnswering';
 import { Draft } from './Draft';
@@ -37,10 +38,21 @@ const composed: ComposedDraft = {
     subject: 'Re: proposed terms for 2027',
     body: 'We accept shortening the response time to 2 hours on business days.',
     disposition: 'Composed',
+    dueAt: null,
 };
 
 function drafted(disposition: DraftDisposition = 'Composed'): AnswerBlock {
     return { type: 'draft', named: 'draft', evidence: backed, draft: { ...composed, disposition } };
+}
+
+/** A draft the person asked to leave at 08:00 on Friday 28 August in Warsaw, which is 06:00 UTC. */
+function draftedToLeaveLater(): AnswerBlock {
+    return {
+        type: 'draft',
+        named: 'draft',
+        evidence: backed,
+        draft: { ...composed, dueAt: '2026-08-28T06:00:00+00:00' },
+    };
 }
 
 function inConversation(
@@ -261,6 +273,87 @@ describe('Draft', () => {
             expect(screen.getByText('Sent')).toBeDefined();
             expect(screen.queryAllByRole('button').map((control) => control.textContent)).not.toContain('Edit here');
             expect(screen.queryByRole('button', { name: 'Edit the text' })).toBeNull();
+        });
+    });
+
+    describe('asked to leave later', () => {
+        // Thursday 27 August 2026 at 10:47 in Warsaw, the design's own sample moment, read in the zone the reader's
+        // record states rather than in whichever one the machine running the suite is in.
+        beforeEach(() => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(Date.parse('2026-08-27T08:47:00Z'));
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        function renderInWarsaw(phase: ProposalPhase) {
+            return render(
+                <LocalizationProvider>
+                    <ReadingZoneContext value="Europe/Warsaw">
+                        <AnswerSourcesContext value={{ sources: new Map(), follow: () => undefined }}>
+                            <ProposalAnsweringContext value={inConversation(phase)}>
+                                <Draft block={draftedToLeaveLater()} />
+                            </ProposalAnsweringContext>
+                        </AnswerSourcesContext>
+                    </ReadingZoneContext>
+                </LocalizationProvider>,
+            );
+        }
+
+        it('says when it leaves, on Send and beside the text, in the reader’s own zone', () => {
+            renderInWarsaw('pending');
+
+            const send = screen.getByRole('button', {
+                name: 'Send the draft to anna@contoso.example - it leaves Fri 08/28 at 8:00 AM',
+            });
+            expect(send.textContent).toBe('Send Fri 8:00 AM');
+            expect(
+                screen.getByText('This message leaves Fri 08/28 at 8:00 AM, not when you press Send.'),
+            ).toBeDefined();
+            expect(screen.getByText('Europe/Warsaw time')).toBeDefined();
+        });
+
+        it('keeps the time while the text is edited, editing never touching when it leaves', () => {
+            renderInWarsaw('pending');
+
+            fireEvent.click(
+                screen.getByRole('button', {
+                    name: 'Edit here - the draft to anna@contoso.example, inside the conversation',
+                }),
+            );
+
+            expect(
+                screen.getByRole('button', {
+                    name: 'Send the edited draft to anna@contoso.example - it leaves Fri 08/28 at 8:00 AM',
+                }),
+            ).toBeDefined();
+            expect(
+                screen.getByText('This message leaves Fri 08/28 at 8:00 AM, not when you press Send.'),
+            ).toBeDefined();
+        });
+
+        it('says it was scheduled once accepted, the result line naming the time instead of the line beside the text', () => {
+            renderInWarsaw('accepted');
+
+            expect(
+                screen.getByText(
+                    'Scheduled - it leaves Fri 08/28 at 8:00 AM and waits in the Outbox, where it can still be cancelled',
+                ),
+            ).toBeDefined();
+            expect(screen.queryByText(/not when you press Send/)).toBeNull();
+        });
+
+        it('says it could not be scheduled, and how a time that passed is put right', () => {
+            renderInWarsaw('failed');
+
+            expect(
+                screen.getByText('Could not schedule it. If its time has passed, ask for a later one.'),
+            ).toBeDefined();
+            expect(
+                screen.getByText('This message leaves Fri 08/28 at 8:00 AM, not when you press Send.'),
+            ).toBeDefined();
         });
     });
 });

@@ -604,8 +604,29 @@ describe('parseComposedDraft', () => {
             subject: 'Re: proposed terms for 2027',
             body: 'We accept shortening the response time.',
             disposition: 'Composed',
+            dueAt: null,
         });
     });
+
+    it('reads the instant a draft the person asked to leave later leaves at', () => {
+        expect(parseComposedDraft({ ...draft, dueAt: '2026-08-28T06:00:00+00:00' })?.dueAt).toBe(
+            '2026-08-28T06:00:00+00:00',
+        );
+    });
+
+    it.each(['tomorrow at 8', '2026-08-28T06:00:00', '2026-08-28', 'Fri, 28 Aug 2026 06:00:00 +0000'])(
+        'refuses a send time %j that is not an instant with its offset, since a time the reader is shown has to be the one it leaves at',
+        (dueAt) => {
+            expect(parseComposedDraft({ ...draft, dueAt })).toBeNull();
+        },
+    );
+
+    it.each(['2026-08-28T06:00:00Z', '2026-08-28T08:00:00.1234567+02:00'])(
+        'reads a send time %j in either form the service writes an instant in',
+        (dueAt) => {
+            expect(parseComposedDraft({ ...draft, dueAt })?.dueAt).toBe(dueAt);
+        },
+    );
 
     it('refuses a draft addressed to nobody, the recipients being part of what a message is', () => {
         expect(parseComposedDraft({ ...draft, recipients: [] })).toBeNull();

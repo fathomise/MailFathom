@@ -12,6 +12,7 @@ using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Calendar;
 using MailFathom.Application.Discovery.Presentation;
+using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
@@ -314,6 +315,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
                 ["recipients"] = null,
                 ["subject"] = "Quote",
                 ["body"] = "Thank you, we accept.",
+                ["sendAt"] = null,
             }),
             TestContext.Current.CancellationToken);
 
@@ -337,6 +339,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
                 ["recipients"] = Recipients,
                 ["subject"] = "Quote",
                 ["body"] = "Thank you, we accept.",
+                ["sendAt"] = null,
             }),
             TestContext.Current.CancellationToken);
 
@@ -346,7 +349,71 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Equal(
             ("primary", "ada@example.org", "Quote", "Thank you, we accept."),
             (sending.Account, Assert.Single(sending.Recipients).Address, sending.Subject.Value, sending.Body.Value));
+        Assert.Null(sending.DueAt);
         Assert.True(this.tools.HasProposed);
+    }
+
+    /// <summary>A send time the person asked for travels on the act with their profile zone, and on the draft they are shown.</summary>
+    [Fact]
+    public async Task ProposeMessage_ASendTimeThePersonAskedFor_CarriesItInTheirZoneOnTheActAndTheDraft()
+    {
+        // Arrange
+        var tool = this.ToolNamed("propose_message", MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend);
+        var leaves = new DateTimeOffset(2026, 9, 23, 6, 0, 0, TimeSpan.Zero);
+
+        // Act
+        await tool.InvokeAsync(ProposingMessage("2026-09-23T08:00:00+02:00"), TestContext.Current.CancellationToken);
+
+        // Assert
+        var proposal = Assert.Single(this.written.OfType<AgentActionProposed>());
+        Assert.Equal(new AgentSendTime(leaves, "Europe/Warsaw"), Assert.IsType<AgentMessageSending>(proposal.Act).DueAt);
+        Assert.Equal(leaves, Assert.IsType<DraftBlock>(proposal.Block).DueAt);
+    }
+
+    /// <summary>A send time that is not a full instant, or one already gone, is refused back to the model and nothing is proposed.</summary>
+    /// <param name="sendAt">What the model gave.</param>
+    /// <param name="refusal">How the answer to it begins.</param>
+    [Theory]
+    [InlineData("2026-09-23T08:00:00", "Give the send time as an ISO 8601 instant")]
+    [InlineData("tomorrow at eight", "Give the send time as an ISO 8601 instant")]
+    [InlineData("2026-09-22T14:00:00+02:00", "That time has already passed: it is 2026-09-22T14:00+02:00 now.")]
+    [InlineData("2026-11-02T08:00:00+02:00", "The offset +02:00 is not Europe/Warsaw's at that time, which is UTC+01:00.")]
+    public async Task ProposeMessage_ASendTimeNoSendCouldBeHeldUntil_IsRefusedAndProposesNothing(string sendAt, string refusal)
+    {
+        // Arrange
+        var tool = this.ToolNamed("propose_message", MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend);
+
+        // Act
+        var answer = await tool.InvokeAsync(ProposingMessage(sendAt), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.StartsWith(refusal, answer?.ToString(), StringComparison.Ordinal);
+        Assert.Empty(this.written.OfType<AgentActionProposed>());
+        Assert.False(this.tools.HasProposed);
+    }
+
+    /// <summary>An answer to a message is held to the same send time as a new one, refused before the answer is authored.</summary>
+    [Fact]
+    public async Task ProposeReply_ASendTimeAlreadyGone_IsRefusedAndProposesNothing()
+    {
+        // Arrange
+        var tool = this.ToolNamed("propose_reply", MailFathomPermission.MailRead, MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend);
+
+        // Act
+        var answer = await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?>
+            {
+                ["messageId"] = "0199c0de-0000-7000-8000-000000000042",
+                ["act"] = "reply",
+                ["body"] = "Thank you, we accept.",
+                ["recipients"] = null,
+                ["sendAt"] = "2026-09-22T13:00:00+02:00",
+            }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.StartsWith("That time has already passed", answer?.ToString(), StringComparison.Ordinal);
+        Assert.Empty(this.written.OfType<AgentActionProposed>());
     }
 
     /// <summary>An account the person does not read is refused back to the model and nothing is proposed.</summary>
@@ -364,6 +431,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
                 ["recipients"] = Recipients,
                 ["subject"] = "Quote",
                 ["body"] = "Thank you, we accept.",
+                ["sendAt"] = null,
             }),
             TestContext.Current.CancellationToken);
 
@@ -789,6 +857,16 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
     private static AIFunctionArguments Rating(string band) =>
         new(new Dictionary<string, object?> { ["band"] = band });
 
+    private static AIFunctionArguments ProposingMessage(string sendAt) =>
+        new(new Dictionary<string, object?>
+        {
+            ["account"] = "primary",
+            ["recipients"] = Recipients,
+            ["subject"] = "Quote",
+            ["body"] = "Thank you, we accept.",
+            ["sendAt"] = sendAt,
+        });
+
     private AIFunction ToolNamed(string name, params MailFathomPermission[] granted)
     {
         this.tools = this.Tools(granted);
@@ -857,7 +935,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         SensitiveContentEgressGuard egressGuard,
         OwnCalendar? calendar = null,
         OwnTasks? tasks = null,
-        IEmailProvenanceReader? provenanceReader = null)
+        IEmailProvenanceReader? provenanceReader = null,
+        UserClock? clock = null)
     {
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.knowledgeSearch,
@@ -874,7 +953,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             calendar!,
             tasks!,
             ResponseAuthoring: null!,
-            authorization);
+            authorization,
+            clock ?? UserClocks.Reading(Now, "Europe/Warsaw"));
 
         return new AgentConversationTools(this.journal, retrieval, readers, egressGuard, [Primary]);
     }

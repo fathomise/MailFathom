@@ -27,7 +27,8 @@ public sealed class CorpusReadersTests
                 MailFathomPermission.MailSend,
                 MailFathomPermission.CalendarRead,
                 MailFathomPermission.TasksRead),
-            new CorpusKnowledgeSearch(AgentConversationScenario.Mailbox));
+            new CorpusKnowledgeSearch(AgentConversationScenario.Mailbox),
+            UserClocks.Reading(new DateTimeOffset(2026, 9, 14, 12, 0, 0, TimeSpan.Zero)));
 
     [Fact]
     public async Task ContentReader_AConversationsThread_ReadsEveryMessageInItRenderedFromItsMime()

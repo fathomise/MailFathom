@@ -496,6 +496,41 @@ internal sealed record AgentConversationScenario(
             Proposes = [$"forward of {PersonalAgenda.ArchiveBoxes[0].Id} to reception@example.test"],
         },
 
+        // Proposing a message that leaves later, only where the person asked for one, read on their own clock: the
+        // question is asked at 14:00 in Warsaw, so "tomorrow at 8" is 06:00 UTC the next day and nothing else.
+        new(
+            "Agent.Propose.MessageLeavingWhenAsked",
+            "Write to courier.desk@example.test from my account to confirm they may collect the archive boxes between 14:00 and 16:00, and send it tomorrow at 8 in the morning.",
+            UserLanguage.English,
+            [],
+            ["courier", "archive", "box", "collect", "pick", "14:00", "16:00", "tomorrow", "schedule", "send"])
+        {
+            Zone = "Europe/Warsaw",
+            Proposes = ["message to courier.desk@example.test leaving 2026-09-15 06:00Z in Europe/Warsaw"],
+        },
+        new(
+            "Agent.Propose.ReplyLeavingWhenAsked",
+            "Reply to Ingrid Solheim's latest message about the archive boxes and confirm someone will sign the collection form. Have it go out on Wednesday at 9:00.",
+            UserLanguage.English,
+            [],
+            [.. ArchiveBoxSubject, "Wednesday", "schedule", "send"])
+        {
+            Zone = "Europe/Warsaw",
+            Proposes = [$"reply to {PersonalAgenda.ArchiveBoxes[2].Id} leaving 2026-09-16 07:00Z in Europe/Warsaw"],
+        },
+
+        // A time in the message is what it says, not when it leaves: nobody asked for it to wait, so it leaves on acceptance.
+        new(
+            "Agent.Propose.MessageNamingATimeLeavesOnAcceptance",
+            "Write to courier.desk@example.test from my account to confirm they may collect the archive boxes tomorrow at 8 in the morning.",
+            UserLanguage.English,
+            [],
+            ["courier", "archive", "box", "collect", "pick", "tomorrow", "8"])
+        {
+            Zone = "Europe/Warsaw",
+            Proposes = ["message to courier.desk@example.test"],
+        },
+
         // Proposing onto the calendar and the task list.
         new(
             "Agent.ProposesAnEvent",
@@ -1124,6 +1159,9 @@ internal sealed record AgentConversationScenario(
     /// <summary>Gets the messages a merged arrival notification stands for, where the person asks from one rather than from a conversation.</summary>
     public IReadOnlyList<CorpusMessage>? Arrived { get; init; }
 
+    /// <summary>Gets the IANA time zone the person's profile states, which the turn names and a send time is read in.</summary>
+    public string Zone { get; init; } = "UTC";
+
     /// <summary>Gets the permissions the person's grant carries, which decide which tools are offered.</summary>
     public IReadOnlyList<MailFathomPermission> Grant { get; init; } =
     [
@@ -1325,16 +1363,17 @@ internal sealed record AgentConversationScenario(
         {
             NamedEmails = [.. (this.Arrived ?? []).Select(static message => message.Id)],
         };
+        var readers = CorpusReaders.For(AccessAuthorizations.ForCallerGranted([.. this.Grant]), search, UserClocks.Reading(AskedAt, this.Zone));
         var tools = new AgentConversationTools(
             journal,
             retrieval,
-            CorpusReaders.For(AccessAuthorizations.ForCallerGranted([.. this.Grant]), search),
+            readers,
             SensitiveContentEgressGuards.Inactive(),
             CorpusKnowledgeSearch.Scope.AccountIds);
         var called = new ConcurrentQueue<string>();
         IReadOnlyList<AITool> offered = [.. tools.Create().OfType<AIFunction>().Select(tool => new CalledFunction(tool, called))];
 
-        var composed = AgentConversationAgent.ComposeMessages(brief, tools.NamedAccounts);
+        var composed = AgentConversationAgent.ComposeMessages(brief, tools.NamedAccounts, readers.Clock.Zone());
 
         // Refused rather than sent, as a deployment refuses it: a conversation past the model's bound fails the run.
         ChatRequestBounds.RequireForAttempt(composed, plan);
@@ -1371,10 +1410,10 @@ internal sealed record AgentConversationScenario(
     /// <returns>The statement a scenario's <see cref="Proposes" /> is compared with.</returns>
     internal static string DescriptionOf(AgentProposedAct act) => act switch
     {
-        AgentMessageSending sending => $"message to {AddressesOf(sending.Recipients)}",
-        AgentResponseSending { Act: AuthoredResponseAct.Forward } forward => $"forward of {forward.AnsweredEmailId} to {AddressesOf(forward.Recipients)}",
-        AgentResponseSending { Act: AuthoredResponseAct.ReplyToAll } replyToAll => $"reply to all of {replyToAll.AnsweredEmailId}",
-        AgentResponseSending reply => $"reply to {reply.AnsweredEmailId}",
+        AgentMessageSending sending => $"message to {AddressesOf(sending.Recipients)}{LeavingAt(sending.DueAt)}",
+        AgentResponseSending { Act: AuthoredResponseAct.Forward } forward => $"forward of {forward.AnsweredEmailId} to {AddressesOf(forward.Recipients)}{LeavingAt(forward.DueAt)}",
+        AgentResponseSending { Act: AuthoredResponseAct.ReplyToAll } replyToAll => $"reply to all of {replyToAll.AnsweredEmailId}{LeavingAt(replyToAll.DueAt)}",
+        AgentResponseSending reply => $"reply to {reply.AnsweredEmailId}{LeavingAt(reply.DueAt)}",
         AgentEventScheduling { IsAllDay: true } allDay => string.Create(CultureInfo.InvariantCulture, $"all-day event on {allDay.Start.Date:yyyy-MM-dd}"),
         AgentEventScheduling scheduling => string.Create(CultureInfo.InvariantCulture, $"event at {scheduling.Start.UtcDateTime:yyyy-MM-dd HH:mm}Z"),
         AgentTaskRecording recording => recording.DueOn is { } due
@@ -1382,6 +1421,11 @@ internal sealed record AgentConversationScenario(
             : "task due no day",
         _ => act.GetType().Name,
     };
+
+    /// <summary>States when a proposed message leaves, so a send time nobody asked for reads as a proposal nobody asked for.</summary>
+    private static string LeavingAt(AgentSendTime? due) => due is null
+        ? string.Empty
+        : string.Create(CultureInfo.InvariantCulture, $" leaving {due.Instant.UtcDateTime:yyyy-MM-dd HH:mm}Z in {due.ZoneId}");
 
     private static string AddressesOf(IEnumerable<EmailAddress> recipients) =>
         string.Join(", ", recipients.Select(static recipient => recipient.Address));

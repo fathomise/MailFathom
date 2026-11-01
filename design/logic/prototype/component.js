@@ -3174,6 +3174,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const iconTile = (bg, color) => "display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:" + bg + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:" + color;
       const keyer = (run) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } };
 
+      /* A draft the Agent proposed to leave later says so on *Send*, as the composer's does once a time is chosen. */
+      const sendAt = b.type === "draft" ? b.sendAt || null : null;
+      const sendSaid = sendAt ? "Send " + sendAt.short : "Send";
+      const sendWhen = sendAt ? " - it leaves " + sendAt.long : "";
+
       /* Controls only exist while the proposal is live and the block actually came back. */
       let raw = [];
       if (phase === "pending" && ready) {
@@ -3187,9 +3192,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { label: "Decline", aria: "Decline the task “" + b.title + "”", run: () => this.declineBk(key) },
         ];
         else if (b.type === "draft") raw = editing
-          ? [{ label: "Send", aria: "Send the edited draft to " + b.to, primary: true, run: () => this.acceptBk(key, b) },
+          ? [{ label: sendSaid, aria: "Send the edited draft to " + b.to + sendWhen, primary: true, run: () => this.acceptBk(key, b) },
              { label: "Stop editing", aria: "Stop editing the draft to " + b.to, run: () => this.editBk(key, false) }]
-          : [{ label: "Send", aria: "Send the draft to " + b.to, primary: true, run: () => this.acceptBk(key, b) },
+          : [{ label: sendSaid, aria: "Send the draft to " + b.to + sendWhen, primary: true, run: () => this.acceptBk(key, b) },
              { label: "Edit here", aria: "Edit the draft to " + b.to + " inside the conversation", run: () => this.editBk(key, true, (b.paras || []).join("\n\n")) },
              { label: "Discard", aria: "Discard the draft to " + b.to, run: () => this.declineBk(key) }];
         else if (b.type === "action") raw = [
@@ -3385,6 +3390,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         letterStyle: "display:flex;flex-direction:column;gap:10px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
         textareaStyle: "width:100%;box-sizing:border-box;min-height:" + (isMobile ? 150 : 130) + "px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.6;color:var(--text);background:var(--sub);border:1px solid var(--accent-line);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
         paras: (b.paras || []).map(p => ({ t: p, style: "font-size:14px;line-height:1.6;color:var(--text);text-wrap:pretty" })),
+        /* The time a draft leaves at, while it can still be sent: the result line names it once it was. */
+        hasSendAt: !!sendAt && (!accepted || failed),
+        sendAtText: sendAt ? "This message leaves " + sendAt.long + ", not when you press Send." : "",
+        sendAtZone: sendAt ? sendAt.zone + " time" : "",
+        sendAtWordsStyle: "display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px;row-gap:2px;min-width:0",
+        sendAtStyle: "display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:8px;font-size:13px;line-height:1.45;color:var(--text);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:9px;padding:" + (isMobile ? "10px 12px" : "8px 11px") + ";text-wrap:pretty",
+        sendAtIconStyle: icon(16, "var(--accent-d)"),
+        sendAtZoneStyle: "font-size:12px;color:var(--muted)",
 
         hasFoot: controls.length > 0 || nav.length > 0 || (accepted && !declined),
         footStyle: BLK.foot(isMobile, tone),

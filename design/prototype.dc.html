@@ -2041,6 +2041,9 @@ Project repository: https://github.com/fathomise/MailFathom
                                   <sc-for list="{{ bk.paras }}" as="p" hint-placeholder-count="3"><div style="{{ p.style }}">{{ p.t }}</div></sc-for>
                                 </div>
                               </sc-if>
+                              <sc-if value="{{ bk.hasSendAt }}" hint-placeholder-val="{{ false }}">
+                                <div style="{{ bk.sendAtStyle }}"><span style="{{ bk.sendAtIconStyle }}">schedule_send</span><span style="{{ bk.sendAtWordsStyle }}"><span>{{ bk.sendAtText }}</span><span style="{{ bk.sendAtZoneStyle }}">{{ bk.sendAtZone }}</span></span></div>
+                              </sc-if>
                             </sc-if>
                             <sc-if value="{{ bk.hasConflict }}" hint-placeholder-val="{{ false }}">
                               <div style="{{ bk.conflictStyle }}"><span style="{{ bk.conflictIconStyle }}">warning</span>{{ bk.conflict }}</div>

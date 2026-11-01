@@ -69,6 +69,12 @@ internal sealed class AgentConversationTools
     /// <summary>The longest window of the calendar one reading covers.</summary>
     internal static readonly TimeSpan MaximumCalendarWindow = TimeSpan.FromDays(62);
 
+    /// <summary>What both proposing tools say of the send time they take, which only a person's own ask may supply.</summary>
+    private const string SendAtDescription =
+        "When it is to leave, as an ISO 8601 instant with an offset, in the person's time zone the turn names. Give one only "
+        + "where the person asked in this conversation for the message to leave later; otherwise leave it empty, and it "
+        + "leaves as soon as they accept.";
+
     private readonly AgentAnswerJournal journal;
     private readonly ScopedMailKnowledgeRetrieval retrieval;
     private readonly AgentConversationReaders readers;
@@ -372,6 +378,59 @@ internal sealed class AgentConversationTools
             && DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out instant);
     }
 
+    /// <summary>Reads the time a proposed message is to leave at, refusing one a send could not be held until.</summary>
+    /// <param name="sendAt">What the model gave, or nothing for a message sent once accepted.</param>
+    /// <param name="due">The time with the person's zone, or <see langword="null" /> where none was given.</param>
+    /// <returns>A refusal the model can correct, or <see langword="null" /> where the time stands.</returns>
+    /// <remarks>
+    /// A time already gone is refused here rather than at the acceptance, because the send would refuse it there anyway,
+    /// and a model told now can still ask for a later one. So is an offset the person's zone does not stand at on that
+    /// day: the turn states the offset of the moment it was asked, and a time named across a daylight-saving change
+    /// written with it would leave an hour away from the one the person named. The zone recorded is the person's profile
+    /// zone, which the turn named, so the outbox words the time the way they asked for it.
+    /// </remarks>
+    private string? RefuseSendTime(string? sendAt, out AgentSendTime? due)
+    {
+        due = null;
+
+        if (string.IsNullOrWhiteSpace(sendAt))
+        {
+            return null;
+        }
+
+        if (!TryParseInstant(sendAt, out var leaves))
+        {
+            return "Give the send time as an ISO 8601 instant with an offset, or leave it empty to send once the person accepts.";
+        }
+
+        var now = this.readers.Clock.Now();
+
+        if (leaves <= now)
+        {
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"That time has already passed: it is {now:yyyy-MM-dd'T'HH:mmzzz} now. Give a later time, or leave it empty to send once the person accepts.");
+        }
+
+        var zone = this.readers.Clock.Zone();
+        var there = zone.Reading(leaves);
+
+        if (there.Offset != leaves.Offset)
+        {
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"The offset {leaves:zzz} is not {zone.Id}'s at that time, which is UTC{there:zzz}. Give the time the person named with that offset.");
+        }
+
+        due = new AgentSendTime(leaves, zone.Id);
+
+        return null;
+    }
+
+    private static string Proposed(AgentSendTime? due) => due is null
+        ? "Proposed. Nothing was sent; the person reviews the draft and decides."
+        : "Proposed to leave at the time you gave. Nothing was sent or scheduled; the person reviews the draft and decides.";
+
     [Description("Reads the person's tasks.")]
     private async Task<string> ReadTasksAsync(CancellationToken cancellationToken)
     {
@@ -404,6 +463,7 @@ internal sealed class AgentConversationTools
         [Description("Every recipient's email address.")] string[] recipients,
         [Description("The subject.")] string subject,
         [Description("The body, as plain text, in the language its recipients read.")] string body,
+        [Description(SendAtDescription)] string? sendAt,
         CancellationToken cancellationToken)
     {
         await this.ReportAsync(AgentActivity.PreparingProposal, cancellationToken);
@@ -423,12 +483,17 @@ internal sealed class AgentConversationTools
             return "Give at least one valid address, at most twenty, a subject, and a body.";
         }
 
-        var block = new DraftBlock(PresentationEvidence.Unsupported(PresentationFreshness.Unknown), addressed, titled, written, DraftDisposition.Composed);
+        if (this.RefuseSendTime(sendAt, out var due) is { } refusal)
+        {
+            return refusal;
+        }
 
-        await this.WriteAsync(this.journal.ProposeAsync(block, new AgentMessageSending(sender[0].Value, addressed, titled, written), cancellationToken));
+        var block = new DraftBlock(PresentationEvidence.Unsupported(PresentationFreshness.Unknown), addressed, titled, written, DraftDisposition.Composed, due?.Instant);
+
+        await this.WriteAsync(this.journal.ProposeAsync(block, new AgentMessageSending(sender[0].Value, addressed, titled, written, due), cancellationToken));
         this.HasProposed = true;
 
-        return "Proposed. Nothing was sent; the person reviews the draft and decides.";
+        return Proposed(due);
     }
 
     [Description("Proposes an answer to a message.")]
@@ -437,6 +502,7 @@ internal sealed class AgentConversationTools
         [Description("reply, replyToAll, or forward.")] string act,
         [Description("The body, as plain text, in the language the conversation is written in.")] string body,
         [Description("For a forward, every recipient's email address; for a reply, leave empty to answer whoever the message came from.")] string[]? recipients,
+        [Description(SendAtDescription)] string? sendAt,
         CancellationToken cancellationToken)
     {
         await this.ReportAsync(AgentActivity.PreparingProposal, cancellationToken);
@@ -447,6 +513,11 @@ internal sealed class AgentConversationTools
             || !PresentationText.TryCreate(body, out var written))
         {
             return "Give a message id, one of reply, replyToAll, or forward, and a body.";
+        }
+
+        if (this.RefuseSendTime(sendAt, out var due) is { } refusal)
+        {
+            return refusal;
         }
 
         IReadOnlyList<EmailAddress> named = [];
@@ -486,12 +557,13 @@ internal sealed class AgentConversationTools
             addressed,
             titled,
             written,
-            DraftDisposition.Composed);
+            DraftDisposition.Composed,
+            due?.Instant);
 
-        await this.WriteAsync(this.journal.ProposeAsync(block, new AgentResponseSending(answeredId, responseAct, addressed, written), cancellationToken));
+        await this.WriteAsync(this.journal.ProposeAsync(block, new AgentResponseSending(answeredId, responseAct, addressed, written, due), cancellationToken));
         this.HasProposed = true;
 
-        return "Proposed. Nothing was sent; the person reviews the draft and decides.";
+        return Proposed(due);
     }
 
     [Description("Proposes a calendar event.")]
