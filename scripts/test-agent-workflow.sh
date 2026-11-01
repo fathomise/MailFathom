@@ -7270,6 +7270,7 @@ a_parent_whose_links_moved_or_cannot_be_read_is_held() {
 # read. Each line of the timeline file is one page, and `jq` reads each as an input of its own, which is
 # what the client does with the pages it fetched. A filter that chose per page would hand the clock
 # one timestamp a page, which it cannot read, and would hold every parent with a long timeline forever.
+# Only a sub-issue event moves the window, so the label applied a moment ago on the second page does not.
 a_parent_whose_settled_links_span_two_pages_closes() {
   local output_file="$test_directory/close-parents-pages"
 
@@ -7278,12 +7279,31 @@ a_parent_whose_settled_links_span_two_pages_closes() {
     {"number": 2, "state": "closed", "title": "Child"}]'
   printf '%s\n%s\n' \
     '[{"event":"sub_issue_added","created_at":"2026-01-01T00:00:00Z"}]' \
-    '[{"event":"sub_issue_added","created_at":"2026-01-02T00:00:00Z"},{"event":"labeled","created_at":"2026-01-03T00:00:00Z"}]' \
+    "[{\"event\":\"sub_issue_added\",\"created_at\":\"2026-01-02T00:00:00Z\"},{\"event\":\"labeled\",\"created_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]" \
     > "$close_parents_state/timeline-1.json"
 
   run_close_parents "$output_file"
 
   assert_file_content $'close 1\ncomment 1' "$(close_parents_write_order)"
+}
+
+# The other half of choosing across pages: a link added a moment ago on the last page holds the parent
+# however old the links on the first page are.
+a_fresh_link_on_a_later_page_holds_the_parent() {
+  local output_file="$test_directory/close-parents-later-page"
+
+  prepare_close_parents_state later-page '[
+    {"number": 1, "state": "open", "title": "Grew again", "children": [2]},
+    {"number": 2, "state": "closed", "title": "Child"}]'
+  printf '%s\n%s\n' \
+    '[{"event":"sub_issue_added","created_at":"2026-01-01T00:00:00Z"}]' \
+    "[{\"event\":\"sub_issue_added\",\"created_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]" \
+    > "$close_parents_state/timeline-1.json"
+
+  run_close_parents "$output_file"
+
+  assert_file_content '' "$close_parents_state/writes.log"
+  assert_contains 'Held #1:' "$output_file"
 }
 
 a_dry_run_names_a_completed_parent_and_closes_nothing() {
@@ -12802,6 +12822,7 @@ run_test closing_issues_report_each_issue_once
 run_test a_completed_parent_closes_before_its_comment
 run_test a_parent_whose_links_moved_or_cannot_be_read_is_held
 run_test a_parent_whose_settled_links_span_two_pages_closes
+run_test a_fresh_link_on_a_later_page_holds_the_parent
 run_test a_dry_run_names_a_completed_parent_and_closes_nothing
 run_test a_closed_sub_parent_lets_its_parent_close_in_the_next_pass
 run_test a_failed_listing_fails_the_run
