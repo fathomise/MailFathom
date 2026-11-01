@@ -221,6 +221,7 @@ describe('readMailBody', () => {
                     inlineImageCount: 0,
                     undrawnInlineImageCount: 0,
                     truncated: false,
+                    footer: null,
                 },
                 selfContainedHtml: null,
                 remoteImagesRequested: false,
@@ -536,6 +537,45 @@ describe('readMailBody refusing a document this deployment did not compose', () 
         const rows = [{ isHeader: false, cells: [cell] }];
 
         expect(await refusing([{ type: 'table', version: 1, columns: [], rows }])).toBe('failed');
+    });
+});
+
+describe('readMailBody reading the reader own footer', () => {
+    const threeParagraphs = [paragraph(run('Thanks.')), paragraph(run('Iris Marlow')), paragraph(run('Nordwind'))];
+
+    async function readingFooter(footer: unknown) {
+        const body = bodyWith(documentWith(threeParagraphs, { footer }));
+
+        return readMailBody(session, answering({ status: 200, body }), storedEmailId, readingTheMessage);
+    }
+
+    it('reads the blocks a document names as the footer', async () => {
+        const result = await readingFooter({ firstBlock: 1, blockCount: 2 });
+
+        expect(result.outcome === 'read' && result.value.document?.footer).toEqual({ firstBlock: 1, blockCount: 2 });
+    });
+
+    it.each([
+        ['as null', null],
+        ['by leaving the member out', undefined],
+    ])('reads a document naming no footer %s as one with none', async (_, footer) => {
+        const result = await readingFooter(footer);
+
+        expect(result.outcome === 'read' && result.value.document?.footer).toBeNull();
+    });
+
+    it.each([
+        ['starting past the last block', { firstBlock: 3, blockCount: 1 }],
+        ['ending past the last block', { firstBlock: 2, blockCount: 2 }],
+        ['spanning no block', { firstBlock: 1, blockCount: 0 }],
+        ['starting before the first block', { firstBlock: -1, blockCount: 1 }],
+        ['at a position that is not a whole number', { firstBlock: 0.5, blockCount: 1 }],
+        ['without a count', { firstBlock: 1 }],
+        ['that is not an object', 'the last two blocks'],
+    ])('refuses a footer %s', async (_, footer) => {
+        const result = await readingFooter(footer);
+
+        expect(result.outcome).toBe('failed');
     });
 });
 

@@ -75,6 +75,12 @@ describe('splitQuotedHistory', () => {
         expect(splitQuotedHistory(blocks)).toStrictEqual({ contribution: blocks, quotedHistory: [] });
     });
 
+    it('folds a quotation that is all there is under a footer, the message’s own words standing above that footer', () => {
+        const blocks = [quote('Does Thursday work?')];
+
+        expect(splitQuotedHistory(blocks, true)).toStrictEqual({ contribution: [], quotedHistory: blocks });
+    });
+
     it('leaves a message that quoted nothing whole', () => {
         const blocks = [paragraph('The figures you asked for are attached.')];
 

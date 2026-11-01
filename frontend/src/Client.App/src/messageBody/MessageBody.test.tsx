@@ -40,6 +40,7 @@ const drawnDocument: MailDocument = {
     inlineImageCount: 0,
     undrawnInlineImageCount: 0,
     truncated: false,
+    footer: null,
 };
 
 const readable: MailBody = {
@@ -324,6 +325,88 @@ describe('MessageBody', () => {
 
         expect(screen.getByText('A drawn message.')).toBeDefined();
         expect(screen.queryByText('The conversation this message quoted')).toBeNull();
+    });
+
+    describe('folding the reader own footer', () => {
+        /** A reply the reader sent: their words, the footer MailFathom appended, and the message they answered. */
+        const sentWithFooter: MailBody = {
+            ...readable,
+            document: {
+                ...drawnDocument,
+                blocks: [
+                    written('Thursday works for us.'),
+                    written('Iris Marlow'),
+                    written('Head of Procurement'),
+                    { type: 'quote', depth: 1, blocks: [written('Does Thursday work?')] },
+                ],
+                footer: { firstBlock: 1, blockCount: 2 },
+            },
+        };
+
+        it('folds the footer the document names to one line under the words', () => {
+            drawing(sentWithFooter);
+
+            expect(screen.getByText('Thursday works for us.')).toBeDefined();
+            expect(screen.getByRole('button', { name: 'Your footer is hidden' }).getAttribute('aria-expanded')).toBe(
+                'false',
+            );
+            expect(screen.queryByText('Iris Marlow')).toBeNull();
+        });
+
+        it('opens the footer on a press and folds it again on the next', async () => {
+            drawing(sentWithFooter);
+
+            fireEvent.click(screen.getByRole('button', { name: 'Your footer is hidden' }));
+
+            const open = await screen.findByRole('button', { name: 'Hide your footer' });
+            expect(open.getAttribute('aria-expanded')).toBe('true');
+            expect(screen.getByText('Iris Marlow')).toBeDefined();
+            expect(screen.getByText('Head of Procurement')).toBeDefined();
+
+            fireEvent.click(open);
+
+            expect(await screen.findByRole('button', { name: 'Your footer is hidden' })).toBeDefined();
+            expect(screen.queryByText('Iris Marlow')).toBeNull();
+        });
+
+        it('draws the words, the folded footer, and the folded history in that order in a conversation', () => {
+            inAConversation(sentWithFooter);
+
+            const words = screen.getByText('Thursday works for us.');
+            const footer = screen.getByRole('button', { name: 'Your footer is hidden' });
+            const history = screen.getByText('The conversation this message quoted');
+
+            expect(words.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(footer.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(history.closest('details')?.open).toBe(false);
+        });
+
+        it('draws the history under the footer where one message is what is being read', () => {
+            drawing(sentWithFooter);
+
+            const footer = screen.getByRole('button', { name: 'Your footer is hidden' });
+            const answered = screen.getByText('Does Thursday work?');
+
+            expect(footer.compareDocumentPosition(answered) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(screen.queryByText('The conversation this message quoted')).toBeNull();
+        });
+
+        it('draws a document naming no footer whole, its typed sign-off included', () => {
+            drawing({
+                ...readable,
+                document: { ...drawnDocument, blocks: [written('Thanks.'), written('Best regards, Iris')] },
+            });
+
+            expect(screen.getByText('Best regards, Iris')).toBeDefined();
+            expect(screen.queryByRole('button', { name: 'Your footer is hidden' })).toBeNull();
+        });
+
+        it('folds nothing in the sender’s own markup, which is the message as it went out', () => {
+            render(inTheEmbeddedView({ ...sentWithFooter, selfContainedHtml: markup }));
+
+            expect(screen.getByTitle("The sender's own markup, drawn in isolation")).toBeDefined();
+            expect(screen.queryByRole('button', { name: 'Your footer is hidden' })).toBeNull();
+        });
     });
 
     // The second reading surface. What is asserted below is which of the two a message is drawn as, and what a reader

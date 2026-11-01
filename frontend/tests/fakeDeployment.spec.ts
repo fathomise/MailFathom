@@ -224,7 +224,8 @@ test('answers a conversation with each message and its body where the reader ask
 
     expect(bare.messages.every((message) => !('body' in message))).toBe(true);
     expect(whole.messages).toHaveLength(bare.messages.length);
-    expect(whole.messages.every(({ email, body }) => body.plainText.text === email.preview)).toBe(true);
+    // A reply carrying the reader's footer reads on past the words its row previews, so the body opens with them.
+    expect(whole.messages.every(({ email, body }) => body.plainText.text.startsWith(email.preview))).toBe(true);
 });
 
 test('answers a later read with the flags a change left, and filters on them', () => {

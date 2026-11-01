@@ -12,9 +12,11 @@ import type {
     MailBodyTruncation,
     MailDocument,
     MailDocumentBlock,
+    MailDocumentFooter,
     MailDocumentRefusal,
 } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { FoldedFooter } from '../footers/FoldedFooter';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import type { Locale } from '../localization/locale';
@@ -198,7 +200,11 @@ export function MessageBody({
             ) : (
                 <article className={writtenWords}>
                     <LinksNotOpened value={readOnly}>
-                        <Written blocks={written.blocks} quotedHistoryOnRequest={quotedHistoryOnRequest} />
+                        <Written
+                            blocks={written.blocks}
+                            footer={written.footer}
+                            quotedHistoryOnRequest={quotedHistoryOnRequest}
+                        />
                     </LinksNotOpened>
                     {written.truncated ? <p className="text-sm text-muted">{translate('body.truncated')}</p> : null}
                 </article>
@@ -250,19 +256,52 @@ function Cleaning({
     );
 }
 
-// What the message says, with the conversation it quoted either under the words or one gesture away from them. The
-// disclosure is the browser's own rather than one built out of a button and a piece of state, for the reason
-// `readingPane/MessageHeaders.tsx` gives: it is operable from the keyboard and announces whether it is open, and it
-// costs no code to be so.
+// What the message says, with the reader's own footer folded to one line under the words where the document names one,
+// and the conversation it quoted under that. The footer always sits above the quotation, so drawing the blocks around
+// it in order is what puts the three in the order the design draws them, in a single message and in a conversation.
 function Written({
     blocks,
+    footer,
     quotedHistoryOnRequest,
 }: {
     readonly blocks: readonly MailDocumentBlock[];
+    readonly footer: MailDocumentFooter | null;
     readonly quotedHistoryOnRequest: boolean;
 }) {
+    if (footer === null) {
+        return <WordsAndQuotation blocks={blocks} quotedHistoryOnRequest={quotedHistoryOnRequest} />;
+    }
+
+    const footerEnd = footer.firstBlock + footer.blockCount;
+
+    return (
+        <>
+            <MessageBlocks blocks={blocks.slice(0, footer.firstBlock)} />
+            <FoldedFooter blocks={blocks.slice(footer.firstBlock, footerEnd)} />
+            <WordsAndQuotation
+                blocks={blocks.slice(footerEnd)}
+                quotedHistoryOnRequest={quotedHistoryOnRequest}
+                wordsAbove={footer.firstBlock > 0}
+            />
+        </>
+    );
+}
+
+// The words, with the conversation they quoted either under them or one gesture away from them. The disclosure is the
+// browser's own rather than one built out of a button and a piece of state, for the reason
+// `readingPane/MessageHeaders.tsx` gives: it is operable from the keyboard and announces whether it is open, and it
+// costs no code to be so.
+function WordsAndQuotation({
+    blocks,
+    quotedHistoryOnRequest,
+    wordsAbove = false,
+}: {
+    readonly blocks: readonly MailDocumentBlock[];
+    readonly quotedHistoryOnRequest: boolean;
+    readonly wordsAbove?: boolean;
+}) {
     const { translate } = useLocalization();
-    const written = quotedHistoryOnRequest ? splitQuotedHistory(blocks) : null;
+    const written = quotedHistoryOnRequest ? splitQuotedHistory(blocks, wordsAbove) : null;
 
     if (written === null || written.quotedHistory.length === 0) {
         return <MessageBlocks blocks={blocks} />;

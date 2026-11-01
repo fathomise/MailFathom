@@ -232,7 +232,7 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                 )}
             </div>
 
-            {footer === null || answering?.phase === 'declined' ? null : <FoldedFooter footer={footer} />}
+            {footer === null || answering?.phase === 'declined' ? null : <FoldedFooter blocks={footer.blocks} />}
 
             {/* Gone once sent, where the result line names the time instead. */}
             {leaves === null || answering?.phase === 'accepted' ? null : (

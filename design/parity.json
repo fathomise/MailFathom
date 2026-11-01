@@ -969,6 +969,44 @@
         }
       ]
     },
+    "mail-own-footer": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "Show 5 earlier messages"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Your footer is hidden",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Hide your footer",
+            "exact": true
+          }
+        }
+      ]
+    },
     "composer-sending-options": {
       "file": "prototype.dc.html",
       "properties": {

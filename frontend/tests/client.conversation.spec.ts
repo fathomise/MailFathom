@@ -4,7 +4,7 @@
 
 import { expect } from '@playwright/test';
 
-import { conversationId } from './fixtures/mail';
+import { conversationId, readerFooter } from './fixtures/mail';
 import { openSignedIn, test } from './client.harness';
 
 // A conversation opened from the list lands on the message the row stood for and draws that one alone, with the rest of
@@ -64,4 +64,44 @@ test('opens a conversation at the message the list opened, and shows and hides t
     expect(deployment.requests('GET', `/threads/${conversationId}`).map(({ query }) => query.get('content'))).toContain(
         'true',
     );
+});
+
+test('folds the footer of the reader’s own reply to one line, and opens it from the keyboard in place', async ({
+    page,
+}) => {
+    await openSignedIn(page, '/#/mail');
+    await page
+        .getByRole('listbox', { name: 'Messages' })
+        .getByRole('option', { name: /The racking quote/u })
+        .click();
+
+    const conversation = page.getByRole('region', { name: 'Conversation' });
+    const messages = conversation.getByRole('article', { name: /^Message from/u });
+    await conversation.getByRole('button', { name: 'Show all the messages' }).click();
+
+    const reply = messages.nth(1);
+    const role = readerFooter.at(-1) ?? '';
+    const folded = reply.getByRole('button', { name: 'Your footer is hidden' });
+
+    await expect(reply).toContainText('Does the deeper price include the fixings?');
+    await expect(folded).toHaveAttribute('aria-expanded', 'false');
+    await expect(reply.getByText(role)).toHaveCount(0);
+    await expect(messages.first().getByRole('button', { name: 'Your footer is hidden' })).toHaveCount(0);
+
+    await folded.focus();
+    const before = await folded.boundingBox();
+    await page.keyboard.press('Enter');
+
+    const opened = reply.getByRole('button', { name: 'Hide your footer' });
+    await expect(opened).toHaveAttribute('aria-expanded', 'true');
+    await expect(reply.getByText(role)).toBeVisible();
+    expect((await opened.boundingBox())?.y).toBe(before?.y);
+
+    await opened.click();
+
+    await expect(reply.getByRole('button', { name: 'Your footer is hidden' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+    );
+    await expect(reply.getByText(role)).toHaveCount(0);
 });

@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useState } from 'react';
-import type { MailDocument } from '@mailfathom/client-backend';
+import type { MailDocumentBlock } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { MessageBlocks } from '../messageBody/MessageBlocks';
@@ -14,10 +14,10 @@ import { MessageBlocks } from '../messageBody/MessageBlocks';
 // message, so it shows exactly what will go out — its pictures included.
 
 export function FoldedFooter({
-    footer,
+    blocks,
     quiet = false,
 }: {
-    readonly footer: MailDocument;
+    readonly blocks: readonly MailDocumentBlock[];
 
     /** Whether its lines are drawn quieter than the words beside them, which is how the composer tells the two apart. */
     readonly quiet?: boolean;
@@ -30,7 +30,7 @@ export function FoldedFooter({
             <button
                 type="button"
                 aria-expanded={open}
-                className="-ms-1 inline-flex min-h-7 items-center gap-1 self-start rounded-md ps-1 pe-2.5 text-base leading-natural text-muted transition hover:bg-hover hover:text-text-soft"
+                className="-ms-1 inline-flex min-h-7 items-center gap-1 self-start rounded-md ps-1 pe-2.5 text-base pointer-coarse:min-h-11 leading-natural text-muted transition hover:bg-hover hover:text-text-soft"
                 onClick={() => {
                     setOpen(!open);
                 }}
@@ -45,7 +45,7 @@ export function FoldedFooter({
                         quiet ? 'text-base text-muted' : 'text-md text-text-soft'
                     }`}
                 >
-                    <MessageBlocks blocks={footer.blocks} />
+                    <MessageBlocks blocks={blocks} />
                 </div>
             ) : null}
         </div>
