@@ -107,7 +107,20 @@ export interface Composition {
      * different things.
      */
     readonly words: readonly WrittenNode[];
+
+    /**
+     * Whether it asks to be told when each recipient's server delivers it or cannot, and whether it asks each
+     * recipient's mail client for a read receipt.
+     *
+     * Both start off for every message — a new one, a reply, a forward — and belong to that message alone: there is no
+     * default kept for an account, and a draft opens with what it asked for.
+     */
+    readonly requestsDeliveryNotification: boolean;
+    readonly requestsReadReceipt: boolean;
 }
+
+/** The two requests a message opens with, which is neither. */
+const nothingRequested = { requestsDeliveryNotification: false, requestsReadReceipt: false } as const;
 
 /**
  * What a send would go out without, which the confirmation names before it goes.
@@ -127,7 +140,17 @@ export const mostRecipientsInOneHeader = 256;
  * @param to Who it opens addressed to, which is nobody unless the act that opened it named somebody.
  */
 export function nothingWrittenYet(account: string, to: readonly string[] = []): Composition {
-    return { answering: null, continuing: null, account, subject: '', to, cc: [], bcc: [], words: [] };
+    return {
+        answering: null,
+        continuing: null,
+        account,
+        subject: '',
+        to,
+        cc: [],
+        bcc: [],
+        words: [],
+        ...nothingRequested,
+    };
 }
 
 /**
@@ -153,6 +176,7 @@ export function answerTo(message: MailMessage, answers: MailDraftAnswer): Compos
         cc: answers === 'everyone' ? everybody.filter((address) => !to.includes(address)) : [],
         bcc: [],
         words: [],
+        ...nothingRequested,
     };
 }
 
@@ -177,6 +201,10 @@ export function draftContinued(message: MailMessage, body: MailBody | null): Com
         cc: addressesOf(message.headers.participants, ['Cc']),
         bcc: addressesOf(message.headers.participants, ['Bcc']),
         words: body === null ? [] : draftWords(body),
+
+        // What a message in a drafts folder would ask for when sent is nothing its reading here carries, so carrying
+        // it on opens asking for neither, as every other message does.
+        ...nothingRequested,
     };
 }
 
@@ -200,6 +228,8 @@ export function draftHeld(reading: MailDraftReading): Composition {
         cc: addressed('Cc'),
         bcc: addressed('Bcc'),
         words: draftWords({ document: reading.document, plainText: { text: reading.plainTextBody } }),
+        requestsDeliveryNotification: draft.requestsDeliveryNotification,
+        requestsReadReceipt: draft.requestsReadReceipt,
     };
 }
 
@@ -265,6 +295,8 @@ export function wireComposition(composition: Composition): MailDraftComposition 
         to: composition.to,
         cc: composition.cc,
         bcc: composition.bcc,
+        requestsDeliveryNotification: composition.requestsDeliveryNotification,
+        requestsReadReceipt: composition.requestsReadReceipt,
     };
 
     return composition.answering === null

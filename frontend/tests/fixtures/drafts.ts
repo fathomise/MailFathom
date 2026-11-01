@@ -39,6 +39,8 @@ export const draft = {
     sentAs: null,
     divergence: null,
     lastFailureCode: null,
+    requestsDeliveryNotification: false,
+    requestsReadReceipt: false,
 };
 
 /**
@@ -62,12 +64,14 @@ export const answeringDraft = {
     sentAs: null,
     divergence: null,
     lastFailureCode: null,
+    requestsDeliveryNotification: false,
+    requestsReadReceipt: false,
 };
 
 /**
  * A draft MailFathom keeps whose copy in the drafts folder on the mail server may be missing: its filing was never
  * answered. It is what the Drafts list draws under *Out of step with your server* and what the draft notification
- * opens.
+ * opens, and it asks for a read receipt, so opening it reaches the composer with a request already on.
  */
 export const outOfStepDraft = {
     draftId: '00000000-0000-4000-8000-0000000000d3',
@@ -86,6 +90,8 @@ export const outOfStepDraft = {
     sentAs: null,
     divergence: 'AppendOutcomeUnknown',
     lastFailureCode: null,
+    requestsDeliveryNotification: false,
+    requestsReadReceipt: true,
 };
 
 /** What listing the work account's drafts answers with: every draft, newest edit first, and the most it would list. */

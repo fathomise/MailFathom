@@ -90,6 +90,16 @@ function compositionIn(value: unknown): Composition | null {
     const cc = addressesIn(record['cc']);
     const bcc = addressesIn(record['bcc']);
 
+    // An absent request reads as off, so a tab reloaded onto this client from one that kept neither still gets its words
+    // back. A null, or anything else but a yes or a no, is a shape this client did not write.
+    const requestsDeliveryNotification =
+        record['requestsDeliveryNotification'] === undefined ? false : record['requestsDeliveryNotification'];
+    const requestsReadReceipt = record['requestsReadReceipt'] === undefined ? false : record['requestsReadReceipt'];
+
+    if (typeof requestsDeliveryNotification !== 'boolean' || typeof requestsReadReceipt !== 'boolean') {
+        return null;
+    }
+
     if (answering === undefined || to === null || cc === null || bcc === null) {
         return null;
     }
@@ -115,7 +125,18 @@ function compositionIn(value: unknown): Composition | null {
         return null;
     }
 
-    return { answering, continuing, account, subject, to, cc, bcc, words };
+    return {
+        answering,
+        continuing,
+        account,
+        subject,
+        to,
+        cc,
+        bcc,
+        words,
+        requestsDeliveryNotification,
+        requestsReadReceipt,
+    };
 }
 
 // Answers `undefined` for a shape it refuses, because `null` is what a message of its own legitimately kept.

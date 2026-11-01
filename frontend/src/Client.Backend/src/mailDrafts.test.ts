@@ -37,6 +37,8 @@ const composition: MailDraftComposition = {
     to: ['anna@example.invalid'],
     cc: [],
     bcc: [],
+    requestsDeliveryNotification: false,
+    requestsReadReceipt: false,
 };
 
 type Answer = Omit<ClientResponse, 'headers'>;
@@ -72,6 +74,8 @@ function draftBody(fields: Readonly<Record<string, unknown>> = {}): Answer {
             sizeOctets: 812,
             composedAt: '2026-09-03T08:00:00+00:00',
             revisedAt: '2026-09-03T08:00:00+00:00',
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
             ...fields,
         }),
     };
@@ -96,6 +100,8 @@ describe('writeMailDraft', () => {
             to: ['anna@example.invalid'],
             cc: [],
             bcc: [],
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
             account: 'work',
             subject: 'Renewal terms',
         });
@@ -112,6 +118,8 @@ describe('writeMailDraft', () => {
             to: ['anna@example.invalid'],
             cc: ['piotr@example.invalid'],
             bcc: [],
+            requestsDeliveryNotification: true,
+            requestsReadReceipt: false,
         });
 
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
@@ -120,6 +128,8 @@ describe('writeMailDraft', () => {
             to: ['anna@example.invalid'],
             cc: ['piotr@example.invalid'],
             bcc: [],
+            requestsDeliveryNotification: true,
+            requestsReadReceipt: false,
             answeredEmailId: 'c0ffee00-0000-4000-8000-000000000001',
             answers: 'everyone',
         });
@@ -143,9 +153,24 @@ describe('writeMailDraft', () => {
                     serverCopy: 'Filed',
                     divergence: null,
                     lastFailureCode: null,
+                    requestsDeliveryNotification: false,
+                    requestsReadReceipt: false,
                     revisedAt: '2026-09-03T08:00:00+00:00',
                 },
             },
+        });
+    });
+
+    it('reads the requests the draft makes when it is sent', async () => {
+        const answer = await writeMailDraft(
+            session,
+            answering(draftBody({ requestsDeliveryNotification: true, requestsReadReceipt: true })),
+            composition,
+        );
+
+        expect(answer).toMatchObject({
+            outcome: 'read',
+            value: { written: true, draft: { requestsDeliveryNotification: true, requestsReadReceipt: true } },
         });
     });
 
@@ -154,6 +179,9 @@ describe('writeMailDraft', () => {
         ['no copy stage at all', { serverCopy: undefined }],
         ['a divergence this client does not name', { divergence: 'Vanished' }],
         ['a failure code that is not a whole number', { lastFailureCode: 1.5 }],
+        ['a request that is neither on nor off', { requestsReadReceipt: 'yes' }],
+        ['no delivery notification request at all', { requestsDeliveryNotification: undefined }],
+        ['a read receipt request that is null', { requestsReadReceipt: null }],
         ['no instant it was last revised at', { revisedAt: undefined }],
     ])('refuses a draft carrying %s as unreadable', async (_named, fields) => {
         const answer = await writeMailDraft(session, answering(draftBody(fields)), composition);

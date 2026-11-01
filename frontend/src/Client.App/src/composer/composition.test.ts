@@ -85,6 +85,17 @@ function message(subject: string | null, participants: readonly MailParticipant[
 }
 
 describe('answerTo', () => {
+    // There is no default kept for an account, so every answer starts asking for nothing, as a new message does.
+    it.each(['senderOnly', 'everyone', 'forward'] as const)(
+        'opens a %s answer asking for neither request',
+        (answers) => {
+            expect(answerTo(message('Invoice', [participant('From', 'ada@example.invalid')]), answers)).toMatchObject({
+                requestsDeliveryNotification: false,
+                requestsReadReceipt: false,
+            });
+        },
+    );
+
     it('addresses a reply to the author', () => {
         const composed = answerTo(message('Invoice', [participant('From', 'ada@example.invalid')]), 'senderOnly');
 
@@ -197,6 +208,8 @@ describe('draftHeld', () => {
                 serverCopy: 'AppendIssued',
                 divergence: 'AppendOutcomeUnknown',
                 lastFailureCode: null,
+                requestsDeliveryNotification: false,
+                requestsReadReceipt: true,
                 revisedAt: '2026-09-04T11:55:00+00:00',
             },
             plainTextBody: 'Agenda\nfirst item',
@@ -211,6 +224,8 @@ describe('draftHeld', () => {
             to: ['marta@example.invalid'],
             cc: ['olek@example.invalid'],
             bcc: [],
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: true,
         });
         expect(composed.words).toHaveLength(2);
     });
@@ -245,6 +260,13 @@ describe('nothingWrittenYet', () => {
         expect(written.to).toStrictEqual(['anna@example.invalid', 'bartek@example.invalid']);
         expect(written.answering).toBeNull();
         expect(written.subject).toBe('');
+    });
+
+    it('opens asking for neither a delivery notification nor a read receipt', () => {
+        expect(nothingWrittenYet('work')).toMatchObject({
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
+        });
     });
 });
 
@@ -305,6 +327,15 @@ describe('wireComposition', () => {
             to: ['ada@example.invalid'],
             cc: [],
             bcc: [],
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
+        });
+    });
+
+    it('states the two requests the message makes, each as the author left it', () => {
+        expect(wireComposition({ ...nothingWrittenYet('work'), requestsDeliveryNotification: true })).toMatchObject({
+            requestsDeliveryNotification: true,
+            requestsReadReceipt: false,
         });
     });
 
@@ -324,6 +355,8 @@ describe('wireComposition', () => {
             to: [],
             cc: [],
             bcc: [],
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
         });
     });
 });

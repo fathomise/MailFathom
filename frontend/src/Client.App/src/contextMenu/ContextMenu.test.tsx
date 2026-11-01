@@ -202,6 +202,34 @@ describe('ContextMenu', () => {
         expect(closed).not.toHaveBeenCalled();
     });
 
+    // A request the composer makes is turned over rather than taken, so its state is announced and the menu stays for
+    // the next one — and the keyboard walks it like any other item.
+    it('announces a checkable item’s state, and turns it over without closing', () => {
+        const closed = vi.fn();
+        const turned = vi.fn();
+
+        menuOver(closed, [
+            { icon: 'move_to_inbox', label: 'Request delivery notification', checked: false, choose: turned },
+            { icon: 'mark_email_read', label: 'Request read receipt', checked: true, choose: vi.fn() },
+        ]);
+
+        const off = screen.getByRole('menuitemcheckbox', { name: 'Request delivery notification' });
+
+        expect(off.getAttribute('aria-checked')).toBe('false');
+        expect(
+            screen.getByRole('menuitemcheckbox', { name: 'Request read receipt' }).getAttribute('aria-checked'),
+        ).toBe('true');
+
+        fireEvent.click(off);
+
+        expect(turned).toHaveBeenCalledOnce();
+        expect(closed).not.toHaveBeenCalled();
+
+        fireEvent.keyDown(off, { key: 'ArrowDown' });
+
+        expect(document.activeElement).toBe(screen.getByRole('menuitemcheckbox', { name: 'Request read receipt' }));
+    });
+
     // It stands over whatever it was opened on, so the back gesture closes it before it navigates and a change of
     // destination leaves none of it behind. It is on the screen for exactly as long as it is drawn, which is why the
     // registration is unconditional rather than following a state of its own.

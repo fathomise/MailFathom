@@ -778,6 +778,52 @@
         }
       ]
     },
+    "composer-sending-options": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "New message",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "Context"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "role": "menuitemcheckbox",
+            "name": "Request read receipt"
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Sending options - asks for a read receipt",
+            "exact": true
+          }
+        }
+      ]
+    },
     "mail-sender-details": {
       "file": "prototype.dc.html",
       "properties": {
