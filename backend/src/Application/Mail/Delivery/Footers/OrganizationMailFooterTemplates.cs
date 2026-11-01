@@ -11,9 +11,10 @@ namespace MailFathom.Application.Mail.Delivery.Footers;
 /// <remarks>
 /// <para>
 /// Reading is <see cref="MailFathomPermission.AdminRead" /> and writing is
-/// <see cref="MailFathomPermission.AdminConfigurationWrite" />, each at a scope covering the organization, which the
-/// transport resolves from the route; this asks the same grants at any scope, so a caller reaching it another way is
-/// still asked.
+/// <see cref="MailFathomPermission.AdminConfigurationWrite" />, each at a scope covering the organization. The grant is
+/// asked at any scope first, so a caller holding it nowhere is refused outright, and then over the organization named,
+/// so an administrator of one organization reaches no other: an organization the caller's scope does not cover is
+/// answered as one the deployment does not hold.
 /// </para>
 /// <para>
 /// A template is not a governed property. A settings policy governs a property of the user record or of the mail
@@ -31,13 +32,15 @@ public sealed class OrganizationMailFooterTemplates(
     /// <summary>Reads one organization's template.</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The template, or <see langword="null" /> where none is set.</returns>
+    /// <returns>The template, or <see langword="null" /> where none is set or the caller's scope does not cover the organization.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller holds <see cref="MailFathomPermission.AdminRead" /> at no scope.</exception>
-    public Task<MailFooterContent?> ReadAsync(Guid organization, CancellationToken cancellationToken)
+    public async Task<MailFooterContent?> ReadAsync(Guid organization, CancellationToken cancellationToken)
     {
         authorization.RequirePermissionAtAnyScope(MailFathomPermission.AdminRead);
 
-        return store.ReadTemplateAsync(organization, cancellationToken);
+        return await this.CoversAsync(MailFathomPermission.AdminRead, organization, cancellationToken)
+            ? await store.ReadTemplateAsync(organization, cancellationToken)
+            : null;
     }
 
     /// <summary>Replaces one organization's template, or says why it may not be saved.</summary>
@@ -58,6 +61,11 @@ public sealed class OrganizationMailFooterTemplates(
         ArgumentNullException.ThrowIfNull(images);
 
         authorization.RequirePermissionAtAnyScope(MailFathomPermission.AdminConfigurationWrite);
+
+        if (!await this.CoversAsync(MailFathomPermission.AdminConfigurationWrite, organization, cancellationToken))
+        {
+            return new MailFooterWrite(MailFooterWriteOutcome.OrganizationUnknown);
+        }
 
         if (MailFooterContent.Read(html, images, markup, out var refusal) is not { } template)
         {
@@ -81,12 +89,18 @@ public sealed class OrganizationMailFooterTemplates(
     /// <summary>Clears one organization's template, so each member's own footer is what they send with again.</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns>A task that completes when the template is gone.</returns>
+    /// <returns>A task that completes when the template is gone, or at once where the caller's scope does not cover the organization.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller holds <see cref="MailFathomPermission.AdminConfigurationWrite" /> at no scope.</exception>
-    public Task ClearAsync(Guid organization, CancellationToken cancellationToken)
+    public async Task ClearAsync(Guid organization, CancellationToken cancellationToken)
     {
         authorization.RequirePermissionAtAnyScope(MailFathomPermission.AdminConfigurationWrite);
 
-        return store.RemoveTemplateAsync(organization, cancellationToken);
+        if (await this.CoversAsync(MailFathomPermission.AdminConfigurationWrite, organization, cancellationToken))
+        {
+            await store.RemoveTemplateAsync(organization, cancellationToken);
+        }
     }
+
+    private Task<bool> CoversAsync(MailFathomPermission permission, Guid organization, CancellationToken cancellationToken) =>
+        authorization.PermitsOverScopeAsync(permission, AssignmentScope.Organization(organization), cancellationToken);
 }

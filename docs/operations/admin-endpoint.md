@@ -697,7 +697,7 @@ and a request with none is refused as any other.
 | `POST /api/admin/organizations/{organizationId}/signing-keys/rotation` | `mailfathom.admin.credentials.write` | Mints the organization a fresh active signing key now and retires the one it signed with, answering with both identifiers. It answers `404` for an organization this deployment does not hold, and `409` naming `DataEncryption` where the deployment configures no key ring to seal the new key under. |
 | `POST /api/admin/organizations/{organizationId}/signing-keys/{keyId}/revocation` | `mailfathom.admin.credentials.write` | Revokes one of the organization's signing keys. Revoking the active key mints its replacement in the same transaction, and the answer names it. It answers `404` for a key the organization does not hold, and `409` for a key already revoked. |
 | `GET /api/admin/organizations/{organizationId}/footer-template` | `mailfathom.admin.read` | Reads the organization's [footer template](#the-organization-footer-template-routes) as it was saved, its variables unfilled and its images beside it, or `"template": null` where none is set. This is what `mfctl organization footer-template show` asks. |
-| `PUT /api/admin/organizations/{organizationId}/footer-template` | `mailfathom.admin.configuration.write` | Replaces the organization's footer template and answers with it as saved, its markup sanitized. It answers `400` naming what was wrong — an unknown variable by its name, an image linked rather than uploaded, a bound — and `404` for an organization this deployment does not hold. This is what `mfctl organization footer-template set` sends. |
+| `PUT /api/admin/organizations/{organizationId}/footer-template` | `mailfathom.admin.configuration.write` | Replaces the organization's footer template and answers with it as saved, its markup sanitized. It answers `400` naming what was wrong — an unknown variable by its name, an image linked rather than uploaded, a bound — and `404` for an organization this deployment does not hold or the caller's scope does not cover. This is what `mfctl organization footer-template set` sends. |
 | `DELETE /api/admin/organizations/{organizationId}/footer-template` | `mailfathom.admin.configuration.write` | Clears the organization's footer template, answering `204` whether or not one was set. This is what `mfctl organization footer-template clear` sends. |
 | `GET /api/admin/known-authentication-providers` | `mailfathom.admin.read` at the deployment | Reads [one page](#reading-the-users-mail-accounts-and-organizations-a-page-at-a-time) of the [known authentication providers](#known-authentication-providers) in the order they were added, each with its IMAP host, its authserv-id, who added it, and when, beside `nextCursor`. This is what `mfctl known-provider list` asks. |
 | `POST /api/admin/known-authentication-providers` | `mailfathom.admin.configuration.write` at the deployment | Adds an entry from the `imapHost` and `authorityIdentifier` the body carries, answering with both in the form they are matched by. A host the list already names is answered `409`, and a host or an authserv-id no match could be made against `400`, naming which of the two and never echoing it. |
@@ -2232,7 +2232,10 @@ characters, and a request body of at most 2 MiB. A remote or `data:` image refer
 uploaded.
 
 **The template is a configuration write over the organization.** Reading it takes `mailfathom.admin.read` and setting
-or clearing it `mailfathom.admin.configuration.write`, each at a scope covering the organization. A template is not a
+or clearing it `mailfathom.admin.configuration.write`, each at a scope covering the organization. An administrator of
+another organization is answered as for an organization the deployment does not hold — no template on a read, `404` on
+a write, and a clear that clears nothing — so one organization's administrator neither reads nor changes another's.
+A template is not a
 [settings policy](#settings-policies) property: a policy governs a property of a user record or a mail account record,
 and a footer is what one person sends from one account. It is removed with the organization.
 

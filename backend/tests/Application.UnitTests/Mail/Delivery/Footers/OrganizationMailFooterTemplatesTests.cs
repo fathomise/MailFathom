@@ -89,6 +89,49 @@ public sealed class OrganizationMailFooterTemplatesTests
         Assert.Null(await templates.ReadAsync(Organization, TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task Operations_AnAdministratorOfTheOrganizationItself_ReachItsTemplate()
+    {
+        // Arrange
+        var store = new InMemoryMailFooterStore().Holding(AccessAuthorizations.ScopedOrganization, MailAccountId.Create("work"));
+        var templates = Scoped(store, AssignmentScope.Organization(AccessAuthorizations.ScopedOrganization));
+
+        // Act
+        var write = await templates.SaveAsync(AccessAuthorizations.ScopedOrganization, "<p>{{displayName}}</p>", [], TestContext.Current.CancellationToken);
+        var read = await templates.ReadAsync(AccessAuthorizations.ScopedOrganization, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFooterWriteOutcome.Saved, write.Outcome);
+        Assert.Equal("<p>{{displayName}}</p>", read?.Html);
+    }
+
+    [Fact]
+    public async Task Operations_AnAdministratorOfAnotherOrganization_ReachNothingAndChangeNothing()
+    {
+        // Arrange
+        var store = new InMemoryMailFooterStore().Holding(AccessAuthorizations.ScopedOrganization, MailAccountId.Create("work"));
+        await store.SaveTemplateAsync(AccessAuthorizations.ScopedOrganization, new MailFooterContent("<p>{{displayName}}</p>", []), TestContext.Current.CancellationToken);
+        var templates = Scoped(store, AccessAuthorizations.ScopesOutsideTheirTarget[0]);
+
+        // Act
+        var read = await templates.ReadAsync(AccessAuthorizations.ScopedOrganization, TestContext.Current.CancellationToken);
+        var write = await templates.SaveAsync(AccessAuthorizations.ScopedOrganization, "<p>{{jobTitle}}</p>", [], TestContext.Current.CancellationToken);
+        await templates.ClearAsync(AccessAuthorizations.ScopedOrganization, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(read);
+        Assert.Equal(MailFooterWriteOutcome.OrganizationUnknown, write.Outcome);
+        Assert.Equal(
+            "<p>{{displayName}}</p>",
+            (await store.ReadTemplateAsync(AccessAuthorizations.ScopedOrganization, TestContext.Current.CancellationToken))?.Html);
+    }
+
+    private static OrganizationMailFooterTemplates Scoped(InMemoryMailFooterStore store, AssignmentScope scope) =>
+        new(
+            AccessAuthorizations.ForAdministratorScopedAt(scope, MailFathomPermission.AdminConfigurationWrite, MailFathomPermission.AdminRead),
+            store,
+            new MailFootings.VerbatimMailFooterMarkup());
+
     private OrganizationMailFooterTemplates Templates(params MailFathomPermission[] granted) =>
         new(
             AccessAuthorizations.ForAdministratorGranted(granted),
