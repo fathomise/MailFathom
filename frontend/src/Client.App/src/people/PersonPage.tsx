@@ -18,6 +18,7 @@ import { wordAbsenceEnd, wordLastSeen } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { useCurrentMinute } from '../notifications/notificationAge';
+import { PhoneAppBadge } from '../presence/PhoneAppBadge';
 import { PresenceDot } from '../presence/PresenceDot';
 import { presenceSaid } from '../presence/presenceWords';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
@@ -199,6 +200,7 @@ export function PersonPage({
                         place="person"
                     />
                     {member ? <PresenceDot presence={contact.presence} place="person" /> : null}
+                    {member && contact.usesPhoneApp ? <PhoneAppBadge place="person" /> : null}
                 </span>
 
                 <div className="flex min-w-0 flex-col gap-0.75">
@@ -236,6 +238,12 @@ export function PersonPage({
                             {lastSeen === null ? null : (
                                 <span className="text-muted">{translate('presence.lastSeen', { when: lastSeen })}</span>
                             )}
+                            {contact.usesPhoneApp ? (
+                                <span className="flex items-center gap-1 text-muted">
+                                    <Icon name="smartphone" className="size-icon-sm" />
+                                    {translate('presence.usesPhoneApp')}
+                                </span>
+                            ) : null}
                             {awayUntil === null ? null : (
                                 <span className="flex items-center gap-1 rounded-sm bg-warning-soft px-2 py-0.5 font-semibold text-warning-text">
                                     <Icon name="event_busy" className="size-icon-sm" />

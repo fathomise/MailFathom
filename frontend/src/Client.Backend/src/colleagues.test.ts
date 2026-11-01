@@ -36,6 +36,7 @@ const member = {
     presence: 'Busy',
     lastSeen: null,
     outOfOfficeUntil: null,
+    usesPhoneApp: false,
 };
 
 type Answer = Omit<ClientResponse, 'headers'>;
@@ -345,6 +346,17 @@ describe('parseColleague', () => {
 
     it('refuses an out-of-office end that is not an instant', () => {
         expect(parseColleague({ ...member, outOfOfficeUntil: 'next week' })).toBeNull();
+    });
+
+    it('reads whether a member uses the phone app, and refuses an answer of the wrong shape', () => {
+        expect(parseColleague({ ...member, usesPhoneApp: true })?.usesPhoneApp).toBe(true);
+        expect(parseColleague({ ...member, usesPhoneApp: 'yes' })).toBeNull();
+    });
+
+    it('reads a member an answer says nothing about the phone app for as not using it', () => {
+        const unstated = Object.fromEntries(Object.entries(member).filter(([field]) => field !== 'usesPhoneApp'));
+
+        expect(parseColleague(unstated)?.usesPhoneApp).toBe(false);
     });
 
     it('refuses a field of the wrong shape', () => {

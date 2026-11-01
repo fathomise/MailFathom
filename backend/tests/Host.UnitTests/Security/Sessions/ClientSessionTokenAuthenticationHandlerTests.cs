@@ -40,7 +40,7 @@ public sealed class ClientSessionTokenAuthenticationHandlerTests
     {
         // Arrange
         var sessions = Sessions();
-        var minted = (await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken)).Token!;
+        var minted = (await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken)).Token!;
 
         // Act
         var result = await AuthenticateAsync(sessions, $"Bearer {minted.Value}");
@@ -56,7 +56,7 @@ public sealed class ClientSessionTokenAuthenticationHandlerTests
     {
         // Arrange
         var sessions = Sessions();
-        var minted = (await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken)).Token!;
+        var minted = (await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken)).Token!;
 
         // Act
         var result = await AuthenticateAsync(sessions, $"Bearer {minted.Value}");
@@ -74,7 +74,7 @@ public sealed class ClientSessionTokenAuthenticationHandlerTests
     {
         // Arrange
         var sessions = Sessions();
-        var minted = (await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken)).Token!;
+        var minted = (await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken)).Token!;
         await sessions.RevokeAsync(minted.Value, TestContext.Current.CancellationToken);
 
         // Act
@@ -94,7 +94,7 @@ public sealed class ClientSessionTokenAuthenticationHandlerTests
         // Arrange
         var store = new InMemoryClientSessionStore();
         var sessions = new ClientSessionTokens(store, new FakeTimeProvider(Instant));
-        var minted = (await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken)).Token!;
+        var minted = (await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken)).Token!;
         store.EndpointAccess = new UserEndpointAccess(McpEndpoint: true, ClientEndpoint: false);
 
         // Act
@@ -116,7 +116,7 @@ public sealed class ClientSessionTokenAuthenticationHandlerTests
         // Arrange
         var store = new InMemoryClientSessionStore { AllowedSourceNetworks = [IPNetwork.Parse("10.20.0.0/16")] };
         var sessions = new ClientSessionTokens(store, new FakeTimeProvider(Instant));
-        var minted = (await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken)).Token!;
+        var minted = (await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken)).Token!;
         var context = new DefaultHttpContext { Connection = { RemoteIpAddress = IPAddress.Parse(source) } };
         var handler = await InitializeAsync(sessions, $"Bearer {minted.Value}", context);
 

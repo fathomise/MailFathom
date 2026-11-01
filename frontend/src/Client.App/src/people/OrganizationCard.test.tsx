@@ -30,6 +30,7 @@ function colleagueCalled(
         presence,
         lastSeen: null,
         outOfOfficeUntil: null,
+        usesPhoneApp: false,
     };
 }
 

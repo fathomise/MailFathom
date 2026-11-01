@@ -634,6 +634,7 @@ export class FakeDeployment {
                         : deployment.mintedSession,
                 );
             case 'POST /session/token/revocation':
+            case 'POST /session/opening':
                 return nothing;
             case 'GET /session':
                 return answering({ ...deployment.sessionAnswer, version: this.version, permissions: this.permissions });

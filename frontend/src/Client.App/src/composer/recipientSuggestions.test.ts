@@ -81,6 +81,7 @@ function colleagueCalled(id: string, displayName: string, addresses = [`${id}@no
         presence: 'Active',
         lastSeen: null,
         outOfOfficeUntil: null,
+        usesPhoneApp: false,
     };
 }
 

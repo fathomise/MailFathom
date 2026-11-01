@@ -133,6 +133,7 @@ export const iconNames = [
     'settings',
     'shield',
     'signature',
+    'smartphone',
     'swap_vert',
     'sync',
     'sync_problem',

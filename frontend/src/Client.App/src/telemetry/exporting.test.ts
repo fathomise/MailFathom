@@ -92,11 +92,15 @@ async function requestSentBySigningIn(): Promise<ClientRequest> {
         headers: {},
     };
 
-    await signIn(session, (request) => {
-        sent.push(request);
+    await signIn(
+        session,
+        (request) => {
+            sent.push(request);
 
-        return Promise.resolve(answer);
-    });
+            return Promise.resolve(answer);
+        },
+        'web',
+    );
 
     const [asked] = sent;
 

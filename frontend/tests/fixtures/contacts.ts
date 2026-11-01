@@ -134,6 +134,7 @@ function colleague(
     presence: string,
     lastSeen: string | null = null,
     outOfOfficeUntil: string | null = null,
+    usesPhoneApp = false,
 ) {
     return {
         id,
@@ -150,6 +151,7 @@ function colleague(
         presence,
         lastSeen,
         outOfOfficeUntil,
+        usesPhoneApp,
     };
 }
 
@@ -166,7 +168,9 @@ function hoursOn(days: readonly string[], start: string, end: string) {
  * one who lives six hours behind, one in London, one who states no zone, and the rest beside the reader — each in the
  * presence the artboard draws them in. Igor Pawlak chose to hide, so he reads as offline with no time he was last seen,
  * and the two who are simply offline were last seen the evening before the corpus's own day. Piotr Zieliński's
- * automatic reply runs to the end of the day the artboard draws him out of office until.
+ * automatic reply runs to the end of the day the artboard draws him out of office until. Marta Nowak, Oliver Grant,
+ * and Piotr Zieliński use the phone app, as the artboard marks them — Piotr while offline, since the marker is not his
+ * presence.
  */
 export const colleaguePage = {
     contacts: [
@@ -212,6 +216,9 @@ export const colleaguePage = {
                 { number: '+48 601 555 014', label: 'Mobile' },
             ],
             'Busy',
+            null,
+            null,
+            true,
         ),
         colleague(
             'member-oliver',
@@ -222,6 +229,9 @@ export const colleaguePage = {
             hoursOn(mondayToFriday, '09:00', '17:30'),
             [{ number: '+44 20 7946 0321', label: 'Work' }],
             'Active',
+            null,
+            null,
+            true,
         ),
         colleague(
             'member-piotr',
@@ -234,6 +244,7 @@ export const colleaguePage = {
             'Offline',
             '2026-10-30T18:20:00+01:00',
             '2027-09-05T00:00:00+02:00',
+            true,
         ),
         colleague(
             'member-zofia',

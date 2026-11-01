@@ -16,9 +16,11 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 /// </para>
 /// <para>
 /// <b>What a session carries is what the exchange established and nothing else</b>: the user it acts for, the
-/// credential that authenticated it, and what that credential grants. No address, no user agent, no device name, and
-/// no record of which replica minted it. None of those has a purpose here, and keeping them would turn a session store
-/// into a login history the deployment never promised.
+/// credential that authenticated it, what that credential grants, and which head the client declared itself to be —
+/// with, for a phone session alone, the day the app was last opened on it, which is what marks a member as using the
+/// phone app. No address, no user agent, no device name, and no record of which replica minted it. None of those has a
+/// purpose here, and keeping them would turn a session store into a login history the deployment never promised; the
+/// day is overwritten by the next opening and goes with the session, so it is not one either.
 /// </para>
 /// <para>
 /// <b>Two cascading foreign keys carry the revocation.</b> The user reference is never absent, so an erasure removes a
@@ -57,6 +59,12 @@ internal sealed class ClientSessionEntity
     /// <summary>The expiry column, named here for the same reason the table is.</summary>
     internal const string ExpiresAtColumnName = "ExpiresAt";
 
+    /// <summary>The column holding which head the client declared itself to be, named here for the same reason the table is.</summary>
+    internal const string ClientKindColumnName = "ClientKind";
+
+    /// <summary>The column holding the day a phone session was last opened, named here for the same reason the table is.</summary>
+    internal const string LastOpenedOnColumnName = "LastOpenedOn";
+
     /// <summary>The longest identifier the column takes.</summary>
     /// <remarks>
     /// A bound on the row rather than a statement of the format, and it bounds what is written rather than what is
@@ -90,4 +98,10 @@ internal sealed class ClientSessionEntity
     /// <summary>Gets or sets when presenting the token stops working, in UTC.</summary>
     /// <remarks>What the removal reads, and one of the two reasons the table cannot grow without bound: a session lives thirty days, and the deployment holds only so many at once whatever their age.</remarks>
     public DateTimeOffset ExpiresAt { get; set; }
+
+    /// <summary>Gets or sets which head the client declared itself to be at sign-in, as the application's numeric value.</summary>
+    public int ClientKind { get; set; }
+
+    /// <summary>Gets or sets the UTC day the phone app was last opened on this session, or <see langword="null" /> for a session that is not a phone's.</summary>
+    public DateOnly? LastOpenedOn { get; set; }
 }

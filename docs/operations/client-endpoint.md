@@ -63,6 +63,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/session` | none |
 | `POST /api/client/session/token` | none |
 | `POST /api/client/session/token/revocation` | none |
+| `POST /api/client/session/opening` | `mailfathom.profile.write` |
 | `GET /api/client/accounts` | `mailfathom.mail.read` |
 | `GET /api/client/folders` | `mailfathom.mail.read` |
 | `GET /api/client/managed-folders` | `mailfathom.mail.read` |
@@ -330,6 +331,9 @@ A client presents its password once, here, and presents a token everywhere else.
 ```http
 POST /api/client/session/token
 Authorization: Basic ...
+Content-Type: application/json
+
+{ "client": "android" }
 ```
 
 ```json
@@ -357,6 +361,13 @@ validating a token derives no key — so a caller presenting one presents it on 
 such a caller nothing either: the client signs in with a user name and a password, so no screen reaches this route with
 an access token in the first place.
 
+**The body says which client is signing in** — `web`, `desktop`, or `android` — and an exchange with no body is `web`.
+A name outside those three or a member this route does not know is refused `400`, and a body over 256 bytes `413`. The name is
+not verified: what it decides is whether a colleague reads this person as [using the phone
+app](../features/contacts.md#a-colleague-who-uses-the-phone-app), which is something anybody could say about
+themselves. An `android` sign-in records today's date, in UTC, as the day the session was last opened, and a renewal
+carries the kind and the day onto the session it mints.
+
 **A client endpoint requiring no credential still answers the exchange**, so the client's sign-in is one path rather
 than a posture it has to ask about first. The session it mints authenticates nothing, because nothing on such an
 endpoint is authenticated, and no credential stands behind it for an operator to end it by — erasing the user it names
@@ -376,6 +387,18 @@ Authorization: Bearer mfs_…
 
 Answers `204` and the token stops working on the next request rather than at its expiry. The client's sign-out asks for
 this and does not wait on the answer: a deployment that never heard still expires the token on its own.
+
+```http
+POST /api/client/session/opening
+Authorization: Bearer mfs_…
+```
+
+Answers `204` to every caller holding `mailfathom.profile.write`, which is the grant every presence write asks for,
+because what it changes is something the caller's colleagues read about them. A client reports this once a day when it
+starts or comes back into view, and for a session signed in as `android` the deployment records today's date, in UTC,
+over the day it held — a session of any other kind, a request carrying no session token, and a day already
+recorded change nothing. Answering every one of them alike is what keeps the route from saying anything about a token,
+and the client does not wait on it.
 
 **A session this deployment is not holding is answered `401`, and a deployment already holding as many sessions as it
 will hold answers `503`. A deployment that could not reach its sessions at all answers `503` as well.** They are three
@@ -3686,7 +3709,7 @@ up from mail that arrived, and the four things they do about either.
 | `GET /api/client/contacts/colleagues/{userId}` | Reads one of them |
 | `GET /api/client/contacts/colleagues/{userId}/photo` | Serves that colleague's portrait, or `404` where they have none |
 | `POST /api/client/contacts/photos` | Resolves which photo each of a set of addresses is drawn by — [§ The person photo route](#the-person-photo-route) |
-| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence`, `lastSeen`, and `outOfOfficeUntil`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
+| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence`, `lastSeen`, `outOfOfficeUntil`, and `usesPhoneApp`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
 | `POST /api/client/contacts/colleagues/{userId}/promotion` | Writes a copy of that colleague into this user's own book |
 
 **The book is read as two, because it is two.** What somebody wrote down and what their mailboxes picked up are
@@ -3728,8 +3751,10 @@ first, and `start` and `end` written `HH:mm` on the colleague's own wall clock, 
 `photo`, an identifier that changes whenever the portrait does, `presence` — `Active`, `Away`, `Busy`,
 `DoNotDisturb`, or `Offline`, which is also what a colleague who chose `Hidden` reads as — and `lastSeen`, an instant
 answered only for an `Offline` colleague who did not choose to hide, as [the presence routes](#the-presence-routes)
-describe — and `outOfOfficeUntil`, the instant the colleague's automatic reply stops answering, answered only while it
-is switched on and in its period and `null` otherwise, and never the reply's text. A colleague whose address this user's own book holds is left out, because the user's own record of them
+describe — `outOfOfficeUntil`, the instant the colleague's automatic reply stops answering, answered only while it
+is switched on and in its period and `null` otherwise, and never the reply's text — and `usesPhoneApp`, whether a phone
+session of theirs opened within the last seven days still stands, always `false` for one who chose to hide, and never
+the day. A colleague whose address this user's own book holds is left out, because the user's own record of them
 answers for them — in the listing, and not in the reads that name a colleague by an identifier or by an address, which
 answer for the person named; the two listings above leave out an organization contact and a collected contact holding a
 colleague's address, for the same reason in the other direction. [Contacts § The organization's member

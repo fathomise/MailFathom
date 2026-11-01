@@ -87,11 +87,41 @@ describe('ContactRow', () => {
             presence: 'DoNotDisturb',
             lastSeen: null,
             outOfOfficeUntil: null,
+            usesPhoneApp: false,
         };
 
         drawRow({ contact: marta });
 
         expect(screen.getByText('Do not disturb · Controller')).toBeDefined();
+    });
+
+    it('marks a colleague who uses the phone app, and one who does not with nothing', () => {
+        const oliver: Colleague = {
+            id: 'oliver',
+            book: 'Member',
+            displayName: 'Oliver Grant',
+            addresses: ['o.grant@nordwind.example'],
+            preferredAddress: 'o.grant@nordwind.example',
+            phoneNumbers: [],
+            jobTitle: 'Delivery Engineer',
+            organizationName: 'Nordwind',
+            timeZone: null,
+            workingHours: null,
+            photo: null,
+            presence: 'Offline',
+            lastSeen: null,
+            outOfOfficeUntil: null,
+            usesPhoneApp: true,
+        };
+
+        drawRow({ contact: oliver });
+
+        expect(screen.getByRole('img', { name: 'Uses the phone app' })).toBeDefined();
+
+        cleanup();
+        drawRow({ contact: { ...oliver, usesPhoneApp: false } });
+
+        expect(screen.queryByRole('img', { name: 'Uses the phone app' })).toBeNull();
     });
 
     it('marks a colleague whose automatic reply is running with the last day it runs to, and one whose is not with nothing', () => {
@@ -110,6 +140,7 @@ describe('ContactRow', () => {
             presence: 'Offline',
             lastSeen: null,
             outOfOfficeUntil: '2026-11-04T12:00:00Z',
+            usesPhoneApp: false,
         };
 
         drawRow({ contact: piotr, readingZone: 'Europe/Warsaw' });

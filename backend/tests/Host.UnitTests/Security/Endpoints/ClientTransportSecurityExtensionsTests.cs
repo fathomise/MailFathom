@@ -328,7 +328,7 @@ public sealed class ClientTransportSecurityExtensionsTests
         // Arrange
         using var composed = ComposeOAuthOnlyEndpoint();
         var held = (await composed.GetRequiredService<ClientSessionTokens>()
-            .MintAsync(AdmittedByACredential(), TestContext.Current.CancellationToken)).Token!;
+            .MintAsync(AdmittedByACredential(), ClientKind.Web, TestContext.Current.CancellationToken)).Token!;
 
         var request = new DefaultHttpContext { RequestServices = composed };
         request.Request.Scheme = "https";
@@ -363,7 +363,7 @@ public sealed class ClientTransportSecurityExtensionsTests
         var hasher = new CountingPasswordHasher();
         using var composed = ComposeEndpointTakingPasswordsAndSessions(hasher);
         var held = (await composed.GetRequiredService<ClientSessionTokens>()
-            .MintAsync(AdmittedByACredential(), TestContext.Current.CancellationToken)).Token!;
+            .MintAsync(AdmittedByACredential(), ClientKind.Web, TestContext.Current.CancellationToken)).Token!;
 
         var request = new DefaultHttpContext { RequestServices = composed };
         request.Request.Headers[HeaderNames.Authorization] = $"Bearer {held.Value}";

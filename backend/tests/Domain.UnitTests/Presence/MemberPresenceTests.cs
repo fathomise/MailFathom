@@ -141,7 +141,7 @@ public sealed class MemberPresenceTests
         var reading = presence.SeenByOthersAt(Now);
 
         // Assert
-        Assert.Equal(new PresenceReading(PresenceState.Offline, LastSeen: null), reading);
+        Assert.Equal(new PresenceReading(PresenceState.Offline, LastSeen: null, UsesPhoneApp: false), reading);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public sealed class MemberPresenceTests
         var reading = presence.SeenByOthersAt(Now);
 
         // Assert
-        Assert.Equal(new PresenceReading(PresenceState.Offline, LastSeen: null), reading);
+        Assert.Equal(new PresenceReading(PresenceState.Offline, LastSeen: null, UsesPhoneApp: false), reading);
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class MemberPresenceTests
         var reading = presence.SeenByOthersAt(Now);
 
         // Assert
-        Assert.Equal(new PresenceReading(PresenceState.Offline, Earlier), reading);
+        Assert.Equal(new PresenceReading(PresenceState.Offline, Earlier, UsesPhoneApp: false), reading);
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class MemberPresenceTests
         var reading = presence.SeenByOthersAt(Now);
 
         // Assert
-        Assert.Equal(new PresenceReading(PresenceState.Active, LastSeen: null), reading);
+        Assert.Equal(new PresenceReading(PresenceState.Active, LastSeen: null, UsesPhoneApp: false), reading);
     }
 
     [Theory]
@@ -212,6 +212,75 @@ public sealed class MemberPresenceTests
         // Assert
         Assert.True(advances);
     }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(6, true)]
+    [InlineData(7, false)]
+    public void SeenByOthersAt_PhoneAppOpenedDaysAgo_MarksOnlyWithinSevenDays(int daysAgo, bool expected)
+    {
+        // Arrange
+        var presence = new MemberPresence([], Choice: null, LastSeen: null)
+        {
+            PhoneAppSessions = [new PhoneAppSession(Today.AddDays(-daysAgo), Now.AddDays(20))],
+        };
+
+        // Act
+        var reading = presence.SeenByOthersAt(Now);
+
+        // Assert
+        Assert.Equal(expected, reading.UsesPhoneApp);
+    }
+
+    [Fact]
+    public void SeenByOthersAt_PhoneAppSessionExpired_DoesNotMark()
+    {
+        // Arrange
+        var presence = new MemberPresence([], Choice: null, LastSeen: null)
+        {
+            PhoneAppSessions = [new PhoneAppSession(Today, Now.AddSeconds(-1))],
+        };
+
+        // Act
+        var reading = presence.SeenByOthersAt(Now);
+
+        // Assert
+        Assert.False(reading.UsesPhoneApp);
+    }
+
+    [Fact]
+    public void SeenByOthersAt_NoPhoneAppSessionLeft_DoesNotMark()
+    {
+        // Arrange
+        var presence = new MemberPresence([Open(ClientActivity.Active)], Choice: null, LastSeen: null);
+
+        // Act
+        var reading = presence.SeenByOthersAt(Now);
+
+        // Assert
+        Assert.False(reading.UsesPhoneApp);
+    }
+
+    [Theory]
+    [InlineData(PresenceState.Hidden, false)]
+    [InlineData(PresenceState.Offline, true)]
+    [InlineData(PresenceState.DoNotDisturb, true)]
+    public void SeenByOthersAt_PhoneAppUsedUnderAChoice_IsHiddenOnlyByHiding(PresenceState chosen, bool expected)
+    {
+        // Arrange
+        var presence = new MemberPresence([], new PresenceChoice(chosen, Duration: null, EndsAt: null), Earlier)
+        {
+            PhoneAppSessions = [new PhoneAppSession(Today, Now.AddDays(20))],
+        };
+
+        // Act
+        var reading = presence.SeenByOthersAt(Now);
+
+        // Assert
+        Assert.Equal(expected, reading.UsesPhoneApp);
+    }
+
+    private static DateOnly Today => DateOnly.FromDateTime(Now.UtcDateTime);
 
     private static OpenPresenceClient Open(ClientActivity activity) => new(activity, Now.AddSeconds(30));
 }

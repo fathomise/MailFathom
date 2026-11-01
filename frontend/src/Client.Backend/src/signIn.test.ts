@@ -36,26 +36,35 @@ function refusedWith(challenge: string): MailFathomTransport {
 }
 
 describe('signIn', () => {
-    it('presents the credential to the route that exchanges it, which is the one request that carries a password', async () => {
+    it('presents the credential to the route that exchanges it, naming the head signing in', async () => {
         const asked: ClientRequest[] = [];
 
-        await signIn(session, (request) => {
-            asked.push(request);
+        await signIn(
+            session,
+            (request) => {
+                asked.push(request);
 
-            return Promise.resolve({ status: 200, body: mintedBody(), headers: {} });
-        });
+                return Promise.resolve({ status: 200, body: mintedBody(), headers: {} });
+            },
+            'android',
+        );
 
         expect(asked).toEqual([
             {
                 method: 'POST',
                 path: 'https://mail.example.invalid/api/client/session/token',
-                headers: { Accept: 'application/json', Authorization: session.authorization },
+                headers: {
+                    Accept: 'application/json',
+                    Authorization: session.authorization,
+                    'Content-Type': 'application/json',
+                },
+                body: '{"client":"android"}',
             },
         ]);
     });
 
     it('reads the session a deployment minted as the credential having been signed in', async () => {
-        const result = await signIn(session, answering({ body: mintedBody() }));
+        const result = await signIn(session, answering({ body: mintedBody() }), 'web');
 
         expect(result).toEqual({
             outcome: 'read',
@@ -66,37 +75,41 @@ describe('signIn', () => {
     // The exchange is the whole reason this request exists, so an answer that carried no session is not a sign-in that
     // half worked: a client with nothing to present is signed in to nothing.
     it('reads an answer carrying no session as unreadable rather than as a sign-in', async () => {
-        const result = await signIn(session, answering({ body: sessionBody('MailFathom', '0.8.0') }));
+        const result = await signIn(session, answering({ body: sessionBody('MailFathom', '0.8.0') }), 'web');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('reads a refusal that still offers passwords as this credential being the thing refused', async () => {
-        const result = await signIn(session, refusedWith(challengedWithBasic));
+        const result = await signIn(session, refusedWith(challengedWithBasic), 'web');
 
         expect(result).toEqual({ outcome: 'read', value: { signedIn: false, refusal: 'credentialRefused' } });
     });
 
     it('reads a refusal offering no password scheme as the deployment not taking passwords at all', async () => {
-        const result = await signIn(session, refusedWith(challengedWithoutBasic));
+        const result = await signIn(session, refusedWith(challengedWithoutBasic), 'web');
 
         expect(result).toEqual({ outcome: 'read', value: { signedIn: false, refusal: 'basicNotOffered' } });
     });
 
     it('does not read a parameter that merely spells the scheme as an offer of it', async () => {
-        const result = await signIn(session, refusedWith('Bearer realm="MailFathom", error="basic auth required"'));
+        const result = await signIn(
+            session,
+            refusedWith('Bearer realm="MailFathom", error="basic auth required"'),
+            'web',
+        );
 
         expect(result).toEqual({ outcome: 'read', value: { signedIn: false, refusal: 'basicNotOffered' } });
     });
 
     it('refuses a refusal challenging under somebody else, which is another product answering the port', async () => {
-        const result = await signIn(session, refusedWith('Basic realm="Router"'));
+        const result = await signIn(session, refusedWith('Basic realm="Router"'), 'web');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 401 } });
     });
 
     it('refuses a refusal carrying no challenge at all', async () => {
-        const result = await signIn(session, answering({ status: 401 }));
+        const result = await signIn(session, answering({ status: 401 }), 'web');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 401 } });
     });
@@ -114,31 +127,31 @@ describe('signIn', () => {
         // an address is a deployment is the whole answer rather than the two fields sign-in happens to look at.
         ['an answer naming no grant', JSON.stringify({ service: 'MailFathom', version: '0.8.0' })],
     ])('refuses %s as a deployment', async (_, body) => {
-        const result = await signIn(session, answering({ body }));
+        const result = await signIn(session, answering({ body }), 'web');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('reads a grant this credential does not hold as being about what it may do rather than about who it is', async () => {
-        const result = await signIn(session, answering({ status: 403 }));
+        const result = await signIn(session, answering({ status: 403 }), 'web');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });
     });
 
     it('reads a route that is not served as something other than MailFathom answering', async () => {
-        const result = await signIn(session, answering({ status: 404 }));
+        const result = await signIn(session, answering({ status: 404 }), 'web');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 404 } });
     });
 
     it('reads a deployment that is failing as one to try again rather than as a refused credential', async () => {
-        const result = await signIn(session, answering({ status: 503 }));
+        const result = await signIn(session, answering({ status: 503 }), 'web');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: 503 } });
     });
 
     it('reports a connection that never answered as one to try again, rather than throwing at the screen', async () => {
-        const result = await signIn(session, () => Promise.reject(new TypeError('Failed to fetch')));
+        const result = await signIn(session, () => Promise.reject(new TypeError('Failed to fetch')), 'web');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: null } });
     });
@@ -146,11 +159,15 @@ describe('signIn', () => {
     it('makes one attempt and never a second one without the transport security the first asked for', async () => {
         const asked: string[] = [];
 
-        await signIn(session, (request) => {
-            asked.push(request.path);
+        await signIn(
+            session,
+            (request) => {
+                asked.push(request.path);
 
-            return Promise.reject(new TypeError('Failed to fetch'));
-        });
+                return Promise.reject(new TypeError('Failed to fetch'));
+            },
+            'web',
+        );
 
         expect(asked).toEqual(['https://mail.example.invalid/api/client/session/token']);
     });

@@ -11,6 +11,7 @@ import {
     readAuthorizationServer,
     readMailSource,
     type ClientEvent,
+    type ClientKind,
     type ClientSession,
     type DeploymentAddress,
     type MailFathomSignalChannel,
@@ -122,6 +123,7 @@ import type { CredentialStore } from './signIn/credentialStore';
 import { writeKeptSession, type KeptSession } from './signIn/keptSession';
 import { accessTokenHasExpired, writeOAuthGrant, type OAuthGrant } from './signIn/oauthGrant';
 import { useGrantRenewal } from './signIn/useGrantRenewal';
+import { useOpeningReport } from './signIn/useOpeningReport';
 import { useSessionRenewal } from './signIn/useSessionRenewal';
 import { SignIn } from './signIn/SignIn';
 import type { SignInRedirect, SignInRedirectAnswer } from './shellOperations/signInRedirect';
@@ -158,6 +160,7 @@ import { emptyWorkspace, useWorkspace, type Workspace } from './workspace/useWor
 // is pressed. Enforcing that is the service's; declining to offer it is this frame's.
 
 export function App({
+    clientKind,
     deployment,
     signedInWith,
     signedInWithGrant,
@@ -170,6 +173,9 @@ export function App({
     openSignals,
     signalSchedule,
 }: {
+    /** Which head a sign-in tells the deployment this is, resolved at the composition root and passed on unread. */
+    readonly clientKind: ClientKind;
+
     readonly deployment: ClientDeployment;
     readonly signedInWith: KeptSession | null;
 
@@ -731,6 +737,11 @@ export function App({
         readMail,
     );
 
+    // An opening is what keeps a member marked to their colleagues as using the phone app, so it is said on the terms
+    // presence is kept on — and only over a session the deployment minted, which is the one thing it can be recorded
+    // on: an access token stands for no session at all.
+    useOpeningReport(kept !== null && inOrganization && writesProfile && connection.online ? session : null, onTheWire);
+
     useLayoutEffect(() => {
         channelStood.current = connectionWatch.channelStood;
     }, [connectionWatch.channelStood]);
@@ -1153,6 +1164,7 @@ export function App({
     if (baseAddress === null || authorization === null) {
         return (
             <SignInScreen
+                clientKind={clientKind}
                 adopted={adopted}
                 refusal={deployment.outcome === 'refused' ? deployment.refusal : null}
                 clearTextPermitted={deployment.outcome === 'resolved' ? deployment.clearTextPermitted : null}
@@ -2345,6 +2357,7 @@ function OpenMail({
 // who has not signed in yet exactly as much as to somebody who has, and the frame that usually holds them is not on the
 // screen at this point.
 function SignInScreen({
+    clientKind,
     adopted,
     refusal,
     clearTextPermitted,
@@ -2357,6 +2370,7 @@ function SignInScreen({
     onSignedInWithGrant,
     onPointSomewhereElse,
 }: {
+    readonly clientKind: ClientKind;
     readonly adopted: AdoptedDeployment | null;
     readonly refusal: ConfigurationRefusal | null;
     readonly clearTextPermitted: boolean | null;
@@ -2410,6 +2424,7 @@ function SignInScreen({
                         the client will not use. */}
                     {refusal === null ? (
                         <SignIn
+                            clientKind={clientKind}
                             adopted={adopted}
                             clearTextPermitted={clearTextPermitted}
                             beyondTheTab={beyondTheTab}

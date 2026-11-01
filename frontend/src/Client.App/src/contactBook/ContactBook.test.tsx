@@ -53,6 +53,7 @@ const piotr: Colleague = {
     presence: 'Busy',
     lastSeen: null,
     outOfOfficeUntil: null,
+    usesPhoneApp: false,
 };
 
 const nothingRead: ContactBookInForce = {

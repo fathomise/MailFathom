@@ -252,7 +252,7 @@ public sealed class ColleagueBookTests
         var page = await this.BookFor(Organization).ReadPageAsync(new ContactPageRequest(), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal([new PresenceReading(PresenceState.Offline, LastSeen: null)], page.Colleagues.Select(colleague => colleague.Presence));
+        Assert.Equal([new PresenceReading(PresenceState.Offline, LastSeen: null, UsesPhoneApp: false)], page.Colleagues.Select(colleague => colleague.Presence));
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public sealed class ColleagueBookTests
         var found = await this.BookFor(Organization).FindAsync(Piotr, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(new PresenceReading(PresenceState.Away, LastSeen: null), found?.Presence);
+        Assert.Equal(new PresenceReading(PresenceState.Away, LastSeen: null, UsesPhoneApp: false), found?.Presence);
     }
 
     /// <summary>
@@ -514,8 +514,8 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.NotNull(structure);
-        Assert.Equal([new PresenceReading(PresenceState.Offline, LastSeen: null)], structure.Managers.Select(colleague => colleague.Presence));
-        Assert.Equal([new PresenceReading(PresenceState.Active, LastSeen: null)], structure.DirectReports.Select(colleague => colleague.Presence));
+        Assert.Equal([new PresenceReading(PresenceState.Offline, LastSeen: null, UsesPhoneApp: false)], structure.Managers.Select(colleague => colleague.Presence));
+        Assert.Equal([new PresenceReading(PresenceState.Active, LastSeen: null, UsesPhoneApp: false)], structure.DirectReports.Select(colleague => colleague.Presence));
     }
 
     /// <summary>The structure is read only for a colleague: the reader themselves and a member of no organization the reader shares are nobody here.</summary>

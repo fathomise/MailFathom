@@ -3,12 +3,16 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Access.Credentials;
 using MailFathom.Application.Access.Organizations;
+using MailFathom.Application.Access.Sessions;
 using MailFathom.Application.Presence;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Presence;
+using MailFathom.Host.Security.Sessions;
 using MailFathom.IntegrationTests.Orchestration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace MailFathom.IntegrationTests.Persistence;
@@ -157,6 +161,49 @@ public sealed class OrchestratedPresenceStoreTests(MailFathomOrchestrationFixtur
             Assert.Equal(
                 [new OpenPresenceClient(ClientActivity.Active, sweptAt + MemberPresence.ClientLifetime)],
                 afterTwoBatches);
+        }
+        finally
+        {
+            await OrchestratedForeignUser.EraseAsync(host, user);
+        }
+    }
+
+    /// <summary>A member's phone session is read with its day and expiry, and a session signed in from any other client is not read at all.</summary>
+    [Fact]
+    public async Task ReadAsync_AMemberSignedInOnAPhoneAndADesktop_ReadsOnlyThePhoneSession()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var host = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var user = Guid.NewGuid();
+        var member = UserId.Create(user);
+        var admitted = new AdmittedUserCredential(
+            Guid.Empty,
+            member,
+            MailFathomPermission.PublishedFor(ProtectedSurface.Mail),
+            UserEndpointAccess.Everywhere);
+        var expiresAt = Instant + ClientSessionTokens.Lifetime;
+
+        await OrchestratedForeignUser.ProvisionAsync(host, user, cancellationToken);
+
+        try
+        {
+            // Arrange
+            var sessions = new ClientSessionTokens(
+                await host.InScopeAsync(
+                    (scope, _) => Task.FromResult(scope.GetRequiredService<IClientSessionStore>()),
+                    cancellationToken),
+                new FakeTimeProvider(Instant));
+
+            foreach (var client in new[] { ClientKind.Android, ClientKind.Desktop })
+            {
+                Assert.Equal(ClientSessionMintOutcome.Minted, (await sessions.MintAsync(admitted, client, cancellationToken)).Outcome);
+            }
+
+            // Act
+            var read = (await (await StoreOfAsync(host, cancellationToken)).ReadAsync([member], cancellationToken))[member];
+
+            // Assert
+            Assert.Equal([new PhoneAppSession(DateOnly.FromDateTime(Instant.UtcDateTime), expiresAt)], read.PhoneAppSessions);
         }
         finally
         {

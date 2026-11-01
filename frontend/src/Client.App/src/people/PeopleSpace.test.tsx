@@ -92,6 +92,7 @@ function colleagueCalled(id: string, displayName: string): unknown {
         presence: 'Away',
         lastSeen: null,
         outOfOfficeUntil: null,
+        usesPhoneApp: false,
     };
 }
 

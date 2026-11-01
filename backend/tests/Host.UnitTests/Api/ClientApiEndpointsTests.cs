@@ -252,6 +252,7 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientReplyDraftingEndpoint.ReplyDraftingRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientReplyDraftingEndpoint.ReplyDraftingRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientApiEndpoints.SessionRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientSessionTokenEndpoints.OpeningRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientSessionTokenEndpoints.ExchangeRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientSessionTokenEndpoints.RevocationRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientSignalEndpoints.TicketRoute}",
@@ -427,6 +428,7 @@ public sealed class ClientApiEndpointsTests
                 $"POST {prefix}{ClientUserRecordEndpoint.FolderRemovalRoute} -> {MailFathomPermission.MailAccountsWrite.Name}",
                 $"POST {prefix}{ClientUserRecordEndpoint.FolderReplacementRoute} -> {MailFathomPermission.MailAccountsWrite.Name}",
                 $"POST {prefix}{ClientReplyDraftingEndpoint.ReplyDraftingRoute} -> {MailFathomPermission.AssistantUse.Name}",
+                $"POST {prefix}{ClientSessionTokenEndpoints.OpeningRoute} -> {MailFathomPermission.ProfileWrite.Name}",
                 $"POST {prefix}{ClientSessionTokenEndpoints.ExchangeRoute} -> none",
                 $"POST {prefix}{ClientSessionTokenEndpoints.RevocationRoute} -> none",
                 $"POST {prefix}{ClientSignalEndpoints.TicketRoute} -> {MailFathomPermission.MailRead.Name}",
@@ -707,6 +709,28 @@ public sealed class ClientApiEndpointsTests
         Assert.Equal(
             ClientManagedMailFoldersEndpoint.MaxWriteRequestBytes,
             write.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
+    }
+
+    /// <summary>The exchange carries a bound sized for the one name a sign-in states, since everything else it reads is a header.</summary>
+    [Fact]
+    public void MapClientApi_TheSessionExchange_CarriesItsOwnRequestBodyBound()
+    {
+        // Arrange
+        var endpoints = BuildRouteBuilder();
+
+        // Act
+        endpoints.MapClientApi();
+
+        // Assert
+        var exchange = endpoints.Materialize()
+            .OfType<RouteEndpoint>()
+            .Single(endpoint =>
+                $"/{endpoint.RoutePattern.RawText?.TrimStart('/')}"
+                    == $"{ClientEndpointOptions.RoutePrefix}{ClientSessionTokenEndpoints.ExchangeRoute}");
+
+        Assert.Equal(
+            ClientSessionTokenEndpoints.MaxExchangeRequestBytes,
+            exchange.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
     }
 
     /// <summary>

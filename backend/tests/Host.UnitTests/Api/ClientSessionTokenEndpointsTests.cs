@@ -4,6 +4,7 @@
 
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Json;
 using MailFathom.Application.Access;
 using MailFathom.Application.Access.Credentials;
 using MailFathom.Application.Access.Sessions;
@@ -54,6 +55,7 @@ public sealed class ClientSessionTokenEndpointsTests
         // Act
         var result = await ClientSessionTokenEndpoints.Exchange(
             RequestCarrying(headerValue: "Basic dXNlcjpwYXNzd29yZA=="),
+            request: null,
             AuthorizationFor(SyntheticUser.Deployment),
             sessions,
             TestContext.Current.CancellationToken);
@@ -85,6 +87,7 @@ public sealed class ClientSessionTokenEndpointsTests
         // Act
         var result = await ClientSessionTokenEndpoints.Exchange(
             request,
+            request: null,
             AuthorizationFor(SyntheticUser.Deployment, MailFathomPermission.MailRead),
             sessions,
             TestContext.Current.CancellationToken);
@@ -103,12 +106,13 @@ public sealed class ClientSessionTokenEndpointsTests
     {
         // Arrange
         var sessions = Sessions(out _, out var clock);
-        var held = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var held = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         clock.Advance(TimeSpan.FromHours(6));
 
         // Act
         var result = await ClientSessionTokenEndpoints.Exchange(
             RequestCarrying($"Bearer {held.Token!.Value}"),
+            request: null,
             AuthorizationFor(SyntheticUser.Deployment),
             sessions,
             TestContext.Current.CancellationToken);
@@ -136,6 +140,7 @@ public sealed class ClientSessionTokenEndpointsTests
         // Act
         var result = await ClientSessionTokenEndpoints.Exchange(
             RequestCarrying(headerValue: "Bearer an.access.token"),
+            request: null,
             AuthorizationNamedBy("https://sso.example.test|subject-7", SyntheticUser.Deployment),
             sessions,
             TestContext.Current.CancellationToken);
@@ -165,6 +170,7 @@ public sealed class ClientSessionTokenEndpointsTests
         // Act
         var result = await ClientSessionTokenEndpoints.Exchange(
             request,
+            request: null,
             AuthorizationNamedBy("https://sso.example.test|subject-7", SyntheticUser.Deployment),
             sessions,
             TestContext.Current.CancellationToken);
@@ -186,6 +192,7 @@ public sealed class ClientSessionTokenEndpointsTests
         // Act
         var refusal = await Record.ExceptionAsync(() => ClientSessionTokenEndpoints.Exchange(
             request,
+            request: null,
             authorization,
             sessions,
             TestContext.Current.CancellationToken));
@@ -208,6 +215,7 @@ public sealed class ClientSessionTokenEndpointsTests
         // Act
         var result = await ClientSessionTokenEndpoints.Exchange(
             request,
+            request: null,
             AuthorizationFor(SyntheticUser.Deployment),
             sessions,
             TestContext.Current.CancellationToken);
@@ -229,12 +237,13 @@ public sealed class ClientSessionTokenEndpointsTests
 
         for (var minted = 0; minted < ClientSessionTokens.MostLiveSessions; minted += 1)
         {
-            await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+            await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         }
 
         // Act
         var result = await ClientSessionTokenEndpoints.Exchange(
             RequestCarrying(headerValue: "Basic dXNlcjpwYXNzd29yZA=="),
+            request: null,
             AuthorizationFor(SyntheticUser.Deployment),
             sessions,
             TestContext.Current.CancellationToken);
@@ -258,6 +267,7 @@ public sealed class ClientSessionTokenEndpointsTests
         // Act
         var result = await ClientSessionTokenEndpoints.Exchange(
             RequestCarrying(headerValue: "Bearer mfs_nodeploymentheldit.bm90LWEtc2Vzc2lvbg"),
+            request: null,
             AuthorizationFor(SyntheticUser.Deployment),
             sessions,
             TestContext.Current.CancellationToken);
@@ -279,6 +289,7 @@ public sealed class ClientSessionTokenEndpointsTests
         // Act
         var result = await ClientSessionTokenEndpoints.Exchange(
             RequestCarrying(headerValue: "Basic dXNlcjpwYXNzd29yZA=="),
+            request: null,
             AuthorizationFor(SyntheticUser.Deployment),
             sessions,
             TestContext.Current.CancellationToken);
@@ -306,6 +317,7 @@ public sealed class ClientSessionTokenEndpointsTests
         // Act, Assert
         await Assert.ThrowsAsync<ClientSessionStoreUnavailableException>(() => ClientSessionTokenEndpoints.Exchange(
             RequestCarrying(headerValue: "Basic dXNlcjpwYXNzd29yZA=="),
+            request: null,
             AuthorizationFor(SyntheticUser.Deployment),
             sessions,
             TestContext.Current.CancellationToken));
@@ -317,7 +329,7 @@ public sealed class ClientSessionTokenEndpointsTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var held = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var held = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         var result = await ClientSessionTokenEndpoints.Revoke(
@@ -342,7 +354,7 @@ public sealed class ClientSessionTokenEndpointsTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var held = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var held = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         var context = RequestCarrying($"Bearer {held.Token!.Value}");
 
         using var gone = new CancellationTokenSource();
@@ -372,6 +384,164 @@ public sealed class ClientSessionTokenEndpointsTests
 
         // Assert
         Assert.IsType<NoContent>(result);
+    }
+
+    /// <summary>A sign-in names the head it comes from, and only the phone records the day it signed in as an opening.</summary>
+    [Theory]
+    [InlineData(null, ClientKind.Web, false)]
+    [InlineData("web", ClientKind.Web, false)]
+    [InlineData("desktop", ClientKind.Desktop, false)]
+    [InlineData("android", ClientKind.Android, true)]
+    public async Task Exchange_ASignInNamingItsHead_RecordsTheHeadAndAPhonesOpening(string? named, ClientKind expected, bool opened)
+    {
+        // Arrange
+        var sessions = Sessions(out var store);
+
+        // Act
+        await ClientSessionTokenEndpoints.Exchange(
+            RequestCarrying(headerValue: "Basic dXNlcjpwYXNzd29yZA=="),
+            new ClientSessionExchangeRequest(named),
+            AuthorizationFor(SyntheticUser.Deployment),
+            sessions,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var client = Assert.Single(store.Clients);
+        Assert.Equal(new SessionClient(expected, opened ? DateOnly.FromDateTime(Instant.UtcDateTime) : null), client);
+    }
+
+    /// <summary>A sign-in naming a head the deployment does not know is refused rather than recorded as some other one.</summary>
+    [Fact]
+    public async Task Exchange_ASignInNamingAnUnknownHead_IsRefusedAndHoldsNoSession()
+    {
+        // Arrange
+        var sessions = Sessions(out var store);
+
+        // Act
+        var result = await ClientSessionTokenEndpoints.Exchange(
+            RequestCarrying(headerValue: "Basic dXNlcjpwYXNzd29yZA=="),
+            new ClientSessionExchangeRequest("Android"),
+            AuthorizationFor(SyntheticUser.Deployment),
+            sessions,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refused = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, refused.StatusCode);
+        Assert.Equal(0, store.Count);
+    }
+
+    /// <summary>A renewal carries the head and the day of the last opening forward, so renewing is neither a sign-in nor an opening.</summary>
+    [Fact]
+    public async Task Exchange_RenewingAPhoneSession_CarriesItsHeadAndLastOpeningForward()
+    {
+        // Arrange
+        var sessions = Sessions(out var store, out var clock);
+        var held = await sessions.MintAsync(Admitted(), ClientKind.Android, TestContext.Current.CancellationToken);
+        clock.Advance(TimeSpan.FromDays(3));
+
+        // Act
+        await ClientSessionTokenEndpoints.Exchange(
+            RequestCarrying($"Bearer {held.Token!.Value}"),
+            new ClientSessionExchangeRequest("web"),
+            AuthorizationFor(SyntheticUser.Deployment),
+            sessions,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new SessionClient(ClientKind.Android, DateOnly.FromDateTime(Instant.UtcDateTime)), Assert.Single(store.Clients));
+    }
+
+    /// <summary>An opening reported on a phone session moves its day to today.</summary>
+    [Fact]
+    public async Task RecordOpening_OnAPhoneSession_RecordsTodayAsItsLastOpening()
+    {
+        // Arrange
+        var sessions = Sessions(out var store, out var clock);
+        var held = await sessions.MintAsync(Admitted(), ClientKind.Android, TestContext.Current.CancellationToken);
+        clock.Advance(TimeSpan.FromDays(5));
+
+        // Act
+        var result = await ClientSessionTokenEndpoints.RecordOpening(
+            RequestCarrying($"Bearer {held.Token!.Value}"),
+            sessions,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NoContent>(result);
+        Assert.Equal(DateOnly.FromDateTime(Instant.UtcDateTime.AddDays(5)), Assert.Single(store.Clients).LastOpenedOn);
+    }
+
+    /// <summary>An opening reported on a session that is not a phone's records nothing, so no other head can mark its user as using the phone app.</summary>
+    [Fact]
+    public async Task RecordOpening_OnASessionThatIsNotAPhones_RecordsNothing()
+    {
+        // Arrange
+        var sessions = Sessions(out var store);
+        var held = await sessions.MintAsync(Admitted(), ClientKind.Desktop, TestContext.Current.CancellationToken);
+
+        // Act
+        var result = await ClientSessionTokenEndpoints.RecordOpening(
+            RequestCarrying($"Bearer {held.Token!.Value}"),
+            sessions,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NoContent>(result);
+        Assert.Null(Assert.Single(store.Clients).LastOpenedOn);
+    }
+
+    /// <summary>A report carrying no session token, or one that is no token at all, is answered alike and records nothing.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("Basic dXNlcjpwYXNzd29yZA==")]
+    [InlineData("Bearer not-a-session")]
+    public async Task RecordOpening_ARequestCarryingNoSessionToken_AnswersWithNoBodyAndRecordsNothing(string headerValue)
+    {
+        // Arrange
+        var sessions = Sessions(out var store, out var clock);
+        await sessions.MintAsync(Admitted(), ClientKind.Android, TestContext.Current.CancellationToken);
+        clock.Advance(TimeSpan.FromDays(2));
+
+        // Act
+        var result = await ClientSessionTokenEndpoints.RecordOpening(
+            RequestCarrying(headerValue),
+            sessions,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NoContent>(result);
+        Assert.Equal(DateOnly.FromDateTime(Instant.UtcDateTime), Assert.Single(store.Clients).LastOpenedOn);
+    }
+
+    /// <summary>The strict binding, which refuses a sign-in stating something the exchange never published rather than ignoring it.</summary>
+    [Fact]
+    public void Deserialize_AnExchangeBodyCarryingAKeyNothingBinds_IsRefused()
+    {
+        // Assert
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ClientSessionExchangeRequest>(
+            """{"client":"android","device":"Pixel"}""",
+            JsonSerializerOptions.Web));
+    }
+
+    /// <summary>A token whose secret is wrong records no opening, because the identifier alone is the half of a token that is not a secret.</summary>
+    [Fact]
+    public async Task RecordOpening_WithAForgedSecret_RecordsNothing()
+    {
+        // Arrange
+        var sessions = Sessions(out var store, out var clock);
+        var held = await sessions.MintAsync(Admitted(), ClientKind.Android, TestContext.Current.CancellationToken);
+        var identifier = held.Token!.Value[ClientSessionTokens.TokenPrefix.Length..held.Token.Value.IndexOf('.', StringComparison.Ordinal)];
+        clock.Advance(TimeSpan.FromDays(2));
+
+        // Act
+        await ClientSessionTokenEndpoints.RecordOpening(
+            RequestCarrying($"Bearer {ClientSessionTokens.TokenPrefix}{identifier}.bm90LXRoZS1zZWNyZXQ"),
+            sessions,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(DateOnly.FromDateTime(Instant.UtcDateTime), Assert.Single(store.Clients).LastOpenedOn);
     }
 
     private static ClientSessionTokens Sessions(out InMemoryClientSessionStore store) => Sessions(out store, out _);

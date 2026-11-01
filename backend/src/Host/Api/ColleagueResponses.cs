@@ -23,6 +23,7 @@ namespace MailFathom.Host.Api;
 /// <param name="Presence">How the member reads to the other members: <c>Active</c>, <c>Away</c>, <c>Busy</c>, <c>DoNotDisturb</c>, or <c>Offline</c>, which is also what a member who chose to hide reads as.</param>
 /// <param name="LastSeen">When the member was last present, only where they read as <c>Offline</c> and did not choose to hide.</param>
 /// <param name="OutOfOfficeUntil">When the member's automatic reply stops answering, while it is switched on and in its period, and nothing otherwise — never what it answers with.</param>
+/// <param name="UsesPhoneApp">Whether the member is signed in to the phone app and opened it within the last seven days, whatever their presence and never for one who chose to hide — never the day it rests on.</param>
 /// <remarks>
 /// Personal data about a colleague. It travels to the member of the same organization who asked and reaches nothing
 /// else — no log line, no metric dimension, and no failure message.
@@ -41,7 +42,8 @@ internal sealed record ColleagueResponse(
     Guid? Photo,
     string Presence,
     DateTimeOffset? LastSeen,
-    DateTimeOffset? OutOfOfficeUntil)
+    DateTimeOffset? OutOfOfficeUntil,
+    bool UsesPhoneApp)
 {
     /// <summary>The name every colleague's <see cref="Book" /> carries.</summary>
     internal const string MemberBook = "Member";
@@ -74,7 +76,8 @@ internal sealed record ColleagueResponse(
             member.Portrait?.Value,
             colleague.Presence.State.ToString(),
             colleague.Presence.LastSeen,
-            colleague.OutOfOfficeUntil);
+            colleague.OutOfOfficeUntil,
+            colleague.Presence.UsesPhoneApp);
     }
 }
 

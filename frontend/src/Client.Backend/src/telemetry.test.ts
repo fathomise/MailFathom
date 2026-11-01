@@ -419,7 +419,7 @@ describe('what the whole of this package records', () => {
 
     async function driveTheWholeSurface(): Promise<void> {
         await reachDeployment(session, refusing);
-        await signIn(session, refusing);
+        await signIn(session, refusing, 'web');
         await readDeploymentSession(session, refusing);
         await readClientPreferences(session, refusing);
         await writeClientPreferences(session, refusing, unsetClientPreferences);

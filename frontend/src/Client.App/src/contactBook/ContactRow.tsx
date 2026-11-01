@@ -10,6 +10,7 @@ import { SenderAvatar } from '../controls/SenderAvatar';
 import { wordAbsenceEnd } from '../localization/instants';
 import { useLocalization, type Translate } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
+import { PhoneAppBadge } from '../presence/PhoneAppBadge';
 import { PresenceDot } from '../presence/PresenceDot';
 import { presenceSaid } from '../presence/presenceWords';
 import { useContactPhoto } from './contactPhotos';
@@ -166,6 +167,7 @@ export function ContactRow({
                     place="contact"
                 />
                 {contact.book === 'Member' ? <PresenceDot presence={contact.presence} place="contact" /> : null}
+                {contact.book === 'Member' && contact.usesPhoneApp ? <PhoneAppBadge place="contact" /> : null}
             </span>
 
             <span className="flex min-w-0 flex-1 flex-col gap-0.75">

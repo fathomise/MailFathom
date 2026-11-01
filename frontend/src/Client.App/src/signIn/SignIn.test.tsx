@@ -299,6 +299,7 @@ function renderScreen(
     const screenUnder = (
         <LocalizationProvider>
             <SignIn
+                clientKind="web"
                 adopted={adopted}
                 clearTextPermitted={clearTextPermitted}
                 beyondTheTab={beyondTheTab}

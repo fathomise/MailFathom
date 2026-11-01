@@ -137,6 +137,7 @@ internal sealed class ClientSessionTokens
 
     /// <summary>Mints a token for what a credential admitted, or reports which of the two refusals applies.</summary>
     /// <param name="admitted">The credential the exchange authenticated, the user it resolved, and what it grants.</param>
+    /// <param name="kind">The head the client declared itself to be, which the session records.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>What the exchange did, and the token where it minted one.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="admitted" /> is <see langword="null" />.</exception>
@@ -149,6 +150,7 @@ internal sealed class ClientSessionTokens
     /// </remarks>
     internal async Task<ClientSessionMint> MintAsync(
         AdmittedUserCredential admitted,
+        ClientKind kind,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(admitted);
@@ -157,7 +159,8 @@ internal sealed class ClientSessionTokens
 
         var drawn = this.Draw();
         var grant = GrantOf(admitted);
-        var outcome = await this.store.TryMintAsync(drawn.Row, grant, MostLiveSessions, cancellationToken);
+        var client = SessionClient.SignedInAt(kind, this.timeProvider.GetUtcNow());
+        var outcome = await this.store.TryMintAsync(drawn.Row, grant, client, MostLiveSessions, cancellationToken);
 
         // Swept only where the bound is what would refuse this mint, and then tried once more, for the reason the
         // statement counts what stands rather than what is live: without it, ten thousand abandoned expired rows would
@@ -166,7 +169,7 @@ internal sealed class ClientSessionTokens
         {
             await this.SweepAsync(cancellationToken);
 
-            outcome = await this.store.TryMintAsync(drawn.Row, grant, MostLiveSessions, cancellationToken);
+            outcome = await this.store.TryMintAsync(drawn.Row, grant, client, MostLiveSessions, cancellationToken);
         }
 
         return new ClientSessionMint(
@@ -264,6 +267,26 @@ internal sealed class ClientSessionTokens
         }
 
         return await this.store.RevokeAsync(identifier, SHA256.HashData(secret), cancellationToken);
+    }
+
+    /// <summary>Records that the phone app was opened on the presented session today.</summary>
+    /// <param name="presented">The token the request carried.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes when the day is recorded; a token that is not a phone session's records nothing.</returns>
+    /// <exception cref="ClientSessionStoreUnavailableException">Thrown when the deployment's sessions could not be reached.</exception>
+    /// <remarks>The secret is proved inside the statement that writes the day, for the reason a revocation proves it there.</remarks>
+    internal async Task RecordOpeningAsync(string? presented, CancellationToken cancellationToken)
+    {
+        if (!TrySplit(presented, out var identifier, out var secret))
+        {
+            return;
+        }
+
+        await this.store.RecordOpeningAsync(
+            identifier,
+            SHA256.HashData(secret),
+            DateOnly.FromDateTime(this.timeProvider.GetUtcNow().UtcDateTime),
+            cancellationToken);
     }
 
     /// <summary>Draws the identifier, the secret, and the expiry one session is written with.</summary>

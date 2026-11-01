@@ -29,6 +29,7 @@ function member(id: string, displayName: string, address: string, outOfOfficeUnt
         presence: 'Offline',
         lastSeen: null,
         outOfOfficeUntil,
+        usesPhoneApp: false,
     };
 }
 

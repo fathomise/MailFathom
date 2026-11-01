@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Access;
+using MailFathom.Application.Access.Sessions;
 using MailFathom.Application.Presence;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
@@ -44,6 +45,15 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
         SELECT "{MemberPresenceEntity.UserIdColumnName}", "{MemberPresenceEntity.ChosenStateColumnName}", "{MemberPresenceEntity.ChoiceDurationColumnName}", "{MemberPresenceEntity.ChoiceEndsAtColumnName}", "{MemberPresenceEntity.LastSeenAtColumnName}"
         FROM "{MemberPresenceEntity.TableName}"
         WHERE "{MemberPresenceEntity.UserIdColumnName}" = ANY(@members);
+        """;
+
+    /// <summary>Reads the phone sessions an opening was recorded on, which every read judges by their expiry and their day.</summary>
+    private const string ReadPhoneAppSessionsStatement = $"""
+        SELECT "{ClientSessionEntity.UserIdColumnName}", "{ClientSessionEntity.LastOpenedOnColumnName}", "{ClientSessionEntity.ExpiresAtColumnName}"
+        FROM "{ClientSessionEntity.TableName}"
+        WHERE "{ClientSessionEntity.UserIdColumnName}" = ANY(@members)
+          AND "{ClientSessionEntity.ClientKindColumnName}" = @phone
+          AND "{ClientSessionEntity.LastOpenedOnColumnName}" IS NOT NULL;
         """;
 
     private const string RemoveOwnExpiredStatement = $"""
@@ -125,10 +135,15 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
         Guid[] identifiers = [.. members.Select(member => member.Value)];
         var clients = new Dictionary<Guid, List<OpenPresenceClient>>();
         var held = new Dictionary<Guid, (PresenceChoice? Choice, DateTimeOffset? LastSeen)>();
+        var phoneAppSessions = new Dictionary<Guid, List<PhoneAppSession>>();
 
         await using var batch = dataSource().CreateBatch();
         batch.BatchCommands.Add(WithMembers(new NpgsqlBatchCommand(ReadClientsStatement), identifiers));
         batch.BatchCommands.Add(WithMembers(new NpgsqlBatchCommand(ReadMembersStatement), identifiers));
+
+        var readPhoneAppSessions = WithMembers(new NpgsqlBatchCommand(ReadPhoneAppSessionsStatement), identifiers);
+        readPhoneAppSessions.Parameters.AddWithValue("phone", (int)ClientKind.Android);
+        batch.BatchCommands.Add(readPhoneAppSessions);
 
         await using (var reader = await batch.ExecuteReaderAsync(cancellationToken))
         {
@@ -163,6 +178,23 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
 
                 held[reader.GetGuid(0)] = (choice, lastSeen);
             }
+
+            await reader.NextResultAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var member = reader.GetGuid(0);
+                var session = new PhoneAppSession(reader.GetFieldValue<DateOnly>(1), reader.GetFieldValue<DateTimeOffset>(2));
+
+                if (phoneAppSessions.TryGetValue(member, out var list))
+                {
+                    list.Add(session);
+                }
+                else
+                {
+                    phoneAppSessions[member] = [session];
+                }
+            }
         }
 
         return members.Distinct().ToDictionary(
@@ -174,7 +206,10 @@ internal sealed class PresenceStore(Func<NpgsqlDataSource> dataSource) : IPresen
                 return new MemberPresence(
                     clients.TryGetValue(member.Value, out var open) ? open : [],
                     stated.Choice,
-                    stated.LastSeen);
+                    stated.LastSeen)
+                {
+                    PhoneAppSessions = phoneAppSessions.TryGetValue(member.Value, out var phone) ? phone : [],
+                };
             });
     }
 

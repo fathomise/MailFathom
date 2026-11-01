@@ -24,6 +24,17 @@ export const sessionExchangeRoute = '/session/token';
 /** The route a session is ended at, relative to the client prefix. */
 export const sessionRevocationRoute = '/session/token/revocation';
 
+/** The route a client reports being opened on, relative to the client prefix. */
+export const sessionOpeningRoute = '/session/opening';
+
+/**
+ * Which head is signing in, as the exchange is told it.
+ *
+ * Declared and never verified, and read for one thing: a session signed in from the phone app is what marks its person
+ * as using it to their colleagues.
+ */
+export type ClientKind = 'web' | 'desktop' | 'android';
+
 /** The longest exchange answer read at all, which names a token and an instant and is a couple of hundred bytes. */
 const longestExchangeBody = 4096;
 
@@ -104,6 +115,32 @@ export function endSession(session: ClientSession, transport: MailFathomTranspor
         const response = await send(transport, {
             method: 'POST',
             path: routeFor(session, sessionRevocationRoute),
+            headers: headersFor(session),
+        });
+
+        if (response === null) {
+            return failed('unavailable', null);
+        }
+
+        return response.status === 204 ? read(null) : failed(failureReasonForStatus(response.status), response.status);
+    });
+}
+
+/**
+ * Tells the deployment this client was opened, so a phone session counts as in use today.
+ *
+ * Every head says it and the deployment decides what it means: a session that is not the phone app's records nothing,
+ * which keeps the question of which head this is out of the application. Only the day is kept, never the time.
+ *
+ * @param session The address to reach and the finished header value carrying the token this client holds.
+ * @param transport How the request goes out.
+ * @returns That the deployment heard it, or why the answer never arrived.
+ */
+export function reportOpening(session: ClientSession, transport: MailFathomTransport): Promise<ClientResult<null>> {
+    return spanned(`POST ${sessionOpeningRoute}`, async () => {
+        const response = await send(transport, {
+            method: 'POST',
+            path: routeFor(session, sessionOpeningRoute),
             headers: headersFor(session),
         });
 

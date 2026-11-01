@@ -6,7 +6,7 @@
 // the web head has no equivalent of: the operating system's own credential store. Every other behaviour the client has
 // belongs to the bundle it wraps, which is what keeps a screen one screen across every head.
 //
-// Four of the nine commands below are what ADR 0023 decided this shell would offer, and they are part of the
+// Four of the ten commands below are what ADR 0023 decided this shell would offer, and they are part of the
 // application's only reach into Rust that this repository wrote. What answers them lives in `credentials.rs` beside
 // this file, in two implementations selected by target — the desktop keychain and, per ADR 0027, the Android Keystore
 // — because that is the one operation whose *answer* differs between the heads rather than only its mechanism. They
@@ -42,6 +42,10 @@
 // not `async` and needs nothing from the runtime: the plugin dispatches the notification on a task of its own and the
 // command returns. `notifications.rs` beside this file explains why it is this shell's command all the same — what a
 // click on a notification does is decided here, and the plugin is what reports the click.
+//
+// The tenth is `client_kind`, which names the head — `android` or `desktop` — for the bundle to tell the deployment at
+// sign-in. It is the one fact about the target the bundle is handed rather than asking for, and like
+// `client_configuration` it decides nothing: what a phone session means is the deployment's.
 //
 // Two plugins are registered beside them. The opener answers the first operation the bundle asks of a shell — handing a
 // link a reader followed to the system browser, per ADR 0024 — and the notification plugin answers the second: whether
@@ -92,6 +96,19 @@ const PERMIT_CLEAR_TEXT: &str = "permitClearText";
 #[tauri::command]
 async fn credential_arrangement() -> &'static str {
     credentials::arrangement().await
+}
+
+/// Which head this shell is, which a sign-in tells the deployment so a phone session marks its person as using the app.
+///
+/// The one fact about the head the application is handed as a value rather than asking for: it passes it on and never
+/// branches on it, and the deployment, which records it, is what decides what a phone session means.
+#[tauri::command]
+fn client_kind() -> &'static str {
+    if cfg!(target_os = "android") {
+        "android"
+    } else {
+        "desktop"
+    }
 }
 
 /// Keeps one value under the entry the application named, answering whether it was kept.
@@ -278,6 +295,7 @@ pub fn run() {
             follow_sign_in_redirect,
             abandon_sign_in_redirect,
             client_configuration,
+            client_kind,
             raise_notification
         ])
         .run(tauri::generate_context!())

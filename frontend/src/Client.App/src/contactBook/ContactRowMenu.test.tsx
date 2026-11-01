@@ -41,6 +41,7 @@ const piotr: Colleague = {
     presence: 'Busy',
     lastSeen: null,
     outOfOfficeUntil: null,
+    usesPhoneApp: false,
 };
 
 const declaredClipboard = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard');

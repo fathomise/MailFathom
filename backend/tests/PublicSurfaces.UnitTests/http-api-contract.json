@@ -5961,6 +5961,18 @@
         ],
         "type": "object"
       },
+      "ClientSessionExchangeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "ClientSessionResponse": {
         "properties": {
           "organization": {
@@ -6375,6 +6387,9 @@
               "string"
             ]
           },
+          "usesPhoneApp": {
+            "type": "boolean"
+          },
           "workingHours": {
             "oneOf": [
               {
@@ -6400,7 +6415,8 @@
           "photo",
           "presence",
           "lastSeen",
-          "outOfOfficeUntil"
+          "outOfOfficeUntil",
+          "usesPhoneApp"
         ],
         "type": "object"
       },
@@ -23690,8 +23706,41 @@
         ]
       }
     },
+    "/api/client/session/opening": {
+      "post": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
     "/api/client/session/token": {
       "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClientSessionExchangeRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {

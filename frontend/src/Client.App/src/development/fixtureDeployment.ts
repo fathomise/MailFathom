@@ -7,6 +7,7 @@ import {
     clientPermissions,
     protectedResourceMetadataRoute,
     sessionExchangeRoute,
+    sessionOpeningRoute,
     sessionRevocationRoute,
     signInMethodsRoute,
     type ClientRequest,
@@ -171,9 +172,9 @@ export function fixtureAnswer(
             : answering(fixtureSession(request.headers['Authorization']));
     }
 
-    // Ending a session is answered and nothing is remembered: what a revoked token would be refused on is state this
-    // deployment does not keep, and a run that signed out has already forgotten what it held.
-    if (route === sessionRevocationRoute) {
+    // Ending a session and reporting an opening are answered and nothing is remembered: what a revoked token would be
+    // refused on, and the day a phone last opened, are state this deployment does not keep.
+    if (route === sessionRevocationRoute || route === sessionOpeningRoute) {
         return { status: 204, body: '', headers: {} };
     }
 
