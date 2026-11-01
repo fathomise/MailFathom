@@ -110,6 +110,11 @@ internal sealed class OutboundResilienceTestHost : IDisposable
                 await Task.Yield();
             }
 
+            // A wait that never comes due — a total timeout set out of reach — keeps the batch above from running at
+            // all, so without this turn the loop could spend every advance before a finished attempt's continuation
+            // got a thread, and report as hung an execution that was only waiting to be scheduled.
+            await TakeATurnBehindTheQueuedWorkAsync();
+
             var waitsArmedBeforeTheStep = this.TimeProvider.ScheduledWaits;
             var waitsElapsedBeforeTheStep = this.TimeProvider.ElapsedWaits;
 
