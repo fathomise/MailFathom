@@ -50,6 +50,10 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         entity.Property(email => email.InReplyTo).HasMaxLength(StoredEmailEntity.MaximumIdentifierLength);
         entity.Property(email => email.SenderAddress).HasMaxLength(StoredEmailEntity.MaximumAddressLength);
         entity.Property(email => email.SenderNormalizedAddress).HasMaxLength(StoredEmailEntity.MaximumAddressLength);
+        entity.Property(email => email.ReadReceiptRequestedTo).HasMaxLength(StoredEmailEntity.MaximumAddressLength);
+
+        // Stored as text for the reason the availability below is. Every agent's selection filters on its absence.
+        entity.Property(email => email.ReportKind).HasConversion<string>().HasMaxLength(64);
 
         // A `uint` row version is Npgsql's mapping onto the PostgreSQL `xmin` system column, so no concurrency column
         // is created in the table and PostgreSQL updates the token itself. Changing the CLR type or the row-version

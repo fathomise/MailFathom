@@ -5,6 +5,7 @@
 using System.ComponentModel;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Mcp.Tools.Authorship;
+using MailFathom.Mcp.Tools.Outgoing;
 using MailFathom.Mcp.Tools.Senders;
 using MailFathom.Mcp.Tools.Summaries;
 
@@ -85,6 +86,10 @@ internal sealed record RetrievedEmailContent
     [Description("The conversation this email belongs to, or null when nothing has placed it in one — which is the case for mail stored before this deployment assembled conversations at all.")]
     public RetrievedEmailThread? Thread { get; init; }
 
+    /// <summary>Gets what the account's own message asked to be told and what came back, where it is one.</summary>
+    [Description("What this account's own message asked to be told and what came back for each recipient — delivered, delayed, failed, or read — recorded from the delivery reports and read receipts that arrived. Absent from a message that asked for no report and got none, and from every message this deployment did not send.")]
+    public SentEmailReceipts? Receipts { get; init; }
+
     /// <summary>Publishes one email a read returned.</summary>
     /// <param name="content">The email to publish.</param>
     /// <returns>The wire representation of <paramref name="content" />.</returns>
@@ -110,6 +115,7 @@ internal sealed record RetrievedEmailContent
                 : null,
             RemoteFlags = ObservedRemoteFlags.From(content.RemoteFlags),
             Thread = content.Thread is { } thread ? RetrievedEmailThread.From(thread) : null,
+            Receipts = SentEmailReceipts.From(content.Receipts),
         };
     }
 }

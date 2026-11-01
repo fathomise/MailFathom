@@ -9,6 +9,7 @@ using MailFathom.Application.Folders;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
 using MailFathom.Domain.Synchronization;
@@ -634,6 +635,26 @@ public sealed class MailboxScopeResolverTests
 
         // Assert
         Assert.False(readable);
+    }
+
+    /// <summary>A delivery report or a read receipt is the person's to read and no agent's, however it is reached.</summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.Person, true)]
+    [InlineData(MailboxReaderKind.Agent, false)]
+    public void IsReadable_AReport_IsReadableByThePersonAlone(MailboxReaderKind reader, bool expected)
+    {
+        // Arrange
+        var resolver = ResolverOverAnInboxAndAJunkFolder();
+        var email = EmailIn("INBOX", verdict: null, decidedBy: null) with
+        {
+            Report = new EmailReportMark(ReceiptKind.Read, [], ReportedAt: null, NamesOwnMessage: false, OwnMessageSubject: null),
+        };
+
+        // Act
+        var readable = resolver.IsReadable(reader, [Work.Id], email);
+
+        // Assert
+        Assert.Equal(expected, readable);
     }
 
     /// <summary>The person reads spam like any other mail, because the client draws it rather than hiding it.</summary>

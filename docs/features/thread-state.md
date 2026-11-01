@@ -79,7 +79,9 @@ and the merged conversation is derived again from its shape.
 **Some conversations are given no title, and say so** rather than receiving a placeholder: one too long to read
 (`ThreadTooLarge`), one with no settled derivation yet, and one whose every message sits in junk — a spam conversation,
 which a name on its row would vouch for. A message the classification gate withholds as spam, and one moved to Trash,
-never reaches the derivation at all, so it feeds neither the statements nor the title.
+never reaches the derivation at all, so it feeds neither the statements nor the title. Nor does a delivery report or a
+read receipt: it is left out of the messages the derivation reads and of the count and newest arrival that mark a
+conversation as changed, so one arriving in a conversation whose state is current leaves it current.
 
 A title stays with the revision it was derived from. Where a reply has arrived since, the state is served as not
 current, and a client keeps the topic and holds the standing back until the conversation is derived again.

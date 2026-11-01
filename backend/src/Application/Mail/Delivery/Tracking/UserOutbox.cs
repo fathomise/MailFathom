@@ -211,6 +211,7 @@ public sealed class UserOutbox(
             Body = rendering is null ? null : BodyOf(rendering),
             Attachments = rendering?.Attachments ?? [],
             FailureStatement = this.StateFailure(record.LastFailure, user),
+            Receipts = await outbox.ReadReceiptsAsync(record.Id, cancellationToken),
         };
 
         return await this.GuardedAsync(preview, cancellationToken);

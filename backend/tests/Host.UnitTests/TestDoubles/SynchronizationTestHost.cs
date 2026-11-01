@@ -26,7 +26,9 @@ using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Filing;
+using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
@@ -405,6 +407,9 @@ internal static class SynchronizationTestHost
             ContactBookOwnerships.For(provider.GetRequiredService<AccessAuthorization>()));
         services.AddScoped<ContactBook>();
         services.AddScoped<MailContactCollector>();
+        services.AddSingleton(Substitute.For<IReceiptReportStore>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
+        services.AddScoped<ReceiptArrivals>();
 
         // Where a stored message lands on an account whose mailbox MailFathom holds. No account these tests configure is
         // held, so the substituted store answers every read with no account and nothing is ever placed.

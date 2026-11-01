@@ -6,6 +6,7 @@ using System.Globalization;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.Provenance;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
 
@@ -114,6 +115,7 @@ internal static class AgentConversationReadings
             WriteOptional(document, FromAttributeName, message.SenderAddress);
             WriteOptional(document, SentAttributeName, Instant(message.SentAt));
             document.WriteProvenance(message.Provenance);
+            AgentReceiptReadings.Write(document, message.Receipts);
 
             if (message.Subject is { } subject)
             {
@@ -207,6 +209,7 @@ internal static class AgentConversationReadings
 /// <param name="Subject">The guarded subject, or <see langword="null" /> where it carried none.</param>
 /// <param name="Body">The guarded body, already cut to what a reading shows.</param>
 /// <param name="BodyCut">Whether the body was cut, which the reading states.</param>
+/// <param name="Receipts">What the message asked to be told and what its recipients' reports said, every address guarded, where it is one the account sent.</param>
 internal sealed record GuardedThreadReading(
     StoredEmailId Id,
     PresentationCitationId Source,
@@ -215,7 +218,8 @@ internal sealed record GuardedThreadReading(
     EmailProvenance Provenance,
     string? Subject,
     string Body,
-    bool BodyCut);
+    bool BodyCut,
+    OutgoingEmailReceipts? Receipts = null);
 
 /// <summary>One calendar event as the Agent is shown it, its title already guarded.</summary>
 /// <param name="Start">When it begins.</param>

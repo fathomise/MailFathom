@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
@@ -117,6 +118,21 @@ public sealed record EmailSummary
     /// states: the first is mail no stage has reached, the second is a conclusion.
     /// </remarks>
     public EmailSpamVerdict? Spam { get; init; }
+
+    /// <summary>Gets the report the email was recognized as when it arrived, or <see langword="null" /> for every other message.</summary>
+    /// <remarks>Every reader acting for an agent is refused an email that carries one; a person reads it like any other.</remarks>
+    public EmailReportMark? Report { get; init; }
+
+    /// <summary>Gets the email's request for a read receipt, or <see langword="null" /> where it asked for none.</summary>
+    /// <remarks>
+    /// Present on a received message only. It is carried whether or not the message is spam, and whoever serves it decides
+    /// that: answering spam confirms to its sender that the address reads mail.
+    /// </remarks>
+    public EmailReadReceiptRequest? ReadReceiptRequest { get; init; }
+
+    /// <summary>Gets what this account's own message asked to be told and what came back, or <see langword="null" /> where it asked for nothing and nothing came.</summary>
+    /// <remarks>Present only on the copy MailFathom filed of a message it sent, which is what ties the stored email to its send.</remarks>
+    public OutgoingEmailReceipts? Receipts { get; init; }
 
     /// <summary>Gets where the email sits in the timeline order, which is the boundary a continuation cursor is built from.</summary>
     public EmailTimelinePosition Position => new(this.ReceivedAt, this.StoredEmailId);

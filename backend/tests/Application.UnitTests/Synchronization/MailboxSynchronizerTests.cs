@@ -13,7 +13,9 @@ using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Mail;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Filing;
+using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
@@ -3203,7 +3205,8 @@ public sealed class MailboxSynchronizerTests
         MailContactCollector? contactCollector = null,
         IOutgoingMailFilingStore? filingStore = null,
         LocalMailFolderArrivals? localFolderArrivals = null,
-        InMemoryMailAccountCustodyStore? custodyStore = null)
+        InMemoryMailAccountCustodyStore? custodyStore = null,
+        ReceiptArrivals? receiptArrivals = null)
     {
         var concurrencyRetryPolicy = new OptimisticConcurrencyRetryPolicy(
             persistenceSessionFactory,
@@ -3260,6 +3263,10 @@ public sealed class MailboxSynchronizerTests
                     classificationSettings ?? SpamClassificationSettings.Disabled,
                     ClassifiedAccount)),
             contactCollector ?? CreateCollectorThatCollectsNothing(persistenceSessionFactory, timeProvider),
+            receiptArrivals ?? new ReceiptArrivals(
+                Substitute.For<IReceiptReportStore>(),
+                Substitute.For<IOutgoingSenderIdentityReader>(),
+                timeProvider),
             localFolderArrivals ?? new LocalMailFolderArrivals(
                 Substitute.For<ILocalMailFolderStore>(),
                 new MailboxCustodianComposition(timeProvider).Custodians,

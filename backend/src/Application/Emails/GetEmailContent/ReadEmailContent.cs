@@ -6,6 +6,7 @@ using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
@@ -113,6 +114,17 @@ public sealed record ReadEmailContent
     /// <summary>Gets what spam classification concluded about the email, or <see langword="null" /> where nothing has classified it.</summary>
     /// <remarks>The same reading a listing carries, taken from the same summary, so a row and an opened message agree.</remarks>
     public EmailSpamVerdict? Spam { get; init; }
+
+    /// <summary>Gets the report the email was recognized as when it arrived, or <see langword="null" /> for every other message.</summary>
+    /// <remarks>The same reading a listing carries, taken from the same summary.</remarks>
+    public EmailReportMark? Report { get; init; }
+
+    /// <summary>Gets the email's request for a read receipt, or <see langword="null" /> where it asked for none.</summary>
+    /// <remarks>Carried whether or not the email is spam; whoever offers to answer it decides that.</remarks>
+    public EmailReadReceiptRequest? ReadReceiptRequest { get; init; }
+
+    /// <summary>Gets what the account's own message asked to be told and what came back, or <see langword="null" /> where it asked for nothing and nothing came.</summary>
+    public OutgoingEmailReceipts? Receipts { get; init; }
 
     /// <summary>
     /// Gets the conversation this email belongs to and the other messages in it, or <see langword="null" /> when nothing

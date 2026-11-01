@@ -44,6 +44,8 @@ public static partial class ResponseSubject
     /// <summary>The prefix RFC 3834 suggests for an automatic reply.</summary>
     private const string AutomaticReplyMarker = "Auto";
 
+    private const string ReadReceiptMarker = "Read";
+
     /// <summary>Writes the subject of a reply to the given subject.</summary>
     /// <param name="answeredSubject">The subject the answered message carried, or <see langword="null" /> when it carried none.</param>
     /// <returns>The subject the reply carries.</returns>
@@ -61,6 +63,16 @@ public static partial class ResponseSubject
     /// <returns>The subject the automatic reply carries, which RFC 3834 asks to open with <c>Auto:</c>.</returns>
     public static string ForAutomaticReply(string? answeredSubject) =>
         Prefixed(AutomaticReplyMarker, AutomaticReplyPrefix(), answeredSubject);
+
+    /// <summary>Composes the subject of a read receipt sent in answer to a message.</summary>
+    /// <param name="answeredSubject">The subject of the message the receipt answers, or <see langword="null" /> where it had none.</param>
+    /// <returns>The subject, prefixed <c>Read:</c> unless it already carries that prefix.</returns>
+    /// <remarks>
+    /// Language-neutral for the reason the automatic reply's marker is: the receipt goes to whoever asked for it, whose
+    /// language nothing here knows, and the marker is what a mail client recognizes the receipt by in a list.
+    /// </remarks>
+    public static string ForReadReceipt(string? answeredSubject) =>
+        Prefixed(ReadReceiptMarker, ReadReceiptPrefix(), answeredSubject);
 
     /// <summary>Adds the prefix, unless the subject already opens with one the ecosystem writes.</summary>
     /// <remarks>
@@ -105,4 +117,7 @@ public static partial class ResponseSubject
     /// <summary>Matches the prefix an automatic reply already carries.</summary>
     [GeneratedRegex(@"^auto[ \t]*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AutomaticReplyPrefix();
+
+    [GeneratedRegex(@"^read[ \t]*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ReadReceiptPrefix();
 }

@@ -64,6 +64,10 @@ internal sealed record ListedOutgoingEmail
     [Description("The failure the last delivery attempt ended in, stated in words in the user's language, or null while no attempt has failed.")]
     public string? Failure { get; init; }
 
+    /// <summary>Gets what the message asked to be told and what each recipient's delivery and read reports said.</summary>
+    [Description("What the message asked to be told and the delivery and read outcome recorded for each recipient from the reports that came back, or absent when it asked for neither and no report came back. A report is information, not proof.")]
+    public SentEmailReceipts? Receipts { get; init; }
+
     /// <summary>Publishes one outbox entry.</summary>
     /// <param name="entry">The entry the outbox reading produced.</param>
     /// <returns>The wire representation of <paramref name="entry" />.</returns>
@@ -86,6 +90,7 @@ internal sealed record ListedOutgoingEmail
             AttemptCount = entry.AttemptCount,
             FailureCode = entry.LastFailure?.ToString(),
             Failure = entry.FailureStatement,
+            Receipts = SentEmailReceipts.From(entry.Receipts),
         };
     }
 }

@@ -16,6 +16,9 @@
 - name: Mail delivery
   href: mail-delivery.md
   description: Where an account's mail would be submitted, and what opening a session against that server establishes — the transport rules it is judged by, what it reports the server will accept, and how a refusal is classified.
+- name: Delivery and read receipts
+  href: delivery-and-read-receipts.md
+  description: What MailFathom does with the delivery reports and read receipts that come back for mail an account sent, how a report is matched to its message, and when a read receipt is sent in answer.
 - name: Automatic reply
   href: automatic-reply.md
   description: What answers arriving mail while a person is away — which accounts and senders are answered, what never is so that no loop starts, and what the reply carries.

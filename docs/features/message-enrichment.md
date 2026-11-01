@@ -70,7 +70,8 @@ exist.
 **All of its passages**, which is stricter than having some. A derivation is taken once and never revisited, so a
 message reached while its body was still uncut, or while an attachment it names was still unread, would be recorded for
 good as a reading of the half that happened to exist. Such a message waits here instead, and the next run takes it once
-the stage in front has finished with it. A deployment that reads no attachments waits for none.
+the stage in front has finished with it. A deployment that reads no attachments waits for none. A delivery report or a
+read receipt is never selected at all: it is shown to no agent, so nothing is derived from one.
 
 It is a step of the account's synchronization run rather than a schedule of its own, for the reason every other pass is
 one: that run already has per-account isolation, a slot count, a jittered backoff, and a failure path that defers the

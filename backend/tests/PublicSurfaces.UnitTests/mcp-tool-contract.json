@@ -467,6 +467,140 @@
           "format": "date-time",
           "type": "string"
         },
+        "receipts": {
+          "description": "What the message asked to be told — a delivery notification, a read receipt — and the delivery and read outcome recorded for each recipient from the reports that came back. Present only in the outbox preview, and absent there when the message asked for neither and no report came back. A report is information somebody's server or mail app chose to send, not proof.",
+          "properties": {
+            "deliveryRequested": {
+              "description": "Whether the message asked for a delivery notification (RFC 3461).",
+              "type": "boolean"
+            },
+            "readRequested": {
+              "description": "Whether the message asked for a read receipt (RFC 8098).",
+              "type": "boolean"
+            },
+            "recipients": {
+              "description": "Every recipient the message was sent to, with the delivery and read outcomes recorded for each.",
+              "items": {
+                "properties": {
+                  "address": {
+                    "description": "The recipient's mail address, as the message was sent to it.",
+                    "type": "string"
+                  },
+                  "delivery": {
+                    "description": "What a delivery report said about this recipient, or absent where none came back.",
+                    "properties": {
+                      "outcome": {
+                        "description": "What the report said happened.",
+                        "enum": [
+                          "delivered",
+                          "relayed",
+                          "expanded",
+                          "failed",
+                          "delayed",
+                          "displayed",
+                          "deleted",
+                          "dispatched",
+                          "processed"
+                        ],
+                        "type": "string"
+                      },
+                      "reportedAt": {
+                        "description": "When the report says it was written.",
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "source": {
+                        "description": "Where the outcome came from.",
+                        "enum": [
+                          "report"
+                        ],
+                        "type": "string"
+                      },
+                      "status": {
+                        "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "outcome",
+                      "reportedAt",
+                      "source"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "read": {
+                    "description": "What a read receipt said about this recipient, or absent where none came back. Most mail apps send none, so absence does not mean unread.",
+                    "properties": {
+                      "outcome": {
+                        "description": "What the report said happened.",
+                        "enum": [
+                          "delivered",
+                          "relayed",
+                          "expanded",
+                          "failed",
+                          "delayed",
+                          "displayed",
+                          "deleted",
+                          "dispatched",
+                          "processed"
+                        ],
+                        "type": "string"
+                      },
+                      "reportedAt": {
+                        "description": "When the report says it was written.",
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "source": {
+                        "description": "Where the outcome came from.",
+                        "enum": [
+                          "report"
+                        ],
+                        "type": "string"
+                      },
+                      "status": {
+                        "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "outcome",
+                      "reportedAt",
+                      "source"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "address"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "deliveryRequested",
+            "readRequested",
+            "recipients"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "recipients": {
           "description": "One entry per person the message is addressed to, in the order the headers name them. These are the addresses the send named and no others.",
           "items": {
@@ -1533,6 +1667,140 @@
                     ],
                     "type": "object"
                   },
+                  "receipts": {
+                    "description": "What this account's own message asked to be told and what came back for each recipient — delivered, delayed, failed, or read — recorded from the delivery reports and read receipts that arrived. Absent from a message that asked for no report and got none, and from every message this deployment did not send.",
+                    "properties": {
+                      "deliveryRequested": {
+                        "description": "Whether the message asked for a delivery notification (RFC 3461).",
+                        "type": "boolean"
+                      },
+                      "readRequested": {
+                        "description": "Whether the message asked for a read receipt (RFC 8098).",
+                        "type": "boolean"
+                      },
+                      "recipients": {
+                        "description": "Every recipient the message was sent to, with the delivery and read outcomes recorded for each.",
+                        "items": {
+                          "properties": {
+                            "address": {
+                              "description": "The recipient's mail address, as the message was sent to it.",
+                              "type": "string"
+                            },
+                            "delivery": {
+                              "description": "What a delivery report said about this recipient, or absent where none came back.",
+                              "properties": {
+                                "outcome": {
+                                  "description": "What the report said happened.",
+                                  "enum": [
+                                    "delivered",
+                                    "relayed",
+                                    "expanded",
+                                    "failed",
+                                    "delayed",
+                                    "displayed",
+                                    "deleted",
+                                    "dispatched",
+                                    "processed"
+                                  ],
+                                  "type": "string"
+                                },
+                                "reportedAt": {
+                                  "description": "When the report says it was written.",
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "description": "Where the outcome came from.",
+                                  "enum": [
+                                    "report"
+                                  ],
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "outcome",
+                                "reportedAt",
+                                "source"
+                              ],
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "read": {
+                              "description": "What a read receipt said about this recipient, or absent where none came back. Most mail apps send none, so absence does not mean unread.",
+                              "properties": {
+                                "outcome": {
+                                  "description": "What the report said happened.",
+                                  "enum": [
+                                    "delivered",
+                                    "relayed",
+                                    "expanded",
+                                    "failed",
+                                    "delayed",
+                                    "displayed",
+                                    "deleted",
+                                    "dispatched",
+                                    "processed"
+                                  ],
+                                  "type": "string"
+                                },
+                                "reportedAt": {
+                                  "description": "When the report says it was written.",
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "description": "Where the outcome came from.",
+                                  "enum": [
+                                    "report"
+                                  ],
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "outcome",
+                                "reportedAt",
+                                "source"
+                              ],
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "address"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "deliveryRequested",
+                      "readRequested",
+                      "recipients"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
                   "remoteFlags": {
                     "description": "The IMAP flags a mail server reported for the email when it was last synchronized. These are observations of the server's state, not local state, and reading mail through MailFathom never changes them.",
                     "properties": {
@@ -1953,6 +2221,140 @@
           "description": "When the send was first written down, as an ISO 8601 timestamp.",
           "format": "date-time",
           "type": "string"
+        },
+        "receipts": {
+          "description": "What the message asked to be told — a delivery notification, a read receipt — and the delivery and read outcome recorded for each recipient from the reports that came back. Present only in the outbox preview, and absent there when the message asked for neither and no report came back. A report is information somebody's server or mail app chose to send, not proof.",
+          "properties": {
+            "deliveryRequested": {
+              "description": "Whether the message asked for a delivery notification (RFC 3461).",
+              "type": "boolean"
+            },
+            "readRequested": {
+              "description": "Whether the message asked for a read receipt (RFC 8098).",
+              "type": "boolean"
+            },
+            "recipients": {
+              "description": "Every recipient the message was sent to, with the delivery and read outcomes recorded for each.",
+              "items": {
+                "properties": {
+                  "address": {
+                    "description": "The recipient's mail address, as the message was sent to it.",
+                    "type": "string"
+                  },
+                  "delivery": {
+                    "description": "What a delivery report said about this recipient, or absent where none came back.",
+                    "properties": {
+                      "outcome": {
+                        "description": "What the report said happened.",
+                        "enum": [
+                          "delivered",
+                          "relayed",
+                          "expanded",
+                          "failed",
+                          "delayed",
+                          "displayed",
+                          "deleted",
+                          "dispatched",
+                          "processed"
+                        ],
+                        "type": "string"
+                      },
+                      "reportedAt": {
+                        "description": "When the report says it was written.",
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "source": {
+                        "description": "Where the outcome came from.",
+                        "enum": [
+                          "report"
+                        ],
+                        "type": "string"
+                      },
+                      "status": {
+                        "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "outcome",
+                      "reportedAt",
+                      "source"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "read": {
+                    "description": "What a read receipt said about this recipient, or absent where none came back. Most mail apps send none, so absence does not mean unread.",
+                    "properties": {
+                      "outcome": {
+                        "description": "What the report said happened.",
+                        "enum": [
+                          "delivered",
+                          "relayed",
+                          "expanded",
+                          "failed",
+                          "delayed",
+                          "displayed",
+                          "deleted",
+                          "dispatched",
+                          "processed"
+                        ],
+                        "type": "string"
+                      },
+                      "reportedAt": {
+                        "description": "When the report says it was written.",
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "source": {
+                        "description": "Where the outcome came from.",
+                        "enum": [
+                          "report"
+                        ],
+                        "type": "string"
+                      },
+                      "status": {
+                        "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "outcome",
+                      "reportedAt",
+                      "source"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "address"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "deliveryRequested",
+            "readRequested",
+            "recipients"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "recipients": {
           "description": "One entry per person the message is addressed to, in the order the headers name them. These are the addresses the send named and no others.",
@@ -2613,6 +3015,140 @@
                 ],
                 "type": "object"
               },
+              "receipts": {
+                "description": "What this account's own message asked to be told and what came back for each recipient — delivered, delayed, failed, or read — recorded from the delivery reports and read receipts that arrived. Absent from a message that asked for no report and got none, and from every message this deployment did not send.",
+                "properties": {
+                  "deliveryRequested": {
+                    "description": "Whether the message asked for a delivery notification (RFC 3461).",
+                    "type": "boolean"
+                  },
+                  "readRequested": {
+                    "description": "Whether the message asked for a read receipt (RFC 8098).",
+                    "type": "boolean"
+                  },
+                  "recipients": {
+                    "description": "Every recipient the message was sent to, with the delivery and read outcomes recorded for each.",
+                    "items": {
+                      "properties": {
+                        "address": {
+                          "description": "The recipient's mail address, as the message was sent to it.",
+                          "type": "string"
+                        },
+                        "delivery": {
+                          "description": "What a delivery report said about this recipient, or absent where none came back.",
+                          "properties": {
+                            "outcome": {
+                              "description": "What the report said happened.",
+                              "enum": [
+                                "delivered",
+                                "relayed",
+                                "expanded",
+                                "failed",
+                                "delayed",
+                                "displayed",
+                                "deleted",
+                                "dispatched",
+                                "processed"
+                              ],
+                              "type": "string"
+                            },
+                            "reportedAt": {
+                              "description": "When the report says it was written.",
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "source": {
+                              "description": "Where the outcome came from.",
+                              "enum": [
+                                "report"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "outcome",
+                            "reportedAt",
+                            "source"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "read": {
+                          "description": "What a read receipt said about this recipient, or absent where none came back. Most mail apps send none, so absence does not mean unread.",
+                          "properties": {
+                            "outcome": {
+                              "description": "What the report said happened.",
+                              "enum": [
+                                "delivered",
+                                "relayed",
+                                "expanded",
+                                "failed",
+                                "delayed",
+                                "displayed",
+                                "deleted",
+                                "dispatched",
+                                "processed"
+                              ],
+                              "type": "string"
+                            },
+                            "reportedAt": {
+                              "description": "When the report says it was written.",
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "source": {
+                              "description": "Where the outcome came from.",
+                              "enum": [
+                                "report"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "outcome",
+                            "reportedAt",
+                            "source"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "address"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "deliveryRequested",
+                  "readRequested",
+                  "recipients"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "receivedAt": {
                 "description": "When the receiving infrastructure recorded the email, as an ISO 8601 timestamp, or null when no header carried a usable date. This is the value the timeline is ordered and date-filtered by, and an email without it sorts at the undated end of whichever direction is read.",
                 "format": "date-time",
@@ -3018,6 +3554,140 @@
                 "description": "When the send was first written down, as an ISO 8601 timestamp.",
                 "format": "date-time",
                 "type": "string"
+              },
+              "receipts": {
+                "description": "What the message asked to be told and the delivery and read outcome recorded for each recipient from the reports that came back, or absent when it asked for neither and no report came back. A report is information, not proof.",
+                "properties": {
+                  "deliveryRequested": {
+                    "description": "Whether the message asked for a delivery notification (RFC 3461).",
+                    "type": "boolean"
+                  },
+                  "readRequested": {
+                    "description": "Whether the message asked for a read receipt (RFC 8098).",
+                    "type": "boolean"
+                  },
+                  "recipients": {
+                    "description": "Every recipient the message was sent to, with the delivery and read outcomes recorded for each.",
+                    "items": {
+                      "properties": {
+                        "address": {
+                          "description": "The recipient's mail address, as the message was sent to it.",
+                          "type": "string"
+                        },
+                        "delivery": {
+                          "description": "What a delivery report said about this recipient, or absent where none came back.",
+                          "properties": {
+                            "outcome": {
+                              "description": "What the report said happened.",
+                              "enum": [
+                                "delivered",
+                                "relayed",
+                                "expanded",
+                                "failed",
+                                "delayed",
+                                "displayed",
+                                "deleted",
+                                "dispatched",
+                                "processed"
+                              ],
+                              "type": "string"
+                            },
+                            "reportedAt": {
+                              "description": "When the report says it was written.",
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "source": {
+                              "description": "Where the outcome came from.",
+                              "enum": [
+                                "report"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "outcome",
+                            "reportedAt",
+                            "source"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "read": {
+                          "description": "What a read receipt said about this recipient, or absent where none came back. Most mail apps send none, so absence does not mean unread.",
+                          "properties": {
+                            "outcome": {
+                              "description": "What the report said happened.",
+                              "enum": [
+                                "delivered",
+                                "relayed",
+                                "expanded",
+                                "failed",
+                                "delayed",
+                                "displayed",
+                                "deleted",
+                                "dispatched",
+                                "processed"
+                              ],
+                              "type": "string"
+                            },
+                            "reportedAt": {
+                              "description": "When the report says it was written.",
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "source": {
+                              "description": "Where the outcome came from.",
+                              "enum": [
+                                "report"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "outcome",
+                            "reportedAt",
+                            "source"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "address"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "deliveryRequested",
+                  "readRequested",
+                  "recipients"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
               "recipients": {
                 "description": "Up to three addresses the message is addressed to, from To, or from Cc when To names nobody, or from Bcc when neither does.",
@@ -3822,6 +4492,140 @@
                       "likelihood"
                     ],
                     "type": "object"
+                  },
+                  "receipts": {
+                    "description": "What this account's own message asked to be told and what came back for each recipient — delivered, delayed, failed, or read — recorded from the delivery reports and read receipts that arrived. Absent from a message that asked for no report and got none, and from every message this deployment did not send.",
+                    "properties": {
+                      "deliveryRequested": {
+                        "description": "Whether the message asked for a delivery notification (RFC 3461).",
+                        "type": "boolean"
+                      },
+                      "readRequested": {
+                        "description": "Whether the message asked for a read receipt (RFC 8098).",
+                        "type": "boolean"
+                      },
+                      "recipients": {
+                        "description": "Every recipient the message was sent to, with the delivery and read outcomes recorded for each.",
+                        "items": {
+                          "properties": {
+                            "address": {
+                              "description": "The recipient's mail address, as the message was sent to it.",
+                              "type": "string"
+                            },
+                            "delivery": {
+                              "description": "What a delivery report said about this recipient, or absent where none came back.",
+                              "properties": {
+                                "outcome": {
+                                  "description": "What the report said happened.",
+                                  "enum": [
+                                    "delivered",
+                                    "relayed",
+                                    "expanded",
+                                    "failed",
+                                    "delayed",
+                                    "displayed",
+                                    "deleted",
+                                    "dispatched",
+                                    "processed"
+                                  ],
+                                  "type": "string"
+                                },
+                                "reportedAt": {
+                                  "description": "When the report says it was written.",
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "description": "Where the outcome came from.",
+                                  "enum": [
+                                    "report"
+                                  ],
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "outcome",
+                                "reportedAt",
+                                "source"
+                              ],
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "read": {
+                              "description": "What a read receipt said about this recipient, or absent where none came back. Most mail apps send none, so absence does not mean unread.",
+                              "properties": {
+                                "outcome": {
+                                  "description": "What the report said happened.",
+                                  "enum": [
+                                    "delivered",
+                                    "relayed",
+                                    "expanded",
+                                    "failed",
+                                    "delayed",
+                                    "displayed",
+                                    "deleted",
+                                    "dispatched",
+                                    "processed"
+                                  ],
+                                  "type": "string"
+                                },
+                                "reportedAt": {
+                                  "description": "When the report says it was written.",
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "description": "Where the outcome came from.",
+                                  "enum": [
+                                    "report"
+                                  ],
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "description": "The RFC 3463 status code a delivery report gave, such as 5.1.1, or absent where it gave none.",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "outcome",
+                                "reportedAt",
+                                "source"
+                              ],
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "address"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "deliveryRequested",
+                      "readRequested",
+                      "recipients"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
                   },
                   "receivedAt": {
                     "description": "When the receiving infrastructure recorded the email, as an ISO 8601 timestamp, or null when no header carried a usable date. This is the value the timeline is ordered and date-filtered by, and an email without it sorts at the undated end of whichever direction is read.",

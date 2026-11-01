@@ -89,6 +89,11 @@ Retrieval runs **on demand**. The agent is composed with one tool, `search_mail`
 it needs context. Nothing is retrieved before the first call, and a question that needs no mail — "what can you do" —
 costs one provider call and reads no mailbox at all.
 
+What a lookup returns is never a delivery report or a read receipt. A message the account sent carries, beside its
+extract, the delivery and read outcome recorded for each of its recipients, so *was it delivered?* is answered from what
+was recorded rather than from the reports — [delivery and read receipts](delivery-and-read-receipts.md#what-agents-see)
+holds the shape.
+
 The alternative would be to search before every call and inject the results. That answers a greeting by dragging a
 mailbox through a provider, and it makes every question cost the same as the most expensive one.
 

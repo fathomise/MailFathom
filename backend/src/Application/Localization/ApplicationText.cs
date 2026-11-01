@@ -58,4 +58,7 @@ public enum ApplicationText
 
     /// <summary>What an outbox entry says about a failure it has no sentence of its own for.</summary>
     OutboxFailureOther = 16,
+
+    /// <summary>The words a read receipt the reader chose to send carries for the person who asked for it.</summary>
+    ReadReceiptDisplayed = 17,
 }

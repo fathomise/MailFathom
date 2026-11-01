@@ -154,6 +154,7 @@ internal static class CorpusReaders
             Attachments = StoredEmailAttachmentSummary.None,
             ContentAvailability = StoredEmailContentAvailability.Available,
             RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+            Receipts = message.Receipts,
         };
 
     private static MailboxScopeResolver ScopeFor(AccessAuthorization authorization)

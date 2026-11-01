@@ -11,6 +11,7 @@ using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery.Filing;
+using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
@@ -56,6 +57,7 @@ public sealed class MailboxSynchronizer
     private readonly IMailSynchronizationPhaseTelemetry phaseTelemetry;
     private readonly SpamClassificationArrivals classificationArrivals;
     private readonly MailContactCollector contactCollection;
+    private readonly ReceiptArrivals receiptArrivals;
     private readonly LocalMailFolderArrivals localFolderArrivals;
     private readonly OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy;
     private readonly TimeProvider timeProvider;
@@ -90,6 +92,7 @@ public sealed class MailboxSynchronizer
         IMailSynchronizationPhaseTelemetry phaseTelemetry,
         SpamClassificationArrivals classificationArrivals,
         MailContactCollector contactCollection,
+        ReceiptArrivals receiptArrivals,
         LocalMailFolderArrivals localFolderArrivals,
         OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy,
         TimeProvider timeProvider,
@@ -119,6 +122,7 @@ public sealed class MailboxSynchronizer
         this.phaseTelemetry = phaseTelemetry;
         this.classificationArrivals = classificationArrivals;
         this.contactCollection = contactCollection;
+        this.receiptArrivals = receiptArrivals;
         this.localFolderArrivals = localFolderArrivals;
         this.concurrencyRetryPolicy = concurrencyRetryPolicy;
         this.timeProvider = timeProvider;
@@ -1213,6 +1217,12 @@ public sealed class MailboxSynchronizer
             cancellationToken);
         var folderSetMoved = false;
 
+        // Read before the unit of work for the reason the content is placed before it: the lookups that tie a report to
+        // the account's own send join no transaction, and the decision they feed is the same on every retry.
+        var receipts = extraction.Metadata is { } arrived
+            ? await this.receiptArrivals.ReadAsync(account, arrived, isFiledCopy, cancellationToken)
+            : null;
+
         await this.concurrencyRetryPolicy.CommitAsync(
             async (persistenceSession, attemptCancellationToken) =>
             {
@@ -1235,6 +1245,11 @@ public sealed class MailboxSynchronizer
 
                 await this.ObservePlacementAsync(persistenceSession, placement, attemptCancellationToken);
                 await this.ObserveFilingAsync(persistenceSession, filing, storedEmailId, attemptCancellationToken);
+
+                if (receipts is not null)
+                {
+                    await this.receiptArrivals.RecordAsync(persistenceSession, storedEmailId, receipts, attemptCancellationToken);
+                }
 
                 if (settlesOnArrival)
                 {

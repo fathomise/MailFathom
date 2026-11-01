@@ -7,10 +7,12 @@ using MailFathom.Application.Emails.Summaries;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Spam;
+using MailFathom.Infrastructure.Persistence.Delivery;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Folders;
 using Microsoft.EntityFrameworkCore;
@@ -92,7 +94,16 @@ internal sealed record StoredEmailSummaryRow(
     SpamClassificationStage? SpamDecidedBy,
     SpamSubcategory? SpamSubcategory,
     SpamPhishingRequest? SpamPhishingRequest,
-    SpamImpersonatedParty? SpamImpersonatedParty)
+    SpamImpersonatedParty? SpamImpersonatedParty,
+    ReceiptKind? ReportKind,
+    string[] ReportRecipients,
+    int[] ReportOutcomes,
+    Guid? ReportOutgoingEmailId,
+    string? ReportOwnMessageSubject,
+    string? ReadReceiptRequestedTo,
+    bool ReadReceiptRequestNamesAnotherAddress,
+    DateTimeOffset? ReadReceiptSentAt,
+    Guid? FiledFromOutgoingEmailId)
 {
     /// <summary>Gets the projection every summary query selects, which is what keeps the two readers publishing one shape.</summary>
     public static Expression<Func<StoredEmailEntity, StoredEmailSummaryRow>> Projection { get; } = email =>
@@ -172,7 +183,16 @@ internal sealed record StoredEmailSummaryRow(
             email.SpamClassification == null ? null : email.SpamClassification.DecidedBy,
             email.SpamClassification == null ? null : email.SpamClassification.SpamSubcategory,
             email.SpamClassification == null ? null : email.SpamClassification.PhishingRequest,
-            email.SpamClassification == null ? null : email.SpamClassification.ImpersonatedParty);
+            email.SpamClassification == null ? null : email.SpamClassification.ImpersonatedParty,
+            email.ReportKind,
+            email.ReportRecipients,
+            email.ReportOutcomes,
+            email.ReportOutgoingEmailId,
+            email.ReportOwnMessageSubject,
+            email.ReadReceiptRequestedTo,
+            email.ReadReceiptRequestNamesAnotherAddress,
+            email.ReadReceiptSentAt,
+            email.FiledFromOutgoingEmailId);
 
     /// <summary>Rebuilds the summaries of a set of rows, naming each one's folder by its path and the organization that recognized its author by its current name.</summary>
     /// <param name="rows">The rows, in the order the summaries are wanted in.</param>
@@ -203,8 +223,17 @@ internal sealed record StoredEmailSummaryRow(
             [.. rows.Select(static row => row.MailboxAccountId)],
             cancellationToken);
         var organizationNames = await ReadOrganizationNamesAsync(dbContext.Organizations, rows, cancellationToken);
+        var receipts = await StoredOutgoingEmailReceipts.ReadAsync(
+            dbContext,
+            [.. rows.Select(static row => row.FiledFromOutgoingEmailId).OfType<Guid>()],
+            cancellationToken);
 
-        return [.. rows.Select(row => row.ToSummary(paths, organizationNames))];
+        return [.. rows.Select(row => row.ToSummary(paths, organizationNames) with
+        {
+            Receipts = row.FiledFromOutgoingEmailId is { } outgoingEmailId
+                ? receipts.GetValueOrDefault(outgoingEmailId)
+                : null,
+        })];
     }
 
     /// <summary>Turns the returned columns into the application read model.</summary>
@@ -273,6 +302,13 @@ internal sealed record StoredEmailSummaryRow(
             },
             MachineAuthorship = this.StoredAuthorship(),
             Spam = this.StoredSpamVerdict(),
+            Report = this.StoredReportMark(),
+            ReadReceiptRequest = this.ReadReceiptRequestedTo is { } requestedTo
+                ? new EmailReadReceiptRequest(
+                    requestedTo,
+                    this.ReadReceiptRequestNamesAnotherAddress,
+                    this.ReadReceiptSentAt)
+                : null,
         };
 
     /// <summary>Reads the current display name of every organization the rows name.</summary>
@@ -300,6 +336,23 @@ internal sealed record StoredEmailSummaryRow(
                 static organization => organization.DisplayName,
                 cancellationToken);
     }
+
+    /// <summary>Reads the report mark back from its two arrays, position by position.</summary>
+    /// <remarks>A position whose outcome names no declared value is dropped rather than read as a neighbouring one.</remarks>
+    private EmailReportMark? StoredReportMark() =>
+        this.ReportKind is { } kind
+            ? new EmailReportMark(
+                kind,
+                [
+                    .. this.ReportRecipients
+                        .Zip(this.ReportOutcomes)
+                        .Where(static pair => Enum.IsDefined((ReceiptOutcome)pair.Second))
+                        .Select(static pair => new EmailReportRecipient(pair.First, (ReceiptOutcome)pair.Second)),
+                ],
+                this.SentAt ?? this.ReceivedAt,
+                NamesOwnMessage: this.ReportOutgoingEmailId is not null,
+                this.ReportOwnMessageSubject)
+            : null;
 
     /// <summary>Reads the classification columns back into the verdict a screen draws, or reports that none is recorded.</summary>
     /// <remarks>

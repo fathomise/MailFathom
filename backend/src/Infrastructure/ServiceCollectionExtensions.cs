@@ -84,6 +84,7 @@ using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
+using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Mail.Delivery.Scheduling;
 using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Application.Mail.Delivery.Signing;
@@ -1546,6 +1547,10 @@ public static class ServiceCollectionExtensions
         // pass that drives them rather than with the mail adapters, because each one is a write session opened per
         // append through the same pool every other mutation goes through.
         services.AddScoped<IOutgoingMailFilingStore, OutgoingMailFilingStore>();
+        // What a report that comes back as mail changes about the send it names, and a received message's request for a
+        // read receipt. Synchronization asks it as it stores each message, so it is scoped with the pass that does.
+        services.AddScoped<IReceiptReportStore, ReceiptReportStore>();
+        services.AddScoped<ReceiptArrivals>();
         // The one append every filed copy goes through, whatever kind of message it is a copy of. It is registered once
         // and shared by the filers rather than owned by either, because the order of its two writes is what keeps a
         // copy one copy, and an ordering that held on one filing path and lapsed on another would be no ordering.
@@ -1585,6 +1590,8 @@ public static class ServiceCollectionExtensions
         // registered above rather than from an account and a recipient list: a reply is addressed by the message it
         // answers. It holds no delivery session either, for the same reason the submission beside it does not.
         services.AddScoped<AuthoredResponseSubmission>();
+        // The one route a read receipt leaves by: the reader asking for it, through the client.
+        services.AddScoped<ReadReceiptSending>();
         // Declaring a message that repeats, out of the same account catalog, resolver, and composer the one-off
         // submission uses. It queues nothing, because nothing is due when a repetition is declared; what turns an
         // occasion into a message is the handler below, reached through the job model like every other recurring

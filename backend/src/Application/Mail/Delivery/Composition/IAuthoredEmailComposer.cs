@@ -76,6 +76,24 @@ public interface IAuthoredEmailComposer
         ReadOnlyMemory<byte> draftMime,
         MailDeliveryCapabilities capabilities);
 
+    /// <summary>Composes the read receipt a reader asked to send, as a <c>multipart/report</c> (RFC 8098).</summary>
+    /// <param name="account">The account the answered message arrived in, which the receipt is sent from.</param>
+    /// <param name="author">The user whose press asked for it.</param>
+    /// <param name="requester">The act the receipt is recorded as, which names the answered message.</param>
+    /// <param name="answer">What the receipt says and who it goes to.</param>
+    /// <param name="capabilities">What the servers involved are known to support.</param>
+    /// <returns>The composed receipt, or why it was refused.</returns>
+    /// <remarks>
+    /// It is composed here rather than by the caller because this is the one place a message is built, and a receipt is
+    /// held to every bound, header rule, and serialization an authored message is.
+    /// </remarks>
+    AuthoredEmailComposition ComposeReadReceipt(
+        MailAccountId account,
+        UserId author,
+        OutgoingEmailRequester requester,
+        ReadReceiptAnswer answer,
+        MailDeliveryCapabilities capabilities);
+
     /// <summary>Composes one authored message as a draft, or refuses it naming the field that stopped it.</summary>
     /// <param name="account">The account the draft belongs to, by its generated identifier, which decides the <c>From</c> address it would be sent under.</param>
     /// <param name="authored">What the author wrote.</param>

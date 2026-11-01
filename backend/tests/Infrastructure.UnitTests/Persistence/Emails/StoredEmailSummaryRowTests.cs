@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
@@ -75,6 +76,42 @@ public sealed class StoredEmailSummaryRowTests
         // Assert
         Assert.Same(MachineAuthorshipAssessment.NotAssessed, summary.MachineAuthorship);
         Assert.False(summary.MachineAuthorship.ProfileRevision.NamesAProfile);
+    }
+
+    /// <summary>A report's row reads back the outcomes it named, leaving out a value no outcome carries rather than inventing one.</summary>
+    [Fact]
+    public void ToSummary_AReportRow_CarriesTheRecipientsAndTheOwnMessageItNamed()
+    {
+        // Arrange
+        var row = RowWith(
+            MachineAuthorshipBand.NotAssessed,
+            likelihood: 0,
+            reportKind: ReceiptKind.Read,
+            reportRecipients: ["anna@example.test", "bert@example.test"],
+            reportOutcomes: [(int)ReceiptOutcome.Displayed, 99],
+            reportOutgoingEmailId: Guid.CreateVersion7());
+
+        // Act
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
+
+        // Assert
+        Assert.NotNull(summary.Report);
+        Assert.Equal(ReceiptKind.Read, summary.Report.Kind);
+        Assert.Equal([new EmailReportRecipient("anna@example.test", ReceiptOutcome.Displayed)], summary.Report.Recipients);
+        Assert.True(summary.Report.NamesOwnMessage);
+        Assert.Equal("Lunch", summary.Report.OwnMessageSubject);
+    }
+
+    /// <summary>Ordinary mail carries no report mark.</summary>
+    [Fact]
+    public void ToSummary_AnOrdinaryRow_CarriesNoReport()
+    {
+        // Act
+        var summary = RowWith(MachineAuthorshipBand.NotAssessed, likelihood: 0)
+            .ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
+
+        // Assert
+        Assert.Null(summary.Report);
     }
 
     /// <summary>A recorded classification reaches the summary whole: the verdict, both judges, and the phishing detail.</summary>
@@ -330,7 +367,11 @@ public sealed class StoredEmailSummaryRowTests
         MachineAuthorshipBand band,
         double likelihood,
         EmailSpamVerdict? spam = null,
-        StoredEmailSignatureRow? signature = null) => new(
+        StoredEmailSignatureRow? signature = null,
+        ReceiptKind? reportKind = null,
+        string[]? reportRecipients = null,
+        int[]? reportOutcomes = null,
+        Guid? reportOutgoingEmailId = null) => new(
         Guid.CreateVersion7(),
         "primary",
         Guid.CreateVersion7(),
@@ -381,5 +422,14 @@ public sealed class StoredEmailSummaryRowTests
         spam?.DecidedBy,
         spam?.Subcategory,
         spam?.PhishingRequest,
-        spam?.ImpersonatedParty);
+        spam?.ImpersonatedParty,
+        reportKind,
+        reportRecipients ?? [],
+        reportOutcomes ?? [],
+        reportOutgoingEmailId,
+        ReportOwnMessageSubject: reportOutgoingEmailId is null ? null : "Lunch",
+        ReadReceiptRequestedTo: null,
+        ReadReceiptRequestNamesAnotherAddress: false,
+        ReadReceiptSentAt: null,
+        FiledFromOutgoingEmailId: null);
 }

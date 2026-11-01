@@ -73,6 +73,9 @@ public sealed class ThreadAwaitingStateQueryTests
         // A message in Trash, or in a folder beneath it, counts towards nothing, so it neither shapes the state nor
         // names the conversation.
         Assert.Contains("trashedFolderIds", sql, StringComparison.Ordinal);
+
+        // A report counts towards nothing either, so one arriving in a conversation whose state is current leaves it current.
+        Assert.Contains("\"ReportKind\" IS NULL", sql, StringComparison.Ordinal);
     }
 
     /// <summary>

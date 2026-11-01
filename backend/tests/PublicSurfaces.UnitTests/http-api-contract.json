@@ -2697,6 +2697,44 @@
         ],
         "type": "object"
       },
+      "ClientMailDeliverySummaryResponse": {
+        "properties": {
+          "delayed": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "delivered": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "failed": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "requested": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requested",
+          "delivered",
+          "delayed",
+          "failed"
+        ],
+        "type": "object"
+      },
       "ClientMailEnrichmentResponse": {
         "properties": {
           "derivedAt": {
@@ -3124,6 +3162,36 @@
           "headers": {
             "$ref": "#/components/schemas/ClientMailMessageHeadersResponse"
           },
+          "readReceiptRequest": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReadReceiptRequestResponse"
+              }
+            ]
+          },
+          "receipts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReceiptsResponse"
+              }
+            ]
+          },
+          "report": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReportResponse"
+              }
+            ]
+          },
           "sender": {
             "$ref": "#/components/schemas/ClientMailSenderVerdictResponse"
           },
@@ -3189,7 +3257,10 @@
           "flagged",
           "answered",
           "spam",
-          "senderPhoto"
+          "senderPhoto",
+          "report",
+          "receipts",
+          "readReceiptRequest"
         ],
         "type": "object"
       },
@@ -3307,6 +3378,162 @@
         ],
         "type": "object"
       },
+      "ClientMailReadReceiptRequestResponse": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "namesAnotherAddress": {
+            "type": "boolean"
+          },
+          "sentAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "address",
+          "namesAnotherAddress",
+          "sentAt"
+        ],
+        "type": "object"
+      },
+      "ClientMailReadSummaryResponse": {
+        "properties": {
+          "read": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "requested": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requested",
+          "read"
+        ],
+        "type": "object"
+      },
+      "ClientMailReceiptOutcomeResponse": {
+        "properties": {
+          "outcome": {
+            "type": "string"
+          },
+          "reportedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reportingServer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "outcome",
+          "reportedAt",
+          "source",
+          "status",
+          "reportingServer"
+        ],
+        "type": "object"
+      },
+      "ClientMailReceiptSummaryResponse": {
+        "properties": {
+          "delivery": {
+            "$ref": "#/components/schemas/ClientMailDeliverySummaryResponse"
+          },
+          "read": {
+            "$ref": "#/components/schemas/ClientMailReadSummaryResponse"
+          },
+          "recipients": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "recipients",
+          "delivery",
+          "read"
+        ],
+        "type": "object"
+      },
+      "ClientMailReceiptsResponse": {
+        "properties": {
+          "deliveryRequested": {
+            "type": "boolean"
+          },
+          "readRequested": {
+            "type": "boolean"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailRecipientReceiptsResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "deliveryRequested",
+          "readRequested",
+          "recipients"
+        ],
+        "type": "object"
+      },
+      "ClientMailRecipientReceiptsResponse": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "delivery": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReceiptOutcomeResponse"
+              }
+            ]
+          },
+          "read": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReceiptOutcomeResponse"
+              }
+            ]
+          }
+        },
+        "required": [
+          "address",
+          "delivery",
+          "read"
+        ],
+        "type": "object"
+      },
       "ClientMailRecordedChangeResponse": {
         "properties": {
           "mutation": {
@@ -3324,6 +3551,58 @@
           "mutation",
           "recordId",
           "state"
+        ],
+        "type": "object"
+      },
+      "ClientMailReportRecipientResponse": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "outcome"
+        ],
+        "type": "object"
+      },
+      "ClientMailReportResponse": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "namesOwnMessage": {
+            "type": "boolean"
+          },
+          "ownMessageSubject": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailReportRecipientResponse"
+            },
+            "type": "array"
+          },
+          "reportedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "recipients",
+          "reportedAt",
+          "namesOwnMessage",
+          "ownMessageSubject"
         ],
         "type": "object"
       },
@@ -3518,11 +3797,31 @@
               "string"
             ]
           },
+          "receipts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReceiptSummaryResponse"
+              }
+            ]
+          },
           "receivedAt": {
             "format": "date-time",
             "type": [
               "null",
               "string"
+            ]
+          },
+          "report": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReportResponse"
+              }
             ]
           },
           "sender": {
@@ -3628,7 +3927,9 @@
           "isDepictedMatch",
           "spam",
           "sender",
-          "senderPhoto"
+          "senderPhoto",
+          "report",
+          "receipts"
         ],
         "type": "object"
       },
@@ -4578,11 +4879,31 @@
               "string"
             ]
           },
+          "receipts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReceiptSummaryResponse"
+              }
+            ]
+          },
           "receivedAt": {
             "format": "date-time",
             "type": [
               "null",
               "string"
+            ]
+          },
+          "report": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReportResponse"
+              }
             ]
           },
           "sender": {
@@ -4689,7 +5010,9 @@
           "threadMessageCount",
           "spam",
           "sender",
-          "senderPhoto"
+          "senderPhoto",
+          "report",
+          "receipts"
         ],
         "type": "object"
       },
@@ -5462,6 +5785,18 @@
           "notificationSeconds",
           "trustedLinkDomains",
           "listMode"
+        ],
+        "type": "object"
+      },
+      "ClientReadReceiptSentResponse": {
+        "properties": {
+          "sentAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sentAt"
         ],
         "type": "object"
       },
@@ -21862,6 +22197,41 @@
           },
           "404": {
             "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/messages/{storedEmailId}/read-receipt": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "storedEmailId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReadReceiptSentResponse"
+                }
+              }
+            },
+            "description": "OK"
           }
         },
         "security": [

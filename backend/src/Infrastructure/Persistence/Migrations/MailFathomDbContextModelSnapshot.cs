@@ -3366,6 +3366,45 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("outgoing_email_filings", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailReceiptOutcomeEntity", b =>
+                {
+                    b.Property<Guid>("OutgoingEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("RecipientOrdinal")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("ReportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReportingServer")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("OutgoingEmailId", "RecipientOrdinal", "Kind")
+                        .HasName("PK_outgoing_email_receipt_outcomes");
+
+                    b.ToTable("outgoing_email_receipt_outcomes", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailRecipientEntity", b =>
                 {
                     b.Property<Guid>("OutgoingEmailId")
@@ -4081,6 +4120,16 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ParentStoredEmailId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("ReadReceiptRequestNamesAnotherAddress")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ReadReceiptRequestedTo")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<DateTimeOffset?>("ReadReceiptSentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset?>("ReceivedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4095,6 +4144,24 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("text[]");
 
                     b.PrimitiveCollection<string[]>("ReplyToAddresses")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("ReportKind")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.PrimitiveCollection<int[]>("ReportOutcomes")
+                        .IsRequired()
+                        .HasColumnType("integer[]");
+
+                    b.Property<Guid?>("ReportOutgoingEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReportOwnMessageSubject")
+                        .HasColumnType("text");
+
+                    b.PrimitiveCollection<string[]>("ReportRecipients")
                         .IsRequired()
                         .HasColumnType("text[]");
 
@@ -5490,6 +5557,18 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_outgoing_email_filings_emails");
 
                     b.Navigation("OutgoingEmail");
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailReceiptOutcomeEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailRecipientEntity", "Recipient")
+                        .WithMany()
+                        .HasForeignKey("OutgoingEmailId", "RecipientOrdinal")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_outgoing_email_receipt_outcomes_recipients");
+
+                    b.Navigation("Recipient");
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailRecipientEntity", b =>

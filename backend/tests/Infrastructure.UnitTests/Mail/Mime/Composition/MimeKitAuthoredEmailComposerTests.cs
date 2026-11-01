@@ -78,6 +78,43 @@ public sealed class MimeKitAuthoredEmailComposerTests
         Assert.Equal(expected, Parse(composition).Headers[HeaderId.AutoSubmitted]);
     }
 
+    /// <summary>A read receipt is the report RFC 8098 defines, naming the message it answers and saying it was sent by hand.</summary>
+    [Fact]
+    public void ComposeReadReceipt_AReceiptTheReaderAskedFor_IsADispositionNotificationThreadedUnderTheOriginal()
+    {
+        // Arrange
+        var composer = CreateComposer();
+        var answered = StoredEmailId.Create(Guid.Parse("0198f0a0-5555-7000-8000-000000000001"));
+        var answer = new ReadReceiptAnswer(
+            "anna@elsewhere.test",
+            "Read: Lunch",
+            "Your message was displayed.",
+            "lunch@elsewhere.test",
+            OutgoingThreadPlacement.Answering(EmailThreadReferences.Create("lunch@elsewhere.test", null, null)));
+
+        // Act
+        var composition = composer.ComposeReadReceipt(
+            Account,
+            SyntheticUser.Deployment,
+            OutgoingEmailRequester.ReadReceipt(answered),
+            answer,
+            Capabilities());
+
+        // Assert
+        var message = Parse(composition);
+        var report = Assert.IsType<MultipartReport>(message.Body);
+        Assert.Equal("disposition-notification", report.ReportType);
+        var notification = Assert.Single(report.OfType<MessageDispositionNotification>()).Fields;
+        Assert.Equal("manual-action/MDN-sent-manually; displayed", notification["Disposition"]);
+        Assert.Equal("<lunch@elsewhere.test>", notification["Original-Message-ID"]);
+        Assert.Equal("rfc822; mailfathom@example.test", notification["Final-Recipient"]);
+        Assert.NotNull(notification["Reporting-UA"]);
+        Assert.Equal("anna@elsewhere.test", Assert.IsType<MailboxAddress>(Assert.Single(message.To)).Address);
+        Assert.Equal("Read: Lunch", message.Subject);
+        Assert.Equal("lunch@elsewhere.test", message.InReplyTo);
+        Assert.Equal("auto-replied", message.Headers[HeaderId.AutoSubmitted]);
+    }
+
     /// <summary>
     /// A draft asking for a read receipt names the sending account's own address in <c>Disposition-Notification-To</c>,
     /// and one that does not ask carries no such header.

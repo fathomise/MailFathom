@@ -265,6 +265,7 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.OutgoingEmailIdentityUniqueIndexName
                 or PersistenceConstraintNames.RecurringSendIdentityUniqueIndexName
                 or PersistenceConstraintNames.OutgoingEmailFilingPrimaryKeyConstraintName
+                or PersistenceConstraintNames.OutgoingEmailReceiptOutcomePrimaryKeyConstraintName
                 or PersistenceConstraintNames.MailDraftCopyPrimaryKeyConstraintName
                 or PersistenceConstraintNames.ContentMoveRunPrimaryKeyConstraintName
                 or PersistenceConstraintNames.StoredSecretUserNameUniqueIndexName
