@@ -1703,6 +1703,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     inSpamFolder = () => !this.state.convMail && /·Spam$/.test(this.state.folderKey || "acc1·Inbox");
     /* Whether *Spam* and *Not spam* also move a message is its account's own setting, off unless the account says so. */
     accountOf = (id) => (THREADS.find(x => x.id === id) || {}).acc || "acc1";
+    /* The account a composition sends from: a reply's conversation's, a draft's own, or else the account whose folder is
+       open — the work account where none is, unified folders included. Its footer is drawn under the text and carries
+       the closing, so an AI draft on it ends at its own words and signs off only where the account has none. */
+    composeAccKey = (s = this.state) => {
+      if (s.replyMode && s.replyThreadId) return this.accountOf(s.replyThreadId);
+      if (!s.replyMode && s.composeDraft && s.composeDraft.acc) return s.composeDraft.acc;
+      const key = (s.folderKey || "acc1·Inbox").split("·")[0];
+      return ACCOUNTS.some(a => a.key === key) ? key : "acc1";
+    };
+    composeFooter = (s = this.state) => FOOTERS[this.composeAccKey(s)] || [];
+    signOffHtml = () => (this.composeFooter().length ? "" : '<p style="margin:12px 0 0 0">' + COMPOSE_DRAFTS.signOff + "</p>");
+    /* The one quiet line a footer folds to wherever it is drawn — sent mail, the composer, the Agent's draft. */
+    footerFoldStyle = (touch) => "display:inline-flex;align-self:flex-start;align-items:center;gap:4px;box-sizing:border-box;min-height:" + (touch ? 44 : 28) +
+      "px;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:13px;line-height:1.3;color:var(--muted)";
+    /* A footer line drawn as sent mail draws it: the name line strong, the fine print small. */
+    footerLineStyle = (l) => l.strong ? "font-size:14px;line-height:1.5;font-weight:600;color:var(--text)"
+      : l.small ? "font-size:12px;line-height:1.5;color:var(--muted);margin-top:6px;text-wrap:pretty"
+      : "font-size:14px;line-height:1.5;color:var(--text2)";
     movesSpam = (id) => !!(ACCOUNTS.find(a => a.key === this.accountOf(id)) || {}).movesSpam;
     /* A message marked spam is read-only. A press on what it refuses still answers, with the one way back. */
     refuseSpam = (id, what) => {
@@ -2888,7 +2906,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.aiUndo = el.innerHTML;
       const full = COMPOSE_DRAFTS.full;
       const shortV = COMPOSE_DRAFTS.short;
-      const paras = kind === "short" ? shortV : full;
+      const signed = !this.composeFooter().length;
+      const paras = (kind === "short" ? shortV : full).concat(signed ? [COMPOSE_DRAFTS.signOff] : []);
       el.innerHTML = "";
       const block = document.createElement("div");
       block.id = "ai-draft-block";
@@ -2901,10 +2920,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       paras.forEach((p, i) => {
         this.timers.push(setTimeout(() => {
           const isLast = i === paras.length - 1;
+          const isSignOff = signed && isLast;
           const node = document.createElement("p");
-          node.style.margin = isLast ? "12px 0 0 0" : "0 0 12px 0";
+          node.style.margin = isSignOff ? "12px 0 0 0" : isLast ? "0" : "0 0 12px 0";
           node.innerHTML = p;
-          (isLast ? el : block).appendChild(node);
+          (isSignOff ? el : block).appendChild(node);
           if (isLast) this.setState({ aiBusy: false, aiDraft: true });
         }, step * (i + 1)));
       });
@@ -3179,6 +3199,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const sendAt = b.type === "draft" ? b.sendAt || null : null;
       const sendSaid = sendAt ? "Send " + sendAt.short : "Send";
       const sendWhen = sendAt ? " - it leaves " + sendAt.long : "";
+      /* The footer the sending account adds, folded to one line as sent mail folds it, so it does not lengthen the block. */
+      const footer = b.type === "draft" ? FOOTERS[b.acc || "acc1"] || [] : [];
+      const footerOpen = !!(st.bkFooterOpen || {})[key];
+      const toggleFooter = () => this.setState(s2 => ({ bkFooterOpen: Object.assign({}, s2.bkFooterOpen, { [key]: !(s2.bkFooterOpen || {})[key] }) }));
 
       /* Controls only exist while the proposal is live and the block actually came back. */
       let raw = [];
@@ -3391,6 +3415,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         letterStyle: "display:flex;flex-direction:column;gap:10px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
         textareaStyle: "width:100%;box-sizing:border-box;min-height:" + (isMobile ? 150 : 130) + "px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.6;color:var(--text);background:var(--sub);border:1px solid var(--accent-line);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
         paras: (b.paras || []).map(p => ({ t: p, style: "font-size:14px;line-height:1.6;color:var(--text);text-wrap:pretty" })),
+        hasFooter: footer.length > 0 && ready && !declined,
+        footerOpen,
+        footerToggle: toggleFooter,
+        footerKey: keyer(toggleFooter),
+        footerLabel: footerOpen ? "Hide your footer" : "Your footer is hidden",
+        footerGlyph: footerOpen ? "expand_more" : "chevron_right",
+        footerLines: footer.map(l => ({ text: l.text, style: this.footerLineStyle(l) })),
+        footerToggleStyle: this.footerFoldStyle(isMobile || !!st.coarse),
+        footerGlyphStyle: icon(18, "inherit"),
         /* The time a draft leaves at, while it can still be sent: the result line names it once it was. */
         hasSendAt: !!sendAt && (!accepted || failed),
         sendAtText: sendAt ? "This message leaves " + sendAt.long + ", not when you press Send." : "",
@@ -3584,7 +3617,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
       if (!this.state.listLoading) this.restoreScrolls();
       if (this.pendingDraft && this.bodyRef.current) {
-        this.bodyRef.current.innerHTML = this.pendingDraft;
+        this.bodyRef.current.innerHTML = this.pendingDraft + this.signOffHtml();
         this.pendingDraft = null;
         this.setState({ aiDraft: true });
       }
@@ -4095,6 +4128,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const replyThread = (rmode && THREADS.find(t => t.id === st.replyThreadId)) || thread;
       const threadParticipants = (msgsFor(replyThread) || []).map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
       const composeDraft = !rmode && st.composeDraft ? st.composeDraft : null;
+      const composeFooter = this.composeFooter(st);
       const composeToBase = rmode === "fwd" ? [] : rmode === "all" ? threadParticipants : rmode === "reply" ? threadParticipants.slice(-1) : composeDraft ? composeDraft.to.slice() : (st.composeTo || NEW_MESSAGE_TO).slice();
       const composeTo = composeToBase.concat((st.composeAddTo || []).filter(n => composeToBase.indexOf(n) < 0));
       const composeSubj = rmode === "fwd" ? "Fwd: " + replyThread.subject : rmode ? "Re: " + replyThread.subject : "";
@@ -4108,7 +4142,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -4306,19 +4340,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             const footOpen = !!(st.footerOpen || {})[k];
             const quoteOpen = !!(st.quotedOpen || {})[k];
             const flip = (key) => () => this.setState(s2 => ({ [key]: Object.assign({}, s2[key], { [k]: !(s2[key] || {})[k] }) }));
-            const foldLine = "display:inline-flex;align-self:flex-start;align-items:center;gap:4px;box-sizing:border-box;min-height:" + (touch ? 44 : 28) +
-              "px;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:13px;line-height:1.3;color:var(--muted)";
+            const foldLine = this.footerFoldStyle(touch);
             return {
               foldsShown: lines.length > 0 || m.quoted.length > 0,
               footerShown: lines.length > 0, footerOpen: footOpen, toggleFooter: flip("footerOpen"),
               footerLabel: footOpen ? "Hide your footer" : "Your footer is hidden",
               footerGlyph: footOpen ? "expand_more" : "chevron_right",
-              footerLines: lines.map(l => ({
-                text: l.text,
-                style: l.strong ? "font-size:14px;line-height:1.5;font-weight:600;color:var(--text)"
-                  : l.small ? "font-size:12px;line-height:1.5;color:var(--muted);margin-top:6px;text-wrap:pretty"
-                  : "font-size:14px;line-height:1.5;color:var(--text2)",
-              })),
+              footerLines: lines.map(l => ({ text: l.text, style: this.footerLineStyle(l) })),
               quotedShown: m.quoted.length > 0, quotedOpen: quoteOpen, toggleQuoted: flip("quotedOpen"),
               quotedGlyph: quoteOpen ? "expand_more" : "chevron_right",
               quotedParas: m.quoted.map(q => ({ text: q.text, style: "font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty" })),
@@ -7524,13 +7552,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           if (said && said.gone) { this.setState({ sendAsk: null, sendLaterAsk: { date: at.date, time: at.time } }); return; }
           const entry = { id: "ob" + Date.now(), stage: at ? "scheduled" : "waiting", at: "10:47", attempts: 0, leaveAt: said ? said.short : undefined,
             rcpt: composeTo.map(n => ({ hdr: "To", name: n, mail: (CONTACTS.find(c => c.name === n) || { mail: n }).mail })), subject: curSubj.trim() || "(no subject)", body: [bodyTxt()] };
+          const acc = this.composeAccKey();
           const showEntry = () => {
             this.goScreen("mail", { mailPane: "list" });
-            this.openOutbox("acc1");
+            this.openOutbox(acc);
             this.pickOutboxEntry(entry.id);
           };
           finishCompose();
-          this.setOutbox("acc1", [entry].concat(this.outboxOf("acc1")));
+          this.setOutbox(acc, [entry].concat(this.outboxOf(acc)));
           if (at) {
             const tid = this.notify("It leaves " + said.long + ". Until then it waits in the Outbox, where it can still be cancelled.", {
               kind: "success", title: "Message scheduled", actionLabel: "Show in Outbox", onAction: () => { this.dismissToast(tid); showEntry(); }, ms: 8000 });
@@ -7543,11 +7572,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             doneTitle: "Message sent",
             doneBody: "To: " + to,
             doneActionLabel: "Show in Outbox",
-            doneAction: () => {
-              this.goScreen("mail", { mailPane: "list" });
-              this.openOutbox("acc1");
-              this.pickOutboxEntry(entry.id);
-            },
+            doneAction: showEntry,
             ms: 2400,
           });
         },
@@ -7559,6 +7584,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(86dvh, 760px)" : "86dvh") + ";z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
         composeTitle: (st.composeMin ? composeKind + " - collapsed" : composeKind),
         composeToChips: composeTo.map(n => ({ name: n })),
+        /* The sending account's footer, under the text and outside it, folded as sent mail folds it: shown on a press,
+           never written in. */
+        composeFooterShown: composeFooter.length > 0,
+        composeFooterOpen: !!st.composeFooterOpen,
+        toggleComposeFooter: () => this.setState(s2 => ({ composeFooterOpen: !s2.composeFooterOpen })),
+        composeFooterLabel: st.composeFooterOpen ? "Hide your footer" : "Your footer is hidden",
+        composeFooterGlyph: st.composeFooterOpen ? "expand_more" : "chevron_right",
+        composeFooterToggleStyle: this.footerFoldStyle(touch),
+        /* Quieter than the editor's text in every line, so nobody reads it as something they wrote. */
+        composeFooterLines: composeFooter.map(l => ({ text: l.text, style: this.footerLineStyle(l) + ";font-size:" + (l.small ? 12 : 13) + "px;color:var(--muted)" })),
+        composeFooterStyle: "flex:0 0 auto;display:flex;flex-direction:column;gap:6px;margin:0 19px;padding:6px 0 " + (low ? 6 : 10) + "px;border-top:1px dashed var(--line);cursor:default;user-select:none;-webkit-user-select:none",
         /* Recipient suggestions under To: the reader's colleagues and the organization's contacts beside their own, each
            group under its own name, a colleague with their presence and an absence they announced. */
         rcptValue: st.rcptQuery || "",
@@ -7614,12 +7650,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ccTitle: st.ccOpen ? "Hide Cc and Bcc fields" : "Show Cc and Bcc fields",
         /* The phone's field labels take the width of the longest of them rather than a desktop column, so a recipient
            chip keeps one line beside its label. */
-        /* A low window lowers the editor's floor so the foot with *Send* stays on screen; the editor scrolls itself. */
-        composeEditorStyle: "flex:1;min-height:" + (low ? 72 : 170) + "px;overflow:auto;padding:16px 17px;border-left:2px solid transparent;font-size:15px;line-height:1.65;color:var(--text2);outline:none",
+        /* A low window lowers the editor's floor so the foot with *Send* stays on screen. The editor and the account's
+           footer under it scroll together, so however long the footer is, it never pushes *Send* off the screen. */
+        composeEditorStyle: "flex:1 0 auto;min-height:" + (low ? 72 : 170) + "px;padding:16px 17px;border-left:2px solid transparent;font-size:15px;line-height:1.65;color:var(--text2);outline:none",
         composeHeadStyle: "display:flex;align-items:center;gap:12px;padding:" + (low ? "0 6px 0 15px" : "11px 15px") + ";background:var(--sub);border-bottom:1px solid var(--line);border-radius:12px 12px 0 0",
         /* In a low window the fields, the AI drafting and the editor scroll together and the foot with *Send* stays
            pinned under them; anywhere else the wrapper is not a box at all. */
         composeScrollStyle: low ? "flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto" : "display:contents",
+        composeWritingStyle: low ? "display:contents" : "flex:1;min-height:170px;overflow:auto;display:flex;flex-direction:column",
         threadSheetStyle: "display:flex;flex-direction:column;gap:12px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";overflow:auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding:10px 16px 20px 16px",
         composeBodyStyle: "display:flex;flex-direction:column;min-height:0;flex:1;--compose-label:" + (isMobile ? 58 : 88) + "px",
         ccToggleStyle: "flex:0 0 auto;font-size:12px;white-space:nowrap;border-radius:8px;" + (touch ? "display:flex;align-items:center;min-height:44px;padding:0 10px;" : "padding:2px 8px;") + (st.ccOpen ? "color:var(--accent-d);background:var(--accent-soft)" : "color:var(--muted)"),

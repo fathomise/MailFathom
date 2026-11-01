@@ -236,6 +236,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <sc-for list="{{ draftSources }}" as="d" hint-placeholder-count="2"><span role="button" tabIndex="0" aria-label="{{ d.ariaLabel }}" style="font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:4px;padding:2px 7px;cursor:pointer" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ d.n }}</span></sc-for>
               </div>
             </div>
+            <div data-draft-footer role="button" tabindex="0" aria-expanded="false" style="{{ draftFooterStyle }}" style-hover="background:var(--hover);color:var(--text2)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">chevron_right</span><span>Your footer is hidden</span></div>
             <sc-if value="{{ isPartial }}" hint-placeholder-val="{{ false }}"><div style="{{ noteStyle }}"><span style="{{ noteIconStyle }}">hourglass_top</span>{{ draftPartialNote }}</div></sc-if>
           </sc-if>
           <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}"><div style="{{ emptyBodyStyle }}"><span style="{{ emptyIconStyle }}">edit_note</span><div style="{{ emptyTextStyle }}">{{ draftEmptyText }}</div></div></sc-if>
@@ -358,6 +359,7 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div style="{{ pc.letterStyle }}">
                     <sc-for list="{{ pc.paras }}" as="p" hint-placeholder-count="3"><div style="{{ pc.paraStyle }}">{{ p.t }}</div></sc-for>
                   </div>
+                  <div data-draft-footer role="button" tabindex="0" aria-expanded="false" style="{{ draftFooterStyle }}" style-hover="background:var(--hover);color:var(--text2)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">chevron_right</span><span>Your footer is hidden</span></div>
                 </sc-if>
                 <sc-if value="{{ pc.hasConflict }}" hint-placeholder-val="{{ false }}">
                   <div style="{{ pc.conflictStyle }}"><span style="{{ pc.conflictIconStyle }}">warning</span>{{ pc.conflict }}</div>

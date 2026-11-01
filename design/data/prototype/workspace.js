@@ -8,7 +8,8 @@ MailFathomDesign.data.app = { version: "2.4.2", build: "build 20260907" };
 // The footer MailFathom appends to what the signed-in person sends, per account, line by line as it went out: `strong`
 // is the name line, `small` the fine print. A message of their own that carries `footer: true` (threads.js) names it,
 // as does the "Still open" reply the prototype writes into every thread with no written-out history, and the simplified
-// view folds it to one line; one without the flag was sent before the footer existed and is whole.
+// view folds it to one line; one without the flag was sent before the footer existed and is whole. The composer draws the
+// sending account's footer under what is being written, and an account missing here — the shared Board — has none.
 MailFathomDesign.data.footers = {
   acc1: [
     { text: "Karolina Kowalska", strong: true },

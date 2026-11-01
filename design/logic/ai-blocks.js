@@ -420,6 +420,8 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
 
         draftMeta: "local draft",
         draftStatusLabel: "Local draft - nothing sent",
+        /* The sending account's footer, folded to one line under the letter as the Agent draws it; a press unfolds it there. */
+        draftFooterStyle: "display:inline-flex;align-self:flex-start;align-items:center;gap:4px;box-sizing:border-box;min-height:" + (isMobile ? 44 : 28) + "px;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:13px;line-height:1.3;color:var(--muted);cursor:pointer",
         draftTo: DRAFT.to,
         draftSubject: DRAFT.subject,
         draftBody: isPartial

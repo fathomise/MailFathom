@@ -23,7 +23,7 @@
   };
 
   const BK_DRAFT_CONTOSO = {
-    type: "draft", meta: "reply · 96 words",
+    type: "draft", meta: "reply · 96 words", acc: "acc1",
     to: "Anna Kowalska", subject: "Re: Contract addendum - signatures",
     paras: [
       "Thank you for the addendum. We accept shortening the response time for critical incidents to 2 hours on business days.",
@@ -460,7 +460,7 @@
     }],
   };
 
-  const AGENT_DRAFT_HTML = '<div id="ai-draft-block" style="border-left:3px solid var(--accent);padding-left:14px;margin-left:-14px"><p style="margin:0 0 12px 0">Hello,</p><p style="margin:0 0 12px 0">thank you for the addendum. We accept shortening the response time for critical incidents to 2 hours on business days.</p><p style="margin:0 0 12px 0">At the same time we ask for an upper cap on CPI indexation of 5% per year. At the 4.1% forecast this gives both sides a predictable cost through 2027.</p><p style="margin:0">If the cap is acceptable, we are ready to close the decision by 28 August.</p></div><p style="margin:12px 0 0 0">Best regards,<br />Karolina Kowalska</p>';
+  const AGENT_DRAFT_HTML = '<div id="ai-draft-block" style="border-left:3px solid var(--accent);padding-left:14px;margin-left:-14px"><p style="margin:0 0 12px 0">Hello,</p><p style="margin:0 0 12px 0">thank you for the addendum. We accept shortening the response time for critical incidents to 2 hours on business days.</p><p style="margin:0 0 12px 0">At the same time we ask for an upper cap on CPI indexation of 5% per year. At the 4.1% forecast this gives both sides a predictable cost through 2027.</p><p style="margin:0">If the cap is acceptable, we are ready to close the decision by 28 August.</p></div>';
 
   Object.assign(MailFathomDesign.data, {
     timelineToday: BK_TIMELINE_TODAY,
