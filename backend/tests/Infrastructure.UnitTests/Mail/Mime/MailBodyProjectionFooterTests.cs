@@ -119,6 +119,21 @@ public sealed class MailBodyProjectionFooterTests
     }
 
     [Fact]
+    public async Task ProduceAsync_ASignatureTheAuthorTypedInsideAParagraph_NamesNoFooterAndDrawsTheSameBlocks()
+    {
+        // Arrange
+        var typed = Composed("Hello.\n-- \nAnna", html: null);
+
+        // Act
+        var own = await DocumentOf(typed, namesAppendedFooter: true);
+        var foreign = await DocumentOf(typed, namesAppendedFooter: false);
+
+        // Assert
+        Assert.Null(own.Footer);
+        Assert.Equal(ParagraphTexts(foreign), ParagraphTexts(own));
+    }
+
+    [Fact]
     public async Task ProduceAsync_TheReadersOwnFootedTextOnlyReply_NamesTheFooterAboveTheQuotation()
     {
         // Arrange

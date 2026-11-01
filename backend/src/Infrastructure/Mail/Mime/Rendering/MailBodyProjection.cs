@@ -196,7 +196,8 @@ internal static class MailBodyProjection
     /// <remarks>
     /// The composer's own reading of where an answer's quotation begins is what bounds it, so the footer found here is
     /// the one that was written there: under the author's words, above what they quoted. A quoted signature opens with
-    /// a quotation marker and cannot be mistaken for it.
+    /// a quotation marker and cannot be mistaken for it. The composer always puts a blank line in front of the
+    /// delimiter, so a <c>-- </c> line inside a paragraph is one the author typed and never the footer's start.
     /// </remarks>
     private static Range? FindTextFooter(string source, bool answers)
     {
@@ -204,9 +205,11 @@ internal static class MailBodyProjection
         var quotationStart = answers ? MimeKitMailFooterComposer.FindTextQuotation(body) : body.Length;
         var authored = body[..quotationStart];
 
-        var delimiter = authored.LastIndexOf("\n" + MimeKitMailFooterComposer.SignatureDelimiter, StringComparison.Ordinal);
+        var delimiter = authored.LastIndexOf(
+            "\n\n" + MimeKitMailFooterComposer.SignatureDelimiter,
+            StringComparison.Ordinal);
         var footerStart = delimiter >= 0
-            ? delimiter + 1
+            ? delimiter + 2
             : authored.StartsWith(MimeKitMailFooterComposer.SignatureDelimiter, StringComparison.Ordinal) ? 0 : -1;
 
         return footerStart < 0 ? null : footerStart..quotationStart;

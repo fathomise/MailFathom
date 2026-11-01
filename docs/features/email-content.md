@@ -648,7 +648,8 @@ withheld what it could not reach — every way a document is cut short reads as 
 
 ### The reader's own footer is named, never removed
 
-`Footer` is a `MailDocumentFooter` — the first top-level block and how many follow it — on the copy MailFathom filed of
+`Footer` is a `MailDocumentFooter` — the position of its first top-level block and how many consecutive blocks it
+spans, that first one included — on the copy MailFathom filed of
 a message it sent from the account being read, where that message carries [the footer it
 appended](mail-footers.md#where-it-goes-in-a-message), and `null` everywhere else. What decides it is the summary's
 `IsFiledSentCopy`, which the send recorded and nothing in a message can claim, rather than the mark itself, which any
