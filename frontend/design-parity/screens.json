@@ -1563,6 +1563,47 @@
       ]
     },
     {
+      "id": "mail-own-footer",
+      "route": "/#/mail",
+      "signIn": true,
+      "compositions": ["telefon", "desktop"],
+      "narrowedBecause": "The folded footer is one line under a message's words whose shape no width or pointer changes beyond the touch floor every control meets, so the phone and the desktop the issue holds it to stand for every size between them.",
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "name": "The racking quote"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Show all the messages"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Your footer is hidden",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Hide your footer",
+            "exact": true
+          }
+        }
+      ]
+    },
+    {
       "id": "composer-sending-options",
       "route": "/#/mail",
       "signIn": true,

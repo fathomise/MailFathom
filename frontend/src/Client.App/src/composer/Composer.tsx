@@ -1128,7 +1128,7 @@ export function Composer({
                                 {translate('footer.notEditable')}
                             </p>
 
-                            <FoldedFooter footer={footer} quiet />
+                            <FoldedFooter blocks={footer.blocks} quiet />
                         </div>
                     )}
 

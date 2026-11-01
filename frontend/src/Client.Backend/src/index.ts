@@ -262,6 +262,7 @@ export {
     type MailBodyTruncation,
     type MailDocument,
     type MailDocumentBlock,
+    type MailDocumentFooter,
     type MailDocumentLink,
     type MailDocumentRefusal,
     type MailHeadingBlock,

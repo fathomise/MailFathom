@@ -34,9 +34,11 @@ export interface SplitDocument {
  * it rather than a tidy one.
  *
  * @param blocks The document's top-level blocks, in the order the message wrote them.
+ * @param wordsAbove Whether the message's own words stand above these blocks, as they do over the blocks under the
+ * reader's own footer — where a run of nothing but quotation still leaves the message on the screen.
  * @returns What the message added, and the quotation under it.
  */
-export function splitQuotedHistory(blocks: readonly MailDocumentBlock[]): SplitDocument {
+export function splitQuotedHistory(blocks: readonly MailDocumentBlock[], wordsAbove = false): SplitDocument {
     let at = blocks.length;
 
     while (at > 0 && trailing(blocks[at - 1])) {
@@ -45,7 +47,7 @@ export function splitQuotedHistory(blocks: readonly MailDocumentBlock[]): SplitD
 
     const quotedHistory = blocks.slice(at);
 
-    return at === 0 || !quotedHistory.some((block) => block.type === 'quote')
+    return (at === 0 && !wordsAbove) || !quotedHistory.some((block) => block.type === 'quote')
         ? { contribution: blocks, quotedHistory: [] }
         : { contribution: blocks.slice(0, at), quotedHistory };
 }

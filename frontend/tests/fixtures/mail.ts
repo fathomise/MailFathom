@@ -551,21 +551,39 @@ function conversationContent(row: (typeof conversationRows)[number]) {
             unread: false,
             receipts: row.id === answeredReplyId ? answeredReplyReceipts : null,
         },
-        body: {
-            ...markupOnlyBody,
-            storedEmailId: row.id,
-            plainText: { ...markupOnlyBody.plainText, text: row.preview, originalCharacterCount: row.preview.length },
-            document: {
-                ...markupOnlyBody.document,
-                blocks: [
-                    {
-                        type: 'paragraph',
-                        version: 1,
-                        content: [{ text: row.preview, emphasis: 'None', foreground: null, link: null }],
-                        alignment: 'Inherited',
-                    },
+        body: conversationBody(row.id, row.id === signedReplyId ? [row.preview, ...readerFooter] : [row.preview]),
+    };
+}
+
+/** The reader's first reply, the one message of the conversation MailFathom appended the reader's footer to. */
+const signedReplyId = '00000000-0000-4000-8000-0000000000c2';
+
+/** The footer MailFathom appended to that reply, a paragraph a line. */
+export const readerFooter = ['Iris Marlow', 'Head of Procurement · Example Warehousing'];
+
+/**
+ * A body whose paragraphs are the given ones, naming every paragraph after the first as the reader's footer and setting
+ * its name line bold, as a footer's markup does.
+ */
+function conversationBody(storedEmailId: string, paragraphs: readonly string[]) {
+    const footer = paragraphs.slice(1);
+    const text = paragraphs.join('\n\n');
+
+    return {
+        ...markupOnlyBody,
+        storedEmailId,
+        plainText: { ...markupOnlyBody.plainText, text, originalCharacterCount: text.length },
+        document: {
+            ...markupOnlyBody.document,
+            blocks: paragraphs.map((paragraph, position) => ({
+                type: 'paragraph',
+                version: 1,
+                content: [
+                    { text: paragraph, emphasis: position === 1 ? 'Bold' : 'None', foreground: null, link: null },
                 ],
-            },
+                alignment: 'Inherited',
+            })),
+            footer: footer.length === 0 ? null : { firstBlock: 1, blockCount: footer.length },
         },
     };
 }

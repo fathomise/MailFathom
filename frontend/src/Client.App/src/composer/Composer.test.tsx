@@ -2796,6 +2796,7 @@ function footerOf(name: string, line: string): MailDocument {
         inlineImageCount: 0,
         undrawnInlineImageCount: 0,
         truncated: false,
+        footer: null,
     };
 }
 

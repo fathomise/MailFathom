@@ -39,7 +39,7 @@ through keeps — so the sent copy, read back out of the Sent folder, still mark
 answer, the footer sits between what the person wrote and the attribution line that opens the quotation.
 
 **Reading it back, the document names it.** The document a reader is served for the copy MailFathom filed of their own
-send says which of its blocks are the footer, so the client can fold it under each message they wrote; the mark is
+send says which of its blocks are the footer, so the client folds it under each message they wrote; the mark is
 honoured on that copy alone, never on a message from anybody else. [The message body
 route](../operations/client-endpoint.md#the-message-body-route) states the field.
 
@@ -87,7 +87,10 @@ would edit.
 
 The client draws it folded to one line wherever a message is about to go out: under the words in the composer, for the
 account the message is sent from, and under an Agent's draft, for the account the draft names. A press unfolds it and
-another folds it again. It is drawn outside what is written and is never part of a saved draft, because the service
+another folds it again. Reading back what was sent, it folds the same way: the simplified view of a message the person
+sent, in Sent and in a conversation alike, draws the blocks the document names as the footer as that one line under
+their words and above the conversation they quoted. A message whose document names no footer is drawn whole, and the
+sender's own markup, which is the message exactly as it went out, folds nothing. It is drawn outside what is written and is never part of a saved draft, because the service
 appends it on sending, and a footer the client could not read leaves the message to be written and sent without it.
 
 ## Personal data

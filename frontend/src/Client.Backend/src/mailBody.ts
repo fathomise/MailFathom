@@ -220,6 +220,17 @@ export type MailDocumentBlock =
     | MailPreformattedBlock
     | MailUnimplementedBlock;
 
+/**
+ * Which of a document's top-level blocks are the footer MailFathom appended to a message the reader sent.
+ *
+ * A statement about blocks the document still carries rather than a removal of them, so the range always lies inside
+ * `blocks` and spans at least one of them.
+ */
+export interface MailDocumentFooter {
+    readonly firstBlock: number;
+    readonly blockCount: number;
+}
+
 /** A message's body reduced to the tree a pane draws, and what the reduction left out. */
 export interface MailDocument {
     readonly blocks: readonly MailDocumentBlock[];
@@ -229,6 +240,9 @@ export interface MailDocument {
     readonly inlineImageCount: number;
     readonly undrawnInlineImageCount: number;
     readonly truncated: boolean;
+
+    /** The reader's own footer, named only on the copy MailFathom filed of a message it sent for them. */
+    readonly footer: MailDocumentFooter | null;
 }
 
 /** The message as words, which is a rendering in its own right rather than only what a refusal falls back to. */
@@ -619,6 +633,11 @@ function parseDocument(record: Readonly<Record<string, unknown>>, remoteImages: 
         return null;
     }
 
+    const footer = parseFooter(record['footer'], blocks.length);
+    if (footer === undefined) {
+        return null;
+    }
+
     return {
         blocks,
         refusal,
@@ -627,7 +646,25 @@ function parseDocument(record: Readonly<Record<string, unknown>>, remoteImages: 
         inlineImageCount,
         undrawnInlineImageCount,
         truncated,
+        footer,
     };
+}
+
+// A footer is a range over the blocks this same document carries, so one reaching past them names blocks that are not
+// there, and folding by it would hide words the reader wrote or show a fold over nothing. A deployment that predates
+// the member sends none, which is a document naming no footer rather than one to refuse.
+function parseFooter(value: unknown, blockCount: number): MailDocumentFooter | null | undefined {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const record = asRecord(value);
+    const firstBlock = record?.['firstBlock'];
+    const count = record?.['blockCount'];
+
+    return isCount(firstBlock) && isCount(count) && count > 0 && firstBlock + count <= blockCount
+        ? { firstBlock, blockCount: count }
+        : undefined;
 }
 
 /** What a walk of one branch needs to know: what the reader asked for, how deep it already is, and what is left. */

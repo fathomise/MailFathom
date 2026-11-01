@@ -65,6 +65,7 @@ function bodyOf(blocks: readonly MailDocumentBlock[], plainText = ''): MailBody 
                       inlineImageCount: 0,
                       undrawnInlineImageCount: 0,
                       truncated: false,
+                      footer: null,
                   },
         selfContainedHtml: null,
         remoteImagesRequested: false,
