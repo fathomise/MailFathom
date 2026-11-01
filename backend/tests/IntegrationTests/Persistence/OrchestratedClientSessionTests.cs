@@ -68,7 +68,7 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
             // Arrange
             var credential = await ProvisionCredentialAsync(mintingHost, user, "another-replica", cancellationToken);
             var minted = await (await SessionsOnAsync(mintingHost, cancellationToken))
-                .MintAsync(Admitted(user, credential), cancellationToken);
+                .MintAsync(Admitted(user, credential), ClientKind.Web, cancellationToken);
 
             // Act
             var admitted = await (await SessionsOnAsync(servingHost, cancellationToken))
@@ -102,7 +102,7 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
             // Arrange
             var credential = await ProvisionCredentialAsync(mintingHost, user, "disabled-elsewhere", cancellationToken);
             var minted = await (await SessionsOnAsync(mintingHost, cancellationToken))
-                .MintAsync(Admitted(user, credential), cancellationToken);
+                .MintAsync(Admitted(user, credential), ClientKind.Web, cancellationToken);
 
             // Act
             var written = await SetEnabledAsync(administeringHost, user, credential, enabled: false, cancellationToken);
@@ -144,7 +144,7 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
             var credential = await ProvisionCredentialAsync(oneHost, user, "renewed-at-once", cancellationToken);
             var oneReplica = await SessionsOnAsync(oneHost, cancellationToken);
             var anotherReplica = await SessionsOnAsync(anotherHost, cancellationToken);
-            var minted = await oneReplica.MintAsync(Admitted(user, credential), cancellationToken);
+            var minted = await oneReplica.MintAsync(Admitted(user, credential), ClientKind.Web, cancellationToken);
 
             // Act
             var attempts = await ConcurrentIdempotency.RunAsync(
@@ -188,7 +188,7 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
             var sessions = await SessionsOnAsync(signingInHost, cancellationToken);
 
             // Act
-            var signingIn = Task.Run(() => sessions.MintAsync(Admitted(user, credential), cancellationToken), cancellationToken);
+            var signingIn = Task.Run(() => sessions.MintAsync(Admitted(user, credential), ClientKind.Web, cancellationToken), cancellationToken);
             var disabling = Task.Run(
                 () => SetEnabledAsync(administeringHost, user, credential, enabled: false, cancellationToken),
                 cancellationToken);
@@ -221,7 +221,7 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
             // Arrange
             var credential = await ProvisionCredentialAsync(renewingHost, user, "renewed-while-disabled", cancellationToken);
             var sessions = await SessionsOnAsync(renewingHost, cancellationToken);
-            var minted = await sessions.MintAsync(Admitted(user, credential), cancellationToken);
+            var minted = await sessions.MintAsync(Admitted(user, credential), ClientKind.Web, cancellationToken);
 
             // Act
             var renewing = Task.Run(() => sessions.RenewAsync(minted.Token?.Value, cancellationToken), cancellationToken);
@@ -271,7 +271,7 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
 
             // Act
             var minted = await (await SessionsOnAsync(host, cancellationToken))
-                .MintAsync(Admitted(user, credential), cancellationToken);
+                .MintAsync(Admitted(user, credential), ClientKind.Web, cancellationToken);
 
             // Assert
             Assert.NotNull(committed);
@@ -307,7 +307,7 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
             await OrchestratedForeignUser.ProvisionAsync(host, stranger, cancellationToken);
             var credential = await ProvisionCredentialAsync(host, holder, "held-by-somebody-else", cancellationToken);
             var minted = await (await SessionsOnAsync(host, cancellationToken))
-                .MintAsync(Admitted(holder, credential), cancellationToken);
+                .MintAsync(Admitted(holder, credential), ClientKind.Web, cancellationToken);
 
             // Act
             var written = await SetEnabledAsync(host, stranger, credential, enabled: false, cancellationToken);
@@ -340,7 +340,7 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
             // Arrange
             var credential = await ProvisionCredentialAsync(mintingHost, user, "deleted-elsewhere", cancellationToken);
             var minted = await (await SessionsOnAsync(mintingHost, cancellationToken))
-                .MintAsync(Admitted(user, credential), cancellationToken);
+                .MintAsync(Admitted(user, credential), ClientKind.Web, cancellationToken);
 
             // Act
             var removed = await administeringHost.InScopeAsync(
@@ -377,7 +377,7 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
         {
             // Arrange
             var minted = await (await SessionsOnAsync(host, cancellationToken))
-                .MintAsync(Admitted(user, credentialId: Guid.Empty), cancellationToken);
+                .MintAsync(Admitted(user, credentialId: Guid.Empty), ClientKind.Web, cancellationToken);
 
             // Act
             await OrchestratedForeignUser.EraseAsync(host, user);
@@ -396,6 +396,52 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
         }
     }
 
+    /// <summary>
+    /// A phone's session keeps the day it was signed in on, a report of a later opening overwrites that day, a renewal
+    /// carries the kind and the day onto the session it mints, and a report on a desktop session writes nothing.
+    /// </summary>
+    /// <remarks>
+    /// The day is written by statements that name the kind in their own condition and copy both columns through the
+    /// renewal's removal, so a store that dropped either on the way would pass every unit test over the in-memory store.
+    /// </remarks>
+    [Fact]
+    public async Task RecordOpeningAsync_APhoneAndADesktopSession_KeepsOnlyThePhonesLatestDayAcrossARenewal()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var host = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var user = Guid.NewGuid();
+        var openedLater = Instant.AddDays(2);
+
+        await OrchestratedForeignUser.ProvisionAsync(host, user, cancellationToken);
+
+        try
+        {
+            // Arrange
+            var signingIn = await SessionsOnAsync(host, cancellationToken);
+            var phone = await signingIn.MintAsync(Admitted(user, credentialId: Guid.Empty), ClientKind.Android, cancellationToken);
+            var desktop = await signingIn.MintAsync(Admitted(user, credentialId: Guid.Empty), ClientKind.Desktop, cancellationToken);
+            var signedInOn = await SessionsOfAsync(host, user, cancellationToken);
+            var later = await SessionsOnAsync(host, cancellationToken, openedLater);
+
+            // Act
+            await later.RecordOpeningAsync(phone.Token?.Value, cancellationToken);
+            await later.RecordOpeningAsync(desktop.Token?.Value, cancellationToken);
+            await later.RenewAsync(phone.Token?.Value, cancellationToken);
+
+            // Assert
+            Assert.Equal(
+                [((int)ClientKind.Desktop, (DateOnly?)null), ((int)ClientKind.Android, DateOnly.FromDateTime(Instant.UtcDateTime))],
+                signedInOn);
+            Assert.Equal(
+                [((int)ClientKind.Desktop, (DateOnly?)null), ((int)ClientKind.Android, DateOnly.FromDateTime(openedLater.UtcDateTime))],
+                await SessionsOfAsync(host, user, cancellationToken));
+        }
+        finally
+        {
+            await OrchestratedForeignUser.EraseAsync(host, user);
+        }
+    }
+
     private static AdmittedUserCredential Admitted(Guid user, Guid credentialId) =>
         new(credentialId, UserId.Create(user), WholeMailSurface, UserEndpointAccess.Everywhere);
 
@@ -403,12 +449,13 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
     /// <remarks>Over a clock this class fixes rather than the wall clock, so a session's expiry and the sweep's threshold are this class's. Each replica gets its own instance at the same instant, as two processes would.</remarks>
     private static async Task<ClientSessionTokens> SessionsOnAsync(
         OrchestratedMailFathomServices host,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken,
+        DateTimeOffset? at = null) =>
         new(
             await host.InScopeAsync(
                 (scope, _) => Task.FromResult(scope.GetRequiredService<IClientSessionStore>()),
                 cancellationToken),
-            new FakeTimeProvider(Instant));
+            new FakeTimeProvider(at ?? Instant));
 
     private static IUserCredentialStore Credentials(IServiceProvider scope) =>
         scope.GetRequiredService<IUserCredentialStore>();
@@ -445,6 +492,21 @@ public sealed class OrchestratedClientSessionTests(MailFathomOrchestrationFixtur
         bool enabled,
         CancellationToken cancellationToken) => host.InScopeAsync(
             (scope, token) => Credentials(scope).SetEnabledAsync(UserId.Create(user), credentialId, enabled, token),
+            cancellationToken);
+
+    /// <summary>Reads the kind and the opening day of every session one user holds, ordered by kind.</summary>
+    private static Task<(int ClientKind, DateOnly? LastOpenedOn)[]> SessionsOfAsync(
+        OrchestratedMailFathomServices host,
+        Guid user,
+        CancellationToken cancellationToken) => host.InScopeAsync(
+            async (scope, token) => (await scope.GetRequiredService<MailFathomDbContext>()
+                    .ClientSessions
+                    .Where(session => session.UserId == user)
+                    .OrderBy(session => session.ClientKind)
+                    .Select(session => new { session.ClientKind, session.LastOpenedOn })
+                    .ToArrayAsync(token))
+                .Select(session => (session.ClientKind, session.LastOpenedOn))
+                .ToArray(),
             cancellationToken);
 
     /// <summary>Counts what the deployment holds for one credential, which is what the racing cases are stated against.</summary>

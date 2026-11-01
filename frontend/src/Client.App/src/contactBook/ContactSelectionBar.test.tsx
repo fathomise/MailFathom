@@ -46,6 +46,7 @@ function colleagueCalled(id: string, displayName: string): Colleague {
         presence: 'Busy',
         lastSeen: null,
         outOfOfficeUntil: null,
+        usesPhoneApp: false,
     };
 }
 

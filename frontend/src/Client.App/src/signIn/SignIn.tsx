@@ -11,6 +11,7 @@ import {
     resolveDeploymentEntry,
     signIn,
     type ClientFailureReason,
+    type ClientKind,
     type DeploymentAddress,
     type DeploymentEntryRefusal,
     type DeploymentEntryResult,
@@ -191,6 +192,7 @@ type HandingOver =
     | { readonly stage: 'returning' };
 
 export function SignIn({
+    clientKind,
     adopted,
     clearTextPermitted: configuredClearText,
     beyondTheTab,
@@ -202,6 +204,9 @@ export function SignIn({
     onSignedInWithGrant,
     onPointSomewhereElse,
 }: {
+    /** Which head this is, which the exchange is told so the session records it. */
+    readonly clientKind: ClientKind;
+
     readonly adopted: AdoptedDeployment | null;
 
     /** The clear-text permission a deployment configured, or `null` where it configured none. */
@@ -671,6 +676,7 @@ export function SignIn({
         const answer = await signIn(
             { baseAddress: reached.deployment.baseAddress, authorization: credential.authorization },
             send(running.signal),
+            clientKind,
         );
 
         if (running.signal.aborted) {

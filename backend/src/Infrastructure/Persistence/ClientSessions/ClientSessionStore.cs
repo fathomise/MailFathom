@@ -87,17 +87,17 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
     /// </remarks>
     private const string MintSessionStatement = $"""
         INSERT INTO "{ClientSessionEntity.TableName}"
-            ("{ClientSessionEntity.IdentifierColumnName}", "{ClientSessionEntity.UserIdColumnName}", "{ClientSessionEntity.CredentialIdColumnName}", "{ClientSessionEntity.PermissionsColumnName}", "{ClientSessionEntity.SecretDigestColumnName}", "{ClientSessionEntity.ExpiresAtColumnName}")
-        SELECT @identifier, @userId, @credentialId, @permissions, @secretDigest, @expiresAt
+            ("{ClientSessionEntity.IdentifierColumnName}", "{ClientSessionEntity.UserIdColumnName}", "{ClientSessionEntity.CredentialIdColumnName}", "{ClientSessionEntity.PermissionsColumnName}", "{ClientSessionEntity.SecretDigestColumnName}", "{ClientSessionEntity.ExpiresAtColumnName}", "{ClientSessionEntity.ClientKindColumnName}", "{ClientSessionEntity.LastOpenedOnColumnName}")
+        SELECT @identifier, @userId, @credentialId, @permissions, @secretDigest, @expiresAt, @clientKind, @lastOpenedOn
         WHERE (SELECT count(*) FROM "{ClientSessionEntity.TableName}") < @mostLiveSessions;
         """;
 
-    /// <summary>Writes the replacement a renewal carries the removed session's grant into.</summary>
+    /// <summary>Writes the replacement a renewal carries the removed session's grant and client into.</summary>
     /// <remarks>A replacement never meets the bound, because it does not grow the table: the bound refuses a new sign-in rather than ending a live session, and a renewal refused for capacity would end every live session at its own expiry for as long as the deployment stayed full.</remarks>
     private const string RenewSessionStatement = $"""
         INSERT INTO "{ClientSessionEntity.TableName}"
-            ("{ClientSessionEntity.IdentifierColumnName}", "{ClientSessionEntity.UserIdColumnName}", "{ClientSessionEntity.CredentialIdColumnName}", "{ClientSessionEntity.PermissionsColumnName}", "{ClientSessionEntity.SecretDigestColumnName}", "{ClientSessionEntity.ExpiresAtColumnName}")
-        VALUES (@identifier, @userId, @credentialId, @permissions, @secretDigest, @expiresAt);
+            ("{ClientSessionEntity.IdentifierColumnName}", "{ClientSessionEntity.UserIdColumnName}", "{ClientSessionEntity.CredentialIdColumnName}", "{ClientSessionEntity.PermissionsColumnName}", "{ClientSessionEntity.SecretDigestColumnName}", "{ClientSessionEntity.ExpiresAtColumnName}", "{ClientSessionEntity.ClientKindColumnName}", "{ClientSessionEntity.LastOpenedOnColumnName}")
+        VALUES (@identifier, @userId, @credentialId, @permissions, @secretDigest, @expiresAt, @clientKind, @lastOpenedOn);
         """;
 
     /// <summary>Reports what the deployment holds under one identifier.</summary>
@@ -139,7 +139,18 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
         DELETE FROM "{ClientSessionEntity.TableName}"
         WHERE "{ClientSessionEntity.IdentifierColumnName}" = @identifier
           AND "{ClientSessionEntity.SecretDigestColumnName}" = @secretDigest
-        RETURNING "{ClientSessionEntity.UserIdColumnName}", "{ClientSessionEntity.CredentialIdColumnName}", "{ClientSessionEntity.PermissionsColumnName}";
+        RETURNING "{ClientSessionEntity.UserIdColumnName}", "{ClientSessionEntity.CredentialIdColumnName}", "{ClientSessionEntity.PermissionsColumnName}", "{ClientSessionEntity.ClientKindColumnName}", "{ClientSessionEntity.LastOpenedOnColumnName}";
+        """;
+
+    /// <summary>Records the day the phone app was opened on the presented session, guarded by the digest as a removal is.</summary>
+    /// <remarks>It writes nothing where the day is already the one recorded, so opening the app all day costs one row write a day.</remarks>
+    private const string RecordOpeningStatement = $"""
+        UPDATE "{ClientSessionEntity.TableName}"
+        SET "{ClientSessionEntity.LastOpenedOnColumnName}" = @openedOn
+        WHERE "{ClientSessionEntity.IdentifierColumnName}" = @identifier
+          AND "{ClientSessionEntity.SecretDigestColumnName}" = @secretDigest
+          AND "{ClientSessionEntity.ClientKindColumnName}" = @phone
+          AND "{ClientSessionEntity.LastOpenedOnColumnName}" IS DISTINCT FROM @openedOn;
         """;
 
     /// <summary>Removes what can no longer authenticate anything, reaching it through the index on the expiry.</summary>
@@ -159,11 +170,13 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
     public async Task<ClientSessionMintOutcome> TryMintAsync(
         MintedClientSessionRow row,
         ClientSessionGrant grant,
+        SessionClient client,
         int mostLiveSessions,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(row);
         ArgumentNullException.ThrowIfNull(grant);
+        ArgumentNullException.ThrowIfNull(client);
 
         try
         {
@@ -178,7 +191,7 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
             }
 
             await using var mint = new NpgsqlCommand(MintSessionStatement, connection, transaction);
-            AddSessionParameters(mint, row, grant);
+            AddSessionParameters(mint, row, grant, client);
             mint.Parameters.AddWithValue("mostLiveSessions", mostLiveSessions);
 
             var written = await mint.ExecuteNonQueryAsync(cancellationToken) == 1;
@@ -267,12 +280,12 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
             }
 
             await using var insert = new NpgsqlCommand(RenewSessionStatement, connection, transaction);
-            AddSessionParameters(insert, replacement, removed);
+            AddSessionParameters(insert, replacement, removed.Grant, removed.Client);
 
             await insert.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            return removed;
+            return removed.Grant;
         }
         catch (NpgsqlException failure)
         {
@@ -304,6 +317,33 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
         {
             throw Unavailable(
                 $"A client session could not be ended in {ClientSessionEntity.TableName}, so the sign-out left it standing until its expiry.",
+                failure);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task RecordOpeningAsync(
+        string identifier,
+        ReadOnlyMemory<byte> secretDigest,
+        DateOnly openedOn,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(identifier);
+
+        await using var command = dataSource.CreateCommand(RecordOpeningStatement);
+        command.Parameters.AddWithValue("identifier", identifier);
+        AddDigestParameter(command, secretDigest);
+        command.Parameters.AddWithValue("phone", (int)ClientKind.Android);
+        command.Parameters.Add(new NpgsqlParameter("openedOn", NpgsqlDbType.Date) { Value = openedOn });
+
+        try
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        catch (NpgsqlException failure)
+        {
+            throw Unavailable(
+                $"The day the phone app was opened could not be recorded in {ClientSessionEntity.TableName}.",
                 failure);
         }
     }
@@ -375,8 +415,8 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
             : null;
     }
 
-    /// <summary>Removes the presented session inside the caller's transaction and hands back the grant it held.</summary>
-    private static async Task<ClientSessionGrant?> RemoveAsync(
+    /// <summary>Removes the presented session inside the caller's transaction and hands back the grant and the client it held.</summary>
+    private static async Task<(ClientSessionGrant Grant, SessionClient Client)?> RemoveAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         string identifier,
@@ -389,9 +429,16 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        return await reader.ReadAsync(cancellationToken)
-            ? ReadGrant(reader, userIdOrdinal: 0, credentialIdOrdinal: 1, permissionsOrdinal: 2)
-            : null;
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return (
+            ReadGrant(reader, userIdOrdinal: 0, credentialIdOrdinal: 1, permissionsOrdinal: 2),
+            new SessionClient(
+                (ClientKind)reader.GetInt32(3),
+                await reader.IsDBNullAsync(4, cancellationToken) ? null : reader.GetFieldValue<DateOnly>(4)));
     }
 
     /// <summary>Reads a row's three grant columns back into what the session admits.</summary>
@@ -418,11 +465,12 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
             [.. MailFathomPermission.All.Where(granted.Contains)]);
     }
 
-    /// <summary>Writes the six values a session row is composed of onto an insert.</summary>
+    /// <summary>Writes the eight values a session row is composed of onto an insert.</summary>
     private static void AddSessionParameters(
         NpgsqlCommand command,
         MintedClientSessionRow row,
-        ClientSessionGrant grant)
+        ClientSessionGrant grant,
+        SessionClient client)
     {
         command.Parameters.AddWithValue("identifier", row.Identifier);
         command.Parameters.AddWithValue("userId", grant.User.Value);
@@ -436,6 +484,11 @@ internal sealed class ClientSessionStore(NpgsqlDataSource dataSource) : IClientS
         });
         AddDigestParameter(command, row.SecretDigest);
         command.Parameters.AddWithValue("expiresAt", row.ExpiresAt.ToUniversalTime());
+        command.Parameters.AddWithValue("clientKind", (int)client.Kind);
+        command.Parameters.Add(new NpgsqlParameter("lastOpenedOn", NpgsqlDbType.Date)
+        {
+            Value = client.LastOpenedOn is { } openedOn ? openedOn : DBNull.Value,
+        });
     }
 
     private static void AddDigestParameter(NpgsqlCommand command, ReadOnlyMemory<byte> secretDigest) =>

@@ -20,6 +20,7 @@ import {
     watchedSignalSchedule,
 } from './developerInformation/developerRecord';
 import { LocalizationProvider } from './localization/Localization';
+import { clientKind } from './shellOperations/clientKind';
 import { configuredConnection } from './shellOperations/configuredConnection';
 import { LinkOpenerContext, linkOpenerForThisApplication } from './shellOperations/linkOpener';
 import { signInRedirectForThisApplication } from './shellOperations/signInRedirect';
@@ -93,6 +94,7 @@ async function open(root: HTMLElement): Promise<void> {
     // what takes the authorization code out of the address bar — left there it would travel into every later referrer,
     // into the history somebody can scroll back through, and into whatever a reload would replay it with.
     const redirect = await signInRedirectForThisApplication();
+    const signingInAs = await clientKind();
     const redirectAnswer = redirect.answerWaiting();
 
     // The root is where what the deployment is told about a failed render is composed, which is why the boundaries
@@ -130,6 +132,7 @@ async function open(root: HTMLElement): Promise<void> {
                                                 it stands around; this one is what catches whatever none of them did. */}
                                                 <Containment region="application">
                                                     <App
+                                                        clientKind={signingInAs}
                                                         contactPhotos={contactPhotoExchange}
                                                         credentials={credentials}
                                                         deployment={deployment}

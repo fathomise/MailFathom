@@ -7,7 +7,9 @@ import {
     endSession,
     parseMintedSession,
     renewSession,
+    reportOpening,
     sessionExchangeRoute,
+    sessionOpeningRoute,
     sessionRevocationRoute,
 } from './sessionToken';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
@@ -100,6 +102,38 @@ describe('endSession', () => {
         const result = await endSession(session, () => Promise.reject(new TypeError('Failed to fetch')));
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: null } });
+    });
+});
+
+describe('reportOpening', () => {
+    it('tells the opening route about the session it holds, with nothing but the credential', async () => {
+        const asked: ClientRequest[] = [];
+
+        await reportOpening(session, (request) => {
+            asked.push(request);
+
+            return Promise.resolve({ status: 204, body: '', headers: {} });
+        });
+
+        expect(asked).toEqual([
+            {
+                method: 'POST',
+                path: `https://mail.example.invalid/api/client${sessionOpeningRoute}`,
+                headers: { Accept: 'application/json', Authorization: session.authorization },
+            },
+        ]);
+    });
+
+    it('reads the deployment having heard it as nothing more to report', async () => {
+        const result = await reportOpening(session, answering({ status: 204 }));
+
+        expect(result).toEqual({ outcome: 'read', value: null });
+    });
+
+    it('reports a session the deployment no longer accepts by the reason a screen acts on', async () => {
+        const result = await reportOpening(session, answering({ status: 401 }));
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unauthenticated', status: 401 } });
     });
 });
 

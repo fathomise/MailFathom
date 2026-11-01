@@ -103,6 +103,12 @@ export interface Colleague {
      * away and until when, and never what the reply says.
      */
     readonly outOfOfficeUntil: string | null;
+
+    /**
+     * Whether they use the phone app: signed in to it and opened it within the last seven days. Never the day it rests on,
+     * and never for a member who chose to hide.
+     */
+    readonly usesPhoneApp: boolean;
 }
 
 /** A day of the week as the service names one. */
@@ -416,6 +422,9 @@ export function parseColleague(value: unknown): Colleague | null {
     const presence = record['presence'];
     const lastSeen = record['lastSeen'] ?? null;
     const outOfOfficeUntil = record['outOfOfficeUntil'] ?? null;
+    // A replica running the build before the marker answers without it during a rolling upgrade, and that reads as no
+    // marker rather than as a directory nobody can read.
+    const usesPhoneApp = record['usesPhoneApp'] ?? false;
 
     // A colleague never reads as hidden, and only an offline one carries when they were last seen.
     if (!isPresenceState(presence) || presence === 'Hidden') {
@@ -426,7 +435,7 @@ export function parseColleague(value: unknown): Colleague | null {
         return null;
     }
 
-    if (outOfOfficeUntil !== null && !isInstant(outOfOfficeUntil)) {
+    if ((outOfOfficeUntil !== null && !isInstant(outOfOfficeUntil)) || typeof usesPhoneApp !== 'boolean') {
         return null;
     }
 
@@ -445,6 +454,7 @@ export function parseColleague(value: unknown): Colleague | null {
         presence,
         lastSeen,
         outOfOfficeUntil,
+        usesPhoneApp,
     };
 }
 

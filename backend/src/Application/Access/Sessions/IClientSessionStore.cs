@@ -31,6 +31,7 @@ public interface IClientSessionStore
     /// <summary>Holds a new session for what a credential admitted, while the user and the credential behind it still admit one and the deployment is under its own bound.</summary>
     /// <param name="row">The identifier, the digest, and the expiry the caller drew for this session.</param>
     /// <param name="grant">What the exchange established, which the session admits until it is renewed, revoked, or expires.</param>
+    /// <param name="client">The client the sign-in declared, which the session records beside its grant.</param>
     /// <param name="mostLiveSessions">The most sessions the deployment holds at once, counted by the statement that writes this one.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Whether the session is held, and where it is not, which of the two refusals it was.</returns>
@@ -44,6 +45,7 @@ public interface IClientSessionStore
     Task<ClientSessionMintOutcome> TryMintAsync(
         MintedClientSessionRow row,
         ClientSessionGrant grant,
+        SessionClient client,
         int mostLiveSessions,
         CancellationToken cancellationToken);
 
@@ -55,7 +57,7 @@ public interface IClientSessionStore
     /// <remarks>The one operation on the request path, and one indexed read by the key. Nothing caches it, because a cached session is a revoked session that goes on working for the cache's own window on every replica that had already read it.</remarks>
     Task<HeldClientSession?> FindAsync(string identifier, CancellationToken cancellationToken);
 
-    /// <summary>Replaces a live session with a new one, carrying its grant forward, so one sign-in holds one live token however often a client renews.</summary>
+    /// <summary>Replaces a live session with a new one, carrying its grant and its client forward, so one sign-in holds one live token however often a client renews.</summary>
     /// <param name="identifier">The public half of the presented token.</param>
     /// <param name="secretDigest">The digest of the presented secret, which the removal is guarded by.</param>
     /// <param name="replacement">The identifier, the digest, and the expiry the caller drew for the replacement.</param>
@@ -90,6 +92,20 @@ public interface IClientSessionStore
     /// <exception cref="ClientSessionStoreUnavailableException">Thrown when the sessions could not be reached.</exception>
     /// <remarks>Guarded by the digest for the reason the renewal's removal is: the identifier is the half of a token that is not a secret, and a removal keyed on it alone would be a sign-out anybody could perform.</remarks>
     Task<bool> RevokeAsync(string identifier, ReadOnlyMemory<byte> secretDigest, CancellationToken cancellationToken);
+
+    /// <summary>Records that the phone app was opened on one session, on the day given.</summary>
+    /// <param name="identifier">The public half of the presented token.</param>
+    /// <param name="secretDigest">The digest of the presented secret, which the write is guarded by.</param>
+    /// <param name="openedOn">The UTC day of the opening, which overwrites the day recorded before it.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes when the day is recorded; a session that is not a phone session, or is not held, records nothing.</returns>
+    /// <exception cref="ClientSessionStoreUnavailableException">Thrown when the sessions could not be reached.</exception>
+    /// <remarks>Guarded by the digest for the reason a revocation is, so the half of a token that is not a secret cannot mark anybody as using the phone app.</remarks>
+    Task RecordOpeningAsync(
+        string identifier,
+        ReadOnlyMemory<byte> secretDigest,
+        DateOnly openedOn,
+        CancellationToken cancellationToken);
 
     /// <summary>Removes the sessions that can no longer authenticate anything.</summary>
     /// <param name="removableFrom">The instant a session must have expired before to be removed, exclusive because a session expiring at it still authenticates.</param>

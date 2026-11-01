@@ -2807,6 +2807,7 @@ export const en = {
     'presence.afterRole': '{role} · {presence}',
     'presence.lastSeen': 'Last seen {when}',
     'presence.outUntil': 'Out until {day}',
+    'presence.usesPhoneApp': 'Uses the phone app',
     'presence.outOfOfficeUntil': 'Out of office until {day}',
     'presence.withRoleOutUntil': '{presence} · {role} · out until {day}',
     'presence.yours': 'Your status',

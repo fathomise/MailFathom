@@ -494,6 +494,7 @@ describe('RecipientField', () => {
             presence: 'Active',
             lastSeen: null,
             outOfOfficeUntil: null,
+            usesPhoneApp: false,
         };
         const { changed } = drawField(
             [],

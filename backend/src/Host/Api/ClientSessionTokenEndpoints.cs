@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json.Serialization;
 using MailFathom.Application.Access;
 using MailFathom.Application.Access.Credentials;
 using MailFathom.Application.Access.Sessions;
@@ -12,6 +13,7 @@ using MailFathom.Host.Security.Transport;
 using MailFathom.Infrastructure.Security.OAuth;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace MailFathom.Host.Api;
 
@@ -50,6 +52,19 @@ internal static class ClientSessionTokenEndpoints
     /// <summary>The route a session is ended on, relative to the client prefix.</summary>
     internal const string RevocationRoute = "/session/token/revocation";
 
+    /// <summary>The route the phone app reports an opening on, relative to the client prefix.</summary>
+    internal const string OpeningRoute = "/session/opening";
+
+    /// <summary>The largest exchange body read, which names one of three heads and is a few dozen bytes.</summary>
+    internal const int MaxExchangeRequestBytes = 256;
+
+    private static readonly (string Name, ClientKind Kind)[] ClientKindNames =
+    [
+        ("web", ClientKind.Web),
+        ("desktop", ClientKind.Desktop),
+        ("android", ClientKind.Android),
+    ];
+
     /// <summary>What a caller is told where this deployment will hold no session for what the request presented.</summary>
     /// <remarks>
     /// Sorted apart from the bound rather than collapsed into it, because a client does two different things with
@@ -72,16 +87,20 @@ internal static class ClientSessionTokenEndpoints
         // No permission on either, for the reason the session read carries none: a caller exchanging the credential it
         // already authenticated with, or ending the session it is holding, is asking about itself rather than about
         // anybody's mail. A grant narrowed to nothing still signs in and still signs out.
-        api.MapPost(ExchangeRoute, Exchange).RequireNoPermission();
+        api.MapPost(ExchangeRoute, Exchange)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxExchangeRequestBytes))
+            .RequireNoPermission();
         api.MapPost(RevocationRoute, Revoke).RequireNoPermission();
+        api.MapPost(OpeningRoute, RecordOpening).RequirePermission(MailFathomPermission.ProfileWrite);
     }
 
     /// <summary>Exchanges the credential this request authenticated with for a session token, or renews the one it presented.</summary>
     /// <param name="context">The request, whose <c>Authorization</c> header says whether this is a sign-in or a renewal.</param>
+    /// <param name="request">Which head is signing in, or nothing for <c>web</c>; a renewal carries the session's own forward and reads none.</param>
     /// <param name="authorization">Reports the user the credential named and what it grants.</param>
     /// <param name="sessions">Mints the token and holds the session until it is revoked or expires.</param>
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
-    /// <returns><c>200</c> with the token, <c>401</c> where this deployment will hold no session for what was presented, <c>403</c> where an access token is what admitted the request, or <c>503</c> where the deployment is already holding as many sessions as it will hold.</returns>
+    /// <returns><c>200</c> with the token, <c>400</c> where a sign-in names a head this deployment does not know, <c>401</c> where this deployment will hold no session for what was presented, <c>403</c> where an access token is what admitted the request, or <c>503</c> where the deployment is already holding as many sessions as it will hold.</returns>
     /// <exception cref="ArgumentNullException">Thrown when a required service is <see langword="null" />.</exception>
     /// <exception cref="ClientSessionStoreUnavailableException">Thrown when the deployment's sessions could not be reached, which <see cref="ClientSessionStoreUnavailableHandler" /> answers as unavailable rather than as unauthenticated.</exception>
     /// <remarks>
@@ -92,6 +111,7 @@ internal static class ClientSessionTokenEndpoints
     /// </remarks>
     internal static async Task<Results<Ok<ClientSessionTokenResponse>, ProblemHttpResult>> Exchange(
         HttpContext context,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] ClientSessionExchangeRequest? request,
         [FromServices] AccessAuthorization authorization,
         [FromServices] ClientSessionTokens sessions,
         CancellationToken cancellationToken)
@@ -117,6 +137,13 @@ internal static class ClientSessionTokenEndpoints
                 : SessionNoLongerAccepted();
         }
 
+        if (ClientKindNamed(request?.Client ?? "web") is not { } kind)
+        {
+            return TypedResults.Problem(
+                "State the client as web, desktop, or android, or leave it out for web.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
         // The access is left at the default reaching nothing, because a mint writes the grant alone: whether the user
         // may still be served on this surface is decided by the store inside the transaction that would hold the row.
         var admitted = new AdmittedUserCredential(
@@ -129,7 +156,7 @@ internal static class ClientSessionTokenEndpoints
         // whether the user and the credential still admit a session is decided inside the transaction that would have
         // written the row, holding both rows while it decides, rather than by a check an operator's act could commit
         // between.
-        var mint = await sessions.MintAsync(admitted, cancellationToken);
+        var mint = await sessions.MintAsync(admitted, kind, cancellationToken);
 
         return mint switch
         {
@@ -175,6 +202,34 @@ internal static class ClientSessionTokenEndpoints
 
         return TypedResults.NoContent();
     }
+
+    /// <summary>Records that the phone app was opened on the session the request presented, today.</summary>
+    /// <param name="context">The request, whose <c>Authorization</c> header carries the session's token.</param>
+    /// <param name="sessions">Holds the sessions the deployment minted.</param>
+    /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
+    /// <returns><c>204</c>, whether or not the request was carrying a phone session to record it on.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when a required service is <see langword="null" />.</exception>
+    /// <exception cref="ClientSessionStoreUnavailableException">Thrown when the deployment's sessions could not be reached, which <see cref="ClientSessionStoreUnavailableHandler" /> answers as unavailable.</exception>
+    /// <remarks>
+    /// One answer either way, for the reason the revocation gives one: the head has nothing to do differently on
+    /// learning its session was not a phone's. Only the day is recorded — never the time, and never a history of
+    /// openings — so colleagues are told the app is in use and nothing about when.
+    /// </remarks>
+    internal static async Task<NoContent> RecordOpening(
+        HttpContext context,
+        [FromServices] ClientSessionTokens sessions,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(sessions);
+
+        await sessions.RecordOpeningAsync(PresentedToken(context), cancellationToken);
+
+        return TypedResults.NoContent();
+    }
+
+    private static ClientKind? ClientKindNamed(string client) =>
+        ClientKindNames.Where(named => named.Name == client).Select(named => (ClientKind?)named.Kind).SingleOrDefault();
 
     /// <summary>The session token this request presented, or <see langword="null" /> where it authenticated some other way.</summary>
     /// <remarks>
@@ -240,6 +295,11 @@ internal static class ClientSessionTokenEndpoints
             ? [.. MailFathomPermission.All.Where(TransportGrant.PermissionsCarriedBy(context.User).Contains)]
             : MailFathomPermission.PublishedFor(ProtectedSurface.Mail);
 }
+
+/// <summary>What a sign-in may tell the exchange about the client signing in.</summary>
+/// <param name="Client">The head signing in — <c>web</c>, <c>desktop</c>, or <c>android</c> — declared rather than verified, and read only to mark a member as using the phone app.</param>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record ClientSessionExchangeRequest(string? Client = null);
 
 /// <summary>What the exchange answers with.</summary>
 /// <param name="Token">The value the client presents on every request afterwards, in place of the credential it signed in with.</param>

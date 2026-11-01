@@ -38,7 +38,7 @@ public sealed class ClientSessionTokensTests
         var admitted = Admitted(MailFathomPermission.MailRead, MailFathomPermission.AssistantUse);
 
         // Act
-        var minted = await sessions.MintAsync(admitted, TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(admitted, ClientKind.Web, TestContext.Current.CancellationToken);
         var verified = await sessions.VerifyAsync(minted.Token?.Value, TestContext.Current.CancellationToken);
 
         // Assert
@@ -52,8 +52,8 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var mine = await sessions.MintAsync(Admitted(SyntheticUser.Deployment), TestContext.Current.CancellationToken);
-        var theirs = await sessions.MintAsync(Admitted(SyntheticUser.Another), TestContext.Current.CancellationToken);
+        var mine = await sessions.MintAsync(Admitted(SyntheticUser.Deployment), ClientKind.Web, TestContext.Current.CancellationToken);
+        var theirs = await sessions.MintAsync(Admitted(SyntheticUser.Another), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         var admittedAsMe = await sessions.VerifyAsync(mine.Token?.Value, TestContext.Current.CancellationToken);
@@ -70,7 +70,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act, Assert
         Assert.NotNull(await sessions.VerifyAsync(minted.Token?.Value, TestContext.Current.CancellationToken));
@@ -84,8 +84,8 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var mine = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
-        var theirs = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var mine = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
+        var theirs = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         var verified = await sessions.VerifyAsync(
@@ -131,7 +131,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out var store);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         var lengthened = minted.Token!.Value + new string('A', ClientSessionTokens.LongestPresentedToken);
         store.Unreachable = Unreachable();
 
@@ -151,7 +151,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _, out var clock);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         clock.Advance(ClientSessionTokens.Lifetime + TimeSpan.FromSeconds(1));
@@ -166,7 +166,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _, out var clock);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         clock.Advance(ClientSessionTokens.Lifetime);
@@ -186,7 +186,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out var store);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         store.Unreachable = Unreachable();
 
         // Act, Assert
@@ -204,7 +204,7 @@ public sealed class ClientSessionTokensTests
 
         // Act, Assert
         await Assert.ThrowsAsync<ClientSessionStoreUnavailableException>(
-            () => sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken));
+            () => sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken));
     }
 
     /// <summary>A renewal refuses the same way, so the scheduled renewal every open client performs is not what an outage signs it out by.</summary>
@@ -219,7 +219,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out var store);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         store.Unreachable = Unreachable();
 
         // Act, Assert
@@ -233,7 +233,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out var store);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         store.Unreachable = Unreachable();
 
         // Act, Assert
@@ -248,7 +248,7 @@ public sealed class ClientSessionTokensTests
         // Arrange
         var sessions = Sessions(out _, out var clock);
         var admitted = Admitted();
-        var minted = await sessions.MintAsync(admitted, TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(admitted, ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         clock.Advance(TimeSpan.FromHours(6));
@@ -266,7 +266,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out var store);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         await sessions.RenewAsync(minted.Token!.Value, TestContext.Current.CancellationToken);
@@ -287,8 +287,8 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var mine = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
-        var theirs = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var mine = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
+        var theirs = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         var renewed = await sessions.RenewAsync(
@@ -306,7 +306,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _, out var clock);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         clock.Advance(ClientSessionTokens.Lifetime + TimeSpan.FromSeconds(1));
@@ -322,7 +322,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out var store);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         store.NoLongerAdmits = true;
@@ -338,7 +338,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out var store);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         store.EndpointAccess = new UserEndpointAccess(McpEndpoint: true, ClientEndpoint: false);
@@ -354,7 +354,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         var revoked = await sessions.RevokeAsync(minted.Token!.Value, TestContext.Current.CancellationToken);
@@ -370,8 +370,8 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var mine = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
-        var theirs = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var mine = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
+        var theirs = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Act
         var revoked = await sessions.RevokeAsync(
@@ -393,7 +393,7 @@ public sealed class ClientSessionTokensTests
         store.NoLongerAdmits = true;
 
         // Act
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(ClientSessionMintOutcome.NoLongerAdmitted, minted.Outcome);
@@ -409,7 +409,7 @@ public sealed class ClientSessionTokensTests
         store.EndpointAccess = new UserEndpointAccess(McpEndpoint: true, ClientEndpoint: false);
 
         // Act
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(ClientSessionMintOutcome.NoLongerAdmitted, minted.Outcome);
@@ -434,7 +434,7 @@ public sealed class ClientSessionTokensTests
             UserEndpointAccess.Everywhere);
 
         // Act
-        var minted = await sessions.MintAsync(admitted, TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(admitted, ClientKind.Web, TestContext.Current.CancellationToken);
         var verified = await sessions.VerifyAsync(minted.Token?.Value, TestContext.Current.CancellationToken);
 
         // Assert
@@ -450,15 +450,15 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var first = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var first = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         for (var minted = 1; minted < ClientSessionTokens.MostLiveSessions; minted += 1)
         {
-            await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+            await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         }
 
         // Act
-        var refused = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var refused = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(ClientSessionMintOutcome.BoundReached, refused.Outcome);
@@ -492,7 +492,7 @@ public sealed class ClientSessionTokensTests
 
         // Act
         clock.Advance(ClientSessionTokens.SweepInterval - TimeSpan.FromMinutes(1));
-        var admitted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var admitted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(ClientSessionMintOutcome.Minted, admitted.Outcome);
@@ -520,7 +520,7 @@ public sealed class ClientSessionTokensTests
 
         // Act
         clock.Advance(ClientSessionTokens.SweepInterval - TimeSpan.FromMinutes(1));
-        var refused = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var refused = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(ClientSessionMintOutcome.BoundReached, refused.Outcome);
@@ -538,11 +538,11 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out _);
-        var held = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var held = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
 
         for (var minted = 1; minted < ClientSessionTokens.MostLiveSessions; minted += 1)
         {
-            await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+            await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         }
 
         // Act
@@ -565,7 +565,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out var store, out var clock);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         var swept = store.RemovalCount;
 
         // Act
@@ -582,7 +582,7 @@ public sealed class ClientSessionTokensTests
     {
         // Arrange
         var sessions = Sessions(out var store, out var clock);
-        var minted = await sessions.MintAsync(Admitted(), TestContext.Current.CancellationToken);
+        var minted = await sessions.MintAsync(Admitted(), ClientKind.Web, TestContext.Current.CancellationToken);
         var swept = store.RemovalCount;
 
         // Act

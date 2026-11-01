@@ -216,6 +216,24 @@ naming the member and nothing about them, and a client re-reads that colleague; 
 that ran out reaches colleagues on their client's own re-read, within five minutes. [The client endpoint § The
 presence routes](../operations/client-endpoint.md#the-presence-routes) holds the routes.
 
+### A colleague who uses the phone app
+
+A member contact also says whether the colleague uses the phone app: yes when a session of theirs signed in from the
+Android client still stands — not signed out, not ended by an operator, not expired — and was opened within the last
+seven days, and no otherwise. It is not a presence state and does not depend on one, so a colleague reading as
+`Offline` can carry it; a member who chose `Hidden` never does. Colleagues read the yes or the no and nothing more.
+
+**What is held, and who sees it.** A session row records the kind of client it was signed in from — web, desktop, or
+Android, as the client declares it at sign-in, unverified — and, for an Android session alone, the calendar day in UTC
+it was last opened on. The day is written at sign-in and overwritten when the client reports being opened on a later
+day, so a row holds the latest day and nothing before it, and it goes with the session. Nobody but the deployment reads
+the day: no route, MCP tool, administrative route, or `mfctl` command answers it, and no log line, metric, trace, or
+audit entry names it. Like presence, the yes or the no reaches members of the same organization alone, and it is read
+on every read of a colleague rather than announced, so a change shows on the next read. A person who signs in with an
+access token holds no session and so is never marked.
+[The stored schema § The signed-in client sessions](../architecture/stored-email-schema.md#the-signed-in-client-sessions)
+holds the columns.
+
 ### A colleague who is out of office
 
 A member contact says the colleague is out of office, and until when, while the colleague's

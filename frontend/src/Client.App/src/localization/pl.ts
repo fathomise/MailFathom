@@ -2844,6 +2844,7 @@ export const pl: Catalogue = {
     'presence.afterRole': '{role} · {presence}',
     'presence.lastSeen': 'Ostatnia aktywność: {when}',
     'presence.outUntil': 'Nieobecność do {day}',
+    'presence.usesPhoneApp': 'Używa aplikacji na telefonie',
     'presence.outOfOfficeUntil': 'Poza biurem do {day}',
     'presence.withRoleOutUntil': '{presence} · {role} · poza biurem do {day}',
     'presence.yours': 'Twój status',

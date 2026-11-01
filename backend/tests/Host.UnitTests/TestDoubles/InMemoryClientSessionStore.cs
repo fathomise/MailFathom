@@ -27,6 +27,7 @@ namespace MailFathom.Host.UnitTests.TestDoubles;
 internal sealed class InMemoryClientSessionStore : IClientSessionStore
 {
     private readonly ConcurrentDictionary<string, HeldClientSession> held = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, SessionClient> clients = new(StringComparer.Ordinal);
 
     /// <summary>Gets or sets whether the next write finds the user or the credential behind the session gone or disabled.</summary>
     internal bool NoLongerAdmits { get; set; }
@@ -49,13 +50,21 @@ internal sealed class InMemoryClientSessionStore : IClientSessionStore
     /// <summary>Gets what each held session admits, so a test asserts on the grant a row carries rather than on the token answering it.</summary>
     internal IReadOnlyList<ClientSessionGrant> Grants => [.. this.held.Values.Select(static session => session.Grant)];
 
+    /// <summary>Gets what each held session records of its client, so a test asserts on the kind and the day a row carries.</summary>
+    internal IReadOnlyList<SessionClient> Clients => [.. this.held.Keys.Select(identifier => this.clients[identifier])];
+
     /// <summary>Holds one session written by something other than a mint, so a test can arrange a store it did not fill through the port.</summary>
-    internal void Hold(string identifier, HeldClientSession session) => this.held[identifier] = session;
+    internal void Hold(string identifier, HeldClientSession session)
+    {
+        this.held[identifier] = session;
+        this.clients[identifier] = new SessionClient(ClientKind.Web, LastOpenedOn: null);
+    }
 
     /// <inheritdoc />
     public Task<ClientSessionMintOutcome> TryMintAsync(
         MintedClientSessionRow row,
         ClientSessionGrant grant,
+        SessionClient client,
         int mostLiveSessions,
         CancellationToken cancellationToken)
     {
@@ -78,6 +87,7 @@ internal sealed class InMemoryClientSessionStore : IClientSessionStore
             row.SecretDigest,
             row.ExpiresAt,
             this.EndpointAccess);
+        this.clients[row.Identifier] = client;
 
         return Task.FromResult(ClientSessionMintOutcome.Minted);
     }
@@ -115,6 +125,8 @@ internal sealed class InMemoryClientSessionStore : IClientSessionStore
         }
 
         this.held.TryRemove(identifier, out _);
+        this.clients.TryRemove(identifier, out var client);
+        this.clients[replacement.Identifier] = client!;
         this.held[replacement.Identifier] = new HeldClientSession(
             presented.Grant,
             replacement.SecretDigest,
@@ -138,7 +150,28 @@ internal sealed class InMemoryClientSessionStore : IClientSessionStore
             return Task.FromResult(false);
         }
 
+        this.clients.TryRemove(identifier, out _);
+
         return Task.FromResult(this.held.TryRemove(identifier, out _));
+    }
+
+    /// <inheritdoc />
+    public Task RecordOpeningAsync(
+        string identifier,
+        ReadOnlyMemory<byte> secretDigest,
+        DateOnly openedOn,
+        CancellationToken cancellationToken)
+    {
+        this.RefuseWhenUnusable(cancellationToken);
+
+        if (this.held.GetValueOrDefault(identifier) is { } presented
+            && presented.SecretDigest.Span.SequenceEqual(secretDigest.Span)
+            && this.clients[identifier].Kind == ClientKind.Android)
+        {
+            this.clients[identifier] = this.clients[identifier] with { LastOpenedOn = openedOn };
+        }
+
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -151,6 +184,7 @@ internal sealed class InMemoryClientSessionStore : IClientSessionStore
         foreach (var session in this.held.Where(session => session.Value.ExpiresAt < removableFrom))
         {
             this.held.TryRemove(session);
+            this.clients.TryRemove(session.Key, out _);
         }
 
         return Task.CompletedTask;

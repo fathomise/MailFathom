@@ -51,6 +51,7 @@ function colleague(id: string, displayName: string, presence = 'Active'): unknow
         presence,
         lastSeen: null,
         outOfOfficeUntil: null,
+        usesPhoneApp: false,
     };
 }
 

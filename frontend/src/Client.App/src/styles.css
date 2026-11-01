@@ -227,9 +227,10 @@
     --tracking-tight: -0.01em;
     --tracking-wide: 0.02em;
 
-    /* The sizes a symbol is drawn at, which is the design's third closed scale: 12 to 40 pixels in nine steps. A
+    /* The sizes a symbol is drawn at, which is the design's third closed scale: 10 to 40 pixels in ten steps. A
        symbol composes against `size-icon-*` rather than against a number off the spacing grid, which is what keeps
-       one from being drawn at a size the design does not have. */
+       one from being drawn at a size the design does not have. The smallest is the phone app's badge on a row. */
+    --spacing-icon-3xs: 0.625rem;
     --spacing-icon-2xs: 0.75rem;
     --spacing-icon-xs: 0.875rem;
     --spacing-icon-sm: 1rem;

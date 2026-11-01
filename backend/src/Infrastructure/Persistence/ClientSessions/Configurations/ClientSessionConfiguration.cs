@@ -48,6 +48,10 @@ internal sealed class ClientSessionConfiguration : IEntityTypeConfiguration<Clie
             .IsRequired();
         entity.Property(session => session.ExpiresAt)
             .HasColumnName(ClientSessionEntity.ExpiresAtColumnName);
+        entity.Property(session => session.ClientKind)
+            .HasColumnName(ClientSessionEntity.ClientKindColumnName);
+        entity.Property(session => session.LastOpenedOn)
+            .HasColumnName(ClientSessionEntity.LastOpenedOnColumnName);
         entity.HasIndex(session => session.ExpiresAt)
             .HasDatabaseName(PersistenceConstraintNames.ClientSessionExpiryIndexName);
 

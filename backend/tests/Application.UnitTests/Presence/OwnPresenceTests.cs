@@ -223,7 +223,7 @@ public sealed class OwnPresenceTests : IAsyncDisposable
 
         // Assert
         Assert.Equal(PresenceState.Hidden, reading?.State);
-        Assert.Equal(new PresenceReading(PresenceState.Offline, LastSeen: null), this.store.Of(Member).SeenByOthersAt(Now));
+        Assert.Equal(new PresenceReading(PresenceState.Offline, LastSeen: null, UsesPhoneApp: false), this.store.Of(Member).SeenByOthersAt(Now));
     }
 
     [Fact]

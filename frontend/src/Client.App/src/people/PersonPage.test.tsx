@@ -48,6 +48,7 @@ const piotr: Colleague = {
     presence: 'Busy',
     lastSeen: null,
     outOfOfficeUntil: null,
+    usesPhoneApp: false,
 };
 
 const officeHours = {
@@ -411,6 +412,18 @@ describe('PersonPage', () => {
             });
 
             expect(screen.getByText('Out of office until 11/04')).toBeDefined();
+        });
+
+        it('says in words that an offline colleague uses the phone app', () => {
+            drawPage({ contact: { ...piotr, presence: 'Offline', usesPhoneApp: true } });
+
+            expect(screen.getByText('Uses the phone app')).toBeDefined();
+        });
+
+        it('says nothing of the phone app for a colleague who does not use it', () => {
+            drawPage({ contact: piotr });
+
+            expect(screen.queryByText('Uses the phone app')).toBeNull();
         });
 
         it('says nothing about being away for a colleague whose automatic reply is not running', () => {

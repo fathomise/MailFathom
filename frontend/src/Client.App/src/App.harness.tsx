@@ -8,6 +8,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import {
     defaultTelemetryLevel,
     sessionExchangeRoute,
+    sessionOpeningRoute,
     sessionRevocationRoute,
     type ClientRequest,
     type ClientResponse,
@@ -219,7 +220,7 @@ export function deploymentAnswering(
             return Promise.resolve(complete(mintedSession(request)));
         }
 
-        if (request.path.endsWith(sessionRevocationRoute)) {
+        if (request.path.endsWith(sessionRevocationRoute) || request.path.endsWith(sessionOpeningRoute)) {
             return Promise.resolve(complete({ status: 204, body: '' }));
         }
 
@@ -727,6 +728,7 @@ export function renderApp(
                                             <TelemetryContext value={telemetry}>
                                                 <Containment region="application">
                                                     <App
+                                                        clientKind="web"
                                                         contactPhotos={photographsNobody}
                                                         credentials={credentials}
                                                         deployment={deployment}

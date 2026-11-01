@@ -94,6 +94,19 @@ async fn credential_arrangement() -> &'static str {
     credentials::arrangement().await
 }
 
+/// Which head this shell is, which a sign-in tells the deployment so a phone session marks its person as using the app.
+///
+/// The one fact about the head the application is handed as a value rather than asking for: it passes it on and never
+/// branches on it, and the deployment, which records it, is what decides what a phone session means.
+#[tauri::command]
+fn client_kind() -> &'static str {
+    if cfg!(target_os = "android") {
+        "android"
+    } else {
+        "desktop"
+    }
+}
+
 /// Keeps one value under the entry the application named, answering whether it was kept.
 #[tauri::command]
 async fn keep_credential(entry: String, credential: String) -> bool {
@@ -278,6 +291,7 @@ pub fn run() {
             follow_sign_in_redirect,
             abandon_sign_in_redirect,
             client_configuration,
+            client_kind,
             raise_notification
         ])
         .run(tauri::generate_context!())

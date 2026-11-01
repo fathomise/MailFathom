@@ -615,8 +615,11 @@ export {
     endSession,
     parseMintedSession,
     renewSession,
+    reportOpening,
     sessionExchangeRoute,
+    sessionOpeningRoute,
     sessionRevocationRoute,
+    type ClientKind,
     type MintedSession,
 } from './sessionToken';
 export { clientRoutePrefix, headersFor, routeFor, type ClientSession, type DeploymentAddress } from './session';

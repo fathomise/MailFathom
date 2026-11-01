@@ -7,4 +7,5 @@ namespace MailFathom.Domain.Presence;
 /// <summary>A member's presence as the other members of their organization see it.</summary>
 /// <param name="State">The state, which is never <see cref="PresenceState.Hidden" />.</param>
 /// <param name="LastSeen">When the member was last present, shown only for <see cref="PresenceState.Offline" /> and never for a member who chose to hide.</param>
-public sealed record PresenceReading(PresenceState State, DateTimeOffset? LastSeen);
+/// <param name="UsesPhoneApp">Whether the member uses the phone app, whatever their state and never for a member who chose to hide — never the day it rests on.</param>
+public sealed record PresenceReading(PresenceState State, DateTimeOffset? LastSeen, bool UsesPhoneApp);

@@ -5,7 +5,7 @@
 import { deploymentSessionRoute, parseDeploymentSession } from './deploymentSession';
 import { failed, read, type ClientResult } from './failure';
 import { headersFor, routeFor, type ClientSession, type DeploymentAddress } from './session';
-import { parseMintedSession, sessionExchangeRoute, type MintedSession } from './sessionToken';
+import { parseMintedSession, sessionExchangeRoute, type ClientKind, type MintedSession } from './sessionToken';
 import { spanned } from './telemetry';
 import { send, type MailFathomTransport } from './transport';
 
@@ -108,14 +108,20 @@ export type SignInOutcome =
  *
  * @param session The address to reach and the finished header value to present, which this package composes no part of.
  * @param transport How the request goes out.
+ * @param client Which head is signing in, which the session records for as long as it lives.
  * @returns The session the deployment minted, why it refused the credential, or why the answer never arrived.
  */
-export function signIn(session: ClientSession, transport: MailFathomTransport): Promise<ClientResult<SignInOutcome>> {
+export function signIn(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    client: ClientKind,
+): Promise<ClientResult<SignInOutcome>> {
     return spanned(`POST ${sessionExchangeRoute}`, async () => {
         const response = await send(transport, {
             method: 'POST',
             path: routeFor(session, sessionExchangeRoute),
-            headers: headersFor(session),
+            headers: { ...headersFor(session), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client }),
         });
 
         if (response === null) {

@@ -39,6 +39,10 @@ public sealed record MemberPresence(
     /// <summary>Gets the presence of a member nothing is held about.</summary>
     public static MemberPresence Unknown { get; } = new([], Choice: null, LastSeen: null);
 
+    /// <summary>Gets the member's phone-app sessions, which say whether they use the phone app apart from any state.</summary>
+    /// <remarks>Read beside the presence rather than worked into it: a member <see cref="PresenceState.Offline" /> still carries the marker, and only one who chose <see cref="PresenceState.Hidden" /> loses it.</remarks>
+    public IReadOnlyList<PhoneAppSession> PhoneAppSessions { get; init; } = [];
+
     /// <summary>Works out the state the member themselves sees, <see cref="PresenceState.Hidden" /> included.</summary>
     /// <param name="instant">The time of the read.</param>
     /// <returns>The member's own state.</returns>
@@ -61,11 +65,11 @@ public sealed record MemberPresence(
 
     /// <summary>Works out what every other member of the organization sees.</summary>
     /// <param name="instant">The time of the read.</param>
-    /// <returns>The state, with the last-seen time where the member reads as <see cref="PresenceState.Offline" /> and did not choose to hide.</returns>
+    /// <returns>The state, with the last-seen time where the member reads as <see cref="PresenceState.Offline" /> and did not choose to hide, and whether they use the phone app.</returns>
     /// <remarks>
     /// <see cref="PresenceState.Hidden" /> reads as <see cref="PresenceState.Offline" />. A member who chose
     /// <see cref="PresenceState.Hidden" /> shows no last-seen time either, open client or not, because a time would tell
-    /// anybody reading it that they were around.
+    /// anybody reading it that they were around — and no phone-app marker, because hiding means not being shown.
     /// </remarks>
     public PresenceReading SeenByOthersAt(DateTimeOffset instant)
     {
@@ -73,7 +77,10 @@ public sealed record MemberPresence(
         var state = own == PresenceState.Hidden ? PresenceState.Offline : own;
         var hidden = this.ChoiceInEffectAt(instant)?.State == PresenceState.Hidden;
 
-        return new PresenceReading(state, state == PresenceState.Offline && !hidden ? this.LastSeen : null);
+        return new PresenceReading(
+            state,
+            state == PresenceState.Offline && !hidden ? this.LastSeen : null,
+            !hidden && this.PhoneAppSessions.Any(session => session.MarksAt(instant)));
     }
 
     /// <summary>Says whether a renewal at an instant moves the last-seen time forward.</summary>
