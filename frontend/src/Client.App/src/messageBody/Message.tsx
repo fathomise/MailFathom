@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { ClientFailureReason } from '@mailfathom/client-backend';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { Skeleton, SkeletonLines, type SkeletonLine } from '../controls/Skeleton';
@@ -91,6 +91,9 @@ interface MessageToDraw {
     /** Whether the message is marked spam, which `MessageBody` reads it under. */
     readonly readOnly?: boolean;
 
+    /** What the message asks of its reader beside its words — a read receipt — which `MessageBody` draws over them. */
+    readonly answer?: ReactNode;
+
     /**
      * Said once, when this message's words are on the screen, which is what opening a message means.
      *
@@ -116,6 +119,7 @@ export function Message({
     storedEmailId,
     quotedHistoryOnRequest = false,
     readOnly = false,
+    answer = null,
     onBodyDrawn,
 }: MessageToDraw) {
     const { translate } = useLocalization();
@@ -189,6 +193,7 @@ export function Message({
             cleaning={body.cleaning}
             quotedHistoryOnRequest={quotedHistoryOnRequest}
             readOnly={readOnly}
+            answer={answer}
             onShowRemotePictures={body.showRemotePictures}
         />
     );

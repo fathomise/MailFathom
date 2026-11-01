@@ -17,6 +17,7 @@ export function SymbolControl({
     className,
     pressed,
     expanded,
+    popsUp,
     focusable = true,
     ref,
     onPress,
@@ -26,6 +27,9 @@ export function SymbolControl({
     readonly className: string;
     readonly pressed?: boolean;
     readonly expanded?: boolean;
+
+    /** The surface pressing it opens, where it opens one. */
+    readonly popsUp?: 'dialog';
 
     /** Whether Tab stops here, which is off for a control inside a composite widget that moves focus by arrow keys. */
     readonly focusable?: boolean;
@@ -52,6 +56,7 @@ export function SymbolControl({
                 aria-label={label}
                 aria-pressed={pressed}
                 aria-expanded={expanded}
+                aria-haspopup={popsUp}
                 tabIndex={focusable ? undefined : -1}
                 className={className}
             >

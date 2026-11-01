@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import {
     isSpam,
@@ -17,14 +17,21 @@ import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { ShowFullHtml } from '../fullHtml/ShowFullHtml';
 import type { MessageKey } from '../localization/en';
+import { wordLastSeen } from '../localization/instants';
 import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
+import { useReadingZone } from '../localization/useReadingZone';
 import { Message } from '../messageBody/Message';
 import type { MessageBodyRead } from '../messageBody/useMessageBody';
 import { drawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { useMessageView } from '../preferences/messageView';
 import { usePendingChanges } from '../pendingChanges/usePendingChanges';
 import { useReadMarking } from '../readMarking/useReadMarking';
+import { FoldedReport } from '../receipts/FoldedReport';
+import { ReadReceiptAnswer } from '../receipts/ReadReceiptAnswer';
+import { ReceiptBadge } from '../receipts/ReceiptBadge';
+import { ReceiptDetails, type AskedReceipts } from '../receipts/ReceiptDetails';
+import { readerOf, reportWordsOf } from '../receipts/reportWords';
 import { SenderBadge } from '../senderMark/SenderBadge';
 import { MessageSenderDetails, type AskedSender } from '../senderMark/SenderDetails';
 import { listedSenderOf, marksSender, senderMarkOf } from '../senderMark/senderMarks';
@@ -65,6 +72,8 @@ export function OpenedMessage({
     onShowFullHtml,
     marks = null,
     summary = null,
+    receiptsShown = true,
+    answersReadReceipt = true,
 }: {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
@@ -83,6 +92,18 @@ export function OpenedMessage({
 
     /** The control opening what MailFathom read from the conversation, which only its newest received message carries. */
     readonly summary?: ReactNode;
+
+    /**
+     * Whether the message carries the mark on what came back for it. What came back belongs to the newest message the
+     * account sent, so in a conversation only that one does; a message read on its own is that message.
+     */
+    readonly receiptsShown?: boolean;
+
+    /**
+     * Whether a read receipt the message asks for is offered here. Only the newest received message of a conversation
+     * offers one; a message read on its own is that message.
+     */
+    readonly answersReadReceipt?: boolean;
 }) {
     const { locale, translate } = useLocalization();
     const embeddedHtml = useMessageView() === 'embeddedHtml';
@@ -98,6 +119,10 @@ export function OpenedMessage({
     const readOnly = isSpam(spam);
     const details = useRef<HTMLDialogElement>(null);
     const [anchor, setAnchor] = useState<AskedSender['anchor']>(null);
+    const receiptDialog = useRef<HTMLDialogElement>(null);
+    const [askedReceipts, setAskedReceipts] = useState<AskedReceipts | null>(null);
+    const timeZone = useReadingZone();
+    const [now] = useState(() => Date.now());
 
     // A message in Sent or Drafts was written by the reader, so there is no sender to mark — the rule a row follows.
     const marked = marksSender(
@@ -115,6 +140,34 @@ export function OpenedMessage({
     const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
     const authorPicture = useContactPhoto(message.senderPhoto);
     const numbers = new Intl.NumberFormat(locale);
+
+    // A report that came back as mail is folded to one line naming what it reports, until a press unfolds it. Held by
+    // the message it was unfolded on, so the next message drawn here opens folded as every report does.
+    const report =
+        message.report === null
+            ? null
+            : reportWordsOf(
+                  message.report,
+                  readerOf(message.report, author?.displayName ?? null, author?.address ?? null, translate),
+                  message.report.reportedAt === null
+                      ? null
+                      : wordLastSeen(message.report.reportedAt, locale, now, timeZone),
+                  translate,
+                  locale,
+              );
+    const [unfoldedFor, setUnfoldedFor] = useState<string | null>(null);
+    const folded = report !== null && unfoldedFor !== storedEmailId;
+
+    // Its line is the whole of what opening a folded report draws, so drawing the line is what marks it read — the rule
+    // the words of every other message keep, held to once per message for the reason `messageBody/Message.tsx` gives.
+    const markedFolded = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (folded && markedFolded.current !== storedEmailId) {
+            markedFolded.current = storedEmailId;
+            markRead({ storedEmailId, account: message.account, folder: message.folder, unread: message.unread });
+        }
+    }, [folded, storedEmailId, markRead, message.account, message.folder, message.unread]);
 
     // Whether a change the mailbox did not take stands over this message, which is the only case the notice is mounted in.
     const pending = usePendingChanges();
@@ -147,107 +200,168 @@ export function OpenedMessage({
                 sender's own markup where there is one, and when this deployment recorded it — and what it says under
                 that. */}
             <div className="mx-auto flex w-full max-w-conversation flex-col gap-3">
-                <div className="flex items-center gap-2.75">
-                    <SenderAvatar
-                        displayName={author?.displayName ?? null}
-                        address={author?.address ?? null}
-                        picture={authorPicture}
-                        place="card"
-                    />
-
-                    <span className="min-w-0 truncate text-md font-semibold text-text">
-                        {author === null ? translate('message.noAuthor') : (author.displayName ?? author.address)}
-                    </span>
-
-                    {/* Who sent it, as far as anything established it, beside the name it claims — the same mark its
-                        row carries, and the way to every step that reached it. */}
-                    {marked ? (
-                        <SenderBadge
-                            mark={senderMarkOf(listedSenderOf(message))}
-                            onOpen={(at) => {
-                                // Placed before it opens, so the details never draw for a frame where the last ones stood.
-                                flushSync(() => {
-                                    setAnchor({ left: at.left, top: at.top, bottom: at.bottom });
-                                });
-                                details.current?.showModal();
-                            }}
-                        />
-                    ) : null}
-
-                    {marks}
-
-                    <span className="flex-1" />
-
-                    {summary}
-
-                    {message.attachments.length === 0 ? null : (
-                        <span className="flex shrink-0 items-center gap-0.75 text-xs text-faint">
-                            <Icon name="attach_file" className="size-icon-xs" />
-                            {numbers.format(message.attachments.length)}
-                        </span>
-                    )}
-
-                    {/* Drawn in the reduced view and in no other. With the embedded HTML view chosen the markup is
-                        already on the screen under this line, so a control offering to open it would open a second
-                        copy of what is being read — which is why it goes rather than being disabled. */}
-                    {/* Spam keeps the control whatever view is chosen, and the press says why its original stays shut. */}
-                    {embeddedHtml && !readOnly ? null : (
-                        <ShowFullHtml
-                            onShow={onShowFullHtml}
-                            {...(readOnly && {
-                                onRefused: () => {
-                                    refuse('spam.refusedOriginal');
-                                },
-                            })}
-                        />
-                    )}
-
-                    <ReceivedAt at={message.headers.receivedAt} />
-                </div>
-
-                {spam !== null && readOnly ? <SpamWarning spam={spam} /> : null}
-
-                {/* A change the mailbox did not take stands over the words it is about, until it is answered. */}
-                {asked ? <ChangeNotice message={message} /> : null}
-
-                {/* The gestures a selection ends on rather than a document-wide subscription: a selection made with the
-                    pointer settles on the release and one made with the keyboard on the key coming back up, and both of
-                    them are events this region already receives. */}
-                {/* The ceiling a message's words are read under, which binds the content alone: the mark on who
-                    sent it, the files it carries, and the line above have no measure to keep. It is ranged left, so a
-                    window wider than the ceiling leaves its margin on the empty side rather than pushing the words away
-                    from the list they were opened from. */}
-                <div ref={words} onKeyUp={capture} onMouseUp={capture} className="max-w-reading">
-                    {/* The body being drawn is what opening this message means, so it is what marks it read — one rule
-                        wherever a message is drawn, because a message read inside its conversation was read. */}
-                    <Message
-                        body={body}
-                        storedEmailId={storedEmailId}
-                        readOnly={readOnly}
-                        onBodyDrawn={() => {
-                            markRead({
-                                storedEmailId,
-                                account: message.account,
-                                folder: message.folder,
-                                unread: message.unread,
-                            });
+                {report === null ? null : (
+                    <FoldedReport
+                        words={report}
+                        unfolded={!folded}
+                        onToggle={() => {
+                            setUnfoldedFor(folded ? storedEmailId : null);
                         }}
-                    />
-                </div>
-
-                {message.attachments.length === 0 ? null : (
-                    <Attachments
-                        session={session}
-                        storedEmailId={storedEmailId}
-                        attachments={message.attachments}
-                        readOnly={readOnly}
                     />
                 )}
 
-                <MessagePlace message={message} />
+                {folded ? null : (
+                    <>
+                        <div className="flex items-center gap-2.75">
+                            <SenderAvatar
+                                displayName={author?.displayName ?? null}
+                                address={author?.address ?? null}
+                                picture={authorPicture}
+                                place="card"
+                            />
+
+                            <span className="min-w-0 truncate text-md font-semibold text-text">
+                                {author === null
+                                    ? translate('message.noAuthor')
+                                    : (author.displayName ?? author.address)}
+                            </span>
+
+                            {/* Who sent it, as far as anything established it, beside the name it claims — the same mark its
+                        row carries, and the way to every step that reached it. */}
+                            {marked ? (
+                                <SenderBadge
+                                    mark={senderMarkOf(listedSenderOf(message))}
+                                    onOpen={(at) => {
+                                        // Placed before it opens, so the details never draw for a frame where the last ones stood.
+                                        flushSync(() => {
+                                            setAnchor({
+                                                left: at.left,
+                                                right: at.right,
+                                                top: at.top,
+                                                bottom: at.bottom,
+                                            });
+                                        });
+                                        details.current?.showModal();
+                                    }}
+                                />
+                            ) : null}
+
+                            {marks}
+
+                            <span className="flex-1" />
+
+                            {/* What came back for a message the account sent, first in the end of the line as the design draws
+                        it, and the way to every recipient's own reports. */}
+                            {receiptsShown ? (
+                                <ReceiptBadge
+                                    receipts={message.receipts}
+                                    participants={message.headers.participants}
+                                    onOpen={(at) => {
+                                        flushSync(() => {
+                                            setAskedReceipts({
+                                                storedEmailId,
+                                                message,
+                                                anchor: {
+                                                    left: at.left,
+                                                    right: at.right,
+                                                    top: at.top,
+                                                    bottom: at.bottom,
+                                                },
+                                            });
+                                        });
+                                        receiptDialog.current?.showModal();
+                                    }}
+                                />
+                            ) : null}
+
+                            {summary}
+
+                            {message.attachments.length === 0 ? null : (
+                                <span className="flex shrink-0 items-center gap-0.75 text-xs text-faint">
+                                    <Icon name="attach_file" className="size-icon-xs" />
+                                    {numbers.format(message.attachments.length)}
+                                </span>
+                            )}
+
+                            {/* Drawn in the reduced view and in no other. With the embedded HTML view chosen the markup is
+                        already on the screen under this line, so a control offering to open it would open a second
+                        copy of what is being read — which is why it goes rather than being disabled. */}
+                            {/* Spam keeps the control whatever view is chosen, and the press says why its original stays shut. */}
+                            {embeddedHtml && !readOnly ? null : (
+                                <ShowFullHtml
+                                    onShow={onShowFullHtml}
+                                    {...(readOnly && {
+                                        onRefused: () => {
+                                            refuse('spam.refusedOriginal');
+                                        },
+                                    })}
+                                />
+                            )}
+
+                            <ReceivedAt at={message.headers.receivedAt} />
+                        </div>
+
+                        {spam !== null && readOnly ? <SpamWarning spam={spam} /> : null}
+
+                        {/* A change the mailbox did not take stands over the words it is about, until it is answered. */}
+                        {asked ? <ChangeNotice message={message} /> : null}
+
+                        {/* The gestures a selection ends on rather than a document-wide subscription: a selection made with the
+                    pointer settles on the release and one made with the keyboard on the key coming back up, and both of
+                    them are events this region already receives. */}
+                        {/* The ceiling a message's words are read under, which binds the content alone: the mark on who
+                    sent it, the files it carries, and the line above have no measure to keep. It is ranged left, so a
+                    window wider than the ceiling leaves its margin on the empty side rather than pushing the words away
+                    from the list they were opened from. */}
+                        <div ref={words} onKeyUp={capture} onMouseUp={capture} className="max-w-reading">
+                            {/* The body being drawn is what opening this message means, so it is what marks it read — one rule
+                        wherever a message is drawn, because a message read inside its conversation was read. */}
+                            <Message
+                                body={body}
+                                storedEmailId={storedEmailId}
+                                readOnly={readOnly}
+                                answer={
+                                    answersReadReceipt && !readOnly && message.readReceiptRequest !== null ? (
+                                        <ReadReceiptAnswer
+                                            key={storedEmailId}
+                                            session={session}
+                                            transport={transport}
+                                            storedEmailId={storedEmailId}
+                                            request={message.readReceiptRequest}
+                                            sender={
+                                                author === null
+                                                    ? translate('message.noAuthor')
+                                                    : (author.displayName ?? author.address)
+                                            }
+                                        />
+                                    ) : null
+                                }
+                                onBodyDrawn={() => {
+                                    markRead({
+                                        storedEmailId,
+                                        account: message.account,
+                                        folder: message.folder,
+                                        unread: message.unread,
+                                    });
+                                }}
+                            />
+                        </div>
+
+                        {message.attachments.length === 0 ? null : (
+                            <Attachments
+                                session={session}
+                                storedEmailId={storedEmailId}
+                                attachments={message.attachments}
+                                readOnly={readOnly}
+                            />
+                        )}
+
+                        <MessagePlace message={message} />
+                    </>
+                )}
             </div>
 
-            {message.carried === null ? null : <Carried carried={message.carried} />}
+            {folded || message.carried === null ? null : <Carried carried={message.carried} />}
 
             {marked ? (
                 <MessageSenderDetails
@@ -257,6 +371,10 @@ export function OpenedMessage({
                     anchor={anchor}
                     dialog={details}
                 />
+            ) : null}
+
+            {receiptsShown && message.receipts !== null ? (
+                <ReceiptDetails asked={askedReceipts} session={session} transport={transport} dialog={receiptDialog} />
             ) : null}
         </>
     );

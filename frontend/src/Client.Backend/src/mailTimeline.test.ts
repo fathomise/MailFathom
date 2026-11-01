@@ -197,7 +197,7 @@ describe('readMailTimeline', () => {
         expect(result).toStrictEqual({
             outcome: 'read',
             value: {
-                emails: [{ ...message, enrichment: null, spam: null, senderPhoto: null }],
+                emails: [{ ...message, enrichment: null, spam: null, senderPhoto: null, report: null, receipts: null }],
                 nextCursor: 'after',
                 previousCursor: 'before',
                 pageSize: 50,
@@ -415,6 +415,42 @@ describe('readMailTimeline', () => {
             senderPhoto,
             null,
         ]);
+    });
+
+    it('reads the report a row is and what came back for a row of the account’s own mail', async () => {
+        const report = {
+            kind: 'Delivery',
+            recipients: [{ address: 'r.lis@example.invalid', outcome: 'Delayed' }],
+            reportedAt: '2026-08-24T09:13:00+00:00',
+            namesOwnMessage: false,
+            ownMessageSubject: null,
+        };
+        const receipts = {
+            recipients: 2,
+            delivery: { requested: true, delivered: 1, delayed: 0, failed: 1 },
+            read: { requested: false, read: 0 },
+        };
+        const transport = answering({ status: 200, body: bodyOf([{ ...message, report, receipts }, message]) });
+
+        const result = await readMailTimeline(session, transport, leadingPage);
+
+        expect(result.outcome === 'read' && result.value.emails.map((row) => [row.report, row.receipts])).toStrictEqual(
+            [
+                [report, receipts],
+                [null, null],
+            ],
+        );
+    });
+
+    it('refuses a row whose receipt counts are not counts', async () => {
+        const transport = answering({
+            status: 200,
+            body: bodyOf([{ ...message, receipts: { recipients: 1, delivery: {}, read: {} } }]),
+        });
+
+        const result = await readMailTimeline(session, transport, leadingPage);
+
+        expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('refuses a row naming its sender by a photo it cannot read', async () => {

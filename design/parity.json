@@ -1050,6 +1050,41 @@
         }
       ]
     },
+    "mail-receipt-details": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "Show 5 earlier messages"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Read by 2 of 3"
+          }
+        },
+        {
+          "expect": {
+            "text": "Recipients"
+          }
+        }
+      ]
+    },
     "mail-sender-organization": {
       "file": "prototype.dc.html",
       "properties": {

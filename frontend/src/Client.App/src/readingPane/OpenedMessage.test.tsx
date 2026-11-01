@@ -56,6 +56,9 @@ const described: MailMessage = {
         references: [],
     },
     senderPhoto: null,
+    report: null,
+    receipts: null,
+    readReceiptRequest: null,
     body: { availability: 'Readable', plainText: true, html: true },
     sender: {
         authorAuthentication: 'Authenticated',
@@ -168,6 +171,7 @@ function drawing(
     view: ClientMessageView = 'reduced',
     onShowFullHtml: () => void = () => undefined,
     acts: MailboxActs = nothingActed,
+    shown: { readonly receiptsShown?: boolean; readonly answersReadReceipt?: boolean } = {},
 ): void {
     render(
         <LocalizationProvider>
@@ -185,6 +189,7 @@ function drawing(
                                                 message={message}
                                                 body={body}
                                                 onShowFullHtml={onShowFullHtml}
+                                                {...shown}
                                             />
                                         </OpenAttachmentContext>
                                     </AttachmentExchangeContext>
@@ -409,5 +414,164 @@ describe('OpenedMessage, the mark on who sent it', () => {
 
         expect(screen.queryByRole('button', { name: 'Sender not recognized' })).toBeNull();
         expect(screen.getByText('Billing')).toBeDefined();
+    });
+});
+
+describe('OpenedMessage, what came back for it', () => {
+    const sent: MailMessage = {
+        ...described,
+        folder: 'Sent',
+        unread: false,
+        headers: {
+            ...described.headers,
+            participants: [
+                { role: 'From', address: 'me@example.invalid', displayName: 'Me' },
+                { role: 'To', address: 'anna@example.invalid', displayName: 'Anna Kowalska' },
+                { role: 'To', address: 'jacek@example.invalid', displayName: 'Jacek Wrona' },
+            ],
+        },
+        receipts: {
+            deliveryRequested: true,
+            readRequested: true,
+            recipients: [
+                {
+                    address: 'anna@example.invalid',
+                    delivery: null,
+                    read: {
+                        outcome: 'Displayed',
+                        reportedAt: '2026-08-31T10:12:00+00:00',
+                        source: 'Report',
+                        status: null,
+                        reportingServer: null,
+                    },
+                },
+                { address: 'jacek@example.invalid', delivery: null, read: null },
+            ],
+        },
+    };
+
+    it('marks the head of a sent message with what came back, naming each recipient’s own outcome', () => {
+        drawing(sent);
+
+        expect(
+            screen.getByRole('button', {
+                name: `Read by 1 of 2 - ${new Intl.ListFormat('en', { type: 'unit', style: 'short' }).format([
+                    'Anna Kowalska read',
+                    'Jacek Wrona nothing back yet',
+                ])}`,
+            }).textContent,
+        ).toBe('Read by 1 of 2');
+    });
+
+    it('opens every recipient’s own receipts from the mark', () => {
+        drawing(sent);
+        fireEvent.click(screen.getByRole('button', { name: /^Read by 1 of 2/u }));
+
+        const recipients = screen.getByRole('region', { name: 'Recipients' });
+
+        expect(recipients.textContent).toContain('Anna Kowalska');
+        expect(recipients.textContent).toContain('Jacek Wrona');
+    });
+
+    it('draws no mark where the surface draws the message without one', () => {
+        drawing(sent, read, nothingMarkedRead, 'reduced', () => undefined, nothingActed, { receiptsShown: false });
+
+        expect(screen.queryByRole('button', { name: /^Read by/u })).toBeNull();
+    });
+
+    it('draws no mark on a message that asked for nothing and got nothing', () => {
+        drawing();
+
+        expect(screen.queryByRole('button', { name: /^(Read|Delivered|Not delivered|Delayed|Receipts)/u })).toBeNull();
+    });
+});
+
+describe('OpenedMessage, a report that came back as mail', () => {
+    const readReceipt: MailMessage = {
+        ...described,
+        headers: {
+            ...described.headers,
+            subject: 'Read: CPI calculation 2027',
+            participants: [{ role: 'From', address: 'marta@example.invalid', displayName: 'Marta Nowak' }],
+        },
+        report: {
+            kind: 'Read',
+            recipients: [{ address: 'marta@example.invalid', outcome: 'Displayed' }],
+            reportedAt: null,
+            namesOwnMessage: true,
+            ownMessageSubject: 'CPI calculation 2027',
+        },
+    };
+
+    it('folds a report to the one line naming what it reports, and marks it read for that line', () => {
+        const markRead = vi.fn();
+
+        drawing(readReceipt, read, { ...nothingMarkedRead, markRead });
+
+        const line = screen.getByRole('button', { name: 'Marta Nowak read your message' });
+
+        expect(line.getAttribute('aria-expanded')).toBe('false');
+        expect(screen.queryByText('The invoice is attached.')).toBeNull();
+        expect(markRead).toHaveBeenCalledWith(expect.objectContaining({ storedEmailId }));
+    });
+
+    it('unfolds a report on a press and folds it again on the next', () => {
+        drawing(readReceipt);
+
+        const line = screen.getByRole('button', { name: 'Marta Nowak read your message' });
+
+        fireEvent.click(line);
+
+        expect(line.getAttribute('aria-expanded')).toBe('true');
+        expect(screen.getByText('The invoice is attached.')).toBeDefined();
+
+        fireEvent.click(line);
+
+        expect(line.getAttribute('aria-expanded')).toBe('false');
+        expect(screen.queryByText('The invoice is attached.')).toBeNull();
+    });
+
+    it('draws a message that is no report unfolded, with no line over it', () => {
+        drawing();
+
+        expect(screen.queryByRole('button', { expanded: false })).toBeNull();
+        expect(screen.getByText('The invoice is attached.')).toBeDefined();
+    });
+});
+
+describe('OpenedMessage, a read receipt it asks for', () => {
+    const asking: MailMessage = {
+        ...described,
+        readReceiptRequest: { address: 'billing@example.invalid', namesAnotherAddress: false, sentAt: null },
+    };
+
+    it('offers to send the receipt the message asks for', () => {
+        drawing(asking);
+
+        expect(screen.getByRole('button', { name: 'Send read receipt' })).toBeDefined();
+    });
+
+    it('offers nothing on a message marked spam, whatever it asks', () => {
+        drawing({
+            ...asking,
+            spam: {
+                verdict: 'Spam',
+                decidedBy: 'Model',
+                spamSubcategory: 'Phishing',
+                spamSubcategoryNamedBy: 'Model',
+                phishingRequest: 'Credentials',
+                impersonatedParty: 'Bank',
+            },
+        });
+
+        expect(screen.queryByRole('button', { name: 'Send read receipt' })).toBeNull();
+    });
+
+    it('offers nothing where the surface answers the request on another message', () => {
+        drawing(asking, read, nothingMarkedRead, 'reduced', () => undefined, nothingActed, {
+            answersReadReceipt: false,
+        });
+
+        expect(screen.queryByRole('button', { name: 'Send read receipt' })).toBeNull();
     });
 });

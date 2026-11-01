@@ -210,7 +210,14 @@ describe('readMailThread', () => {
                     {
                         position: 0,
                         answeredId: null,
-                        email: { ...email, enrichment: null, spam: null, senderPhoto: null },
+                        email: {
+                            ...email,
+                            enrichment: null,
+                            spam: null,
+                            senderPhoto: null,
+                            report: null,
+                            receipts: null,
+                        },
                         message: null,
                         body: null,
                     },
@@ -247,7 +254,7 @@ describe('readMailThread', () => {
 
         expect(answered.outcome === 'read' && answered.value.messages[1]).toStrictEqual({
             ...answer,
-            email: { ...answer.email, enrichment: null, spam: null, senderPhoto: null },
+            email: { ...answer.email, enrichment: null, spam: null, senderPhoto: null, report: null, receipts: null },
             message: null,
             body: null,
         });
@@ -367,6 +374,9 @@ describe('readMailThread drawing the messages', () => {
             ...described,
             spam: null,
             senderPhoto: null,
+            report: null,
+            receipts: null,
+            readReceiptRequest: null,
         });
         expect(answered.outcome === 'read' && answered.value.messages[0]?.body).toStrictEqual(said);
     });

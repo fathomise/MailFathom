@@ -33,6 +33,9 @@ import { SpamBadge } from '../spamMarking/SpamBadge';
 import { spamRowName } from '../spamMarking/spamWords';
 import { correspondent } from './rowContents';
 import { senderMarkInk, senderMarkOf, senderMarksDrawn } from '../senderMark/senderMarks';
+import { receiptInk, receiptMarksDrawn, standingOfSummary, wordOf } from '../receipts/receiptMarks';
+import { reportHeadlineOf } from '../receipts/reportWords';
+import { RowMark } from './RowMark';
 import { useRowSwipe, type RowSwipeDirection } from '../controls/rowSwipe';
 
 // One row of mail, which is its own component for the reason a tree's row is: it is what carries state, a keyboard
@@ -135,6 +138,7 @@ export function MessageRow({
     inSpamFolder = false,
     onReadings,
     onSenderDetails,
+    onReceiptDetails,
     onOpen,
     onPoint,
     onPress,
@@ -183,6 +187,12 @@ export function MessageRow({
      * row that marks no sender, which is a row in Sent or Drafts, whose writer is the reader themselves.
      */
     readonly onSenderDetails?: ((anchor: DOMRect) => void) | undefined;
+
+    /**
+     * Opens what came back for this message, anchored under the mark that asked — or absent where the list draws no
+     * such mark, which is every list but a Sent folder.
+     */
+    readonly onReceiptDetails?: ((anchor: DOMRect) => void) | undefined;
     readonly onOpen: () => void;
 
     /**
@@ -247,7 +257,7 @@ export function MessageRow({
 
     readonly onElement: (element: HTMLLIElement | null) => void;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const marking = useReadMarking();
     const acts = useMailboxActs();
     const press = useRowPress(onPress);
@@ -260,64 +270,34 @@ export function MessageRow({
     const foldedSpam = spamName !== null && !inSpamFolder;
 
     // The mark on who sent the message, chosen by the one rule every surface draws it by, or none on a row whose
-    // writer is the reader.
-    const mark = onSenderDetails === undefined ? null : senderMarkOf(email.sender);
-    const markDrawn = mark === null ? null : senderMarksDrawn[mark];
-    const markName = markDrawn === null ? null : translate(markDrawn.name);
-    const markAnchor = useRef<HTMLElement | null>(null);
-    const markSaid = useTip({
-        says: markName ?? '',
-        describes: true,
-        onPress: () => {
-            const at = markAnchor.current?.getBoundingClientRect();
-
-            if (at !== undefined) {
-                onSenderDetails?.(at);
-            }
-        },
-    });
-
-    // The mark on who sent it, beside the name it judges. A pointer's shortcut to the details for the reason the
-    // readings mark below is one: a row is an `option` and holds no focusable descendant, so the keyboard reaches the
-    // same details through the row's menu, and the state itself is said to a screen reader in words. Its own press
-    // stops at it, so pressing it neither opens nor selects the message, and holding it reads its name rather than
-    // opening the row's menu.
+    // writer is the reader. Beside the name it judges, and the pointer's way to the details behind it.
+    const mark = onSenderDetails === undefined ? null : senderMarksDrawn[senderMarkOf(email.sender)];
     const senderMark =
-        markDrawn === null || markName === null ? null : (
-            <>
-                <span
-                    {...markSaid.anchor}
-                    ref={(element) => {
-                        markAnchor.current = element;
-                        markSaid.anchor.ref(element);
-                    }}
-                    aria-hidden="true"
-                    className={`-mx-0.75 -my-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-hover pointer-coarse:-mx-2.5 pointer-coarse:-my-3 pointer-coarse:size-11 ${
-                        senderMarkInk[markDrawn.tone]
-                    }`}
-                    onPointerDown={(event) => {
-                        event.stopPropagation();
-                        markSaid.anchor.onPointerDown(event);
-                    }}
-                    onPointerUp={(event) => {
-                        event.stopPropagation();
-                        markSaid.anchor.onPointerUp();
-                    }}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        markSaid.anchor.onClick(event);
-                    }}
-                    onDoubleClick={(event) => {
-                        event.stopPropagation();
-                    }}
-                >
-                    <Icon name={markDrawn.icon} className="size-icon-md pointer-coarse:size-icon-lg" />
-                </span>
-                {markSaid.tip}
-
-                <span className="sr-only">{markName}</span>
-            </>
+        mark === null || onSenderDetails === undefined ? null : (
+            <RowMark
+                icon={mark.icon}
+                ink={senderMarkInk[mark.tone]}
+                name={translate(mark.name)}
+                onPress={onSenderDetails}
+            />
         );
+
+    // What came back for a message the account sent, on a Sent row alone and only where something did: the first of
+    // the marks at the row's end, its word said in the row's name, and the pointer's way to every recipient's reports.
+    const receipt = onReceiptDetails === undefined ? null : standingOfSummary(email.receipts);
+    const receiptMark =
+        receipt === null || onReceiptDetails === undefined ? null : (
+            <RowMark
+                icon={receiptMarksDrawn[receipt.mark].icon}
+                ink={receiptInk[receiptMarksDrawn[receipt.mark].tone]}
+                name={wordOf(receipt, translate, locale)}
+                onPress={onReceiptDetails}
+            />
+        );
+
+    // A report that came back as mail is named by what it reports rather than by the subject its sender wrote, and
+    // carries no line about what MailFathom read from it, since a report has nothing in it to read into.
+    const reportHeadline = reportHeadlineOf(email, translate, locale);
 
     const readingsName = useTip({
         says: translate('list.readings'),
@@ -392,7 +372,7 @@ export function MessageRow({
     // A spam row names its kind there instead of whatever the screen would have said about it.
     const kind = spamName === null ? null : (spam?.spamSubcategory ?? null);
     const spamLine = kind === null ? undefined : <SpamBadge subcategory={kind} />;
-    const said = pendingSaid !== null ? translate(pendingSaid) : spamName === null ? note : spamLine;
+    const said = pendingSaid !== null ? translate(pendingSaid) : spamName !== null ? spamLine : note;
 
     // What is showing behind the row while a finger carries it, or nothing for a row standing where the list drew it.
     // Which of the two it is is the direction alone: what the threshold decides is how firmly it is drawn rather than
@@ -567,7 +547,7 @@ export function MessageRow({
 
                             <Organisation address={email.senderAddress} />
 
-                            <MessageMarkers email={email} flagged={flagged} />
+                            <MessageMarkers email={email} flagged={flagged} lead={receiptMark} />
 
                             {/* Unread is drawn as the weight and ink of the sender and the subject, as the design draws it
                         and as every mail client has taught its readers to scan for, so no mark of its own stands among
@@ -636,7 +616,7 @@ export function MessageRow({
                         </div>
 
                         <div className={`truncate text-md ${unreadInk(unread)}`}>
-                            {email.subject ?? translate('list.noSubject')}
+                            {reportHeadline ?? email.subject ?? translate('list.noSubject')}
                         </div>
 
                         {/* The reserved line. Hidden from the accessibility tree where it holds nothing, so a row with nothing

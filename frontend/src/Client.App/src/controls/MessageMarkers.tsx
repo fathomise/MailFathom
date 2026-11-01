@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import type { ReactNode } from 'react';
 import type { MailTimelineEntry } from '@mailfathom/client-backend';
 import { Icon } from './Icon';
 import type { IconName } from './icons';
@@ -18,6 +19,7 @@ import { useLocalization } from '../localization/useLocalization';
 export function MessageMarkers({
     email,
     flagged,
+    lead = null,
 }: {
     readonly email: MailTimelineEntry;
 
@@ -30,11 +32,16 @@ export function MessageMarkers({
      * in `drawnFlagged`, so two screens drawing these marks cannot come to disagree about one message.
      */
     readonly flagged: boolean;
+
+    /** A mark the surface draws first, ahead of the three — what came back for a message on a Sent row. */
+    readonly lead?: ReactNode;
 }) {
     const { translate } = useLocalization();
 
     return (
         <span className="ms-auto flex shrink-0 items-center gap-1">
+            {lead}
+
             {email.answered ? <Marker name="reply" label={translate('list.answered')} /> : null}
 
             {email.hasAttachments ? (

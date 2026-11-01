@@ -514,6 +514,7 @@ function conversationEmail(row: (typeof conversationRows)[number], position: num
         enrichment: derivedReading(position),
         threadMessageCount: conversationRows.length,
         sender: listedSender(senderKindOf(row.id)),
+        receipts: row.id === answeredReplyId ? answeredReplyCounted : null,
     };
 }
 
@@ -548,6 +549,7 @@ function conversationContent(row: (typeof conversationRows)[number]) {
             body: { availability: 'Readable', plainText: true, html: false },
             attachments: [],
             unread: false,
+            receipts: row.id === answeredReplyId ? answeredReplyReceipts : null,
         },
         body: {
             ...markupOnlyBody,
@@ -567,6 +569,44 @@ function conversationContent(row: (typeof conversationRows)[number]) {
         },
     };
 }
+
+/** The reader's newest reply in the conversation, the one message of it a report came back for. */
+const answeredReplyId = '00000000-0000-4000-8000-0000000000c4';
+
+/** What came back for the reader's newest reply, as the thread route counts it on that message's row. */
+const answeredReplyCounted = {
+    recipients: 1,
+    delivery: { requested: true, delivered: 1, delayed: 0, failed: 0 },
+    read: { requested: true, read: 1 },
+};
+
+/**
+ * What came back for the reader's newest reply, as its message names it per recipient: Nordwind's server reported the
+ * reply delivered and Nordwind's mail app sent a read receipt. Every other message asked for nothing and got nothing.
+ */
+const answeredReplyReceipts = {
+    deliveryRequested: true,
+    readRequested: true,
+    recipients: [
+        {
+            address: 'sales@nordwind.example',
+            delivery: {
+                outcome: 'Delivered',
+                reportedAt: '2026-08-29T16:05:00+00:00',
+                source: 'Report',
+                status: '2.0.0',
+                reportingServer: 'mx1.nordwind.example',
+            },
+            read: {
+                outcome: 'Displayed',
+                reportedAt: '2026-08-30T08:12:00+00:00',
+                source: 'Report',
+                status: null,
+                reportingServer: null,
+            },
+        },
+    ],
+};
 
 /** Who one message of the conversation was written to, which is the other side of the exchange from its folder. */
 function recipientOf(row: (typeof conversationRows)[number]): string {

@@ -134,7 +134,7 @@ export function SearchResults({
             setAskedSender({
                 storedEmailId,
                 message: null,
-                anchor: { left: anchor.left, top: anchor.top, bottom: anchor.bottom },
+                anchor: { left: anchor.left, right: anchor.right, top: anchor.top, bottom: anchor.bottom },
             });
         });
         explaining.current?.showModal();

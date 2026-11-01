@@ -28,6 +28,7 @@ import { BackToList } from '../mailSpace/BackToList';
 import { NothingOpen } from '../mailSpace/NothingOpen';
 import { useTwoPanes } from '../shell/useWideWorkspace';
 import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
+import { reportHeadlineOf } from '../receipts/reportWords';
 import { MessageHeaders } from './MessageHeaders';
 import { OpenedMessage } from './OpenedMessage';
 
@@ -179,7 +180,7 @@ function OpenMessage({
     readonly arriving: boolean;
     readonly foot: ReadingFoot | null;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const twoPanes = useTwoPanes();
     const { workspace, revise } = useWorkspace();
     const openAttachment = useOpenAttachment();
@@ -473,17 +474,33 @@ function OpenMessage({
 
     const message = held.result.value;
 
-    // Named by its own subject, which is what a reader arriving in the region needs to hear and what tells one message's
-    // region from the body's inside it. The heading below says the same words on the screen; this is what the region
-    // itself is called.
+    // A report that came back as mail is named by what it reports rather than by the subject its sender wrote.
+    const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
+    const headline = reportHeadlineOf(
+        {
+            report: message.report,
+            senderDisplayName: author?.displayName ?? null,
+            senderAddress: author?.address ?? null,
+        },
+        translate,
+        locale,
+    );
+
+    // Named by its own subject — or, for a report, the headline drawn in its place — which is what a reader arriving in
+    // the region needs to hear and what tells one message's region from the body's inside it. The heading below says
+    // the same words on the screen; this is what the region itself is called.
     return (
         <article
             ref={opened}
             tabIndex={-1}
-            aria-label={message.headers.subject ?? translate('message.noSubject')}
+            aria-label={headline ?? message.headers.subject ?? translate('message.noSubject')}
             className="flex grow animate-content-arrival flex-col"
         >
-            <MessageHeaders headers={message.headers} message={message} />
+            <MessageHeaders
+                headers={message.headers}
+                message={message}
+                {...(headline === null ? {} : { subject: headline })}
+            />
 
             <div className="flex flex-col gap-3 px-5.5 py-4.5">
                 <OpenedMessage

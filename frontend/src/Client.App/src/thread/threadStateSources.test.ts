@@ -25,6 +25,8 @@ function message(
             senderAddress: sender.address ?? 'auditor@example.invalid',
             senderDisplayName: sender.displayName === undefined ? 'Karolina Nowak' : sender.displayName,
             senderPhoto: null,
+            report: null,
+            receipts: null,
             toAddresses: [],
             unread: false,
             flagged: false,

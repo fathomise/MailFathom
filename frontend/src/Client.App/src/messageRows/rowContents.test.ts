@@ -18,6 +18,8 @@ function message(over: Partial<MailTimelineEntry> = {}): MailTimelineEntry {
         senderAddress: 'ada@example.invalid',
         senderDisplayName: 'Ada Lovelace',
         senderPhoto: null,
+        report: null,
+        receipts: null,
         toAddresses: ['charles@example.invalid'],
         unread: false,
         flagged: false,

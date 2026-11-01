@@ -235,6 +235,43 @@
       ]
     },
     {
+      "id": "mail-receipt-details",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "name": "The racking quote"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Show all the messages"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Read - sales@nordwind.example read"
+          }
+        },
+        {
+          "expect": {
+            "role": "region",
+            "name": "Recipients"
+          }
+        }
+      ]
+    },
+    {
       "id": "mail-sender-details",
       "route": "/#/mail",
       "signIn": true,

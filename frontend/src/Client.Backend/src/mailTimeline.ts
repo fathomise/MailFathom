@@ -7,6 +7,7 @@ import { asRecord } from './json';
 import { parseEnrichment, type MailEnrichment, type MailEnrichmentAspect } from './mailEnrichment';
 import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
 import { parsePersonPhoto, type PersonPhotoReference } from './personPhotos';
+import { parseReceiptSummary, parseReport, type MailReceiptSummary, type MailReport } from './mailReceipts';
 import { parseListedSender, type MailListedSender } from './senderFacts';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
@@ -165,6 +166,12 @@ export interface MailTimelineEntry {
      * book of the reader's holds, a collected one, and every sender for a reader who may not read the books all are.
      */
     readonly senderPhoto: PersonPhotoReference | null;
+
+    /** The delivery report or read receipt the message was recognized as, or `null` for every other message. */
+    readonly report: MailReport | null;
+
+    /** What the account's own message asked to be told and what came back, counted, or `null` where it asked for nothing and nothing came. */
+    readonly receipts: MailReceiptSummary | null;
 }
 
 /** One page of the list, and the two cursors the pages either side of it are asked with. */
@@ -430,6 +437,12 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         return null;
     }
 
+    const report = parseReport(record['report']);
+    const receipts = parseReceiptSummary(record['receipts']);
+    if (report === undefined || receipts === undefined) {
+        return null;
+    }
+
     return {
         id,
         account,
@@ -453,6 +466,8 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         spam: judged.spam,
         sender,
         senderPhoto: drawnBy.photo,
+        report,
+        receipts,
     };
 }
 

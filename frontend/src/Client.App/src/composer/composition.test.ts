@@ -37,6 +37,9 @@ function message(subject: string | null, participants: readonly MailParticipant[
             references: [],
         },
         senderPhoto: null,
+        report: null,
+        receipts: null,
+        readReceiptRequest: null,
         body: { availability: 'Available', plainText: true, html: false },
         sender: {
             authorAuthentication: 'Authenticated',

@@ -38,6 +38,8 @@ function found(carried: Partial<MailSearchResult> = {}): MailSearchResult {
         senderAddress: 'billing@example.invalid',
         senderDisplayName: 'Billing',
         senderPhoto: null,
+        report: null,
+        receipts: null,
         toAddresses: ['user@example.invalid'],
         unread: false,
         flagged: false,

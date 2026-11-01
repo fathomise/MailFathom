@@ -23,6 +23,7 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { useSpamRefusal, type SpamRefused } from '../spamMarking/useSpamRefusal';
 import { correspondent } from './rowContents';
 import { senderMarksDrawn, type SenderMark } from '../senderMark/senderMarks';
+import { receiptMarksDrawn, wordOf, type ReceiptStanding } from '../receipts/receiptMarks';
 
 // What a message row offers, which is the design's own menu for it: picking messages out, answering the
 // message, and the five acts that change the mailbox it is in. It is this row's items and nothing else — where the
@@ -61,6 +62,8 @@ export function MessageRowMenu({
     onCheckReadings,
     senderMark,
     onSenderDetails,
+    receipt = null,
+    onReceiptDetails,
     onClose,
 }: {
     readonly email: MailTimelineEntry;
@@ -94,9 +97,18 @@ export function MessageRowMenu({
      */
     readonly onSenderDetails?: (() => void) | undefined;
 
+    /** The mark the row draws on what came back for its message, or `null` for a row that draws none. */
+    readonly receipt?: ReceiptStanding | null;
+
+    /**
+     * Opens what came back for the message, which the row's mark opens under a pointer — the path a keyboard and a
+     * screen reader take to the same details, for the reason the sender details are reached here.
+     */
+    readonly onReceiptDetails?: (() => void) | undefined;
+
     readonly onClose: () => void;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const acts = useMailboxActs();
     const marking = useReadMarking();
     const composing = useComposing();
@@ -121,10 +133,17 @@ export function MessageRowMenu({
         <ContextMenu
             header={email.subject ?? translate('list.noSubject')}
             // Who wrote it, which the row folded to a strip of avatars no longer says in words, the spam verdict a folded
-            // row draws no badge for, and the mark on the sender, which a finger has no hover to read off the row.
-            detail={senderDetail(
-                spam !== null && marked ? spamMenuDetail(correspondent(email), spam, translate) : correspondent(email),
-                senderMark ?? null,
+            // row draws no badge for, the mark on the sender, and the word of what came back, which a finger has no
+            // hover to read off the row.
+            detail={receiptDetail(
+                senderDetail(
+                    spam !== null && marked
+                        ? spamMenuDetail(correspondent(email), spam, translate)
+                        : correspondent(email),
+                    senderMark ?? null,
+                    translate,
+                ),
+                receipt === null ? null : wordOf(receipt, translate, locale),
                 translate,
             )}
             at={at}
@@ -143,6 +162,8 @@ export function MessageRowMenu({
                 writeRefused,
                 senderMark: senderMark ?? null,
                 onSenderDetails,
+                receipt,
+                onReceiptDetails,
             })}
             onClose={onClose}
         />
@@ -165,6 +186,8 @@ function rowItems({
     writeRefused,
     senderMark,
     onSenderDetails,
+    receipt,
+    onReceiptDetails,
 }: {
     readonly email: MailTimelineEntry;
     readonly messages: readonly ActedMessage[];
@@ -184,6 +207,8 @@ function rowItems({
     readonly writeRefused: (control: string) => string | null;
     readonly senderMark: SenderMark | null;
     readonly onSenderDetails: (() => void) | undefined;
+    readonly receipt: ReceiptStanding | null;
+    readonly onReceiptDetails: (() => void) | undefined;
 }): readonly ContextMenuItem[] {
     const answering: readonly ContextMenuItem[] = composing.offered
         ? [
@@ -293,6 +318,18 @@ function rowItems({
                   },
               ];
 
+    // Last, as the design draws it: it explains a mark the row draws and changes nothing.
+    const receipts: readonly ContextMenuItem[] =
+        receipt === null || onReceiptDetails === undefined
+            ? []
+            : [
+                  {
+                      icon: receiptMarksDrawn[receipt.mark].icon,
+                      label: translate('receipt.details'),
+                      choose: onReceiptDetails,
+                  },
+              ];
+
     const asking: readonly ContextMenuItem[] =
         askAgent === null ? [] : [{ icon: 'auto_awesome', label: translate('agent.askAgent'), choose: askAgent }];
 
@@ -303,6 +340,7 @@ function rowItems({
         ...mailbox,
         ...readings,
         ...sender,
+        ...receipts,
     ];
 }
 
@@ -315,4 +353,12 @@ function senderDetail(who: string | undefined, mark: SenderMark | null, translat
         sender: who ?? translate('list.senderUnknown'),
         mark: translate(senderMarksDrawn[mark].name),
     });
+}
+
+function receiptDetail(detail: string | undefined, word: string | null, translate: Translate): string | undefined {
+    if (word === null) {
+        return detail;
+    }
+
+    return translate('receipt.rowDetail', { who: detail ?? translate('list.senderUnknown'), mark: word });
 }

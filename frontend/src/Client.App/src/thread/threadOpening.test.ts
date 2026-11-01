@@ -21,6 +21,8 @@ function message(id: string, position: number, unread = false): MailThreadMessag
             senderAddress: 'auditor@example.invalid',
             senderDisplayName: 'The auditor',
             senderPhoto: null,
+            report: null,
+            receipts: null,
             toAddresses: [],
             unread,
             flagged: false,

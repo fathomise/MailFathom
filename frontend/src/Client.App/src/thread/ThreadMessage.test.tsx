@@ -71,6 +71,9 @@ const described: MailMessage = {
         references: [],
     },
     senderPhoto: null,
+    report: null,
+    receipts: null,
+    readReceiptRequest: null,
     body: { availability: 'Readable', plainText: true, html: true },
     sender: {
         authorAuthentication: 'Authenticated',
@@ -142,6 +145,8 @@ function message(overrides: Partial<MailThreadMessage> = {}): MailThreadMessage 
             senderAddress: 'auditor@example.invalid',
             senderDisplayName: 'The auditor',
             senderPhoto: null,
+            report: null,
+            receipts: null,
             toAddresses: ['user@example.invalid'],
             unread: false,
             flagged: false,

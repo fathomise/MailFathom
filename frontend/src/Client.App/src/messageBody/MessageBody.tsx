@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type {
     CleanedMailBody,
     ClientResult,
@@ -97,6 +97,7 @@ export function MessageBody({
     cleaning = false,
     quotedHistoryOnRequest = false,
     readOnly = false,
+    answer = null,
     onShowRemotePictures,
 }: {
     readonly body: MailBody;
@@ -137,6 +138,12 @@ export function MessageBody({
      * no offer of its remote content, and with links that open nothing.
      */
     readonly readOnly?: boolean;
+
+    /**
+     * What the message asks of its reader beside its words — a read receipt — drawn at the top of the body under what
+     * it asked to load, as the design places it.
+     */
+    readonly answer?: ReactNode;
 
     readonly onShowRemotePictures: () => void;
 }) {
@@ -181,6 +188,8 @@ export function MessageBody({
                     onShow={onShowRemotePictures}
                 />
             )}
+
+            {answer}
 
             {markup !== null ? (
                 <EmbeddedMessageMarkup markup={markup} />
