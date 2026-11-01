@@ -2,12 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Presence;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.AutomaticReplies;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Presence;
@@ -53,7 +55,7 @@ public sealed class ClientColleagueEndpointsTests
         Assert.Equal("/contacts/colleagues/{userId:guid}/promotion", ClientColleagueEndpoints.ColleaguePromotionRoute);
     }
 
-    /// <summary>A colleague is drawn as a member contact: the preferred address first, the portrait's identifier, the zone by its IANA name, and the working hours on their own wall clock.</summary>
+    /// <summary>A colleague is drawn as a member contact: the preferred address first, the portrait's identifier, the zone by its IANA name, the working hours on their own wall clock, and the end of an automatic reply that is running.</summary>
     [Fact]
     public async Task ReadPageAsync_AColleague_IsDescribedAsAMemberContact()
     {
@@ -96,6 +98,7 @@ public sealed class ClientColleagueEndpointsTests
         Assert.Equal(PiotrsPortrait, colleague.Photo);
         Assert.Equal("Offline", colleague.Presence);
         Assert.Null(colleague.LastSeen);
+        Assert.Equal(Now.AddDays(2), colleague.OutOfOfficeUntil);
         Assert.Null(page.Value.NextCursor);
     }
 
@@ -131,6 +134,45 @@ public sealed class ClientColleagueEndpointsTests
 
         // Assert
         Assert.IsType<NotFound>(result.Result);
+    }
+
+    /// <summary>A recipient's address reads the colleague it belongs to, as one colleague is described.</summary>
+    [Fact]
+    public async Task FindAtAsync_AColleaguesAddress_DescribesThatColleague()
+    {
+        // Arrange
+        this.Holding(ColleagueNamed(Piotr, "Piotr Zieliński") with
+        {
+            Addresses = [Mailbox("piotr@nordwind.example")],
+        });
+
+        // Act
+        var result = await ClientColleagueEndpoints.FindAtAsync(
+            "Piotr@nordwind.example",
+            this.Colleagues(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var found = Assert.IsType<Ok<ColleagueResponse>>(result.Result);
+        Assert.Equal(Piotr.Value, found.Value!.Id);
+    }
+
+    /// <summary>An address nobody in the organization holds answers that there is no such colleague, and text that is no address is refused without reading.</summary>
+    [Fact]
+    public async Task FindAtAsync_NobodysAddressOrNoAddress_AnswersNotFoundOrIsRefused()
+    {
+        // Arrange
+        this.Holding(ColleagueNamed(Piotr, "Piotr Zieliński"));
+        var colleagues = this.Colleagues();
+
+        // Act
+        var nobody = await ClientColleagueEndpoints.FindAtAsync("someone@contoso.example", colleagues, TestContext.Current.CancellationToken);
+        var noAddress = await ClientColleagueEndpoints.FindAtAsync("not an address", colleagues, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound>(nobody.Result);
+        var refusal = Assert.IsType<ProblemHttpResult>(noAddress.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
     }
 
     /// <summary>The structure names the managers top-down, the reports below, and the reader, so the client knows which row leads nowhere.</summary>
@@ -259,6 +301,13 @@ public sealed class ClientColleagueEndpointsTests
         presence.ReadAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<UserId, MemberPresence>());
 
+        var automaticReplies = Substitute.For<IAutomaticReplyStore>();
+        automaticReplies.ReadPeriodsAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<UserId, AutomaticReplyPeriod>
+            {
+                [Piotr] = new(Now.AddDays(-1), Now.AddDays(2), IsOn: true),
+            });
+
         return new ColleagueBook(
             this.members,
             this.directory,
@@ -267,6 +316,7 @@ public sealed class ClientColleagueEndpointsTests
             ownership,
             authorization,
             presence,
+            automaticReplies,
             clock);
     }
 

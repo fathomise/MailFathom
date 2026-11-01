@@ -10,6 +10,8 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.AutomaticReplies;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Presence;
@@ -46,6 +48,8 @@ public sealed class ColleagueBookTests
     private readonly IStoredFileStore files = Substitute.For<IStoredFileStore>();
 
     private readonly InMemoryPresenceStore presence = new();
+
+    private readonly InMemoryAutomaticReplyStore automaticReplies = new();
 
     /// <summary>The reader is one of the members the directory composes, and is never their own colleague.</summary>
     [Fact]
@@ -193,6 +197,46 @@ public sealed class ColleagueBookTests
         await this.members.DidNotReceiveWithAnyArgs().ReadAsync(default, TestContext.Current.CancellationToken);
     }
 
+    /// <summary>An address names its colleague even where the reader's own book holds it, because the caller asks who a recipient is rather than browsing.</summary>
+    [Fact]
+    public async Task FindAtAsync_AnAddressTheReadersOwnBookAlsoHolds_ReadsTheColleagueWithTheirAbsence()
+    {
+        // Arrange
+        this.Holding(
+            MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example", "controlling@nordwind.example"),
+            MemberOf(Zofia, "Zofia Nowak", "zofia@nordwind.example"));
+        this.store.Hold(Reader, ContactOf("Piotrek", "piotr@nordwind.example"));
+        await this.automaticReplies.SaveAsync(Piotr, ReplyAround(Now.AddDays(3), isOn: true), TestContext.Current.CancellationToken);
+
+        // Act
+        var found = await this.BookFor(Organization).FindAtAsync(
+            Address("CONTROLLING@nordwind.example"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(Piotr, found?.Contact.Member);
+        Assert.Equal(Now.AddDays(3), found?.OutOfOfficeUntil);
+    }
+
+    /// <summary>The reader's own address, and one no colleague holds, both answer as nobody.</summary>
+    [Fact]
+    public async Task FindAtAsync_TheReadersOwnAddressOrAStrangers_IsNoColleague()
+    {
+        // Arrange
+        this.Holding(
+            MemberOf(Reader, "Anna Kowalska", "anna@nordwind.example"),
+            MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example"));
+        var book = this.BookFor(Organization);
+
+        // Act
+        var own = await book.FindAtAsync(Address("anna@nordwind.example"), TestContext.Current.CancellationToken);
+        var stranger = await book.FindAtAsync(Address("someone@contoso.example"), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(own);
+        Assert.Null(stranger);
+    }
+
     /// <summary>A colleague who chose to hide is handed to a reader as offline with no last-seen time, which is the only presence a reader is ever given.</summary>
     [Fact]
     public async Task ReadPageAsync_AColleagueWhoChoseToHide_ReadsAsOfflineWithNoLastSeen()
@@ -223,6 +267,32 @@ public sealed class ColleagueBookTests
 
         // Assert
         Assert.Equal(new PresenceReading(PresenceState.Away, LastSeen: null), found?.Presence);
+    }
+
+    /// <summary>
+    /// A colleague is out of office while their automatic reply is switched on and in its period, and the reader is told
+    /// its end; a reply switched off says nothing, and a member who never set one is not away.
+    /// </summary>
+    [Fact]
+    public async Task ReadPageAsync_ColleaguesWithARunningAnOffAndNoReply_MarksTheRunningOneOutOfOfficeUntilItsEnd()
+    {
+        // Arrange
+        var end = Now.AddDays(3);
+        var marta = UserId.Create(new Guid("0198f0aa-0000-7000-8000-00000000c004"));
+        this.Holding(
+            MemberOf(Piotr, "Piotr Zieliński", "piotr@nordwind.example"),
+            MemberOf(Zofia, "Zofia Nowak", "zofia@nordwind.example"),
+            MemberOf(marta, "Marta Wiśniewska", "marta@nordwind.example"));
+        await this.automaticReplies.SaveAsync(Piotr, ReplyAround(end, isOn: true), TestContext.Current.CancellationToken);
+        await this.automaticReplies.SaveAsync(Zofia, ReplyAround(end, isOn: false), TestContext.Current.CancellationToken);
+
+        // Act
+        var page = await this.BookFor(Organization).ReadPageAsync(new ContactPageRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [(marta, null), (Piotr, end), (Zofia, null)],
+            page.Colleagues.Select(colleague => (colleague.Contact.Member, colleague.OutOfOfficeUntil)));
     }
 
     /// <summary>
@@ -495,6 +565,20 @@ public sealed class ColleagueBookTests
             Now,
             Now);
 
+    /// <summary>A reply whose period runs from a day before the reading clock to the end given.</summary>
+    private static AutomaticReply ReplyAround(DateTimeOffset end, bool isOn) =>
+        AutomaticReply.TryCreate(
+            insideText: null,
+            "Back next week.",
+            [MailAccountId.Create("work")],
+            Now.AddDays(-1),
+            end,
+            isOn,
+            out var reply,
+            out _)
+            ? reply!
+            : throw new InvalidOperationException("The test reply is not one the domain admits.");
+
     private static EmailAddress Address(string address) =>
         EmailAddress.TryCreate(displayName: null, address, out var parsed)
             ? parsed
@@ -538,7 +622,16 @@ public sealed class ColleagueBookTests
             ownership,
             authorization);
 
-        return new ColleagueBook(this.members, this.store, this.files, writer, ownership, authorization, this.presence, timeProvider);
+        return new ColleagueBook(
+            this.members,
+            this.store,
+            this.files,
+            writer,
+            ownership,
+            authorization,
+            this.presence,
+            this.automaticReplies,
+            timeProvider);
     }
 
     /// <summary>A session that commits, because nothing here is about a conflict the policy has to retry.</summary>

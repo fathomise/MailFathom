@@ -7,7 +7,9 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
 import { SenderAvatar } from '../controls/SenderAvatar';
+import { wordAbsenceEnd } from '../localization/instants';
 import { useLocalization, type Translate } from '../localization/useLocalization';
+import { useReadingZone } from '../localization/useReadingZone';
 import { PresenceDot } from '../presence/PresenceDot';
 import { presenceSaid } from '../presence/presenceWords';
 import { useContactPhoto } from './contactPhotos';
@@ -31,7 +33,7 @@ import type { Person } from './useContactBook';
 // (*Busy · Controller*). The design draws a company and a last-contact date beside them, and this deployment's contact
 // record carries neither — which is a correction owed to the design rather than a field to invent here. A contact the
 // reader's organization keeps carries the chip naming it at the end of the line, which is how the design tells it from
-// one of their own.
+// one of their own, and a colleague whose automatic reply is running carries the day it runs to in the same place.
 
 // The line under the name.
 function lineOf(person: Person, translate: Translate): string | null {
@@ -90,8 +92,13 @@ export function ContactRow({
 }) {
     const press = useRowPress(onPress);
     const picture = useContactPhoto(contact);
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
+    const readingZone = useReadingZone();
     const line = lineOf(contact, translate);
+    const awayUntil =
+        contact.book === 'Member' && contact.outOfOfficeUntil !== null
+            ? wordAbsenceEnd(contact.outOfOfficeUntil, locale, readingZone)
+            : null;
 
     return (
         <li
@@ -168,6 +175,11 @@ export function ContactRow({
                     {contact.book === 'Organization' ? (
                         <OrganizationChip organizationName={organizationName} place="row" />
                     ) : null}
+                    {awayUntil === null ? null : (
+                        <span className="ms-auto shrink-0 rounded-md bg-warning-soft px-1.75 py-0.5 text-xs whitespace-nowrap text-warning-text">
+                            {translate('presence.outUntil', { day: awayUntil })}
+                        </span>
+                    )}
                 </span>
             </span>
         </li>

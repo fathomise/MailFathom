@@ -80,6 +80,7 @@ function colleagueCalled(id: string, displayName: string, addresses = [`${id}@no
         photo: null,
         presence: 'Active',
         lastSeen: null,
+        outOfOfficeUntil: null,
     };
 }
 
@@ -184,7 +185,7 @@ describe('searchContacts across the directory', () => {
             {
                 address: 'piotr@nordwind.example',
                 name: 'Piotr Zieliński',
-                colleague: { presence: 'Offline', jobTitle: 'Head of Delivery' },
+                colleague: { presence: 'Offline', jobTitle: 'Head of Delivery', outOfOfficeUntil: null },
             },
             { address: 'anna@nordwind.example', name: 'Anna Kowalska' },
         ]);

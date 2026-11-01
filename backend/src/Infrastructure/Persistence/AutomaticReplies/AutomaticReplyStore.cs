@@ -17,6 +17,32 @@ namespace MailFathom.Infrastructure.Persistence.AutomaticReplies;
 internal sealed class AutomaticReplyStore(MailFathomDbContext context, TimeProvider clock) : IAutomaticReplyStore
 {
     /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<UserId, AutomaticReplyPeriod>> ReadPeriodsAsync(
+        IReadOnlyCollection<UserId> users,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(users);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(users.Count, IAutomaticReplyStore.MostReadPeriods);
+
+        if (users.Count == 0)
+        {
+            return new Dictionary<UserId, AutomaticReplyPeriod>();
+        }
+
+        Guid[] identifiers = [.. users.Select(user => user.Value)];
+
+        var rows = await context.AutomaticReplies
+            .AsNoTracking()
+            .Where(reply => identifiers.Contains(reply.UserId))
+            .Select(reply => new { reply.UserId, reply.StartsAt, reply.EndsAt, reply.IsOn })
+            .ToArrayAsync(cancellationToken);
+
+        return rows.ToDictionary(
+            row => UserId.Create(row.UserId),
+            row => new AutomaticReplyPeriod(row.StartsAt, row.EndsAt, row.IsOn));
+    }
+
+    /// <inheritdoc />
     public async Task<StoredAutomaticReply?> ReadAsync(UserId user, CancellationToken cancellationToken)
     {
         var userValue = user.Value;

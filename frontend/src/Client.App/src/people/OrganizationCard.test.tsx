@@ -29,6 +29,7 @@ function colleagueCalled(
         photo: null,
         presence,
         lastSeen: null,
+        outOfOfficeUntil: null,
     };
 }
 

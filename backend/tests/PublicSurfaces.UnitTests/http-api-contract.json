@@ -5730,6 +5730,13 @@
           "organizationName": {
             "type": "string"
           },
+          "outOfOfficeUntil": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "phoneNumbers": {
             "items": {
               "$ref": "#/components/schemas/ContactPhoneNumberResponse"
@@ -5782,7 +5789,8 @@
           "workingHours",
           "photo",
           "presence",
-          "lastSeen"
+          "lastSeen",
+          "outOfOfficeUntil"
         ],
         "type": "object"
       },
@@ -19696,6 +19704,42 @@
               }
             },
             "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/contacts/colleagues/by-address": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "address",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColleagueResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
           }
         },
         "security": [

@@ -4,6 +4,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+    wordAbsenceEnd,
     wordCalendarDay,
     wordDueDay,
     wordElapsed,
@@ -323,5 +324,25 @@ describe('wordElapsed', () => {
 
     it('words the count in the reader’s own language', () => {
         expect(wordElapsed(began, began + 5 * 3_600_000, 'pl')).toBe('5 godzin temu');
+    });
+});
+
+describe('wordAbsenceEnd', () => {
+    it('says the last day a reply ending at midnight covers, rather than the day it ends on', () => {
+        const endsAtMidnight = '2026-09-05T00:00:00+02:00';
+
+        expect(wordAbsenceEnd(endsAtMidnight, 'pl', 'Europe/Warsaw')).toBe('04.09');
+        expect(wordAbsenceEnd(endsAtMidnight, 'en', 'Europe/Warsaw')).toBe('09/04');
+    });
+
+    it("says the day in the reader's zone", () => {
+        const endsInTheMorning = '2026-09-05T08:00:00+02:00';
+
+        expect(wordAbsenceEnd(endsInTheMorning, 'pl', 'Europe/Warsaw')).toBe('05.09');
+        expect(wordAbsenceEnd(endsInTheMorning, 'pl', 'America/Los_Angeles')).toBe('04.09');
+    });
+
+    it('answers with nothing where the service sent no instant this client can read', () => {
+        expect(wordAbsenceEnd('next week', 'en', 'Europe/Warsaw')).toBeNull();
     });
 });

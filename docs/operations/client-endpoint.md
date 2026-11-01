@@ -3084,6 +3084,12 @@ period, and `on` defaults to `true`; switching a reply off early is a write with
 the reply a write replaces is answered once more under the new one, which is what a person changing their text
 expects.
 
+**A write that changes whether, or until when, the person reads as out of office tells their colleagues.** It raises
+`presence.changed` on [the signal channel](#the-signal-channel) naming the person to every member of their
+organization, themselves included, so an open directory reads them again; a write that leaves `outOfOfficeUntil` as it
+was raises nothing. A period beginning or ending on its own is announced by nobody, and reaches an open client on its
+next read of the directory.
+
 **What the body may hold is refused with `400` naming the reason**: an `outsideText` that is missing or blank, a text
 past 8000 characters, no account or more than 64, an account named twice or by nothing, a period without both ends or
 one ending before it starts, and a member the contract does not name. `insideText` is optional, and a blank one reads
@@ -3507,10 +3513,11 @@ up from mail that arrived, and the four things they do about either.
 | `POST /api/client/contacts/{contactId}/promotion` | Takes on a collected record, so it becomes one this user asserted |
 | `DELETE /api/client/contacts/{contactId}` | Erases one person and everything the book derived from them |
 | `GET /api/client/contacts/colleagues` | Reads one page of the other members of this user's organization |
+| `GET /api/client/contacts/colleagues/by-address?address=` | Reads the colleague one address belongs to, even one this user's own book also holds; `404` where no colleague holds it or it is the user's own, `400` where it is no address |
 | `GET /api/client/contacts/colleagues/{userId}` | Reads one of them |
 | `GET /api/client/contacts/colleagues/{userId}/photo` | Serves that colleague's portrait, or `404` where they have none |
 | `POST /api/client/contacts/photos` | Resolves which photo each of a set of addresses is drawn by — [§ The person photo route](#the-person-photo-route) |
-| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence` and `lastSeen`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
+| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence`, `lastSeen`, and `outOfOfficeUntil`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
 | `POST /api/client/contacts/colleagues/{userId}/promotion` | Writes a copy of that colleague into this user's own book |
 
 **The book is read as two, because it is two.** What somebody wrote down and what their mailboxes picked up are
@@ -3552,8 +3559,10 @@ first, and `start` and `end` written `HH:mm` on the colleague's own wall clock, 
 `photo`, an identifier that changes whenever the portrait does, `presence` — `Active`, `Away`, `Busy`,
 `DoNotDisturb`, or `Offline`, which is also what a colleague who chose `Hidden` reads as — and `lastSeen`, an instant
 answered only for an `Offline` colleague who did not choose to hide, as [the presence routes](#the-presence-routes)
-describe. A colleague whose address this user's own book holds is left out, because the user's own record of them
-answers for them; the two listings above leave out an organization contact and a collected contact holding a
+describe — and `outOfOfficeUntil`, the instant the colleague's automatic reply stops answering, answered only while it
+is switched on and in its period and `null` otherwise, and never the reply's text. A colleague whose address this user's own book holds is left out, because the user's own record of them
+answers for them — in the listing, and not in the reads that name a colleague by an identifier or by an address, which
+answer for the person named; the two listings above leave out an organization contact and a collected contact holding a
 colleague's address, for the same reason in the other direction. [Contacts § The organization's member
 directory](../features/contacts.md#the-organizations-member-directory) holds where each field comes from and who is in
 the directory. There is no route that changes a colleague: promoting one copies their name, addresses, preferred
@@ -4771,7 +4780,7 @@ record's already-derived text and reach a client entitled to read that record ov
 | `notification.raised` | A notification was written, with its kind, its two lines, and how many now stand unread |
 | `account.state` | An account's synchronization run finished, so what a client says about it is out of date |
 | `run.advanced` | A [Discover run](../features/discovery-run.md#a-run-is-watched-rather-than-waited-for) or an [Agent conversation](#the-agent-conversation-routes) had something written, naming the run, the conversation where it is one, and the place reached — and no part of what was written |
-| `presence.changed` | How up to 100 colleagues read to the other members of the organization may have changed, naming their user identities in `members` and nothing about them; an empty `members` names every colleague. A client re-reads them over [the contact routes](#the-contact-routes) |
+| `presence.changed` | How up to 100 colleagues read to the other members of the organization — their presence, or whether they are out of office — may have changed, naming their user identities in `members` and nothing about them; an empty `members` names every colleague. A client re-reads them over [the contact routes](#the-contact-routes) |
 | `calendar.changed` | One person's [calendar](#the-calendar-routes) was written, whoever wrote it, naming nothing of any event; it reaches that person alone |
 | `tasks.changed` | One person's [task list](#the-task-routes) was written, whoever wrote it, naming nothing of any task; it reaches that person alone |
 | `contacts.changed` | A [contact book](#the-contact-routes) was written, whoever wrote it, naming nothing of any record. One person's own book reaches that person, a mailbox's collected book reaches everybody that mailbox serves and names the account, and the organization's book reaches every member |

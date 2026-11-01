@@ -104,5 +104,7 @@ The answer is the same in all three [custody phases](held-mailboxes.md), because
 ## Privacy
 
 The texts are the person's own words and the answer rows name their correspondents, so neither reaches a log, a metric,
-a trace, or an error message; a failure names the account alias at most. Both go with the user's record when it is
+a trace, or an error message; a failure names the account alias at most. The members of the person's organization are
+told that they are out of office and until when, while the reply is switched on and in its period, and nothing more —
+[Contacts § A colleague who is out of office](contacts.md#a-colleague-who-is-out-of-office) holds what they see. Both go with the user's record when it is
 erased, and the answer rows are kept for as long as one reply runs: every save deletes the ones it outlived.

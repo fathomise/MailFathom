@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Contacts.Failures;
 using MailFathom.Application.Portraits;
 using MailFathom.Application.Presence;
@@ -49,6 +50,7 @@ public sealed class ColleagueBook
     private readonly ContactBookOwnership ownership;
     private readonly AccessAuthorization authorization;
     private readonly IPresenceStore presence;
+    private readonly IAutomaticReplyStore automaticReplies;
     private readonly TimeProvider time;
 
     /// <summary>Initializes the use case.</summary>
@@ -59,7 +61,8 @@ public sealed class ColleagueBook
     /// <param name="ownership">Answers whose books this caller reads, and which organization they belong to.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <param name="presence">Holds what each colleague's presence is worked out from.</param>
-    /// <param name="time">The clock presence is read at.</param>
+    /// <param name="automaticReplies">Holds when each colleague's automatic reply answers, which is whether they are out of office.</param>
+    /// <param name="time">The clock presence and absence are read at.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public ColleagueBook(
         IMemberDirectory members,
@@ -69,6 +72,7 @@ public sealed class ColleagueBook
         ContactBookOwnership ownership,
         AccessAuthorization authorization,
         IPresenceStore presence,
+        IAutomaticReplyStore automaticReplies,
         TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(members);
@@ -78,6 +82,7 @@ public sealed class ColleagueBook
         ArgumentNullException.ThrowIfNull(ownership);
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(presence);
+        ArgumentNullException.ThrowIfNull(automaticReplies);
         ArgumentNullException.ThrowIfNull(time);
 
         this.members = members;
@@ -87,6 +92,7 @@ public sealed class ColleagueBook
         this.ownership = ownership;
         this.authorization = authorization;
         this.presence = presence;
+        this.automaticReplies = automaticReplies;
         this.time = time;
     }
 
@@ -145,6 +151,30 @@ public sealed class ColleagueBook
         return await this.FindColleagueAsync(member, cancellationToken) is { } colleague
             ? (await this.WithPresenceAsync([colleague], cancellationToken))[0]
             : null;
+    }
+
+    /// <summary>Reads the colleague one address belongs to, whether or not the reader's own book holds it too.</summary>
+    /// <param name="address">The address to read the colleague of.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The colleague with their presence, or <see langword="null" /> where no colleague holds the address, or it is the reader's own.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the reading grant.</exception>
+    /// <remarks>
+    /// An identity read like <see cref="FindAsync" />, so the own book's precedence does not apply: the caller named the
+    /// person by an address it already holds — a recipient — and asks who that is, rather than browsing the directory.
+    /// Where two colleagues share the address, the first in the directory's order answers.
+    /// </remarks>
+    public async Task<Colleague?> FindAtAsync(EmailAddress address, CancellationToken cancellationToken)
+    {
+        this.authorization.RequirePermission(MailFathomPermission.ContactsRead);
+
+        var scope = await this.ownership.ReadScopeAsync(cancellationToken);
+        var colleague = (await this.ReadColleaguesAsync(scope, cancellationToken))
+            .Where(colleague => colleague.Addresses.Contains(address))
+            .OrderBy(colleague => colleague.DisplayName.SortKey, StringComparer.Ordinal)
+            .ThenBy(colleague => colleague.Member.Value)
+            .FirstOrDefault();
+
+        return colleague is null ? null : (await this.WithPresenceAsync([colleague], cancellationToken))[0];
     }
 
     /// <summary>Reads where one colleague sits in the reader's organization: the managers above them and their direct reports.</summary>
@@ -274,19 +304,23 @@ public sealed class ColleagueBook
         return byName > 0 || (byName == 0 && colleague.Member.Value.CompareTo(cursor.ContactId.Value) > 0);
     }
 
-    /// <summary>Reads how each colleague reads to the other members, which is the only presence a reader is ever handed.</summary>
+    /// <summary>Reads how each colleague reads to the other members, which is the only presence a reader is ever handed, and whether they are out of office.</summary>
+    /// <remarks>Absence is read off the period of a colleague's automatic reply alone, so the reply's text never reaches this use case.</remarks>
     private async Task<IReadOnlyList<Colleague>> WithPresenceAsync(
         IReadOnlyList<MemberContact> colleagues,
         CancellationToken cancellationToken)
     {
-        var held = await this.presence.ReadAsync([.. colleagues.Select(colleague => colleague.Member)], cancellationToken);
+        UserId[] members = [.. colleagues.Select(colleague => colleague.Member)];
+        var held = await this.presence.ReadAsync(members, cancellationToken);
+        var periods = await this.automaticReplies.ReadPeriodsAsync(members, cancellationToken);
         var now = this.time.GetUtcNow();
 
         return
         [
             .. colleagues.Select(colleague => new Colleague(
                 colleague,
-                held.GetValueOrDefault(colleague.Member, MemberPresence.Unknown).SeenByOthersAt(now))),
+                held.GetValueOrDefault(colleague.Member, MemberPresence.Unknown).SeenByOthersAt(now),
+                periods.GetValueOrDefault(colleague.Member)?.OutOfOfficeUntil(now))),
         ];
     }
 

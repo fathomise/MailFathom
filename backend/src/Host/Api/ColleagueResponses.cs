@@ -22,6 +22,7 @@ namespace MailFathom.Host.Api;
 /// <param name="Photo">An identifier that changes whenever the member's portrait does, or nothing where they have none.</param>
 /// <param name="Presence">How the member reads to the other members: <c>Active</c>, <c>Away</c>, <c>Busy</c>, <c>DoNotDisturb</c>, or <c>Offline</c>, which is also what a member who chose to hide reads as.</param>
 /// <param name="LastSeen">When the member was last present, only where they read as <c>Offline</c> and did not choose to hide.</param>
+/// <param name="OutOfOfficeUntil">When the member's automatic reply stops answering, while it is switched on and in its period, and nothing otherwise — never what it answers with.</param>
 /// <remarks>
 /// Personal data about a colleague. It travels to the member of the same organization who asked and reaches nothing
 /// else — no log line, no metric dimension, and no failure message.
@@ -39,13 +40,14 @@ internal sealed record ColleagueResponse(
     WorkingHoursResponse? WorkingHours,
     Guid? Photo,
     string Presence,
-    DateTimeOffset? LastSeen)
+    DateTimeOffset? LastSeen,
+    DateTimeOffset? OutOfOfficeUntil)
 {
     /// <summary>The name every colleague's <see cref="Book" /> carries.</summary>
     internal const string MemberBook = "Member";
 
     /// <summary>Describes one member for a colleague.</summary>
-    /// <param name="colleague">The member as the directory composed them, with their presence.</param>
+    /// <param name="colleague">The member as the directory composed them, with their presence and absence.</param>
     /// <returns>The response body.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="colleague" /> is <see langword="null" />.</exception>
     internal static ColleagueResponse For(Colleague colleague)
@@ -71,7 +73,8 @@ internal sealed record ColleagueResponse(
             member.WorkingHours is { } hours ? WorkingHoursResponse.For(hours) : null,
             member.Portrait?.Value,
             colleague.Presence.State.ToString(),
-            colleague.Presence.LastSeen);
+            colleague.Presence.LastSeen,
+            colleague.OutOfOfficeUntil);
     }
 }
 

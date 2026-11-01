@@ -8,6 +8,7 @@ import {
     parseColleague,
     promoteColleague,
     readColleague,
+    readColleagueAt,
     readColleaguePhoto,
     readColleagues,
     readColleagueStructure,
@@ -34,6 +35,7 @@ const member = {
     photo: 'revision-1',
     presence: 'Busy',
     lastSeen: null,
+    outOfOfficeUntil: null,
 };
 
 type Answer = Omit<ClientResponse, 'headers'>;
@@ -113,6 +115,25 @@ describe('readColleague', () => {
 
     it('reads a member who left the organization as somebody to let go of', async () => {
         const result = await readColleague(session, answering({ status: 404, body: '' }), member.id);
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
+    });
+});
+
+describe('readColleagueAt', () => {
+    it('asks for the member the address belongs to, with the address carried as a query value', async () => {
+        const { transport, requests } = recording({ status: 200, body: JSON.stringify(member) });
+
+        const result = await readColleagueAt(session, transport, 'p.zielinski+team@nordwind.example');
+
+        expect(requests[0]?.path).toBe(
+            'https://mail.example.invalid/api/client/contacts/colleagues/by-address?address=p.zielinski%2Bteam%40nordwind.example',
+        );
+        expect(result.outcome).toBe('read');
+    });
+
+    it('reads an address no member holds as nobody to warn about', async () => {
+        const result = await readColleagueAt(session, answering({ status: 404, body: '' }), 'someone@contoso.example');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
     });
@@ -312,6 +333,18 @@ describe('parseColleague', () => {
     it('refuses a last-seen time on a member who is present, and one that is not an instant', () => {
         expect(parseColleague({ ...member, presence: 'Away', lastSeen: '2026-10-30T18:20:00+00:00' })).toBeNull();
         expect(parseColleague({ ...member, presence: 'Offline', lastSeen: 'yesterday' })).toBeNull();
+    });
+
+    it('reads until when a member is out of office, and one with none stated as somebody who is not away', () => {
+        const away = { ...member, outOfOfficeUntil: '2026-11-04T00:00:00+01:00' };
+        const unstated = Object.fromEntries(Object.entries(member).filter(([field]) => field !== 'outOfOfficeUntil'));
+
+        expect(parseColleague(away)).toEqual(away);
+        expect(parseColleague(unstated)?.outOfOfficeUntil).toBeNull();
+    });
+
+    it('refuses an out-of-office end that is not an instant', () => {
+        expect(parseColleague({ ...member, outOfOfficeUntil: 'next week' })).toBeNull();
     });
 
     it('refuses a field of the wrong shape', () => {

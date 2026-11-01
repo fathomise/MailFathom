@@ -463,7 +463,10 @@ function lastDraftRequest(asked: readonly ClientRequest[]): ClientRequest | unde
     return asked.filter((request) => request.path.includes('/api/client/drafts')).at(-1);
 }
 
-/** What the composer asked of the deployment besides the address book, which the To field reads on that same wait. */
+/**
+ * What the composer asked of the deployment besides the address book, which the To field reads on that same wait and
+ * which is asked whether each recipient is a colleague out of office.
+ */
 function beyondTheBook(asked: readonly ClientRequest[]): readonly ClientRequest[] {
     return asked.filter((request) => !request.path.includes('/api/client/contacts'));
 }
@@ -718,7 +721,7 @@ describe('Composer, a message of its own', () => {
         fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter', ctrlKey: true });
 
         expect(sendQuestion().textContent).toContain('Send this message?');
-        expect(asked).toHaveLength(0);
+        expect(beyondTheBook(asked)).toHaveLength(0);
     });
 
     it('files the draft in the user’s own drafts when that is asked for, and says it did', async () => {
@@ -757,7 +760,7 @@ describe('Composer, a message of its own', () => {
         address('ada@example.invalid');
         fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-        expect(asked).toHaveLength(0);
+        expect(beyondTheBook(asked)).toHaveLength(0);
     });
 
     // The composer goes once the deployment has the message rather than on the press: a send refused or never
