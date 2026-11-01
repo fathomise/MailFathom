@@ -2871,9 +2871,11 @@ data.
 `client_sessions` holds a generated user identity and a credential identifier, both pseudonymous identifiers for an identified person and read as their data; the grant, the digest, and the instant beside them are neither. It cascades from the user record and from the credential, so a data-subject erasure takes every session of theirs whether or not a credential stands behind one, and an operator ending a credential takes its sessions in the same transaction. The digest is not a credential: it authenticates nothing, because what a request presents is the secret it was derived from. Nothing else about the device is in the row — no address, no user agent, and no name a person gave a session — because a session is not a device register: the kind and, for a phone, the one day it was last opened are there to mark a member who uses the phone app to their colleagues, who read a yes or a no and never the day, and the day is overwritten rather than kept as a history. Nothing here reaches a log, a metric, a trace, or an error message: a refused request is answered rather than described, and the one refusal that names anything names the deployment's own inability to reach its database.
 
 `presence_clients` and `member_presence` hold personal data about an employee: whether they have a client open and use
-it, the state they chose, and when they were last present. That is monitoring of a person, so the tables hold the
-present alone — no history, and nothing about a device beyond the identifier its client minted — and they reach
-members of the same organization only, through the colleague read. Both cascade from the user record, so an erasure
+it, the state they chose, and when they were last present — and, in `member_presence`, the status message they wrote,
+free text of up to 280 characters that can say anything about them, and whether they work from the office or remotely.
+That is monitoring of a person, so the tables hold the present alone — no history, nothing about a device beyond the
+identifier its client minted, and one message and one place of work replaced by the next rather than kept beside it —
+and they reach members of the same organization only, through the colleague read. Both cascade from the user record, so an erasure
 takes them without knowing they exist, and a client row is gone three minutes after its client stops. Nothing in either
 reaches a log, a metric, a trace, an audit entry, or an exception message.
 
