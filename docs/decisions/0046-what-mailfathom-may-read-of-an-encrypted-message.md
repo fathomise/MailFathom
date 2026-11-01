@@ -174,8 +174,8 @@ searched, rendered, summarised, answered from, classified, and scanned for sensi
 mail, and its attachments are read and downloaded the same way, decrypted per download. Nothing tells a reader it is
 different except two things. One is the marker saying it arrived protected: `IsEncrypted` keeps describing what arrived
 rather than what is readable, and the availability a read publishes is what says whether a body could be read. The
-other is the rule below that its content leaves MailFathom only sealed. A signature inside the envelope is verified once
-the envelope is open, exactly as an outer one is.
+other is the rule below that its content goes into mail MailFathom sends or files only sealed. A signature inside the
+envelope is verified once the envelope is open, exactly as an outer one is.
 
 **That includes every model the deployment calls.** Ring-opened text goes wherever the deployment already sends
 cleartext mail: the embedding provider, the chat provider, the spam stage, image description. An operator who places a
@@ -199,11 +199,14 @@ person's mail cannot be kept by a device that reads it unredacted.
 **A message no key opens shows its envelope and nothing else**: its headers, its recipients, its attachment structure as
 far as the outer MIME shows it, and a plain explanation of what would change that. It is never an empty body.
 
-### Content decrypted from a protected message leaves only sealed
+### Content decrypted from a protected message goes into mail only sealed
 
-*An ordinary message on every surface* stops at one place, and it is the only visible difference from cleartext mail
-this record allows beyond the protected marker. **Content decrypted from a protected message never leaves MailFathom in
-the clear, whichever row opened it.** The sender chose encryption, and a quotation, a forward, or an attached original
+*An ordinary message on every surface* stops at one place. That place is the only visible difference from cleartext
+mail this record allows beyond the protected marker. **Content decrypted from a protected message never goes in the
+clear into a message MailFathom sends or files, whichever row opened it.** That covers a message sent to anybody and a
+draft filed on the author's mail server. It does not cover what the table above lets a reader reach. An MCP caller and
+every model the deployment calls are still handed ring-opened text exactly as they are handed cleartext mail. The rule
+is about mail leaving the envelope the sender put it in, not about who may read it here. The sender chose encryption, and a quotation, a forward, or an attached original
 that dropped it would be the silent degradation the drivers refuse. So:
 
 - **An answer, a forward, or a draft that carries such content is sent encrypted, or it does not carry it.** A recipient
@@ -339,6 +342,19 @@ verification outcome was `Verified`**, which `stored_email_signer_keys` already 
 did not verify contributes nothing usable, so a forged signature never becomes a key MailFathom would encrypt to (G3 is
 refused). An expired or revoked key is not used.
 
+**Whether a key is revoked is decided from what MailFathom already holds, and sending makes no request to find out.**
+A revocation check at send time — OCSP, a CRL, a key server — is a request to a third party naming the recipient at the
+moment of writing, which is exactly what refusing network discovery refuses. So the sources are these:
+
+- For OpenPGP, the revocation signatures the key's own transferable form carries, as configured or as learned.
+- For an S/MIME certificate learned from a signature, the revocation outcome recorded when that signature was verified
+  at receipt. Each later verified signature from the same certificate refreshes that outcome.
+- For a configured S/MIME certificate, its validity period. An operator who learns of a revocation removes the entry.
+
+A certificate revoked after the last signature anybody received from it is therefore used until it expires, or until a
+newer signature from it shows the revocation. That is the price of composing without telling anybody who is being
+written to, and it is recorded as a consequence rather than left for issues 1597 and 1598 to discover.
+
 **A key learned from a signature is filed under the address the key itself names, and never under the message's
 `From`.** For S/MIME that is a `rfc822Name` in the certificate's subject alternative names, and for OpenPGP the address
 in a self-certified user ID. `Verified` proves the signature was made with that key. It does not prove the key belongs
@@ -404,6 +420,8 @@ valid configuration.
 - Bad, because sending encrypted through the service needs a ring key for the sending account even when every
   recipient's key is known, since that key is what seals the draft. Without one, the draft would reach the mail server
   in the clear.
+- Bad, because a recipient certificate revoked after the last signature received from it is still encrypted to until
+  it expires or a newer signature reveals the revocation, since sending makes no revocation request.
 - Bad, because S/MIME without integrity protection is opened, so its malleability is answered by withholding remote
   pictures and by reducing the envelope on its own, not by the cipher.
 - Bad, because removing a key is not a retraction, and an operator who expects it to be will be wrong. The page states
@@ -430,6 +448,8 @@ valid configuration.
 - **The outbound refusal is held by unit tests** for a recipient with no key, a mixed recipient list, a blind-copied
   recipient with no key, an expired key, a key from a signature that did not verify, and a test that no network request
   is made to find a key.
+- **Send-time revocation is held by unit tests**: an OpenPGP key carrying a revocation signature and a learned S/MIME
+  certificate recorded as revoked at its latest verification are both refused, and a send makes no request to any host.
 - **Recipient key provenance is held by unit tests**: a key from a verified signature whose own address differs from the
   message's `From` is filed under the key's address and is never offered for the `From`.
 - **Blind copies are held by unit tests**: the visible message's recipient identifiers name no blind-copied recipient,
@@ -447,7 +467,8 @@ valid configuration.
   sealed send.
 - **By review** of each child of issue 75 against the table and the sections above. A child whose change makes a reader
   see more than its row allows, or makes a ring-opened message visibly different from cleartext mail beyond the
-  protected marker and the rule that its content leaves only sealed, does not match this record.
+  protected marker and the rule that its content goes into mail MailFathom sends or files only sealed, does not match
+  this record.
 
 ## Pros and Cons of the Options
 
