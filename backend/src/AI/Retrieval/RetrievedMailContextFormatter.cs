@@ -255,6 +255,7 @@ internal static class RetrievedMailContextFormatter
         }
 
         document.WriteProvenance(passage.Provenance);
+        AgentReceiptReadings.Write(document, passage.Receipts);
 
         // Absent rather than empty where the message carried none, so the model is not left reading a blank subject as
         // one somebody wrote.

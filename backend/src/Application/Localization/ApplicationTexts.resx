@@ -85,4 +85,8 @@ Project repository: https://github.com/fathomise/MailFathom
     <value>The message could not be sent.</value>
     <comment>What an outbox entry says about a failure it has no sentence of its own for.</comment>
   </data>
+  <data name="ReadReceiptDisplayed" xml:space="preserve">
+    <value>Your message was displayed to its recipient. This receipt says nothing about whether it was read or understood.</value>
+    <comment>The words a read receipt the reader chose to send carries for the person who asked for it.</comment>
+  </data>
 </root>

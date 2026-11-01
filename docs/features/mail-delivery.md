@@ -585,7 +585,8 @@ header of the stored message, so the record only says it was asked for. The deli
 message at all: each attempt writes it into the envelope from the record — `NOTIFY=SUCCESS,FAILURE,DELAY` for every
 recipient, `RET=HDRS`, and `ENVID` set to the record's own identifier, so a report names the send it is about — and the
 moment the transmission is recorded as begun, the record also states whether this attempt carried the request, which
-is false where the server did not advertise `DSN`. A send that asked for none states nothing either way.
+is false where the server did not advertise `DSN`. A send that asked for none states nothing either way. What becomes
+of the reports that come back is [delivery and read receipts](delivery-and-read-receipts.md).
 
 **The message is written once and read back, never recomposed.** A message rebuilt between attempts carries a different
 `Message-ID`, which threads one send as two in every recipient's client, so a second enqueue of the same identity leaves

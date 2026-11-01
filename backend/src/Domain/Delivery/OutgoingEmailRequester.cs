@@ -109,6 +109,14 @@ public sealed record OutgoingEmailRequester
         OutgoingEmailOrigin.AutomaticReply,
         string.Create(CultureInfo.InvariantCulture, $"reply@{answered}"));
 
+    /// <summary>Names the read receipt sent in answer to one received message, which is the message rather than a key anybody supplied.</summary>
+    /// <param name="answered">The stored email the receipt answers.</param>
+    /// <returns>A requester naming the receipt for that email.</returns>
+    /// <remarks>A receipt is sent at most once per message, so the message is the act, for the reason a draft's promotion is keyed by the draft.</remarks>
+    public static OutgoingEmailRequester ReadReceipt(StoredEmailId answered) => new(
+        OutgoingEmailOrigin.Command,
+        string.Create(CultureInfo.InvariantCulture, $"receipt@{answered}"));
+
     /// <summary>Names one act somebody asked for, by the key they supplied for it.</summary>
     /// <param name="invocationIdentity">The key that decides whether asking again is the same request: the same for a retry of one act and different for a second act.</param>
     /// <returns>A requester naming that act.</returns>

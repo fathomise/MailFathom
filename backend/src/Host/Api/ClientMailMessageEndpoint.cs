@@ -133,6 +133,9 @@ internal static class ClientMailMessageEndpoint
 /// <param name="Answered">Whether the mail server last showed the message as answered.</param>
 /// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
 /// <param name="SenderPhoto">The photo the author the message displays — its first <c>From</c> mailbox — is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
+/// <param name="Report">The delivery report or read receipt the message was recognized as, or <see langword="null" /> for every other message.</param>
+/// <param name="Receipts">What the account's own message asked to be told and what came back for each recipient, or <see langword="null" /> where it asked for nothing and nothing came.</param>
+/// <param name="ReadReceiptRequest">A received message's request for a read receipt and whether it was answered, or <see langword="null" /> where it asked for none or is spam.</param>
 /// <remarks>
 /// All of it is mail content and personal data, so none of it reaches a log, a span attribute, or a telemetry event,
 /// here or anywhere it is carried afterwards.
@@ -153,7 +156,10 @@ internal sealed record ClientMailMessageResponse(
     bool Flagged,
     bool Answered,
     ClientMailSpamVerdictResponse? Spam,
-    PersonPhotoResponse? SenderPhoto)
+    PersonPhotoResponse? SenderPhoto,
+    ClientMailReportResponse? Report,
+    ClientMailReceiptsResponse? Receipts,
+    ClientMailReadReceiptRequestResponse? ReadReceiptRequest)
 {
     /// <summary>Reads the author a message displays: the first mailbox of its <c>From</c> header.</summary>
     /// <param name="message">The message.</param>
@@ -204,7 +210,10 @@ internal sealed record ClientMailMessageResponse(
             message.RemoteFlags.IsFlagged,
             message.RemoteFlags.IsAnswered,
             ClientMailSpamVerdictResponse.For(message.Spam),
-            PersonPhotoResponse.For(AuthorOf(message), authorPhotos));
+            PersonPhotoResponse.For(AuthorOf(message), authorPhotos),
+            ClientMailReportResponse.For(message.Report),
+            ClientMailReceiptsResponse.For(message.Receipts),
+            ClientMailReadReceiptRequestResponse.For(message.ReadReceiptRequest, message.Spam));
     }
 }
 

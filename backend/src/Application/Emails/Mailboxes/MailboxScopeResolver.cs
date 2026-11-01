@@ -320,8 +320,9 @@ public sealed class MailboxScopeResolver
     /// <remarks>
     /// This is what a read of an email's content by its identifier asks, and it is the rule a scope applies to a query,
     /// asked about one email: an agent never reads a message whose verdict is spam, and never reads the junk folder's
-    /// mail unless the person marked the message not spam. A message withheld that way is answered exactly as one that
-    /// does not exist, so asking about an identifier tells an agent nothing about what is there. The acts that reach an
+    /// mail unless the person marked the message not spam, and never reads a delivery report or a read receipt. A
+    /// message withheld that way is answered exactly as one that does not exist, so asking about an identifier tells an
+    /// agent nothing about what is there. The acts that reach an
     /// email by its identifier ask <see cref="IsReadable(MailboxReaderKind, IReadOnlyList{MailAccountId}, MailAccountId, MailFolderAlias?)" />
     /// instead: they return no content, and a rule acting on a verdict is not a read.
     /// </remarks>
@@ -333,7 +334,7 @@ public sealed class MailboxScopeResolver
         ArgumentNullException.ThrowIfNull(email);
 
         return this.IsReadable(reader, assignedAccounts, email.Account, email.Folder.Alias)
-            && (reader is MailboxReaderKind.Person || !this.IsWithheldAsSpam(email));
+            && (reader is MailboxReaderKind.Person || (!this.IsWithheldAsSpam(email) && email.Report is null));
     }
 
     /// <summary>Reports whether an agent's read withholds one email as spam.</summary>

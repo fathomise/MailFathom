@@ -9,6 +9,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Scheduling;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -204,10 +205,17 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
             .ToArrayAsync(cancellationToken);
 
         var (pageRows, hasMore) = KeysetPageSplit.Of(rows, query.PageSize);
-        var recipients = await this.ReadRecipientsAsync([.. pageRows.Select(row => row.Id)], cancellationToken);
+        Guid[] pageIds = [.. pageRows.Select(row => row.Id)];
+        var recipients = await this.ReadRecipientsAsync(pageIds, cancellationToken);
+        var receipts = await StoredOutgoingEmailReceipts.ReadAsync(dbContext, pageIds, cancellationToken);
 
         return new AccountOutboxPage(
-            [.. pageRows.Select(row => ToAccountOutboxEntry(account, row, recipients[row.Id], readAt))],
+            [
+                .. pageRows.Select(row => ToAccountOutboxEntry(account, row, recipients[row.Id], readAt) with
+                {
+                    Receipts = receipts.GetValueOrDefault(row.Id),
+                }),
+            ],
             hasMore
                 ? OutboxCursor.After(
                     pageRows[^1].RecordedAt,
@@ -462,6 +470,12 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
                 cancellationToken);
     }
 
+    /// <inheritdoc />
+    public Task<OutgoingEmailReceipts?> ReadReceiptsAsync(
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken) =>
+        StoredOutgoingEmailReceipts.ReadAsync(dbContext, outgoingEmailId, cancellationToken);
+
     /// <summary>Reads the recipients of the sends one page names, in the order each message names them.</summary>
     /// <remarks>
     /// Every recipient of the page is read, at most a page of sends by the bound one message may be addressed to, and the
@@ -469,10 +483,10 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
     /// worth writing only once a page measured slow.
     /// </remarks>
     private async Task<ILookup<Guid, OutgoingRecipient>> ReadRecipientsAsync(
-        IReadOnlyCollection<Guid> recordIds,
+        Guid[] recordIds,
         CancellationToken cancellationToken)
     {
-        if (recordIds.Count == 0)
+        if (recordIds.Length == 0)
         {
             return Array.Empty<OutgoingRecipient>().ToLookup(_ => Guid.Empty);
         }

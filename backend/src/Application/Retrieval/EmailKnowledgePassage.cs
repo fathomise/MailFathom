@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
@@ -75,4 +76,12 @@ public sealed record EmailKnowledgePassage
     /// this feature exists to find.
     /// </remarks>
     public IReadOnlyList<EmailKnowledgeAttachmentExtract> AttachmentExtracts { get; init; } = [];
+
+    /// <summary>Gets what the message asked to be told and what its recipients' reports said, where it is one the account sent.</summary>
+    /// <remarks>
+    /// It is the outcome recorded when the reports arrived, so a model asked whether a message was delivered or read
+    /// answers from it rather than from the reports, which no agent is shown. <see langword="null" /> on mail the
+    /// account received, and on a sent message that asked for no report and got none.
+    /// </remarks>
+    public OutgoingEmailReceipts? Receipts { get; init; }
 }

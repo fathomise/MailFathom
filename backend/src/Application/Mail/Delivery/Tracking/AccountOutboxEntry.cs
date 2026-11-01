@@ -4,6 +4,7 @@
 
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Scheduling;
 
@@ -75,4 +76,7 @@ public sealed record AccountOutboxEntry
     /// <summary>Gets <see cref="LastFailure" /> stated in words in the reader's language, or <see langword="null" /> where none is recorded.</summary>
     /// <remarks>Absent on what a store reads, and written by the use case that knows whose language to state it in.</remarks>
     public string? FailureStatement { get; init; }
+
+    /// <summary>Gets what the send asked to be told and what its recipients' reports said, or <see langword="null" /> where it asked for none and got none.</summary>
+    public OutgoingEmailReceipts? Receipts { get; init; }
 }

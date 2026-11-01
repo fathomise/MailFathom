@@ -90,6 +90,81 @@ internal sealed class MimeKitAuthoredEmailComposer(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// <para>
+    /// The receipt names the receiving account's own address as its <c>Final-Recipient</c> and nothing about the reader
+    /// beyond it, carries none of the answered message's content, and writes <c>Auto-Submitted: auto-replied</c> so that
+    /// an automatic responder on the other side does not answer it in turn (RFC 3834).
+    /// </para>
+    /// <para>
+    /// RFC 8098 says the envelope sender of a receipt SHOULD be null, so that nothing reports on a report. It is sent from
+    /// the account's own address instead, like every message the account sends: the receipt is submitted to the
+    /// account's submission server under its credentials, and such a server commonly refuses or rewrites a null reverse
+    /// path from an authenticated client. No delivery notification is asked for it either.
+    /// </para>
+    /// </remarks>
+    public AuthoredEmailComposition ComposeReadReceipt(
+        MailAccountId account,
+        UserId author,
+        OutgoingEmailRequester requester,
+        ReadReceiptAnswer answer,
+        MailDeliveryCapabilities capabilities)
+    {
+        ArgumentNullException.ThrowIfNull(requester);
+        ArgumentNullException.ThrowIfNull(answer);
+        ArgumentNullException.ThrowIfNull(capabilities);
+
+        if (senderIdentities.FindSenderIdentity(account) is not { } sender)
+        {
+            return AuthoredEmailComposition.Refused(
+                AuthoredEmailRefusalReason.SenderUnconfigured,
+                AuthoredEmailField.Sender);
+        }
+
+        if (RefuseInternationalizedSender(sender, capabilities) is { } senderRefusal)
+        {
+            return AuthoredEmailComposition.Refused(senderRefusal);
+        }
+
+        var recipientRefusal = this.ResolveRecipients(
+            [new AuthoredEmailRecipient(OutgoingRecipientRole.To, answer.Recipient, Provenance: AuthoredRecipientProvenance.DerivedFromAnsweredEmail)],
+            capabilities,
+            requireRecipients: true,
+            out var placements);
+
+        if (recipientRefusal is { } refusal)
+        {
+            return AuthoredEmailComposition.Refused(refusal);
+        }
+
+        var messageId = InternetMessageId.Mint(sender.Domain);
+
+        using var message = new MimeMessage();
+
+        message.From.Add(MailboxOf(sender.Address.DisplayName, sender.Address.Address));
+        message.To.Add(MailboxOf(null, placements[0].Recipient.Address.Address));
+        message.Subject = answer.Subject;
+        message.Date = timeProvider.GetUtcNow();
+        message.MessageId = messageId.Value;
+        PlaceInThread(message, answer.Threading);
+        message.Headers.Replace(HeaderId.AutoSubmitted, "auto-replied");
+        message.Body = BuildReadReceiptBody(answer, sender);
+
+        return AsOutgoing(
+            account,
+            author,
+            requester,
+            this.Serialize(
+                message,
+                messageId,
+                sender,
+                [.. placements.Select(static placement => new MailDraftRecipient(
+                    placement.Recipient,
+                    placement.Provenance))],
+                capabilities));
+    }
+
+    /// <inheritdoc />
     public MailDraftComposition ComposeDraft(
         MailAccountId account,
         AuthoredEmail authored,
@@ -649,6 +724,28 @@ internal sealed class MimeKitAuthoredEmailComposer(
         }
 
         return body.ToMessageBody();
+    }
+
+    /// <summary>Builds the two parts of a read receipt: the words for a person, then the fields for a mail client.</summary>
+    private static MultipartReport BuildReadReceiptBody(ReadReceiptAnswer answer, OutgoingSenderIdentity sender)
+    {
+        var notification = new MessageDispositionNotification();
+
+        notification.Fields.Add("Reporting-UA", $"{sender.Domain}; {UserAgent}");
+        notification.Fields.Add("Final-Recipient", $"rfc822; {sender.Address.Address}");
+
+        if (answer.OriginalMessageId is { } originalMessageId)
+        {
+            notification.Fields.Add("Original-Message-ID", $"<{originalMessageId}>");
+        }
+
+        notification.Fields.Add("Disposition", "manual-action/MDN-sent-manually; displayed");
+
+        return new MultipartReport("disposition-notification")
+        {
+            new TextPart("plain") { Text = answer.HumanReadableText },
+            notification,
+        };
     }
 
     /// <summary>Builds one addressee, letting the mail library encode a name outside ASCII as the standard requires.</summary>

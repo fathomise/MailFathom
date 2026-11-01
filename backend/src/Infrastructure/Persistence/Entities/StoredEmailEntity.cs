@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
@@ -556,6 +557,52 @@ internal sealed class StoredEmailEntity
     /// </para>
     /// </remarks>
     public Guid? FiledFromOutgoingEmailId { get; set; }
+
+    /// <summary>Gets or sets which report this email was recognized as when it arrived, and <see langword="null" /> for every other message.</summary>
+    /// <remarks>
+    /// Written once, where synchronization first stores the message, and never by a re-derivation of it. A report is
+    /// withheld from every agent on this column alone, which is why nothing but arrival writes it: an agent's view of a
+    /// conversation must not change because the same bytes were read again.
+    /// </remarks>
+    public ReceiptKind? ReportKind { get; set; }
+
+    /// <summary>Gets or sets the addresses the report named, in the order it named them; empty for every other message.</summary>
+    public string[] ReportRecipients { get; set; } = [];
+
+    /// <summary>Gets or sets what the report said about each address in <see cref="ReportRecipients" />, position by position, as <c>ReceiptOutcome</c> values.</summary>
+    /// <remarks>
+    /// Two arrays written together, once, rather than a table of their own: nothing queries inside them and they are read
+    /// back whole with the row, while a table would be a join on every list the row appears in.
+    /// </remarks>
+    public int[] ReportOutcomes { get; set; } = [];
+
+    /// <summary>Gets or sets the account's own outgoing email the report names, or <see langword="null" /> where it named none of them.</summary>
+    /// <remarks>
+    /// A plain column rather than a foreign key, for the reason <see cref="FiledFromOutgoingEmailId" /> is one: erasing
+    /// the outgoing record under its retention obligation must not take the report out of the mailbox.
+    /// </remarks>
+    public Guid? ReportOutgoingEmailId { get; set; }
+
+    /// <summary>Gets or sets the subject of the account's own message the report names, copied when the report arrived.</summary>
+    /// <remarks>
+    /// Copied rather than joined for the reason the identifier above is not a foreign key: a report keeps saying what it was
+    /// about after the outgoing record is erased, and a list of mail reads it without a join per row.
+    /// </remarks>
+    public string? ReportOwnMessageSubject { get; set; }
+
+    /// <summary>Gets or sets the address the message asked a read receipt be sent to, or <see langword="null" /> where it asked for none.</summary>
+    public string? ReadReceiptRequestedTo { get; set; }
+
+    /// <summary>Gets or sets whether that address is neither the message's <c>Return-Path</c> nor its <c>From</c>.</summary>
+    public bool ReadReceiptRequestNamesAnotherAddress { get; set; }
+
+    /// <summary>Gets or sets when this account sent the read receipt the message asked for, or <see langword="null" /> while it has sent none.</summary>
+    /// <remarks>
+    /// Recorded against the stored message, so it holds for the account and for everybody assigned to it: a receipt is
+    /// sent at most once whoever asks. It says when a named person opened a message, so it is personal data erased with
+    /// the message.
+    /// </remarks>
+    public DateTimeOffset? ReadReceiptSentAt { get; set; }
 
     public bool IsRemotelySeen { get; set; }
 

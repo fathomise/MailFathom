@@ -601,6 +601,16 @@ available locally. It is the use case's projection published as it stands, not n
 that re-decided what a listing may carry would put the privacy rule in two places and leave the one a client reads
 untested. [Mailbox queries](mailbox-queries.md#what-a-summary-carries) records what it carries and why.
 
+A summary of a message the account sent also carries `receipts` where that message asked for a delivery notification
+or a read receipt, or got a report back: `deliveryRequested`, `readRequested`, and per recipient its `address` with a
+`delivery` and a `read` outcome — each absent where nothing came back, and otherwise holding the `outcome`
+(`delivered`, `relayed`, `expanded`, `failed`, `delayed`, `displayed`, `deleted`, `dispatched`, `processed`), when it
+was `reportedAt`, its `source` (`report`), and for a delivery the RFC 3463 `status`. It is read from the outcomes
+recorded when the reports arrived, never from the reports themselves, which no tool here returns; a report is
+information somebody's server or mail app chose to send, not proof, and its absence says nothing.
+[Delivery and read receipts](delivery-and-read-receipts.md) records how a report is matched and what is kept.
+`get_email_content` and `search_emails` carry the same field, the latter inside each match's summary.
+
 Six parts of it are worth reading before a caller writes against them:
 
 - **`senderVerification` is three answers, never one.** `senderAddress` beside it is a claim the email wrote about itself,
@@ -778,6 +788,7 @@ in it.
 | `attachmentCounts` | What the email carries besides its body, returned either way, or `null` when nothing has ever read its parts |
 | `remoteFlags` | The flags a server last showed, and when they were read |
 | `thread` | The conversation this email belongs to, or `null` when nothing has assembled one for it |
+| `receipts` | On a message the account sent: what it asked to be told and each recipient's recorded delivery and read outcome, as [`list_emails`](#result-1) describes it; absent where it asked for neither and got no report |
 
 Ten parts of it are worth reading before a caller writes against them:
 
@@ -1514,6 +1525,7 @@ records the decision.
 | `sentAs` | Preview only. The `From` address the message is sent as, with its `role`, `address`, and `displayName` as `get_email_content` publishes a participant |
 | `text` | Preview only. The message's plain text as `get_email_content` publishes one representation of a body — `text`, `originalCharacterCount`, and `truncatedBy` — under the same character bound; absent when the stored message could not be read or is encrypted |
 | `attachments` | Preview only. One entry per file, with `fileName`, `wasFileNameNormalized`, `mediaType`, and `sizeBytes`; the outbox serves no link to fetch one |
+| `receipts` | Both answers. What the message asked to be told and each recipient's recorded delivery and read outcome, as [`list_emails`](#result-1) describes it; absent where it asked for neither and got no report |
 
 Every preview member is absent from the send-only answer rather than empty, so a caller tells a message with no
 subject from an answer that carries none. The subject, the sender, and the text pass the deployment's sensitive-content
@@ -1654,6 +1666,7 @@ recipients and subjects, which is correspondence. A caller holding the sending g
 | `attemptCount` | How many delivery attempts it has taken |
 | `failureCode` | The five-digit code the last attempt failed with, absent while none has failed |
 | `failure` | That failure in words, in the user's language |
+| `receipts` | What it asked to be told and each recipient's recorded delivery and read outcome, as [`list_emails`](#result-1) describes it; absent where it asked for neither and got no report |
 
 The subject on a page passes the deployment's sensitive-content scan before it is published.
 
@@ -1905,6 +1918,11 @@ a line of what somebody wrote.
 Answers a question about the local mailbox copy and names the emails the answer was drawn from. A chat model conducts
 the run and looks up mail as it decides it needs context; [Mail answering](mail-answering.md) records what that run is,
 what it may reach, and how much of it leaves the process. This section is the protocol surface over it.
+
+A message the account sent that the run reads carries, beside its extract, the delivery and read outcome recorded for
+each recipient, so a question such as *was my message delivered?* is answered from those rows; the reports themselves
+are never shown to the model. [Delivery and read receipts](delivery-and-read-receipts.md#what-agents-see) holds the
+shape.
 
 It is the one tool that spends money on a call and the one that takes seconds rather than milliseconds. The description
 says so, because the choice between asking and searching is a model's to make: ask when the answer spans several

@@ -82,6 +82,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/messages/{storedEmailId}/body/cleaned` | `mailfathom.assistant.use` with `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/attachments/{position}` | `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/source` | `mailfathom.mail.read` |
+| `POST /api/client/messages/{storedEmailId}/read-receipt` | `mailfathom.mail.send` |
 | `POST /api/client/citations/resolution` | `mailfathom.mail.read` |
 | `GET /api/client/mutations` | `mailfathom.mail.read` |
 | `POST /api/client/mutations/flags` | `mailfathom.mail.flags.write` |
@@ -972,6 +973,17 @@ same citation route an answer's citations use, so a client that wants the words 
 carrying the passages themselves would be a list page publishing a body it had no reason to. An identifier that
 resolves to nothing is a message whose text has since been re-cut, not a broken row.
 
+**`report` and `receipts` are the two halves of [delivery and read receipts](../features/delivery-and-read-receipts.md).**
+`report` is present on a message recognized as a delivery report or a read receipt and `null` on every other: its
+`kind` (`Delivery` or `Read`), the `recipients` it names with the `outcome` it gave each (`Delivered`, `Relayed`,
+`Expanded`, `Failed`, `Delayed`, `Displayed`, `Deleted`, `Dispatched`, `Processed`), `reportedAt`, and whether it
+`namesOwnMessage`, with `ownMessageSubject` the subject of the account's send it is about, or `null` where it matched
+none. `receipts` is present on a message the account sent that asked for a report or got one: the number of
+`recipients`, `delivery` with whether it was `requested` and how many were `delivered` (counting `Relayed` and
+`Expanded`), `delayed`, and `failed`, and `read` with whether it was `requested` and how many were reported `read`
+(`Displayed`). A row with neither carries `null` for both, so a summary is never a row of zeros a screen has to read as
+nothing.
+
 **The cursor is opaque and yours to hold.** It names a row of the page together with the list it was read under, and
 nothing on the server remembers it, so a client may keep one while the screen is closed, or across a restart of the
 deployment, and continue from it afterwards. `nextCursor` reads the page after this one and `previousCursor` the page
@@ -1196,7 +1208,7 @@ acted on without a second request. `snippets` are the extracts around what match
 route publishes. The one list field a result does not carry is `threadMessageCount`: a search ranks messages rather
 than correspondences, and counting the conversation behind every result would be a query this route does not owe.
 `spam` and `sender` are the list row's own objects, read the same way, so a result is folded, badged, and marked
-exactly as its row would be.
+exactly as its row would be, and so are `report` and `receipts`.
 
 **`matchedBy` is why the row is there**: `LexicalRanking` for a message carrying the query's words, `SemanticRanking`
 for one matching by meaning, and `BothRankings` for one both rankings found. It is the field a screen needs most for
@@ -1821,6 +1833,15 @@ signer's certificate or key itself is not published. The configuration that deci
 **`spam` is the object a list row carries**, read from the same summary the row is, so the warning an opened message
 draws and the badge on its row cannot disagree. [The mail list route](#the-mail-list-route) describes its fields.
 
+**`report` is the list row's object too, and `receipts` is the row's summary taken apart recipient by recipient.**
+`receipts` carries `deliveryRequested`, `readRequested`, and per recipient its `address` with a `delivery` and a `read`
+outcome, each `null` where no report came back and otherwise holding the `outcome`, `reportedAt`, its `source`
+(`Report`), and for a delivery the RFC 3463 `status` and the `reportingServer` where the report named them.
+`readReceiptRequest` is present where the message asks the reader for a read receipt: the `address` it would go to,
+whether that `namesAnotherAddress` than the message's `Return-Path` and `From` — a redirection a screen points out — and
+`sentAt` once one was sent. It is `null` on a message held as spam, on a filed copy of the account's own send, and on a
+message the account itself wrote, which is where nothing is offered.
+
 **No octet of a file is here, at any size and in any encoding.** Each entry says what the file is called, what it
 declares itself to be, and how large it decodes to — which is what a reader decides against — and `position` is what its
 own [attachment route](#the-attachment-route) is asked with. The position is the identity because it is the only stable
@@ -2190,6 +2211,28 @@ message exists, so saying the source is withheld discloses nothing more.
 **It is served from the local copy in every custody phase.** Nothing here contacts a mail server, so reading a source
 cannot fetch a message and cannot set the remote `\Seen` flag; the stored copy is the message whether the account is
 mirrored, held, or being restored.
+
+### The read receipt route
+
+`POST /api/client/messages/{storedEmailId}/read-receipt` sends the read receipt a message asked for, once, and only
+because the person asked: nothing else on this surface — opening the message, marking it read — sends one.
+[Delivery and read receipts](../features/delivery-and-read-receipts.md#answering-a-read-receipt) describes what the
+receipt is and how it travels. It takes no body.
+
+A sent receipt is answered `200` with `{ "sentAt": <timestamp> }`. A message this user does not hold is `404`, as
+everywhere on this surface. A refusal is `409` with a `reason` the client reads:
+
+| `reason` | Why |
+| --- | --- |
+| `NotRequested` | The message asks for no read receipt |
+| `AlreadySent` | One was already sent; `sentAt` says when |
+| `Spam` | The message is held as spam |
+| `OwnMessage` | The message is the account's own |
+| `SenderUnconfigured` | The account has no sending identity to send it as |
+| `Unaddressable` | The address the message asked for cannot be sent to |
+
+A send the account's outgoing governance refuses is the same coded `409` any send is, and an unavailable sensitive-content
+scanner is `503`. Either releases the claim, so the person may ask again.
 
 ### The citation route
 

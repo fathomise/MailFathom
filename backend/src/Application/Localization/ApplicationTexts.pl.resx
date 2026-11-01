@@ -68,4 +68,7 @@ Project repository: https://github.com/fathomise/MailFathom
   <data name="OutboxFailureOther" xml:space="preserve">
     <value>Nie udało się wysłać wiadomości.</value>
   </data>
+  <data name="ReadReceiptDisplayed" xml:space="preserve">
+    <value>Twoja wiadomość została wyświetlona odbiorcy. To potwierdzenie nie mówi nic o tym, czy została przeczytana lub zrozumiana.</value>
+  </data>
 </root>

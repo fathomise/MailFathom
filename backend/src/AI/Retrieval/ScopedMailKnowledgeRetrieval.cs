@@ -332,6 +332,7 @@ internal sealed class ScopedMailKnowledgeRetrieval
                 AttachmentExtracts = await this.GuardedAttachmentsAsync(
                     passage.AttachmentExtracts,
                     cancellationToken),
+                Receipts = await AgentReceiptReadings.GuardedAsync(this.egressGuard, passage.Receipts, cancellationToken),
             });
         }
 

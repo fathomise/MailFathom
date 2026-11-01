@@ -146,6 +146,22 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     }
 
     /// <summary>
+    /// A delivery report and a read receipt are shown to no agent, while the person reads them as the mail they are, so
+    /// only an agent's scope reads the column that marks one.
+    /// </summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.Agent, true)]
+    [InlineData(MailboxReaderKind.Person, false)]
+    public void WithinScope_EachReader_LeavesReportsOutOfAnAgentsScopeAlone(MailboxReaderKind reader, bool narrowed)
+    {
+        // Act
+        var narrowing = ScopeNarrowingOf(WholeMailbox.AnsweringFor(reader, []));
+
+        // Assert
+        Assert.Equal(narrowed, narrowing.Contains($"\"{nameof(StoredEmailEntity.ReportKind)}\"", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// The junk folder is admitted to an agent only for mail the person marked not spam, so the clause over it reads who
     /// decided the verdict as well as what it is. A clause reading the verdict alone would hand an agent junk-folder mail
     /// a model or the deterministic stage judged not spam, and it would read exactly like this one without the stage.

@@ -283,6 +283,8 @@ internal sealed record ClientMailSearchResponse(
 /// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
 /// <param name="Sender">The facts about who sent the message that a row's sender mark is chosen from.</param>
 /// <param name="SenderPhoto">The photo the sender is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
+/// <param name="Report">The delivery report or read receipt the message was recognized as, or <see langword="null" /> for every other message, as on a mail list row.</param>
+/// <param name="Receipts">What the account's own message asked to be told and what came back, counted, as on a mail list row.</param>
 /// <remarks>
 /// <para>
 /// The row is the message list's row, field for field, so one layout draws both and a search result can be opened,
@@ -330,7 +332,9 @@ internal sealed record ClientMailSearchResultResponse(
     bool IsDepictedMatch,
     ClientMailSpamVerdictResponse? Spam,
     ClientMailListedSenderResponse Sender,
-    PersonPhotoResponse? SenderPhoto)
+    PersonPhotoResponse? SenderPhoto,
+    ClientMailReportResponse? Report,
+    ClientMailReceiptSummaryResponse? Receipts)
 {
     /// <summary>Describes one result for the wire.</summary>
     /// <param name="result">The result the use case read.</param>
@@ -362,7 +366,9 @@ internal sealed record ClientMailSearchResultResponse(
         result.IsDepictedMatch,
         ClientMailSpamVerdictResponse.For(result.Email.Spam),
         ClientMailListedSenderResponse.For(result.Email.SenderVerification),
-        PersonPhotoResponse.For(result.Email.SenderAddress, senderPhotos));
+        PersonPhotoResponse.For(result.Email.SenderAddress, senderPhotos),
+        ClientMailReportResponse.For(result.Email.Report),
+        ClientMailReceiptSummaryResponse.For(result.Email.Receipts));
 }
 
 /// <summary>One attachment of a result the query reached, and where inside the file it was reached.</summary>

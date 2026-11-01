@@ -96,6 +96,10 @@ internal sealed record OutgoingEmailToolResult
     [Description("One entry per file the message carries, described and never linked. Present only in the outbox preview.")]
     public IReadOnlyList<OutgoingEmailAttachment>? Attachments { get; init; }
 
+    /// <summary>Gets what the message asked to be told and what each recipient's delivery and read reports said.</summary>
+    [Description("What the message asked to be told — a delivery notification, a read receipt — and the delivery and read outcome recorded for each recipient from the reports that came back. Absent when the message asked for neither and no report came back. A report is information somebody's server or mail app chose to send, not proof.")]
+    public SentEmailReceipts? Receipts { get; init; }
+
     /// <summary>Publishes the outbox preview of one send.</summary>
     /// <param name="preview">The preview the outbox reading produced.</param>
     /// <returns>The wire representation of <paramref name="preview" />.</returns>
@@ -114,6 +118,7 @@ internal sealed record OutgoingEmailToolResult
             SentAs = preview.Sender is { } sender ? EmailHeaderParticipant.From(sender) : null,
             Text = preview.Body is { Availability: EmailBodyAvailability.Readable } body ? EmailBodyText.From(body.PlainText) : null,
             Attachments = [.. preview.Attachments.Select(OutgoingEmailAttachment.From)],
+            Receipts = SentEmailReceipts.From(preview.Receipts),
         };
     }
 

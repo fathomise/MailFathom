@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -63,6 +64,22 @@ public sealed class StoredEmailEnrichmentSelectionTests
         var email = Email("work", "INBOX");
         email.Chunks.Add(BodyPassage(email, 0));
         email.Enrichment = new EmailEnrichmentEntity { StoredEmailId = email.Id, DerivedAt = Now };
+
+        // Act
+        var selected = Select(email);
+
+        // Assert
+        Assert.Empty(selected);
+    }
+
+    /// <summary>A delivery report or a read receipt is shown to no agent, so nothing is derived from one.</summary>
+    [Fact]
+    public void Selecting_AReport_LeavesItOut()
+    {
+        // Arrange
+        var email = Email("work", "INBOX");
+        email.Chunks.Add(BodyPassage(email, 0));
+        email.ReportKind = ReceiptKind.Read;
 
         // Act
         var selected = Select(email);

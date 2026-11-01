@@ -5,6 +5,7 @@
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Mail.Delivery.Tracking;
@@ -46,4 +47,7 @@ public sealed record OutboxPreview
 
     /// <summary>Gets the failure the send stopped on stated in words in the reader's language, or <see langword="null" /> where none is recorded.</summary>
     public required string? FailureStatement { get; init; }
+
+    /// <summary>Gets what the send asked to be told and what its recipients' reports said, or <see langword="null" /> where it asked for none and got none.</summary>
+    public OutgoingEmailReceipts? Receipts { get; init; }
 }

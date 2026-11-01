@@ -156,7 +156,7 @@ internal static class StoredEmailSelectionPredicate
 
         emails = scope.Reader is MailboxReaderKind.Person
             ? AccountScopedMailFolders.Excluding(emails, scope.WithheldJunkFolders)
-            : WithoutMailJudgedSpam(emails, scope.JunkFolders);
+            : WithoutReports(WithoutMailJudgedSpam(emails, scope.JunkFolders));
 
         return NarrowedToWhatWasAskedAbout(emails, scope);
     }
@@ -208,6 +208,16 @@ internal static class StoredEmailSelectionPredicate
     /// for, and answers a question about a handful of messages with nothing whenever the window filled with others.
     /// </para>
     /// </remarks>
+    /// <summary>Withholds every delivery report and read receipt from an agent's read.</summary>
+    /// <remarks>
+    /// A report says nothing a model can use about a conversation, a reply, or a person, so no agent reads one and a call
+    /// spent on it is wasted; what it says reaches an agent as the outcome recorded on the sent message instead. Kept apart
+    /// from the spam rule because the person's own thread list applies that rule and must keep its reports. The in-process
+    /// statement of the same rule is in <c>MailboxScopeResolver.IsReadable</c>, and the two change together.
+    /// </remarks>
+    internal static IQueryable<StoredEmailEntity> WithoutReports(IQueryable<StoredEmailEntity> emails) =>
+        emails.Where(static email => email.ReportKind == null);
+
     private static IQueryable<StoredEmailEntity> NarrowedToWhatWasAskedAbout(
         IQueryable<StoredEmailEntity> emails,
         MailboxScope scope)

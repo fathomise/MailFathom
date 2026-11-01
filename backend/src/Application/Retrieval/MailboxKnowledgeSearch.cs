@@ -159,6 +159,7 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
             MachineAuthorship = summary.MachineAuthorship,
             Text = Bounded(string.Join(SnippetSeparator, match.Snippets), bounds),
             AttachmentExtracts = [.. match.AttachmentMatches.Select(attachment => ToAttachmentExtract(attachment, bounds))],
+            Receipts = summary.Receipts,
         };
     }
 

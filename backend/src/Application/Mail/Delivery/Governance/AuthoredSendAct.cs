@@ -33,4 +33,7 @@ public enum AuthoredSendAct
     /// is charged and audited for is this one, because promoting is what makes a message leave.
     /// </remarks>
     PromotedDraft = 4,
+
+    /// <summary>A read receipt the reader asked to send in answer to a message that requested one.</summary>
+    ReadReceipt = 5,
 }

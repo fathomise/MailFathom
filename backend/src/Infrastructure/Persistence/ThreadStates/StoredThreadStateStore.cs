@@ -206,6 +206,11 @@ internal sealed class StoredThreadStateStore(
     /// name it either. That covers a folder beneath Trash as well, which is where deleting a kept folder puts it. Moving
     /// one there changes the count, and the conversation is derived again without it.
     /// </para>
+    /// <para>
+    /// A delivery report or a read receipt says nothing about where a conversation stands either, so it is neither shown to
+    /// the derivation nor counted: one arriving in a conversation whose state is current leaves it current, and a
+    /// conversation made only of reports has no state to derive.
+    /// </para>
     /// </remarks>
     internal static IQueryable<StoredEmailEntity> Selecting(
         IQueryable<StoredEmailEntity> emails,
@@ -220,7 +225,8 @@ internal sealed class StoredThreadStateStore(
                     && email.EmailThreadId != null
                     && email.SearchDocument != null
                     && email.SearchDocument.BodyText != null
-                    && !trashedFolderIds.Contains(email.FolderId))
+                    && !trashedFolderIds.Contains(email.FolderId)
+                    && email.ReportKind == null)
                 .Where(MailAwaitingRuleEvaluation.IsFinishedWith)
                 .Where(MailAwaitingRelocation.IsSettledWhereItIs),
             embeddedFolders),

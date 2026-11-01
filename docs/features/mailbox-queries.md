@@ -395,6 +395,16 @@ not the same as `NotSpam`. Every part of it is a closed value, so it reaches no 
 query path neither filters, sorts, nor ranks on it; an agent's read is narrowed by the same row, as
 [mail judged spam, withheld from every agent](#mail-judged-spam-withheld-from-every-agent) describes.
 
+### What a summary carries about receipts
+
+Three values come from [delivery and read receipts](delivery-and-read-receipts.md). `Report` is present on a message
+recognized as a delivery report or a read receipt — its kind, the recipients and outcomes it named, and the subject of
+the account's send it matched — and an agent's read leaves every such message out, exactly as it leaves out mail judged
+spam, so only the person ever sees one. `ReadReceiptRequest` is present where a message asks its reader for a read
+receipt. `Receipts` is present on the account's own sent copy where the send asked for a report or got one, and is read
+for every summary of a page in one batch from the outcomes recorded against the send, so a list of sent mail costs
+three queries more, not three per row.
+
 ### The remote flag snapshot
 
 `RemoteEmailFlagSnapshot` reports the flags a server last showed, together with when they were read. The timestamp is

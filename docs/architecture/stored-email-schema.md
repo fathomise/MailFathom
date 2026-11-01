@@ -66,6 +66,19 @@ else, and `ix_stored_emails_awaiting_drain` — `(MailboxAccountId, ReceivedAt, 
 `UidValidity` — is what makes selecting the next batch proportionate to the batch rather than to the mailbox. A
 mirrored account never has one, because nothing drains it.
 
+**What a report said, and what a message asked of its reader.** `ReportKind` is `Delivery` or `Read` on a message
+recognized as a delivery status notification or a read receipt, and null on every other; it is what every reader that
+selects mail for an agent filters on, so no agent is shown a report. `ReportRecipients` and `ReportOutcomes` are two
+parallel arrays — the addresses the report named, bounded to 100, and the outcome it gave each as the integer value of
+the outcome — and `ReportOutgoingEmailId` with `ReportOwnMessageSubject` name the account's own send it matched, or are
+null where it matched none. The subject is copied rather than joined so that a report still says what it was about once
+its send has been purged from the outbox, and `ReportOutgoingEmailId` is a plain column rather than a foreign key for the
+same reason. `ReadReceiptRequestedTo` is the address a message's `Disposition-Notification-To` asks a read receipt be
+sent to, `ReadReceiptRequestNamesAnotherAddress` whether that address differs from its `Return-Path` and `From`, and
+`ReadReceiptSentAt` when the person had one sent — the column a send claims with a conditional update, which is what
+makes a receipt go once. All of them are written when the message arrives, and never by a re-derivation.
+[Delivery and read receipts](../features/delivery-and-read-receipts.md) states the behaviour.
+
 **Concurrency.** `ConcurrencyVersion` maps onto the PostgreSQL `xmin` system column rather than a column of its own, so PostgreSQL maintains the token and no writer has to.
 
 ### Sender and recipients
@@ -2389,6 +2402,15 @@ into every index over a table; and the ordinal keeps the recipients in the order
 order a composed message writes its headers in. The comparison form of the address is deliberately not stored beside it,
 unlike a received message's participants: those are filtered and grouped by address in queries the database answers,
 while these are read back with their record and compared in memory against the handful of answers one attempt produced.
+
+`outgoing_email_receipt_outcomes` holds what a delivery report or a read receipt said about one recipient: one row per
+record, recipient ordinal, and `Kind` — `Delivery` or `Read` — keyed by the three and holding the `Outcome`, the
+`ReportedAt` the report gave, the `Source` it came from, and for a delivery the RFC 3463 `Status` (at most 16
+characters) and the `ReportingServer` (at most 255). Its foreign key onto `outgoing_email_recipients` cascades, so an
+outcome goes with its recipient, its send, and its account, and an outcome can only ever be recorded about a recipient
+the send really had. A later report replaces a `Delayed` delivery outcome and nothing else, and the primary key is the
+concurrency identity two arrivals of reports about one recipient collide on.
+[Delivery and read receipts](../features/delivery-and-read-receipts.md#what-is-recorded) states the behaviour.
 
 `outgoing_email_contents` is the message itself, in the same one-to-one arrangement `email_message_contents` has with
 `stored_emails` and for the same reason: keeping the `bytea` out of the record means listing what is queued never loads

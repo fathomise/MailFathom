@@ -7,6 +7,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Delivery.Receipts;
 
 namespace MailFathom.Application.Mail.Delivery.Operations;
 
@@ -61,6 +62,13 @@ public interface IOutboxOperationStore
     /// read it. A subject an earlier build did not keep is answered absent rather than read from the message here.
     /// </remarks>
     Task<AccountOutboxPage> ReadAccountOutboxAsync(OutboxQuery query, CancellationToken cancellationToken);
+
+    /// <summary>Reads what one send asked to be told and what its recipients' reports said.</summary>
+    /// <param name="outgoingEmailId">The send to read.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>Its receipts, or <see langword="null" /> where it asked for no report and got none.</returns>
+    /// <remarks>It reads no authorization: the use case in front of it has already decided that the caller may read the send.</remarks>
+    Task<OutgoingEmailReceipts?> ReadReceiptsAsync(OutgoingEmailId outgoingEmailId, CancellationToken cancellationToken);
 
     /// <summary>Counts what each named account's outbox holds.</summary>
     /// <param name="accounts">The accounts to count.</param>

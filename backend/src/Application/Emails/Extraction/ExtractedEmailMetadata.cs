@@ -5,6 +5,7 @@
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.SensitiveContent.Derivation;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
@@ -55,6 +56,18 @@ public sealed record ExtractedEmailMetadata(
     /// answer for it would be re-reading the same headers this reading already has in hand.
     /// </remarks>
     public EmailAutomation Automation { get; init; } = EmailAutomation.None;
+
+    /// <summary>Gets the delivery report or read receipt the message is, or <see langword="null" /> for every other message.</summary>
+    /// <remarks>
+    /// Read here and applied only where synchronization first stores the message, which is where it is tied to the
+    /// account's own sent message. A later re-derivation of the same bytes neither marks nor applies it, so a report stored
+    /// before this was read stays the ordinary message it was stored as.
+    /// </remarks>
+    public ReceiptReport? Report { get; init; }
+
+    /// <summary>Gets the message's request for a read receipt, or <see langword="null" /> where it asks for none.</summary>
+    /// <remarks>Kept with the stored message for the reason <see cref="Report" /> is, and under the same rule.</remarks>
+    public ReadReceiptRequest? ReadReceiptRequest { get; init; }
 
     /// <summary>Gets what verifying the message's own S/MIME or OpenPGP signature found.</summary>
     /// <remarks>

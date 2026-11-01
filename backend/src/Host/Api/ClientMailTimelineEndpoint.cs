@@ -361,6 +361,8 @@ internal sealed record ClientMailTimelineResponse(
 /// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
 /// <param name="Sender">The facts about who sent the message that a row's sender mark is chosen from.</param>
 /// <param name="SenderPhoto">The photo the sender is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
+/// <param name="Report">The delivery report or read receipt the message was recognized as, or <see langword="null" /> for every other message.</param>
+/// <param name="Receipts">What the account's own message asked to be told and how many recipients each report covered, or <see langword="null" /> where it asked for nothing and nothing came.</param>
 /// <remarks>
 /// <para>
 /// The three flags are published as the states a row draws rather than as the snapshot they came from, because a screen
@@ -416,7 +418,9 @@ internal sealed record ClientMailTimelineEntryResponse(
     int? ThreadMessageCount,
     ClientMailSpamVerdictResponse? Spam,
     ClientMailListedSenderResponse Sender,
-    PersonPhotoResponse? SenderPhoto)
+    PersonPhotoResponse? SenderPhoto,
+    ClientMailReportResponse? Report,
+    ClientMailReceiptSummaryResponse? Receipts)
 {
     /// <summary>Describes one row for the wire.</summary>
     /// <param name="row">The row the use case read.</param>
@@ -469,7 +473,9 @@ internal sealed record ClientMailTimelineEntryResponse(
         threadMessageCount,
         ClientMailSpamVerdictResponse.For(email.Spam),
         ClientMailListedSenderResponse.For(email.SenderVerification),
-        PersonPhotoResponse.For(email.SenderAddress, senderPhotos));
+        PersonPhotoResponse.For(email.SenderAddress, senderPhotos),
+        ClientMailReportResponse.For(email.Report),
+        ClientMailReceiptSummaryResponse.For(email.Receipts));
 }
 
 /// <summary>What a row publishes about who sent its message: enough to choose the sender mark, and nothing more.</summary>

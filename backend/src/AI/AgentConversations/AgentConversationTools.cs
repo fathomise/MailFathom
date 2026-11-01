@@ -4,6 +4,7 @@
 
 using System.ComponentModel;
 using System.Globalization;
+using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
@@ -311,7 +312,8 @@ internal sealed class AgentConversationTools
             provenance,
             subject,
             guardedBody.Text,
-            bounded.Length < body.Length || guardedBody.WasCutAtAnalyzedCeiling);
+            bounded.Length < body.Length || guardedBody.WasCutAtAnalyzedCeiling,
+            await AgentReceiptReadings.GuardedAsync(this.egressGuard, message.Receipts, cancellationToken));
     }
 
     [Description("Shows the person the state of one conversation.")]

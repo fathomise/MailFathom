@@ -172,7 +172,8 @@ internal sealed class StoredEmailEnrichmentStore(
     /// Written as a composable predicate rather than inline, so what selects a message is one statement that can be
     /// asserted about directly. It carries the cut's own orderings and adds the two this stage is last for: a message
     /// is derived from once every passage it will ever have exists, and the record this store writes is what removes it
-    /// from the query.
+    /// from the query. A delivery report or a read receipt is never selected: it carries nothing to mark, no event, and no
+    /// task, and the model call would be spent on noise.
     /// </para>
     /// <para>
     /// Having a passage is not that condition. The two passes in front of this one walk their own queues from their own
@@ -205,6 +206,7 @@ internal sealed class StoredEmailEnrichmentStore(
             emails
                 .Where(StoredEmailTombstone.IsNotTombstoned)
                 .Where(email => email.MailboxAccountId == mailboxAccountId
+                    && email.ReportKind == null
                     && email.Chunks.Any()
                     && email.Enrichment == null
                     && email.SearchDocument != null

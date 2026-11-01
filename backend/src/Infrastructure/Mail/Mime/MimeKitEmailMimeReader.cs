@@ -189,6 +189,8 @@ internal sealed class MimeKitEmailMimeReader : IEmailMimeReader
             await this.ReadSenderAuthenticationAsync(accountId, message, cancellationToken))
         {
             Automation = MailAutomationReading.Read(message),
+            Report = MailReceiptReading.ReadReport(message),
+            ReadReceiptRequest = MailReceiptReading.ReadRequest(message),
             Signature = this.signatureVerifier is { } verifier
                 ? await verifier.VerifyAsync(message, message.From.Mailboxes.FirstOrDefault()?.Address, cancellationToken)
                 : EmailSignature.NotSigned,

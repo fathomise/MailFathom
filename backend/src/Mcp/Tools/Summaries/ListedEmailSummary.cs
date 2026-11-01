@@ -6,6 +6,7 @@ using System.ComponentModel;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Emails;
 using MailFathom.Mcp.Tools.Authorship;
+using MailFathom.Mcp.Tools.Outgoing;
 using MailFathom.Mcp.Tools.Senders;
 
 namespace MailFathom.Mcp.Tools.Summaries;
@@ -109,6 +110,10 @@ internal sealed record ListedEmailSummary
     [Description("Whether the raw email content is stored locally: 'available' when a content read will succeed, 'exceededSizeLimit' when the email was deliberately stored without its content because it was larger than the configured limit, or 'awaitingStorageHeadroom' when local storage was full when it arrived and its content is fetched once there is room. Read this before asking for content; only the last state is worth asking about again later.")]
     public required ListedEmailContentAvailability ContentAvailability { get; init; }
 
+    /// <summary>Gets what the account's own message asked to be told and what came back, where it is one.</summary>
+    [Description("What this account's own message asked to be told and what came back for each recipient — delivered, delayed, failed, or read — recorded from the delivery reports and read receipts that arrived. Absent from a message that asked for no report and got none, and from every message this deployment did not send.")]
+    public SentEmailReceipts? Receipts { get; init; }
+
     /// <summary>Publishes one summary a read returned.</summary>
     /// <param name="summary">The application summary to publish.</param>
     /// <param name="accountNames">Reads the name the summary's account is published under.</param>
@@ -140,6 +145,7 @@ internal sealed record ListedEmailSummary
             Attachments = ListedEmailAttachments.From(summary.Attachments),
             RemoteFlags = ObservedRemoteFlags.From(summary.RemoteFlags),
             ContentAvailability = PublishedAvailability(summary.ContentAvailability),
+            Receipts = SentEmailReceipts.From(summary.Receipts),
         };
     }
 
