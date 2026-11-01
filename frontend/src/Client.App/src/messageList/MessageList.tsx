@@ -706,8 +706,9 @@ export function MessageList({
     // What the row says about the message, which is the leading reading of it and nothing where the folder is drawn
     // plainly. `undefined` rather than an empty element for a row with nothing to say: the row keeps the space either
     // way, and what changes is whether the line is announced at all.
+    // A report that came back as mail carries nothing to read into, so its row draws no reading under its headline.
     function readingOn(email: MailTimelineEntry): ReactNode {
-        if (!readingsShown) {
+        if (!readingsShown || email.report !== null) {
             return undefined;
         }
 

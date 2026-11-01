@@ -12238,6 +12238,8 @@ mail.ts messageCitationResolutions POST /api/client/citations/resolution
 mail.ts conversation GET /api/client/threads/{threadId}
 mail.ts conversationEmail GET /api/client/threads/{threadId}
 mail.ts conversationContent GET /api/client/threads/{threadId}
+mail.ts answeredReplyCounted GET /api/client/threads/{threadId}
+mail.ts answeredReplyReceipts GET /api/client/threads/{threadId}
 mail.ts conversationState GET /api/client/threads/{threadId}/state
 mail.ts spamRow GET /api/client/emails
 mail.ts spamRows GET /api/client/emails

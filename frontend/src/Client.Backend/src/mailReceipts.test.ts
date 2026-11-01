@@ -240,4 +240,20 @@ describe('sendReadReceipt', () => {
 
         expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });
     });
+
+    it.each([
+        ['a body that is no JSON', 'sent'],
+        ['a body naming no time', '{}'],
+        ['a time that is no instant', '{"sentAt":"this morning"}'],
+    ])('refuses a 200 carrying %s rather than calling the receipt sent', async (_shape, body) => {
+        const result = await sendReadReceipt(session, answering({ status: 200, body, headers: {} }), messageId);
+
+        expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
+    it('answers a request that reached nothing as the deployment out of reach', async () => {
+        const result = await sendReadReceipt(session, () => Promise.reject(new TypeError('offline')), messageId);
+
+        expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: null } });
+    });
 });

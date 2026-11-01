@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, type ReactElement } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
@@ -1589,5 +1589,111 @@ describe('Thread opened from the list read by conversation', () => {
 
         expect(await screen.findByText('The whole of what one says.')).toBeDefined();
         expect(screen.queryByRole('button', { name: 'AI summary' })).toBeNull();
+    });
+});
+
+// What came back belongs to the newest message the reader sent, and a read receipt asked of the reader is offered on the
+// newest message somebody else did: each is one message of the conversation, chosen here rather than by the message.
+describe('Thread, what came back and what is asked', () => {
+    const actsKnowingSent: MailboxActs = {
+        ...nothingActed,
+        folderRoleOf: (message) => (message.folder === 'SENT' ? 'Sent' : 'Inbox'),
+    };
+
+    const cameBack = {
+        deliveryRequested: true,
+        readRequested: false,
+        recipients: [
+            {
+                address: 'auditor@example.invalid',
+                delivery: {
+                    outcome: 'Delivered',
+                    reportedAt: '2026-08-31T09:41:00+00:00',
+                    source: 'Report',
+                    status: null,
+                    reportingServer: null,
+                },
+                read: null,
+            },
+        ],
+    };
+
+    const askedOf = { address: 'auditor@example.invalid', namesAnotherAddress: false, sentAt: null };
+
+    /** Two messages the reader sent and two they received, each kind carrying what only its newest one draws. */
+    function exchange(): string {
+        const ids = ['one', 'two', 'three', 'four'];
+        const sent = ['one', 'three'];
+        const page = JSON.parse(pageOf(ids, {}, Object.fromEntries(sent.map((id) => [id, { folder: 'SENT' }])))) as {
+            messages: { email: { id: string }; message: Record<string, unknown> }[];
+        };
+
+        for (const { email, message } of page.messages) {
+            Object.assign(
+                message,
+                sent.includes(email.id) ? { folder: 'SENT', receipts: cameBack } : { readReceiptRequest: askedOf },
+            );
+        }
+
+        return JSON.stringify(page);
+    }
+
+    function opened(page: string): void {
+        render(
+            <MailboxActsContext value={actsKnowingSent}>
+                {inTheFrame(deploymentAnswering(page), { threadId, openAt: null }, true, nothingMarkedRead, true)}
+            </MailboxActsContext>,
+        );
+    }
+
+    function messageSaying(words: string): HTMLElement {
+        const message = screen.getByText(words).closest('li');
+
+        if (message === null) {
+            throw new Error(`No message of the conversation says "${words}".`);
+        }
+
+        return message;
+    }
+
+    it('marks what came back on the newest message the reader sent alone', async () => {
+        opened(exchange());
+
+        await screen.findByText('The whole of what four says.');
+
+        expect(screen.getAllByRole('button', { name: /^Delivered - / })).toHaveLength(1);
+        expect(
+            within(messageSaying('The whole of what three says.')).getByRole('button', { name: /^Delivered - / }),
+        ).toBeDefined();
+    });
+
+    it('offers a read receipt on the newest message somebody else sent alone', async () => {
+        opened(exchange());
+
+        await screen.findByText('The whole of what four says.');
+
+        expect(screen.getAllByRole('button', { name: 'Send read receipt' })).toHaveLength(1);
+        expect(
+            within(messageSaying('The whole of what four says.')).getByRole('button', { name: 'Send read receipt' }),
+        ).toBeDefined();
+    });
+
+    it('names a conversation a report opens by what the report says rather than by the subject its writer gave it', async () => {
+        const report = {
+            kind: 'Read',
+            recipients: [{ address: 'auditor@example.invalid', outcome: 'Displayed' }],
+            reportedAt: null,
+            namesOwnMessage: true,
+            ownMessageSubject: 'The quarterly figures',
+        };
+
+        opened(pageOf(['one'], {}, { one: { subject: 'Read: The quarterly figures', report } }));
+
+        expect(
+            await screen.findByRole('heading', {
+                name: 'Read receipt: The auditor read “The quarterly figures”',
+                level: 2,
+            }),
+        ).toBeDefined();
     });
 });

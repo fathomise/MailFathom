@@ -372,14 +372,7 @@ export function MessageRow({
     // A spam row names its kind there instead of whatever the screen would have said about it.
     const kind = spamName === null ? null : (spam?.spamSubcategory ?? null);
     const spamLine = kind === null ? undefined : <SpamBadge subcategory={kind} />;
-    const said =
-        pendingSaid !== null
-            ? translate(pendingSaid)
-            : spamName !== null
-              ? spamLine
-              : reportHeadline === null
-                ? note
-                : undefined;
+    const said = pendingSaid !== null ? translate(pendingSaid) : spamName !== null ? spamLine : note;
 
     // What is showing behind the row while a finger carries it, or nothing for a row standing where the list drew it.
     // Which of the two it is is the direction alone: what the threshold decides is how firmly it is drawn rather than

@@ -163,12 +163,10 @@ export function sendReadReceipt(
     transport: MailFathomTransport,
     storedEmailId: string,
 ): Promise<ClientResult<MailReadReceiptSending>> {
-    const route = mailReadReceiptRoute(storedEmailId);
-
-    return spanned(`POST ${route}`, async () => {
+    return spanned('POST /messages/{storedEmailId}/read-receipt', async () => {
         const response = await send(transport, {
             method: 'POST',
-            path: routeFor(session, route),
+            path: routeFor(session, mailReadReceiptRoute(storedEmailId)),
             headers: headersFor(session),
             longestAnswer,
         });

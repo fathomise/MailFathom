@@ -90,6 +90,25 @@ describe('reportWordsOf', () => {
     it('leaves a read receipt saying the message was deleted unread to its own subject', () => {
         expect(words(report('Read', [{ address: 'marta@example.invalid', outcome: 'Deleted' }], 'x'))).toBeNull();
     });
+
+    it('leaves a delivery report naming an outcome no delivery has to its own subject', () => {
+        expect(words(report('Delivery', [{ address: 'a@example.invalid', outcome: 'Displayed' }], 'x'))).toBeNull();
+    });
+
+    it('counts no recipients where one of them names an outcome no delivery has', () => {
+        expect(
+            words(
+                report(
+                    'Delivery',
+                    [
+                        { address: 'a@example.invalid', outcome: 'Delivered' },
+                        { address: 'b@example.invalid', outcome: 'Displayed' },
+                    ],
+                    'x',
+                ),
+            ),
+        ).toBeNull();
+    });
 });
 
 describe('reportHeadlineOf', () => {

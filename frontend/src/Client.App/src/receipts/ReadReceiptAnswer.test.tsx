@@ -10,8 +10,9 @@ import type {
     MailReadReceiptRequest,
 } from '@mailfathom/client-backend';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
+import { ReadingZoneContext } from '../localization/useReadingZone';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { ReadReceiptAnswer } from './ReadReceiptAnswer';
 
@@ -62,20 +63,34 @@ function drawing(
 ) {
     render(
         <LocalizationProvider>
-            <ConnectionStatusContext value={statusAt(status)}>
-                <ReadReceiptAnswer
-                    session={session}
-                    transport={transport}
-                    storedEmailId="message-1"
-                    request={request}
-                    sender="Marta Nowak"
-                />
-            </ConnectionStatusContext>
+            <ReadingZoneContext value="Europe/Warsaw">
+                <ConnectionStatusContext value={statusAt(status)}>
+                    <ReadReceiptAnswer
+                        session={session}
+                        transport={transport}
+                        storedEmailId="message-1"
+                        request={request}
+                        sender="Marta Nowak"
+                    />
+                </ConnectionStatusContext>
+            </ReadingZoneContext>
         </LocalizationProvider>,
     );
 }
 
-const sentAnswer: ClientResponse = { status: 200, body: '{"sentAt":"2026-08-29T08:52:00+00:00"}', headers: {} };
+const sentAnswer: ClientResponse = { status: 200, body: '{"sentAt":"2026-08-31T09:41:00+00:00"}', headers: {} };
+
+// The card is read at noon Warsaw time on the last day of August, and the times it words are read in Warsaw too, so each
+// expectation is the literal spelling that zone produces. Only the clock's date is fixed: the waits below run on
+// timers, which stay real.
+beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-31T10:00:00+00:00'));
+});
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 describe('ReadReceiptAnswer', () => {
     it('offers to send the receipt and says nothing goes unless the reader sends it', () => {
@@ -130,7 +145,7 @@ describe('ReadReceiptAnswer', () => {
 
         const line = await screen.findByRole('status');
 
-        expect(line.textContent).toMatch(/^Read receipt sent .+ to marta@example\.invalid\.$/u);
+        expect(line.textContent).toBe('Read receipt sent today 11:41 AM to marta@example.invalid.');
         expect(document.activeElement).toBe(line);
         expect(screen.queryByRole('button')).toBeNull();
     });
@@ -138,7 +153,7 @@ describe('ReadReceiptAnswer', () => {
     it('takes a receipt the deployment says went earlier as sent', async () => {
         const sending = answering({
             status: 409,
-            body: '{"reason":"AlreadySent","sentAt":"2026-08-29T08:52:00+00:00"}',
+            body: '{"reason":"AlreadySent","sentAt":"2026-08-29T06:52:00+00:00"}',
             headers: {},
         });
 
@@ -146,15 +161,15 @@ describe('ReadReceiptAnswer', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Send read receipt' }));
         sending.answer();
 
-        expect((await screen.findByRole('status')).textContent).toMatch(
-            /^Read receipt sent .+ to marta@example\.invalid\.$/u,
+        expect((await screen.findByRole('status')).textContent).toBe(
+            'Read receipt sent 8/29/26, 8:52 AM to marta@example.invalid.',
         );
     });
 
     it('opens on the line for a receipt sent before, offering nothing', () => {
-        drawing(answering(sentAnswer).transport, { ...asked, sentAt: '2026-08-29T08:52:00+00:00' });
+        drawing(answering(sentAnswer).transport, { ...asked, sentAt: '2026-08-29T06:52:00+00:00' });
 
-        expect(screen.getByText(/^Read receipt sent .+ to marta@example\.invalid\.$/u)).toBeDefined();
+        expect(screen.getByText('Read receipt sent 8/29/26, 8:52 AM to marta@example.invalid.')).toBeDefined();
         expect(screen.queryByRole('button')).toBeNull();
         expect(screen.queryByRole('status')).toBeNull();
     });

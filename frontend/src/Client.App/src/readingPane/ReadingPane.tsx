@@ -486,14 +486,14 @@ function OpenMessage({
         locale,
     );
 
-    // Named by its own subject, which is what a reader arriving in the region needs to hear and what tells one message's
-    // region from the body's inside it. The heading below says the same words on the screen; this is what the region
-    // itself is called.
+    // Named by its own subject — or, for a report, the headline drawn in its place — which is what a reader arriving in
+    // the region needs to hear and what tells one message's region from the body's inside it. The heading below says
+    // the same words on the screen; this is what the region itself is called.
     return (
         <article
             ref={opened}
             tabIndex={-1}
-            aria-label={message.headers.subject ?? translate('message.noSubject')}
+            aria-label={headline ?? message.headers.subject ?? translate('message.noSubject')}
             className="flex grow animate-content-arrival flex-col"
         >
             <MessageHeaders
