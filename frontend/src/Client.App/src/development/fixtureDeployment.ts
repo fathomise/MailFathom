@@ -335,6 +335,10 @@ function answerFor(
         return answering(deployment.troubledFolders);
     }
 
+    if (route === '/mail-footers') {
+        return answering(deployment.mailFooters);
+    }
+
     // Before the search itself, because that route's path is a prefix of this one.
     if (route === '/emails/search/phrasing') {
         return request.method === 'GET' ? answering(mail.readsPhrases) : answering(mail.phraseReading);

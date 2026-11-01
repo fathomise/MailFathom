@@ -2,7 +2,7 @@
   "blockCatalogue": {
     "answer": 2,
     "attachmentGallery": 1,
-    "draft": 2,
+    "draft": 3,
     "eventProposal": 1,
     "evidenceList": 1,
     "factTable": 1,
@@ -751,6 +751,9 @@
             },
             {
               "properties": {
+                "account": {
+                  "default": null
+                },
                 "body": true,
                 "disposition": {
                   "enum": [

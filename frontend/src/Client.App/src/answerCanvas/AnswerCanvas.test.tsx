@@ -90,6 +90,7 @@ const registered: readonly { readonly block: AnswerBlock; readonly draws: string
                 body: 'We accept shortening the response time.',
                 disposition: 'Composed',
                 dueAt: null,
+                account: null,
             },
         },
         draws: 'We accept shortening the response time.',

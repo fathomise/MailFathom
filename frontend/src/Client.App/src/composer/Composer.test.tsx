@@ -5,13 +5,20 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ClientRequest, ClientSession, MailAccount, MailFathomTransport } from '@mailfathom/client-backend';
+import type {
+    ClientRequest,
+    ClientSession,
+    MailAccount,
+    MailDocument,
+    MailFathomTransport,
+} from '@mailfathom/client-backend';
 import {
     AttachmentExchangeContext,
     type AttachmentExchange,
     type AttachmentTaken,
 } from '../deployment/attachmentExchange';
 import { AttachmentUploadContext, type AttachmentUpload } from '../deployment/attachmentUpload';
+import { FootersInForceContext, type FootersInForce } from '../footers/footersInForce';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { LocalizationProvider } from '../localization/Localization';
 import { ReadingZoneContext } from '../localization/useReadingZone';
@@ -206,6 +213,9 @@ interface Answers {
     readonly drafting?: { readonly status: number; readonly body: string };
     readonly contacts?: { readonly status: number; readonly body: string };
     readonly held?: { readonly status: number; readonly body: string };
+
+    /** The footers the frame read for the session, which the composer draws from rather than asking itself. */
+    readonly footers?: FootersInForce;
 }
 
 function deployment(answers: Answers = {}): { transport: MailFathomTransport; asked: ClientRequest[] } {
@@ -386,20 +396,22 @@ function drawComposer(
                                 <Pointing />
                                 <ConnectionStatusContext value={status ?? defaultStatus}>
                                     <ReadingZoneContext value={zone}>
-                                        <Framed>
-                                            {(onClosed) => (
-                                                <Composer
-                                                    session={session}
-                                                    transport={transport}
-                                                    accounts={accounts}
-                                                    opening={opening}
-                                                    online={online}
-                                                    drafts={drafts}
-                                                    showsOutbox={showsOutbox}
-                                                    onClosed={onClosed}
-                                                />
-                                            )}
-                                        </Framed>
+                                        <FootersInForceContext value={answers.footers ?? new Map()}>
+                                            <Framed>
+                                                {(onClosed) => (
+                                                    <Composer
+                                                        session={session}
+                                                        transport={transport}
+                                                        accounts={accounts}
+                                                        opening={opening}
+                                                        online={online}
+                                                        drafts={drafts}
+                                                        showsOutbox={showsOutbox}
+                                                        onClosed={onClosed}
+                                                    />
+                                                )}
+                                            </Framed>
+                                        </FootersInForceContext>
                                     </ReadingZoneContext>
                                 </ConnectionStatusContext>
                             </AttachmentUploadContext>
@@ -2758,5 +2770,124 @@ describe('Composer, sending later', () => {
                 .getByRole('button', { name: 'Schedule - choose a time that has not passed yet.' })
                 .getAttribute('aria-disabled'),
         ).toBe('true');
+    });
+});
+
+/** A footer as the frame holds it: a name line and a line under it, as the document tree a message body is. */
+function footerOf(name: string, line: string): MailDocument {
+    const paragraph = (text: string, bold: boolean) => ({
+        type: 'paragraph' as const,
+        alignment: 'Inherited' as const,
+        content: [
+            {
+                text,
+                emphasis: { bold, italic: false, underline: false, strikethrough: false, monospace: false },
+                foreground: null,
+                link: null,
+            },
+        ],
+    });
+
+    return {
+        blocks: [paragraph(name, true), paragraph(line, false)],
+        refusal: 'None',
+        removedRemoteReferenceCount: 0,
+        retainedRemoteImageCount: 0,
+        inlineImageCount: 0,
+        undrawnInlineImageCount: 0,
+        truncated: false,
+    };
+}
+
+const footersOfBoth: FootersInForce = new Map([
+    ['work', footerOf('Karolina Kowalska', 'Nordwind Logistics')],
+    ['home', footerOf('Karolina', 'Sent from home')],
+]);
+
+describe('Composer, the footer its account adds', () => {
+    function footerRegion(): HTMLElement {
+        return screen.getByRole('group', { name: 'Footer added when you send' });
+    }
+
+    it('draws the account’s footer under the words, folded to one line, and says it is not something to edit', async () => {
+        drawComposer({ kind: 'new' }, { footers: footersOfBoth });
+
+        const fold = await within(await screen.findByRole('group', { name: 'Footer added when you send' })).findByRole(
+            'button',
+            { name: 'Your footer is hidden' },
+        );
+
+        expect(fold.getAttribute('aria-expanded')).toBe('false');
+        expect(screen.queryByText('Karolina Kowalska')).toBeNull();
+        expect(footerRegion().getAttribute('aria-describedby')).not.toBeNull();
+        expect(footerRegion().closest('[contenteditable]')).toBeNull();
+    });
+
+    it('unfolds the footer’s lines on a press and folds them again on the next', async () => {
+        drawComposer({ kind: 'new' }, { footers: footersOfBoth });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Your footer is hidden' }));
+
+        expect(screen.getByRole('button', { name: 'Hide your footer' }).getAttribute('aria-expanded')).toBe('true');
+        expect(within(footerRegion()).getByText('Karolina Kowalska')).toBeDefined();
+        expect(within(footerRegion()).getByText('Nordwind Logistics')).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Hide your footer' }));
+
+        expect(screen.queryByText('Karolina Kowalska')).toBeNull();
+    });
+
+    it('draws the footer of the account chosen under From, and follows it when another is chosen', async () => {
+        drawComposer({ kind: 'new' }, { footers: footersOfBoth }, [work, home]);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Your footer is hidden' }));
+        expect(within(footerRegion()).getByText('Karolina Kowalska')).toBeDefined();
+
+        fireEvent.change(screen.getByLabelText('From'), { target: { value: 'home' } });
+
+        expect(within(footerRegion()).getByText('Sent from home')).toBeDefined();
+        expect(within(footerRegion()).queryByText('Nordwind Logistics')).toBeNull();
+    });
+
+    it('draws the footer of the account an answer goes out from', async () => {
+        drawComposer({ kind: 'answer', answers: 'senderOnly', storedEmailId: messageId }, { footers: footersOfBoth }, [
+            home,
+            work,
+        ]);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Your footer is hidden' }));
+
+        expect(within(footerRegion()).getByText('Nordwind Logistics')).toBeDefined();
+    });
+
+    it('draws nothing where the account sends without a footer', async () => {
+        drawComposer({ kind: 'new' }, { footers: footersOfBoth }, [{ ...work, id: 'board', displayName: 'Board' }]);
+
+        await screen.findByRole('textbox', { name: 'Message' });
+
+        expect(screen.queryByRole('group', { name: 'Footer added when you send' })).toBeNull();
+    });
+
+    it('keeps the footer out of the words and out of what a save files', async () => {
+        const { asked } = drawComposer({ kind: 'new' }, { footers: footersOfBoth });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Your footer is hidden' }));
+        writeWords('See you on Monday.');
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+        await waitFor(() => {
+            expect(lastDraftRequest(asked)?.method).toBe('POST');
+        });
+
+        expect(wordsWritten()).toBe('See you on Monday.');
+        expect(lastDraftRequest(asked)?.body).not.toContain('Nordwind Logistics');
+    });
+
+    it('draws a draft carried on with its footer once, the draft holding none of it', async () => {
+        drawComposer({ kind: 'draft', storedEmailId: messageId }, { footers: footersOfBoth });
+
+        await screen.findByText('Half a thought');
+
+        expect(await screen.findAllByRole('group', { name: 'Footer added when you send' })).toHaveLength(1);
     });
 });

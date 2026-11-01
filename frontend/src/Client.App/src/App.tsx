@@ -92,6 +92,7 @@ import { StatusMenu } from './presence/StatusMenu';
 import { useOwnPresence } from './presence/useOwnPresence';
 import { usePresenceClient } from './presence/usePresenceClient';
 import { useOwnProfile } from './profile/useOwnProfile';
+import { FootersInForceContext, useFootersInForce } from './footers/footersInForce';
 import { ReadMarkingProvider } from './readMarking/ReadMarking';
 import { AttachmentView } from './readingPane/AttachmentView';
 import { ReadingPane } from './readingPane/ReadingPane';
@@ -706,6 +707,11 @@ export function App({
     // would disagree the moment one of them did.
     const profile = useOwnProfile(readsProfile && connection.online ? session : null, readMail, portraits);
 
+    // The footer each account sends with, read once for the session under the grant that reads the profile, and shown
+    // wherever a message is about to go out: the composer and an Agent's draft read it from here rather than each
+    // asking again. It is not read again on reconnecting — a footer not shown is all a failed read costs.
+    const footers = useFootersInForce(readsProfile ? session : null, readMail);
+
     // What the deployment says has changed while somebody is looking at it, held on the same conditions every read
     // above is: a credential that may not read what the channel announces is told nothing over it, and a machine with
     // no network has no connection to open. A screen subscribes to decide what to read again; nothing here renders, and a deployment
@@ -1182,8 +1188,8 @@ export function App({
 
     const connectionSummary = <ConnectionSummary connection={connection} />;
 
-    return (
-        // Outermost of all, because every screen under it draws a date and none of them is near the read that answers
+    const frame = (
+        // Outermost of the frame, because every screen under it draws a date and none of them is near the read that answers
         // which zone those dates are placed in. It is the deployment's answer rather than the runtime's report, which
         // is what keeps a date the client draws and a period the deployment resolves on the same day.
         <ReadingZoneContext value={profile.timeZone}>
@@ -2155,6 +2161,8 @@ export function App({
             </ContactPhotoContext>
         </ReadingZoneContext>
     );
+
+    return <FootersInForceContext value={footers}>{frame}</FootersInForceContext>;
 }
 
 // What a composer is mounted under, so that asking for a second message replaces the first rather than editing it.

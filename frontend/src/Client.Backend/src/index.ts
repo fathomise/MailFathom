@@ -609,6 +609,13 @@ export {
     type PortraitImageType,
 } from './ownPortrait';
 export {
+    longestMailFootersAnswer,
+    mailFootersRoute,
+    readMailFooters,
+    type MailFooterInForce,
+    type MailFooterSource,
+} from './mailFooters';
+export {
     changeOwnTimeZone,
     longestTimeZoneAnswer,
     ownTimeZoneRoute,

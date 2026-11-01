@@ -605,7 +605,16 @@ describe('parseComposedDraft', () => {
             body: 'We accept shortening the response time.',
             disposition: 'Composed',
             dueAt: null,
+            account: null,
         });
+    });
+
+    it('reads the account a draft is sent from, which its footer is drawn by', () => {
+        expect(parseComposedDraft({ ...draft, account: 'work' })?.account).toBe('work');
+    });
+
+    it('refuses an account that is not an identifier', () => {
+        expect(parseComposedDraft({ ...draft, account: 7 })).toBeNull();
     });
 
     it('reads the instant a draft the person asked to leave later leaves at', () => {

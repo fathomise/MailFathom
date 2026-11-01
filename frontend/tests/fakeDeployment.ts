@@ -673,6 +673,8 @@ export class FakeDeployment {
                 return nothing;
             case 'GET /time-zone':
                 return answering(this.timeZone);
+            case 'GET /mail-footers':
+                return answering(deployment.mailFooters);
             case 'POST /time-zone': {
                 const written = recordIn(request.body)?.['timeZone'];
 

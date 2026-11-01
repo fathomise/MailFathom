@@ -350,6 +350,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             ("primary", "ada@example.org", "Quote", "Thank you, we accept."),
             (sending.Account, Assert.Single(sending.Recipients).Address, sending.Subject.Value, sending.Body.Value));
         Assert.Null(sending.DueAt);
+        Assert.Equal("primary", Assert.IsType<DraftBlock>(proposal.Block).Account?.Value);
         Assert.True(this.tools.HasProposed);
     }
 

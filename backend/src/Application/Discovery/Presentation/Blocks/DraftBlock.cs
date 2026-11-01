@@ -33,15 +33,17 @@ public sealed record DraftBlock : PresentationBlock
     /// <param name="body">Its body, as plain text.</param>
     /// <param name="disposition">What has become of it locally.</param>
     /// <param name="dueAt">When it would leave, where somebody asked for a later send, or <see langword="null" /> for as soon as it is sent.</param>
+    /// <param name="account">MailFathom's own generated identifier for the account it is sent from, or <see langword="null" /> where the block does not say.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="evidence" /> or <paramref name="recipients" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when no recipient is named, there are more than <see cref="MaxRecipients" /> of them, a recipient is named twice, or a text is the unspecified default.</exception>
+    /// <exception cref="ArgumentException">Thrown when no recipient is named, there are more than <see cref="MaxRecipients" /> of them, a recipient is named twice, or a text, the account included, is the unspecified default.</exception>
     public DraftBlock(
         PresentationEvidence evidence,
         IReadOnlyList<EmailAddress> recipients,
         PresentationText subject,
         PresentationText body,
         DraftDisposition disposition,
-        DateTimeOffset? dueAt = null)
+        DateTimeOffset? dueAt = null,
+        PresentationText? account = null)
         : base(PresentationBlockType.Draft, evidence)
     {
         var addressed = PresentationRequirement.RequiredItems(recipients, MaxRecipients, nameof(recipients));
@@ -54,11 +56,17 @@ public sealed record DraftBlock : PresentationBlock
         PresentationRequirement.Specified(subject, nameof(subject));
         PresentationRequirement.Specified(body, nameof(body));
 
+        if (account is { } sender)
+        {
+            PresentationRequirement.Specified(sender, nameof(account));
+        }
+
         this.Recipients = addressed;
         this.Subject = subject;
         this.Body = body;
         this.Disposition = disposition;
         this.DueAt = dueAt;
+        this.Account = account;
     }
 
     /// <summary>Gets who the draft is addressed to.</summary>
@@ -76,4 +84,12 @@ public sealed record DraftBlock : PresentationBlock
     /// <summary>Gets when the draft would leave once sent, or <see langword="null" /> where it leaves as soon as it is.</summary>
     /// <remarks>An instant rather than a time in a zone, as every other instant a plan carries is: the reader's own zone is what a client words it in.</remarks>
     public DateTimeOffset? DueAt { get; }
+
+    /// <summary>Gets the account the draft is sent from, or <see langword="null" /> where the block does not say.</summary>
+    /// <remarks>
+    /// MailFathom's own generated identifier, as <see cref="AccountCoverage" /> names an account, which is what a client
+    /// already holds the account's name and its footer by. It is absent only on a block stored before the account was
+    /// carried, which a client draws without the account's footer rather than with a guessed one.
+    /// </remarks>
+    public PresentationText? Account { get; }
 }

@@ -7,6 +7,8 @@ import type { AnswerBlock } from '@mailfathom/client-backend';
 import { namedZone, sendTimeAt } from '../../composer/sendLater';
 import { useSendTimeWording } from '../../composer/useSendTimeWording';
 import { Icon } from '../../controls/Icon';
+import { FoldedFooter } from '../../footers/FoldedFooter';
+import { useFooterOf } from '../../footers/footersInForce';
 import { useLocalization } from '../../localization/useLocalization';
 import { useReadingZone } from '../../localization/useReadingZone';
 import { UnrecognisedAnswerBlock } from '../AnswerBlockCard';
@@ -39,6 +41,9 @@ import { draftDispositions } from './blockWording';
 // **A draft the person asked to leave later says when, as the composer does once a time is chosen.** The time is the
 // proposal's, so nothing here clears or moves it: asking the Agent again is how it changes, and *Edit here* keeps it.
 //
+// **The footer its account adds stands under the letter, folded to one line**, so it does not lengthen the block and
+// the closing can still be checked before *Send* is pressed. A discarded draft draws none, being nothing that will go.
+//
 // Everything quoted out of the draft carries an empty `lang`, because the contract states no language for it and the
 // conversation around it is in the reader's own: the agent writes a reply in the language of the thread it answers.
 
@@ -70,6 +75,7 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     // the reader wrote. Nothing here throws away an edit, which is what the sentence under the area promises.
     const [editing, setEditing] = useState(false);
     const [typed, setTyped] = useState<string | null>(null);
+    const footer = useFooterOf(block.type === 'draft' ? block.draft.account : null);
 
     if (block.type !== 'draft') {
         return <UnrecognisedAnswerBlock />;
@@ -225,6 +231,8 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                     </p>
                 )}
             </div>
+
+            {footer === null || answering?.phase === 'declined' ? null : <FoldedFooter footer={footer} />}
 
             {/* Gone once sent, where the result line names the time instead. */}
             {leaves === null || answering?.phase === 'accepted' ? null : (

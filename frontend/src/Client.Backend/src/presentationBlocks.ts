@@ -316,6 +316,13 @@ export interface ComposedDraft {
 
     /** When it would leave once sent, as the instant the service wrote, or `null` where it leaves as soon as it is. */
     readonly dueAt: string | null;
+
+    /**
+     * The identifier of the account it is sent from, or `null` on a draft stored before the service named one.
+     *
+     * It is what a screen draws the account's footer by, the one the service appends to the message when it is sent.
+     */
+    readonly account: string | null;
 }
 
 /** The closed set of next steps a plan may suggest, so that nothing is proposed no client wrote a control for. */
@@ -622,6 +629,7 @@ export function parseComposedDraft(value: unknown): ComposedDraft | null {
     const body = parseText(record['body']);
     const disposition = oneOf(record['disposition'], dispositions);
     const dueAt = parseStatedInstant(record['dueAt']);
+    const account = record['account'] ?? null;
 
     return recipients === null ||
         recipients.length === 0 ||
@@ -629,9 +637,10 @@ export function parseComposedDraft(value: unknown): ComposedDraft | null {
         body === null ||
         disposition === null ||
         dueAt === null ||
-        (dueAt.at !== null && !isOffsetInstant(dueAt.at))
+        (dueAt.at !== null && !isOffsetInstant(dueAt.at)) ||
+        (account !== null && typeof account !== 'string')
         ? null
-        : { recipients, subject, body, disposition, dueAt: dueAt.at };
+        : { recipients, subject, body, disposition, dueAt: dueAt.at, account };
 }
 
 /**

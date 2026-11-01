@@ -264,6 +264,7 @@ public sealed class PresentationPlanSerializationTests
         var draft = DraftNodeOf(written);
         draft["version"] = 1;
         draft.Remove("dueAt");
+        draft.Remove("account");
 
         // Act
         var read = JsonSerializer.Deserialize<PresentationPlan>(written.ToJsonString(), Contract);
@@ -271,6 +272,38 @@ public sealed class PresentationPlanSerializationTests
         // Assert
         var block = Assert.Single(read!.Blocks.OfType<DraftBlock>());
         Assert.Equal((PresentationBlockType.Draft.Version, (DateTimeOffset?)null), (block.Version, block.DueAt));
+    }
+
+    /// <summary>A draft reads back naming the account it is sent from, which is what a client draws that account's footer by.</summary>
+    [Fact]
+    public void RoundTrip_ADraftNamingItsAccount_ReadsTheAccountBack()
+    {
+        // Arrange
+        var written = JsonSerializer.Serialize(PresentationPlanExample.Compose(), Contract);
+
+        // Act
+        var read = JsonSerializer.Deserialize<PresentationPlan>(written, Contract);
+
+        // Assert
+        Assert.Equal("primary", Assert.Single(read!.Blocks.OfType<DraftBlock>()).Account?.Value);
+    }
+
+    /// <summary>A conversation stored before a draft named its account is still read, as a draft naming none.</summary>
+    [Fact]
+    public void Deserialization_ADraftStoredAtTheRevisionBeforeItsAccount_IsReadAsOneNamingNone()
+    {
+        // Arrange
+        var written = JsonNode.Parse(JsonSerializer.Serialize(PresentationPlanExample.Compose(), Contract))!.AsObject();
+        var draft = DraftNodeOf(written);
+        draft["version"] = 2;
+        draft.Remove("account");
+
+        // Act
+        var read = JsonSerializer.Deserialize<PresentationPlan>(written.ToJsonString(), Contract);
+
+        // Assert
+        var block = Assert.Single(read!.Blocks.OfType<DraftBlock>());
+        Assert.Equal((PresentationBlockType.Draft.Version, (PresentationText?)null), (block.Version, block.Account));
     }
 
     /// <summary>A revision before the earliest a block type still reads is refused, whichever block type claims it.</summary>
