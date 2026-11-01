@@ -52,8 +52,9 @@ public sealed record SenderVerification
 
     /// <summary>Gets what recognized the author, which is <see cref="SenderTrustSource.None" /> wherever nothing did.</summary>
     /// <remarks>
-    /// It is the source in force when the message was extracted: a contact written down since reaches mail extracted
-    /// after it, so this names what held then, and removing the contact it names resets it to not evaluated.
+    /// The two contact sources are found in the books as they stand when the message is read, so a contact written down
+    /// or erased since moves it on the next read and nothing is reset. Every other source is the one in force when the
+    /// message was extracted.
     /// </remarks>
     public SenderTrustSource DeploymentTrustGrantedBy { get; init; } = SenderTrustSource.None;
 
@@ -67,8 +68,9 @@ public sealed record SenderVerification
     /// <summary>Gets the contact that recognized the author, or <see langword="null" /> where no contact did.</summary>
     /// <remarks>
     /// Set only where <see cref="DeploymentTrustGrantedBy" /> names a contact source. It is a reference rather than the
-    /// record: every act that removes a contact resets each verdict naming it first, so a stored reference never names
-    /// a contact that is gone. Which book it is in is the reader's to ask; nothing of the record itself travels here.
+    /// record, found in the books as they stood when this message was read rather than stored with it, so it never
+    /// names a contact that was gone by then. Which book it is in is the reader's to ask; nothing of the record itself
+    /// travels here.
     /// </remarks>
     public ContactId? RecognizingContactId { get; init; }
 

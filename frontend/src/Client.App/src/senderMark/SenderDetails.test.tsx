@@ -365,7 +365,7 @@ describe('SenderDetails', () => {
         ).toBeDefined();
     });
 
-    it('writes the author down as a new contact and says the mark changes once the mail is checked again', async () => {
+    it('writes the author down as a new contact and says the mark changes the next time the mail is read', async () => {
         const asked: ClientRequest[] = [];
 
         explain((request) => {
@@ -382,7 +382,7 @@ describe('SenderDetails', () => {
         );
 
         const done = await screen.findByText(
-            'Example is in your contacts now. The mark changes once your mail is checked again.',
+            'Example is in your contacts now. The mark changes the next time your mail is read.',
         );
 
         expect(asked[1]).toMatchObject({
@@ -501,7 +501,7 @@ describe('SenderDetails', () => {
         ).toBeDefined();
 
         fireEvent.click(within(asking).getByRole('button', { name: 'Add to contacts' }));
-        await screen.findByText('Example is in your contacts now. The mark changes once your mail is checked again.');
+        await screen.findByText('Example is in your contacts now. The mark changes the next time your mail is read.');
 
         expect(asked.slice(1).map((request) => [request.method, request.path, request.body ?? null])).toEqual([
             ['GET', `https://mail.example.invalid/api/client/contacts/${heldContact.id}`, null],
@@ -555,7 +555,7 @@ describe('SenderDetails', () => {
 
         answer(contactWritten);
 
-        await screen.findByText('Example is in your contacts now. The mark changes once your mail is checked again.');
+        await screen.findByText('Example is in your contacts now. The mark changes the next time your mail is read.');
 
         expect(asked.filter((request) => request.method === 'POST')).toHaveLength(1);
     });
@@ -607,7 +607,7 @@ describe('MessageSenderDetails', () => {
                 name: 'Add to contacts',
             }),
         );
-        await screen.findByText('Example is in your contacts now. The mark changes once your mail is checked again.');
+        await screen.findByText('Example is in your contacts now. The mark changes the next time your mail is read.');
         fireEvent.click(screen.getByRole('button', { name: 'Close' }));
         fireEvent.click(screen.getByRole('button', { name: opening }));
 

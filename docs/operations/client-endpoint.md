@@ -1783,9 +1783,9 @@ addresses the receiving account's owner holds; `OwnAccountDomain` a domain of on
 that opted into those; and `PersonalContact` a contact in the own book of a user the account is assigned to. Where
 several recognize the author the first of those is reported ([Sender
 authentication](../features/sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes)). Which
-contact matched is not published: `trustContact` says only whether it is the reader's own. It is the source in force
-when the message was stored, so a contact written since reaches mail stored after it, and removing the contact resets
-the verdict it granted.
+contact matched is not published: `trustContact` says only whether it is the reader's own. A contact source is found in
+the books as they stand when the message is read, so a contact written or erased moves the mark on the next read, and
+nothing stored is reset; every other source is the one in force when the message was stored.
 
 **`authorRoute` is what established an `Authenticated` author**: `DmarcPass` where the receiving server reported a DMARC
 `pass` for the domain of the first `From` mailbox, `AlignedDkim` where a verified DKIM signature aligns with that domain
@@ -1818,8 +1818,9 @@ request, because the users of a shared mailbox read one verdict and hold differe
 displayed name and the address. A restatement reads the named contact and `PUT`s the same record back with
 `restatedAddresses` naming the address, which records the person as its writer although the contact keeps it — the
 only way an address an agent wrote comes to count, because an amendment otherwise keeps each kept address's writer and
-a contact holding that address alone cannot be amended without it. The message's own mark changes only once stored
-mail is judged again; nothing re-judges it on the write.
+a contact holding that address alone cannot be amended without it. Nothing about stored mail is written: a sender is
+recognized by the books as they stand when a message is read, so the message's own mark changes on its next read, and
+the `contacts.changed` signal the write raises is what tells an open client to read again.
 
 **`trustOrganization` is the organization's name as it reads now, not as it read when the message arrived.** The
 verdict records which organization's signature proved the member, never its name, so the name is read through that

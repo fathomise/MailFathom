@@ -485,12 +485,6 @@ internal static class PersistenceConstraintNames
     /// <summary>The partial index deleting an organization clears its verdicts' references through.</summary>
     internal const string StoredEmailSenderTrustOrganizationIndexName = "ix_stored_emails_sender_trust_organization";
 
-    /// <summary>The partial index removing a contact resets the verdicts naming it through.</summary>
-    internal const string StoredEmailSenderTrustContactIndexName = "ix_stored_emails_sender_trust_contact";
-
-    /// <summary>The partial index re-judging the mail one address sent selects an account's messages through.</summary>
-    internal const string StoredEmailSenderTrustAddressIndexName = "ix_stored_emails_sender_trust_address";
-
     /// <summary>Names the index a receiving account finds the send behind a blind copy through.</summary>
     /// <remarks>
     /// It leads on the <c>Message-ID</c> because that is what a signed arrival names, and carries the account after it

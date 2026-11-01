@@ -3,53 +3,80 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Contacts;
-using MailFathom.Application.Emails.Trust;
-using MailFathom.Application.Persistence;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
-using MailFathom.Domain.Accounts;
-using MailFathom.Domain.Contacts;
-using MailFathom.Domain.Emails;
-using MailFathom.Infrastructure.Persistence.Sessions;
+using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Infrastructure.Persistence.Emails;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Contacts;
 
-/// <summary>Reads, under the address lock and in the storing transaction, the contacts the books a receiving account reaches hold for its senders.</summary>
+/// <summary>Recognizes the authors of stored messages by the contact books their receiving accounts reach as those books stand now.</summary>
 /// <remarks>
-/// An account identifier that is not a stored record's — an account declared only in configuration — reaches no
-/// organization's book and no user's, because no assignment names it, so its senders are held by nobody here.
+/// <para>
+/// This is the one place a read combines a stored verdict with the books, and every read of a verdict goes through it —
+/// a summary, a message's provenance, and a rule evaluation alike — so the client, MCP, the agent, spam classification,
+/// the automatic reply, and the rules all see the same answer. The books a receiving account reaches are its
+/// organization's and the own book of every user it is assigned to. A mailbox's collected book is never read:
+/// collection writes down whoever wrote to the mailbox, forgers included. Of what those books hold,
+/// <see cref="SenderTrustHolding.RecognizingContactsOf" /> counts only an address a person or an administrator wrote.
+/// </para>
+/// <para>
+/// The rows of one read are answered together: one read of the books their accounts reach, then one query over their
+/// senders' addresses in those books, on the index the book and the address make. An account identifier that is not a
+/// stored record's — an account declared only in configuration — reaches no book, because no assignment names it.
+/// </para>
 /// </remarks>
 [RequiresIntegrationCoverage]
-internal sealed class SenderTrustBooks : ISenderTrustBooks
+internal static class SenderTrustBooks
 {
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<SenderAddressHolding>> LockAndReadAsync(
-        IPersistenceSession session,
-        IReadOnlyCollection<MailAccountId> accounts,
-        IReadOnlyCollection<EmailAddress> senders,
+    /// <summary>Reaches the verdict each row's reader sees.</summary>
+    /// <param name="context">The context the books are read through, untracked.</param>
+    /// <param name="rows">The stored verdicts, at most one read's worth.</param>
+    /// <param name="cancellationToken">Cancels the reads.</param>
+    /// <returns>One verdict per row, in the same order.</returns>
+    internal static async Task<IReadOnlyList<SenderTrust>> RecognizeAsync(
+        MailFathomDbContext context,
+        IReadOnlyList<StoredSenderTrustRow> rows,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(accounts);
-        ArgumentNullException.ThrowIfNull(senders);
+        string[] addresses = [.. rows.Select(static row => row.Address).OfType<string>().Distinct(StringComparer.Ordinal)];
+        Dictionary<Guid, string> accounts = addresses.Length == 0
+            ? []
+            : rows
+                .Where(static row => row.Address is not null)
+                .Select(static row => row.MailboxAccountId)
+                .Distinct(StringComparer.Ordinal)
+                .Select(static account => (Account: account, Parsed: Guid.TryParse(account, out var id) ? id : (Guid?)null))
+                .Where(static pair => pair.Parsed is not null)
+                .ToDictionary(static pair => pair.Parsed!.Value, static pair => pair.Account);
 
-        var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
-        string[] addresses = [.. senders.Select(sender => sender.NormalizedAddress).Distinct(StringComparer.Ordinal)];
+        IReadOnlyList<SenderTrustHolding> holdings = accounts.Count == 0
+            ? []
+            : await ReadHoldingsAsync(context, accounts, addresses, cancellationToken);
 
-        await ContactAddressLocks.TakeAsync(context, addresses, cancellationToken);
+        return
+        [
+            .. rows.Select(row => row.Recognize(row.Address is { } address
+                ? SenderTrustHolding.RecognizingContactsOf(holdings, row.MailboxAccountId, address)
+                : RecognizingContacts.None)),
+        ];
+    }
 
-        var accountsById = accounts
-            .Select(account => (Account: account, Parsed: Guid.TryParse(account.Value, out var id) ? id : (Guid?)null))
-            .Where(pair => pair.Parsed is not null)
-            .ToDictionary(pair => pair.Parsed!.Value, pair => pair.Account);
+    /// <summary>Reads every holding of the addresses in the books the accounts reach, whatever wrote it.</summary>
+    private static async Task<IReadOnlyList<SenderTrustHolding>> ReadHoldingsAsync(
+        MailFathomDbContext context,
+        Dictionary<Guid, string> accounts,
+        string[] addresses,
+        CancellationToken cancellationToken)
+    {
+        var books = await ReadBooksAsync(context, accounts, cancellationToken);
+        string[] holderKeys = [.. books.Select(static book => book.HolderKey).Distinct(StringComparer.Ordinal)];
 
-        if (accountsById.Count == 0 || addresses.Length == 0)
+        if (holderKeys.Length == 0)
         {
             return [];
         }
-
-        var books = await ReadBooksAsync(context, accountsById, cancellationToken);
-        string[] holderKeys = [.. books.Select(book => book.HolderKey).Distinct(StringComparer.Ordinal)];
 
         var held = await context.ContactAddresses
             .AsNoTracking()
@@ -61,13 +88,13 @@ internal sealed class SenderTrustBooks : ISenderTrustBooks
         [
             .. books.Join(
                 held,
-                book => book.HolderKey,
-                row => row.BookHolderId,
-                (book, row) => new SenderAddressHolding(
+                static book => book.HolderKey,
+                static row => row.BookHolderId,
+                static (book, row) => new SenderTrustHolding(
                     book.Account,
                     row.NormalizedAddress,
-                    ContactId.Create(row.ContactId),
-                    book.Kind,
+                    row.ContactId,
+                    book.IsOrganizationBook,
                     row.WriterKind),
                 StringComparer.Ordinal),
         ];
@@ -76,10 +103,10 @@ internal sealed class SenderTrustBooks : ISenderTrustBooks
     /// <summary>Lists each account's organization book and the own book of every user it is assigned to.</summary>
     private static async Task<List<ReachedBook>> ReadBooksAsync(
         MailFathomDbContext context,
-        Dictionary<Guid, MailAccountId> accountsById,
+        Dictionary<Guid, string> accounts,
         CancellationToken cancellationToken)
     {
-        Guid[] accountIds = [.. accountsById.Keys];
+        Guid[] accountIds = [.. accounts.Keys];
 
         var organizations = await context.MailAccountRecords
             .AsNoTracking()
@@ -96,16 +123,16 @@ internal sealed class SenderTrustBooks : ISenderTrustBooks
         return
         [
             .. organizations.Select(organization => new ReachedBook(
-                accountsById[organization.Id],
+                accounts[organization.Id],
                 ContactBookHolder.OfOrganization(organization.OrganizationId).Key,
-                SenderTrustBook.Organization)),
+                IsOrganizationBook: true)),
             .. assignments.Select(assignment => new ReachedBook(
-                accountsById[assignment.MailAccountId],
+                accounts[assignment.MailAccountId],
                 ContactBookHolder.Of(UserId.Create(assignment.UserId)).Key,
-                SenderTrustBook.Personal)),
+                IsOrganizationBook: false)),
         ];
     }
 
     /// <summary>One book a receiving account reaches.</summary>
-    private sealed record ReachedBook(MailAccountId Account, string HolderKey, SenderTrustBook Kind);
+    private sealed record ReachedBook(string Account, string HolderKey, bool IsOrganizationBook);
 }

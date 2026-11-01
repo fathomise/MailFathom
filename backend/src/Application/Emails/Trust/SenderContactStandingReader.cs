@@ -20,9 +20,8 @@ namespace MailFathom.Application.Emails.Trust;
 /// Two facts, each about the reader's own books and nothing else. <b>Whose contact recognized the author</b> is asked
 /// where a personal contact did: it is the reader's where their own book holds the contact the verdict names, and
 /// another user's of the mailbox otherwise. It is asked by the contact's identity rather than by the address, because
-/// the verdict names the contact and an amendment taking the address away leaves it naming that contact until stored
-/// mail is judged again. The only personal book a reader's scope holds is their own, so a contact of that identity the
-/// scope shows is theirs. It needs no grant beyond the read that produced the message, because it says only whether
+/// the verdict names the contact the books held when the message was read. The only personal book a reader's scope
+/// holds is their own, so a contact of that identity the scope shows is theirs. It needs no grant beyond the read that produced the message, because it says only whether
 /// the reader's own book holds the record.
 /// </para>
 /// <para>

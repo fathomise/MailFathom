@@ -1266,6 +1266,26 @@ describe('Thread against a deployment that says what changed', () => {
         });
     });
 
+    it('reads its pages again when the contacts change, which every sender in it is recognized by', async () => {
+        // Arrange
+        const signalling = deploymentSaying();
+        drawingSaid(deploymentAnswering(pageOf(['one', 'two'])), signalling.changes);
+        await screen.findByText('The whole of what two says.');
+        await waitFor(() => {
+            expect(statesAsked()).toBe(1);
+        });
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'contacts.changed' });
+        });
+
+        // Assert
+        await waitFor(() => {
+            expect(pagesAsked()).toBe(2);
+        });
+    });
+
     it('reads nothing again when the deployment says another conversation changed', async () => {
         // Arrange
         const signalling = deploymentSaying();

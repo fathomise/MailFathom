@@ -211,6 +211,33 @@ describe('ThreadList', () => {
         expect(await screen.findByText('The audit')).toBeDefined();
     });
 
+    it('reads the list again when the contacts change, which every sender on it is recognized by', async () => {
+        let say: SignalListener = () => undefined;
+        const { transport } = deploymentAnswering(
+            answered(pageOf([listed('one', 'The quarterly figures')])),
+            answered(pageOf([listed('two', 'The audit'), listed('one', 'The quarterly figures')])),
+        );
+
+        drawing(
+            transport,
+            true,
+            () => undefined,
+            (listener) => {
+                say = listener;
+
+                return () => undefined;
+            },
+        );
+
+        await screen.findByText('The quarterly figures');
+
+        act(() => {
+            say({ kind: 'contacts.changed' });
+        });
+
+        expect(await screen.findByText('The audit')).toBeDefined();
+    });
+
     it('keeps the list it holds when reading it again after a change fails', async () => {
         let say: SignalListener = () => undefined;
         const { transport, asked } = deploymentAnswering(answered(pageOf([listed('one', 'The quarterly figures')])), {

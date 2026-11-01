@@ -1722,8 +1722,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IContactDirectory, ContactDirectory>();
         services.AddScoped<ContactBook>();
 
-        // What every path storing a sender trust verdict asks inside its transaction: the address lock, then the books.
-        services.AddScoped<ISenderTrustBooks, SenderTrustBooks>();
+        // What every path storing a sender trust verdict asks: configuration and the organization's signature. The
+        // contact books are asked when a verdict is read, never here.
         services.AddScoped<SenderTrustJudge>();
 
         // Which books a named user reads, and which books the caller in hand reads. The first answers about whoever it

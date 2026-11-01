@@ -84,7 +84,7 @@ public sealed class StoredMailRederivation
     /// <param name="runStore">Holds the run this walk is advancing, which each batch adds what it read to.</param>
     /// <param name="contentStore">Reads back the raw MIME an earlier run stored.</param>
     /// <param name="mimeReader">Turns that raw MIME into normalized metadata.</param>
-    /// <param name="senderTrust">Judges each re-read message's author inside the batch's transaction.</param>
+    /// <param name="senderTrust">Judges what configuration and the organization signature answer of each re-read message's author, reading no contact book and joining no transaction.</param>
     /// <param name="concurrencyRetryPolicy">Commits a batch, retrying a conflict with a competing writer.</param>
     /// <param name="timeProvider">Stamps the instant the walk reached the end of its scope.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -335,10 +335,7 @@ public sealed class StoredMailRederivation
                     return false;
                 }
 
-                var judged = await this.senderTrust.JudgeAsync(
-                    persistenceSession,
-                    [.. outcome.Rederivations.Select(static rederivation => rederivation.Metadata)],
-                    attemptCancellationToken);
+                var judged = this.senderTrust.Judge([.. outcome.Rederivations.Select(static rederivation => rederivation.Metadata)]);
 
                 foreach (var (rederivation, metadata) in outcome.Rederivations.Zip(judged))
                 {

@@ -165,7 +165,7 @@ export function ThreadList({
     useEffect(
         () =>
             signalledChanges.listen((signal) => {
-                if (signal.kind === 'refresh' || signal.kind === 'mail.changed') {
+                if (signal.kind === 'refresh' || signal.kind === 'mail.changed' || signal.kind === 'contacts.changed') {
                     readAgainAsFarAsHeld();
                 }
             }),

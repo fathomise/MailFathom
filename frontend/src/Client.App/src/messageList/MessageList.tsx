@@ -511,6 +511,12 @@ export function MessageList({
                     setHeld(refreshAsked);
                 }
 
+                // A sender is recognized by the contact books as they stand when a row is read, so a contact written
+                // or erased anywhere can move any row's mark: the pages on the screen are read again the same way.
+                if (signal.kind === 'contacts.changed') {
+                    setHeld(refreshAsked);
+                }
+
                 if (signal.kind === 'mail.arrived' && scopeReaches(scope, signal.account, signal.folder)) {
                     setHeld(arrivalNoticed);
                 }

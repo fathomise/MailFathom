@@ -1811,7 +1811,7 @@ export const en = {
     'senderMark.add.cancel': 'Cancel',
     'senderMark.add.failed': '{name} could not be added to your contacts: {reason}',
     'senderMark.add.changed': 'your contacts changed since this message was read',
-    'senderMark.add.done': '{name} is in your contacts now. The mark changes once your mail is checked again.',
+    'senderMark.add.done': '{name} is in your contacts now. The mark changes the next time your mail is read.',
     'senderMark.signed.not':
         'Not signed: the message carries no S/MIME or OpenPGP signature, so there is nothing to verify.',
     'senderMark.signed.detachedAt': 'S/MIME, detached (multipart/signed), signed {when}.',

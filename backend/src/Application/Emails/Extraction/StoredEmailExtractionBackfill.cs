@@ -44,7 +44,7 @@ public sealed class StoredEmailExtractionBackfill
     /// <param name="backfillStore">Reads what remains and writes what one email's re-reading produced.</param>
     /// <param name="contentStore">Reads back the raw MIME an earlier run stored.</param>
     /// <param name="mimeReader">Turns that raw MIME into normalized metadata and text.</param>
-    /// <param name="senderTrust">Judges each re-read message's author inside the batch's transaction.</param>
+    /// <param name="senderTrust">Judges what configuration and the organization signature answer of each re-read message's author, reading no contact book and joining no transaction.</param>
     /// <param name="concurrencyRetryPolicy">Commits a batch, retrying a conflict with a competing writer.</param>
     /// <param name="options">Bounds one run.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
@@ -226,10 +226,7 @@ public sealed class StoredEmailExtractionBackfill
         this.concurrencyRetryPolicy.CommitAsync(
             async (persistenceSession, attemptCancellationToken) =>
             {
-                var judged = await this.senderTrust.JudgeAsync(
-                    persistenceSession,
-                    [.. extractions.Select(static extraction => extraction.Metadata)],
-                    attemptCancellationToken);
+                var judged = this.senderTrust.Judge([.. extractions.Select(static extraction => extraction.Metadata)]);
 
                 foreach (var (extraction, metadata) in extractions.Zip(judged))
                 {

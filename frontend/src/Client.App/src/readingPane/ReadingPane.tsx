@@ -357,12 +357,13 @@ function OpenMessage({
     // A message the deployment says has changed is read again where it is the one on the screen, quietly, so what a
     // reader is part-way through stays in front of them until the new answer replaces it. A signal naming other mail is
     // not this message's business: the list it names re-reads its own rows. A refresh is every message's business, and
-    // reads this one again the same way.
+    // reads this one again the same way, and so is a change to the contact books, which the sender's mark is read against.
     useEffect(
         () =>
             signalledChanges.listen((signal) => {
                 if (
                     signal.kind === 'refresh' ||
+                    signal.kind === 'contacts.changed' ||
                     (signal.kind === 'mail.changed' && signal.emails.includes(storedEmailId))
                 ) {
                     setRead((current) => ({ storedEmailId, attempt: current.attempt + 1, quietly: true }));

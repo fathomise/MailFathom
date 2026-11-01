@@ -42,8 +42,9 @@ public sealed record ExtractedEmailMetadata(
     /// <summary>Gets what this deployment made of the message's author.</summary>
     /// <remarks>
     /// Not a parameter of the reading, because it is not read out of the message: the parsing adapter establishes what
-    /// the receiving server said and <see cref="Trust.SenderTrustJudge" /> holds the author against the contacts and the
-    /// account's configuration inside the transaction that stores the message. Its default is therefore the verdict of a
+    /// the receiving server said and <see cref="Trust.SenderTrustJudge" /> holds the author against the account's
+    /// configuration and the organization signature before the message is stored; the contact books are asked when it
+    /// is read, never here. Its default is therefore the verdict of a
     /// reading no policy has spoken over, which is unknown and carries no policy revision to say otherwise.
     /// </remarks>
     public SenderTrust SenderTrust { get; init; } = SenderTrust.NotEvaluated;

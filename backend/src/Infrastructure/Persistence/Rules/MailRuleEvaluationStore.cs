@@ -12,6 +12,7 @@ using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Infrastructure.Persistence.Contacts;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
@@ -213,7 +214,25 @@ internal sealed class MailRuleEvaluationStore(
                 email.IsRemotelyDraft,
                 email.RemoteKeywords,
                 email.AuthorAuthenticationOutcome,
-                email.SenderTrustLevel,
+                SenderTrust = new StoredSenderTrustRow(
+                    email.MailboxAccountId,
+                    email.SenderTrustAddress,
+                    email.SenderTrustLevel,
+                    email.SenderTrustGrantedBy,
+                    email.SenderTrustAuthorEvidence,
+                    email.SenderTrustPolicyRevision,
+                    email.SenderTrustOrganizationId,
+                    email.SenderTrustIsStrict,
+                    email.AuthorAuthenticationOutcome,
+                    email.AuthorAuthenticationRoute,
+                    email.AuthenticatedAuthorDomain,
+                    email.DmarcPolicy,
+                    email.SignatureContentCheck,
+                    email.SignatureUnverifiableReason,
+                    email.SignatureAuthorityCheck,
+                    email.SignatureValidityCheck,
+                    email.SignatureRevocationCheck,
+                    email.SignatureSignerCheck),
                 email.MachineAuthorshipBand,
                 HasExtractedContent = email.SearchDocument != null
                     && email.SearchDocument.TextSource != ExtractedEmailTextSource.BodyNotExtracted,
@@ -223,10 +242,14 @@ internal sealed class MailRuleEvaluationStore(
                         && email.SearchDocument == null),
             })
             .ToArrayAsync(cancellationToken);
+        var verdicts = await SenderTrustBooks.RecognizeAsync(
+            dbContext,
+            [.. candidates.Select(static candidate => candidate.SenderTrust)],
+            cancellationToken);
 
         return
         [
-            .. candidates.Select(candidate => new StoredEmailAwaitingRuleEvaluation(
+            .. candidates.Zip(verdicts, (candidate, verdict) => new StoredEmailAwaitingRuleEvaluation(
                 StoredEmailId.Create(candidate.Id),
                 candidate is { UidValidity: { } uidValidity, Uid: { } uid }
                     ? EmailOccurrenceId.Create(
@@ -257,7 +280,7 @@ internal sealed class MailRuleEvaluationStore(
                     IsDraft = candidate.IsRemotelyDraft,
                     Keywords = candidate.RemoteKeywords,
                     AuthorAuthentication = candidate.AuthorAuthenticationOutcome,
-                    SenderTrust = candidate.SenderTrustLevel,
+                    SenderTrust = verdict.Level,
                     MachineAuthorship = candidate.MachineAuthorshipBand,
                     HasExtractedContent = candidate.HasExtractedContent,
                 },

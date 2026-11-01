@@ -2219,8 +2219,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
     /* Add to contacts, from the details: offered where the service offers it, said before it writes, then written.
        A press says what follows (`confirm`); confirming writes (`adding`) and lands on `added`, or on `failed` while
-       the client cannot reach its server. The mark itself does not move: it changes once stored mail is judged again,
-       so the details go on reading the verdict the message carries. An address added is not offered again. */
+       the client cannot reach its server. The mark itself does not move on the press: a sender is recognized by the
+       contacts as they stand when the message is read, so the mark changes on its next read, and the details go on
+       reading the verdict the message carried when they opened. An address added is not offered again. */
     senderAddStep = (phase) => {
       const smk = this.state.senderMark;
       if (!smk) return;
@@ -5077,7 +5078,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               "Mail from " + r.from + " is then marked trusted whenever its sender is authenticated, and known whenever it shows this address, unless this account is strict." +
               (addWarn ? " This message stays a warning on a strict account, or where " + domainOf(r.from) + " publishes a quarantine or reject policy; on a relaxed account under a monitoring-only policy it becomes known." : ""),
             senderAddFailText: addName + " could not be added to your contacts: unavailable",
-            senderAddDoneText: addName + " is in your contacts now. The mark changes once your mail is checked again.",
+            senderAddDoneText: addName + " is in your contacts now. The mark changes the next time your mail is read.",
             senderAddConfirmLabel: add === "adding" ? "Adding…" : add === "failed" ? "Try again" : "Add to contacts",
             senderAddOpen: (e) => { if (pressed(e)) this.senderAddStep("confirm"); },
             senderAddCancel: (e) => { if (pressed(e) && add !== "adding") this.senderAddStep(null); },

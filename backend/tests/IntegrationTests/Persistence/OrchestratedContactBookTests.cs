@@ -4,12 +4,10 @@
 
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Persistence;
-using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
-using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.IntegrationTests.Orchestration;
 using Microsoft.EntityFrameworkCore;
@@ -40,17 +38,6 @@ namespace MailFathom.IntegrationTests.Persistence;
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
 public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture orchestration)
 {
-    /// <summary>The folder the message a contact's verdict is stored on lives in, which no other class binds.</summary>
-    private const string TrustFolderAlias = "contact-trust";
-
-    private const uint TrustedUid = 1;
-
-    private const uint KeptTrustedUid = 2;
-
-    private const string TrustPolicyRevision = "contact-trust-revision";
-
-    private static readonly Guid TrustOrganizationId = Guid.NewGuid();
-
     private static readonly ContactAddressWriter PersonWriting = new(ContactAddressWriterKind.Person, User: null, Credential: null);
 
     /// <summary>The instant a directly constructed contact is stamped with, fixed so no test here reads a clock.</summary>
@@ -135,68 +122,30 @@ public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture 
         Assert.Equal(ContactWriteOutcome.Written, reclaimed.Outcome);
     }
 
-    /// <summary>
-    /// Erasing a contact resets every column of the verdict that names it before the rows go, leaves a verdict naming
-    /// another contact as it was, and the address it held recorded who wrote it down.
-    /// </summary>
+    /// <summary>An address a person wrote down keeps who wrote it, which is what decides whether it can vouch for a sender.</summary>
     /// <remarks>
-    /// The verdict's reference to the contact is a plain column with no foreign key, so nothing in the schema refuses
-    /// the erasure and nothing would report a trusted mark left naming a contact that is gone. The reset is one
-    /// statement inside the erasure's transaction, which only a database run proves happened.
+    /// The writer is a column of the address row the book's own replacement writes, so only a re-read from the database
+    /// proves it was stored rather than defaulted.
     /// </remarks>
     [Fact]
-    public async Task EraseAsync_AContactAVerdictNames_ResetsThatVerdictToNotEvaluated()
+    public async Task RecordAsync_AnAddressAPersonWrote_KeepsWhoWroteItDown()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
 
+        // Act
         var recorded = await RecordAsync(
             services,
-            "Trust Subject",
-            ["anna@trust.contacts.test"],
+            "Writer Subject",
+            ["anna@writer.contacts.test"],
             ContactOrigin.Asserted,
             cancellationToken);
 
-        var kept = await RecordAsync(
-            services,
-            "Kept Subject",
-            ["berit@trust.contacts.test"],
-            ContactOrigin.Asserted,
-            cancellationToken);
-
-        var contactId = recorded.Contact!.Id;
-        var keptContactId = kept.Contact!.Id;
-        var binding = await OrchestratedFolderBinding.CommitAsync(services, TrustFolderAlias, cancellationToken);
-        var storedEmailId = await StoreTrustedByAsync(
-            services,
-            SyntheticEmail.OccurrenceIn(binding, TrustedUid),
-            contactId,
-            cancellationToken);
-
-        var keptEmailId = await StoreTrustedByAsync(
-            services,
-            SyntheticEmail.OccurrenceIn(binding, KeptTrustedUid),
-            keptContactId,
-            cancellationToken);
-
-        var writer = await ReadWriterKindAsync(services, contactId, cancellationToken);
-        var before = await ReadVerdictAsync(services, storedEmailId, cancellationToken);
-
-        // Act
-        await AsOperatorAsync(
-            services,
-            (book, token) => book.EraseAsync(BooksOf(services), contactId, token),
-            cancellationToken);
-
-        var after = await ReadVerdictAsync(services, storedEmailId, cancellationToken);
-        var keptAfter = await ReadVerdictAsync(services, keptEmailId, cancellationToken);
+        var writer = await ReadWriterKindAsync(services, recorded.Contact!.Id, cancellationToken);
 
         // Assert
         Assert.Equal(ContactAddressWriterKind.Person, writer);
-        Assert.Equal(TrustedBy(contactId), before);
-        Assert.Equal(StoredTrustVerdict.NotEvaluated, after);
-        Assert.Equal(TrustedBy(keptContactId), keptAfter);
     }
 
     /// <summary>Promotion writes a second record into a second book, so only a re-read from the database proves what stands afterwards.</summary>
@@ -661,60 +610,6 @@ public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture 
                 .CountAsync(token),
             cancellationToken);
 
-    /// <summary>
-    /// Stores one message and records on it the verdict a contact granted, with every column the reset clears set to a
-    /// value other than its not-evaluated one, so a reset that skipped a column leaves it visible.
-    /// </summary>
-    private static async Task<StoredEmailId> StoreTrustedByAsync(
-        OrchestratedMailFathomServices services,
-        EmailOccurrenceId occurrenceId,
-        ContactId contactId,
-        CancellationToken cancellationToken)
-    {
-        StoredEmailId? storedEmailId = null;
-
-        var commitResult = await services.CommitAsync(
-            async (scope, session, token) =>
-            {
-                storedEmailId = await scope.GetRequiredService<IEmailMetadataRepository>().UpsertMetadataAsync(
-                    session,
-                    SyntheticEmail.RemoteMetadataOf(occurrenceId, "From a contact", sizeOctets: 2048),
-                    extractedMetadata: null,
-                    StoredEmailContentAvailability.Available,
-                    token);
-            },
-            cancellationToken);
-
-        Assert.Equal(PersistenceCommitResult.Committed, commitResult);
-
-        var storedId = storedEmailId!.Value.Value;
-
-        await services.InScopeAsync(
-            (scope, token) => scope.GetRequiredService<MailFathomDbContext>()
-                .StoredEmails
-                .Where(email => email.Id == storedId)
-                .ExecuteUpdateAsync(
-                    setters => setters
-                        .SetProperty(email => email.SenderTrustLevel, SenderTrustLevel.Trusted)
-                        .SetProperty(email => email.SenderTrustGrantedBy, SenderTrustSource.PersonalContact)
-                        .SetProperty(email => email.SenderTrustAuthorEvidence, TrustedAuthorEvidence.Authentication)
-                        .SetProperty(email => email.SenderTrustPolicyRevision, TrustPolicyRevision)
-                        .SetProperty(email => email.SenderTrustOrganizationId, TrustOrganizationId)
-                        .SetProperty(email => email.SenderTrustContactId, contactId.Value),
-                    token),
-            cancellationToken);
-
-        return storedEmailId!.Value;
-    }
-
-    private static StoredTrustVerdict TrustedBy(ContactId contactId) => new(
-        SenderTrustLevel.Trusted,
-        SenderTrustSource.PersonalContact,
-        TrustedAuthorEvidence.Authentication,
-        TrustPolicyRevision,
-        TrustOrganizationId,
-        contactId.Value);
-
     private static Task<ContactAddressWriterKind> ReadWriterKindAsync(
         OrchestratedMailFathomServices services,
         ContactId contactId,
@@ -726,41 +621,6 @@ public sealed class OrchestratedContactBookTests(MailFathomOrchestrationFixture 
                 .Select(address => address.WriterKind)
                 .SingleAsync(token),
             cancellationToken);
-
-    private static Task<StoredTrustVerdict> ReadVerdictAsync(
-        OrchestratedMailFathomServices services,
-        StoredEmailId storedEmailId,
-        CancellationToken cancellationToken) => services.InScopeAsync(
-            (scope, token) => scope.GetRequiredService<MailFathomDbContext>()
-                .StoredEmails
-                .AsNoTracking()
-                .Where(email => email.Id == storedEmailId.Value)
-                .Select(email => new StoredTrustVerdict(
-                    email.SenderTrustLevel,
-                    email.SenderTrustGrantedBy,
-                    email.SenderTrustAuthorEvidence,
-                    email.SenderTrustPolicyRevision,
-                    email.SenderTrustOrganizationId,
-                    email.SenderTrustContactId))
-                .SingleAsync(token),
-            cancellationToken);
-
-    private sealed record StoredTrustVerdict(
-        SenderTrustLevel Level,
-        SenderTrustSource GrantedBy,
-        TrustedAuthorEvidence AuthorEvidence,
-        string? PolicyRevision,
-        Guid? OrganizationId,
-        Guid? ContactId)
-    {
-        public static StoredTrustVerdict NotEvaluated { get; } = new(
-            SenderTrustLevel.Unknown,
-            SenderTrustSource.None,
-            TrustedAuthorEvidence.None,
-            PolicyRevision: null,
-            OrganizationId: null,
-            ContactId: null);
-    }
 
     /// <summary>Reaches the book as the operator, which is the only principal every act asserted here is admitted to.</summary>
     /// <remarks>

@@ -515,8 +515,10 @@ keyword actions: a rule that put `$Todo` on a message is selected by a later rul
 
 **Three of the facts are verdicts this deployment stored when the email was extracted**, and reading one re-evaluates
 nothing: no DNS is resolved, no header is re-read, and no text is re-assessed. So a condition names what was concluded
-at the time rather than what the same policy would conclude now, and mail stored before a verdict existed reads as the
-value that says nothing was established — `notEstablished`, `unknown`, and `notAssessed` — until
+at the time rather than what the same policy would conclude now. The one part read as it stands is whether a contact
+holds the sender's address: `senderTrust` asks the account's contact books when the rule is evaluated, exactly as
+every other read of the message does ([sender authentication](sender-authentication.md#the-books-are-read-when-the-mail-is-read)).
+Mail stored before a verdict existed reads as the value that says nothing was established — `notEstablished`, `unknown`, and `notAssessed` — until
 [`mfctl mailbox rederive`](imap-synchronization.md#bringing-stored-mail-up-to-a-later-release) fills it in.
 [Sender authentication](sender-authentication.md) and [machine authorship](machine-authorship.md) state what each value
 means and what it is worth.

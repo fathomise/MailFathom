@@ -850,7 +850,6 @@ public sealed class MimeKitEmailMimeReaderTests
             metadata.SenderAuthentication,
             metadata.Signature,
             displayedSender: null,
-            RecognizingContacts.None,
             metadata.OrganizationVerification);
     }
 

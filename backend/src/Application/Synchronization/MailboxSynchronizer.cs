@@ -1227,7 +1227,7 @@ public sealed class MailboxSynchronizer
             async (persistenceSession, attemptCancellationToken) =>
             {
                 var judged = extraction.Metadata is { } extracted
-                    ? (await this.senderTrust.JudgeAsync(persistenceSession, [extracted], attemptCancellationToken))[0]
+                    ? this.senderTrust.Judge([extracted])[0]
                     : null;
 
                 storedEmailId = await this.metadataRepository.UpsertMetadataAsync(

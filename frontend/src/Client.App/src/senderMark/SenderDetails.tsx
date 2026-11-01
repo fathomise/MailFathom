@@ -29,7 +29,7 @@ import { senderVerificationOf, type Said, type VerificationStep } from './verifi
 // What was established about who sent one message, step by step: the mark and why it is the mark, then every check
 // that reached it, each with its result and the reason a step was not reached. The one act here is the one the service
 // offers on the message: writing its author down in the reader's own contacts, said before it is done, and leaving the
-// mark as it stands until the mail is judged again.
+// mark as it stands until the message is read again — a sender is recognized by the contacts as they stand at each read.
 //
 // They stand in the surface every mark on a message opens its details in, `markDetails/MarkDetailsDialog.tsx`.
 //
@@ -364,7 +364,7 @@ async function additionOf(written: ReturnType<typeof addAuthorToContacts>): Prom
 }
 
 // The author written down in the reader's own book, offered where the service said it may be and said in full before
-// it is done. The mark is left as it stands: what the addition changes is the next judgment of the mail, not this one.
+// it is done. The mark is left as it stands: what the addition changes is the next read of the mail, not this one.
 function AddToContacts({
     session,
     transport,

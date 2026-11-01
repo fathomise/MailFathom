@@ -511,37 +511,50 @@ recognizes `anna@example.test`.
 **Only an address a person or an administrator wrote counts.** Every address in the book records who wrote it, and one
 an agent wrote over MCP, or one held from before writers were recorded, makes nobody trusted;
 [contacts § Contacts are the trusted-sender list](contacts.md#contacts-are-the-trusted-sender-list) states which writer
-each surface records, what an amendment keeps, and why. The verdict names the contact that granted it, as a reference,
-and that reference is what an operator follows from a trusted message to the contact, the address, and who wrote it.
+each surface records, what an amendment keeps, and why. The verdict names the contact found when the message is read,
+as a reference, and that reference is what an operator follows from a trusted message to the contact, the address, and
+who wrote it.
 
-**Removing the contact takes the trust away.** Erasing it, erasing the user whose book holds it, and deleting the
-organization whose book holds it each reset every verdict naming it to the not-evaluated verdict in the same
-transaction, so no trusted mark outlives the person who granted it. A verdict is otherwise never cleared on its own.
+### The books are read when the mail is read
 
-**The books are read where the verdict is written.** The authentication, the DNS, and the signature verification all
-finish when the message is extracted; the contacts are looked up inside the transaction that stores the verdict, after
-taking one lock per sender address that every contact write takes as well, so a contact written or removed at the same
-moment is seen wholly or not at all. Every path that stores a verdict goes through that step: synchronization, the
-extraction backfill, `mfctl mailbox rederive`, and a local copy of a message. A message MailFathom itself files into
-Drafts or Sent is stored without a trust verdict, because nobody but the owner wrote it.
+What a message stores is the half configuration and the organization
+signature answered — an organization member, the owner's own address, the owner's own domain — together with whether
+the account was strict and everything a contact is held against: the route that established the author, the
+authenticated domain, the signature checks, and the policy `Known` reads. No book is read when the message is stored.
+Every read of a message — the client's list, conversation, and message reads, the MCP tools, the agent, spam
+classification, the automatic reply, and rule evaluation — then asks the books its account reaches as they stand and
+combines the two halves in the order above, with three bounded queries over a whole page of messages — the
+accounts' organizations, the users they are assigned to, and the senders' addresses in those books — rather than any
+per message. Every path that stores a verdict still goes through one step: synchronization, the extraction backfill,
+`mfctl mailbox rederive`, and a local copy of a message. A message MailFathom itself files into Drafts or Sent is
+stored without a trust verdict, because nobody but the owner wrote it.
+
+**So a contact change moves every mark it affects at once.** Writing an address down marks the mail it sent on the next
+read, wherever it is stored and however long ago; removing the address, erasing the contact, erasing the user whose
+book holds it, deleting the organization whose book holds it, and unassigning the account each take the trust away on
+the next read the same way. Nothing is written to stored mail by any of those acts, and nothing a contact granted is
+ever kept, so no trusted mark outlives the person who granted it. The client reads its open list and conversation
+again when it is told the contacts changed. What already acted on a message's arrival — a rule, the spam verdict, the
+automatic reply — keeps what it did.
 
 ### The verdict outlives the configuration
 
-The answer is stored on the message rather than decided when the message is read, so a reader and a rule can ask
-whether an author is trusted without re-evaluating anything that may since have changed. What makes that legible is
+What configuration and the organization signature answered is stored on the message rather than decided when the
+message is read, so a reader and a rule can ask whether an author is trusted without re-evaluating anything that may
+since have changed — only the contact books are asked as they stand. What makes that legible is
 the **policy revision** recorded beside it: a digest of what configuration states — the owner's addresses, the owner's
 domains where the account opted in, whether the account is strict, and the receiving account's organization — so two verdicts carrying different
 revisions were reached under different configuration, and one carrying none was never put to a policy at all.
 Reordering is not a change and produces the same revision; an address or a domain added, or the account joining or
-leaving an organization, produces a different one. The contacts are not in the digest: a contact's verdict names the
-contact instead.
+leaving an organization, produces a different one. The contacts are not in the digest: they are not part of what is
+stored, and a contact's verdict names the contact found when it is read instead.
 
 Beside the verdict the message stores the comparison form of its first `From` mailbox, so the mail one address sent
 can be found without re-reading any header. Mail stored before the release that added it carries none until it is
 re-derived.
 
-Adding a contact or changing the configuration therefore does not silently rewrite what a reader was already shown.
-What re-judges mail already stored is [`mfctl mailbox
+Changing the configuration therefore does not silently rewrite what a reader was already shown. What re-judges mail
+already stored under new configuration is [`mfctl mailbox
 rederive`](imap-synchronization.md#bringing-stored-mail-up-to-a-later-release), the same deliberate act that re-reads
 mail after an account gains a trusted authority.
 
@@ -646,8 +659,9 @@ why a claim was qualified.
 ## Re-deriving what is already stored
 
 The authentication verdict is derived from the raw MIME the deployment stored, so it is re-derivable from it — the
-signatures a local verification checks are in those same bytes — and the trust verdict is re-derived in the same pass
-against the configuration and the contacts as they stand then. Configuring a trusted identifier for an account that previously had none, and
+signatures a local verification checks are in those same bytes — and the stored half of the trust verdict is
+re-derived in the same pass against the configuration as it stands then; the contacts need no re-derivation, because
+they are asked on every read. Configuring a trusted identifier for an account that previously had none, and
 upgrading into the release that verifies DKIM for itself, both change what a later extraction records and leave mail
 already stored on the verdict it was given; [`mfctl mailbox rederive`](imap-synchronization.md#bringing-stored-mail-up-to-a-later-release) is
 what re-reads that mail, writing the whole group of columns back through the extraction that first wrote them. The migration that adds each group of columns fills every stored message in with what was true of it
@@ -655,7 +669,7 @@ what re-reads that mail, writing the whole group of columns back through the ext
 
 ## What is not recorded anywhere else
 
-Every domain either verdict names is personal data, and so is the address a verdict is stored beside and the contact it
-names, which say who somebody corresponds with. No log line, metric, or exception message carries one. What those may report is the
+Every domain either verdict names is personal data, and so is the address a verdict is stored beside and the contact a
+read finds for it, which say who somebody corresponds with. No log line, metric, or exception message carries one. What those may report is the
 occurrence identity and the outcome. The startup refusal for an unusable configured identifier names the account and
 not the value, for the same reason the failure rules refuse a host name in any message a boundary publishes.

@@ -114,13 +114,6 @@ every member's mailbox recognizes.
 own, so a promotion into it names the mail account that collected the person, under the same scope rule a collected book
 is read under everywhere else.
 
-**Every write and the deletion of the organization serialize on the addresses they touch.** Each single-contact write —
-into any of the three books — and each deletion of an organization takes a transaction-scoped advisory lock keyed by
-each address it adds, keeps, or removes, in one sorted order so two of them never wait on each other. Two writes that
-reach one address therefore run one after the other rather than interleaving, whichever books they write, and so does
-the deletion of an organization against a write into its book. Erasing everything one account collected takes no such
-lock, because it is a sweep over a mailbox's whole book rather than a write about one person.
-
 **MailFathom's own work finds the organization's contact by address.** It is one indexed seek on the book and the
 address's comparison form, so it ignores case like every other match in the book, and it answers with the contact's
 identity alone rather than anything the contact says. Nothing but MailFathom's own identity may ask it.
@@ -468,12 +461,12 @@ keeps it — the sender details' *Add to contacts* does exactly that for the add
 recording the contact afresh. Amending a contact while keeping the address without restating it leaves its writer as
 it was, and no other surface restates: the MCP tools and the administrative routes never do.
 
-**A trusted verdict names the contact that granted it, and removing that contact takes the trust away.** Erasing a
-contact, erasing the user whose book holds it, and deleting the organization whose book holds it each reset every
-verdict naming one of its contacts to the not-evaluated verdict, in the same transaction and before the rows go — so an
-erasure is never blocked by a verdict and no trusted mark is left naming somebody nobody holds. Each of those acts, every
-contact write, and every verdict take one lock per address first, so a verdict reads the books wholly before a write or
-wholly after it.
+**A trusted verdict names the contact found when the message is read, and removing that contact takes the trust
+away.** The books are asked on every read of a message rather than when it is stored, so a contact written, amended, or
+erased — and the user or the organization whose book holds it erased — reaches every mark it affects on the next read.
+No contact write touches stored mail, so an erasure is never blocked by a verdict and no trusted mark is left naming
+somebody nobody holds; [sender authentication § The books are read when the mail is
+read](sender-authentication.md#the-books-are-read-when-the-mail-is-read) states what is stored and what is read.
 
 ## Collecting contacts from arriving mail
 
