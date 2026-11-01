@@ -3323,6 +3323,7 @@ A revision states the whole draft again, so one that leaves either out switches 
 stating `dueAt` — an instant with its offset — and `dueTimeZone`, the IANA zone that time was named in, such as
 `Europe/Warsaw`. The two come together or not at all: one without the other, a zone this deployment does not know, or
 a zone longer than 64 characters is refused with `400` before the draft is read, and the body is bounded at 1 KiB. The
+body is bound strictly: a key nothing binds is refused with `400`, so a misspelt time is never read as sending at once. The
 instant alone decides when the message leaves; the zone is kept so the Outbox says the time back as it was named. A
 message sent later is queued exactly as one sent at once and held until then, so it stands in the account's Outbox
 as a *Scheduled* entry that can be cancelled until it leaves. A time at or before the moment the send is asked for is
