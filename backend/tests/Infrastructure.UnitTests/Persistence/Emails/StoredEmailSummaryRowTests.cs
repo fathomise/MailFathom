@@ -121,11 +121,10 @@ public sealed class StoredEmailSummaryRowTests
     public void ToSummary_ARowWhetherOrNotFiledFromASend_SaysWhetherItIsTheFiledSentCopy(bool filedFromASend)
     {
         // Act
-        var summary = RowWith(
-                MachineAuthorshipBand.NotAssessed,
-                likelihood: 0,
-                filedFromOutgoingEmailId: filedFromASend ? Guid.CreateVersion7() : null)
-            .ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
+        var summary = Summarize(RowWith(
+            MachineAuthorshipBand.NotAssessed,
+            likelihood: 0,
+            filedFromOutgoingEmailId: filedFromASend ? Guid.CreateVersion7() : null));
 
         // Assert
         Assert.Equal(filedFromASend, summary.IsFiledSentCopy);
