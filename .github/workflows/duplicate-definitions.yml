@@ -4,23 +4,38 @@
 
 name: Duplicate definitions
 
-# Names a pull request in the merge queue that adds a definition doing the same job as one that
-# landed on `main` while it was being written — a helper, a test double, a type, or a script two pull
-# requests written in parallel each added. `Coherence` relates prose to what it describes and code
+# Takes a pull request out of the merge queue when it adds a definition doing the same job as one
+# that landed on `main` while it was being written — a helper, a test double, a type, or a script
+# two pull requests written in parallel each added. `Coherence` relates prose to what it describes and code
 # to code only where one names the other's file, and leaves the rest to the build and the tests,
 # which prove the combined tree behaves but never that it does one thing once.
 #
-# It asks a model, so it runs where the answer is final and nowhere else: on the merge group, where
+# It asks a model, so it asks where the answer is final and nowhere else: on the merge group, where
 # what landed is `main` plus the entries ahead in the queue. A pull request's own run could not see
 # the sibling still open beside it. `.github/duplicate-definitions/list-new-definitions.sh` lists
 # what each side newly defines, and only when both sides define something is the model asked — most
 # queue entries never reach it.
 #
-# It reports and never blocks. It is not a required check, every failure of the model step is an
-# answer of *no verdict*, and a duplicate or an overlap is a warning annotation and a row in the job
-# summary. Whether it earns a required check is decided from what it reports here, not assumed.
+# A duplicate or an overlap fails it, and it is a required check, so the queue removes the pull
+# request and its author reads the pairs in the job summary: consolidates them, or says on the pull
+# request why a pair stays and adds the `duplicate-definitions-read` label, which turns that pull
+# request's pairs into warnings. Every failure of the model step is still an answer of *no verdict*
+# and leaves it green, so a spent quota or a slow model never removes anything; only the whole job
+# running past its five minutes fails it without a pair.
+#
+# A required check has to report on the pull request's own head before the queue takes it, so it
+# runs on `pull_request` too, where its one job is skipped: a sibling still open beside the pull
+# request is invisible from there, and a skipped job is an answer the ruleset accepts.
 
 on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    branches:
+      - main
   merge_group:
     types:
       - checks_requested
@@ -35,12 +50,14 @@ permissions:
 jobs:
   duplicate-definitions:
     name: Duplicate definitions
+    if: github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     # Five minutes for the whole job, the bound a merge-queue check is held to here; an ordinary run
     # takes two — the checkout seconds, the action's setup about a minute, and the model seconds.
     timeout-minutes: 5
     permissions:
       contents: read
+      pull-requests: read
     steps:
       # Into a subdirectory, so the model session started from the workspace root finds no
       # `CLAUDE.md` or `.claude/` of the combined tree on its way up. The history is whole for the
@@ -54,7 +71,7 @@ jobs:
           persist-credentials: false
 
       # A failure here is reported on the step and never fails the job, the same way the model
-      # step's is: this check gates nothing until it is decided that it should.
+      # step's is: only a pair the model found and the report kept removes a pull request.
       - name: List what each side defines
         id: candidates
         continue-on-error: true
@@ -79,6 +96,7 @@ jobs:
             echo "::error::The merge group ref ${MERGE_GROUP_HEAD_REF} names no pull request."
             exit 1
           fi
+          echo "pull_request=${pull_request_number}" >> "$GITHUB_OUTPUT"
           git fetch --quiet --no-tags --filter=blob:none origin "refs/pull/${pull_request_number}/head"
           pull_request_head="$(git rev-parse FETCH_HEAD)"
           merge_base="$(git merge-base "$merge_onto" "$pull_request_head")"
@@ -150,7 +168,8 @@ jobs:
       # `base-action` rather than the action itself: the action refuses every event it cannot parse
       # into a pull request or an automation, and `merge_group` is one of them. The model runs with
       # no tool it could reach the runner, the network, or a file with, so the only thing a crafted
-      # diff can do here is talk it into a wrong verdict, which is a warning nobody has to act on.
+      # diff can do here is talk it into a wrong verdict: a removal its author answers with the
+      # label, or a missed pair, which is where this check stood before it could remove anything.
       #
       # The prefilter and the schema above are read from the combined tree, which is the trust a
       # `merge_group` run already gives that tree's copy of this file: GitHub runs the workflow as
@@ -200,16 +219,26 @@ jobs:
         run: |
           echo 'No verdict: the two sides could not be resolved, so no model was asked; the failed step says why.' >> "$GITHUB_STEP_SUMMARY"
 
+      # The label is read when the verdict is, so one added after a removal counts on the next queue
+      # entry. A label that cannot be read is no label: the pull request is removed, and the next
+      # entry asks again.
       - name: Report the verdict
         if: always() && steps.candidates.outputs.judge == 'true'
         shell: bash
         working-directory: tree
         env:
+          GH_TOKEN: ${{ github.token }}
+          PULL_REQUEST: ${{ steps.candidates.outputs.pull_request }}
           VERDICT: ${{ steps.judge.outputs.structured_output }}
           CANDIDATES_DIRECTORY: ${{ runner.temp }}/duplicate-definitions
         run: |
           set -euo pipefail
           printf '%s' "$VERDICT" > "$CANDIDATES_DIRECTORY/verdict.json"
+          labels="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST}" --jq '.labels[].name' 2> /dev/null || true)"
+          severity='error'
+          if grep -qxF 'duplicate-definitions-read' <<< "$labels"; then
+            severity='warning'
+          fi
           bash .github/duplicate-definitions/report-verdict.sh \
             "$CANDIDATES_DIRECTORY/landed.tsv" "$CANDIDATES_DIRECTORY/changed.tsv" \
-            "$CANDIDATES_DIRECTORY/verdict.json" "$GITHUB_STEP_SUMMARY"
+            "$CANDIDATES_DIRECTORY/verdict.json" "$GITHUB_STEP_SUMMARY" "$severity"

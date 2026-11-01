@@ -479,9 +479,9 @@ jobs:
           # each moved two findings, both of which were fixes to earlier findings rather than
           # anything the first pass had missed. The other three are for the pushes that answer
           # nothing. The merge queue does not ask a branch to be current, but a conflict with `main`
-          # or a related change `Coherence` names still needs a rebase, and that rebase is a push
-          # like any other and spends a pass. Counted against six alone, those rebases
-          # end the automatic loop on a pull request whose findings are still being answered, and
+          # or a related change `Coherence` or `Duplicate definitions` names still needs a rebase,
+          # and that rebase is a push like any other and spends a pass. Counted against six alone,
+          # those rebases end the automatic loop on a pull request whose findings are still being answered, and
           # the push that needs a verdict is the one refused. Past nine the work is answering the
           # review rather than asking for another, and a member who disagrees says so with a
           # comment.
