@@ -22,11 +22,11 @@ public sealed class ClientPreferencesDocumentTests
     {
         // Act
         var document = ClientPreferencesDocument.Render(
-            new ClientPreferences(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12, []));
+            new ClientPreferences(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12, [], ClientMailListMode.Threads));
 
         // Assert
         Assert.Equal(
-            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"cleaned","aiFiltersShown":false,"notificationSeconds":12,"trustedLinkDomains":[]}""",
+            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"cleaned","aiFiltersShown":false,"notificationSeconds":12,"trustedLinkDomains":[],"listMode":"threads"}""",
             document);
     }
 
@@ -39,7 +39,7 @@ public sealed class ClientPreferencesDocumentTests
 
         // Assert
         Assert.Equal(
-            """{"telemetryEnabled":true,"theme":"system","openMailInTabs":false,"markReadOnOpen":true,"expandWholeThread":false,"messageView":"reduced","aiFiltersShown":true,"notificationSeconds":5,"trustedLinkDomains":[]}""",
+            """{"telemetryEnabled":true,"theme":"system","openMailInTabs":false,"markReadOnOpen":true,"expandWholeThread":false,"messageView":"reduced","aiFiltersShown":true,"notificationSeconds":5,"trustedLinkDomains":[],"listMode":"messages"}""",
             document);
     }
 
@@ -47,7 +47,7 @@ public sealed class ClientPreferencesDocumentTests
     public void Parse_ADocumentThisBuildWrote_ReadsBackWhatWasWritten()
     {
         // Arrange
-        var chosen = new ClientPreferences(false, ClientThemeChoice.Light, true, false, true, ClientMessageView.EmbeddedHtml, false, 30, []);
+        var chosen = new ClientPreferences(false, ClientThemeChoice.Light, true, false, true, ClientMessageView.EmbeddedHtml, false, 30, [], ClientMailListMode.Threads);
 
         // Act
         var read = ClientPreferencesDocument.Parse(ClientPreferencesDocument.Render(chosen));
@@ -126,7 +126,7 @@ public sealed class ClientPreferencesDocumentTests
         var read = ClientPreferencesDocument.Parse("""{"theme":"dark"}""");
 
         // Assert
-        Assert.Equal(new ClientPreferences(true, ClientThemeChoice.Dark, false, true, false, ClientMessageView.Reduced, true, 5, []), read);
+        Assert.Equal(new ClientPreferences(true, ClientThemeChoice.Dark, false, true, false, ClientMessageView.Reduced, true, 5, [], ClientMailListMode.Messages), read);
     }
 
     /// <summary>A stored value outside the bound is a row an earlier build or a hand edit wrote, and is read as unset.</summary>

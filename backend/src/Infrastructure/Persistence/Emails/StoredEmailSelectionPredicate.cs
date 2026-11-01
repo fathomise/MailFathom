@@ -161,7 +161,7 @@ internal static class StoredEmailSelectionPredicate
         return NarrowedToWhatWasAskedAbout(emails, scope);
     }
 
-    /// <summary>Narrows an agent's read to the mail no verdict withholds from it.</summary>
+    /// <summary>Narrows a read to the mail no verdict withholds from an agent, which is also the mail that keeps a conversation listed.</summary>
     /// <remarks>
     /// <para>
     /// A message whose current verdict is spam is out, whichever stage reached it and whichever folder holds it, and the
@@ -174,7 +174,7 @@ internal static class StoredEmailSelectionPredicate
     /// change together.
     /// </para>
     /// </remarks>
-    private static IQueryable<StoredEmailEntity> WithoutMailJudgedSpam(
+    internal static IQueryable<StoredEmailEntity> WithoutMailJudgedSpam(
         IQueryable<StoredEmailEntity> emails,
         IReadOnlyList<MailFolderIdentity> junkFolders)
     {

@@ -37,8 +37,29 @@ internal static class StoredTrashedFolders
         return Within(rows);
     }
 
+    /// <summary>Reads the identifiers of every folder in the Trash of any of several accounts.</summary>
+    /// <param name="folders">The folder rows to read from.</param>
+    /// <param name="mailboxAccountIds">The configured accounts whose folders are read.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The identifiers, empty where none of the accounts has a Trash.</returns>
+    /// <remarks>One read rather than one per account: a folder identifier is unique across the deployment, so the chains of several accounts never meet.</remarks>
+    [RequiresIntegrationCoverage]
+    internal static async Task<Guid[]> ReadAsync(
+        IQueryable<MailFolderEntity> folders,
+        string[] mailboxAccountIds,
+        CancellationToken cancellationToken)
+    {
+        var rows = await folders
+            .AsNoTracking()
+            .Where(folder => mailboxAccountIds.Contains(folder.MailboxAccountId))
+            .Select(static folder => new StoredFolderRole(folder.Id, folder.ParentId, folder.Role))
+            .ToArrayAsync(cancellationToken);
+
+        return Within(rows);
+    }
+
     /// <summary>Picks the folders whose parent chain reaches a Trash folder, the Trash folder included.</summary>
-    /// <param name="folders">The folders of one account.</param>
+    /// <param name="folders">The folders of one account or of several.</param>
     /// <returns>The identifiers of the folders in Trash.</returns>
     /// <remarks>A parent the rows do not carry ends the chain outside Trash, and a chain that loops ends at the first folder it revisits.</remarks>
     internal static Guid[] Within(IReadOnlyCollection<StoredFolderRole> folders)

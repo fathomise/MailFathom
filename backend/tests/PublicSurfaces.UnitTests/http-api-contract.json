@@ -4087,6 +4087,228 @@
         ],
         "type": "object"
       },
+      "ClientMailThreadListEntryResponse": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "hasAttachments": {
+            "type": "boolean"
+          },
+          "messageCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "moreParticipantsNotNamed": {
+            "type": "boolean"
+          },
+          "newest": {
+            "$ref": "#/components/schemas/ClientMailThreadListNewestResponse"
+          },
+          "newestReceivedSender": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailListedSenderResponse"
+              }
+            ]
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailThreadListParticipantResponse"
+            },
+            "type": "array"
+          },
+          "threadId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailThreadListTitleResponse"
+              }
+            ]
+          },
+          "unreadCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "threadId",
+          "account",
+          "messageCount",
+          "unreadCount",
+          "hasAttachments",
+          "participants",
+          "moreParticipantsNotNamed",
+          "newest",
+          "newestReceivedSender",
+          "title"
+        ],
+        "type": "object"
+      },
+      "ClientMailThreadListNewestResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "own": {
+            "type": "boolean"
+          },
+          "preview": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "receivedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "senderAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "senderDisplayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "senderPhoto": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonPhotoResponse"
+              }
+            ]
+          },
+          "subject": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "subject",
+          "receivedAt",
+          "senderAddress",
+          "senderDisplayName",
+          "preview",
+          "own",
+          "senderPhoto"
+        ],
+        "type": "object"
+      },
+      "ClientMailThreadListParticipantResponse": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reader": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "address",
+          "displayName",
+          "reader"
+        ],
+        "type": "object"
+      },
+      "ClientMailThreadListResponse": {
+        "properties": {
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pageSize": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "threads": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailThreadListEntryResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "threads",
+          "nextCursor",
+          "pageSize"
+        ],
+        "type": "object"
+      },
+      "ClientMailThreadListTitleResponse": {
+        "properties": {
+          "derivedFromLatestArrival": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "derivedFromMessageCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "standing": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "standing",
+          "derivedFromMessageCount",
+          "derivedFromLatestArrival"
+        ],
+        "type": "object"
+      },
       "ClientMailThreadParticipantResponse": {
         "properties": {
           "address": {
@@ -5082,6 +5304,12 @@
               "boolean"
             ]
           },
+          "listMode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "markReadOnOpen": {
             "type": [
               "null",
@@ -5141,6 +5369,9 @@
           "expandWholeThread": {
             "type": "boolean"
           },
+          "listMode": {
+            "type": "string"
+          },
           "markReadOnOpen": {
             "type": "boolean"
           },
@@ -5186,7 +5417,8 @@
           "messageView",
           "aiFiltersShown",
           "notificationSeconds",
-          "trustedLinkDomains"
+          "trustedLinkDomains",
+          "listMode"
         ],
         "type": "object"
       },
@@ -23493,6 +23725,58 @@
           },
           "404": {
             "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/threads": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientMailThreadListResponse"
+                }
+              }
+            },
+            "description": "OK"
           }
         },
         "security": [

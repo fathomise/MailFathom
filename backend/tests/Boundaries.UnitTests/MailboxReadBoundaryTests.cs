@@ -6,6 +6,7 @@ using ArchUnitNET.Domain;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Emails.BrowseThreadList;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
@@ -49,6 +50,7 @@ public sealed class MailboxReadBoundaryTests
     [InlineData(typeof(IEmailSearchIndexReader))]
     [InlineData(typeof(IEmailVectorSearchIndexReader))]
     [InlineData(typeof(IEmailThreadReader))]
+    [InlineData(typeof(IEmailThreadListReader))]
     public void MailboxReadModel_WhicheverPortAnswersTheRead_NarrowsThroughTheSharedPredicate(Type mailboxReadPort)
     {
         // Arrange

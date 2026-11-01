@@ -1,6 +1,6 @@
 # The client endpoint
 
-<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientPersonPhotoEndpoint.cs, backend/src/Host/Api/PersonPhotoResponse.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
+<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadListEndpoint.cs, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientPersonPhotoEndpoint.cs, backend/src/Host/Api/PersonPhotoResponse.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
 
 Where the MailFathom client reaches the service, what a deployment has to enable before it answers, and what a person's
 mail client presents to get in.
@@ -74,6 +74,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/emails/search` | `mailfathom.mail.read` |
 | `GET /api/client/emails/search/phrasing` | `mailfathom.assistant.use` |
 | `POST /api/client/emails/search/phrasing` | `mailfathom.assistant.use` |
+| `GET /api/client/threads` | `mailfathom.mail.read` |
 | `GET /api/client/threads/{threadId}` | `mailfathom.mail.read` |
 | `GET /api/client/threads/{threadId}/state` | `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}` | `mailfathom.mail.read` |
@@ -1035,6 +1036,94 @@ reading a folder cannot set the remote `\Seen` flag. How current that copy is, p
 
 **A user with no mail account reads an empty `emails` list**, and a credential whose grant does not carry
 `mailfathom.mail.read` is answered `403`.
+
+### The conversation list route
+
+```http
+GET /api/client/threads?account=work&pageSize=25
+```
+
+It answers with one page of the user's conversations, newest first by the arrival of each one's newest message, and
+with the cursor that continues the list. It is the list a client draws when the person reads by conversation rather
+than by message, which [`listMode`](#the-preferences-routes) records:
+
+```jsonc
+{
+  "threads": [
+    {
+      "threadId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
+      "account": "work",
+      "messageCount": 4,
+      "unreadCount": 1,
+      "hasAttachments": true,
+      "participants": [
+        { "address": "releases@example.test", "displayName": "Example Releases", "reader": false },
+        { "address": "somebody@example.test", "displayName": "Somebody", "reader": true }
+      ],
+      "moreParticipantsNotNamed": false,
+      "newest": {
+        "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
+        "subject": "Re: Release 0.8.0 is out",
+        "receivedAt": "2026-08-15T11:20:00+00:00",
+        "senderAddress": "somebody@example.test",
+        "senderDisplayName": "Somebody",
+        "preview": "Thanks, the notes read well.",
+        "own": true,
+        "senderPhoto": null
+      },
+      "newestReceivedSender": {
+        "authorAuthentication": "Authenticated",
+        "deploymentTrust": "Unknown",
+        "signatureOutcome": "NotSigned",
+        "signerMatchesAuthor": false
+      },
+      "title": {
+        "topic": "The 0.8.0 release",
+        "standing": "Waiting on the notes review.",
+        "derivedFromMessageCount": 4,
+        "derivedFromLatestArrival": "2026-08-15T11:20:00+00:00"
+      }
+    }
+  ],
+  "nextCursor": "AbCd...",
+  "pageSize": 25
+}
+```
+
+**The list has no folders.** A conversation gathers its messages from every folder the user may read, junk and Trash
+included, under one account. `account` narrows the list to the conversations of one account, by its identifier or its
+display name exactly as on [the mail list route](#the-mail-list-route); without it the list spans every account the
+user is assigned.
+
+**A conversation is listed while at least one of its messages is neither judged spam nor in Trash.** A message in a
+folder beneath Trash is in Trash; Archive is an ordinary folder and keeps a conversation listed. A conversation whose
+every message is spam, in Trash, or some of each is left out of the list — and once listed, it is counted whole:
+`messageCount` counts every message the user may read in it, the spam and the trashed ones included.
+
+**`unreadCount` counts the received messages nobody has read**: a message the user sent is never unread, whichever
+of their accounts sent it. Who the user is comes from the sending identities of the accounts they are assigned, and
+`participants[].reader` marks the user the same way. A row names at most eight authors, in the order they first wrote
+into the conversation, and `moreParticipantsNotNamed` says the conversation has more.
+
+**`newest` quotes the conversation's newest message** the way a list row quotes one: its author, its arrival, its
+subject, and `preview`, the opening of its own text under the same bound and the same rules as a
+[mail list row's](#the-mail-list-route). `own` says the user wrote it. `newestReceivedSender` holds the facts the sender
+mark of the newest message somebody *else* wrote is chosen from, read as the `sender` object of a mail list row reads,
+and is `null` where the user wrote every message in the conversation.
+
+**`title` is what [a derivation](../features/thread-state.md) called the conversation**, as
+[the conversation state route](#the-conversation-state-route) serves it, and `null` where none did. Its
+`derivedFromMessageCount` and `derivedFromLatestArrival` are the conversation it was derived from: a reply that arrives
+since leaves a title naming the conversation as it stood, and the next derivation moves them on.
+
+**Marking a conversation read is one request** to [the mutation routes](#the-mutation-routes): one flag change per
+unread message, in a single `POST /api/client/mutations/flags` batch. No route here writes anything.
+
+**`pageSize` defaults to 25 and is refused outside 1 to 100**, and a cursor this deployment never issued, a cursor
+issued for a different `account`, an account the deployment does not issue, and an account the user is not assigned
+are each refused with `400`. The page is served from the local copy, as the mail list is, and a user with no mail
+account reads an empty `threads` list. A credential whose grant does not carry `mailfathom.mail.read` is answered
+`403`.
 
 ### The mail search route
 
@@ -2849,11 +2938,12 @@ and somebody who set the client up the way they work should not have to set it u
   "aiFiltersShown": true,
   "notificationSeconds": 5,
   "trustedLinkDomains": [],
+  "listMode": "messages",
   "telemetryHeldBy": null
 }
 ```
 
-**It holds nine preferences and nothing else.** The tenth field of an answer, `telemetryHeldBy`, is not one: it says
+**It holds ten preferences and nothing else.** The eleventh field of an answer, `telemetryHeldBy`, is not one: it says
 who holds the first, [as described below](#a-settings-policy-may-hold-the-telemetry-switch), and a write does not
 state it. Whether this deployment may be told what the person's client is doing;
 what the client is painted in, which is `system`, `light`, or `dark`; whether opening a message opens a tab rather
@@ -2861,14 +2951,15 @@ than replacing what is on the screen; whether opening a message marks it read on
 opening a conversation draws every message in it rather than the one it was opened at; which of the three renderings an
 open message is drawn as, which is `reduced`, `cleaned`, or `embeddedHtml`; whether the client offers the standing views
 of the mailbox beneath its folder tree; how long one of the client's own notifications stands before it takes itself
-away; and which domains the person trusts the links to. Each of them says how
+away; which domains the person trusts the links to; and whether the mail list draws one message or one conversation
+per row, which is `messages` or `threads`. Each of them says how
 somebody wants to work, which is why it belongs to the person. The language does not, and stays on the device: it is
 resolved for somebody who has not signed in and may never get a session. Neither does the width a person drags the
 message list to, which describes the screen in front of them.
 
 **Unset reads as telemetry on, the theme following the machine, tabs off, marking read on, a conversation opening at
 the message it was opened at, a message read as the reduced document, the standing views drawn, a notification
-standing for five seconds, and no link domain trusted.** A person who has set nothing is answered a
+standing for five seconds, no link domain trusted, and the mail list drawn one message per row.** A person who has set nothing is answered a
 document rather than a refusal, so a first run draws a screen. The theme is still resolved on the device
 before sign-in — the client cannot wait on the network to paint itself, and there is no session to read this over above
 the sign-in screen — and what this answers replaces that device value once a session exists.
@@ -2932,6 +3023,13 @@ lasts — and for a permanent delete it is how long the deployment holds the rec
 server, plus the grace [the mutation routes](#the-mutation-routes) describe. A value outside that range is refused
 naming the range rather than clamped to it: a person who asked for a minute would otherwise be handed half of one
 without being told, and the one screen that writes this offers nothing outside it.
+
+**`listMode` decides whether the mail list is read by message or by conversation.** `messages`, which is what an unset
+document answers, draws [the mail list](#the-mail-list-route) one message per row; `threads` draws
+[the conversation list](#the-conversation-list-route) one conversation per row. It is the person's choice and never a
+deployment's: no settings policy governs it, and a value this deployment does not publish is refused naming the two
+that are. While a rolling upgrade runs a build without it beside one with it, a replica of the older build refuses a
+write naming it and stores a document without it, which reads as `messages` until the person chooses again.
 
 **`trustedLinkDomains` is the person's own list of domains whose links the client opens without asking first.** The
 client asks before following any `http` or `https` link — in a message, its original, an agent's answer, or anywhere
@@ -3010,7 +3108,7 @@ a sentence saying so in place of the switch — a control over a client that is 
 
 **`telemetryEnabled` is the one preference somebody else may decide.** The deployment's
 [settings policy](admin-endpoint.md#settings-policies), or the policy of the organization a person belongs to, may
-force it on or off for everybody it governs. Nothing else here is ever governed: the other eight take no default, no
+force it on or off for everybody it governs. Nothing else here is ever governed: the other nine take no default, no
 forced value, and no editing restriction, and the switch itself takes a forced value and nothing else.
 [ADR 0037](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0037-a-settings-policy-at-the-deployment-and-at-each-organization.md)
 holds why this one, and what forcing it on takes from the person it is about.
@@ -3019,7 +3117,7 @@ holds why this one, and what forcing it on takes from the person it is about.
 | --- | --- |
 | `GET /api/client/preferences` | Answers `telemetryEnabled` as the forced value, whatever the person stored, and `telemetryHeldBy` as `Deployment` or `Organization` |
 | `POST /api/client/preferences` stating the other value | Answers `400` and writes nothing, in a sentence naming `TelemetryEnabled`, what it is forced to, and whether the deployment or the organization holds it |
-| `POST /api/client/preferences` stating the forced value, or omitting the switch | Commits the other eight and answers the forced value with who holds it. The person's own answer is left exactly as it was |
+| `POST /api/client/preferences` stating the forced value, or omitting the switch | Commits the other nine and answers the forced value with who holds it. The person's own answer is left exactly as it was |
 
 **`telemetryHeldBy` is `null` wherever the answer is the person's own**, so a client reads one field to know whether
 the control is theirs: where it names a holder, their own answer is not what is being applied, and moving the switch
@@ -3039,7 +3137,7 @@ refusal, which is how the telemetry routes read that row.
 
 **A write for somebody whose record this replica does not serve leaves the switch alone too.** Whether a policy holds
 it cannot be known there, and the body may be stating a forced answer another replica read to that person's client, so
-the other eight are committed, the stored answer stays as it was, and the write answers what is stored.
+the other nine are committed, the stored answer stays as it was, and the write answers what is stored.
 
 **The deployment's force wins over an organization's**, as it does for every setting a policy forces: an organization
 holding the switch off for its members is overruled by a deployment holding it on, and `telemetryHeldBy` then names

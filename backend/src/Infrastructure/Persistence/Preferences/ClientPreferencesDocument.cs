@@ -18,6 +18,7 @@ namespace MailFathom.Infrastructure.Persistence.Preferences;
 /// <param name="AiFiltersShown">What they said about the tree carrying the standing views, or nothing where they never said.</param>
 /// <param name="NotificationSeconds">How long they asked a notification to stand for, or nothing where they never asked.</param>
 /// <param name="TrustedLinkDomains">The domains they trust the links to, as normalized names, or nothing where they never listed any.</param>
+/// <param name="ListMode">Whether they chose to list mail by message or by conversation, or nothing where they never chose.</param>
 /// <remarks>
 /// <para>
 /// Sparse, and every member is therefore optional: a key the document does not carry reads as that preference's own
@@ -45,7 +46,8 @@ internal sealed record ClientPreferencesDocument(
     ClientMessageView? MessageView,
     bool? AiFiltersShown,
     int? NotificationSeconds,
-    IReadOnlyList<string>? TrustedLinkDomains)
+    IReadOnlyList<string>? TrustedLinkDomains,
+    ClientMailListMode? ListMode)
 {
     /// <summary>How the column is written and read, which is fixed here rather than inherited from a host's own options.</summary>
     /// <remarks>
@@ -77,7 +79,8 @@ internal sealed record ClientPreferencesDocument(
             preferences.MessageView,
             preferences.AiFiltersShown,
             preferences.NotificationSeconds,
-            [.. preferences.TrustedLinkDomains.Select(static domain => domain.Name)]);
+            [.. preferences.TrustedLinkDomains.Select(static domain => domain.Name)],
+            preferences.ListMode);
 
         return JsonSerializer.Serialize(document, StoredFormat);
     }
@@ -108,7 +111,8 @@ internal sealed record ClientPreferencesDocument(
             document.NotificationSeconds is { } stated && ClientPreferences.IsUsableNotificationTime(stated)
                 ? stated
                 : ClientPreferences.Unset.NotificationSeconds,
-            StoredDomains(document.TrustedLinkDomains));
+            StoredDomains(document.TrustedLinkDomains),
+            document.ListMode ?? ClientPreferences.Unset.ListMode);
     }
 
     // Read again on the way out for the reason the notification time is: a row this build did not check may hold an

@@ -31,7 +31,7 @@ public sealed class ClientPreferencesEndpointTests
     private const string ForcingOff = """{"Users":{"Forced":{"ClientPreferences":{"TelemetryEnabled":false}}}}""";
 
     private static readonly ClientPreferences Chosen =
-        new(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12, []);
+        new(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12, [], ClientMailListMode.Threads);
 
     [Fact]
     public async Task ReadAsync_APersonWhoHasSetSomething_HandsThemWhatTheySet()
@@ -122,13 +122,14 @@ public sealed class ClientPreferencesEndpointTests
             SignedIn(store),
             Acting(),
             Serving(),
-            new ClientPreferencesRequest(false, "dark", true, false, true, "cleaned", false, 12),
+            new ClientPreferencesRequest(false, "dark", true, false, true, "cleaned", false, 12, ListMode: "threads"),
             TestContext.Current.CancellationToken);
 
         // Assert
         var preferences = Assert.IsType<Ok<ClientPreferencesResponse>>(result.Result).Value!;
 
         Assert.Equal("dark", preferences.Theme);
+        Assert.Equal("threads", preferences.ListMode);
         await store.Received(1).SaveAsync(SyntheticUser.Deployment, Chosen, Arg.Any<CancellationToken>());
     }
 
@@ -152,7 +153,7 @@ public sealed class ClientPreferencesEndpointTests
         // Assert
         await store.Received(1).SaveAsync(
             SyntheticUser.Deployment,
-            new ClientPreferences(true, ClientThemeChoice.Light, false, true, false, ClientMessageView.Reduced, true, 5, []),
+            new ClientPreferences(true, ClientThemeChoice.Light, false, true, false, ClientMessageView.Reduced, true, 5, [], ClientMailListMode.Messages),
             Arg.Any<CancellationToken>());
     }
 
@@ -222,7 +223,7 @@ public sealed class ClientPreferencesEndpointTests
     {
         // Act
         var request = JsonSerializer.Deserialize<ClientPreferencesRequest>(
-            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"cleaned","aiFiltersShown":false,"notificationSeconds":12}""",
+            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"cleaned","aiFiltersShown":false,"notificationSeconds":12,"listMode":"threads"}""",
             WebFormat);
 
         // Assert
@@ -429,6 +430,31 @@ public sealed class ClientPreferencesEndpointTests
             .SaveAsync(Arg.Any<UserId>(), Arg.Any<ClientPreferences>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>How a person reads is a name like the rendering, so the refusal names the two modes on offer rather than the renderings.</summary>
+    [Fact]
+    public async Task SaveAsync_ABodyNamingAListModeNothingPublishes_RefusesNamingTheOnesThatAre()
+    {
+        // Arrange
+        var store = Substitute.For<IClientPreferencesStore>();
+
+        // Act
+        var result = await ClientPreferencesEndpoint.SaveAsync(
+            SignedIn(store),
+            Acting(),
+            Serving(),
+            new ClientPreferencesRequest(ListMode: "conversations"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.Contains("messages, threads", refusal.ProblemDetails.Detail!, StringComparison.Ordinal);
+
+        await store.DidNotReceive()
+            .SaveAsync(Arg.Any<UserId>(), Arg.Any<ClientPreferences>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>
     /// What forcing the switch on takes from a person: they declined, and their client is asked to report anyway. The
     /// read says so before they try anything, naming who holds it.
@@ -519,7 +545,7 @@ public sealed class ClientPreferencesEndpointTests
         Assert.Equal("Deployment", preferences.TelemetryHeldBy);
     }
 
-    /// <summary>Only the switch is governed: the eight preferences beside it are answered as the person set them, whoever holds the switch.</summary>
+    /// <summary>Only the switch is governed: the nine preferences beside it are answered as the person set them, whoever holds the switch.</summary>
     [Fact]
     public async Task ReadAsync_APolicyForcingTelemetry_AnswersEveryOtherPreferenceAsThePersonSetIt()
     {
@@ -623,7 +649,7 @@ public sealed class ClientPreferencesEndpointTests
 
     /// <summary>
     /// A client sends back the whole document it read, so a write under a force states the forced value. It passes,
-    /// commits the other eight, answers the value in force, and leaves the person's own answer where it was.
+    /// commits the other nine, answers the value in force, and leaves the person's own answer where it was.
     /// </summary>
     [Fact]
     public async Task SaveAsync_AWriteStatingTheForcedAnswer_CommitsTheRestAndLeavesThePersonsOwnAnswerAsItWas()
@@ -636,7 +662,7 @@ public sealed class ClientPreferencesEndpointTests
             SignedIn(store),
             Acting(),
             Serving(Governed(deployment: ForcingOn)),
-            new ClientPreferencesRequest(true, "light", true, false, true, "cleaned", false, 12),
+            new ClientPreferencesRequest(true, "light", true, false, true, "cleaned", false, 12, ListMode: "threads"),
             TestContext.Current.CancellationToken);
 
         // Assert

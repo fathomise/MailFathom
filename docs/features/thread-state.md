@@ -228,6 +228,8 @@ A statement is a sentence derived from somebody's mail and inherits its classifi
 
 `GET /api/client/threads/{threadId}/state` answers with the block: the conversation, the coverage, when it was derived,
 whether it is current, the statements with their sources, and the title, or `null` where the conversation has none.
+The title travels on [the conversation list](../operations/client-endpoint.md#the-conversation-list-route) as well,
+with the revision it was derived from, so a list read by conversation names each one without a read per row.
 
 **A stale state is never published as current.** Between a reply arriving and the next pass reaching the conversation
 — which is indefinite while the answering allowance is spent — the stored record describes a conversation that no
