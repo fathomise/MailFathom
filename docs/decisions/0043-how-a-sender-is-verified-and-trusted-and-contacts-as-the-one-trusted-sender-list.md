@@ -410,8 +410,8 @@ combines the two halves in the order above, under the same authentication and `K
 - Otherwise a personal contact of a user the account is assigned to recognizes the author.
 
 The combination is one domain rule, `SenderTrust.RecognizedBy`, and one read of the books does it for every message a
-read returns: one bounded query over the books its accounts reach, and one over its senders' addresses in those books,
-on the index the book and the address make. Every surface reads its verdict through that one place — the client's
+read returns: three bounded queries whatever the number of rows — the organizations its accounts belong to, the users
+they are assigned to, and its senders' addresses in the books those name, on the index the book and the address make. Every surface reads its verdict through that one place — the client's
 message, conversation, and list reads, MCP sender verification, the agent's turn document, spam evidence, the
 automatic reply, and rule evaluation — so none of them can disagree about a mark.
 
@@ -427,7 +427,7 @@ agent each read the message from the store after it is committed, through the sa
 as they stand when they run. What they already did is kept: a contact written later reaches the mark, not a rule that
 already ran.
 
-**What it costs.** Each read adds two short queries for the whole page, never one per message. The account identifier
+**What it costs.** Each read adds the same three short queries for the whole page, never one per message. The account identifier
 that is not a stored record's — an account declared only in configuration — reaches no book, because no assignment
 names it. Nothing about an address, a domain, or a contact reaches a log or a metric from either half.
 
@@ -516,7 +516,7 @@ Each is named in its implementing pull request with the operator's action, for t
 |---|---|---|
 | Configuration | `TrustedSenders` and its `Domain`, `Address`, and `IncludeSubdomains` are removed from every mail account (issue 2776) | Re-create each address entry as a contact in the owner's book (`mfctl contact create`) or as an organization contact. Replace a domain entry with `TrustOwnAccountDomains`, an organization, or addresses. Then run `mfctl mailbox rederive` for mail stored before issue 2778 |
 | Behaviour | The owner's own addresses and domains no longer trust an author aligned only through SPF. A server's DMARC `pass` counts only for the domain it names. DKIM alignment honours `adkim=s`. With `VerifyDkimLocally` off, server-reported DKIM no longer aligns without a DMARC result. Every account is relaxed and draws `Known` by default | Set `Strict` to `true` on an account that must show only verified marks |
-| Database | Verdicts carrying the two retired sources become not evaluated. New columns record the author route and the policy read for `Known`. Issue 2783 drops the stored contact reference, adds whether the account was strict, and turns every verdict a contact had reached into not evaluated, since a contact is now found when the message is read and the stored row keeps no configuration answer for it; run `mfctl mailbox rederive` to bring those rows' configuration answers back. A new column records each asserted address's writer, and every address already stored is backfilled as `Unrecorded`, which grants nothing | Have each person, or an administrator, state again every contact address that should grant trust: the person through *Add to contacts* or the client, the administrator through `mfctl` |
+| Database | Verdicts carrying the two retired sources become not evaluated. New columns record the author route and the policy read for `Known`. Issue 2783 drops the stored contact reference and adds whether the account was strict, set on every existing row except those already `Known`, so an older row draws no `Known` through a contact until it is re-derived. A verdict a personal contact had reached becomes `Unknown` under the revision it keeps, because a personal contact ranks last and configuration had answered nothing; one an organization contact had reached becomes not evaluated, because the owner's own address and domain rank below it and were never asked. A contact is now found when the message is read; run `mfctl mailbox rederive` to judge those rows again and to record each older row's real strictness. A new column records each asserted address's writer, and every address already stored is backfilled as `Unrecorded`, which grants nothing | Have each person, or an administrator, state again every contact address that should grant trust: the person through *Add to contacts* or the client, the administrator through `mfctl` |
 | Client endpoint | `trustSource` loses `ConfiguredTrustedSender` and `StoredTrustedSender`, gains `OrganizationContact` and `PersonalContact`, and `deploymentTrust` gains `Known` (issue 2776, issue 2781) | A client built against the old values updates with the release |
 | MCP tools | `deploymentTrust` gains `Known` on every read tool (issue 2781). The contact tools' descriptions state that agent-written addresses grant no trust | An agent prompt branching on `deploymentTrust` handles `Known` |
 | Mail rules | `senderTrust` gains `Known` | A rule meant to file `Known` mail with `Trusted` names both |

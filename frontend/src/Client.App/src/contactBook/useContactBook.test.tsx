@@ -333,6 +333,40 @@ describe('useContactBook', () => {
             ).toEqual(['pageSize=200', 'pageSize=60&cursor=200']);
         });
 
+        it('reads the page just drawn again too, when a refresh arrives before the browser has painted it', async () => {
+            const presence = new Map<string, string>(
+                Array.from({ length: 60 }, (_, at) => [`member-${String(at).padStart(3, '0')}`, 'Active']),
+            );
+            const { transport, asked } = directory(presence);
+            const channel = told();
+
+            drawBook(transport, channel, 'colleagues');
+            expect(await screen.findByText('member-049')).toBeDefined();
+
+            // A mutation observer answers in the microtask after the commit that drew the page, which is before any
+            // passive effect has run, so the refresh lands exactly where a signal from the deployment can.
+            let said = false;
+            const atCommit = new MutationObserver(() => {
+                if (!said && screen.queryByText('member-059') !== null) {
+                    said = true;
+                    channel.say({ kind: 'refresh' });
+                }
+            });
+            atCommit.observe(document.body, { childList: true, subtree: true });
+            const before = asked().length;
+
+            fireEvent.click(screen.getByRole('button', { name: asksForMore }));
+
+            await waitFor(() => {
+                expect(asked().length).toBeGreaterThan(before + 1);
+            });
+            atCommit.disconnect();
+            expect(asked().at(-1)).toContain('pageSize=60');
+            await waitFor(() => {
+                expect(screen.getAllByRole('listitem')).toHaveLength(60);
+            });
+        });
+
         it('reads nothing again for a book that holds no colleagues', async () => {
             const { transport, asked } = answering({ own: [pageOf([contact('anna', 'Anna Kowalska')], null)] });
             const channel = told();

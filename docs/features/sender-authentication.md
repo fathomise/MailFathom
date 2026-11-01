@@ -523,8 +523,9 @@ the account was strict and everything a contact is held against: the route that 
 authenticated domain, the signature checks, and the policy `Known` reads. No book is read when the message is stored.
 Every read of a message — the client's list, conversation, and message reads, the MCP tools, the agent, spam
 classification, the automatic reply, and rule evaluation — then asks the books its account reaches as they stand and
-combines the two halves in the order above, one bounded query over a whole page of messages rather than one per
-message. Every path that stores a verdict still goes through one step: synchronization, the extraction backfill,
+combines the two halves in the order above, with three bounded queries over a whole page of messages — the
+accounts' organizations, the users they are assigned to, and the senders' addresses in those books — rather than any
+per message. Every path that stores a verdict still goes through one step: synchronization, the extraction backfill,
 `mfctl mailbox rederive`, and a local copy of a message. A message MailFathom itself files into Drafts or Sent is
 stored without a trust verdict, because nobody but the owner wrote it.
 
