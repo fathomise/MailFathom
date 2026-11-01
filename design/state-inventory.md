@@ -452,7 +452,7 @@ list: it nests, it is placed somewhere in the account's own tree, and it can be 
 | Where it may sit | `nfLocations`, from `folderLocations` | the select's options: *Top level of the account* first, then the account's folders drawn as `Parent / Child`. Editing one drops the folder itself, everything under it, and any parent too shallow to hold its subtree |
 | Nothing typed yet | `nfCreateStyle` / `nfCreateHover` | the create button is drawn flat and refuses the pointer while the name is empty |
 | The name is taken | the `warning` notification *Pick another name* | saving an edit onto a name already used in that place — *There is already a folder called “<name>” inside …* |
-| Delete confirmation | `delFolderOpen` / `delFolderText` | *Delete folder* — four outcomes computed from the state rather than one sentence |
+| Delete confirmation | `delFolderOpen` / `delFolderText` | *Delete folder* — the folder, what is nested in it, and the mail stored there, computed from the state rather than one sentence |
 
 **The design's own statement about what a folder is: the user places it, MailFathom puts it on the
 server.** The hint under the select reads *MailFathom creates the folder on this account's mail
@@ -469,9 +469,11 @@ folder alone.
 The delete confirmation states what goes with the folder, in three parts. *The folder* — or *The
 folder and the folder nested inside it*, or *…and the N folders nested inside it* — *will be deleted
 in `<mailbox>` and on your mail server.* Then the mail: where the folder holds stored conversations,
-they go with it, permanently on both servers with nothing left to restore while the account's hard
-delete is on, or to Trash and recoverable while it is off; where it holds none, *It holds no mail,
-and deleting it cannot be undone.*
+*The conversation stored in it goes with it.* — or *All N conversations…* — *Whether it can still be
+restored depends on how your administrator set up this account.*, because what deleting does on the
+mail server is the administrator's account setting and the client cannot read it (§ *The settings
+panel*), so the sentence promises neither Trash nor a permanent delete; where it holds none, *It holds
+no mail, and deleting it cannot be undone.*
 
 ### The per-message AI reading
 

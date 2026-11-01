@@ -7047,23 +7047,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         createFolder: this.saveFolder,
         delFolderOpen: !!st.delFolder,
         delFolderName: st.delFolder ? st.delFolder.path.split("/").pop() : "",
-        /* Four outcomes, four sentences: nested folders go too, mail stored in them goes with them,
-           and whether that mail can still be recovered is the account's own delete setting. */
+        /* Nested folders go too and mail stored in them goes with them. What deleting does on the mail server is the
+           administrator's account setting, which the client cannot read, so the sentence does not promise either way. */
         delFolderText: (() => {
           const df = st.delFolder;
           if (!df) return "";
           const nested = ((df.extraFolders || {})[df.key] || []).filter(p => p.indexOf(df.path + "/") === 0);
           const names = [df.path].concat(nested).map(p => p.split("/").pop());
           const held = Object.keys(df.moved || {}).filter(id => names.indexOf((df.moved || {})[id]) >= 0).length;
-          const acc = (st.accounts || [])[df.key === "acc2" ? 1 : 0];
-          const hard = !acc || acc.hardDelete !== false;
           const what = nested.length
             ? "The folder and the " + (nested.length === 1 ? "folder nested" : nested.length + " folders nested") + " inside it"
             : "The folder";
           return what + " will be deleted in " + df.label + " and on your mail server. " + (held
-            ? (held === 1 ? "The conversation" : "All " + held + " conversations") + " stored in it " + (hard
-                ? "will be deleted permanently on both servers - there will be nothing left to restore."
-                : "will move to Trash, so you can still bring " + (held === 1 ? "it" : "them") + " back.")
+            ? (held === 1 ? "The conversation stored in it goes" : "All " + held + " conversations stored in it go") + " with it. Whether " + (held === 1 ? "it" : "they") + " can still be restored depends on how your administrator set up this account."
             : "It holds no mail, and deleting it cannot be undone.");
         })(),
         closeDeleteFolder: this.closeDeleteFolder,
