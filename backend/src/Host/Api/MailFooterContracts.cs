@@ -95,7 +95,7 @@ internal static class MailFooterRefusals
             CultureInfo.InvariantCulture,
             $"Image '{refusal.Subject}' is empty or larger than {MailFooterContent.MaximumImageBytes} bytes."),
         MailFooterRefusalReason.ImageTypeNotAccepted =>
-            $"Image '{refusal.Subject}' is not a PNG, a JPEG, or a GIF image, which are the images a footer carries.",
+            $"Image '{refusal.Subject}' is not a PNG, a JPEG, or a GIF image whose content opens as the type it states, which are the images a footer carries.",
         MailFooterRefusalReason.ImageNameNotAccepted =>
             "An image is named by one to sixty-four letters, digits, dots, hyphens, and underscores, opening with a letter or a digit.",
         MailFooterRefusalReason.ImageNameRepeated => $"Two images are named '{refusal.Subject}'.",

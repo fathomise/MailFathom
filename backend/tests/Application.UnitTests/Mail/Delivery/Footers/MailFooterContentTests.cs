@@ -12,6 +12,8 @@ public sealed class MailFooterContentTests
 {
     private static readonly MailFootings.VerbatimMailFooterMarkup Markup = new();
 
+    private static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00];
+
     [Fact]
     public void Read_AFooterWithinEveryBound_KeepsTheSanitizedMarkupAndItsImages()
     {
@@ -63,6 +65,7 @@ public sealed class MailFooterContentTests
     [InlineData(".hidden")]
     [InlineData("logo png")]
     [InlineData("logo\"png")]
+    [InlineData("logo\n")]
     public void Read_AnImageNameACidReferenceCannotCarry_IsRefused(string name)
     {
         // Act
@@ -107,10 +110,40 @@ public sealed class MailFooterContentTests
     public void Read_AnImageTypeEveryClientDoesNotDraw_IsRefusedNamingIt(string mediaType)
     {
         // Arrange
-        var image = new MailFooterImage("logo", mediaType, new byte[] { 1, 2, 3 });
+        var image = new MailFooterImage("logo", mediaType, Png);
 
         // Act
         var footer = MailFooterContent.Read("<p>Anna</p>", [image], Markup, out var refusal);
+
+        // Assert
+        Assert.Null(footer);
+        Assert.Equal(new MailFooterRefusal(MailFooterRefusalReason.ImageTypeNotAccepted, "logo"), refusal);
+    }
+
+    [Theory]
+    [InlineData("image/png", new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A })]
+    [InlineData("IMAGE/JPEG", new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 })]
+    [InlineData("image/gif", new byte[] { 0x47, 0x49, 0x46, 0x38, 0x37, 0x61 })]
+    [InlineData("image/gif", new byte[] { 0x47, 0x49, 0x46, 0x38, 0x39, 0x61 })]
+    public void Read_AnImageOpeningAsTheTypeItStates_IsKept(string mediaType, byte[] content)
+    {
+        // Act
+        var footer = MailFooterContent.Read("<p>Anna</p>", [new MailFooterImage("logo", mediaType, content)], Markup, out var refusal);
+
+        // Assert
+        Assert.Null(refusal);
+        Assert.NotNull(footer);
+    }
+
+    [Theory]
+    [InlineData("image/png", new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 })]
+    [InlineData("image/jpeg", new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A })]
+    [InlineData("image/gif", new byte[] { 0x3C, 0x73, 0x76, 0x67, 0x3E })]
+    [InlineData("image/png", new byte[] { 0x89, 0x50, 0x4E, 0x47 })]
+    public void Read_AnImageWhoseOctetsAreNotTheTypeItStates_IsRefusedNamingIt(string mediaType, byte[] content)
+    {
+        // Act
+        var footer = MailFooterContent.Read("<p>Anna</p>", [new MailFooterImage("logo", mediaType, content)], Markup, out var refusal);
 
         // Assert
         Assert.Null(footer);
@@ -131,7 +164,7 @@ public sealed class MailFooterContentTests
         Assert.Equal(new MailFooterRefusal(MailFooterRefusalReason.ImageNotUploaded, "https://example.test/logo.png"), refusal);
     }
 
-    private static MailFooterImage Image(string name) => new(name, "image/png", new byte[] { 137, 80, 78, 71 });
+    private static MailFooterImage Image(string name) => new(name, "image/png", Png);
 
     private sealed class RefusingMarkup(MailFooterRefusal refusal) : IMailFooterMarkup
     {

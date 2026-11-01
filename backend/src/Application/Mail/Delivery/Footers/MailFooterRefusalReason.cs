@@ -16,7 +16,7 @@ public enum MailFooterRefusalReason
     /// <summary>An image is empty or larger than <see cref="MailFooterContent.MaximumImageBytes" />.</summary>
     ImageSizeNotAccepted = 2,
 
-    /// <summary>An image is not of one of <see cref="MailFooterContent.AcceptedImageMediaTypes" />.</summary>
+    /// <summary>An image is not of one of <see cref="MailFooterContent.AcceptedImageMediaTypes" />, or its octets do not open as the type it declares.</summary>
     ImageTypeNotAccepted = 3,
 
     /// <summary>An image's name is not of the form <see cref="MailFooterContent.IsImageName" /> accepts.</summary>

@@ -2225,7 +2225,8 @@ The template names variable 'department', which is not one of displayName, jobTi
 
 **Images are uploaded with the template, never linked.** `--image` takes the name the markup refers to it by and the
 file to read, and is repeated per image; the markup shows it as `<img src="cid:logo.png">`. The type is read from the
-file's extension — `.png`, `.jpg` or `.jpeg`, `.gif` — and any other is refused before anything is sent. The bounds are
+file's extension — `.png`, `.jpg` or `.jpeg`, `.gif` — and any other is refused before anything is sent; the deployment
+then refuses a file whose octets do not open with that type's signature. The bounds are
 the ones a member's own footer is held to: at most five images of at most 256 KiB each, markup of at most 16384
 characters, and a request body of at most 2 MiB. A remote or `data:` image reference is refused saying the image must be
 uploaded.

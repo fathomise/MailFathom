@@ -129,6 +129,30 @@ public sealed class MailOutboxTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Screening reads the message as it leaves, footer included, so screened material in a footer refuses the send.</summary>
+    [Fact]
+    public async Task EnqueueAsync_AFooterCarryingScreenedMaterial_RefusesTheSend()
+    {
+        // Arrange
+        var footerStore = new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, Account);
+        await footerStore.SaveOwnAsync(SyntheticUser.Deployment, Account, new MailFooterContent(ScreenedMarker, []), CancellationToken.None);
+        var store = new InMemoryOutgoingEmailStore();
+        using var egress = ScanningSensitiveContentEgress.Finding(ScreenedMarker, new FakeTimeProvider(Authored));
+        var outbox = CreateOutbox(
+            store,
+            ContentStores.Substituted(),
+            footers: MailFootings.Over(footerStore),
+            screening: OutgoingMailScreenings.Through(egress.Screen));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<OutgoingMailRefusedException>(
+            () => outbox.EnqueueAsync(CreateRequest("mfctl-4f2a"), RawMime, CancellationToken.None));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.OutgoingMailContentRefused, refusal.ErrorCode);
+        Assert.Empty(store.OpenRequests);
+    }
+
     /// <summary>A send the deployment refuses is never signed, because a refusal leaves nothing behind and spends nothing on a key.</summary>
     [Fact]
     public async Task EnqueueAsync_ASendTheDeploymentRefuses_IsNeverSigned()

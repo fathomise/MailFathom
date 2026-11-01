@@ -76,7 +76,12 @@ internal static class ClientMailFooterEndpoints
     {
         ArgumentNullException.ThrowIfNull(footers);
 
-        return await footers.ReadAsync(MailAccountId.Create(accountId), cancellationToken) is { } own
+        if (AccountNamed(accountId) is not { } account)
+        {
+            return AccountNotAssigned(accountId);
+        }
+
+        return await footers.ReadAsync(account, cancellationToken) is { } own
             ? TypedResults.Ok(new ClientOwnMailFooterResponse(
                 own.Footer is { } footer ? MailFooterResponse.For(footer) : null,
                 own.IsSetByOrganization))
@@ -102,12 +107,17 @@ internal static class ClientMailFooterEndpoints
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(footers);
 
+        if (AccountNamed(accountId) is not { } account)
+        {
+            return AccountNotAssigned(accountId);
+        }
+
         if (request.Stated(out var malformed) is not { } images)
         {
             return TypedResults.Problem(malformed, statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var write = await footers.SaveAsync(MailAccountId.Create(accountId), request.Html!, images, cancellationToken);
+        var write = await footers.SaveAsync(account, request.Html!, images, cancellationToken);
 
         return write.Outcome switch
         {
@@ -134,10 +144,18 @@ internal static class ClientMailFooterEndpoints
     {
         ArgumentNullException.ThrowIfNull(footers);
 
-        return await footers.RemoveAsync(MailAccountId.Create(accountId), cancellationToken)
+        if (AccountNamed(accountId) is not { } account)
+        {
+            return AccountNotAssigned(accountId);
+        }
+
+        return await footers.RemoveAsync(account, cancellationToken)
             ? TypedResults.NoContent()
             : AccountNotAssigned(accountId);
     }
+
+    private static MailAccountId? AccountNamed(string accountId) =>
+        string.IsNullOrWhiteSpace(accountId) ? null : MailAccountId.Create(accountId);
 
     private static NotFound<ProblemDetails> AccountNotAssigned(string accountId) => TypedResults.NotFound(new ProblemDetails
     {

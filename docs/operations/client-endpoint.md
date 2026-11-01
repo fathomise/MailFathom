@@ -3315,7 +3315,8 @@ plain-text form is derived from it, never written separately.
 **An image is uploaded with the footer, never linked.** The markup refers to an image as `cid:` and the name it was
 uploaded under. A reference to anything else — `https:`, `http:`, `data:`, any other scheme, a relative path, or a
 `srcset` — is refused `400` saying the image must be uploaded, and so is a `cid:` naming no uploaded image. A footer
-carries at most five images, each a PNG, a JPEG, or a GIF of at most 256 KiB, named with one to sixty-four letters,
+carries at most five images, each a PNG, a JPEG, or a GIF of at most 256 KiB whose octets open with the signature of
+the type it states, named with one to sixty-four letters,
 digits, dots, hyphens, and underscores, opening with a letter or a digit; the markup is at most 16384 characters. Each
 of those is refused `400` with a sentence naming the bound or the image. The body is bounded at 2 MiB, and one past it
 is answered `413`.

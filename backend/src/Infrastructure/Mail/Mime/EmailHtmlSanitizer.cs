@@ -58,7 +58,8 @@ internal sealed class EmailHtmlSanitizer
     /// <c>title</c> are what a stripped image still says, which is worth more to a reader than the image was; the table
     /// spans keep a table's shape readable; <c>dir</c> and <c>lang</c> are what a right-to-left message needs to render
     /// as it was written. Absent by design are <c>style</c>, <c>class</c>, <c>id</c>, every event handler, and every
-    /// attribute that carries a URI.
+    /// attribute that carries a URI. The one exception is the footer's policy, <see cref="KeepingContentReferences" />,
+    /// which adds <c>src</c> with the <c>cid</c> scheme alone; incoming mail keeps no URI attribute.
     /// </remarks>
     private static readonly string[] AllowedAttributes =
     [
@@ -94,8 +95,9 @@ internal sealed class EmailHtmlSanitizer
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="html" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// No base URI is supplied, so a relative reference is never resolved into an absolute one. Nothing depends on that
-    /// today, because no URI attribute survives the policy at all; it is stated so a later change to the attribute
-    /// allow-list cannot quietly turn this into a step that completes a reference for a client to follow.
+    /// today: incoming mail keeps no URI attribute at all, and the footer's policy keeps only a <c>cid:</c> reference,
+    /// which is not relative. It is stated so a later change to the attribute allow-list cannot quietly turn this into a
+    /// step that completes a reference for a client to follow.
     /// </remarks>
     public string Sanitize(string html)
     {

@@ -45,7 +45,7 @@ public sealed class ClientMailFooterEndpointsTests
     {
         // Arrange
         var footers = this.Footers();
-        var request = new MailFooterRequest("<p>Anna</p><img src=\"cid:logo.png\">", [new MailFooterImageRequest("logo.png", "image/png", [1, 2, 3])]);
+        var request = new MailFooterRequest("<p>Anna</p><img src=\"cid:logo.png\">", [new MailFooterImageRequest("logo.png", "image/png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])]);
 
         // Act
         var result = await ClientMailFooterEndpoints.SaveOwnAsync("primary", request, footers, TestContext.Current.CancellationToken);
@@ -112,17 +112,20 @@ public sealed class ClientMailFooterEndpointsTests
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
     }
 
-    /// <summary>An account that is not the person's is answered as absent on every verb.</summary>
-    [Fact]
-    public async Task Handlers_AnAccountNotTheirs_AnswerNotFound()
+    /// <summary>An account that is not the person's, a blank segment among them, is answered as absent on every verb.</summary>
+    /// <param name="accountId">The account segment the request names.</param>
+    [Theory]
+    [InlineData("elsewhere")]
+    [InlineData(" ")]
+    public async Task Handlers_AnAccountNotTheirs_AnswerNotFound(string accountId)
     {
         // Arrange
         var footers = this.Footers();
 
         // Act
-        var read = await ClientMailFooterEndpoints.ReadOwnAsync("elsewhere", footers, TestContext.Current.CancellationToken);
-        var save = await ClientMailFooterEndpoints.SaveOwnAsync("elsewhere", new MailFooterRequest("<p>Anna</p>"), footers, TestContext.Current.CancellationToken);
-        var remove = await ClientMailFooterEndpoints.RemoveOwnAsync("elsewhere", footers, TestContext.Current.CancellationToken);
+        var read = await ClientMailFooterEndpoints.ReadOwnAsync(accountId, footers, TestContext.Current.CancellationToken);
+        var save = await ClientMailFooterEndpoints.SaveOwnAsync(accountId, new MailFooterRequest("<p>Anna</p>"), footers, TestContext.Current.CancellationToken);
+        var remove = await ClientMailFooterEndpoints.RemoveOwnAsync(accountId, footers, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.IsType<NotFound<ProblemDetails>>(read.Result);

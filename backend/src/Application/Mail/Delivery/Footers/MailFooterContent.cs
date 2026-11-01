@@ -87,11 +87,37 @@ public sealed partial record MailFooterContent(string Html, IReadOnlyList<MailFo
             return new MailFooterRefusal(MailFooterRefusalReason.ImageSizeNotAccepted, sized.Name);
         }
 
-        return images.FirstOrDefault(static image => !AcceptedImageMediaTypes.Contains(image.MediaType)) is { } typed
+        return images.FirstOrDefault(static image => !OpensAsItsMediaType(image)) is { } typed
             ? new MailFooterRefusal(MailFooterRefusalReason.ImageTypeNotAccepted, typed.Name)
             : null;
     }
 
-    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
+    /// <summary>Reports whether an image is of an accepted type and its octets open with that format's signature.</summary>
+    /// <remarks>
+    /// The declared type is a string an uploader wrote, and the image goes out under it on every message its author
+    /// sends, so the octets are held to it. The signature is the whole check, as for a portrait: nothing decodes the image.
+    /// </remarks>
+    private static bool OpensAsItsMediaType(MailFooterImage image)
+    {
+        var content = image.Content.Span;
+
+        return image.MediaType.ToUpperInvariant() switch
+        {
+            "IMAGE/PNG" => content.StartsWith(PngSignature),
+            "IMAGE/JPEG" => content.StartsWith(JpegSignature),
+            "IMAGE/GIF" => content.StartsWith(Gif87aSignature) || content.StartsWith(Gif89aSignature),
+            _ => false,
+        };
+    }
+
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z", RegexOptions.CultureInvariant)]
     private static partial Regex ImageNamePattern();
+
+    private static ReadOnlySpan<byte> PngSignature => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    private static ReadOnlySpan<byte> JpegSignature => [0xFF, 0xD8, 0xFF];
+
+    private static ReadOnlySpan<byte> Gif87aSignature => "GIF87a"u8;
+
+    private static ReadOnlySpan<byte> Gif89aSignature => "GIF89a"u8;
 }

@@ -65,6 +65,8 @@ uploaded.
 
 **A footer carries at most five images, each a PNG, a JPEG, or a GIF of at most 256 KiB, in markup of at most 16384
 characters.** Every image goes out on every message, so the bound is about everybody's mail rather than one upload.
+An image's type is held to its octets: a file whose first octets are not the signature of the type it states is
+refused, so nothing but an image goes out under an image's name.
 
 ## What a client is served
 

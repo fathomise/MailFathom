@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text;
 using MailFathom.Application.Contacts.Members;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Footers;
@@ -59,11 +60,11 @@ internal static class MailFootings
     {
         /// <inheritdoc />
         public ReadOnlyMemory<byte> Append(ReadOnlyMemory<byte> rawMime, MailFooter footer) =>
-            (byte[])[.. rawMime.ToArray(), .. System.Text.Encoding.UTF8.GetBytes($"\r\n[footer:{footer.PlainText}]")];
+            (byte[])[.. rawMime.ToArray(), .. Encoding.UTF8.GetBytes($"\r\n[footer:{footer.PlainText}]")];
 
         /// <inheritdoc />
         public ReadOnlyMemory<byte> ComposeAlone(MailFooter footer) =>
-            System.Text.Encoding.UTF8.GetBytes($"[footer:{footer.PlainText}]");
+            Encoding.UTF8.GetBytes($"[footer:{footer.PlainText}]");
     }
 
     private sealed class EmptyMemberDirectory : IMemberDirectory
