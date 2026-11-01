@@ -98,6 +98,41 @@ test('sends a new message carrying exactly the recipient, the subject, and the w
     expect(draftRoutesOf(deployment, 'POST', '/send')).toHaveLength(1);
 });
 
+test('draws the footer the account chosen under From sends with, follows another choice, and sends none of it as words', async ({
+    page,
+    deployment,
+}) => {
+    deployment.troubleTheAccounts();
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+
+    const composer = page.getByRole('region', { name: 'New message' });
+    const footer = composer.getByRole('group', { name: 'Footer added when you send' });
+
+    await footer.getByRole('button', { name: 'Your footer is hidden' }).click();
+    await expect(footer.getByText('Head of Procurement · Nordwind')).toBeVisible();
+    await expect(footer.getByRole('button', { name: 'Hide your footer' })).toHaveAttribute('aria-expanded', 'true');
+
+    await composer.getByLabel('From').selectOption({ label: deploymentCorpus.accountBehind.displayName });
+    await expect(footer.getByText('+48 600 555 012')).toBeVisible();
+    await expect(footer.getByText('Head of Procurement · Nordwind')).toHaveCount(0);
+
+    await composer.getByLabel('From').selectOption({ label: deploymentCorpus.failingAccount.displayName });
+    await expect(footer).toHaveCount(0);
+
+    await composer.getByLabel('From').selectOption({ label: deploymentCorpus.workAccount.displayName });
+    await expect(footer.getByRole('button', { name: 'Your footer is hidden' })).toBeVisible();
+
+    await address(page, 'To', recipient);
+    await page.getByLabel('Subject').fill(subject);
+    await write(page, words);
+    await send(page);
+
+    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
+        expect.objectContaining({ plainTextBody: words, htmlBody: words, account: deploymentCorpus.workAccount.id }),
+    ]);
+});
+
 // Each way of answering opens where the reader stands — the mailbox and the list beside it, at the same address — and
 // is addressed the way the client promises: the author, everybody, or nobody yet. What it answers travels as the
 // message's identity rather than as quoted text, because the deployment derives the subject, the threading, and what a

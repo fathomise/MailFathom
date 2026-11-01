@@ -11965,6 +11965,7 @@
       },
       "PresentationBlockDraftBlock": {
         "properties": {
+          "account": {},
           "body": {
             "$ref": "#/components/schemas/PresentationText"
           },

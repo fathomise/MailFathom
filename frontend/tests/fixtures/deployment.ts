@@ -331,6 +331,48 @@ export const troubledFolders = {
  */
 export const ownTimeZone = { timeZone: 'UTC', isDefault: true };
 
+/** A footer as the service serves one: the closed document tree a message body is, one paragraph to a line. */
+function footer(...lines: readonly string[]) {
+    return {
+        schemaVersion: 1,
+        blocks: lines.map((text, at) => ({
+            type: 'paragraph',
+            version: 1,
+            content: [{ text, emphasis: at === 0 ? 'Bold' : 'None', foreground: null, link: null }],
+            alignment: 'Inherited',
+        })),
+        refusal: 'None',
+        removedRemoteReferenceCount: 0,
+        retainedRemoteImageCount: 0,
+        inlineImageCount: 0,
+        undrawnInlineImageCount: 0,
+        truncated: false,
+    };
+}
+
+/**
+ * The footer each mailbox sends with: the organization's on the work one, the person's own on the personal one, and
+ * none on the club's, which is the account a composer draws no footer for. The lines are the design's own, so a parity
+ * capture of the composer holds the same footer on both sides.
+ */
+export const mailFooters = {
+    footers: [
+        {
+            account: workAccount.id,
+            source: 'organization',
+            document: footer(
+                'Karolina Kowalska',
+                'Head of Procurement · Nordwind',
+                '+48 22 555 0143 · k.kowalska@nordwind.example',
+                'Nordwind S.A. · 12 Harbour Street, 00-950 Warsaw · nordwind.example',
+                'This message and its attachments are confidential and meant only for the people it is addressed to. If it reached you by mistake, tell the sender and delete it.',
+            ),
+        },
+        { account: failingAccount.id, source: 'own', document: null },
+        { account: accountBehind.id, source: 'own', document: footer('Karolina Kowalska', '+48 600 555 012') },
+    ],
+};
+
 /**
  * The folders of the corpus mailbox as the management route publishes them, with the acts the mailbox allows.
  *

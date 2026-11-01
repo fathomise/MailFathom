@@ -490,7 +490,14 @@ internal sealed class AgentConversationTools
             return refusal;
         }
 
-        var block = new DraftBlock(PresentationEvidence.Unsupported(PresentationFreshness.Unknown), addressed, titled, written, DraftDisposition.Composed, due?.Instant);
+        var block = new DraftBlock(
+            PresentationEvidence.Unsupported(PresentationFreshness.Unknown),
+            addressed,
+            titled,
+            written,
+            DraftDisposition.Composed,
+            due?.Instant,
+            PresentationText.Create(sender[0].Value));
 
         await this.WriteAsync(this.journal.ProposeAsync(block, new AgentMessageSending(sender[0].Value, addressed, titled, written, due), cancellationToken));
         this.HasProposed = true;
@@ -560,7 +567,8 @@ internal sealed class AgentConversationTools
             titled,
             written,
             DraftDisposition.Composed,
-            due?.Instant);
+            due?.Instant,
+            PresentationText.Create(authored.Account.Value));
 
         await this.WriteAsync(this.journal.ProposeAsync(block, new AgentResponseSending(answeredId, responseAct, addressed, written, due), cancellationToken));
         this.HasProposed = true;

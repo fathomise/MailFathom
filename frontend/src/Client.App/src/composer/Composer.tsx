@@ -22,6 +22,8 @@ import {
 import { Icon } from '../controls/Icon';
 import { SymbolControl } from '../controls/SymbolControl';
 import { useTip } from '../controls/useTip';
+import { FoldedFooter } from '../footers/FoldedFooter';
+import { useFooterOf } from '../footers/footersInForce';
 import type { MessageKey } from '../localization/en';
 import type { Locale } from '../localization/locale';
 import { sizeOf } from '../localization/octets';
@@ -849,6 +851,7 @@ export function Composer({
             ? null
             : { subject: subjectSaid(contextStart[0] ?? ''), more: contextStart.length - 1 };
     const copiesShown = copiesChosen ?? (composition !== null && composition.cc.length + composition.bcc.length > 0);
+    const footer = useFooterOf(composition?.account ?? null);
 
     return (
         <section
@@ -1109,6 +1112,25 @@ export function Composer({
                             ) : null
                         }
                     />
+
+                    {/* The footer the account the message goes out from adds, under the words and outside them: it is
+                        shown and never written in, so no draft saves it and the service appends it on sending. It
+                        scrolls with the words rather than standing pinned, so however long it unfolds the foot carrying
+                        *Send* stays on the screen. */}
+                    {footer === null ? null : (
+                        <div
+                            role="group"
+                            aria-label={translate('footer.added')}
+                            aria-describedby={`${subjectId}-footer`}
+                            className="mx-4.75 shrink-0 border-t border-dashed border-line pt-1.5 pb-2.5 select-none low:pb-1.5"
+                        >
+                            <p id={`${subjectId}-footer`} className="sr-only">
+                                {translate('footer.notEditable')}
+                            </p>
+
+                            <FoldedFooter footer={footer} quiet />
+                        </div>
+                    )}
 
                     <AttachedFiles
                         attached={draft.attached}

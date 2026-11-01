@@ -104,8 +104,11 @@ public readonly record struct PresentationBlockType
     #region Acting — the blocks that present something a person may do next
 
     /// <summary>Gets the type of the block presenting text to be sent.</summary>
-    /// <remarks>Revision 2 added the time a message the person asked to send later leaves at, which a block may go without, so a block stored at revision 1 still reads.</remarks>
-    public static PresentationBlockType Draft { get; } = new(DraftIdentity, version: 2, actionable: true, earliestReadableVersion: 1);
+    /// <remarks>
+    /// Revision 2 added the time a message the person asked to send later leaves at, and revision 3 the account it is
+    /// sent from. A block may go without either, so a block stored at revision 1 or 2 still reads.
+    /// </remarks>
+    public static PresentationBlockType Draft { get; } = new(DraftIdentity, version: 3, actionable: true, earliestReadableVersion: 1);
 
     /// <summary>Gets the type of the block presenting a date to be put on the calendar.</summary>
     /// <remarks>

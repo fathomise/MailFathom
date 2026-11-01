@@ -11,7 +11,9 @@ import type {
     ComposedDraft,
     DeclaredSource,
     DraftDisposition,
+    MailDocument,
 } from '@mailfathom/client-backend';
+import { FootersInForceContext, type FootersInForce } from '../../footers/footersInForce';
 import { LocalizationProvider } from '../../localization/Localization';
 import { ReadingZoneContext } from '../../localization/useReadingZone';
 import { AnswerSourcesContext } from '../answerSources';
@@ -39,6 +41,29 @@ const composed: ComposedDraft = {
     body: 'We accept shortening the response time to 2 hours on business days.',
     disposition: 'Composed',
     dueAt: null,
+    account: 'work',
+};
+
+/** The footer the work account adds: a name line and the company under it. */
+const workFooter: MailDocument = {
+    blocks: ['Karolina Kowalska', 'Nordwind Logistics'].map((text) => ({
+        type: 'paragraph' as const,
+        content: [
+            {
+                text,
+                emphasis: { bold: false, italic: false, underline: false, strikethrough: false, monospace: false },
+                foreground: null,
+                link: null,
+            },
+        ],
+        alignment: 'Inherited',
+    })),
+    refusal: 'None',
+    removedRemoteReferenceCount: 0,
+    retainedRemoteImageCount: 0,
+    inlineImageCount: 0,
+    undrawnInlineImageCount: 0,
+    truncated: false,
 };
 
 function drafted(disposition: DraftDisposition = 'Composed'): AnswerBlock {
@@ -62,7 +87,11 @@ function inConversation(
     return { phase, answering: false, refused: null, answer, askAnotherTime: () => undefined, look: null };
 }
 
-function renderDraft(block: AnswerBlock, answering: ProposalAnswering | null = null) {
+function renderDraft(
+    block: AnswerBlock,
+    answering: ProposalAnswering | null = null,
+    footers: FootersInForce = new Map(),
+) {
     const declared = new Map([[addendum.id, addendum]]);
 
     return render(
@@ -70,9 +99,11 @@ function renderDraft(block: AnswerBlock, answering: ProposalAnswering | null = n
             {/* A citation is given somewhere to follow to, as the canvas gives every block one: a chip with nowhere to
                 go says so in its own name, which is `Citation`'s behaviour rather than this block's. */}
             <AnswerSourcesContext value={{ sources: declared, follow: () => undefined }}>
-                <ProposalAnsweringContext value={answering}>
-                    <Draft block={block} />
-                </ProposalAnsweringContext>
+                <FootersInForceContext value={footers}>
+                    <ProposalAnsweringContext value={answering}>
+                        <Draft block={block} />
+                    </ProposalAnsweringContext>
+                </FootersInForceContext>
             </AnswerSourcesContext>
         </LocalizationProvider>,
     );
@@ -354,6 +385,54 @@ describe('Draft', () => {
             expect(
                 screen.getByText('This message leaves Fri 08/28 at 8:00 AM, not when you press Send.'),
             ).toBeDefined();
+        });
+    });
+
+    describe('the footer its account adds', () => {
+        const footers: FootersInForce = new Map([['work', workFooter]]);
+
+        it('stands under the letter folded to one line, and unfolds and folds again on a press', () => {
+            renderDraft(drafted(), inConversation('pending'), footers);
+
+            const fold = screen.getByRole('button', { name: 'Your footer is hidden' });
+
+            expect(fold.getAttribute('aria-expanded')).toBe('false');
+            expect(screen.queryByText('Nordwind Logistics')).toBeNull();
+
+            fireEvent.click(fold);
+
+            expect(screen.getByText('Karolina Kowalska')).toBeDefined();
+            expect(screen.getByText('Nordwind Logistics')).toBeDefined();
+
+            fireEvent.click(screen.getByRole('button', { name: 'Hide your footer' }));
+
+            expect(screen.queryByText('Nordwind Logistics')).toBeNull();
+        });
+
+        it('draws nothing where the account sends without a footer', () => {
+            renderDraft(
+                { ...drafted(), draft: { ...composed, account: 'board' } } as AnswerBlock,
+                inConversation('pending'),
+                footers,
+            );
+
+            expect(screen.queryByRole('button', { name: 'Your footer is hidden' })).toBeNull();
+        });
+
+        it('draws nothing where the draft names no account', () => {
+            renderDraft(
+                { ...drafted(), draft: { ...composed, account: null } } as AnswerBlock,
+                inConversation('pending'),
+                footers,
+            );
+
+            expect(screen.queryByRole('button', { name: 'Your footer is hidden' })).toBeNull();
+        });
+
+        it('draws nothing once the draft was discarded, it being nothing that will go', () => {
+            renderDraft(drafted(), inConversation('declined'), footers);
+
+            expect(screen.queryByRole('button', { name: 'Your footer is hidden' })).toBeNull();
         });
     });
 });

@@ -158,7 +158,8 @@ internal static class PresentationPlanExample
             [recipient],
             Text("Re: Revised figures"),
             Text("Confirming that we accept the revised figure."),
-            DraftDisposition.Composed);
+            DraftDisposition.Composed,
+            account: Text("primary"));
     }
 
     private static EventProposalBlock EventProposal() =>

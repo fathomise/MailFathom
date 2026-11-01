@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { workAccount } from './deployment';
 import { newsletterId } from './messages';
 
 // Two conversations with the Agent, as `/api/client` serves them: the history listing both, one conversation that was
@@ -222,6 +223,7 @@ const answeredEntries = [
                 subject: 'Re: four bays to the end of the week',
                 body: 'Thank you — four bays until Friday suits us. We will confirm the times by Wednesday.',
                 disposition: 'Composed',
+                account: workAccount.id,
             },
         },
     },

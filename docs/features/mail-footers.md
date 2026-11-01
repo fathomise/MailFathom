@@ -1,6 +1,6 @@
 # Mail footers
 
-<!-- describes: backend/src/Application/Mail/Delivery/Footers/**, backend/src/Infrastructure/Mail/Mime/MailFooterMarkup.cs, backend/src/Infrastructure/Mail/Mime/Composition/MimeKitMailFooterComposer.cs, backend/src/Infrastructure/Persistence/Footers/**, backend/src/Application/Mail/Delivery/MailOutbox.cs -->
+<!-- describes: backend/src/Application/Mail/Delivery/Footers/**, backend/src/Infrastructure/Mail/Mime/MailFooterMarkup.cs, backend/src/Infrastructure/Mail/Mime/Composition/MimeKitMailFooterComposer.cs, backend/src/Infrastructure/Persistence/Footers/**, backend/src/Application/Mail/Delivery/MailOutbox.cs, frontend/src/Client.App/src/footers/** -->
 
 A footer is the block under a person's words in every message they send: their name, their role, a number to call, a
 logo. Each person writes their own for each mail account they send from, and an organization may set one template that
@@ -84,6 +84,11 @@ will end with. It arrives as the same closed document tree a message body is ser
 a message's own inline images are, says whether it is the person's own or the organization's, and is absent for an
 account that sends without one. The person's own footer is read and written separately, as the markup and images they
 would edit.
+
+The client draws it folded to one line wherever a message is about to go out: under the words in the composer, for the
+account the message is sent from, and under an Agent's draft, for the account the draft names. A press unfolds it and
+another folds it again. It is drawn outside what is written and is never part of a saved draft, because the service
+appends it on sending, and a footer the client could not read leaves the message to be written and sent without it.
 
 ## Personal data
 
