@@ -200,6 +200,9 @@ public sealed class AdminEndpointRoutesTests
             "/api/admin/organizations/11111111-2222-3333-4444-555555555555/short-name",
             AdminEndpointRoutes.OrganizationShortNamePath(organization));
         Assert.Equal(
+            "/api/admin/organizations/11111111-2222-3333-4444-555555555555/footer-template",
+            AdminEndpointRoutes.OrganizationFooterTemplatePath(organization));
+        Assert.Equal(
             "/api/admin/organizations/11111111-2222-3333-4444-555555555555/signing-keys",
             AdminEndpointRoutes.OrganizationSigningKeysPath(organization));
         Assert.Equal(

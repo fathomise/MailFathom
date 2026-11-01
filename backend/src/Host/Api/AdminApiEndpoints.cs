@@ -208,6 +208,7 @@ internal static class AdminApiEndpoints
         api.MapOrganizations();
         api.MapOrganizationContacts();
         api.MapOrganizationSigningKeys();
+        api.MapOrganizationFooterTemplates();
         api.MapKnownAuthenticationProviders();
         api.MapSettingsPolicies();
         api.MapGrants();

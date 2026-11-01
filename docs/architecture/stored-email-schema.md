@@ -687,6 +687,29 @@ claimed against nothing rather than against the revision it replaced.
 every answer row under another revision are one common table expression, so no instant exists in which a new
 revision stands beside the old one's answers.
 
+## What a person's messages end with
+
+`mail_account_footers` holds the [footer](../features/mail-footers.md) one person wrote for one of their accounts, and
+`organization_footer_templates` the template an organization sets for every member instead.
+
+| Column of `mail_account_footers` | What it records |
+|---|---|
+| `UserId`, `MailAccountId` | The primary key: whose footer, on which account. Together they are the foreign key onto `mail_account_assignments` with `ON DELETE CASCADE`, so a footer is deleted with the assignment it hangs off and, through it, with the person and with the account |
+| `Document` | The footer as `jsonb`: its sanitized markup under `html`, and under `images` each uploaded image's `name`, `mediaType`, and `content` in base64 — at most five, of at most 256 KiB each |
+| `UpdatedAt` | When it was last saved |
+
+| Column of `organization_footer_templates` | What it records |
+|---|---|
+| `OrganizationId` | The primary key, and the foreign key onto `organizations` with `ON DELETE CASCADE` |
+| `Document` | The template in the same shape, its `{{name}}` variables still unfilled |
+| `UpdatedAt` | When it was last saved |
+
+**A write is one statement that inserts only beside its parent.** Each upsert is `INSERT … SELECT` from the assignment
+or the organization it belongs to, `ON CONFLICT` on the key replacing the document, so a second save replaces the
+first rather than colliding, and a save for an assignment or an organization removed a moment earlier affects no row
+instead of raising a foreign-key violation. The images live in the document rather than in the content store because
+they are bounded, read whole on every send, and deleted with the row that owns them.
+
 ## Files a user record links to
 
 `stored_files` holds binary files a user supplied and a record links to rather than holds — today the picture the

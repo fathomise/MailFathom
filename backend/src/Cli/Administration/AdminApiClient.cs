@@ -2280,6 +2280,73 @@ internal sealed class AdminApiClient
             NextCursor: null);
     }
 
+    /// <summary>Reads one organization's footer template.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The template, or <see langword="null" /> where none is set.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the credential, could not be reached, or answered with something that is not a template.</exception>
+    internal async Task<OrganizationFooterTemplate?> ReadOrganizationFooterTemplateAsync(
+        string token,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var reading = await this.RequestAsync(
+            HttpMethod.Get,
+            AdminEndpointRoutes.OrganizationFooterTemplatePath(organizationId),
+            token,
+            CliJsonContext.Default.OrganizationFooterTemplateReading,
+            cancellationToken,
+            absenceMessage: NoSuchOrganization);
+
+        return reading.Template;
+    }
+
+    /// <summary>Sets one organization's footer template, which every member's message from its accounts then carries.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="template">The whole template, its images included.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The template as the deployment saved it, its markup sanitized.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> or <paramref name="template" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment holds no such organization, refused the template naming why, refused the credential, or could not be reached.</exception>
+    internal Task<OrganizationFooterTemplate> SetOrganizationFooterTemplateAsync(
+        string token,
+        Guid organizationId,
+        OrganizationFooterTemplate template,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+
+        return this.RequestAsync(
+            HttpMethod.Put,
+            AdminEndpointRoutes.OrganizationFooterTemplatePath(organizationId),
+            token,
+            CliJsonContext.Default.OrganizationFooterTemplate,
+            cancellationToken,
+            JsonContent.Create(template, CliJsonContext.Default.OrganizationFooterTemplate),
+            NoSuchOrganization);
+    }
+
+    /// <summary>Clears one organization's footer template, so each member's own footer is what they send with again.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>A task that completes once the deployment has cleared it, or found nothing to clear.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the credential or could not be reached.</exception>
+    internal Task ClearOrganizationFooterTemplateAsync(
+        string token,
+        Guid organizationId,
+        CancellationToken cancellationToken) =>
+        this.RequestAsync(
+            HttpMethod.Delete,
+            AdminEndpointRoutes.OrganizationFooterTemplatePath(organizationId),
+            token,
+            cancellationToken,
+            absenceMessage: NoSuchOrganization);
+
     /// <summary>Mints a fresh active signing key for an organization now, retiring the one it signs with.</summary>
     /// <param name="token">The bearer credential to present.</param>
     /// <param name="organizationId">The organization.</param>

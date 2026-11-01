@@ -249,6 +249,7 @@ public sealed class RecurringSendOccurrenceHandlerTests
                 Substitute.For<IOutboxOperationStore>(),
                 AccessAuthorizations.ForPrincipal(AuthorizedPrincipal.Process),
                 OutgoingMailGovernors.Permitting(),
+                MailFootings.SendingNone(),
                 OutgoingMailScreenings.Inactive(),
                 OrganizationMailSigners.SigningNothing(),
                 this.clock,

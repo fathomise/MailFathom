@@ -154,6 +154,7 @@ internal sealed class DraftedMailDeployment
                 Substitute.For<IOutboxOperationStore>(),
                 authorization,
                 OutgoingMailGovernors.Permitting(),
+                MailFootings.SendingNone(),
                 screening,
                 OrganizationMailSigners.SigningNothing(),
                 this.clock,

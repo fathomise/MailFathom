@@ -65,7 +65,28 @@ internal sealed class EmailHtmlSanitizer
         "alt", "colspan", "dir", "lang", "rowspan", "title",
     ];
 
-    private readonly HtmlSanitizer sanitizer = CreatePolicy();
+    private readonly HtmlSanitizer sanitizer;
+
+    /// <summary>Initializes the sanitizer incoming mail is read through, which keeps no reference of any kind.</summary>
+    public EmailHtmlSanitizer()
+        : this(CreatePolicy(keepsContentReferences: false))
+    {
+    }
+
+    private EmailHtmlSanitizer(HtmlSanitizer sanitizer)
+    {
+        this.sanitizer = sanitizer;
+    }
+
+    /// <summary>Creates the sanitizer a footer is written through: the same allow-list, keeping an image's <c>cid:</c> reference.</summary>
+    /// <returns>The sanitizer.</returns>
+    /// <remarks>
+    /// A footer's images are uploaded with it and embedded in every message carrying it, so the one reference it needs
+    /// points at a part of the same message — the one this policy otherwise clears. Only <c>src</c> is added, and only
+    /// with the <c>cid</c> scheme, so no address and no <c>data:</c> URI survives; which name each reference carries
+    /// is the footer's own reading to check.
+    /// </remarks>
+    public static EmailHtmlSanitizer KeepingContentReferences() => new(CreatePolicy(keepsContentReferences: true));
 
     /// <summary>Sanitizes one HTML body.</summary>
     /// <param name="html">The body markup as the message wrote it.</param>
@@ -83,7 +104,7 @@ internal sealed class EmailHtmlSanitizer
         return this.sanitizer.Sanitize(html);
     }
 
-    private static HtmlSanitizer CreatePolicy()
+    private static HtmlSanitizer CreatePolicy(bool keepsContentReferences)
     {
         var policy = new HtmlSanitizer();
 
@@ -97,6 +118,12 @@ internal sealed class EmailHtmlSanitizer
         policy.AllowedAtRules.Clear();
         policy.AllowedSchemes.Clear();
         policy.AllowDataAttributes = false;
+
+        if (keepsContentReferences)
+        {
+            policy.AllowedAttributes.Add("src");
+            policy.AllowedSchemes.Add("cid");
+        }
 
         return policy;
     }

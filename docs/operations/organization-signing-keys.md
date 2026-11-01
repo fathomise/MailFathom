@@ -62,7 +62,9 @@ key**, whoever its recipients are. A message is signed once, when the outbox fir
 message, a reply, each occasion of a recurring send, and a draft promoted to a send alike — and the stored, signed bytes
 are what every submission attempt sends and what is filed into the sent folder, so the sent copy is byte for byte the
 message the recipients received, whether the account is mirrored, held, or restoring. A draft that is only saved is
-never signed: it is not sent. A send asked for again with the same identity keeps the bytes it stored the first time.
+never signed: it is not sent. A send asked for again with the same identity keeps the bytes it stored the first time. The
+sender's [footer](../features/mail-footers.md) goes into the message before it is signed, so the signature covers the
+message as it carries the footer.
 
 The organization is the one the sending account belongs to when the message is stored, and the key is that
 organization's active key at that moment, so a scheduled send is signed when it is queued rather than when it leaves.

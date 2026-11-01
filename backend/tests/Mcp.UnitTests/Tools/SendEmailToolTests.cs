@@ -459,6 +459,7 @@ public sealed class SendEmailToolTests
                 Substitute.For<IOutboxOperationStore>(),
                 granted,
                 OutgoingMailGovernors.Permitting(),
+                MailFootings.SendingNone(),
                 screening ?? OutgoingMailScreenings.Inactive(),
                 OrganizationMailSigners.SigningNothing(),
                 new FakeTimeProvider(Recorded),

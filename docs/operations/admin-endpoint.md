@@ -473,6 +473,7 @@ These routes accept a grant held at any of the three, and check it against the t
 | `PUT /api/admin/organizations/{organizationId}/display-name` | The organization |
 | `GET` and `POST /api/admin/organizations/{organizationId}/policy` | The organization |
 | `GET /api/admin/organizations/{organizationId}/signing-keys` | The organization |
+| `GET`, `PUT`, and `DELETE /api/admin/organizations/{organizationId}/footer-template` | The organization |
 
 **A target outside the caller's scope is answered exactly as one that does not exist**, because a refusal naming the
 missing scope would tell an organization's administrator that the account, the person, or the organization exists
@@ -695,6 +696,9 @@ and a request with none is refused as any other.
 | `GET /api/admin/organizations/{organizationId}/signing-keys` | `mailfathom.admin.read` | Reads [one page](#reading-the-users-mail-accounts-and-organizations-a-page-at-a-time) of [the organization's signing keys](organization-signing-keys.md), oldest first, each with its identifier, its state — `active`, `retired`, or `revoked` — and when it was created, retired, and revoked, beside the organization's display name and `nextCursor` naming where the following page continues. No key material is ever part of the answer. It answers `404` for an organization this deployment does not hold or the caller's scope does not cover. This is what `mfctl organization signing-key list` asks. |
 | `POST /api/admin/organizations/{organizationId}/signing-keys/rotation` | `mailfathom.admin.credentials.write` | Mints the organization a fresh active signing key now and retires the one it signed with, answering with both identifiers. It answers `404` for an organization this deployment does not hold, and `409` naming `DataEncryption` where the deployment configures no key ring to seal the new key under. |
 | `POST /api/admin/organizations/{organizationId}/signing-keys/{keyId}/revocation` | `mailfathom.admin.credentials.write` | Revokes one of the organization's signing keys. Revoking the active key mints its replacement in the same transaction, and the answer names it. It answers `404` for a key the organization does not hold, and `409` for a key already revoked. |
+| `GET /api/admin/organizations/{organizationId}/footer-template` | `mailfathom.admin.read` | Reads the organization's [footer template](#the-organization-footer-template-routes) as it was saved, its variables unfilled and its images beside it, or `"template": null` where none is set. This is what `mfctl organization footer-template show` asks. |
+| `PUT /api/admin/organizations/{organizationId}/footer-template` | `mailfathom.admin.configuration.write` | Replaces the organization's footer template and answers with it as saved, its markup sanitized. It answers `400` naming what was wrong — an unknown variable by its name, an image linked rather than uploaded, a bound — and `404` for an organization this deployment does not hold. This is what `mfctl organization footer-template set` sends. |
+| `DELETE /api/admin/organizations/{organizationId}/footer-template` | `mailfathom.admin.configuration.write` | Clears the organization's footer template, answering `204` whether or not one was set. This is what `mfctl organization footer-template clear` sends. |
 | `GET /api/admin/known-authentication-providers` | `mailfathom.admin.read` at the deployment | Reads [one page](#reading-the-users-mail-accounts-and-organizations-a-page-at-a-time) of the [known authentication providers](#known-authentication-providers) in the order they were added, each with its IMAP host, its authserv-id, who added it, and when, beside `nextCursor`. This is what `mfctl known-provider list` asks. |
 | `POST /api/admin/known-authentication-providers` | `mailfathom.admin.configuration.write` at the deployment | Adds an entry from the `imapHost` and `authorityIdentifier` the body carries, answering with both in the form they are matched by. A host the list already names is answered `409`, and a host or an authserv-id no match could be made against `400`, naming which of the two and never echoing it. |
 | `DELETE /api/admin/known-authentication-providers/{imapHost}` | `mailfathom.admin.configuration.write` at the deployment | Removes the entry for one host, matched without regard to case or a trailing dot. It answers `204`, `404` for a host the list does not name, and `400` for a host no match could be made against. |
@@ -2108,6 +2112,9 @@ method's](mcp-endpoint.md#passwords) to state.
 | `mfctl organization signing-key list --organization <id>` | Reads every one of the organization's [signing keys](organization-signing-keys.md), oldest first, with each one's state and dates and never its material |
 | `mfctl organization signing-key rotate --organization <id>` | Mints a fresh active signing key now and retires the one the organization signed with |
 | `mfctl organization signing-key revoke --organization <id> --key <id>` | Revokes one signing key after asking, minting a replacement in the same act when it was the active one |
+| `mfctl organization footer-template set --organization <id> --html-file <path> [--image <name>=<path> ...]` | Sets the [footer template](#the-organization-footer-template-routes) every member's message from the organization's accounts carries, from a markup file and the images it shows |
+| `mfctl organization footer-template show --organization <id>` | Prints the template's markup as saved, and each image's name, type, and size |
+| `mfctl organization footer-template clear --organization <id>` | Clears the template, so each member sends with their own footer again |
 | `mfctl user set-organization (--organization <id> \| --none)` | Moves one user into an organization, or out of every organization; it takes `--user` as every other user command does |
 | `mfctl account set-organization --account <id> (--organization <id> \| --none)` | Moves one mail account into an organization, or out of every organization |
 
@@ -2193,6 +2200,40 @@ users in none — already holds one of that user's usernames for somebody else, 
 **An organization with members or mail accounts is not removed.** The refusal says how many of each it still has, so an
 operator moves each of them out first rather than leaving users whose logins name a short name nobody holds, or accounts
 assignable only within an organization that is gone.
+
+#### The organization footer template routes
+
+An organization may set one footer for every member's message from its mail accounts, in place of the footer each
+member writes for themselves. While it is set, the client refuses a member's own footer for those accounts and says the
+organization sets it; clearing it gives each member their own back. [Mail footers](../features/mail-footers.md) says
+what a footer is and where it goes in a message.
+
+```sh
+mfctl organization footer-template set --organization 0197c0de-0000-7000-8000-0000000000a1 \
+  --html-file footer.html --image logo.png=./logo.png
+```
+
+**A template names its variables as `{{name}}`, and only three exist**: `displayName`, `jobTitle`, and `phoneNumber`,
+filled when a message is sent from the member's own record — the name the organization's member directory carries,
+their job title, and their first phone number — each encoded for markup, and empty where the member has none. A
+template naming any other variable is refused at save naming it, so a typo never reaches a member's message as
+literal braces:
+
+```
+The template names variable 'department', which is not one of displayName, jobTitle, phoneNumber.
+```
+
+**Images are uploaded with the template, never linked.** `--image` takes the name the markup refers to it by and the
+file to read, and is repeated per image; the markup shows it as `<img src="cid:logo.png">`. The type is read from the
+file's extension — `.png`, `.jpg` or `.jpeg`, `.gif` — and any other is refused before anything is sent. The bounds are
+the ones a member's own footer is held to: at most five images of at most 256 KiB each, markup of at most 16384
+characters, and a request body of at most 2 MiB. A remote or `data:` image reference is refused saying the image must be
+uploaded.
+
+**The template is a configuration write over the organization.** Reading it takes `mailfathom.admin.read` and setting
+or clearing it `mailfathom.admin.configuration.write`, each at a scope covering the organization. A template is not a
+[settings policy](#settings-policies) property: a policy governs a property of a user record or a mail account record,
+and a footer is what one person sends from one account. It is removed with the organization.
 
 ### Known authentication providers
 

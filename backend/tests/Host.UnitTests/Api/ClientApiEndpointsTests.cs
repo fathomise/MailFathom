@@ -142,6 +142,9 @@ public sealed class ClientApiEndpointsTests
         Assert.Equal(
             [
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailAccountsEndpoint.MailAccountsRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientMailFooterEndpoints.OwnMailFooterRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientMailFooterEndpoints.OwnMailFooterRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientMailFooterEndpoints.OwnMailFooterRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientAgentConversationEndpoints.ConversationsRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientAgentConversationEndpoints.SearchRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientAgentConversationEndpoints.ConversationRoute}",
@@ -203,6 +206,7 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailSearchPhraseEndpoint.MailSearchPhrasingRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailSearchPhraseEndpoint.MailSearchPhrasingRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailFoldersEndpoint.MailFoldersRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientMailFooterEndpoints.MailFootersRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientManagedMailFoldersEndpoint.ManagedFoldersRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientManagedMailFoldersEndpoint.ManagedFoldersRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientManagedMailFoldersEndpoint.DeletionsRoute}",
@@ -318,6 +322,7 @@ public sealed class ClientApiEndpointsTests
         // Assert
         Assert.Equal(
             [
+                $"DELETE {prefix}{ClientMailFooterEndpoints.OwnMailFooterRoute} -> {MailFathomPermission.ProfileWrite.Name}",
                 $"DELETE {prefix}{ClientAgentConversationEndpoints.ConversationRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"DELETE {prefix}{ClientAgentConversationEndpoints.ArchiveRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"DELETE {prefix}{ClientAgentConversationEndpoints.RunRoute} -> {MailFathomPermission.AssistantUse.Name}",
@@ -331,6 +336,7 @@ public sealed class ClientApiEndpointsTests
                 $"DELETE {prefix}{ClientPresenceEndpoints.ClientRoute} -> {MailFathomPermission.ProfileWrite.Name}",
                 $"DELETE {prefix}{ClientTaskEndpoints.TaskRoute} -> {MailFathomPermission.TasksWrite.Name}",
                 $"GET {prefix}{ClientMailAccountsEndpoint.MailAccountsRoute} -> {MailFathomPermission.MailRead.Name}",
+                $"GET {prefix}{ClientMailFooterEndpoints.OwnMailFooterRoute} -> {MailFathomPermission.ProfileRead.Name}",
                 $"GET {prefix}{ClientAgentConversationEndpoints.ConversationsRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"GET {prefix}{ClientAgentConversationEndpoints.ConversationRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"GET {prefix}{ClientAutomaticReplyEndpoint.AutomaticReplyRoute} -> {MailFathomPermission.ProfileRead.Name}",
@@ -356,6 +362,7 @@ public sealed class ClientApiEndpointsTests
                 $"GET {prefix}{ClientMailSearchEndpoint.MailSearchRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientMailSearchPhraseEndpoint.MailSearchPhrasingRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"GET {prefix}{ClientMailFoldersEndpoint.MailFoldersRoute} -> {MailFathomPermission.MailRead.Name}",
+                $"GET {prefix}{ClientMailFooterEndpoints.MailFootersRoute} -> {MailFathomPermission.ProfileRead.Name}",
                 $"GET {prefix}{ClientManagedMailFoldersEndpoint.ManagedFoldersRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientMailMessageEndpoint.MailMessageRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientMailAttachmentEndpoint.MailAttachmentRoute} -> {MailFathomPermission.MailRead.Name}",
@@ -443,6 +450,7 @@ public sealed class ClientApiEndpointsTests
                         $"POST {prefix}{ClientTelemetryEndpoint.TelemetryRoutePrefix}{signal.Route} -> none")
                     .Order(StringComparer.Ordinal),
                 $"POST {prefix}{ClientTimeZoneEndpoint.TimeZoneRoute} -> {MailFathomPermission.ProfileWrite.Name}",
+                $"PUT {prefix}{ClientMailFooterEndpoints.OwnMailFooterRoute} -> {MailFathomPermission.ProfileWrite.Name}",
                 $"PUT {prefix}{ClientAgentConversationEndpoints.ArchiveRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"PUT {prefix}{ClientAgentConversationEndpoints.ProposalRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"PUT {prefix}{ClientAgentConversationEndpoints.ReadRoute} -> {MailFathomPermission.AssistantUse.Name}",
@@ -783,6 +791,29 @@ public sealed class ClientApiEndpointsTests
 
         Assert.Equal(
             ClientAutomaticReplyEndpoint.MaxWriteRequestBytes,
+            write.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
+    }
+
+    /// <summary>The footer write carries a bound sized for its markup and its images rather than the server's default.</summary>
+    [Fact]
+    public void MapClientApi_TheFooterWrite_CarriesItsOwnRequestBodyBound()
+    {
+        // Arrange
+        var endpoints = BuildRouteBuilder();
+
+        // Act
+        endpoints.MapClientApi();
+
+        // Assert
+        var write = endpoints.Materialize()
+            .OfType<RouteEndpoint>()
+            .Single(endpoint =>
+                $"/{endpoint.RoutePattern.RawText?.TrimStart('/')}"
+                    == $"{ClientEndpointOptions.RoutePrefix}{ClientMailFooterEndpoints.OwnMailFooterRoute}"
+                && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("PUT"));
+
+        Assert.Equal(
+            MailFooterRequest.MaxRequestBytes,
             write.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
     }
 

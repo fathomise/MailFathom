@@ -1686,6 +1686,26 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("mail_account_folder_settings", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailAccountFooterEntity", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MailAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Document")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "MailAccountId");
+
+                    b.ToTable("mail_account_footers", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailAccountRecordEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3102,6 +3122,23 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_organizations_short_name");
 
                     b.ToTable("organizations", (string)null);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OrganizationFooterTemplateEntity", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Document")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("OrganizationId");
+
+                    b.ToTable("organization_footer_templates", (string)null);
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OrganizationSigningKeyEntity", b =>
@@ -5284,6 +5321,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_mail_account_folder_settings_settings_mail_accounts");
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailAccountFooterEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailAccountAssignmentEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId", "MailAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailAccountRecordEntity", b =>
                 {
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", null)
@@ -5555,6 +5601,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", null)
                         .WithMany()
                         .HasForeignKey("StoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OrganizationFooterTemplateEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

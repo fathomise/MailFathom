@@ -280,6 +280,7 @@ internal static class AnsweredMailSubmissions
             Substitute.For<IOutboxOperationStore>(),
             granted,
             OutgoingMailGovernors.Permitting(),
+            MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
             OrganizationMailSigners.SigningNothing(),
             new FakeTimeProvider(RecordedAt),

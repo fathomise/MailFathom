@@ -610,7 +610,8 @@ redaction. A placeholder written into somebody's message would be transmitted un
 makes it hold for every route rather than for the tools that happen to exist today. A send asked for now, a send held
 until a later moment, an occasion of a repeated send, a draft, a revision of one, and a draft promoted to a send are
 all judged the same way — including the promotion of a draft written before the operator switched screening on, since
-what is judged is the message leaving rather than when it was composed.
+what is judged is the message leaving rather than when it was composed. A send is judged with the sender's
+[footer](mail-footers.md) already in it, because the footer leaves with it.
 
 **What is read is the composed MIME**: the subject, both body representations, and the text of every attached document,
 exactly as they would be transmitted. Each attached document is opened through
