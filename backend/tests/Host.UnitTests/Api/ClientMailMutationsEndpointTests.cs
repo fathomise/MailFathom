@@ -378,6 +378,44 @@ public sealed class ClientMailMutationsEndpointTests
         await this.receipts.DidNotReceiveWithAnyArgs().RecordOpenedAsync(default!, default!, default, TestContext.Current.CancellationToken);
     }
 
+    /// <summary>
+    /// Of an opening's batch, only a change that marked a message read and was accepted reports a reading: one that has
+    /// gone, one marking a message unread, and one changing tags alone were not read by anybody, and saying they were
+    /// would tell a colleague something the person never did.
+    /// </summary>
+    [Fact]
+    public async Task SubmitFlagChangesAsync_AnOpeningBatchMixingOtherChanges_RecordsOnlyTheAcceptedReadAsOpened()
+    {
+        // Arrange
+        this.RecordEveryRequest();
+
+        var gone = Guid.Parse("0199a0c0-0000-7000-8000-0000000090a1");
+        var markedUnread = Guid.Parse("0199a0c0-0000-7000-8000-0000000090a2");
+        var tagged = Guid.Parse("0199a0c0-0000-7000-8000-0000000090a3");
+
+        // Act
+        await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
+            new ClientMailFlagChangesRequest(
+                "call-1",
+                [
+                    new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null),
+                    new ClientMailFlagChangeRequest(gone, new ClientMailFlagStateRequest(Seen: true, null), null),
+                    new ClientMailFlagChangeRequest(markedUnread, new ClientMailFlagStateRequest(Seen: false, null), null),
+                    new ClientMailFlagChangeRequest(tagged, null, new ClientMailTagChangeRequest(ClientMailTagChanges.Add, ["$label1"])),
+                ],
+                Opened: true),
+            this.FlagRecorder(TargetInInbox(), gone: gone),
+            this.Openings(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.receipts.Received(1).RecordOpenedAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Is<IReadOnlyCollection<StoredEmailId>>(opened => opened.SequenceEqual(new[] { StoredEmailId.Create(Message) })),
+            RecordedAt,
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>A folder withheld from AI is still the person's, so a flag they set on its mail is recorded like any other.</summary>
     [Fact]
     public async Task SubmitFlagChangesAsync_AMessageInAFolderWithheldFromAI_IsRecordedForThePerson()
@@ -1258,13 +1296,22 @@ public sealed class ClientMailMutationsEndpointTests
     /// <param name="target">The message the caller names, defaulting to none, which is the absence the recorder reports as a message that has gone.</param>
     /// <param name="held">Whether the account's mailbox is one MailFathom holds.</param>
     /// <param name="participation">What the caller's folders take part in where a target is named, defaulting to the inbox taking part in everything.</param>
+    /// <param name="gone">A message the recorder reports as gone although every other one resolves to the target.</param>
     private MailFlagChangeRecorder FlagRecorder(
         AuthoredMailboxTarget? target = null,
         bool held = false,
-        StubMailFolderParticipation? participation = null)
+        StubMailFolderParticipation? participation = null,
+        Guid? gone = null)
     {
         var targets = Substitute.For<IAuthoredMailboxTargetReader>();
         targets.FindAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(target));
+
+        if (gone is { } goneMessage)
+        {
+            targets
+                .FindAsync(StoredEmailId.Create(goneMessage), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult<AuthoredMailboxTarget?>(null));
+        }
 
         return new MailFlagChangeRecorder(
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),
