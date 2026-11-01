@@ -3,7 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { choosePresence, closePresenceClient, readOwnPresence, renewPresenceClient } from './presence';
+import {
+    choosePresence,
+    chooseWorkMode,
+    closePresenceClient,
+    readOwnPresence,
+    renewPresenceClient,
+    writeStatusMessage,
+} from './presence';
 import type { ClientSession } from './session';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
 
@@ -40,13 +47,22 @@ describe('readOwnPresence', () => {
             chosenState: 'Busy',
             choiceDuration: '1h',
             choiceEndsAt: '2026-10-31T15:30:00+01:00',
+            statusMessage: null,
+            workMode: null,
         };
 
         expect(await readOwnPresence(session, answering(200, presence))).toEqual({ outcome: 'read', value: presence });
     });
 
     it('reads a member whose clients decide their presence as one who chose nothing', async () => {
-        const presence = { state: 'Away', chosenState: null, choiceDuration: null, choiceEndsAt: null };
+        const presence = {
+            state: 'Away',
+            chosenState: null,
+            choiceDuration: null,
+            choiceEndsAt: null,
+            statusMessage: null,
+            workMode: null,
+        };
 
         expect(await readOwnPresence(session, answering(200, presence))).toEqual({ outcome: 'read', value: presence });
     });
@@ -56,8 +72,28 @@ describe('readOwnPresence', () => {
 
         expect(answer).toEqual({
             outcome: 'read',
-            value: { state: 'Hidden', chosenState: 'Hidden', choiceDuration: null, choiceEndsAt: null },
+            value: {
+                state: 'Hidden',
+                chosenState: 'Hidden',
+                choiceDuration: null,
+                choiceEndsAt: null,
+                statusMessage: null,
+                workMode: null,
+            },
         });
+    });
+
+    it('reads what the member says they are doing and where they work from, with when each stops holding', async () => {
+        const presence = {
+            state: 'Active',
+            chosenState: null,
+            choiceDuration: null,
+            choiceEndsAt: null,
+            statusMessage: { text: 'In workshops until 15:00', clears: 'today', clearsAt: '2026-10-31T23:00:00Z' },
+            workMode: { mode: 'Remote', endsAt: null },
+        };
+
+        expect(await readOwnPresence(session, answering(200, presence))).toEqual({ outcome: 'read', value: presence });
     });
 
     it('reads a caller in no organization as one with no presence at all', async () => {
@@ -83,6 +119,23 @@ describe('readOwnPresence', () => {
         ],
         ['an end with no while', { state: 'Busy', chosenState: 'Busy', choiceEndsAt: '2026-10-31T15:30Z' }],
         ['a while with no end', { state: 'Busy', chosenState: 'Busy', choiceDuration: 'today', choiceEndsAt: null }],
+        ['a blank status message', { state: 'Active', chosenState: null, statusMessage: { text: '  ' } }],
+        [
+            'a status message past its bound',
+            { state: 'Active', chosenState: null, statusMessage: { text: 'a'.repeat(281) } },
+        ],
+        [
+            'a status message that clears with no instant',
+            { state: 'Active', chosenState: null, statusMessage: { text: 'On call', clears: '1h', clearsAt: null } },
+        ],
+        [
+            'a place of work this client does not know',
+            { state: 'Active', chosenState: null, workMode: { mode: 'Home' } },
+        ],
+        [
+            'a place of work ending on no instant',
+            { state: 'Active', chosenState: null, workMode: { mode: 'Office', endsAt: 'tonight' } },
+        ],
     ])('refuses %s', async (_, body) => {
         expect(await readOwnPresence(session, answering(200, body))).toEqual({
             outcome: 'failed',
@@ -123,7 +176,14 @@ describe('choosePresence', () => {
         expect(requests[0]?.body).toBe(JSON.stringify({ state: 'Active', duration: null }));
         expect(answer).toEqual({
             outcome: 'read',
-            value: { state: 'Active', chosenState: null, choiceDuration: null, choiceEndsAt: null },
+            value: {
+                state: 'Active',
+                chosenState: null,
+                choiceDuration: null,
+                choiceEndsAt: null,
+                statusMessage: null,
+                workMode: null,
+            },
         });
     });
 });
@@ -170,5 +230,55 @@ describe('closePresenceClient', () => {
             outlivesThePage: true,
         });
         expect(requests[0]?.headers['Authorization']).toBe(session.authorization);
+    });
+});
+
+describe('writeStatusMessage', () => {
+    it('states the text and when it clears together, in one request', async () => {
+        const { transport, requests } = recording({
+            status: 200,
+            body: JSON.stringify({
+                state: 'Active',
+                chosenState: null,
+                statusMessage: { text: 'On call', clears: '1h', clearsAt: '2026-10-31T16:30:00Z' },
+            }),
+        });
+
+        const answer = await writeStatusMessage(session, transport, 'On call', '1h');
+
+        expect(requests[0]).toMatchObject({
+            method: 'PUT',
+            path: 'https://mail.example.invalid/api/client/presence/status-message',
+            body: JSON.stringify({ text: 'On call', clears: '1h' }),
+        });
+        expect(answer).toMatchObject({
+            outcome: 'read',
+            value: { statusMessage: { text: 'On call', clears: '1h', clearsAt: '2026-10-31T16:30:00Z' } },
+        });
+    });
+});
+
+describe('chooseWorkMode', () => {
+    it('states the place of work and whether it is for today alone, in one request', async () => {
+        const { transport, requests } = recording({
+            status: 200,
+            body: JSON.stringify({
+                state: 'Active',
+                chosenState: null,
+                workMode: { mode: 'Office', endsAt: '2026-10-31T23:00:00Z' },
+            }),
+        });
+
+        const answer = await chooseWorkMode(session, transport, 'Office', true);
+
+        expect(requests[0]).toMatchObject({
+            method: 'PUT',
+            path: 'https://mail.example.invalid/api/client/presence/work-mode',
+            body: JSON.stringify({ mode: 'Office', today: true }),
+        });
+        expect(answer).toMatchObject({
+            outcome: 'read',
+            value: { workMode: { mode: 'Office', endsAt: '2026-10-31T23:00:00Z' } },
+        });
     });
 });

@@ -4,10 +4,12 @@
 
 namespace MailFathom.Domain.Presence;
 
-/// <summary>Everything a member's presence is worked out from: their open clients, the state they chose, and when they were last seen.</summary>
+/// <summary>Everything a member's presence is worked out from: their open clients, the state they chose, when they were last seen, and what they say they are doing and where they work from.</summary>
 /// <param name="Clients">The member's client rows, expired ones included, which every read leaves out by their expiry.</param>
 /// <param name="Choice">The state the member chose, or <see langword="null" /> where they chose none.</param>
 /// <param name="LastSeen">When the member was last present, or <see langword="null" /> where they never were.</param>
+/// <param name="Message">The status message the member wrote, cleared or not, or <see langword="null" /> where there is none.</param>
+/// <param name="WorkMode">Where the member said they work from, run out or not, or <see langword="null" /> where they never said.</param>
 /// <remarks>
 /// <para>
 /// Presence is never stored: it is worked out from this when it is read, which is what
@@ -24,7 +26,9 @@ namespace MailFathom.Domain.Presence;
 public sealed record MemberPresence(
     IReadOnlyList<OpenPresenceClient> Clients,
     PresenceChoice? Choice,
-    DateTimeOffset? LastSeen)
+    DateTimeOffset? LastSeen,
+    StatusMessage? Message = null,
+    WorkModeChoice? WorkMode = null)
 {
     /// <summary>How often an open client renews its row.</summary>
     public static readonly TimeSpan RenewalInterval = TimeSpan.FromSeconds(60);
@@ -65,11 +69,14 @@ public sealed record MemberPresence(
 
     /// <summary>Works out what every other member of the organization sees.</summary>
     /// <param name="instant">The time of the read.</param>
-    /// <returns>The state, with the last-seen time where the member reads as <see cref="PresenceState.Offline" /> and did not choose to hide, and whether they use the phone app.</returns>
+    /// <returns>The state, with the last-seen time where the member reads as <see cref="PresenceState.Offline" /> and did not choose to hide, whether they use the phone app, and the status message and work mode while they hold.</returns>
     /// <remarks>
+    /// <para>
     /// <see cref="PresenceState.Hidden" /> reads as <see cref="PresenceState.Offline" />. A member who chose
     /// <see cref="PresenceState.Hidden" /> shows no last-seen time either, open client or not, because a time would tell
     /// anybody reading it that they were around — and no phone-app marker, because hiding means not being shown.
+    /// </para>
+    /// <para>The status message and the work mode are shown whatever the state, a hidden member's included: neither says whether anybody is at a keyboard.</para>
     /// </remarks>
     public PresenceReading SeenByOthersAt(DateTimeOffset instant)
     {
@@ -80,7 +87,9 @@ public sealed record MemberPresence(
         return new PresenceReading(
             state,
             state == PresenceState.Offline && !hidden ? this.LastSeen : null,
-            !hidden && this.PhoneAppSessions.Any(session => session.MarksAt(instant)));
+            !hidden && this.PhoneAppSessions.Any(session => session.MarksAt(instant)),
+            this.MessageInEffectAt(instant),
+            this.WorkModeInEffectAt(instant));
     }
 
     /// <summary>Says whether a renewal at an instant moves the last-seen time forward.</summary>
@@ -95,4 +104,16 @@ public sealed record MemberPresence(
     /// <returns>The choice in effect, or <see langword="null" /> where there is none or it has run out.</returns>
     public PresenceChoice? ChoiceInEffectAt(DateTimeOffset instant) =>
         this.Choice is { } choice && choice.IsInEffectAt(instant) ? choice : null;
+
+    /// <summary>Gets the status message, while it has not cleared.</summary>
+    /// <param name="instant">The time of the read.</param>
+    /// <returns>The message shown, or <see langword="null" /> where there is none or it cleared.</returns>
+    public StatusMessage? MessageInEffectAt(DateTimeOffset instant) =>
+        this.Message is { } message && message.IsInEffectAt(instant) ? message : null;
+
+    /// <summary>Gets where the member works from, while it holds.</summary>
+    /// <param name="instant">The time of the read.</param>
+    /// <returns>The work mode shown, or <see langword="null" /> where they never said or said it for a day that ended.</returns>
+    public WorkModeChoice? WorkModeInEffectAt(DateTimeOffset instant) =>
+        this.WorkMode is { } workMode && workMode.IsInEffectAt(instant) ? workMode : null;
 }

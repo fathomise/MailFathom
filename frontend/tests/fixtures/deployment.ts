@@ -89,7 +89,14 @@ export const sessionAnswer = {
 export const ownDisplayName = { displayName: 'Iris Marlow', changeable: true };
 
 /** How the signed-in member reads to themselves: active, with their clients deciding it, as the artboard opens. */
-export const ownPresence = { state: 'Active', chosenState: null, choiceDuration: null, choiceEndsAt: null };
+export const ownPresence = {
+    state: 'Active',
+    chosenState: null,
+    choiceDuration: null,
+    choiceEndsAt: null,
+    statusMessage: null,
+    workMode: null,
+};
 
 /** What the preferences route answers before anything has been chosen, which is every default the deployment holds. */
 export const clientPreferences = {

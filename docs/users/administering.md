@@ -821,8 +821,9 @@ suggested as a recipient; every user starts as `User`, so mark each automation a
 prints, and `--none` names nobody; their colleagues then see the line of managers above them and who reports to them.
 Nobody reports to themselves, to a service account, to somebody outside their organization, or to their own report.
 [Contacts](../features/contacts.md#the-organizations-member-directory) states what the directory shows and to whom.
-Members also see each other's presence — *Active*, *Away*, *Busy*, and the rest — which the deployment holds only as it
-is now, keeps no history of, and offers no administrator, tool, or `mfctl` command a way to read or set;
+Members also see each other's presence — *Active*, *Away*, *Busy*, and the rest — and the status message and place of
+work each of them states, which the deployment holds only as they are now, keeps no history of, and offers no
+administrator, tool, or `mfctl` command a way to read or set;
 [a colleague's presence](../features/contacts.md#a-colleagues-presence) states what is recorded.
 
 **Mailboxes are `mfctl account`, and they are records of their own.** `mfctl account add` creates one from a file and

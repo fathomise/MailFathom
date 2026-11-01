@@ -686,6 +686,10 @@ export class FakeDeployment {
                 return answering(this.presence);
             case 'PUT /presence/choice':
                 return answering(this.presenceChosen(request.body));
+            case 'PUT /presence/status-message':
+                return answering(this.statusMessageWritten(request.body));
+            case 'PUT /presence/work-mode':
+                return answering(this.workModeChosen(request.body));
             // Until a check serves the channel, the ticket is refused the way a deployment built before the channel
             // existed refuses it, which every screen already reads as a channel that is down and carries on without.
             case 'POST /signals/ticket':
@@ -864,10 +868,58 @@ export class FakeDeployment {
             const from = (this.heldInstant ?? new Date()).getTime();
 
             this.presence = {
+                ...this.presence,
                 state: chosen,
                 chosenState: chosen === 'Active' && lasting === undefined ? null : chosen,
                 choiceDuration: lasting === undefined ? null : duration,
                 choiceEndsAt: lasting === undefined ? null : new Date(from + lasting).toISOString(),
+            };
+        }
+
+        return this.presence;
+    }
+
+    /** Holds the status message the person wrote, a blank one clearing it, ending a while after now where it clears. */
+    private statusMessageWritten(body: unknown): Readonly<Record<string, unknown>> {
+        const stated = recordIn(body);
+        const text = stated?.['text'];
+        const clears = String(stated?.['clears']);
+        const lasting = choiceLasts[clears];
+
+        if (typeof text === 'string') {
+            const from = (this.heldInstant ?? new Date()).getTime();
+
+            this.presence = {
+                ...this.presence,
+                statusMessage:
+                    text.trim() === ''
+                        ? null
+                        : {
+                              text: text.trim(),
+                              clears: lasting === undefined ? null : clears,
+                              clearsAt: lasting === undefined ? null : new Date(from + lasting).toISOString(),
+                          },
+            };
+        }
+
+        return this.presence;
+    }
+
+    /** Holds where the person works from, for a day after now where it is for today alone. */
+    private workModeChosen(body: unknown): Readonly<Record<string, unknown>> {
+        const stated = recordIn(body);
+        const mode = stated?.['mode'];
+        const lasting = stated?.['today'] === true ? choiceLasts['today'] : undefined;
+
+        if (typeof mode === 'string') {
+            const from = (this.heldInstant ?? new Date()).getTime();
+
+            this.presence = {
+                ...this.presence,
+                workMode: {
+                    mode,
+                    endsAt: lasting === undefined ? null : new Date(from + lasting).toISOString(),
+                },
             };
         }
 

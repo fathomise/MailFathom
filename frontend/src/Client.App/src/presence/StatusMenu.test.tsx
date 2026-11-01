@@ -19,19 +19,61 @@ import { useOwnPresence } from './useOwnPresence';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Bearer presence' };
 
-// The deployment as the menu reaches it: the presence it holds, and every choice written to it, which answers what the
-// route answers — `Active` until changed is the member's clients deciding again, and anything else is held.
+// The deployment as the menu reaches it: the presence it holds, and every write made to it, which answers what each
+// route answers — `Active` until changed is the member's clients deciding again, a blank message is none, and anything
+// else is held.
 function deployment(
     holding: OwnPresence,
     choiceStatus = 200,
-): { readonly transport: MailFathomTransport; readonly choices: unknown[] } {
+): {
+    readonly transport: MailFathomTransport;
+    readonly choices: unknown[];
+    readonly messages: unknown[];
+    readonly workModes: unknown[];
+} {
     const choices: unknown[] = [];
+    const messages: unknown[] = [];
+    const workModes: unknown[] = [];
     let held = holding;
 
     return {
         choices,
+        messages,
+        workModes,
         transport: (request: ClientRequest) => {
-            if (request.method === 'PUT') {
+            if (request.method === 'PUT' && choiceStatus !== 200) {
+                choices.push(JSON.parse(request.body ?? '{}'));
+
+                return Promise.resolve<ClientResponse>({ status: choiceStatus, body: '', headers: {} });
+            }
+
+            if (request.method === 'PUT' && request.path.endsWith('/status-message')) {
+                const written = JSON.parse(request.body ?? '{}') as {
+                    text: string;
+                    clears: OwnPresence['choiceDuration'];
+                };
+
+                messages.push(written);
+                held = {
+                    ...held,
+                    statusMessage:
+                        written.text === ''
+                            ? null
+                            : {
+                                  text: written.text,
+                                  clears: written.clears,
+                                  clearsAt: written.clears === null ? null : '2026-10-31T23:00:00Z',
+                              },
+                };
+            } else if (request.method === 'PUT' && request.path.endsWith('/work-mode')) {
+                const chosen = JSON.parse(request.body ?? '{}') as { mode: 'Office' | 'Remote'; today: boolean };
+
+                workModes.push(chosen);
+                held = {
+                    ...held,
+                    workMode: { mode: chosen.mode, endsAt: chosen.today ? '2026-10-31T23:00:00Z' : null },
+                };
+            } else if (request.method === 'PUT') {
                 const chosen = JSON.parse(request.body ?? '{}') as {
                     state: OwnPresence['state'];
                     duration: OwnPresence['choiceDuration'];
@@ -39,13 +81,10 @@ function deployment(
 
                 choices.push(chosen);
 
-                if (choiceStatus !== 200) {
-                    return Promise.resolve<ClientResponse>({ status: choiceStatus, body: '', headers: {} });
-                }
-
                 const automatic = chosen.state === 'Active' && chosen.duration === null;
 
                 held = {
+                    ...held,
                     state: chosen.state,
                     chosenState: automatic ? null : chosen.state,
                     choiceDuration: chosen.duration,
@@ -101,11 +140,20 @@ function state(name: string): HTMLElement {
     return screen.getByRole('menuitemradio', { name: new RegExp(`^${name}`, 'u') });
 }
 
-const automatic: OwnPresence = { state: 'Active', chosenState: null, choiceDuration: null, choiceEndsAt: null };
+// Nothing said and no place of work stated, which is how a member's presence starts.
+const nothingSaid = { statusMessage: null, workMode: null } as const;
+
+const automatic: OwnPresence = {
+    state: 'Active',
+    chosenState: null,
+    choiceDuration: null,
+    choiceEndsAt: null,
+    ...nothingSaid,
+};
 
 describe('StatusMenu', () => {
     it('offers the six states as a menu’s radios, the one in force checked', async () => {
-        renderMenu({ state: 'Busy', chosenState: 'Busy', choiceDuration: null, choiceEndsAt: null });
+        renderMenu({ state: 'Busy', chosenState: 'Busy', choiceDuration: null, choiceEndsAt: null, ...nothingSaid });
         await theMenuShown();
 
         expect(screen.getAllByRole('menuitemradio').map((row) => row.textContent)).toEqual([
@@ -141,6 +189,7 @@ describe('StatusMenu', () => {
             chosenState: 'Busy',
             choiceDuration: '1h',
             choiceEndsAt: '2026-10-31T12:00:00Z',
+            ...nothingSaid,
         });
         await theMenuShown();
 
@@ -153,7 +202,13 @@ describe('StatusMenu', () => {
     });
 
     it('names the while the deployment holds, whichever client chose it', async () => {
-        renderMenu({ state: 'Busy', chosenState: 'Busy', choiceDuration: '1h', choiceEndsAt: '2026-10-31T12:00:00Z' });
+        renderMenu({
+            state: 'Busy',
+            chosenState: 'Busy',
+            choiceDuration: '1h',
+            choiceEndsAt: '2026-10-31T12:00:00Z',
+            ...nothingSaid,
+        });
         await theMenuShown();
 
         expect(screen.getByRole('menuitem', { name: /Busy · 1 hour/u })).toBeDefined();
@@ -178,6 +233,89 @@ describe('StatusMenu', () => {
 
         expect(await screen.findByRole('menuitem', { name: /Do not disturb · 2 hours/u })).toBeDefined();
         expect(choices).toEqual([{ state: 'DoNotDisturb', duration: '2h' }]);
+    });
+
+    it('shows the message and the place of work on the first page, faint where neither is stated', async () => {
+        renderMenu({
+            ...automatic,
+            statusMessage: { text: 'In workshops until 15:00', clears: 'today', clearsAt: '2026-10-31T23:00:00Z' },
+        });
+        await theMenuShown();
+
+        expect(screen.getByRole('menuitem', { name: /Message.*In workshops until 15:00/u })).toBeDefined();
+        expect(screen.getByRole('menuitem', { name: /Working from.*Not stated/u })).toBeDefined();
+    });
+
+    it('writes what was typed as one line of text and when it clears once the message page is left, and nothing where nothing changed', async () => {
+        const { messages } = renderMenu(automatic);
+        await theMenuShown();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: /Message/u }));
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+        await screen.findByRole('menu', { name: 'Your status' });
+
+        expect(messages).toEqual([]);
+
+        fireEvent.click(screen.getByRole('menuitem', { name: /Message/u }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Status message' }), {
+            target: { value: 'Back\n at‮ 14:00' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: '1 hour' }));
+        fireEvent.keyDown(screen.getByRole('textbox', { name: 'Status message' }), { key: 'Enter' });
+
+        expect(await screen.findByRole('menuitem', { name: /Message.*Back at 14:00/u })).toBeDefined();
+        expect(messages).toEqual([{ text: 'Back at 14:00', clears: '1h' }]);
+    });
+
+    it('counts the message against its bound and takes no more than the bound', async () => {
+        renderMenu(automatic);
+        await theMenuShown();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: /Message/u }));
+
+        const field = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Status message' });
+
+        fireEvent.change(field, { target: { value: 'On call' } });
+
+        expect(field.maxLength).toBe(280);
+        expect(screen.getByText('7 / 280')).toBeDefined();
+    });
+
+    it('clears a held message, sending a blank one', async () => {
+        const { messages } = renderMenu({
+            ...automatic,
+            statusMessage: { text: 'On call', clears: null, clearsAt: null },
+        });
+        await theMenuShown();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: /Message/u }));
+        fireEvent.click(screen.getByRole('button', { name: 'Clear status message' }));
+
+        expect(await screen.findByRole('menuitem', { name: /Message.*Set a status message/u })).toBeDefined();
+        expect(messages).toEqual([{ text: '', clears: null }]);
+    });
+
+    it('offers four places of work, the one in force checked, and takes a picked one for today', async () => {
+        const { workModes } = renderMenu({ ...automatic, workMode: { mode: 'Remote', endsAt: null } });
+        await theMenuShown();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: /Working from/u }));
+
+        expect(screen.getByRole('dialog', { name: 'Working from' })).toBeDefined();
+        const offered = screen.getByRole('radiogroup', { name: 'Working from' });
+
+        expect(Array.from(offered.querySelectorAll('[role="radio"]'), (row) => row.textContent)).toEqual([
+            'Office today',
+            'Office until changed',
+            'Remote today',
+            'Remote until changed',
+        ]);
+        expect(screen.getByRole('radio', { name: 'Remote until changed' }).getAttribute('aria-checked')).toBe('true');
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Office today' }));
+
+        expect(await screen.findByRole('menuitem', { name: /Working from.*Office today/u })).toBeDefined();
+        expect(workModes).toEqual([{ mode: 'Office', today: true }]);
     });
 
     it('goes back from Duration without taking anything', async () => {

@@ -156,7 +156,7 @@ public sealed class ClientPresenceEndpointsTests : IAsyncDisposable
 
         // Assert
         var answered = Assert.IsType<Ok<OwnPresenceResponse>>(result.Result);
-        Assert.Equal(new OwnPresenceResponse("Busy", "Busy", "1h", Now.AddHours(1)), answered.Value);
+        Assert.Equal(new OwnPresenceResponse("Busy", "Busy", "1h", Now.AddHours(1), StatusMessage: null, WorkMode: null), answered.Value);
         await this.store.Received(1).ChooseAsync(
             SyntheticUser.Deployment,
             new PresenceChoice(PresenceState.Busy, PresenceDuration.OneHour, Now.AddHours(1)),
@@ -180,6 +180,105 @@ public sealed class ClientPresenceEndpointsTests : IAsyncDisposable
         // Assert
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
         await this.store.DidNotReceiveWithAnyArgs().ChooseAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task WriteStatusMessageAsync_AMessageClearingInAnHour_AnswersItWithWhenItClears()
+    {
+        // Arrange
+        var message = new StatusMessage("In workshops", PresenceDuration.OneHour, Now.AddHours(1));
+        this.store.ReadAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
+            .Returns(
+                new Dictionary<UserId, MemberPresence>(),
+                new Dictionary<UserId, MemberPresence>
+                {
+                    [SyntheticUser.Deployment] = new MemberPresence([], Choice: null, LastSeen: null, message),
+                });
+
+        // Act
+        var result = await ClientPresenceEndpoints.WriteStatusMessageAsync(
+            new StatusMessageRequest(" In workshops ", "1h"),
+            this.Presence(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<OwnPresenceResponse>>(result.Result);
+        Assert.Equal(new StatusMessageResponse("In workshops", "1h", Now.AddHours(1)), answered.Value?.StatusMessage);
+        await this.store.Received(1).WriteStatusMessageAsync(SyntheticUser.Deployment, message, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("Two\nlines", null)]
+    [InlineData("Out \u202Eeciffo\u202C", null)]
+    [InlineData("In workshops", "3h")]
+    public async Task WriteStatusMessageAsync_AMessageOrWhileItDoesNotTake_IsRefusedWithoutWriting(string? text, string? clears)
+    {
+        // Act
+        var result = await ClientPresenceEndpoints.WriteStatusMessageAsync(
+            new StatusMessageRequest(text, clears),
+            this.Presence(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        await this.store.DidNotReceiveWithAnyArgs().WriteStatusMessageAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task WriteStatusMessageAsync_PastTheBound_IsRefusedWithoutWriting()
+    {
+        // Act
+        var result = await ClientPresenceEndpoints.WriteStatusMessageAsync(
+            new StatusMessageRequest(new string('a', StatusMessage.MostCharacters + 1)),
+            this.Presence(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        await this.store.DidNotReceiveWithAnyArgs().WriteStatusMessageAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task ChooseWorkModeAsync_RemoteUntilChanged_AnswersIt()
+    {
+        // Arrange
+        var workMode = new WorkModeChoice(WorkMode.Remote, EndsAt: null);
+        this.store.ReadAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
+            .Returns(
+                new Dictionary<UserId, MemberPresence>(),
+                new Dictionary<UserId, MemberPresence>
+                {
+                    [SyntheticUser.Deployment] = new MemberPresence([], Choice: null, LastSeen: null, WorkMode: workMode),
+                });
+
+        // Act
+        var result = await ClientPresenceEndpoints.ChooseWorkModeAsync(
+            new WorkModeRequest("Remote", Today: false),
+            this.Presence(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<OwnPresenceResponse>>(result.Result);
+        Assert.Equal(new WorkModeResponse("Remote", EndsAt: null), answered.Value?.WorkMode);
+        await this.store.Received(1).ChooseWorkModeAsync(SyntheticUser.Deployment, workMode, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("remote", false)]
+    [InlineData("1", false)]
+    [InlineData("Office", null)]
+    public async Task ChooseWorkModeAsync_AModeItDoesNotKnowOrNoWordOnToday_IsRefusedWithoutWriting(string mode, bool? today)
+    {
+        // Act
+        var result = await ClientPresenceEndpoints.ChooseWorkModeAsync(
+            new WorkModeRequest(mode, today),
+            this.Presence(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        await this.store.DidNotReceiveWithAnyArgs().ChooseWorkModeAsync(default, default!, TestContext.Current.CancellationToken);
     }
 
     [Fact]

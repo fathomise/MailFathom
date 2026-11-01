@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import {
     readMailThreadList,
     type ClientFailure,
@@ -155,16 +155,21 @@ export function ThreadList({
     // A refresh, or a change the deployment names about any mail, reads the list again as far as it had been read, and
     // replaces it only once every page has answered: a conversation's row moves when a message arrives in it, and which
     // conversations a page holds moves with it. One that did not answer leaves the list as it is.
+    // How far it had been read is taken when the signal arrives rather than when the listener was made, so a signal
+    // landing between a page arriving and a re-subscription cannot reread as far as an earlier list.
     const heldPages = held?.pages ?? 0;
+    const readAgainAsFarAsHeld = useEffectEvent(() => {
+        setReread((current) => ({ attempt: current.attempt + 1, pages: heldPages }));
+    });
 
     useEffect(
         () =>
             signalledChanges.listen((signal) => {
                 if (signal.kind === 'refresh' || signal.kind === 'mail.changed') {
-                    setReread((current) => ({ attempt: current.attempt + 1, pages: heldPages }));
+                    readAgainAsFarAsHeld();
                 }
             }),
-        [signalledChanges, heldPages],
+        [signalledChanges],
     );
 
     useEffect(() => {

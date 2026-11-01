@@ -12,6 +12,7 @@ import {
     wordInstantRange,
     wordLasting,
     wordLastSeen,
+    wordMessageClearing,
     wordRecentInstant,
 } from './instants';
 
@@ -324,6 +325,41 @@ describe('wordElapsed', () => {
 
     it('words the count in the reader’s own language', () => {
         expect(wordElapsed(began, began + 5 * 3_600_000, 'pl')).toBe('5 godzin temu');
+    });
+});
+
+describe('wordMessageClearing', () => {
+    // A Saturday morning in Warsaw, an hour ahead of UTC.
+    const now = Date.parse('2026-10-31T09:00:00Z');
+
+    it("says the time a message clears at where that falls on the reader's own day", () => {
+        expect(wordMessageClearing('2026-10-31T13:00:00Z', 'en', now, 'Europe/Warsaw')).toEqual({
+            on: 'today',
+            time: '2:00 PM',
+        });
+        expect(wordMessageClearing('2026-10-31T13:00:00Z', 'pl', now, 'Europe/Warsaw')).toEqual({
+            on: 'today',
+            time: '14:00',
+        });
+    });
+
+    it("says tonight for a message clearing at the reader's coming midnight", () => {
+        expect(wordMessageClearing('2026-10-31T23:00:00Z', 'en', now, 'Europe/Warsaw')).toEqual({ on: 'tonight' });
+    });
+
+    it('names the last day a message holds on where it clears on a later one', () => {
+        expect(wordMessageClearing('2026-11-01T23:00:00Z', 'en', now, 'Europe/Warsaw')).toEqual({
+            on: 'later',
+            day: 'Sunday',
+        });
+        expect(wordMessageClearing('2026-11-01T23:00:00Z', 'pl', now, 'Europe/Warsaw')).toEqual({
+            on: 'later',
+            day: 'niedziela',
+        });
+    });
+
+    it('answers with nothing where the service sent no instant this client can read', () => {
+        expect(wordMessageClearing('tonight', 'en', now, 'Europe/Warsaw')).toBeNull();
     });
 });
 

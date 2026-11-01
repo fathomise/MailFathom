@@ -2029,9 +2029,7 @@ export function App({
                                                                                                 null ? null : (
                                                                                                     <OwnPresenceRow
                                                                                                         presence={
-                                                                                                            ownPresence
-                                                                                                                .presence
-                                                                                                                .state
+                                                                                                            ownPresence.presence
                                                                                                         }
                                                                                                         place="sheet"
                                                                                                         displayName={
@@ -2092,9 +2090,7 @@ export function App({
                                                                                                     }
                                                                                                     profile={profile}
                                                                                                     presence={
-                                                                                                        ownPresence
-                                                                                                            ?.presence
-                                                                                                            .state ??
+                                                                                                        ownPresence?.presence ??
                                                                                                         null
                                                                                                     }
                                                                                                     onSignOut={signOut}

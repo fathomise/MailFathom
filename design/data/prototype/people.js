@@ -36,7 +36,7 @@ MailFathomDesign.data.contactInsights = {
    - member: a member of the reader's organization, mapped from their profile rather than written down - read-only,
      with what connects the contact to a user: `presence` (active, away, busy, dnd, offline, hidden - a hidden member is
      drawn offline to everybody else), `lastSeen`, `phoneApp`, `status` (a message of at most 280 characters, with when
-     it clears), `workMode`, `ooo` (the day an automatic reply ends - never its text), `clock` (their local time and its
+     it clears where it does), `workMode`, `ooo` (the day an automatic reply ends - never its text), `clock` (their local time and its
      offset from the reader's, absent where the member states no zone), `hours` (in their time, converted where the
      zone is known), and `manager` (the id of the member they report to). `mails` lists every address, one preferred. */
 MailFathomDesign.data.contacts = [
@@ -116,6 +116,7 @@ MailFathomDesign.data.contacts = [
     mail: "o.grant@nordwind.example", mails: [{ mail: "o.grant@nordwind.example", preferred: true }],
     phones: [{ label: "Work", number: "+44 20 7946 0321" }],
     presence: "active", phoneApp: true, workMode: { mode: "Remote", scope: "today" },
+    status: { text: "Ask me about the UAT environment" },
     clock: { time: "09:41", offset: "1 h behind you" },
     hours: { own: "Mon–Fri 9:00–17:30", yours: "10:00–18:30 your time", outside: false },
     last: "26.08.2026", owed: "-", note: "Runs the UAT environment from London.",

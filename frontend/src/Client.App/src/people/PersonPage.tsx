@@ -14,13 +14,13 @@ import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import type { MessageKey } from '../localization/en';
-import { wordAbsenceEnd, wordLastSeen } from '../localization/instants';
-import { useLocalization } from '../localization/useLocalization';
+import { wordAbsenceEnd, wordLastSeen, wordMessageClearing, type MessageClearing } from '../localization/instants';
+import { useLocalization, type Translate } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { useCurrentMinute } from '../notifications/notificationAge';
 import { PhoneAppBadge } from '../presence/PhoneAppBadge';
 import { PresenceDot } from '../presence/PresenceDot';
-import { presenceSaid } from '../presence/presenceWords';
+import { presenceSaid, workModeSaid } from '../presence/presenceWords';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { ColleagueTime } from './ColleagueTime';
 import { ContactDetails } from './ContactDetails';
@@ -55,6 +55,18 @@ import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 // StrictMode's second invocation where a flag would not. The element it is put on is this screen's own rather than
 // that one's — a person's page is a region of the People screen where a message is a document in its own right, so
 // this is a `section` where the reading pane is an `article`.
+
+// When a colleague's status message clears, as the design words it after the message.
+function clearingSaid(clearing: MessageClearing, translate: Translate): string {
+    switch (clearing.on) {
+        case 'today':
+            return translate('presence.clearsAt', { time: clearing.time });
+        case 'tonight':
+            return translate('presence.clearsTonight');
+        case 'later':
+            return translate('presence.clearsOn', { day: clearing.day });
+    }
+}
 
 // The line under a colleague's name: their title and their organization, each where it is stated. The design adds the
 // department between the two, which the directory does not carry.
@@ -154,6 +166,13 @@ export function PersonPage({
             ? wordAbsenceEnd(contact.outOfOfficeUntil, locale, readingZone)
             : null;
 
+    // What a colleague says they are doing and where they work from, which the deployment states only while each holds.
+    const message = member ? contact.statusMessage : null;
+    const workMode = member ? contact.workMode : null;
+    const clearsAt = message?.clearsAt ?? null;
+    const clearing = clearsAt === null ? null : wordMessageClearing(clearsAt, locale, now, readingZone);
+    const clears = clearing === null ? null : clearingSaid(clearing, translate);
+
     // Deleting and taking somebody on write to the book, so while the server is out of reach both are drawn as
     // controls that cannot act; the one with no room for a name of its own says why on the line under the person.
     // Editing opens a form whose own *Save* says the same.
@@ -203,7 +222,7 @@ export function PersonPage({
                     {member && contact.usesPhoneApp ? <PhoneAppBadge place="person" /> : null}
                 </span>
 
-                <div className="flex min-w-0 flex-col gap-0.75">
+                <div className="flex min-w-0 flex-1 basis-60 flex-col gap-0.75">
                     <div className="flex min-w-0 items-center gap-2.25">
                         <h2 className="truncate text-3xl font-semibold tracking-tighter">{contact.displayName}</h2>
 
@@ -244,6 +263,15 @@ export function PersonPage({
                                     {translate('presence.usesPhoneApp')}
                                 </span>
                             ) : null}
+                            {workMode === null ? null : (
+                                <span className="flex items-center gap-1 text-muted">
+                                    <Icon
+                                        name={workMode.mode === 'Remote' ? 'home_work' : 'apartment'}
+                                        className="size-icon-sm"
+                                    />
+                                    {translate(workModeSaid(workMode))}
+                                </span>
+                            )}
                             {awayUntil === null ? null : (
                                 <span className="flex items-center gap-1 rounded-sm bg-warning-soft px-2 py-0.5 font-semibold text-warning-text">
                                     <Icon name="event_busy" className="size-icon-sm" />
@@ -252,6 +280,21 @@ export function PersonPage({
                             )}
                         </p>
                     ) : null}
+
+                    {message === null ? null : (
+                        <p className="flex items-start gap-1.75 pt-0.5 text-base text-text text-pretty">
+                            <Icon name="chat_bubble" className="mt-0.5 size-icon-sm shrink-0 text-muted" />
+                            <span>
+                                {message.text}
+                                {clears === null ? null : (
+                                    <span className="text-sm text-faint">
+                                        {' '}
+                                        {translate('presence.messageClearing', { clears })}
+                                    </span>
+                                )}
+                            </span>
+                        </p>
+                    )}
 
                     {own ? null : (
                         <p className="flex items-center gap-1.5 text-sm text-muted text-pretty">
@@ -264,7 +307,7 @@ export function PersonPage({
                     )}
                 </div>
 
-                <div className="ms-auto flex shrink-0 items-center gap-2.25">
+                <div className="ms-auto flex shrink-0 items-center gap-2.25 self-start">
                     {writable && (own || collected) ? (
                         <Control
                             label={erasure}

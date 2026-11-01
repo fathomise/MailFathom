@@ -31,6 +31,8 @@ function colleagueCalled(
         lastSeen: null,
         outOfOfficeUntil: null,
         usesPhoneApp: false,
+        statusMessage: null,
+        workMode: null,
     };
 }
 

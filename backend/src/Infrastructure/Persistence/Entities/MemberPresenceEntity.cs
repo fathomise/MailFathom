@@ -6,7 +6,7 @@ using MailFathom.CodeCoverage;
 
 namespace MailFathom.Infrastructure.Persistence.Entities;
 
-/// <summary>The one row per member that holds the presence they chose and when they were last seen.</summary>
+/// <summary>The one row per member that holds the presence they chose, when they were last seen, their status message, and where they work from.</summary>
 /// <remarks>
 /// <para>
 /// Beside the user record rather than in it, because it is written on every renewal of every open client while the
@@ -39,6 +39,21 @@ internal sealed class MemberPresenceEntity
     /// <summary>The column holding when the member was last seen.</summary>
     internal const string LastSeenAtColumnName = "LastSeenAt";
 
+    /// <summary>The column holding the status message.</summary>
+    internal const string StatusMessageColumnName = "StatusMessage";
+
+    /// <summary>The column holding the while the status message was written for.</summary>
+    internal const string StatusMessageClearsColumnName = "StatusMessageClears";
+
+    /// <summary>The column holding when the status message clears.</summary>
+    internal const string StatusMessageClearsAtColumnName = "StatusMessageClearsAt";
+
+    /// <summary>The column holding where the member works from.</summary>
+    internal const string WorkModeColumnName = "WorkMode";
+
+    /// <summary>The column holding when the work mode stated for today ends.</summary>
+    internal const string WorkModeEndsAtColumnName = "WorkModeEndsAt";
+
     /// <summary>Gets or sets the member.</summary>
     public Guid UserId { get; set; }
 
@@ -53,4 +68,19 @@ internal sealed class MemberPresenceEntity
 
     /// <summary>Gets or sets when the member was last present, or <see langword="null" /> where they never were.</summary>
     public DateTimeOffset? LastSeenAt { get; set; }
+
+    /// <summary>Gets or sets the status message, or <see langword="null" /> where the member wrote none or cleared it.</summary>
+    public string? StatusMessage { get; set; }
+
+    /// <summary>Gets or sets the while the status message was written for as the domain's numeric value, or <see langword="null" /> where it never clears or there is none.</summary>
+    public int? StatusMessageClears { get; set; }
+
+    /// <summary>Gets or sets when the status message clears, or <see langword="null" /> where it never clears or there is none.</summary>
+    public DateTimeOffset? StatusMessageClearsAt { get; set; }
+
+    /// <summary>Gets or sets where the member works from as the domain's numeric value, or <see langword="null" /> where they never said.</summary>
+    public int? WorkMode { get; set; }
+
+    /// <summary>Gets or sets when a work mode stated for today ends, or <see langword="null" /> where it lasts until changed or there is none.</summary>
+    public DateTimeOffset? WorkModeEndsAt { get; set; }
 }

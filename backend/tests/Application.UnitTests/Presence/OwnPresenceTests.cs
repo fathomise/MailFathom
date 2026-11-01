@@ -15,7 +15,7 @@ using Xunit;
 
 namespace MailFathom.Application.UnitTests.Presence;
 
-/// <summary>Covers the member's own presence: renewing and closing clients, choosing a state, and who is told when it moves.</summary>
+/// <summary>Covers the member's own presence: renewing and closing clients, choosing a state, the status message and work mode, and who is told when it moves.</summary>
 public sealed class OwnPresenceTests : IAsyncDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 31, 9, 0, 0, TimeSpan.Zero);
@@ -271,6 +271,102 @@ public sealed class OwnPresenceTests : IAsyncDisposable
 
         // Assert
         Assert.Equal(new OwnPresenceReading(PresenceState.Active, Choice: null), reading);
+    }
+
+    [Fact]
+    public async Task WriteStatusMessageAsync_ClearingToday_IsShownToTheOrganizationUntilMidnightAndTellsOnlyTheMembersOwnClients()
+    {
+        // Act
+        var reading = await this.Presence().WriteStatusMessageAsync("  In workshops until 15:00 ", PresenceDuration.Today, TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
+        await this.signals.DrainAsync();
+
+        // Assert
+        var expected = new StatusMessage("In workshops until 15:00", PresenceDuration.Today, new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero));
+        Assert.Equal(expected, reading?.Message);
+        Assert.Equal(expected, this.store.Of(Member).SeenByOthersAt(Now).Message);
+        Assert.Equal(Member, Assert.Single(this.channel.Published).User);
+    }
+
+    [Fact]
+    public async Task WriteStatusMessageAsync_NothingButSpaces_ClearsTheMessage()
+    {
+        // Arrange
+        await this.Presence().WriteStatusMessageAsync("Back at noon", clears: null, TestContext.Current.CancellationToken);
+
+        // Act
+        var reading = await this.Presence().WriteStatusMessageAsync("   ", clears: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(reading?.Message);
+        Assert.Null(this.store.Of(Member).Message);
+    }
+
+    [Fact]
+    public async Task WriteStatusMessageAsync_CallerInNoOrganization_AnswersNothingAndRecordsNothing()
+    {
+        // Act
+        var reading = await this.Presence(inOrganization: false).WriteStatusMessageAsync("Back at noon", clears: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(reading);
+        Assert.Null(this.store.Of(Member).Message);
+    }
+
+    [Fact]
+    public async Task WriteStatusMessageAsync_WithoutTheWritingGrant_IsRefused()
+    {
+        // Act, Assert
+        await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            this.Presence(granted: MailFathomPermission.ProfileRead)
+                .WriteStatusMessageAsync("Back at noon", clears: null, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ChooseWorkModeAsync_RemoteToday_HoldsUntilTheMembersMidnightAndTellsOnlyTheMembersOwnClients()
+    {
+        // Act
+        var reading = await this.Presence().ChooseWorkModeAsync(WorkMode.Remote, todayOnly: true, TestContext.Current.CancellationToken);
+        this.clock.Advance(ClientSignals.FoldingWindow);
+        await this.signals.DrainAsync();
+
+        // Assert
+        Assert.Equal(new WorkModeChoice(WorkMode.Remote, new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero)), reading?.WorkMode);
+        Assert.Equal(Member, Assert.Single(this.channel.Published).User);
+    }
+
+    [Fact]
+    public async Task ChooseWorkModeAsync_CallerInNoOrganization_AnswersNothingAndRecordsNothing()
+    {
+        // Act
+        var reading = await this.Presence(inOrganization: false).ChooseWorkModeAsync(WorkMode.Office, todayOnly: false, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(reading);
+        Assert.Null(this.store.Of(Member).WorkMode);
+    }
+
+    [Fact]
+    public async Task ChooseWorkModeAsync_WithoutTheWritingGrant_IsRefused()
+    {
+        // Act, Assert
+        await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            this.Presence(granted: MailFathomPermission.ProfileRead)
+                .ChooseWorkModeAsync(WorkMode.Office, todayOnly: false, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ReadAsync_WorkModeForADayThatEnded_ReadsNone()
+    {
+        // Arrange
+        await this.Presence().ChooseWorkModeAsync(WorkMode.Office, todayOnly: true, TestContext.Current.CancellationToken);
+        this.clock.Advance(TimeSpan.FromHours(15));
+
+        // Act
+        var reading = await this.Presence().ReadAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(reading?.WorkMode);
     }
 
     public ValueTask DisposeAsync() => this.signals.DisposeAsync();

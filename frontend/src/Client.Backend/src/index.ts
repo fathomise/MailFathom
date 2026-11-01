@@ -75,7 +75,9 @@ export {
 } from './colleagues';
 export {
     choosePresence,
+    chooseWorkMode,
     closePresenceClient,
+    longestStatusMessage,
     presenceChoiceRoute,
     presenceClientRoute,
     presenceDurations,
@@ -83,11 +85,18 @@ export {
     presenceStates,
     readOwnPresence,
     renewPresenceClient,
+    statusMessageRoute,
+    workModeRoute,
+    workModes,
+    writeStatusMessage,
     type ColleaguePresence,
     type OwnPresence,
     type PresenceActivity,
     type PresenceDuration,
     type PresenceState,
+    type StatedWorkMode,
+    type StatusMessage,
+    type WorkMode,
 } from './presence';
 export {
     contactCorrespondenceRoute,

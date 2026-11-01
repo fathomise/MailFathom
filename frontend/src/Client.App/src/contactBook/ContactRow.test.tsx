@@ -88,6 +88,8 @@ describe('ContactRow', () => {
             lastSeen: null,
             outOfOfficeUntil: null,
             usesPhoneApp: false,
+            statusMessage: null,
+            workMode: null,
         };
 
         drawRow({ contact: marta });
@@ -112,6 +114,8 @@ describe('ContactRow', () => {
             lastSeen: null,
             outOfOfficeUntil: null,
             usesPhoneApp: true,
+            statusMessage: null,
+            workMode: null,
         };
 
         drawRow({ contact: oliver });
@@ -141,6 +145,8 @@ describe('ContactRow', () => {
             lastSeen: null,
             outOfOfficeUntil: '2026-11-04T12:00:00Z',
             usesPhoneApp: false,
+            statusMessage: null,
+            workMode: null,
         };
 
         drawRow({ contact: piotr, readingZone: 'Europe/Warsaw' });

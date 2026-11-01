@@ -4701,7 +4701,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const draft = st.statusDraft !== undefined && st.statusDraft !== null ? st.statusDraft : text;
           const forOpt = st.myPresenceFor || "Until changed";
           const clears = st.myStatusClears || "Today";
-          const work = st.myWork || "Office today";
+          // Nothing until the member says where they work from.
+          const work = st.myWork || null;
           // Leaving the message page by any route keeps what was typed; nothing waits on a confirmation.
           const commit = (patch) => this.setState(s2 => Object.assign(
             s2.statusPage === "message" ? { myStatusText: String(s2.statusDraft ?? s2.myStatusText ?? "").trim().slice(0, 280), statusDraft: null } : {},
@@ -4739,6 +4740,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             statusDotStyle: presenceDot(myPresence, isMobile ? 13 : 11),
             statusHeadLine: mine.label + (forOpt !== "Until changed" ? " · " + forOpt.toLowerCase() : ""),
             statusOnMain: !page,
+            // The first page is a menu; a page under a back control is a dialog, since a menu owns only its items.
+            statusCardRole: page ? "dialog" : "menu",
             statusOnMessage: page === "message",
             statusOnWork: page === "work",
             statusPageHead: !!page,
@@ -4778,7 +4781,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             statusMessageValue: text || "Set a status message",
             statusMessageValueStyle: "flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:" + (text ? "var(--text2)" : "var(--faint)"),
             openStatusMessage: () => this.setState({ statusPage: "message", statusDraft: text }),
-            statusWorkValue: work,
+            statusWorkValue: work || "Not stated",
+            statusWorkValueStyle: "flex:1;min-width:0;text-align:right;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:" + (work ? "var(--text2)" : "var(--faint)"),
             openStatusWork: () => this.setState({ statusPage: "work" }),
             statusWorkRows: pageRows(["Office today", "Office until changed", "Remote today", "Remote until changed"], work, o => ({ myWork: o })).map(r => Object.assign(r, {
               icon: r.label.indexOf("Remote") === 0 ? "home_work" : "apartment",
@@ -6632,6 +6636,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         personStatusShown: personIsMember && !!person.status,
         personStatusText: person.status ? person.status.text : "",
         personStatusClears: person.status ? person.status.until : "",
+        personStatusClearsShown: !!(person.status && person.status.until),
         personWriteLabel: personIsMember ? "Write an email" : "Write",
         personCopyAddress: () => this.notify(person.mail + " copied", { kind: "success", title: "Address copied" }),
         personWrite: () => (this.tabsMode()

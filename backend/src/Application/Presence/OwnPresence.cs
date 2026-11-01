@@ -10,7 +10,7 @@ using MailFathom.Domain.Presence;
 
 namespace MailFathom.Application.Presence;
 
-/// <summary>The signed-in member's own presence: the clients they keep open, the state they chose, and what they read of it.</summary>
+/// <summary>The signed-in member's own presence: the clients they keep open, the state they chose, their status message and work mode, and what they read of it.</summary>
 /// <remarks>
 /// <para>
 /// Presence exists inside an organization alone, because nobody else can see it: a user in no organization is answered
@@ -90,7 +90,7 @@ public sealed class OwnPresence
         var now = this.time.GetUtcNow();
         var presence = await this.ReadAsync(member, cancellationToken);
 
-        return new OwnPresenceReading(presence.OwnStateAt(now), presence.ChoiceInEffectAt(now));
+        return OwnPresenceReading.Of(presence, now);
     }
 
     /// <summary>Renews one of the caller's open clients, which is what keeps them present.</summary>
@@ -173,6 +173,67 @@ public sealed class OwnPresence
     {
         this.authorization.RequirePermission(MailFathomPermission.ProfileWrite);
 
+        return await this.ChangeAsync(
+            (member, now) => this.store.ChooseAsync(
+                member,
+                PresenceChoice.Made(state, duration, now, this.timeZones.ZoneOf(member)),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>Records the status message the caller wrote, which the other members of their organization read until it clears.</summary>
+    /// <param name="text">What they wrote; nothing but white space clears the message.</param>
+    /// <param name="clears">When it clears, or <see langword="null" /> for never.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The caller's presence after the write, or <see langword="null" /> where they belong to no organization.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="text" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when the text breaks a rule <see cref="StatusMessage.Written" /> states.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the profile writing grant.</exception>
+    /// <remarks>A message replaces whatever was written before. It clears in the caller's own time zone, UTC where their record states none.</remarks>
+    public async Task<OwnPresenceReading?> WriteStatusMessageAsync(
+        string text,
+        PresenceDuration? clears,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        this.authorization.RequirePermission(MailFathomPermission.ProfileWrite);
+
+        return await this.ChangeAsync(
+            (member, now) => this.store.WriteStatusMessageAsync(
+                member,
+                StatusMessage.Written(text, clears, now, this.timeZones.ZoneOf(member)),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>Records where the caller works from, for today alone or until they change it.</summary>
+    /// <param name="mode">Office or remote.</param>
+    /// <param name="todayOnly"><see langword="true" /> for today alone, which ends at the caller's own next midnight.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The caller's presence after the write, or <see langword="null" /> where they belong to no organization.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the profile writing grant.</exception>
+    public async Task<OwnPresenceReading?> ChooseWorkModeAsync(
+        WorkMode mode,
+        bool todayOnly,
+        CancellationToken cancellationToken)
+    {
+        this.authorization.RequirePermission(MailFathomPermission.ProfileWrite);
+
+        return await this.ChangeAsync(
+            (member, now) => this.store.ChooseWorkModeAsync(
+                member,
+                WorkModeChoice.Made(mode, todayOnly, now, this.timeZones.ZoneOf(member)),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>Makes one write to what the caller chose, and tells the caller's own clients where what the others see of them moved.</summary>
+    /// <returns>The caller's presence after the write, or <see langword="null" /> where they belong to no organization and nothing was written.</returns>
+    private async Task<OwnPresenceReading?> ChangeAsync(
+        Func<UserId, DateTimeOffset, Task> write,
+        CancellationToken cancellationToken)
+    {
         if (await this.ReadMemberAsync(cancellationToken) is not { } member)
         {
             return null;
@@ -180,12 +241,11 @@ public sealed class OwnPresence
 
         var now = this.time.GetUtcNow();
         var before = await this.ReadAsync(member, cancellationToken);
-        var choice = PresenceChoice.Made(state, duration, now, this.timeZones.ZoneOf(member));
 
-        await this.store.ChooseAsync(member, choice, cancellationToken);
+        await write(member, now);
         var after = await this.AnnounceIfSeenDifferentlyAsync(member, before, now, cancellationToken);
 
-        return new OwnPresenceReading(after.OwnStateAt(now), after.ChoiceInEffectAt(now));
+        return OwnPresenceReading.Of(after, now);
     }
 
     /// <summary>Re-reads the member after a write and tells the member's own clients when what the others see of them moved.</summary>

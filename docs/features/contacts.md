@@ -204,10 +204,22 @@ is the decision.
   *Last seen*.
 - ***Last seen* is one timestamp.** Every renewal moves it, except while the member's chosen state is `Hidden` or
   `Offline`. A colleague who reads as `Offline` shows it, and one who chose `Hidden` never does.
+- **A status message says what the member is doing.** It is at most 280 characters on one line, held to the characters
+  a contact's name may carry because it is drawn beside a name for everybody in the organization, written from the status
+  menu, and clears never, after an hour, at the end of today, or at the end of this week — today and this week ending
+  as a chosen state's do. A blank message clears it, and one that ran out shows nothing. Their member contact shows it
+  with when it clears: *clears at 14:00*, *clears tonight*, *clears Friday*, or nothing for one that never does.
+- **A place of work says whether they are in the office or remote**, for today alone or until changed, and *today*
+  ends at midnight in their own time zone. A member who never stated one shows none, and neither does one whose today
+  is over.
+- **Neither depends on the presence.** Both are written by the member alone and shown to the organization while they
+  last, a member who chose `Hidden` included: hiding withholds when somebody is around, not what they said about their
+  day.
 
 **What is held, and who sees it.** Presence is monitoring of an employee, so only the present is held: one row per open
 client — the member, the client's own identifier, whether it is in use, and when the row expires — and one row per
-member holding the chosen state, the while it was chosen for, when it ends, and the last-seen time. Each row is overwritten by the next write and
+member holding the chosen state, the while it was chosen for, when it ends, the last-seen time, the status message with
+the while it clears after and when, and the place of work with when it ends. Each row is overwritten by the next write and
 nothing keeps what it said before, so no history of anybody's presence exists. Both go with the user when they are
 erased. Members of the same organization see a colleague's presence and nobody else: no MCP tool, administrative route,
 or `mfctl` command reads it. A user in no organization is recorded nothing. No log line, metric, trace, or audit entry

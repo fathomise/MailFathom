@@ -3720,7 +3720,7 @@ up from mail that arrived, and the four things they do about either.
 | `GET /api/client/contacts/colleagues/{userId}` | Reads one of them |
 | `GET /api/client/contacts/colleagues/{userId}/photo` | Serves that colleague's portrait, or `404` where they have none |
 | `POST /api/client/contacts/photos` | Resolves which photo each of a set of addresses is drawn by — [§ The person photo route](#the-person-photo-route) |
-| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence`, `lastSeen`, `outOfOfficeUntil`, and `usesPhoneApp`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
+| `GET /api/client/contacts/colleagues/{userId}/structure` | Reads where that colleague sits in the organization: `managers` from the top down to their own and `directReports` by name, each a colleague as above with their `presence`, `lastSeen`, `outOfOfficeUntil`, `usesPhoneApp`, `statusMessage`, and `workMode`, and the reader's own `readerId`, which either list may hold; `404` as for the colleague |
 | `POST /api/client/contacts/colleagues/{userId}/promotion` | Writes a copy of that colleague into this user's own book |
 
 **The book is read as two, because it is two.** What somebody wrote down and what their mailboxes picked up are
@@ -3765,7 +3765,8 @@ answered only for an `Offline` colleague who did not choose to hide, as [the pre
 describe — `outOfOfficeUntil`, the instant the colleague's automatic reply stops answering, answered only while it
 is switched on and in its period and `null` otherwise, and never the reply's text — and `usesPhoneApp`, whether a phone
 session of theirs opened within the last seven days still stands, always `false` for one who chose to hide, and never
-the day. A colleague whose address this user's own book holds is left out, because the user's own record of them
+the day — and `statusMessage` and `workMode`, what they stated while it lasts, as the presence routes describe. A
+colleague whose address this user's own book holds is left out, because the user's own record of them
 answers for them — in the listing, and not in the reads that name a colleague by an identifier or by an address, which
 answer for the person named; the two listings above leave out an organization contact and a collected contact holding a
 colleague's address, for the same reason in the other direction. [Contacts § The organization's member
@@ -4039,10 +4040,12 @@ presence](../features/contacts.md#a-colleagues-presence) states the six states a
 
 | Route | What it does |
 | --- | --- |
-| `GET /api/client/presence` | Reads this user's own presence as they see it: `state`, `Hidden` included, and while a choice holds `chosenState`, `choiceDuration` — the while it was chosen for, named as the choice states it — and `choiceEndsAt`, both `null` for until changed |
+| `GET /api/client/presence` | Reads this user's own presence as they see it: `state`, `Hidden` included, and while a choice holds `chosenState`, `choiceDuration` — the while it was chosen for, named as the choice states it — and `choiceEndsAt`, both `null` for until changed; `statusMessage` as `text`, `clears`, and `clearsAt`, the last two `null` for a message that never clears, and `workMode` as `mode` and `endsAt`, `null` for until changed — each of the two `null` where nothing is stated or what was stated ran out |
 | `PUT /api/client/presence/clients/{client}` | Renews one open client, carrying `activity` as `active` or `idle` |
 | `DELETE /api/client/presence/clients/{client}` | Closes one client, which reads as `Offline` at once when it was this user's last |
 | `PUT /api/client/presence/choice` | Chooses a state, carrying `state` as `Active`, `Away`, `Busy`, `DoNotDisturb`, `Hidden`, or `Offline`, and `duration` as `30m`, `1h`, `2h`, `today`, `week`, or nothing for until changed; answers what `GET` answers |
+| `PUT /api/client/presence/status-message` | Writes the status message, carrying `text` and `clears` as any `duration` a choice takes, or nothing for never — the status menu offers `1h`, `today`, and `week`; a blank `text` clears it; answers what `GET` answers |
+| `PUT /api/client/presence/work-mode` | States where this user works from, carrying `mode` as `Office` or `Remote` and `today` as `true` for the rest of today in their own zone or `false` for until changed; answers what `GET` answers |
 
 **A running client renews its own row every minute**, under an identifier it mints for itself when it starts, and says
 `idle` once ten minutes pass without input. It renews at once when input returns, and on `pagehide` and sign-out it
@@ -4050,10 +4053,15 @@ sends the `DELETE` as a `keepalive` request. A row it stops renewing counts for 
 which is what covers a crash, a lost network, and a replica that died. A new client past the sixteen a user keeps open
 is refused `409`. The `{client}` it names is a row of this user's alone, because the user comes from the session.
 
-**A user in no organization is answered `404` on all four**, because nobody could see their presence, so nothing is
-recorded about them and a client reading that stops renewing. A state or a duration this surface does not know is
-refused `400` before anything is written. Reading is `mailfathom.profile.read`, and the three writes are
-`mailfathom.profile.write`.
+**A user in no organization is answered `404` on all six**, because nobody could see their presence, so nothing is
+recorded about them and a client reading that stops renewing. A state, a duration, or a place of work this surface does
+not know is refused `400` before anything is written, and so is a status message longer than 280 characters once its
+surrounding whitespace is trimmed, one carrying a character a contact's name refuses — a control or formatting
+character, a line or paragraph separator, or text that is not well-formed UTF-16 — and a place of work stated
+with no `today`. Reading is `mailfathom.profile.read`, and the five writes are `mailfathom.profile.write`.
+
+**Each colleague the contact routes answer carries the same `statusMessage` and `workMode`**, under the same rule: what
+they stated while it lasts, whatever presence they read as, `Offline` for a hidden member included.
 
 **Nothing here is audited or logged.** A renewal changes no mail, and an entry per renewal would be a history of
 somebody's working day. A write that changes how this user reads to the others raises `presence.changed` on [the

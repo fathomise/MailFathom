@@ -120,6 +120,72 @@ describe('useOwnPresence', () => {
         });
     });
 
+    it('reads it again at the instant the status message clears, sooner than the chosen while', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        vi.setSystemTime(Date.parse('2026-10-31T09:00:00Z'));
+
+        const { transport, answer, reads } = deployment({
+            status: 200,
+            body: {
+                state: 'Busy',
+                chosenState: 'Busy',
+                choiceDuration: 'today',
+                choiceEndsAt: '2026-10-31T23:00:00Z',
+                statusMessage: { text: 'On call', clears: '1h', clearsAt: '2026-10-31T10:00:00Z' },
+            },
+        });
+        const { result } = renderHook(() => useOwnPresence(session, transport, channel().signalled));
+
+        await waitFor(() => {
+            expect(result.current?.presence.statusMessage?.text).toBe('On call');
+        });
+
+        answer({
+            status: 200,
+            body: { state: 'Busy', chosenState: 'Busy', choiceDuration: 'today', choiceEndsAt: '2026-10-31T23:00:00Z' },
+        });
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(3_600_000);
+        });
+
+        await waitFor(() => {
+            expect(result.current?.presence.statusMessage).toBeNull();
+        });
+        expect(reads()).toBe(2);
+    });
+
+    it('reads it again at the midnight a place of work stated for today ends, where nothing else runs out', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        vi.setSystemTime(Date.parse('2026-10-31T22:00:00Z'));
+
+        const { transport, answer, reads } = deployment({
+            status: 200,
+            body: {
+                state: 'Active',
+                chosenState: null,
+                choiceEndsAt: null,
+                workMode: { mode: 'Office', endsAt: '2026-10-31T23:00:00Z' },
+            },
+        });
+        const { result } = renderHook(() => useOwnPresence(session, transport, channel().signalled));
+
+        await waitFor(() => {
+            expect(result.current?.presence.workMode?.mode).toBe('Office');
+        });
+
+        answer({ status: 200, body: { state: 'Active', chosenState: null, choiceEndsAt: null } });
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(3_600_000);
+        });
+
+        await waitFor(() => {
+            expect(result.current?.presence.workMode).toBeNull();
+        });
+        expect(reads()).toBe(2);
+    });
+
     it('waits for the end again when the read at it still finds the while running, as a clock ahead of the deployment’s does', async () => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         vi.setSystemTime(Date.parse('2026-10-31T09:00:00Z'));

@@ -76,6 +76,49 @@ public sealed class OrchestratedPresenceStoreTests(MailFathomOrchestrationFixtur
         }
     }
 
+    /// <summary>A status message and a work mode one replica wrote beside a choice are what another replica reads back, each leaving the other and the choice untouched, and a cleared message reads as none.</summary>
+    [Fact]
+    public async Task ReadAsync_WhatAnotherHostWroteOfTheMessageAndTheWorkMode_ReadsBothBesideTheChoice()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var writingHost = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        await using var readingHost = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var user = Guid.NewGuid();
+        var member = UserId.Create(user);
+        var message = new StatusMessage("In workshops until 15:00", PresenceDuration.Today, Instant.AddHours(14));
+        var workMode = new WorkModeChoice(WorkMode.Remote, EndsAt: null);
+        var choice = new PresenceChoice(PresenceState.Busy, Duration: null, EndsAt: null);
+
+        await OrchestratedForeignUser.ProvisionAsync(writingHost, user, cancellationToken);
+
+        try
+        {
+            // Arrange
+            var writing = await StoreOfAsync(writingHost, cancellationToken);
+            var reading = await StoreOfAsync(readingHost, cancellationToken);
+            await writing.WriteStatusMessageAsync(member, message, cancellationToken);
+            await writing.ChooseWorkModeAsync(member, workMode, cancellationToken);
+            await writing.ChooseAsync(member, choice, cancellationToken);
+
+            // Act
+            var written = (await reading.ReadAsync([member], cancellationToken))[member];
+            await writing.WriteStatusMessageAsync(member, message: null, cancellationToken);
+            var cleared = (await reading.ReadAsync([member], cancellationToken))[member];
+
+            // Assert
+            Assert.Equal(message, written.Message);
+            Assert.Equal(workMode, written.WorkMode);
+            Assert.Equal(choice, written.Choice);
+            Assert.Null(cleared.Message);
+            Assert.Equal(workMode, cleared.WorkMode);
+            Assert.Equal(choice, cleared.Choice);
+        }
+        finally
+        {
+            await OrchestratedForeignUser.EraseAsync(writingHost, user);
+        }
+    }
+
     /// <summary>
     /// A member at the bound has a new client refused and a held one renewed, and once every client they hold has
     /// expired the next renewal finds room, because the batch removes the member's own expired rows before it counts.
