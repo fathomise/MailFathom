@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261101113059_RecordOrganizationReceiptsOnTheReceivedMessage")]
+    [Migration("20261101123927_RecordOrganizationReceiptsOnTheReceivedMessage")]
     partial class RecordOrganizationReceiptsOnTheReceivedMessage
     {
         /// <inheritdoc />
@@ -412,6 +412,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("Identifier");
 
+                    b.Property<int>("ClientKind")
+                        .HasColumnType("integer")
+                        .HasColumnName("ClientKind");
+
                     b.Property<Guid?>("CredentialId")
                         .HasColumnType("uuid")
                         .HasColumnName("CredentialId");
@@ -419,6 +423,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ExpiresAt");
+
+                    b.Property<DateOnly?>("LastOpenedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("LastOpenedOn");
 
                     b.PrimitiveCollection<string[]>("Permissions")
                         .IsRequired()
