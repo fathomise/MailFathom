@@ -789,6 +789,25 @@ describe('ReadingPane against a deployment that says what changed', () => {
         });
     });
 
+    it('reads the message again when the contacts change, which its sender is recognized by', async () => {
+        // Arrange
+        asked.length = 0;
+        const signalling = deploymentSaying();
+        drawing(deploymentDescribing(), messageId, true, deliversNothing, nothingMarkedRead, signalling.changes);
+        await screen.findByText('Quarterly invoice');
+        const before = asked.filter((request) => !request.path.includes('/body')).length;
+
+        // Act
+        act(() => {
+            signalling.say({ kind: 'contacts.changed' });
+        });
+
+        // Assert
+        await waitFor(() => {
+            expect(asked.filter((request) => !request.path.includes('/body')).length).toBe(before + 1);
+        });
+    });
+
     it('keeps the message on the screen when a refresh is not answered', async () => {
         // Arrange
         asked.length = 0;

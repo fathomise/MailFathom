@@ -100,10 +100,10 @@ internal static class StoredEmailMetadataMapping
         entity.SenderAuthenticationSource = authentication.Source;
     }
 
-    /// <summary>Records what this deployment made of the message's author, and the address it was judged for.</summary>
+    /// <summary>Records what configuration and the organization's signature made of the message's author, and the address the contact books are later asked about.</summary>
     /// <remarks>
     /// Written whole beside the verdict it reads, so a re-derivation replaces every column rather than leaving one from
-    /// an earlier judgment. A revision that names no policy is stored as absent rather than as an empty string, because
+    /// an earlier judgment. No contact is written: the books are asked whenever the row is read. A revision that names no policy is stored as absent rather than as an empty string, because
     /// the column's null is what says no policy judged this row. The address is the first <c>From</c> mailbox, the same
     /// one the verdict was reached for, and absent where it does not fit the column a contact's address would.
     /// </remarks>
@@ -119,7 +119,7 @@ internal static class StoredEmailMetadataMapping
             ? trust.PolicyRevision.Value
             : null;
         entity.SenderTrustOrganizationId = trust.RecognizingOrganizationId;
-        entity.SenderTrustContactId = trust.RecognizingContactId?.Value;
+        entity.SenderTrustIsStrict = trust.IsStrict;
         entity.SenderTrustAddress = participants
             .FirstOrDefault(static participant => participant.Role == EmailAddressRole.From)?.Address.NormalizedAddress
             is { Length: <= StoredEmailEntity.MaximumAddressLength } address

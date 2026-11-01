@@ -67,8 +67,9 @@ public sealed record SenderVerification
     /// <summary>Gets the contact that recognized the author, or <see langword="null" /> where no contact did.</summary>
     /// <remarks>
     /// Set only where <see cref="DeploymentTrustGrantedBy" /> names a contact source. It is a reference rather than the
-    /// record: every act that removes a contact resets each verdict naming it first, so a stored reference never names
-    /// a contact that is gone. Which book it is in is the reader's to ask; nothing of the record itself travels here.
+    /// record, found in the books as they stood when this message was read rather than stored with it, so it never
+    /// names a contact that was gone by then. Which book it is in is the reader's to ask; nothing of the record itself
+    /// travels here.
     /// </remarks>
     public ContactId? RecognizingContactId { get; init; }
 

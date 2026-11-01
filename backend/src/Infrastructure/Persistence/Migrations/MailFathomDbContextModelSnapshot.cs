@@ -4282,15 +4282,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasDefaultValue("None");
 
-                    b.Property<Guid?>("SenderTrustContactId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("SenderTrustGrantedBy")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasDefaultValue("None");
+
+                    b.Property<bool>("SenderTrustIsStrict")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("SenderTrustLevel")
                         .IsRequired()
@@ -4483,10 +4483,6 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasIndex("SenderNormalizedAddress")
                         .HasDatabaseName("ix_stored_emails_sender");
 
-                    b.HasIndex("SenderTrustContactId")
-                        .HasDatabaseName("ix_stored_emails_sender_trust_contact")
-                        .HasFilter("\"SenderTrustContactId\" IS NOT NULL");
-
                     b.HasIndex("SenderTrustOrganizationId")
                         .HasDatabaseName("ix_stored_emails_sender_trust_organization")
                         .HasFilter("\"SenderTrustOrganizationId\" IS NOT NULL");
@@ -4501,10 +4497,6 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("MailboxAccountId", "Id")
                         .HasDatabaseName("ix_stored_emails_account_identity");
-
-                    b.HasIndex("MailboxAccountId", "SenderTrustAddress")
-                        .HasDatabaseName("ix_stored_emails_sender_trust_address")
-                        .HasFilter("\"SenderTrustAddress\" IS NOT NULL");
 
                     b.HasIndex("FolderId", "ReceivedAt", "Id")
                         .IsDescending(false, true, true)

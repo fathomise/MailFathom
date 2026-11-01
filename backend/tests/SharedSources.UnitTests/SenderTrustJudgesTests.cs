@@ -4,12 +4,10 @@
 
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Summaries;
-using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.TestSupport;
-using NSubstitute;
 using Xunit;
 
 namespace MailFathom.SharedSources.UnitTests;
@@ -19,7 +17,7 @@ public sealed class SenderTrustJudgesTests
 {
     /// <summary>Left to its defaults the judge recognizes nobody, so a stored message reads exactly as an unknown author's.</summary>
     [Fact]
-    public async Task Over_Defaults_JudgesAnAuthenticatedAuthorUnknown()
+    public void Over_Defaults_JudgesAnAuthenticatedAuthorUnknown()
     {
         // Arrange
         Assert.True(SenderDomain.TryCreate("partner.example", out var domain));
@@ -36,10 +34,7 @@ public sealed class SenderTrustJudgesTests
             SenderAuthentication.Authenticated([domain], spfDomains: [], domain, DmarcOutcome.Pass, DmarcRecordLookup.NotPublished));
 
         // Act
-        var judged = await SenderTrustJudges.Over().JudgeAsync(
-            Substitute.For<IPersistenceSession>(),
-            [message],
-            TestContext.Current.CancellationToken);
+        var judged = SenderTrustJudges.Over().Judge([message]);
 
         // Assert
         var verdict = Assert.Single(judged).SenderTrust;

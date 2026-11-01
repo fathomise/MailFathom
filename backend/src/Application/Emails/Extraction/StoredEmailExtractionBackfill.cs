@@ -226,10 +226,7 @@ public sealed class StoredEmailExtractionBackfill
         this.concurrencyRetryPolicy.CommitAsync(
             async (persistenceSession, attemptCancellationToken) =>
             {
-                var judged = await this.senderTrust.JudgeAsync(
-                    persistenceSession,
-                    [.. extractions.Select(static extraction => extraction.Metadata)],
-                    attemptCancellationToken);
+                var judged = this.senderTrust.Judge([.. extractions.Select(static extraction => extraction.Metadata)]);
 
                 foreach (var (extraction, metadata) in extractions.Zip(judged))
                 {

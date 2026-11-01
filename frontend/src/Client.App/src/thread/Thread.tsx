@@ -384,9 +384,10 @@ export function Thread({
         };
     }, [session, transport, conversation.threadId, online, reread]);
 
-    // What reads the conversation again: a refresh, which is every screen's business, and a change the deployment names
-    // about any message this conversation holds — a verdict, or the state derived from it. A change about other mail is
-    // the list's business, and reads nothing here.
+    // What reads the conversation again: a refresh, which is every screen's business, a change the deployment names
+    // about any message this conversation holds — a verdict, or the state derived from it — and a change to the contact
+    // books, which every sender's mark is read against. A change about other mail is the list's business, and reads
+    // nothing here.
     useEffect(
         () =>
             signalledChanges.listen((signal) => {
@@ -394,6 +395,7 @@ export function Thread({
 
                 if (
                     signal.kind === 'refresh' ||
+                    signal.kind === 'contacts.changed' ||
                     (signal.kind === 'mail.changed' && signal.emails.some((email) => holding.has(email)))
                 ) {
                     setReread((current) => ({ attempt: current.attempt + 1, pages: pages.length }));

@@ -1837,7 +1837,7 @@ export const pl: Catalogue = {
     'senderMark.add.failed': 'Nie udało się dodać {name} do kontaktów: {reason}',
     'senderMark.add.changed': 'Twoje kontakty zmieniły się od odczytania tej wiadomości',
     'senderMark.add.done':
-        '{name} jest teraz w Twoich kontaktach. Oznaczenie zmieni się, gdy Twoja poczta zostanie ponownie sprawdzona.',
+        '{name} jest teraz w Twoich kontaktach. Oznaczenie zmieni się przy następnym odczytaniu Twojej poczty.',
     'senderMark.signed.not':
         'Niepodpisana: wiadomość nie ma podpisu S/MIME ani OpenPGP, więc nie ma czego weryfikować.',
     'senderMark.signed.detachedAt': 'S/MIME, odłączony (multipart/signed), podpisana {when}.',

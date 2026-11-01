@@ -468,12 +468,12 @@ keeps it — the sender details' *Add to contacts* does exactly that for the add
 recording the contact afresh. Amending a contact while keeping the address without restating it leaves its writer as
 it was, and no other surface restates: the MCP tools and the administrative routes never do.
 
-**A trusted verdict names the contact that granted it, and removing that contact takes the trust away.** Erasing a
-contact, erasing the user whose book holds it, and deleting the organization whose book holds it each reset every
-verdict naming one of its contacts to the not-evaluated verdict, in the same transaction and before the rows go — so an
-erasure is never blocked by a verdict and no trusted mark is left naming somebody nobody holds. Each of those acts, every
-contact write, and every verdict take one lock per address first, so a verdict reads the books wholly before a write or
-wholly after it.
+**A trusted verdict names the contact found when the message is read, and removing that contact takes the trust
+away.** The books are asked on every read of a message rather than when it is stored, so a contact written, amended, or
+erased — and the user or the organization whose book holds it erased — reaches every mark it affects on the next read.
+No contact write touches stored mail, so an erasure is never blocked by a verdict and no trusted mark is left naming
+somebody nobody holds; [sender authentication § The books are read when the mail is
+read](sender-authentication.md#the-books-are-read-when-the-mail-is-read) states what is stored and what is read.
 
 ## Collecting contacts from arriving mail
 

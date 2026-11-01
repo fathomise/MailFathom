@@ -156,7 +156,7 @@ MailFathom reads a DMARC record to learn two things: the alignment mode, and, fo
 evaluates no DMARC policy and computes no DMARC result. The record is read on both paths. On the server path, it is
 read where the server reported no DMARC result that counts or only a temporary error, and, on a relaxed account, on
 every `fail` that counts, whether or not a source knows the sender yet. The policy is stored with the verdict, so a
-later contact write can re-judge the message exactly as extraction would have. On the local path, it is read wherever a verified signature could
+read that finds a contact combines it exactly as extraction would have. On the local path, it is read wherever a verified signature could
 align.
 
 **The record is found by RFC 9989's DNS tree walk.** That is DMARC's current definition (it replaces RFC 7489) and it
@@ -283,16 +283,17 @@ owner's own company domain by `TrustOwnAccountDomains`, and anybody else by thei
 keeps the consequence it states today: on a shared provider's domain it recognizes every user of that provider.
 
 **Whose personal contacts count.** The asserted books of every user the receiving account is assigned to, as they read
-when the message is judged. A mailbox two people share is judged by both books. The verdict names the contact that
+when the message is read. A mailbox two people share is judged by both books. The verdict names the contact that
 recognized the author. The client says *your contact* when the reader's own book holds that contact. Otherwise it says
 *a contact of another user of this mailbox*, and shows nothing from that record: not its name, its note, or which user
 holds it.
 
 **What that discloses is accepted.** A reader of a shared mailbox learns that some other user of it wrote a given
 address down. With two users, that says whose book it is. On a relaxed account the mark answers it for any message
-showing the address. This is accepted because the verdict is stored once per message, not once per reader, so a
-shared mailbox's marks are necessarily shared. The alternative, judging each message by its reader's book alone,
-would need a verdict per reader on every message. The users of a shared mailbox already read every message in it and
+showing the address. This is accepted because the verdict is answered from every book the receiving account reaches,
+never from the reader's alone, so a shared mailbox's marks are necessarily shared. The alternative, judging each
+message by its reader's book alone, would give one message a different mark for each reader, and every surface that
+acts on a mark without a reader — a rule, spam classification, the automatic reply — would have none to read. The users of a shared mailbox already read every message in it and
 every mark on them. They still cannot read, list, or name another user's book, which is what `docs/features/contacts.md`
 promises.
 
@@ -312,14 +313,11 @@ asked first, and the verdict records **which established the author: authenticat
 signature is recorded only where authentication did not hold, so the record names what the mark actually rested on.
 
 `SenderTrustSource` loses `ConfiguredTrustedSender` (`2`) and `StoredTrustedSender` (`3`), whose numbers are never
-reused. It gains `OrganizationContact` (`6`) and `PersonalContact` (`7`). A verdict reached by a contact stores a
-reference to that contact, as an organization member's verdict stores its organization. Unlike an organization's
-reference, it is never cleared on its own. Every act that removes a contact resets every verdict referencing it to
-the not-evaluated verdict, in that act's own transaction, so no `Trusted` or `Known` mark is left with nothing to name.
-There are three such acts: erasing the contact, erasing the user whose book holds it (the book goes by cascade), and
-deleting the organization whose book holds it. The reset runs before the cascade, so the data-subject erasure is never
-blocked by a verdict and never leaves one dangling. The re-judgment below then restores whatever another source still
-grants.
+reused. It gains `OrganizationContact` (`6`) and `PersonalContact` (`7`). A verdict reached by a contact names that
+contact, as an organization member's verdict names its organization. Unlike an organization's reference, it is never
+stored. The contact is found when the message is read (§ *A contact that changes, and mail already stored*), so the
+verdict names whichever contact the books hold at that read, and a contact that is gone is simply not found by the next
+one. No act that removes a contact, a user, or an organization writes to stored mail, and none is ever blocked by it.
 
 ### Organization contacts
 
@@ -342,8 +340,8 @@ address belongs to at most one contact within it.
   signature and needs no authentication. An organization contact names anybody, usually somebody outside, and needs the
   authentication rule or a signature. A member's address may also be held as an organization contact. Membership is
   asked first, so such a sender is reported as a member.
-- **Lifecycle.** Deleting the organization deletes its book. A user who leaves stops reading it. Mail arriving on an
-  account that leaves the organization is no longer judged against it. Organization contacts follow the book's erasure
+- **Lifecycle.** Deleting the organization deletes its book. A user who leaves stops reading it. Mail on an account
+  that leaves the organization, stored mail included, is no longer recognized by it from the next read. Organization contacts follow the book's erasure
   and export paths, and nothing about them is logged.
 
 ### Who may make a contact count, and from where
@@ -387,82 +385,67 @@ mail is then trusted. What becomes of the forgery the act was pressed on follows
 sentence says so. On a strict account, or where the domain's policy is `quarantine` or `reject`, it stays a warning.
 On a relaxed account under `p=none` it becomes `Known`, like any other message showing that address, because a
 monitoring-only domain is exactly the case relaxed mode accepts. No exception is made for the message the act was
-pressed on: a verdict that depended on which button was pressed where could not be re-judged.
+pressed on: a verdict that depended on which button was pressed where could not be read again the same way.
 It is never offered on Sent or Drafts, where no mark is drawn.
 
-**Audit** is that record together with the verdict's contact reference. From a trusted message an operator reaches the
+**Audit** is that record together with the contact the verdict names when it is read. From a trusted message an operator reaches the
 contact, the address, and who wrote it, by which surface and credential. No model ever appears there as the writer of
 trust, because no agent-written address grants it. Nothing about it reaches a log, a metric, or a failure message: the
 contact's and the verdict's identifiers do, and no address or domain does.
 
 ### A contact that changes, and mail already stored
 
-**A contact write re-judges the stored mail it affects.** Adding an address, removing one, moving one between
-contacts, promoting a collected contact, deleting or erasing a contact, writing an organization contact, erasing a
-user, and deleting an organization each enqueue one job per address the act removed or changed, in the durable job
-store (ADR 0009), which issue 2783 builds. The job is keyed by the book, the address, and an identifier minted for
-that act. ADR 0009 keeps a key unique across terminal rows too, so a key of the book and the address alone would let
-the first write's finished job swallow every later one, and an amendment would revoke nothing. Each write therefore
-enqueues a job of its own. That is safe because re-judging a message twice from the same state writes the same
-verdict. The queue does not order them (ADR 0009 makes ordering best-effort), so the order comes from a lock and not
-from the queue. The lock is a transaction-scoped PostgreSQL advisory lock (`pg_advisory_xact_lock`) keyed by the
-address alone, in its comparison form, hashed to the lock's 64-bit key. It is not keyed by the book, because one
-verdict reads several books: the organization's and every assignee's. A lock per book would let a write to one book
-pass a batch that is reading another. A collision between two addresses' hashes only serializes work that needed no
-serializing. Two rules decide who takes it, and they hold for every path that exists now and any added later.
+**A message stores what configuration and the organization signature answered, and its contacts are found when it is
+read.** Extraction stores the verdict steps 1, 3, and 4 reach — organization member, the owner's own address, the
+owner's own domain — together with whether the account was strict, the comparison form of the first `From` mailbox,
+and everything the contact steps are held against: the authentication verdict and the route that established the
+author, the authenticated author domain, the signature verification, and for `Known` the policy read at extraction.
+It reads no contact book and stores no contact. Every read of a message then asks the books as they stand and
+combines the two halves in the order above, under the same authentication and `Known` rules:
 
-- **A transaction that changes a book takes the lock for each address it changes.** That covers every contact write,
-  in any book, and every act that removes a contact, for each address the removed book held.
-- **A transaction that writes a trust verdict takes the lock for each verdict's first `From` mailbox before it reads
-  any book.** It reads the books and writes the verdicts in that same transaction. Three paths do this today. A batch
-  of a re-judgment job does it for the first `From` mailbox of every message in the batch, which in the second set
-  below can be another address of the same contact, not only the job's. The trust step at extraction does it inside the transaction
-  that stores the message. A batch of `mfctl mailbox rederive` does it for every message in the batch, because
-  rederive's trust step is extraction's. On the last two paths, authentication, DNS, and signature verification
-  all finish before the locking transaction opens.
+- The organization member's verdict stands whatever the books hold.
+- Otherwise an organization contact holding the address recognizes the author, above the owner's own address and
+  domain.
+- Otherwise a stored verdict from the owner's own address or domain stands.
+- Otherwise a personal contact of a user the account is assigned to recognizes the author.
 
-A transaction that needs several locks takes them in sorted order of key, so two of them never deadlock. Any reader
-of the books therefore sees them either wholly before a write or wholly after it. A reader that saw them before a
-write committed its verdict before the write ran. The write's own job then selects that verdict and re-judges it
-afterwards, because a stored message and its verdict are committed before the job's query can run. Whichever reader
-runs last reads the last state, so a verdict written from a superseded state is always overwritten. Every critical
-section the second rule creates reads and writes stored columns only, and reaches no server. ADR 0031 leaves this lock available for exactly that kind of section, and the lock cannot leak
-past the transaction that took it. A job re-judges two sets of stored messages:
+The combination is one domain rule, `SenderTrust.RecognizedBy`, and one read of the books does it for every message a
+read returns: one bounded query over the books its accounts reach, and one over its senders' addresses in those books,
+on the index the book and the address make. Every surface reads its verdict through that one place — the client's
+message, conversation, and list reads, MCP sender verification, the agent's turn document, spam evidence, the
+automatic reply, and rule evaluation — so none of them can disagree about a mark.
 
-- every message whose first `From` mailbox is that address, on every account the book reaches now: the accounts
-  assigned to the book's user, or every account of the organization;
-- every message whose verdict references the contact written, wherever it sits, including on an account the book no
-  longer reaches after an unassignment or a move between organizations.
+**So a contact change moves every mark it affects on the next read.** Adding an address, removing one, moving one
+between contacts, promoting a collected contact, erasing a contact, writing an organization contact, erasing a user,
+deleting an organization, and assigning or unassigning an account are each seen by the next read, wherever the mail
+sits and whenever it was stored. Revocation is complete because nothing a contact granted was ever kept. No job is
+enqueued, no lock is taken, and no stored verdict is reset by any of those acts, so no ordering between a write and a
+verdict has to be arranged and none can be lost.
 
-The second set is what makes revocation complete. Amending a contact revokes every verdict it granted, not only those
-on the accounts its book reaches today. An act that removed the contact has already reset those verdicts in its own
-transaction. The job then re-judges the first set, on the accounts the book reached when the act ran, where the book
-itself is gone. No stored mark outlives the contact that explained it.
+**What acts on a message's arrival reads the same verdict.** Rules, spam classification, the automatic reply, and the
+agent each read the message from the store after it is committed, through the same combination, so they see the books
+as they stand when they run. What they already did is kept: a contact written later reaches the mark, not a rule that
+already ran.
 
-- A re-judgment recomputes the trust verdict from what the message already stores: the authentication verdict and the
-  route that established the author, the signature verification, the organization verdict, and for `Known` the policy
-  read at extraction. It applies the sources as they stand when the job runs.
-- It resolves no DNS, re-reads no MIME, re-verifies no signature, and writes nothing but the trust verdict.
-- It re-runs nothing that already acted on the message's arrival: rules, spam classification, notifications, and
-  enrichment keep what they did.
-- Issue 2776 stores the first `From` mailbox's comparison form with the verdict where nothing yet holds it, so the job
-  selects by an index.
+**What it costs.** Each read adds two short queries for the whole page, never one per message. The account identifier
+that is not a stored record's — an account declared only in configuration — reaches no book, because no assignment
+names it. Nothing about an address, a domain, or a contact reaches a log or a metric from either half.
 
-This replaces *changes reach new mail only* for contact writes. A person who adds a sender from a message expects that
-message's mark to change. Changes to configuration keep today's rule: the owner's addresses, the owner's domains,
+Changes to configuration keep the rule they had: the owner's addresses, the owner's domains,
 `TrustOwnAccountDomains`, `Strict`, the trusted authority, and the known-provider list judge new mail, and
-`mfctl mailbox rederive` re-judges stored mail. So do assignment and membership changes.
+`mfctl mailbox rederive` re-judges stored mail under them.
 
 **The policy revision names what configuration said, and contacts are looked up.**
 `SenderTrustPolicyRevision` keeps digesting the configured statements: own addresses, own domains, `Strict`,
 and the receiving organization. Contacts are not digested. They are looked up per message by address, through an
-indexed, bounded query. What recognized a sender is named by the verdict's source and contact reference instead.
+indexed, bounded query when the message is read. What recognized a sender is named by the verdict's source and the
+contact found then instead.
 
 **Rows already carrying a retired source.** The schema is append-only, so a migration rewrites every stored verdict
 whose source is `ConfiguredTrustedSender` or `StoredTrustedSender` to the not-evaluated verdict: `Unknown`, no source,
 no revision. The list that granted it no longer exists, and a trusted mark nothing can explain or revoke is the wrong
 thing to keep. Nothing ever wrote `StoredTrustedSender`. An operator who re-creates the addresses as contacts brings the
-marks back through re-judgment for mail extracted after issue 2778 records the route. Older mail needs
+marks back on the next read for mail extracted after issue 2778 records the route. Older mail needs
 `mfctl mailbox rederive`, because a verdict with no recorded route never establishes an author for a contact.
 
 ### Relaxed and strict accounts, and the `Known` level
@@ -533,7 +516,7 @@ Each is named in its implementing pull request with the operator's action, for t
 |---|---|---|
 | Configuration | `TrustedSenders` and its `Domain`, `Address`, and `IncludeSubdomains` are removed from every mail account (issue 2776) | Re-create each address entry as a contact in the owner's book (`mfctl contact create`) or as an organization contact. Replace a domain entry with `TrustOwnAccountDomains`, an organization, or addresses. Then run `mfctl mailbox rederive` for mail stored before issue 2778 |
 | Behaviour | The owner's own addresses and domains no longer trust an author aligned only through SPF. A server's DMARC `pass` counts only for the domain it names. DKIM alignment honours `adkim=s`. With `VerifyDkimLocally` off, server-reported DKIM no longer aligns without a DMARC result. Every account is relaxed and draws `Known` by default | Set `Strict` to `true` on an account that must show only verified marks |
-| Database | Verdicts carrying the two retired sources become not evaluated. New columns record the author route, the contact reference, and the policy read for `Known`. A new column records each asserted address's writer, and every address already stored is backfilled as `Unrecorded`, which grants nothing | Have each person, or an administrator, state again every contact address that should grant trust: the person through *Add to contacts* or the client, the administrator through `mfctl` |
+| Database | Verdicts carrying the two retired sources become not evaluated. New columns record the author route and the policy read for `Known`. Issue 2783 drops the stored contact reference, adds whether the account was strict, and turns every verdict a contact had reached into not evaluated, since a contact is now found when the message is read and the stored row keeps no configuration answer for it; run `mfctl mailbox rederive` to bring those rows' configuration answers back. A new column records each asserted address's writer, and every address already stored is backfilled as `Unrecorded`, which grants nothing | Have each person, or an administrator, state again every contact address that should grant trust: the person through *Add to contacts* or the client, the administrator through `mfctl` |
 | Client endpoint | `trustSource` loses `ConfiguredTrustedSender` and `StoredTrustedSender`, gains `OrganizationContact` and `PersonalContact`, and `deploymentTrust` gains `Known` (issue 2776, issue 2781) | A client built against the old values updates with the release |
 | MCP tools | `deploymentTrust` gains `Known` on every read tool (issue 2781). The contact tools' descriptions state that agent-written addresses grant no trust | An agent prompt branching on `deploymentTrust` handles `Known` |
 | Mail rules | `senderTrust` gains `Known` | A rule meant to file `Known` mail with `Trusted` names both |
@@ -566,7 +549,7 @@ Each is named in its implementing pull request with the operator's action, for t
   names the section it implements.
 - Unit tests in each implementing issue cover every row of the tables above: each DMARC outcome against each source, the
   `header.from` rule, `adkim`, the walk's stop conditions and errors, no local failure under any policy, the writer kinds, the order, the signature
-  exception, re-judgment, and `Known` on a relaxed and on a strict account.
+  exception, a contact written or removed after storage, and `Known` on a relaxed and on a strict account.
 - `docs/features/sender-authentication.md`, `docs/features/contacts.md`, `docs/operations/configuration-mail.md`, and the
   administrative and client endpoint pages describe the result as each part lands.
 
@@ -602,11 +585,9 @@ Each is named in its implementing pull request with the operator's action, for t
 
 - Issue 2698 is this record's issue and issue 2693 the parent. Issue 2778 builds the author route and the record walk.
   Issue 2779 builds organization contacts. Issue 2782 builds the known-provider list. Issue 2776 builds the contact
-  sources, writer kinds, and re-judgment. Issue 2780 builds the sender details in the design and the client. Issue 2781
-  builds `Known`. Issue 2783 re-judges the stored mail a contact change affects.
-- [ADR 0009](0009-durable-job-store-and-execution-identity.md) holds the re-judgment job, and its best-effort ordering
-  is why the jobs are serialized by a lock rather than by the queue. [ADR 0031](0031-dividing-singleton-work-between-replicas-with-a-leased-scope.md)
-  keeps the transaction-scoped advisory lock for a short database-only section, which is what every verdict-writing transaction here is. [ADR 0012](0012-authorization-model-named-permissions-and-where-they-are-enforced.md)
+  sources and writer kinds. Issue 2780 builds the sender details in the design and the client. Issue 2781
+  builds `Known`. Issue 2783 moves the contact steps onto the read, in place of re-judging stored mail.
+- [ADR 0012](0012-authorization-model-named-permissions-and-where-they-are-enforced.md)
   is the permission model the writers sit in. [ADR 0014](0014-single-tenant-multi-user-ownership-on-the-mail-account.md)
   is why a mailbox may be assigned to several users. [ADR 0042](0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
   is the organization signature, unchanged here.

@@ -335,10 +335,7 @@ public sealed class StoredMailRederivation
                     return false;
                 }
 
-                var judged = await this.senderTrust.JudgeAsync(
-                    persistenceSession,
-                    [.. outcome.Rederivations.Select(static rederivation => rederivation.Metadata)],
-                    attemptCancellationToken);
+                var judged = this.senderTrust.Judge([.. outcome.Rederivations.Select(static rederivation => rederivation.Metadata)]);
 
                 foreach (var (rederivation, metadata) in outcome.Rederivations.Zip(judged))
                 {

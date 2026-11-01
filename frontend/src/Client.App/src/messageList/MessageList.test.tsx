@@ -1340,6 +1340,34 @@ describe('MessageList', () => {
         expect(row(0)).toBeDefined();
     });
 
+    it('reads the page on the screen again when the contacts change, which every sender on it is recognized by', async () => {
+        const deployment = deploymentSaying();
+        let reads = 0;
+
+        renderList(
+            () => {
+                reads += 1;
+
+                return reads === 1
+                    ? Promise.resolve({ status: 200, body: wholeFolder, headers: {} })
+                    : new Promise(() => undefined);
+            },
+            { changes: deployment.changes },
+        );
+
+        const drawn = (await rows()).length;
+
+        act(() => {
+            deployment.say({ kind: 'contacts.changed' });
+        });
+
+        await waitFor(() => {
+            expect(reads).toBe(2);
+        });
+
+        expect((await rows()).length).toBe(drawn);
+    });
+
     it('keeps its rows and says nothing when a refresh is not answered', async () => {
         const deployment = deploymentSaying();
         let reads = 0;

@@ -4,21 +4,16 @@
 
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Mail;
-using MailFathom.Application.Persistence;
-using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
-using MailFathom.Domain.Emails.Authentication;
 
 namespace MailFathom.Application.Emails.Trust;
 
-/// <summary>Decides whether each receiving account recognizes the author of messages about to be stored, inside the transaction that stores them.</summary>
+/// <summary>Decides what each receiving account's configuration and organization signature make of the author of messages about to be stored.</summary>
 /// <remarks>
 /// <para>
-/// It runs inside the transaction that writes the verdicts rather than when the message is read, because the contacts
-/// it consults change while the deployment runs. Authentication, DNS, and signature verification all finish before that
-/// transaction opens; here the address lock is taken for every message's first <c>From</c> mailbox, then the books are
-/// read and the verdicts reached, so a contact written or removed concurrently is seen wholly or not at all. A
-/// transaction judging several messages hands them over together, so the locks are taken once, in sorted order.
+/// That is the half of the trust verdict a message stores. The contacts that hold the author's address are not read
+/// here: every read of a message asks the books as they stand then and combines them with this half, so nothing about a
+/// contact is fixed at extraction and no contact write ever has stored mail to re-judge.
 /// </para>
 /// <para>
 /// Every path that stores a verdict goes through here: synchronization storing a message it fetched, the extraction
@@ -28,46 +23,26 @@ namespace MailFathom.Application.Emails.Trust;
 public sealed class SenderTrustJudge
 {
     private readonly ISenderTrustPolicyReader policies;
-    private readonly ISenderTrustBooks books;
 
     /// <summary>Initializes the judge.</summary>
     /// <param name="policies">Resolves what configuration states about each account's owner.</param>
-    /// <param name="books">Reads the contacts the receiving accounts' books hold, under the address lock.</param>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
-    public SenderTrustJudge(ISenderTrustPolicyReader policies, ISenderTrustBooks books)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="policies" /> is <see langword="null" />.</exception>
+    public SenderTrustJudge(ISenderTrustPolicyReader policies)
     {
         ArgumentNullException.ThrowIfNull(policies);
-        ArgumentNullException.ThrowIfNull(books);
 
         this.policies = policies;
-        this.books = books;
     }
 
-    /// <summary>Reaches each message's trust verdict, in the transaction the session holds.</summary>
-    /// <param name="session">The session that will store the verdicts.</param>
+    /// <summary>Reaches the stored half of each message's trust verdict.</summary>
     /// <param name="messages">What extracting each message established.</param>
-    /// <param name="cancellationToken">Cancels the wait for a lock and the reads.</param>
-    /// <returns>The messages in the same order, each carrying its verdict.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
-    public async Task<IReadOnlyList<ExtractedEmailMetadata>> JudgeAsync(
-        IPersistenceSession session,
-        IReadOnlyList<ExtractedEmailMetadata> messages,
-        CancellationToken cancellationToken)
+    /// <returns>The messages in the same order, each carrying that half.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" /> is <see langword="null" />.</exception>
+    public IReadOnlyList<ExtractedEmailMetadata> Judge(IReadOnlyList<ExtractedEmailMetadata> messages)
     {
-        ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(messages);
 
-        EmailAddress[] senders = [.. messages.Select(DisplayedSenderOf).OfType<EmailAddress>().Distinct()];
-        var holdings = senders.Length == 0
-            ? []
-            : await this.books.LockAndReadAsync(
-                session,
-                [.. messages.Select(static message => message.AccountId).Distinct()],
-                senders,
-                cancellationToken);
-        SenderAddressHolding[] granting = [.. holdings.Where(static holding => ContactAddressWriter.GrantsTrustAs(holding.Writer))];
-
-        return [.. messages.Select(message => this.Judge(message, granting))];
+        return [.. messages.Select(this.Judge)];
     }
 
     /// <summary>Reads the address a mail client displays as the message's author.</summary>
@@ -79,35 +54,13 @@ public sealed class SenderTrustJudge
     private static EmailAddress? DisplayedSenderOf(ExtractedEmailMetadata message) =>
         message.Participants.FirstOrDefault(participant => participant.Role == EmailAddressRole.From)?.Address;
 
-    /// <summary>Names the contact of one book that recognizes the sender, choosing the same one whichever order the rows arrived in.</summary>
-    private static ContactId? ContactIn(
-        IEnumerable<SenderAddressHolding> holdings,
-        SenderTrustBook book) =>
-        holdings
-            .Where(holding => holding.Book == book)
-            .Select(static holding => holding.Contact)
-            .OrderBy(static contact => contact.Value)
-            .Cast<ContactId?>()
-            .FirstOrDefault();
-
-    private ExtractedEmailMetadata Judge(ExtractedEmailMetadata message, SenderAddressHolding[] granting)
-    {
-        var sender = DisplayedSenderOf(message);
-        SenderAddressHolding[] held = sender is not { } address
-            ? []
-            : [.. granting.Where(holding => holding.Account == message.AccountId
-                && string.Equals(holding.NormalizedAddress, address.NormalizedAddress, StringComparison.Ordinal))];
-
-        return message with
+    private ExtractedEmailMetadata Judge(ExtractedEmailMetadata message) =>
+        message with
         {
             SenderTrust = this.policies.GetTrustPolicy(message.AccountId).Evaluate(
                 message.SenderAuthentication,
                 message.Signature,
-                sender,
-                new RecognizingContacts(
-                    ContactIn(held, SenderTrustBook.Organization),
-                    ContactIn(held, SenderTrustBook.Personal)),
+                DisplayedSenderOf(message),
                 message.OrganizationVerification),
         };
-    }
 }

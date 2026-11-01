@@ -201,11 +201,12 @@ internal sealed class StoredEmailEntity
     /// </remarks>
     public SenderAuthenticationSource SenderAuthenticationSource { get; set; }
 
-    /// <summary>Gets or sets what this deployment made of the author the columns above establish.</summary>
+    /// <summary>Gets or sets what configuration and the organization's signature made of the author the columns above establish.</summary>
     /// <remarks>
-    /// Stored rather than decided when a message is read, so a reader and a rule read the answer the message was judged
-    /// with. <see cref="SenderTrustPolicyRevision" /> says which configuration produced it and
-    /// <see cref="SenderTrustContactId" /> which contact.
+    /// This is half of the verdict a reader sees, and the half that changes only when configuration does:
+    /// <see cref="SenderTrustPolicyRevision" /> says which configuration produced it. No column names a contact. The
+    /// contacts that hold <see cref="SenderTrustAddress" /> are asked of the books as they stand whenever the row is read
+    /// and combined with these columns, so a contact change reaches every mark without this row being written.
     /// </remarks>
     public SenderTrustLevel SenderTrustLevel { get; set; }
 
@@ -215,19 +216,17 @@ internal sealed class StoredEmailEntity
     /// <summary>Gets or sets what tied the message to the address or domain the source recognized.</summary>
     public TrustedAuthorEvidence SenderTrustAuthorEvidence { get; set; }
 
-    /// <summary>Gets or sets the contact that recognized the author, set only where <see cref="SenderTrustGrantedBy" /> names a contact source.</summary>
+    /// <summary>Gets or sets whether the receiving account was strict when the row was judged.</summary>
     /// <remarks>
-    /// A reference with no foreign key, because it is never cleared on its own: every act that removes a contact resets
-    /// each verdict naming it to the not-evaluated verdict first, in its own transaction, so a cascade is never blocked
-    /// by a verdict and no trusted row is left naming a contact that is gone.
+    /// A column of its own because a contact found on read recognizes an author by address alone only on an account that
+    /// was not strict, and <see cref="SenderTrustPolicyRevision" /> only digests that statement.
     /// </remarks>
-    public Guid? SenderTrustContactId { get; set; }
+    public bool SenderTrustIsStrict { get; set; }
 
     /// <summary>Gets or sets the comparison form of the message's first <c>From</c> mailbox, the address its trust verdict was reached for.</summary>
     /// <remarks>
     /// Not <see cref="SenderNormalizedAddress" />, which falls back to <c>Sender</c> where <c>From</c> carried nothing
     /// usable: this is the subject the contact books are held against, and absent where the message displays no author.
-    /// It is what re-judging the mail one address sent selects by.
     /// </remarks>
     public string? SenderTrustAddress { get; set; }
 

@@ -127,7 +127,7 @@ public sealed class LocalMailCopier
         ArgumentNullException.ThrowIfNull(copy);
 
         var judged = copy.Metadata is { } metadata
-            ? (await this.senderTrust.JudgeAsync(session, [metadata], cancellationToken))[0]
+            ? this.senderTrust.Judge([metadata])[0]
             : null;
 
         if (await this.emails.StoreLocalCopyAsync(

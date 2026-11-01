@@ -32,7 +32,7 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
-            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("user@work.example"), RecognizingContacts.None);
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("user@work.example"));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
@@ -51,7 +51,7 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("user@work.example"), RecognizingContacts.None);
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("user@work.example"));
 
         // Assert
         Assert.Equal(SenderTrustSource.OwnAccountAddress, trust.GrantedBy);
@@ -69,7 +69,7 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
-            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("colleague@work.example"), RecognizingContacts.None);
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("colleague@work.example"));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
@@ -87,10 +87,10 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var onPersonal = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
-            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("colleague@work.example"), RecognizingContacts.None);
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("colleague@work.example"));
         var onWork = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("colleague@work.example"), RecognizingContacts.None);
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("colleague@work.example"));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, onPersonal.Level);
@@ -110,7 +110,7 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("user@work.example"), RecognizingContacts.None);
+            .Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, AddressOf("user@work.example"));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
@@ -129,10 +129,10 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var onWork = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(unauthenticated, EmailSignature.NotSigned, AddressOf("user@personal.example"), RecognizingContacts.None);
+            .Evaluate(unauthenticated, EmailSignature.NotSigned, AddressOf("user@personal.example"));
         var onPersonal = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("personal"))
-            .Evaluate(unauthenticated, EmailSignature.NotSigned, AddressOf("user@work.example"), RecognizingContacts.None);
+            .Evaluate(unauthenticated, EmailSignature.NotSigned, AddressOf("user@work.example"));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, onWork.Level);
@@ -168,7 +168,7 @@ public sealed class SenderTrustPolicyConfigurationTests
         // Act
         var trust = options
             .Readers.SenderTrustPolicies.GetTrustPolicy(MailAccountId.Create("work"))
-            .Evaluate(WrittenBy("elsewhere.example"), EmailSignature.NotSigned, AddressOf("other@elsewhere.example"), RecognizingContacts.None);
+            .Evaluate(WrittenBy("elsewhere.example"), EmailSignature.NotSigned, AddressOf("other@elsewhere.example"));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);

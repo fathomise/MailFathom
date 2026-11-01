@@ -17,10 +17,13 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// the other verdict's to state, and this records only what the deployment concluded from it.
 /// </para>
 /// <para>
-/// It is stored rather than computed on read, so a message keeps the answer it was judged with. What makes that
-/// legible is <see cref="PolicyRevision" />, which names the configuration the answer was reached under, and
-/// <see cref="RecognizingContactId" />, which names the contact that recognized the author. A verdict nothing judged
-/// carries <see cref="SenderTrustPolicyRevision.None" />.
+/// It is reached in two halves. What configuration and the organization's signature answer — membership, the owner's own
+/// address and domain, and whether the account was strict — is decided when the message is stored and kept with it,
+/// under <see cref="PolicyRevision" />, because configuration changes reach stored mail only through a rederive. Which
+/// contact holds the address is asked whenever the message is read, of the books as they stand then, and
+/// <see cref="RecognizedBy" /> combines the two in the order the sources rank. So a contact written, amended, or erased
+/// changes the next read's verdict without anything rewriting stored mail, and <see cref="RecognizingContactId" /> names
+/// the contact found at that read. A verdict nothing judged carries <see cref="SenderTrustPolicyRevision.None" />.
 /// </para>
 /// </remarks>
 public sealed record SenderTrust
@@ -31,7 +34,8 @@ public sealed record SenderTrust
         SenderTrustPolicyRevision policyRevision,
         TrustedAuthorEvidence authorEvidence = TrustedAuthorEvidence.None,
         Guid? recognizingOrganizationId = null,
-        ContactId? recognizingContactId = null)
+        ContactId? recognizingContactId = null,
+        bool isStrict = false)
     {
         this.Level = level;
         this.GrantedBy = grantedBy;
@@ -39,6 +43,7 @@ public sealed record SenderTrust
         this.AuthorEvidence = authorEvidence;
         this.RecognizingOrganizationId = recognizingOrganizationId;
         this.RecognizingContactId = recognizingContactId;
+        this.IsStrict = isStrict;
     }
 
     /// <summary>Gets the verdict a message reaching persistence without a policy having spoken carries.</summary>
@@ -70,11 +75,18 @@ public sealed record SenderTrust
 
     /// <summary>Gets the contact that recognized the author, present exactly when <see cref="GrantedBy" /> is <see cref="SenderTrustSource.OrganizationContact" /> or <see cref="SenderTrustSource.PersonalContact" />.</summary>
     /// <remarks>
-    /// A reference rather than a copy, so the verdict leads back to the contact and to who wrote its address. Unlike the
-    /// organization's reference it is never cleared on its own: every act that removes a contact resets each verdict
-    /// naming it to <see cref="NotEvaluated" /> in its own transaction, so no trusted or known mark is left naming nothing.
+    /// A reference rather than a copy, so the verdict leads back to the contact and to who wrote its address. It is never
+    /// stored: it is the contact the books held when the verdict was read, so one erased since is simply not found again.
     /// </remarks>
     public ContactId? RecognizingContactId { get; }
+
+    /// <summary>Gets whether the receiving account recognized only authors something tied to the address when the message was stored.</summary>
+    /// <remarks>
+    /// Kept with the stored half because a contact found on a later read may recognize the author by address alone only
+    /// where the account was not strict, and <see cref="PolicyRevision" /> digests that statement without anything being
+    /// able to read it back.
+    /// </remarks>
+    public bool IsStrict { get; }
 
     /// <summary>Gets what tied the message to the address or domain the source recognized.</summary>
     /// <remarks>
@@ -89,6 +101,7 @@ public sealed record SenderTrust
 
     /// <summary>Records that this deployment recognizes nobody in the message.</summary>
     /// <param name="policyRevision">The policy that was applied.</param>
+    /// <param name="isStrict">Whether the account was strict.</param>
     /// <returns>The verdict.</returns>
     /// <remarks>
     /// It covers every way of arriving there: no author was authenticated, the author's authentication failed, or an
@@ -96,13 +109,14 @@ public sealed record SenderTrust
     /// established rather than in what this deployment decided, so they stay on <see cref="SenderAuthentication" />
     /// instead of being folded in here.
     /// </remarks>
-    public static SenderTrust Unknown(SenderTrustPolicyRevision policyRevision) =>
-        new(SenderTrustLevel.Unknown, SenderTrustSource.None, policyRevision);
+    public static SenderTrust Unknown(SenderTrustPolicyRevision policyRevision, bool isStrict = false) =>
+        new(SenderTrustLevel.Unknown, SenderTrustSource.None, policyRevision, isStrict: isStrict);
 
     /// <summary>Records that the author wrote as one of the receiving account owner's own addresses or domains.</summary>
     /// <param name="grantedBy"><see cref="SenderTrustSource.OwnAccountAddress" /> or <see cref="SenderTrustSource.OwnAccountDomain" />.</param>
     /// <param name="authorEvidence">What tied the message to that address or domain.</param>
     /// <param name="policyRevision">The policy that was applied.</param>
+    /// <param name="isStrict">Whether the account was strict.</param>
     /// <returns>The verdict.</returns>
     /// <exception cref="ArgumentException">
     /// Thrown when another source is named, each of which <see cref="TrustedAsOrganizationMember" /> or
@@ -111,7 +125,8 @@ public sealed record SenderTrust
     public static SenderTrust TrustedAsOwn(
         SenderTrustSource grantedBy,
         TrustedAuthorEvidence authorEvidence,
-        SenderTrustPolicyRevision policyRevision)
+        SenderTrustPolicyRevision policyRevision,
+        bool isStrict = false)
     {
         if (grantedBy is not (SenderTrustSource.OwnAccountAddress or SenderTrustSource.OwnAccountDomain))
         {
@@ -124,7 +139,8 @@ public sealed record SenderTrust
             SenderTrustLevel.Trusted,
             grantedBy,
             policyRevision,
-            RequireEvidence(authorEvidence));
+            RequireEvidence(authorEvidence),
+            isStrict: isStrict);
     }
 
     /// <summary>Records that a contact somebody wrote down holds the author's address.</summary>
@@ -132,13 +148,15 @@ public sealed record SenderTrust
     /// <param name="contactId">The contact that recognized the author.</param>
     /// <param name="authorEvidence">What tied the message to the contact's address.</param>
     /// <param name="policyRevision">The policy that was applied.</param>
+    /// <param name="isStrict">Whether the account was strict.</param>
     /// <returns>The verdict.</returns>
     /// <exception cref="ArgumentException">Thrown when another source is named, or when no evidence is named.</exception>
     public static SenderTrust TrustedByContact(
         SenderTrustSource grantedBy,
         ContactId contactId,
         TrustedAuthorEvidence authorEvidence,
-        SenderTrustPolicyRevision policyRevision)
+        SenderTrustPolicyRevision policyRevision,
+        bool isStrict = false)
     {
         if (grantedBy is not (SenderTrustSource.OrganizationContact or SenderTrustSource.PersonalContact))
         {
@@ -150,7 +168,8 @@ public sealed record SenderTrust
             grantedBy,
             policyRevision,
             RequireEvidence(authorEvidence),
-            recognizingContactId: contactId);
+            recognizingContactId: contactId,
+            isStrict: isStrict);
     }
 
     /// <summary>Records that a source recognizes the address the message displays, while nothing tied the message to it.</summary>
@@ -187,15 +206,76 @@ public sealed record SenderTrust
     /// <summary>Records that a signature of the receiving account's organization proved the author a member of it.</summary>
     /// <param name="organizationId">The organization whose key verified the signature.</param>
     /// <param name="policyRevision">The policy that was applied.</param>
+    /// <param name="isStrict">Whether the account was strict.</param>
     /// <returns>The verdict.</returns>
     public static SenderTrust TrustedAsOrganizationMember(
         Guid organizationId,
-        SenderTrustPolicyRevision policyRevision) =>
+        SenderTrustPolicyRevision policyRevision,
+        bool isStrict = false) =>
         new(
             SenderTrustLevel.Trusted,
             SenderTrustSource.OrganizationMember,
             policyRevision,
-            recognizingOrganizationId: organizationId);
+            recognizingOrganizationId: organizationId,
+            isStrict: isStrict);
+
+    /// <summary>Reads back the half of a verdict a message stores: what configuration and the organization's signature answered.</summary>
+    /// <param name="level">The stored level.</param>
+    /// <param name="grantedBy">The stored source, which is never a contact.</param>
+    /// <param name="authorEvidence">What tied the message to the source's address or domain.</param>
+    /// <param name="policyRevision">The policy that was applied.</param>
+    /// <param name="recognizingOrganizationId">The organization whose signature recognized the author, where one did.</param>
+    /// <param name="isStrict">Whether the account was strict.</param>
+    /// <returns>The verdict as it was stored.</returns>
+    /// <remarks>
+    /// Nothing re-derives the stored half here, so nothing re-checks it either: the row is what an extraction wrote, and
+    /// <see cref="RecognizedBy" /> is what turns it into the verdict a reader sees.
+    /// </remarks>
+    public static SenderTrust FromStored(
+        SenderTrustLevel level,
+        SenderTrustSource grantedBy,
+        TrustedAuthorEvidence authorEvidence,
+        SenderTrustPolicyRevision policyRevision,
+        Guid? recognizingOrganizationId,
+        bool isStrict) =>
+        new(level, grantedBy, policyRevision, authorEvidence, recognizingOrganizationId, isStrict: isStrict);
+
+    /// <summary>Combines what the message stores with the contacts that hold its author's address when it is read.</summary>
+    /// <param name="contacts">The trust-granting contacts holding the first <c>From</c> mailbox in the books the receiving account reaches now.</param>
+    /// <param name="recognition">What recognizing that address grants the message.</param>
+    /// <returns>The verdict a reader sees.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <remarks>
+    /// The sources rank as they do when a message is stored: organization member, organization contact, the owner's
+    /// address, the owner's domain, a personal contact. Membership and the owner's own address and domain are the stored
+    /// half's answer; the two contact sources are asked here, each only where every source above it answered nothing.
+    /// A contact recognizes the author under the same rule the owner's address does, so a contact that makes nothing of a
+    /// message leaves the stored answer standing.
+    /// </remarks>
+    public SenderTrust RecognizedBy(RecognizingContacts contacts, SenderAddressRecognition recognition)
+    {
+        ArgumentNullException.ThrowIfNull(contacts);
+        ArgumentNullException.ThrowIfNull(recognition);
+
+        if (this.GrantedBy == SenderTrustSource.OrganizationMember)
+        {
+            return this;
+        }
+
+        if (contacts.OrganizationContact is { } organizationContact)
+        {
+            return recognition.Grant(SenderTrustSource.OrganizationContact, organizationContact, this.PolicyRevision, this.IsStrict)
+                ?? this;
+        }
+
+        if (this.GrantedBy != SenderTrustSource.None || contacts.PersonalContact is not { } personalContact)
+        {
+            return this;
+        }
+
+        return recognition.Grant(SenderTrustSource.PersonalContact, personalContact, this.PolicyRevision, this.IsStrict)
+            ?? this;
+    }
 
     private static TrustedAuthorEvidence RequireEvidence(TrustedAuthorEvidence authorEvidence) =>
         authorEvidence != TrustedAuthorEvidence.None

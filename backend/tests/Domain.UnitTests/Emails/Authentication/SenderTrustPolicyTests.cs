@@ -11,6 +11,10 @@ using Xunit;
 namespace MailFathom.Domain.UnitTests.Emails.Authentication;
 
 /// <summary>Covers which authors one account recognizes, in which order, on what evidence, and what the answer is stored with.</summary>
+/// <remarks>
+/// Most cases judge a message the way a deployment does end to end: the policy reaches the half a message stores, and
+/// the contacts the books hold are combined with it as a read does. The cases asking what is stored call the policy alone.
+/// </remarks>
 public sealed class SenderTrustPolicyTests
 {
     private static readonly Guid Organization = Guid.Parse("0199f000-0000-7000-8000-000000000001");
@@ -173,7 +177,7 @@ public sealed class SenderTrustPolicyTests
         Assert.Equal(expected, trust.GrantedBy);
     }
 
-    /// <summary>A contact's verdict records which contact recognized the author, which is what removing that contact resets.</summary>
+    /// <summary>A contact's verdict names the contact found when the message was read.</summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -341,11 +345,7 @@ public sealed class SenderTrustPolicyTests
         var policy = SenderTrustPolicy.Create([], [DomainOf("work.example")]);
 
         // Act
-        var trust = policy.Evaluate(
-            WrittenBy("work.example"),
-            EmailSignature.NotSigned,
-            displayedSender: null,
-            new RecognizingContacts(OrganizationContact, PersonalContact));
+        var trust = policy.Evaluate(WrittenBy("work.example"), EmailSignature.NotSigned, displayedSender: null);
 
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
@@ -576,12 +576,12 @@ public sealed class SenderTrustPolicyTests
     public void Evaluate_MemberOfTheReceivingOrganizationWithNoAuthenticatedDomain_IsTrustedAsAMember()
     {
         // Act
-        var trust = SenderTrustPolicy.RecognizingNobody.Evaluate(
+        var trust = Judge(
+            SenderTrustPolicy.RecognizingNobody,
             SenderAuthentication.NotEstablished(),
-            EmailSignature.NotSigned,
-            AddressOf("anna@org.example"),
+            "anna@org.example",
             new RecognizingContacts(OrganizationContact, null),
-            new OrganizationSenderVerification(Organization, SenderIsMember: true));
+            organizationVerification: new OrganizationSenderVerification(Organization, SenderIsMember: true));
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
@@ -602,7 +602,6 @@ public sealed class SenderTrustPolicyTests
             WrittenBy("org.example"),
             EmailSignature.NotSigned,
             AddressOf("anna@org.example"),
-            RecognizingContacts.None,
             new OrganizationSenderVerification(Organization, SenderIsMember: false));
 
         // Assert
@@ -619,24 +618,54 @@ public sealed class SenderTrustPolicyTests
         var sender = AddressOf("anna@org.example");
 
         // Act
-        var withoutOrganization = policy.Evaluate(WrittenBy("org.example"), EmailSignature.NotSigned, sender, RecognizingContacts.None);
+        var withoutOrganization = policy.Evaluate(WrittenBy("org.example"), EmailSignature.NotSigned, sender);
         var underOrganization = policy.Evaluate(
             WrittenBy("org.example"),
             EmailSignature.NotSigned,
             sender,
-            RecognizingContacts.None,
             new OrganizationSenderVerification(Organization, SenderIsMember: false));
         var underAnother = policy.Evaluate(
             WrittenBy("org.example"),
             EmailSignature.NotSigned,
             sender,
-            RecognizingContacts.None,
             new OrganizationSenderVerification(Guid.Parse("0199f000-0000-7000-8000-000000000002"), SenderIsMember: false));
 
         // Assert
         Assert.Equal(policy.Revision, withoutOrganization.PolicyRevision);
         Assert.NotEqual(policy.Revision, underOrganization.PolicyRevision);
         Assert.NotEqual(underOrganization.PolicyRevision, underAnother.PolicyRevision);
+    }
+
+    /// <summary>What a message stores never names a contact, however many hold its author's address.</summary>
+    [Fact]
+    public void Evaluate_AuthorOnlyAContactCouldRecognize_StoresAnUnknownVerdictNamingNoContact()
+    {
+        // Act
+        var stored = SenderTrustPolicy.RecognizingNobody.Evaluate(
+            WrittenBy("partner.example"),
+            EmailSignature.NotSigned,
+            AddressOf("alice@partner.example"));
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Unknown, stored.Level);
+        Assert.Equal(SenderTrustSource.None, stored.GrantedBy);
+        Assert.Null(stored.RecognizingContactId);
+    }
+
+    /// <summary>The stored half says whether the account was strict, which is what a contact found on a later read is held against.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Evaluate_AnyAccount_StoresWhetherItWasStrict(bool isStrict)
+    {
+        // Act
+        var stored = SenderTrustPolicy.Create([], [], isStrict).Evaluate(
+            SenderAuthentication.NotEstablished(),
+            EmailSignature.NotSigned,
+            AddressOf("alice@partner.example"));
+
+        // Assert
+        Assert.Equal(isStrict, stored.IsStrict);
     }
 
     private static RecognizingContacts ByPersonalContact => new(null, PersonalContact);
@@ -649,17 +678,24 @@ public sealed class SenderTrustPolicyTests
             ? DmarcRecordLookup.NotReadable
             : DmarcRecordLookup.Found(new DmarcRecord(DkimAlignmentMode.Relaxed) { PolicyAtDomain = policy });
 
+    /// <summary>Stores a message's verdict, then reads it with the contacts the books hold, as a deployment does.</summary>
     private static SenderTrust Judge(
         SenderTrustPolicy policy,
         SenderAuthentication authentication,
         string sender,
         RecognizingContacts? contacts = null,
-        EmailSignature? signature = null) =>
-        policy.Evaluate(
-            authentication,
-            signature ?? EmailSignature.NotSigned,
-            AddressOf(sender),
-            contacts ?? RecognizingContacts.None);
+        EmailSignature? signature = null,
+        OrganizationSenderVerification? organizationVerification = null)
+    {
+        var address = AddressOf(sender);
+        var stored = policy.Evaluate(authentication, signature ?? EmailSignature.NotSigned, address, organizationVerification);
+
+        Assert.True(SenderDomain.TryCreateFromMailbox(address.Address, out var senderDomain));
+
+        return stored.RecognizedBy(
+            contacts ?? RecognizingContacts.None,
+            SenderAddressRecognition.Of(authentication, signature ?? EmailSignature.NotSigned, senderDomain, stored.IsStrict));
+    }
 
     /// <summary>Builds the verdict of a message whose displayed author the receiving server established.</summary>
     private static SenderAuthentication WrittenBy(string domain) =>

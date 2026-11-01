@@ -7,8 +7,8 @@ using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Emails;
-using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Folders;
+using MailFathom.Infrastructure.Persistence.Contacts;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Emails;
@@ -32,19 +32,23 @@ internal sealed class StoredEmailProvenanceReader(
 
         var visibleToAI = await deploymentFolders.ReadAsync(MailFolderSelection.VisibleToAI, cancellationToken);
         var rows = await ProvenanceOf(dbContext, emails, visibleToAI).ToArrayAsync(cancellationToken);
+        var verdicts = await SenderTrustBooks.RecognizeAsync(
+            dbContext,
+            [.. rows.Select(static row => row.SenderTrust)],
+            cancellationToken);
 
-        return rows.ToDictionary(
-            static row => StoredEmailId.Create(row.StoredEmailId),
-            static row => new EmailProvenance
+        return rows.Zip(verdicts).ToDictionary(
+            static pair => StoredEmailId.Create(pair.First.StoredEmailId),
+            static pair => new EmailProvenance
             {
                 Sender = new SenderVerification
                 {
-                    AuthorAuthentication = row.AuthorAuthentication,
-                    DeploymentTrust = row.DeploymentTrust,
-                    Signature = row.Signature.ToSignature(),
+                    AuthorAuthentication = pair.First.SenderTrust.AuthorAuthentication,
+                    DeploymentTrust = pair.Second.Level,
+                    Signature = pair.First.Signature.ToSignature(),
                 },
-                IsInJunkFolder = row.IsInJunkFolder,
-                IsFirstContact = !row.HasEarlierCorrespondence,
+                IsInJunkFolder = pair.First.IsInJunkFolder,
+                IsFirstContact = !pair.First.HasEarlierCorrespondence,
             });
     }
 
@@ -90,8 +94,25 @@ internal sealed class StoredEmailProvenanceReader(
             .Where(email => identities.Contains(email.Id))
             .Select(email => new StoredEmailProvenanceRow(
                 email.Id,
-                email.AuthorAuthenticationOutcome,
-                email.SenderTrustLevel,
+                new StoredSenderTrustRow(
+                    email.MailboxAccountId,
+                    email.SenderTrustAddress,
+                    email.SenderTrustLevel,
+                    email.SenderTrustGrantedBy,
+                    email.SenderTrustAuthorEvidence,
+                    email.SenderTrustPolicyRevision,
+                    email.SenderTrustOrganizationId,
+                    email.SenderTrustIsStrict,
+                    email.AuthorAuthenticationOutcome,
+                    email.AuthorAuthenticationRoute,
+                    email.AuthenticatedAuthorDomain,
+                    email.DmarcPolicy,
+                    email.SignatureContentCheck,
+                    email.SignatureUnverifiableReason,
+                    email.SignatureAuthorityCheck,
+                    email.SignatureValidityCheck,
+                    email.SignatureRevocationCheck,
+                    email.SignatureSignerCheck),
                 new StoredEmailSignatureRow(
                     email.SignatureFormat,
                     email.SignatureSecureMimeType,
@@ -137,15 +158,13 @@ internal sealed class StoredEmailProvenanceReader(
 
 /// <summary>What the store recorded about where one email came from.</summary>
 /// <param name="StoredEmailId">The email.</param>
-/// <param name="AuthorAuthentication">What the receiving server established about the displayed author.</param>
-/// <param name="DeploymentTrust">Whether this deployment recognizes that author.</param>
+/// <param name="SenderTrust">The stored half of the trust verdict, beside what the receiving server established about the displayed author.</param>
 /// <param name="Signature">What verifying the email's own signature found.</param>
 /// <param name="IsInJunkFolder">Whether the email sits in its account's junk folder.</param>
 /// <param name="HasEarlierCorrespondence">Whether the mailbox held earlier mail written by or addressed to the sender.</param>
 internal sealed record StoredEmailProvenanceRow(
     Guid StoredEmailId,
-    AuthorAuthenticationOutcome AuthorAuthentication,
-    SenderTrustLevel DeploymentTrust,
+    StoredSenderTrustRow SenderTrust,
     StoredEmailSignatureRow Signature,
     bool IsInJunkFolder,
     bool HasEarlierCorrespondence);
