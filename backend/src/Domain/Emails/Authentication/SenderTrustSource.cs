@@ -51,4 +51,15 @@ public enum SenderTrustSource
     /// <summary>A contact that a user the receiving account is assigned to wrote down holds the author's address.</summary>
     /// <remarks>Asked last, so a sender any source above also recognizes is reported under that one.</remarks>
     PersonalContact = 7,
+
+    /// <summary>The author's address is the address of a member of the receiving account's organization, as the organization's member directory reads when the message is read.</summary>
+    /// <remarks>
+    /// Asked right after the organization's signature and before the organization's contacts, because a member's record
+    /// is the authoritative description of a colleague. It counts as an address an administrator wrote down counts, so
+    /// it never stands in for the signature: a colleague whose mail the signature does not cover is recognized here,
+    /// under authentication, and nowhere above.
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0044-an-organizations-member-directory-as-a-projection-of-user-records.md">ADR 0044</see>
+    /// states which addresses are a member's.
+    /// </remarks>
+    OrganizationDirectory = 8,
 }

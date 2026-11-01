@@ -298,8 +298,9 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// <param name="DkimDomain">The domain whose DKIM signature passed, or <see langword="null" /> where none did.</param>
 /// <param name="SpfDomain">The domain whose SPF check passed, or <see langword="null" /> where none did or none was evaluated.</param>
 /// <param name="Dmarc">The DMARC result the verdict was reached with, as the outcome's own name.</param>
-/// <param name="TrustSource">What recognized the author — <c>OwnAccountDomain</c>, <c>OrganizationMember</c>, <c>OwnAccountAddress</c>, <c>OrganizationContact</c>, or <c>PersonalContact</c> — or <see langword="null" /> where nothing did.</param>
+/// <param name="TrustSource">What recognized the author — <c>OwnAccountDomain</c>, <c>OrganizationMember</c>, <c>OrganizationDirectory</c>, <c>OwnAccountAddress</c>, <c>OrganizationContact</c>, or <c>PersonalContact</c> — or <see langword="null" /> where nothing did.</param>
 /// <param name="TrustOrganization">The current display name of the organization whose signature recognized the author, present only where <paramref name="TrustSource" /> is <c>OrganizationMember</c> and that organization still exists.</param>
+/// <param name="TrustMember">The current display name of the colleague whose address the author's is, present only where <paramref name="TrustSource" /> is <c>OrganizationDirectory</c> and that member still exists.</param>
 /// <param name="AuthorRoute">What established an authenticated author — <c>DmarcPass</c>, <c>AlignedDkim</c>, or <c>AlignedSpf</c> — or <see langword="null" /> where nothing did.</param>
 /// <param name="TrustEvidence">What tied a trusted message to the address its source recognized — <c>Authentication</c> or <c>AuthorSignature</c> — or <see langword="null" /> where nothing was asked of it.</param>
 /// <param name="TrustContact">Whose book holds the personal contact that recognized the author — <c>Reader</c> or <c>AnotherUser</c> — present only where <paramref name="TrustSource" /> is <c>PersonalContact</c>.</param>
@@ -329,11 +330,11 @@ internal sealed record ClientMailMessageBodyResponse(string Availability, bool P
 /// The evidence beside them is what a details popup lists step by step, and it is stated rather than combined: who
 /// checked the message, the DKIM and SPF domains that passed, the DMARC result, and what recognized a trusted author.
 /// None of it changes what a reader acts on, which stays the two outcomes, and a verdict MailFathom reached itself names
-/// no SPF domain and reports no DMARC result because its own check reads DKIM alone. Trust is the source in force when
-/// the message was extracted, so a contact written down since reaches mail extracted after it. The organization
-/// a member was recognized by is the one exception to reading everything as stored: the verdict recorded which
-/// organization it was, and its name is read as it is now, so a rename reaches stored mail and a deletion leaves the
-/// source standing without a name.
+/// no SPF domain and reports no DMARC result because its own check reads DKIM alone. The member directory and the
+/// contacts are asked as they stand when the message is read, so a contact written down or an account assigned since
+/// reaches mail already stored; every other source is the one in force when the message was extracted. The
+/// organization and the colleague a verdict names are read by their names as they are now, so a rename reaches stored
+/// mail and a deletion leaves the source standing without a name.
 /// </para>
 /// <para>
 /// The last two are not stored with the message at all. They are asked per reader on each request, because two users
@@ -351,6 +352,7 @@ internal sealed record ClientMailSenderVerdictResponse(
     string Dmarc,
     string? TrustSource,
     string? TrustOrganization,
+    string? TrustMember,
     string? AuthorRoute,
     string? TrustEvidence,
     string? TrustContact,
@@ -384,6 +386,9 @@ internal sealed record ClientMailSenderVerdictResponse(
                 : verification.DeploymentTrustGrantedBy.ToString(),
             verification.DeploymentTrustGrantedBy is SenderTrustSource.OrganizationMember
                 ? verification.RecognizingOrganizationName
+                : null,
+            verification.DeploymentTrustGrantedBy is SenderTrustSource.OrganizationDirectory
+                ? verification.RecognizingMemberName
                 : null,
             evidence.AuthorRoute is AuthorAuthenticationRoute.None ? null : evidence.AuthorRoute.ToString(),
             verification.DeploymentTrustAuthorEvidence is TrustedAuthorEvidence.None

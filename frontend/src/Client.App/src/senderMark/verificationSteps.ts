@@ -255,12 +255,21 @@ function authorStep(sender: MailSenderVerdict, domain: string): VerificationStep
 
 /** What somebody wrote down that recognized the author, as far as the details may name it. */
 type Recognition =
-    'ownAddress' | 'ownDomain' | 'organizationContact' | 'yourContact' | 'anotherUsersContact' | 'unnamed';
+    | 'ownAddress'
+    | 'ownDomain'
+    | 'colleague'
+    | 'organizationContact'
+    | 'yourContact'
+    | 'anotherUsersContact'
+    | 'unnamed';
 
 // A personal contact is named by whose book holds it and by nothing else; where the service did not say whose, it is
-// left unnamed rather than guessed.
+// left unnamed rather than guessed. A colleague is named by the name on their record, and one erased since the read is
+// left unnamed the same way.
 function recognitionOf(sender: MailSenderVerdict): Recognition {
     switch (sender.trustSource) {
+        case 'OrganizationDirectory':
+            return sender.trustMember === null ? 'unnamed' : 'colleague';
         case 'OwnAccountAddress':
             return 'ownAddress';
         case 'OwnAccountDomain':
@@ -278,12 +287,18 @@ function recognitionOf(sender: MailSenderVerdict): Recognition {
     }
 }
 
+// The service names a colleague only beside the member directory, so this adds a value to that source's sentences alone.
+function memberOf(sender: MailSenderVerdict): Readonly<Record<string, string>> {
+    return sender.trustMember === null ? {} : { member: sender.trustMember };
+}
+
 // Why a recognized author is trusted, by what tied the message to them: the domain's checks, or their own signature.
 const trustedWhyKeys: Readonly<
     Record<Recognition, { readonly authentication: MessageKey; readonly signature: MessageKey }>
 > = {
     ownAddress: { authentication: 'senderMark.why.trustedOwnAddress', signature: 'senderMark.why.signedOwnAddress' },
     ownDomain: { authentication: 'senderMark.why.trustedOwnDomain', signature: 'senderMark.why.signedOwnDomain' },
+    colleague: { authentication: 'senderMark.why.trustedColleague', signature: 'senderMark.why.signedColleague' },
     organizationContact: {
         authentication: 'senderMark.why.trustedOrganizationContact',
         signature: 'senderMark.why.signedOrganizationContact',
@@ -299,6 +314,7 @@ const trustedWhyKeys: Readonly<
 const trustedStepKeys: Readonly<Record<Recognition, MessageKey>> = {
     ownAddress: 'senderMark.trust.ownAddress',
     ownDomain: 'senderMark.trust.ownDomain',
+    colleague: 'senderMark.trust.colleague',
     organizationContact: 'senderMark.trust.organizationContact',
     yourContact: 'senderMark.trust.yourContact',
     anotherUsersContact: 'senderMark.trust.anotherUsersContact',
@@ -314,7 +330,7 @@ function trustedWhy(sender: MailSenderVerdict, authenticated: string, named: Nam
 
     return {
         key: sender.trustEvidence === 'AuthorSignature' ? keys.signature : keys.authentication,
-        values: { authenticated, address: named.address, domain: named.domain },
+        values: { authenticated, address: named.address, domain: named.domain, ...memberOf(sender) },
     };
 }
 
@@ -342,6 +358,10 @@ const knownWhySaid: Readonly<Record<Recognition, { readonly plain: MessageKey; r
             monitoringOnly: 'senderMark.why.knownAnotherUsersContactMonitoringOnly',
         },
         unnamed: { plain: 'senderMark.why.knownUnnamed', monitoringOnly: 'senderMark.why.knownUnnamedMonitoringOnly' },
+        colleague: {
+            plain: 'senderMark.why.knownColleague',
+            monitoringOnly: 'senderMark.why.knownColleagueMonitoringOnly',
+        },
         organizationContact: {
             plain: 'senderMark.why.knownOrganizationContact',
             monitoringOnly: 'senderMark.why.knownOrganizationContactMonitoringOnly',
@@ -360,6 +380,7 @@ const knownStepSaid: Readonly<Record<Recognition, MessageKey>> = {
     yourContact: 'senderMark.known.yourContact',
     anotherUsersContact: 'senderMark.known.anotherUsersContact',
     unnamed: 'senderMark.known.recognized',
+    colleague: 'senderMark.known.colleague',
     organizationContact: 'senderMark.known.organizationContact',
     ownAddress: 'senderMark.known.ownAddress',
     ownDomain: 'senderMark.known.ownDomain',
@@ -370,7 +391,7 @@ function knownWhy(sender: MailSenderVerdict, named: Named): Said {
 
     return {
         key: monitoringOnlyFailure(sender) ? said.monitoringOnly : said.plain,
-        values: { address: named.address, domain: named.domain },
+        values: { address: named.address, domain: named.domain, ...memberOf(sender) },
     };
 }
 
@@ -386,6 +407,7 @@ function trustSteps(sender: MailSenderVerdict, signature: MailSignature, named: 
         step('senderMark.step.knownSender', 'Passed', knownStepSaid[recognitionOf(sender)], {
             address: named.address,
             domain: named.domain,
+            ...memberOf(sender),
         }),
     ];
 }
@@ -408,6 +430,7 @@ function trustStep(sender: MailSenderVerdict, signature: MailSignature, named: N
         return step('senderMark.step.trustedSender', 'Passed', trustedStepKeys[recognitionOf(sender)], {
             address: named.address,
             domain: named.domain,
+            ...memberOf(sender),
         });
     }
 

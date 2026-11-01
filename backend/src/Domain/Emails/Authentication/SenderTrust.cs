@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 
 namespace MailFathom.Domain.Emails.Authentication;
@@ -20,10 +21,12 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// It is reached in two halves. What configuration and the organization's signature answer — membership, the owner's own
 /// address and domain, and whether the account was strict — is decided when the message is stored and kept with it,
 /// under <see cref="PolicyRevision" />, because configuration changes reach stored mail only through a rederive. Which
-/// contact holds the address is asked whenever the message is read, of the books as they stand then, and
-/// <see cref="RecognizedBy" /> combines the two in the order the sources rank. So a contact written, amended, or erased
-/// changes the next read's verdict without anything rewriting stored mail, and <see cref="RecognizingContactId" /> names
-/// the contact found at that read. A verdict nothing judged carries <see cref="SenderTrustPolicyRevision.None" />.
+/// member of the organization and which contact hold the address are asked whenever the message is read, of the member
+/// directory and the books as they stand then, and <see cref="RecognizedBy" /> combines the two in the order the sources
+/// rank. So a contact written, amended, or erased, and an account assigned, unassigned, or shared, changes the next
+/// read's verdict without anything rewriting stored mail, and <see cref="RecognizingMemberId" /> and
+/// <see cref="RecognizingContactId" /> name the member and the contact found at that read. A verdict nothing judged
+/// carries <see cref="SenderTrustPolicyRevision.None" />.
 /// </para>
 /// </remarks>
 public sealed record SenderTrust
@@ -35,7 +38,8 @@ public sealed record SenderTrust
         TrustedAuthorEvidence authorEvidence = TrustedAuthorEvidence.None,
         Guid? recognizingOrganizationId = null,
         ContactId? recognizingContactId = null,
-        bool isStrict = false)
+        bool isStrict = false,
+        UserId? recognizingMemberId = null)
     {
         this.Level = level;
         this.GrantedBy = grantedBy;
@@ -44,6 +48,7 @@ public sealed record SenderTrust
         this.RecognizingOrganizationId = recognizingOrganizationId;
         this.RecognizingContactId = recognizingContactId;
         this.IsStrict = isStrict;
+        this.RecognizingMemberId = recognizingMemberId;
     }
 
     /// <summary>Gets the verdict a message reaching persistence without a policy having spoken carries.</summary>
@@ -79,6 +84,14 @@ public sealed record SenderTrust
     /// stored: it is the contact the books held when the verdict was read, so one erased since is simply not found again.
     /// </remarks>
     public ContactId? RecognizingContactId { get; }
+
+    /// <summary>Gets the member of the receiving account's organization whose address the author's is, present exactly when <see cref="GrantedBy" /> is <see cref="SenderTrustSource.OrganizationDirectory" />.</summary>
+    /// <remarks>
+    /// Never stored, for the reason <see cref="RecognizingContactId" /> is not: it is the member the directory named when
+    /// the verdict was read, so a member who has left, been erased, or stopped holding the address is simply not found
+    /// again.
+    /// </remarks>
+    public UserId? RecognizingMemberId { get; }
 
     /// <summary>Gets whether the receiving account recognized only authors something tied to the address when the message was stored.</summary>
     /// <remarks>
@@ -173,13 +186,17 @@ public sealed record SenderTrust
     }
 
     /// <summary>Records that a source recognizes the address the message displays, while nothing tied the message to it.</summary>
-    /// <param name="grantedBy">Any source but <see cref="SenderTrustSource.OrganizationMember" />, which proves the address itself and is never this weaker claim.</param>
+    /// <param name="grantedBy">
+    /// Any source but <see cref="SenderTrustSource.OrganizationMember" />, which proves the address itself and is never
+    /// this weaker claim, and <see cref="SenderTrustSource.OrganizationDirectory" />, which <see cref="KnownMember" />
+    /// records with the member it names.
+    /// </param>
     /// <param name="contactId">The contact that recognized the address, present exactly when <paramref name="grantedBy" /> is a contact source.</param>
     /// <param name="policyRevision">The policy that was applied.</param>
     /// <returns>The verdict, carrying no evidence because none tied the message to the address.</returns>
     /// <exception cref="ArgumentException">
-    /// Thrown when no source or the organization signature is named, or when a contact is named for a source that is not
-    /// a contact or missing for one that is.
+    /// Thrown when no source, the organization signature, or the member directory is named, or when a contact is named
+    /// for a source that is not a contact or missing for one that is.
     /// </exception>
     public static SenderTrust Known(
         SenderTrustSource grantedBy,
@@ -188,7 +205,7 @@ public sealed record SenderTrust
     {
         var namesAContact = grantedBy is SenderTrustSource.OrganizationContact or SenderTrustSource.PersonalContact;
 
-        if (grantedBy is SenderTrustSource.None or SenderTrustSource.OrganizationMember
+        if (grantedBy is SenderTrustSource.None or SenderTrustSource.OrganizationMember or SenderTrustSource.OrganizationDirectory
             || namesAContact != contactId.HasValue)
         {
             throw new ArgumentException(
@@ -202,6 +219,37 @@ public sealed record SenderTrust
             policyRevision,
             recognizingContactId: contactId);
     }
+
+    /// <summary>Records that the author's address is the address of a member of the receiving account's organization, and something tied the message to it.</summary>
+    /// <param name="memberId">The member the directory named.</param>
+    /// <param name="authorEvidence">What tied the message to the member's address.</param>
+    /// <param name="policyRevision">The policy that was applied.</param>
+    /// <param name="isStrict">Whether the account was strict.</param>
+    /// <returns>The verdict.</returns>
+    /// <exception cref="ArgumentException">Thrown when no evidence is named.</exception>
+    public static SenderTrust TrustedByMember(
+        UserId memberId,
+        TrustedAuthorEvidence authorEvidence,
+        SenderTrustPolicyRevision policyRevision,
+        bool isStrict = false) =>
+        new(
+            SenderTrustLevel.Trusted,
+            SenderTrustSource.OrganizationDirectory,
+            policyRevision,
+            RequireEvidence(authorEvidence),
+            isStrict: isStrict,
+            recognizingMemberId: memberId);
+
+    /// <summary>Records that the author's address is the address of a member of the receiving account's organization, while nothing tied the message to it.</summary>
+    /// <param name="memberId">The member the directory named.</param>
+    /// <param name="policyRevision">The policy that was applied.</param>
+    /// <returns>The verdict, carrying no evidence because none tied the message to the address.</returns>
+    public static SenderTrust KnownMember(UserId memberId, SenderTrustPolicyRevision policyRevision) =>
+        new(
+            SenderTrustLevel.Known,
+            SenderTrustSource.OrganizationDirectory,
+            policyRevision,
+            recognizingMemberId: memberId);
 
     /// <summary>Records that a signature of the receiving account's organization proved the author a member of it.</summary>
     /// <param name="organizationId">The organization whose key verified the signature.</param>
@@ -241,16 +289,16 @@ public sealed record SenderTrust
         new(level, grantedBy, policyRevision, authorEvidence, recognizingOrganizationId, isStrict: isStrict);
 
     /// <summary>Combines what the message stores with the contacts that hold its author's address when it is read.</summary>
-    /// <param name="contacts">The trust-granting contacts holding the first <c>From</c> mailbox in the books the receiving account reaches now.</param>
+    /// <param name="contacts">The member and the trust-granting contacts holding the first <c>From</c> mailbox in the directory and the books the receiving account reaches now.</param>
     /// <param name="recognition">What recognizing that address grants the message.</param>
     /// <returns>The verdict a reader sees.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     /// <remarks>
-    /// The sources rank as they do when a message is stored: organization member, organization contact, the owner's
-    /// address, the owner's domain, a personal contact. Membership and the owner's own address and domain are the stored
-    /// half's answer; the two contact sources are asked here, each only where every source above it answered nothing.
-    /// A contact recognizes the author under the same rule the owner's address does, so a contact that makes nothing of a
-    /// message leaves the stored answer standing.
+    /// The sources rank: the organization's signature, the organization's member directory, an organization contact,
+    /// the owner's address, the owner's domain, a personal contact. The signature and the owner's own address and domain
+    /// are the stored half's answer; the directory and the two contact sources are asked here, each only where every
+    /// source above it answered nothing. The directory and a contact recognize the author under the same rule the
+    /// owner's address does, so one that makes nothing of a message leaves the stored answer standing.
     /// </remarks>
     public SenderTrust RecognizedBy(RecognizingContacts contacts, SenderAddressRecognition recognition)
     {
@@ -260,6 +308,11 @@ public sealed record SenderTrust
         if (this.GrantedBy == SenderTrustSource.OrganizationMember)
         {
             return this;
+        }
+
+        if (contacts.DirectoryMember is { } member)
+        {
+            return recognition.GrantByMember(member, this.PolicyRevision, this.IsStrict) ?? this;
         }
 
         if (contacts.OrganizationContact is { } organizationContact)

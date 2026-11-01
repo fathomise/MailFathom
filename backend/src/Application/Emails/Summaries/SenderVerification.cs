@@ -8,7 +8,7 @@ using MailFathom.Domain.Emails.Signatures;
 
 namespace MailFathom.Application.Emails.Summaries;
 
-/// <summary>The conclusions a stored email carries about the author it displays, read back as they were stored, beside the current name of the organization that recognized the author.</summary>
+/// <summary>The conclusions a stored email carries about the author it displays, read back as they were stored, beside the current name of the organization or the member that recognized the author.</summary>
 /// <remarks>
 /// <para>
 /// The first two are never collapsed into one value. <see cref="AuthorAuthentication" /> is what the receiving mail server
@@ -25,9 +25,9 @@ namespace MailFathom.Application.Emails.Summaries;
 /// <para>
 /// It is read rather than reached. Nothing on a read path evaluates a policy, resolves DNS, or re-reads a header to
 /// produce it: the values are the columns extraction wrote, and a message extraction never reached carries
-/// <see cref="NotEstablished" /> because that is what its row holds. The one exception is
-/// <see cref="RecognizingOrganizationName" />, which is read from the organization the row refers to rather than
-/// written by extraction, so a rename reaches mail already stored.
+/// <see cref="NotEstablished" /> because that is what its row holds. The exceptions are
+/// <see cref="RecognizingOrganizationName" /> and <see cref="RecognizingMemberName" />, each read from the organization
+/// or the member the verdict refers to rather than written by extraction, so a rename reaches mail already stored.
 /// </para>
 /// </remarks>
 public sealed record SenderVerification
@@ -52,9 +52,9 @@ public sealed record SenderVerification
 
     /// <summary>Gets what recognized the author, which is <see cref="SenderTrustSource.None" /> wherever nothing did.</summary>
     /// <remarks>
-    /// The two contact sources are found in the books as they stand when the message is read, so a contact written down
-    /// or erased since moves it on the next read and nothing is reset. Every other source is the one in force when the
-    /// message was extracted.
+    /// The member directory and the two contact sources are found as they stand when the message is read, so a contact
+    /// written down or erased, or an account assigned or unassigned, since moves it on the next read and nothing is
+    /// reset. Every other source is the one in force when the message was extracted.
     /// </remarks>
     public SenderTrustSource DeploymentTrustGrantedBy { get; init; } = SenderTrustSource.None;
 
@@ -82,6 +82,15 @@ public sealed record SenderVerification
     /// personal data like the rest of the verdict.
     /// </remarks>
     public string? RecognizingOrganizationName { get; init; }
+
+    /// <summary>Gets the current display name of the member of the receiving account's organization whose address the author's is, or <see langword="null" /> where no member recognized the author or that member has since been erased.</summary>
+    /// <remarks>
+    /// Set only where <see cref="DeploymentTrustGrantedBy" /> is <see cref="SenderTrustSource.OrganizationDirectory" />.
+    /// The member is the one the directory named when this message was read, and the name is theirs as it reads now,
+    /// so nothing about the member is stored with the message. Everybody who reads a mailbox of the organization is a
+    /// member of it, so the name reaches nobody outside it. It is personal data like the rest of the verdict.
+    /// </remarks>
+    public string? RecognizingMemberName { get; init; }
 
     /// <summary>Gets what verifying the message's own signature found, which is not signed for every message that carries none.</summary>
     /// <remarks>Mail stored before signatures were verified reads as not signed until a re-derivation reaches it.</remarks>

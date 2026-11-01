@@ -307,6 +307,7 @@ const describedMessage: Answer = {
             dmarc: 'NotReported',
             trustSource: null,
             trustOrganization: null,
+            trustMember: null,
         },
         signature: {
             outcome: 'NotSigned',

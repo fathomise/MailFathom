@@ -355,12 +355,16 @@ says.
 
 The sender's address is what the message wrote about itself, so the summary carries beside it what somebody else
 established: `SenderVerification`, the pair of *what was concluded about the displayed author* and *whether this
-deployment recognizes that author* — with what recognized it, a contact, the owner's own address or a domain of the owner's
+deployment recognizes that author* — with what recognized it, a contact, a colleague in the organization's member
+directory, the owner's own address or a domain of the owner's
 accounts, or the organization's signature proving a member — beside a third fact folded into neither, *what the message's own S/MIME or OpenPGP
-signature proves*. All of it is read from the columns synchronization wrote, except whether a contact holds the
-author's address: that is asked of the account's contact books as they stand, by the same three queries for the
-whole page however many rows it holds, so a contact written since the message was stored reaches its mark ([sender
-authentication](sender-authentication.md#the-books-are-read-when-the-mail-is-read)). A listing evaluates no policy,
+signature proves*. All of it is read from the columns synchronization wrote, except whether a colleague or a contact
+holds the author's address: that is asked of the member directory and the account's contact books as they stand, by the
+same four queries for the whole page however many rows it holds, so a contact written or an account assigned since the
+message was stored reaches its mark ([sender
+authentication](sender-authentication.md#the-books-are-read-when-the-mail-is-read)). The colleague is named by the name
+on their record, read for the page in one more query only where a verdict names one, as the organization behind a
+signature is. A listing evaluates no policy,
 resolves no DNS, and re-reads no header — a query that reached a verdict of its own would answer a different question
 from the one the message was stored with. That holds unchanged now that a verdict may have been reached here rather than
 by the receiving server: verifying a signature is a step of storing a message, never of answering a query.

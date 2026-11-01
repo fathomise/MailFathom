@@ -58,7 +58,12 @@ export type MailDmarcOutcome =
  * organization, which proves the author a member of it.
  */
 export type MailTrustSource =
-    'OwnAccountDomain' | 'OrganizationMember' | 'OwnAccountAddress' | 'OrganizationContact' | 'PersonalContact';
+    | 'OwnAccountDomain'
+    | 'OrganizationMember'
+    | 'OrganizationDirectory'
+    | 'OwnAccountAddress'
+    | 'OrganizationContact'
+    | 'PersonalContact';
 
 /**
  * What established an authenticated author: the domain's DMARC pass, a DKIM signature aligned with it, or SPF alone —
@@ -172,6 +177,12 @@ export interface MailSenderVerdict {
      * message arrived.
      */
     readonly trustOrganization: string | null;
+
+    /**
+     * The current name of the colleague whose address the author's is, or `null` where they have since been erased.
+     * Only `OrganizationDirectory` ever carries one, and it is the name on their record as it reads now.
+     */
+    readonly trustMember: string | null;
 
     /** What established the author where it was authenticated, or `null` where it was not. */
     readonly authorRoute: MailAuthorRoute | null;
@@ -327,6 +338,7 @@ const dmarcOutcomes: readonly MailDmarcOutcome[] = [
 const trustSources: readonly MailTrustSource[] = [
     'OwnAccountDomain',
     'OrganizationMember',
+    'OrganizationDirectory',
     'OwnAccountAddress',
     'OrganizationContact',
     'PersonalContact',
@@ -622,6 +634,7 @@ function parseSenderVerdict(value: unknown): MailSenderVerdict | null {
     const dmarc = record['dmarc'];
     const trustSource = record['trustSource'] ?? null;
     const trustOrganization = record['trustOrganization'] ?? null;
+    const trustMember = record['trustMember'] ?? null;
 
     if (!isOneOf(authorAuthentication, authorAuthentications) || !isOneOf(deploymentTrust, deploymentTrusts)) {
         return null;
@@ -641,6 +654,11 @@ function parseSenderVerdict(value: unknown): MailSenderVerdict | null {
 
     // Only the organization source names an organization, so a name beside any other is not a verdict the service sent.
     if (!isOptionalText(trustOrganization) || (trustOrganization !== null && trustSource !== 'OrganizationMember')) {
+        return null;
+    }
+
+    // Only the member directory names a colleague, for the same reason.
+    if (!isOptionalText(trustMember) || (trustMember !== null && trustSource !== 'OrganizationDirectory')) {
         return null;
     }
 
@@ -672,6 +690,7 @@ function parseSenderVerdict(value: unknown): MailSenderVerdict | null {
         dmarc,
         trustSource,
         trustOrganization,
+        trustMember,
         authorRoute,
         trustEvidence,
         trustContact,

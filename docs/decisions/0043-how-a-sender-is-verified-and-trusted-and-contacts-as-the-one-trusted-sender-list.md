@@ -404,14 +404,18 @@ It reads no contact book and stores no contact. Every read of a message then ask
 combines the two halves in the order above, under the same authentication and `Known` rules:
 
 - The organization member's verdict stands whatever the books hold.
+- Otherwise a member of the organization whose address the author's is recognizes the author, through the member
+  directory [ADR 0044](0044-an-organizations-member-directory-as-a-projection-of-user-records.md) adds as this order's
+  second step.
 - Otherwise an organization contact holding the address recognizes the author, above the owner's own address and
   domain.
 - Otherwise a stored verdict from the owner's own address or domain stands.
 - Otherwise a personal contact of a user the account is assigned to recognizes the author.
 
 The combination is one domain rule, `SenderTrust.RecognizedBy`, and one read of the books does it for every message a
-read returns: three bounded queries whatever the number of rows — the organizations its accounts belong to, the users
-they are assigned to, and its senders' addresses in the books those name, on the index the book and the address make. Every surface reads its verdict through that one place — the client's
+read returns: bounded queries whatever the number of rows — the organizations its accounts belong to, the users
+they are assigned to, and its senders' addresses in the books those name, on the index the book and the address make,
+beside the one ADR 0044 adds for the member directory. Every surface reads its verdict through that one place — the client's
 message, conversation, and list reads, MCP sender verification, the agent's turn document, spam evidence, the
 automatic reply, and rule evaluation — so none of them can disagree about a mark.
 
@@ -427,7 +431,7 @@ agent each read the message from the store after it is committed, through the sa
 as they stand when they run. What they already did is kept: a contact written later reaches the mark, not a rule that
 already ran.
 
-**What it costs.** Each read adds the same three short queries for the whole page, never one per message. The account identifier
+**What it costs.** Each read adds the same few short queries for the whole page, never one per message. The account identifier
 that is not a stored record's — an account declared only in configuration — reaches no book, because no assignment
 names it. Nothing about an address, a domain, or a contact reaches a log or a metric from either half.
 

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Signatures;
@@ -26,6 +27,23 @@ public sealed class StoredSenderTrustRowTests
         Assert.Equal(SenderTrustLevel.Trusted, verdict.Level);
         Assert.Equal(SenderTrustSource.PersonalContact, verdict.GrantedBy);
         Assert.Equal(Contact, verdict.RecognizingContactId);
+    }
+
+    /// <summary>A member of the organization whose address the author's is trusts the row on read above any contact, naming the member found then.</summary>
+    [Fact]
+    public void Recognize_DirectoryNamesAMemberBesideAContact_TrustsTheRowThroughTheMember()
+    {
+        // Arrange
+        var member = UserId.Create(Guid.Parse("0199f000-0000-7000-8000-0000000000a1"));
+
+        // Act
+        var verdict = Row(AuthorAuthenticationRoute.AlignedDkim).Recognize(new RecognizingContacts(Contact, Contact) { DirectoryMember = member });
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Trusted, verdict.Level);
+        Assert.Equal(SenderTrustSource.OrganizationDirectory, verdict.GrantedBy);
+        Assert.Equal(member, verdict.RecognizingMemberId);
+        Assert.Null(verdict.RecognizingContactId);
     }
 
     /// <summary>A row the books hold nobody for reads exactly as it was stored.</summary>

@@ -1667,6 +1667,8 @@ export const en = {
         '{authenticated} authenticated this message, and {address} is one of your own addresses.',
     'senderMark.why.trustedOwnDomain':
         '{authenticated} authenticated this message, and {domain} is a domain of your own accounts.',
+    'senderMark.why.trustedColleague':
+        '{authenticated} authenticated this message, and {address} belongs to {member}, a colleague in your organization.',
     'senderMark.why.trustedOrganizationContact':
         '{authenticated} authenticated this message, and {address} is a contact of your organization.',
     'senderMark.why.trustedYourContact': '{authenticated} authenticated this message, and {address} is your contact.',
@@ -1678,6 +1680,8 @@ export const en = {
         'Its signature verified, made by {address}, the address it is from, and that address is one of your own addresses.',
     'senderMark.why.signedOwnDomain':
         'Its signature verified, made by {address}, the address it is from, and {domain} is a domain of your own accounts.',
+    'senderMark.why.signedColleague':
+        'Its signature verified, made by {address}, the address it is from, and that address belongs to {member}, a colleague in your organization.',
     'senderMark.why.signedOrganizationContact':
         'Its signature verified, made by {address}, the address it is from, and that address is a contact of your organization.',
     'senderMark.why.signedYourContact':
@@ -1704,6 +1708,8 @@ export const en = {
         '{address} is a contact of another user of this mailbox, but nothing confirmed that {domain} sent this message.',
     'senderMark.why.knownUnnamed':
         'This account recognizes {address}, but nothing confirmed that {domain} sent this message.',
+    'senderMark.why.knownColleague':
+        '{address} belongs to {member}, a colleague in your organization, but nothing confirmed that {domain} sent this message.',
     'senderMark.why.knownOrganizationContact':
         "{address} is in your organization's contacts, but nothing confirmed that {domain} sent this message.",
     'senderMark.why.knownOwnAddress':
@@ -1716,6 +1722,8 @@ export const en = {
         '{address} is a contact of another user of this mailbox, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
     'senderMark.why.knownUnnamedMonitoringOnly':
         'This account recognizes {address}, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
+    'senderMark.why.knownColleagueMonitoringOnly':
+        '{address} belongs to {member}, a colleague in your organization, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.',
     'senderMark.why.knownOrganizationContactMonitoringOnly':
         "{address} is in your organization's contacts, but nothing confirmed that {domain} sent this message. Its checks failed, and {domain} publishes a monitoring-only policy.",
     'senderMark.why.knownOwnAddressMonitoringOnly':
@@ -1782,6 +1790,8 @@ export const en = {
     'senderMark.known.anotherUsersContact':
         '{address} is a contact of another user of this mailbox. It is known by that address alone.',
     'senderMark.known.recognized': 'This account recognizes {address}. It is known by that address alone.',
+    'senderMark.known.colleague':
+        '{address} belongs to {member}, a colleague in your organization. It is known by that address alone.',
     'senderMark.known.organizationContact':
         "{address} is in your organization's contacts. It is known by that address alone.",
     'senderMark.known.ownAddress': '{address} is one of your own addresses. It is known by that address alone.',
@@ -1791,6 +1801,7 @@ export const en = {
         'Skipped, because SPF alone established the author, and SPF alone makes nobody trusted.',
     'senderMark.trust.ownAddress': '{address} is one of your own addresses.',
     'senderMark.trust.ownDomain': '{domain} is a domain of your own accounts.',
+    'senderMark.trust.colleague': '{address} belongs to {member}, a colleague in your organization.',
     'senderMark.trust.organizationContact': '{address} is a contact of your organization.',
     'senderMark.trust.yourContact': '{address} is your contact.',
     'senderMark.trust.anotherUsersContact': '{address} is a contact of another user of this mailbox.',

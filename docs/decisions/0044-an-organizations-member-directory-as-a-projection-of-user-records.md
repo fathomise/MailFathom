@@ -80,8 +80,8 @@ confuses a member's identifier with a contact's, and a lookup by identity names 
 
 **Leaving and erasure need nothing written for the directory.** A member who leaves the organization, whose user
 record is erased, or whose type stops being `User` is absent from the next read, because the query no longer finds
-them. The re-judgment *Trust* below asks for is the one write those acts gain, and it is about verdicts rather than
-about the directory.
+them. That holds for the trust step below as well: it reads the directory when the mail is read, so none of those acts
+writes anything to stored mail either.
 
 **A person may still promote a member contact into their own book.** That writes a copy into the reader's own book,
 exactly as promoting a collected contact does, with the reader as writer. The copy is the reader's own, keeps what it
@@ -167,21 +167,23 @@ order gains one step, directly after the organization signature:
 - **Where it recognizes**: on every receiving account that belongs to the organization, the same reach ADR 0043 gives
   the organization's book. The whole directory is read there, without leaving out the users the receiving account is
   assigned to; a sender matching several steps is reported under the highest, as ADR 0043 already says.
+- **It is asked when the mail is read**, beside the contact books, and never when a message is stored. The member
+  directory is derived when it is read by the decision above, so a verdict it reached is too: what a message stores is
+  only what configuration and the organization signature answered, as ADR 0043 now states, and the directory step joins
+  the books on every read of a verdict.
 - **The verdict names the member.** `SenderTrustSource` gains `OrganizationDirectory`, numbered after the values ADR
-  0043 left in use. A verdict it reached stores a reference to the member's user, as a contact's verdict stores the
-  contact. The sender details name the colleague: everybody who reads a mailbox of the organization is a member of it
-  (ADR 0014), so nobody outside the organization reads the name this way.
-- **The lookup is bounded.** It is one query per batch of verdicts, over the batch's addresses, answered from an index
-  on the accounts' comparison form and an index on the user's organization, inside the transaction and under the
-  address lock ADR 0043 takes for every book. It returns at most one member per address.
-- **Every change to who the directory names for an address re-judges the stored mail it affects**, through the same
-  job, keyed and locked the same way as a contact write in ADR 0043. Those acts are: assigning or unassigning an
-  account, changing an account's address, an account becoming shared or unshared, moving an account or a user into or
-  out of an organization, changing a user's type, and erasing a user or an account. Each takes the address lock for
-  every address whose answer it changes and enqueues one job per such address. An act that removes a user resets
-  every verdict referencing them to the not-evaluated verdict in its own transaction, before the cascade, as an act
-  removing a contact does. This replaces, for this step alone, ADR 0043's sentence that assignment and membership
-  changes judge new mail only: no stored `Trusted` or `Known` mark outlives the membership that explained it.
+  0043 left in use. The verdict a reader sees names the member's user as the directory found them at that read, and
+  nothing about the member is stored with the message, as nothing about a contact is. The sender details name the
+  colleague by the name on their record as it reads then: everybody who reads a mailbox of the organization is a member
+  of it (ADR 0014), so nobody outside the organization reads the name this way.
+- **The lookup is bounded.** It is one query per read, over the read's senders and the organizations its accounts
+  belong to, answered from the index on the accounts' comparison form and the index on the user's organization, beside
+  the query that reads the books, and never one per message. It returns at most one member per address.
+- **Nothing is enqueued, locked, or reset.** Assigning or unassigning an account, changing an account's address, an
+  account becoming shared or unshared, moving an account or a user into or out of an organization, changing a user's
+  type, and erasing a user or an account are each seen by the next read, because the directory query no longer finds,
+  or newly finds, the member. No stored `Trusted` or `Known` mark outlives the membership that explained it, because
+  none is stored.
 
 ### Who writes each field
 
@@ -269,10 +271,10 @@ Each is named in its implementing pull request with the operator's action, for t
 
 | Surface | Break | Operator's action |
 |---|---|---|
-| Client endpoint | Contact answers name their book, and a member's contact carries the member's user identifier. A write to an organization contact is refused as read-only, where it was answered as a contact the reader does not hold. `trustSource` gains `OrganizationDirectory` (issue 2789) | A client built against the old answers updates with the release |
+| Client endpoint | Contact answers name their book, and a member's contact carries the member's user identifier. A write to an organization contact is refused as read-only, where it was answered as a contact the reader does not hold (issue 2789). `trustSource` gains `OrganizationDirectory`, and the sender verdict gains `trustMember`, the colleague's name beside it (issue 2865) | A client built against the old answers updates with the release |
 | MCP tools | The contact read tools return member contacts beside the reader's own and the organization's | An agent prompt that treats every contact as one the person wrote down tells the books apart |
-| Database | The user's row gains the type, the title, the department, and the manager as columns. The user's record gains the preferred address, the phone numbers, and the working hours (issue 2791), each empty until somebody states it. Verdicts gain a reference to a member and the new source. Nothing is backfilled but the type, `User` for every existing user | Mark every technical user `ServiceAccount` through `mfctl`, so that it leaves the directory |
-| Behaviour | Assignment, membership, type, and account changes re-judge the stored mail the directory step affects | None |
+| Database | The user's row gains the type, the title, the department, and the manager as columns. The user's record gains the preferred address, the phone numbers, and the working hours (issue 2791), each empty until somebody states it. Nothing is backfilled but the type, `User` for every existing user | Mark every technical user `ServiceAccount` through `mfctl`, so that it leaves the directory |
+| Behaviour | Assignment, membership, type, and account changes move the marks the directory step affects on the next read of the mail (issue 2865) | None |
 
 ### Consequences
 
@@ -281,14 +283,16 @@ Each is named in its implementing pull request with the operator's action, for t
   colleague's directory on the next read, with no cleanup job and nothing to forget.
 - Good, because a colleague who mails from an account outside the organization signature is recognized under
   authentication with nothing written down for them.
+- Good, because an assignment, a membership, a type, or an account change reaches every mark it affects on the next
+  read, with no job, lock, or reset to keep in step with it.
 - Good, because every field shown has one writer, stated, and a member can see everything their colleagues see about
   them.
 - Neutral, because every read of the contact book now also reads the user, assignment, and account rows of one
   organization. It is bounded by the page and answered from indexes, and an organization's member count is small
   beside its collected books.
 - Neutral, because a copy a reader promoted goes stale. That is the reader's own book and their choice.
-- Bad, because assignment, membership, type, and account changes now enqueue re-judgment jobs, where ADR 0043 had them
-  judge new mail only.
+- Neutral, because every read of a verdict now also reads the members of the organizations its accounts belong to, by
+  address. It is one query per read, bounded by the read's senders and answered from indexes.
 - Bad, because a functional mailbox assigned to one person reads as that person's address until an operator assigns it
   to a second user.
 
@@ -300,7 +304,7 @@ Each is named in its implementing pull request with the operator's action, for t
 - Unit tests in issue 2789 cover the projection's membership rules — organization, type, the reader left out — the
   address rules including the shared mailbox, the preferred address, the precedence, the refusals,
   and departure with nothing written. The trust tests cover the new step against every row ADR 0043's tables state for
-  steps 2 to 5, and the re-judgment each act above enqueues.
+  steps 2 to 5, and that each act above is reflected on the next read.
 - `docs/features/contacts.md`, `docs/features/sender-authentication.md`, `docs/operations/client-endpoint.md`, and
   `docs/operations/admin-endpoint.md` describe the result as each part lands.
 
@@ -359,8 +363,7 @@ Each is named in its implementing pull request with the operator's action, for t
   signature, unchanged. [ADR 0037](0037-a-settings-policy-at-the-deployment-and-at-each-organization.md) is the policy
   every field in the user's record is read through. [ADR 0014](0014-single-tenant-multi-user-ownership-on-the-mail-account.md)
   is why one mailbox may be assigned to several users. [ADR 0012](0012-authorization-model-named-permissions-and-where-they-are-enforced.md)
-  is the permission model the writers sit in. [ADR 0009](0009-durable-job-store-and-execution-identity.md) holds the
-  re-judgment job.
+  is the permission model the writers sit in.
 - Revisit this record if a field is wanted that is the reader's about a colleague rather than a copy, if an agent task
   needs a member's availability, or if an organization grows large enough that reading its members with every page of
   the contact book shows up in measurements.

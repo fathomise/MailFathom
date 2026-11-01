@@ -302,6 +302,7 @@ public sealed class ClientMailMessageEndpointTests
     [InlineData(SenderTrustSource.OrganizationContact, "OrganizationContact")]
     [InlineData(SenderTrustSource.PersonalContact, "PersonalContact")]
     [InlineData(SenderTrustSource.OrganizationMember, "OrganizationMember")]
+    [InlineData(SenderTrustSource.OrganizationDirectory, "OrganizationDirectory")]
     [InlineData(SenderTrustSource.OwnAccountAddress, "OwnAccountAddress")]
     public void For_ATrustedAuthor_PublishesWhatRecognizedThem(SenderTrustSource grantedBy, string published)
     {
@@ -350,9 +351,39 @@ public sealed class ClientMailMessageEndpointTests
         Assert.Equal(organizationName, sender.TrustOrganization);
     }
 
-    /// <summary>Only the organization source names an organization, so no other trust source carries a name.</summary>
+    /// <summary>
+    /// A colleague the member directory recognized publishes their current name beside the source, and none where the
+    /// member has since been erased.
+    /// </summary>
+    /// <param name="memberName">The member's current name, or <see langword="null" /> where they were erased.</param>
+    [Theory]
+    [InlineData("Marta Nowak")]
+    [InlineData(null)]
+    public void For_ADirectoryMember_PublishesTheMembersCurrentName(string? memberName)
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with
+            {
+                DeploymentTrust = SenderTrustLevel.Known,
+                DeploymentTrustGrantedBy = SenderTrustSource.OrganizationDirectory,
+                RecognizingMemberName = memberName,
+            },
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos).Sender;
+
+        // Assert
+        Assert.Equal("OrganizationDirectory", sender.TrustSource);
+        Assert.Equal(memberName, sender.TrustMember);
+        Assert.Null(sender.TrustOrganization);
+    }
+
+    /// <summary>Only the organization and directory sources name an organization or a colleague, so no other trust source carries a name.</summary>
     [Fact]
-    public void For_AnAuthorAContactRecognized_PublishesNoOrganization()
+    public void For_AnAuthorAContactRecognized_PublishesNoOrganizationAndNoMember()
     {
         // Arrange
         var message = MessageWith() with
@@ -362,6 +393,7 @@ public sealed class ClientMailMessageEndpointTests
                 DeploymentTrust = SenderTrustLevel.Trusted,
                 DeploymentTrustGrantedBy = SenderTrustSource.PersonalContact,
                 RecognizingOrganizationName = "Nordwind",
+                RecognizingMemberName = "Marta Nowak",
             },
         };
 
@@ -370,6 +402,7 @@ public sealed class ClientMailMessageEndpointTests
 
         // Assert
         Assert.Null(sender.TrustOrganization);
+        Assert.Null(sender.TrustMember);
     }
 
     /// <summary>An author nothing recognized publishes no trust source, which is the ordinary state rather than missing data.</summary>
