@@ -2,12 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+// What Start's *Ask or find* answers with: one plan per kind of question, each an answer, its evidence, and the
+// messages it came from.
 MailFathomDesign.data.plans = {
   contract: {
     confidence: "high confidence",
     gap: "1 gap: 2022 addendum missing",
     meta: "41 messages read",
-    action: "Draft a counter-proposal capping indexation? Decision due 28.08",
     blocks: ["answer", "timeline", "table", "action"],
     parts: [
       { text: "The terms changed in three stages: the master agreement of April 2021", cite: "1" },
@@ -54,7 +55,6 @@ MailFathomDesign.data.plans = {
     confidence: "high confidence",
     gap: "",
     meta: "6 files found",
-    action: "Download the latest policy and add a renewal reminder?",
     blocks: ["answer", "gallery", "action"],
     parts: [
       { text: "The current policy runs to 31.12.2026 and arrived attached to the broker's email of 14.12.2025", cite: "2" },
@@ -83,7 +83,6 @@ MailFathomDesign.data.plans = {
     confidence: "moderate confidence",
     gap: "no email confirmation from the board",
     meta: "18 messages, 3 people",
-    action: "Ask the board to confirm the approval in writing?",
     blocks: ["answer", "people", "action"],
     parts: [
       { text: "The 2023 indexation budget was approved by Marta Nowak in Finance, after Jacek Wrona's legal opinion", cite: "6" },
@@ -109,16 +108,32 @@ MailFathomDesign.data.plans = {
   },
 };
 
-// Answers Discover keeps for questions asked before, and how fresh each one is.
-MailFathomDesign.data.savedAnswers = [
-  { q: "What SLA commitments do we have to clients?", a: "4 contracts with a 4 h SLA, one being negotiated to 2 h.", fresh: "up to date" },
-  { q: "Who owns Q4 renewals?", a: "Karolina (clients), Marta (budget), Jacek (wording).", fresh: "up to date" },
-  { q: "Where are the insurance policies?", a: "3 files, the newest from 06.2026 in the broker thread.", fresh: "1 new mail" },
+// The messages a result was built from: Start lists them under the answer, and they open as a filtered Mail list.
+Object.assign(MailFathomDesign.data.plans.contract, {
+  sources: ["contoso", "finanse", "marta", "jacek"],
+});
+
+Object.assign(MailFathomDesign.data.plans.files, {
+  sources: ["north1", "finanse"],
+});
+
+Object.assign(MailFathomDesign.data.plans.people, {
+  sources: ["marta", "jacek", "contoso"],
+});
+
+// Questions kept on Start. Each refreshes when new mail matches it; `changed` says whether that moved
+// its answer since it was last opened, and `paused` stands for a refresh the allowance did not cover.
+MailFathomDesign.data.watchedQuestions = [
+  { id: "w1", q: "What is still open with Contoso before 28 August?", state: "changed", note: "1 new message from Anna Kowalska since Tuesday" },
+  { id: "w2", q: "Which invoices from August are unpaid?", state: "same", note: "no change since yesterday" },
+  { id: "w3", q: "Who owns the Q4 renewals?", state: "paused", note: "paused until 1 September - the allowance is spent" },
+  { id: "w4", q: "When does the Fabrikam pilot sign-off land?", state: "same", note: "no change since Monday" },
+  { id: "w5", q: "Has anyone answered about the office move in October?", state: "changed", note: "2 new replies in the facilities thread" },
 ];
 
-// The questions Discover suggests when nothing has been asked yet.
+// The questions Start offers as chips under its field.
 MailFathomDesign.data.suggestedQuestions = [
-  { text: "How have the Contoso contract terms changed since 2021?" },
-  { text: "Where is the latest version of the insurance policy?" },
-  { text: "Who approved the indexation budget in 2023?" },
+  { text: "How have the Contoso contract terms changed since 2021?", why: "Contoso sent new terms yesterday" },
+  { text: "Where is the latest version of the insurance policy?", why: "3 versions arrived as attachments this year" },
+  { text: "Who approved the indexation budget in 2023?", why: "the August calculation cites that approval" },
 ];
