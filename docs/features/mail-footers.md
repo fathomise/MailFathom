@@ -1,6 +1,6 @@
 # Mail footers
 
-<!-- describes: backend/src/Application/Mail/Delivery/Footers/**, backend/src/Infrastructure/Mail/Mime/MailFooterMarkup.cs, backend/src/Infrastructure/Mail/Mime/Composition/MimeKitMailFooterComposer.cs, backend/src/Infrastructure/Persistence/Footers/**, backend/src/Application/Mail/Delivery/MailOutbox.cs, frontend/src/Client.App/src/footers/** -->
+<!-- describes: backend/src/Application/Mail/Delivery/Footers/**, backend/src/Infrastructure/Mail/Mime/MailFooterMarkup.cs, backend/src/Infrastructure/Mail/Mime/Composition/MimeKitMailFooterComposer.cs, backend/src/Infrastructure/Persistence/Footers/**, backend/src/Application/Mail/Delivery/MailOutbox.cs, frontend/src/Client.App/src/footers/**, frontend/src/Client.App/src/messageBody/MessageBody.tsx, frontend/src/Client.Backend/src/mailBody.ts -->
 
 A footer is the block under a person's words in every message they send: their name, their role, a number to call, a
 logo. Each person writes their own for each mail account they send from, and an organization may set one template that
@@ -87,11 +87,14 @@ would edit.
 
 The client draws it folded to one line wherever a message is about to go out: under the words in the composer, for the
 account the message is sent from, and under an Agent's draft, for the account the draft names. A press unfolds it and
-another folds it again. Reading back what was sent, it folds the same way: the simplified view of a message the person
-sent, in Sent and in a conversation alike, draws the blocks the document names as the footer as that one line under
-their words and above the conversation they quoted. A message whose document names no footer is drawn whole, and the
-sender's own markup, which is the message exactly as it went out, folds nothing. It is drawn outside what is written and is never part of a saved draft, because the service
-appends it on sending, and a footer the client could not read leaves the message to be written and sent without it.
+another folds it again. In the composer and in a draft it is drawn outside what is written and is never part of a saved
+draft, because the service appends it on sending, and a footer the client could not read leaves the message to be
+written and sent without it.
+
+Reading back what was sent, the footer folds the same way, and there it is part of the message: the simplified view of
+a message the person sent, in Sent and in a conversation alike, draws the blocks the document names as the footer as
+that one line under their words and above the conversation they quoted. A message whose document names no footer is
+drawn whole, and the sender's own markup, which is the message exactly as it went out, folds nothing.
 
 ## Personal data
 
