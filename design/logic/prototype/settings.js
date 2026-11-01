@@ -251,7 +251,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
     write("prefs", patch);
   };
   const prefsProblemIn = (section) => st.prefsSection === section ? problemOf("prefs") : "";
-  const themeNow = st.themeOverride || "system";
+  const themeNow = !st.themePref || st.themePref === "auto" ? "system" : st.themePref;
 
   return {
     /* The frame's navigation */
@@ -314,6 +314,21 @@ MailFathomDesign.settingsPanel = (self, env) => {
     nameManagedNote: access === "nameManaged" && !profileLocked ? "Your name is managed by your administrator, so it is shown here rather than offered for you to change." : "",
     nameProblem: nameBad && !nameLocked ? OUT.name.refused : problemOf("name"),
     photoProblem: st.photoError || problemOf("photo"),
+    onPhotoFile: (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (!f || profileLocked) return;
+      if (!/^image\/(jpeg|png)$/.test(f.type)) { set({ photoError: "That file is neither a JPEG nor a PNG, so it was not sent." }); return; }
+      if (f.size > 1048576) { set({ photoError: "That picture is larger than 1 MB, so it was not sent." }); return; }
+      const r = new FileReader();
+      r.onload = () => write("photo", { myPhoto: String(r.result), photoError: "" });
+      r.readAsDataURL(f);
+    },
+    removePhoto: () => profileLocked ? null : self.askDel({
+      title: "Remove the profile photo?",
+      text: "We will fall back to initials. The file will have to be uploaded again.",
+      label: "Remove photo",
+      run: () => write("photo", { myPhoto: "", photoError: "" }),
+    }),
     photoControlsShown: !profileLocked,
     personLangOptions: LANGS.map(([v, label]) => ({
       label,
@@ -600,9 +615,9 @@ MailFathomDesign.settingsPanel = (self, env) => {
     aiFiltersShown: st.aiFiltersShown !== false,
     aiFiltersShownSwitchStyle: sw(st.aiFiltersShown !== false, prefsLocked),
     toggleAiFiltersShown: () => pref("reading", { aiFiltersShown: st.aiFiltersShown === false }),
-    themeSegs: [["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([v, label]) => ({
+    settingsThemeSegs: [["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([v, label]) => ({
       label, style: seg(themeNow === v),
-      pick: () => pref("app", { themeOverride: v === "system" ? null : v }),
+      pick: () => pref("app", { themePref: v === "system" ? "auto" : v, themeOverride: null }),
     })),
     themeHint: themeNow === "system" ? "Follows this device: light or dark as the system is set." : "The same on every machine you sign in to.",
     openInTabs: (st.workMode || "tabs") === "tabs",

@@ -4011,7 +4011,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="{{ sDivider }}"></div>
             <div style="{{ sCap }}">Theme</div>
             <div style="{{ prefSegTrack }}">
-              <sc-for list="{{ themeSegs }}" as="th" hint-placeholder-count="3">
+              <sc-for list="{{ settingsThemeSegs }}" as="th" hint-placeholder-count="3">
                 <div onClick="{{ th.pick }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ th.style }}" style-hover="cursor:pointer">{{ th.label }}</div>
               </sc-for>
             </div>

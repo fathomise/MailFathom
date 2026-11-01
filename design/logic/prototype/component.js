@@ -4879,15 +4879,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         photoInputRef: this.photoRef,
         pickPhoto: () => (this.photoRef.current ? this.photoRef.current.click() : null),
         photoError: st.photoError || "",
-        onPhotoFile: (e) => {
-          const f = e.target.files && e.target.files[0];
-          if (!f) return;
-          if (!/^image\/(jpeg|png)$/.test(f.type)) { this.setState({ photoError: "That file is neither a JPEG nor a PNG, so it was not sent." }); return; }
-          if (f.size > 1048576) { this.setState({ photoError: "That picture is larger than 1 MB, so it was not sent." }); return; }
-          const r = new FileReader();
-          r.onload = () => this.setState({ myPhoto: String(r.result), photoError: "" });
-          r.readAsDataURL(f);
-        },
         confirmDelOpen: !!st.confirmDel,
         confirmDelTitle: st.confirmDel ? st.confirmDel.title : "",
         confirmDelText: st.confirmDel ? st.confirmDel.text : "",
@@ -4898,12 +4889,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.setState({ confirmDel: null });
           if (c && c.run) c.run();
         },
-        removePhoto: () => this.askDel({
-          title: "Remove the profile photo?",
-          text: "We will fall back to initials. The file will have to be uploaded again.",
-          label: "Remove photo",
-          run: () => this.setState({ myPhoto: "", photoError: "" }),
-        }),
         mePreviewStyle: "width:46px;height:46px;flex:0 0 46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;letter-spacing:0.02em;background:var(--border2);color:var(--text2);" +
           (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : ""),
         avatarStyle:
