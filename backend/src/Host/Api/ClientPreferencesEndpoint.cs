@@ -137,9 +137,9 @@ internal static class ClientPreferencesEndpoint
     /// <param name="cancellationToken">Cancels the commit.</param>
     /// <returns>
     /// <c>200</c> with what is now in force, <c>404</c> when this deployment holds no record for the caller, or
-    /// <c>400</c> when the body names a theme or a message view this build does not publish, a notification time
-    /// outside the bound, a trusted link domain that is not one or more of them than the list holds, or an answer to
-    /// the telemetry switch other than the one a settings policy forces.
+    /// <c>400</c> when the body names a theme, a message view, or a list mode this build does not publish, a
+    /// notification time outside the bound, a trusted link domain that is not one or more of them than the list holds,
+    /// or an answer to the telemetry switch other than the one a settings policy forces.
     /// </returns>
     /// <remarks>
     /// <para>
