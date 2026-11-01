@@ -2153,7 +2153,7 @@ job of `repository-contracts.yml` and again locally in `scripts/verify-full.sh`,
 | `only_the_recorded_workflows_use_pull_request_target` | A third `pull_request_target` trigger beside the two `fathom-review.yml` and `contributor-licence.yml` hold, and a licence workflow that checks anything out, reaches an action beyond the token mint, or runs a command fetching the contribution directly |
 | `the_reviewer_resolves_one_claude_credential_everywhere` | A step in `fathom-review.yml` reaching a Claude credential without the `CLAUDE_CODE_PROFILE` selector, or a fifth step holding one, either of which leaves a leak check comparing a review against a token no run spent |
 
-Every write scope in the repository but two belongs to publishing something: `packages: write` with
+Every write scope in the repository belongs to publishing something except those four workflows hold: `packages: write` with
 `id-token: write` and `attestations: write` in `nightly.yml`, `publish-container-image.yml`, and
 `publish-helm-chart.yml`, plus `packages: write` on the nightly prune job and `contents: write` on
 the job that writes the release announcement. `publish-documentation.yml` holds `pages: write` with
@@ -2174,22 +2174,31 @@ release — and an analysis that cannot record an alert produces a log line inst
 
 The second is `contents: write` in `fathom-review.yml`, on the one job that turns a review somebody
 asked for in a comment into the `repository_dispatch` that performs it. That is the narrowest
-permission `POST /repos/{owner}/{repo}/dispatches` reaches, and it is the widest of the two
+permission `POST /repos/{owner}/{repo}/dispatches` reaches, and it is the widest of the four
 exceptions, so what contains it is where it is held rather than how it is scoped: the job checks
 nothing out, runs no model, holds no Claude credential, and its whole body is one API call built from
 values the gate already decided. `main`'s ruleset is what stands between that token and the default
 branch. [When a review is cancelled](agent-workflow.md#when-a-review-is-cancelled) is why the comment
 path is two runs at all.
 
-Both are held by jobs reached from a pull request rather than from a publication — one from the
-change itself and one from a comment on it — and the contract above is what keeps the list honest, so
-adding a third such scope is an edit somebody argues rather than a line nobody notices.
+The third is `apply-pull-request-rules.yml`, which holds a write on two of its jobs and the
+narrowest scope each call takes: `pull-requests: write` on the job that applies the labels a change
+earns, and `issues: write` on the job that assigns a pull request's author to the issues it closes,
+which only ever adds an assignee. A fork's token is read-only whatever a job declares, so both write
+for a branch in this repository alone.
 
-One write scope is reached from neither a publication nor a pull request: `issues: write` on the
-`Close completed parents` job of `housekeeping.yml`, which closes a parent whose sub-issues are all
-closed and comments once saying why. It runs on a schedule and on a manual dispatch, against the
-script on `main`, so no change under review ever holds it, and closing an issue and commenting on one
-both take that scope and nothing narrower.
+The fourth is `issues: write` on the `Close completed parents` job of `housekeeping.yml`, which closes
+a parent whose sub-issues are all closed and comments once saying why; closing an issue and commenting
+on one both take that scope and nothing narrower. Nothing reaches it from a pull request or a comment.
+The schedule runs the workflow and the script on `main`, while a manual dispatch runs the ones on
+whichever ref it is started from — so a branch of this repository can hold the scope that way, and
+what contains it is that starting a dispatch takes write access to the repository, the same access
+that could push a workflow declaring the scope anyway.
+
+The first three are held by jobs reached from a pull request rather than from a publication — from
+the change itself or from a comment on it — and the fourth by a schedule or a dispatch. The contract
+above is what keeps the list honest, so adding a fifth such workflow is an edit somebody argues rather
+than a line nobody notices.
 
 **Every job is bounded in time**, because the default is six hours and what stalls a job here is
 rarely the repository: an apt mirror, a container registry, a package feed, or a test that stopped

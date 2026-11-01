@@ -7088,6 +7088,237 @@ closing_issues_report_each_issue_once() {
   assert_file_content '265' "$output_file"
 }
 
+# A parent closes when its sub-issues do, and `scripts/close-completed-parents.sh` is what closes it
+# from `Housekeeping`. Closing an issue is a write a person has to undo by hand, so what is pinned here
+# is each decision that keeps it from closing the wrong one, and the order that keeps a failure cheap.
+#
+# The fake `gh` keeps the issues in a file and derives each one's `sub_issues_summary` from its
+# children's states on every listing, which is what lets a close in one pass make the parent above it
+# complete in the next. It applies the script's own `--jq` filter with the real `jq`, as the client
+# does, and records every write in the order it was asked for.
+close_parents_bin_directory="$test_directory/close-parents-bin"
+mkdir -p "$close_parents_bin_directory"
+
+cat > "$close_parents_bin_directory/gh" <<'FAKE_GH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${FAKE_PARENTS_STATE:?FAKE_PARENTS_STATE must name the directory holding the issues}"
+
+endpoint=''
+filter=''
+method='GET'
+expecting=''
+
+for argument in "$@"; do
+  case "$expecting" in
+    filter) filter="$argument" ;;
+    method) method="$argument" ;;
+  esac
+  if [[ -n "$expecting" ]]; then
+    expecting=''
+    continue
+  fi
+
+  case "$argument" in
+    --jq) expecting='filter' ;;
+    --method) expecting='method' ;;
+    -f) expecting='field' ;;
+    api | -*) ;;
+    *) [[ -n "$endpoint" ]] || endpoint="$argument" ;;
+  esac
+done
+
+issues_file="$FAKE_PARENTS_STATE/issues.json"
+number="$(sed -E 's#^repos/[^/]+/[^/]+/issues/([0-9]+).*#\1#' <<< "$endpoint")"
+
+case "$method $endpoint" in
+  "GET repos/"*"/issues?state=open"*)
+    response="$(jq '. as $all
+      | [.[] | select(.state == "open")
+        | . as $issue
+        | ($issue.children // []) as $children
+        | $issue + {sub_issues_summary: {
+            total: ($children | length),
+            completed: ([$all[] | select((.number as $n | $children | index($n)) and .state == "closed")] | length)}}]' \
+      "$issues_file")"
+    ;;
+  "GET repos/"*"/timeline"*)
+    if [[ -e "$FAKE_PARENTS_STATE/timeline-$number.fails" ]]; then
+      printf 'gh: Server Error (HTTP 502)\n' >&2
+      exit 1
+    fi
+    response="$(cat "$FAKE_PARENTS_STATE/timeline-$number.json" 2> /dev/null || printf '[]')"
+    ;;
+  "PATCH repos/"*)
+    printf 'close %s\n' "$number" >> "$FAKE_PARENTS_STATE/writes.log"
+    jq --argjson n "$number" 'map(if .number == $n then .state = "closed" else . end)' "$issues_file" \
+      > "$issues_file.next"
+    mv "$issues_file.next" "$issues_file"
+    response='{}'
+    ;;
+  "POST repos/"*"/comments")
+    printf 'comment %s\n' "$number" >> "$FAKE_PARENTS_STATE/writes.log"
+    if [[ "${FAKE_PARENTS_COMMENT_FAILS:-false}" == 'true' ]]; then
+      printf 'gh: Forbidden (HTTP 403)\n' >&2
+      exit 1
+    fi
+    response='{}'
+    ;;
+  *)
+    printf 'The fake gh was asked for an endpoint it does not answer: %s %s\n' "$method" "$endpoint" >&2
+    exit 1
+    ;;
+esac
+
+if [[ -n "$filter" ]]; then
+  jq -r "$filter" <<< "$response"
+else
+  printf '%s\n' "$response"
+fi
+FAKE_GH
+chmod +x "$close_parents_bin_directory/gh"
+
+# A fresh directory per contract, holding the issues the listing reads. A timeline event is stated as
+# settled or fresh rather than as a time, because the script measures it against the clock it runs on.
+prepare_close_parents_state() {
+  local name="$1" issues="$2"
+
+  close_parents_state="$test_directory/close-parents-state-$name"
+  mkdir -p "$close_parents_state"
+  printf '%s\n' "$issues" > "$close_parents_state/issues.json"
+  : > "$close_parents_state/writes.log"
+}
+
+write_close_parents_timeline() {
+  local number="$1" age="$2" created_at
+
+  if [[ "$age" == 'fresh' ]]; then
+    created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  else
+    created_at='2026-01-01T00:00:00Z'
+  fi
+
+  printf '[{"event":"labeled","created_at":"2025-01-01T00:00:00Z"},{"event":"sub_issue_added","created_at":"%s"}]\n' \
+    "$created_at" > "$close_parents_state/timeline-$number.json"
+}
+
+run_close_parents() {
+  local output_file="$1"
+  shift
+
+  (
+    export PATH="$close_parents_bin_directory:$PATH"
+    export FAKE_PARENTS_STATE="$close_parents_state"
+
+    bash "$source_repository_root/scripts/close-completed-parents.sh" 'fathomise/MailFathom' "$@"
+  ) > "$output_file" 2>&1
+}
+
+# The listing is the whole of what decides a parent is complete, so the two things it must leave out
+# are pinned beside the one it must take: an issue with no sub-issues at all, and a pull request,
+# which the issues endpoint lists too. The close comes before the comment, so a comment that fails
+# leaves a closed parent rather than a line repeated on every run.
+a_completed_parent_closes_before_its_comment() {
+  local output_file="$test_directory/close-parents-completed"
+
+  prepare_close_parents_state completed '[
+    {"number": 1, "state": "open", "title": "[P] Done", "children": [2, 3]},
+    {"number": 2, "state": "closed", "title": "First"},
+    {"number": 3, "state": "closed", "title": "Second"},
+    {"number": 4, "state": "open", "title": "No children"},
+    {"number": 5, "state": "open", "title": "A pull request", "pull_request": {}, "children": [2]}]'
+
+  run_close_parents "$output_file"
+
+  assert_file_content $'close 1\ncomment 1' "$close_parents_state/writes.log"
+  assert_contains 'Closed #1: all 2 sub-issues are closed: [P] Done' "$output_file"
+}
+
+# A parent counts as complete from the instant its first child is closed, so one still being assembled
+# reads exactly like a finished one. A sub-issue link that moved inside the settle window holds it,
+# and so does a timeline that could not be read, because closing it a run later costs nothing.
+a_parent_whose_links_moved_or_cannot_be_read_is_held() {
+  local output_file="$test_directory/close-parents-held"
+
+  prepare_close_parents_state held '[
+    {"number": 1, "state": "open", "title": "Being assembled", "children": [2]},
+    {"number": 2, "state": "closed", "title": "Linked a moment ago"},
+    {"number": 3, "state": "open", "title": "Unreadable", "children": [4]},
+    {"number": 4, "state": "closed", "title": "Child"}]'
+  write_close_parents_timeline 1 fresh
+  : > "$close_parents_state/timeline-3.fails"
+
+  run_close_parents "$output_file"
+
+  assert_file_content '' "$close_parents_state/writes.log"
+  assert_contains 'Held #1:' "$output_file"
+  assert_contains 'Held #3:' "$output_file"
+}
+
+# `--paginate` runs the filter once per page, so the newest link event is chosen after every page is
+# read. Each line of the timeline file is one page, and `jq` reads each as an input of its own, which is
+# what the client does with the pages it fetched. A filter that chose per page would hand the clock
+# one timestamp a page, which it cannot read, and would hold every parent with a long timeline forever.
+a_parent_whose_settled_links_span_two_pages_closes() {
+  local output_file="$test_directory/close-parents-pages"
+
+  prepare_close_parents_state pages '[
+    {"number": 1, "state": "open", "title": "Long history", "children": [2]},
+    {"number": 2, "state": "closed", "title": "Child"}]'
+  printf '%s\n%s\n' \
+    '[{"event":"sub_issue_added","created_at":"2026-01-01T00:00:00Z"}]' \
+    '[{"event":"sub_issue_added","created_at":"2026-01-02T00:00:00Z"},{"event":"labeled","created_at":"2026-01-03T00:00:00Z"}]' \
+    > "$close_parents_state/timeline-1.json"
+
+  run_close_parents "$output_file"
+
+  assert_file_content $'close 1\ncomment 1' "$close_parents_state/writes.log"
+}
+
+a_dry_run_names_a_completed_parent_and_closes_nothing() {
+  local output_file="$test_directory/close-parents-dry-run"
+
+  prepare_close_parents_state dry-run '[
+    {"number": 1, "state": "open", "title": "[P] Done", "children": [2]},
+    {"number": 2, "state": "closed", "title": "Child"}]'
+  write_close_parents_timeline 1 settled
+
+  run_close_parents "$output_file" --dry-run
+
+  assert_file_content '' "$close_parents_state/writes.log"
+  assert_contains 'Would close #1: all 1 sub-issues are closed: [P] Done' "$output_file"
+}
+
+# A sub-parent closed in one pass makes the parent above it complete only in the next listing, and a
+# comment that fails does not stop that: the close is what counts.
+a_closed_sub_parent_lets_its_parent_close_in_the_next_pass() {
+  local output_file="$test_directory/close-parents-nested"
+
+  prepare_close_parents_state nested '[
+    {"number": 1, "state": "open", "title": "[P] Top", "children": [2]},
+    {"number": 2, "state": "open", "title": "[P] Middle", "children": [3]},
+    {"number": 3, "state": "closed", "title": "Leaf"}]'
+
+  FAKE_PARENTS_COMMENT_FAILS=true run_close_parents "$output_file"
+
+  assert_file_content $'close 2\ncomment 2\nclose 1\ncomment 1' "$close_parents_state/writes.log"
+  assert_contains 'Note: #2 was closed but the comment saying why did not post.' "$output_file"
+  assert_contains 'Closed #1:' "$output_file"
+}
+
+a_failed_listing_fails_the_run() {
+  local output_file="$test_directory/close-parents-listing-fails"
+
+  prepare_close_parents_state listing-fails 'not json'
+
+  if run_close_parents "$output_file"; then
+    printf 'A listing that could not be read ended the run successfully.\n' >&2
+    return 1
+  fi
+  assert_file_content '' "$close_parents_state/writes.log"
+}
+
 # The same index, reached from the working tree instead of from a pull request. `$review-change` runs
 # it while the change is still being corrected, which is the point at which an absent test costs the
 # least to add, and it reaches the pipeline's own script through an adapter rather than through a
@@ -9441,8 +9672,9 @@ PYTHON
 #
 # A fourth: `housekeeping.yml` holds `issues: write` on its `Close completed parents` job, which closes
 # a parent whose sub-issues are all closed and comments once saying why. Nothing reaches it from a
-# pull request or a comment — it runs on a schedule and on a dispatch, against `main`'s own script —
-# and closing an issue and commenting on one are both that scope and nothing narrower.
+# pull request or a comment: the schedule runs `main`'s workflow and script, and a dispatch runs those
+# of the ref it is started from, which takes write access to the repository to start at all. Closing
+# an issue and commenting on one are both that scope and nothing narrower.
 #
 # `publish-documentation.yml` publishes too, and what it publishes is a GitHub Pages deployment rather
 # than a package: `pages: write` creates the deployment and `id-token: write` is what the deployment is
@@ -12557,6 +12789,12 @@ run_test closing_issues_report_what_the_ceiling_cut
 run_test closing_issues_report_nothing_when_the_ceiling_is_not_reached
 run_test closing_issues_keep_a_recovered_retry_off_standard_error
 run_test closing_issues_report_each_issue_once
+run_test a_completed_parent_closes_before_its_comment
+run_test a_parent_whose_links_moved_or_cannot_be_read_is_held
+run_test a_parent_whose_settled_links_span_two_pages_closes
+run_test a_dry_run_names_a_completed_parent_and_closes_nothing
+run_test a_closed_sub_parent_lets_its_parent_close_in_the_next_pass
+run_test a_failed_listing_fails_the_run
 run_test obligation_index_reports_a_changed_source_no_test_reaches
 run_test obligation_index_credits_a_test_the_change_adds
 run_test obligation_index_names_a_test_the_change_left_alone
