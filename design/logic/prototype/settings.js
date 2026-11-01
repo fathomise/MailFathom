@@ -294,10 +294,10 @@ MailFathomDesign.settingsPanel = (self, env) => {
     sNoteInfo: "display:flex;box-sizing:border-box;align-items:flex-start;gap:8px;padding:9px 10px;max-width:620px;border:1px solid var(--line);border-radius:8px;background:var(--sub);font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty",
     sNoteWarn: "display:flex;box-sizing:border-box;align-items:flex-start;gap:8px;padding:9px 10px;max-width:620px;border:1px solid var(--warn);border-radius:8px;background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty",
     sCard: "display:flex;flex-direction:column;gap:10px;padding:12px 13px;max-width:620px;box-sizing:border-box;border:1px solid var(--line);border-radius:12px;background:var(--sub)",
-    profileTip: profileLocked ? LOCKED_TIP : "",
-    prefsTip: prefsLocked ? LOCKED_TIP : "",
+    profileTip: profileLocked ? LOCKED_TIP : undefined,
+    prefsTip: prefsLocked ? LOCKED_TIP : undefined,
     prefsLocked,
-    lockedFolderTip: folderLocked ? LOCKED_TIP : "",
+    lockedFolderTip: folderLocked ? LOCKED_TIP : undefined,
     sharedMarkStyle: sharedMark,
 
     /* Profile */
@@ -419,7 +419,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
       return {
         name: a.name, mail: a.mail, shared: !!a.shared, sharedStyle: sharedMark,
         refused: !!a.shared,
-        tip: a.shared ? "A shared mailbox is never one person's to answer for." : "",
+        tip: a.shared ? "A shared mailbox is never one person's to answer for." : undefined,
         pick: () => a.shared ? null : editReply({ accounts: on ? replyDraft.accounts.filter(x => x !== a.id) : replyDraft.accounts.concat([a.id]) }),
         rowStyle: row(profileLocked || a.shared) + "align-items:center;",
         boxStyle: "flex:0 0 18px;width:18px;height:18px;box-sizing:border-box;border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 500;font-size:15px;line-height:1;" +
@@ -439,7 +439,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
     arSaveShown: !profileLocked,
     arSaveStyle: primary(!replyProblems.length),
     arSaveOff: replyProblems.length > 0,
-    arSaveTip: replyProblems.length ? "To save it, " + replyProblems.join(", ") + "." : "",
+    arSaveTip: replyProblems.length ? "To save it, " + replyProblems.join(", ") + "." : undefined,
     arSave: () => {
       if (replyProblems.length) return;
       const outcome = writes;
@@ -522,7 +522,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
     ].map(x => {
       const on = !x.off && !!feDraft[x.k];
       return {
-        label: x.label, hint: x.hint, refused: !!x.off, tip: x.off ? x.tip : "",
+        label: x.label, hint: x.hint, refused: !!x.off, tip: x.off ? x.tip : undefined,
         style: row(!!x.off), switchStyle: sw(on, !!x.off),
         toggle: () => x.off ? null : editFe({ [x.k]: !feDraft[x.k] }),
       };
@@ -530,7 +530,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
     feProblem,
     feSaveStyle: primary(!feProblem),
     feSaveOff: !!feProblem,
-    feSaveTip: feProblem,
+    feSaveTip: feProblem || undefined,
     feSave: () => {
       if (!fe || feProblem) return;
       const folder = folderOf(feDraft);
@@ -583,6 +583,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
     },
     ftPreview: fte ? footerDocLines(markupLines(fte.markup)) : [],
     ftProblem: linked ? "An image is linked rather than uploaded: " + linked + ". Upload it and refer to it as cid:<name> - loading it from the web would tell its server who read your mail." : "",
+    ftSaveTip: linked ? "Upload the linked image first." : undefined,
     ftSaveStyle: primary(!linked),
     ftSaveOff: !!linked,
     ftSave: () => linked ? null : answerFooter({ markup: fte.markup, images: fte.images }),
@@ -645,7 +646,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
     notifDeviceShownOn: !blocked && !!st.notifDevice,
     notifDeviceSwitchStyle: sw(!blocked && !!st.notifDevice, blocked),
     notifDeviceRowStyle: row(blocked),
-    notifDeviceTip: blocked ? "This browser blocks notifications from here." : "",
+    notifDeviceTip: blocked ? "This browser blocks notifications from here." : undefined,
     toggleNotifDevice: () => blocked ? null : set({ notifDevice: !st.notifDevice }),
     notifAutoClearSwitchStyle: sw(!!st.notifAutoClear, prefsLocked),
     toggleNotifAutoClear: () => pref("notif", { notifAutoClear: !st.notifAutoClear }),
