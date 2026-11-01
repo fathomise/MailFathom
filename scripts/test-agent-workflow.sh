@@ -9439,6 +9439,11 @@ PYTHON
 # writes for a branch in this repository alone, since a fork's token is read-only whatever the job
 # declares, and it only ever adds an assignee.
 #
+# A fourth: `housekeeping.yml` holds `issues: write` on its `Close completed parents` job, which closes
+# a parent whose sub-issues are all closed and comments once saying why. Nothing reaches it from a
+# pull request or a comment — it runs on a schedule and on a dispatch, against `main`'s own script —
+# and closing an issue and commenting on one are both that scope and nothing narrower.
+#
 # `publish-documentation.yml` publishes too, and what it publishes is a GitHub Pages deployment rather
 # than a package: `pages: write` creates the deployment and `id-token: write` is what the deployment is
 # claimed with. Both sit on the deploying job alone, and neither reaches the repository — the site is
@@ -9454,6 +9459,7 @@ every_write_scope_is_one_the_policy_records() {
       'apply-pull-request-rules.yml pull-requests: write' \
       'codeql.yml security-events: write' \
       'fathom-review.yml contents: write' \
+      'housekeeping.yml issues: write' \
       'nightly.yml attestations: write' \
       'nightly.yml id-token: write' \
       'nightly.yml packages: write' \

@@ -2185,6 +2185,12 @@ Both are held by jobs reached from a pull request rather than from a publication
 change itself and one from a comment on it — and the contract above is what keeps the list honest, so
 adding a third such scope is an edit somebody argues rather than a line nobody notices.
 
+One write scope is reached from neither a publication nor a pull request: `issues: write` on the
+`Close completed parents` job of `housekeeping.yml`, which closes a parent whose sub-issues are all
+closed and comments once saying why. It runs on a schedule and on a manual dispatch, against the
+script on `main`, so no change under review ever holds it, and closing an issue and commenting on one
+both take that scope and nothing narrower.
+
 **Every job is bounded in time**, because the default is six hours and what stalls a job here is
 rarely the repository: an apt mirror, a container registry, a package feed, or a test that stopped
 answering. A bound turns that into a red check naming the job, after minutes rather than hours. A

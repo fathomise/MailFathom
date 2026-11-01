@@ -1,0 +1,57 @@
+# Copyright © 2026 Krzysztof Kasprowicz
+# Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+# Project repository: https://github.com/fathomise/MailFathom
+
+name: Housekeeping
+
+# Routine upkeep of the repository's own tracker, on a schedule rather than on an event. It is named for the kind of
+# work rather than for its first job, because further upkeep of the same shape belongs here as another job beside it.
+#
+# Every two hours from 08:00 to 22:00 Warsaw time, which is when anybody acts on the board, and seventeen minutes past
+# the hour because GitHub delays the schedules that land on it. A manual dispatch runs it at once and can be told to
+# change nothing.
+on:
+  schedule:
+    - cron: '17 8-22/2 * * *'
+      timezone: Europe/Warsaw
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Name what would change and change nothing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # A parent closes when its sub-issues do; `docs/operations/issue-tracking.md` says so, and the script carries how.
+  close-completed-parents:
+    name: Close completed parents
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+
+      - name: Close completed parents
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          if [[ "$DRY_RUN" == 'true' ]]; then
+            bash scripts/close-completed-parents.sh "$GITHUB_REPOSITORY" --dry-run
+          else
+            bash scripts/close-completed-parents.sh "$GITHUB_REPOSITORY"
+          fi
