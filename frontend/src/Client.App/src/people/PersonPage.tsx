@@ -222,7 +222,7 @@ export function PersonPage({
                     {member && contact.usesPhoneApp ? <PhoneAppBadge place="person" /> : null}
                 </span>
 
-                <div className="flex min-w-0 flex-col gap-0.75">
+                <div className="flex min-w-0 flex-1 basis-60 flex-col gap-0.75">
                     <div className="flex min-w-0 items-center gap-2.25">
                         <h2 className="truncate text-3xl font-semibold tracking-tighter">{contact.displayName}</h2>
 
@@ -307,7 +307,7 @@ export function PersonPage({
                     )}
                 </div>
 
-                <div className="ms-auto flex shrink-0 items-center gap-2.25">
+                <div className="ms-auto flex shrink-0 items-center gap-2.25 self-start">
                     {writable && (own || collected) ? (
                         <Control
                             label={erasure}
