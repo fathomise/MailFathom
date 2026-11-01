@@ -452,7 +452,7 @@ list: it nests, it is placed somewhere in the account's own tree, and it can be 
 | Where it may sit | `nfLocations`, from `folderLocations` | the select's options: *Top level of the account* first, then the account's folders drawn as `Parent / Child`. Editing one drops the folder itself, everything under it, and any parent too shallow to hold its subtree |
 | Nothing typed yet | `nfCreateStyle` / `nfCreateHover` | the create button is drawn flat and refuses the pointer while the name is empty |
 | The name is taken | the `warning` notification *Pick another name* | saving an edit onto a name already used in that place — *There is already a folder called “<name>” inside …* |
-| Delete confirmation | `delFolderOpen` / `delFolderText` | *Delete folder* — the folder, what is nested in it, and the mail stored there, computed from the state rather than one sentence |
+| Delete confirmation | `delFolderOpen` / `delFolderText` | *Delete folder* — the folder, what is nested in it, and the mail stored there, by the account's own folder-delete setting, computed from the state rather than one sentence |
 
 **The design's own statement about what a folder is: the user places it, MailFathom puts it on the
 server.** The hint under the select reads *MailFathom creates the folder on this account's mail
@@ -466,14 +466,14 @@ renaming and deleting one each post a success toast naming the mailbox and the p
 segments, and `folderLocations` enforces it against the subtree being moved rather than against the
 folder alone.
 
-The delete confirmation states what goes with the folder, in three parts. *The folder* — or *The
-folder and the folder nested inside it*, or *…and the N folders nested inside it* — *will be deleted
-in `<mailbox>` and on your mail server.* Then the mail: where the folder holds stored conversations,
-*The conversation stored in it goes with it.* — or *All N conversations…* — *Whether it can still be
-restored depends on how your administrator set up this account.*, because what deleting does on the
-mail server is the administrator's account setting and the client cannot read it (§ *The settings
-panel*), so the sentence promises neither Trash nor a permanent delete; where it holds none, *It holds
-no mail, and deleting it cannot be undone.*
+The delete confirmation states what goes with the folder, and follows the account's own *Deleting a
+folder here* (Settings › Accounts › *Deleting*). On the mail server too, the default: *The folder* — or
+*The folder and the folder nested inside it*, or *…and the N folders nested inside it* — *will be
+deleted in `<mailbox>` and on your mail server.*, then the mail: *The conversation stored in it* — or
+*All N conversations…* — *will be deleted on both sides - there will be nothing left to restore.*, or
+*It holds no mail, and deleting it cannot be undone.* where it holds none. In MailFathom only:
+*… will leave `<mailbox>` here and stay on your mail server with the mail in it. MailFathom stops
+reading it, and nothing on the server is touched.*
 
 ### The per-message AI reading
 
@@ -1218,9 +1218,14 @@ mode, and how a folder is found.
 
 | State | Flag | Reveal |
 |---|---|---|
-| The account list | `acctListShown` | the section with no account open — one row per account carrying a colour dot, the display name and *Shared* where it is one, the address, and what it holds (*9 folders · Footer set by your organization*, *4 folders · Your own footer*, *1 folder · No footer*), under a `Mail accounts` caption beside `acctCount`, and under the rows *Your administrator sets up each account, with its address and its name. Open one to choose which of its folders MailFathom reads, and the footer under what you send from it.* |
+| The account list | `acctListShown` | the section with no account open — one row per account carrying a colour dot, the display name and *Shared* where it is one, the address, and what it holds (*9 folders · Footer set by your organization*, *4 folders · Your own footer*, *1 folder · No footer*), under a `Mail accounts` caption beside `acctCount`, and under the rows *Your administrator sets up each account, with its address, its mail server and how MailFathom signs in to it. Open one to decide everything else about it.* |
 | One account | `acctEditShown` / `acctTitle` | a row — `arrow_back` and the account's name |
-| The address and the name | `acctMail` / `acctName` | a card on `--sub` stating both as facts, not fields, under *Your administrator sets both, and they change only there.* |
+| The address | `acctMail` | a card on `--sub` stating it as a fact, not a field, under *The address is what identifies the account, and your administrator sets it, with the mail server and how MailFathom signs in to it. Everything below is yours to change.* |
+| The account's own settings | `acctGroups` | six groups under the card, each under a `--line` rule and a caption, every control a row of one kind — a field, a number, a select, a segmented track, a switch row or a row of chips — with its label above and its hint below. *The account*: *Name* (the account's display name), *Language* (*English* / *Polski* — what MailFathom writes about the mailbox's mail on its own, for everyone it is assigned to), *New mail* (*On a schedule* / *As it arrives*, its hint following the pick). *Deleting*: four selects — *When the mail server no longer holds a message* (erase MailFathom's copy too, or keep a hidden record), *When you delete a message here, MailFathom's copy* (is erased, becomes a hidden record, or stays readable and searchable), *On the mail server, a message you delete is* (removed at once, or only flagged), *Deleting a folder here* (deletes it on the mail server too, or removes it from MailFathom only). *Recognizing senders*: the server whose checks the account believes, in monospace, empty for what MailFathom knows; *Recognize everybody at your own domains*; *Mark only senders something established*. *Contacts*: *Collect contacts from this account's mail*, the messages before somebody is recorded, the contacts recorded per run, and *Never recorded* — one row per exclusion, its text in monospace, *Domain* or *Pattern*, *With subdomains* as a chip on a domain, and `close`, then a field whose button reads *Add pattern* or *Add domain* by what is typed (`@`, `*` or `?` make a pattern), or *Nobody is left out.* *Spam*: *Classify this account's mail as spam*, *Folders it reads* as a chip per folder (the inbox picked where none is named), *Move spam to the junk folder*, *Junk folder* (*The account's Spam folder* or a named one), *Mark spam read*, *Tag spam for other mail clients*, *Ask a model about mail the rules did not decide*, *Let the model name what kind of spam it is*, and *Model's threshold*. *Sensitive content*: *Credentials, tokens and keys* and *Personal data*, each *As the deployment* / *On* / *Off*, and *Stop outgoing mail that carries* as two chips, *Credentials* and *Personal data*. *Sending*: *Send from this account*, *Send as* (placeholder the account's own address), *Name beside it*, *File a copy in Sent*, *Take it back when the provider files one too*, *Sign with S/MIME* and *Sign with OpenPGP*, each a select of *None* and the material provisioned for the person |
+| A setting that depends on another | `it.dim` / `it.refused` | the contact numbers and *Never recorded* while collection is off, *Folders it reads* while classification is off and *Junk folder* while spam is not moved are drawn dimmed and still change; *Let the model name what kind of spam it is* while the model is off (*Turn on the model first.*) and *Take it back when the provider files one too* while no copy is filed (*Turn on filing a copy first.*) are `aria-disabled` and say why on a tap |
+| Unsaved changes | `acctDeclSaveOff` / `acctDeclDiscardShown` | the groups are one draft: *Save account* under them is drawn flat and says *Nothing has changed yet.* on a tap until something changes, and *Discard changes* stands beside it while something has. *Folders and the footer are saved on their own, below.* under both |
+| An account that cannot be saved | `acctDeclProblem` | no name or one past 128 characters, a checked-server value with a space, fewer than one message or one contact per run, no folder to classify while classification is on, a threshold outside 0 to 1, or a sending address that is not one — the first such reason stands above *Save account*, which is `aria-disabled` |
+| An account answered | `acctDeclOutcome` / `acctDeclOk` / `acctDeclBad` | *Save account* — saved: *Saved. The account works this way from its next run.*, and a new name is the account's title at once; refused, the service's sentence (*The server did not take that change: this deployment screens outgoing mail for personal data, so this account may not stop screening for it.*), the draft kept; not stored or not answered, the draft kept; moved, *This account was changed somewhere else since this screen read it, so nothing was saved. It is shown as it stands now - make the change again.*, the draft dropped |
 | The folders | `fdRows` | one row per folder in a bordered list: the role's glyph or `folder`, the name, and where it is found — *Found by its role - the server's Spam folder*, or its path on the mail server in monospace, levels split by ` / `. A chip on the row names every switch off its default: *Not synchronized*, *Hidden from AI*, *Not indexed*, *Created if missing* |
 | A folder open | `fd.editing` | a press on its row — the row takes `--accent-soft` and opens beneath it: *Name*; *How MailFathom finds it*, *By its role* or *By its path*, with a role select (*Inbox*, *Sent*, *Drafts*, *Archive*, *Spam*, *Trash*) or a monospace path field; and four switch rows — *Synchronize*, *Visible to AI*, *Index for search by meaning*, *Create it if it is missing*. One folder is open at a time |
 | A switch that cannot act | `fs.refused` | *Index for search by meaning* while *Visible to AI* is off (*Turn on Visible to AI first - an index is a model's reading of the folder.*), and *Create it if it is missing* on a folder found by its role (*A folder found by its role is one the mail server already has.*) — drawn dimmed, `aria-disabled`, saying why on a tap |
@@ -1236,10 +1241,12 @@ mode, and how a folder is found.
 | A footer answered | `ftOutcome` / `ftOutcomeOk` / `ftOutcomeBad` | *Save footer* or a confirmed removal — saved: *Saved. The next message you send from this account carries it.*; and one sentence per refusal below |
 
 **An account is neither added nor removed here, and nothing about reaching its mail server is.** Its
-login, password, servers, ports, encryption, how far back it fetches, what deleting does, whether sent
-mail is filed, the secret check and *Test connection* are the administrator's, and the client has no
-way to write any of them, so none is drawn. A client screen offering one is offering something the
-design does not have.
+address, login, password, servers, ports, transport security and OAuth, *Test connection*, how far
+back it fetches, what its rules may do, both of its audit trails and the mail rules themselves are the
+administrator's, and the client has no way to write any of them, so none is drawn — the address alone
+is shown, as what identifies the account. A client screen offering one is offering something the
+design does not have. A setting a settings policy holds is not drawn as held: the service refuses the
+write and its sentence is what the person reads.
 
 #### Reading — `tabReading`, AI — `tabAi`, Notifications — `tabNotif`, Application — `tabApp`
 
@@ -1269,17 +1276,17 @@ design does not have.
 #### What a write answers, and what this sign-in may change
 
 Every setting the server holds is written when it changes — a field when it is left — except the
-automatic reply, a folder and a footer, which each have a save of their own. A write answers as the
+automatic reply, an account's own settings, a folder and a footer, which each have a save of their own. A write answers as the
 `settingsWrites` property says, and **a refused write leaves the value as it was and says so where the
 setting stands**:
 
 | Answer | `settingsWrites` | What is said |
 |---|---|---|
-| Saved | `saved` | nothing for a setting written as it changes; a sentence in `--ok-text` for the automatic reply, a folder and a footer |
-| Refused | `refused` | the setting's own *was not accepted* sentence — *That time zone was not accepted, so your dates are still written in the old one.* and the like for the name, the language, the numbers, the address and the hours; *That was not changed. A notification stands for a whole number of seconds, between 1 and 30.* for the duration; for a folder the service's reason (*the mail server names no folder at that path, and this folder may not create one*); for a footer *Your organization now sets the footer on this account, so yours was not saved.*; for the reply the account it named (*Nordwind board is a shared mailbox …*) |
+| Saved | `saved` | nothing for a setting written as it changes; a sentence in `--ok-text` for the automatic reply, an account, a folder and a footer |
+| Refused | `refused` | the setting's own *was not accepted* sentence — *That time zone was not accepted, so your dates are still written in the old one.* and the like for the name, the language, the numbers, the address and the hours; *That was not changed. A notification stands for a whole number of seconds, between 1 and 30.* for the duration; for a folder the service's reason (*the mail server names no folder at that path, and this folder may not create one*); for an account the service's sentence (*… this account may not stop screening for it.*); for a footer *Your organization now sets the footer on this account, so yours was not saved.*; for the reply the account it named (*Nordwind board is a shared mailbox …*) |
 | Not stored | `notStored` | the setting's *was not saved to the server* sentence — *That name was not saved to the server, so it still holds you under the old one.*, *That picture was not saved to the server, so you are still drawn as you were.*, and one for every other setting |
 | Not answered | `unanswered` | *The server did not answer, so it is not known whether that … was saved.*, naming the setting |
-| Moved | `moved` | a folder only: *These folders were changed somewhere else since this screen read them, so nothing was saved. They are shown as they stand now - make the change again.* Any other setting answers it as *not stored* |
+| Moved | `moved` | a folder or an account's own settings only: *These folders were changed somewhere else since this screen read them, so nothing was saved. They are shown as they stand now - make the change again.*, and the account's sentence above. Any other setting answers it as *not stored* |
 
 A setting that follows the person between machines — *Reading*, *AI*, the theme, tabs, the list mode,
 images, telemetry and the notification-centre settings — says its answer once, under the section it
@@ -1292,12 +1299,12 @@ layout* stay writable in every case, being the device's own.
 | Case | Reached by | Profile and Availability | Accounts | Reading, AI, Notifications, Application |
 |---|---|---|---|---|
 | No connection | `connection` `offline` | *There is no connection to the MailFathom server, so your name, your picture, your language, your time zone, your numbers and your address are shown here rather than offered for you to change until it is back.* | *… so this account is shown as it stands rather than offered for you to change until it is back.* | *There is no connection to the MailFathom server, so the settings that follow you between machines are shown here as they stand until it is back. The interface language and what this device does are still yours to set.* |
-| This sign-in may only read | `settingsAccess` `readOnly` | *This sign-in may read what the server holds about you and may not change it, so …* | *This sign-in may read how this account is set up and may not change it, so its folders and its footer are shown here …* | *This sign-in may not change the settings that follow you between machines, so they are shown here as they stand. …* |
+| This sign-in may only read | `settingsAccess` `readOnly` | *This sign-in may read what the server holds about you and may not change it, so …* | *This sign-in may read how this account is set up and may not change it, so it is shown here rather than offered for you to change.* | *This sign-in may not change the settings that follow you between machines, so they are shown here as they stand. …* |
 
 In both cases the controls are drawn dimmed or read-only, each `aria-disabled` control saying on a tap
 *Not connected to the server - this waits until it is back.* or *This sign-in may not change it.*; the
 picture's controls, the phone rows' removal and *Move to first*, *Add a number*, *Save automatic reply*, a folder's
-chevron, *Add a folder* and the footer's actions are not drawn at all.
+chevron, *Add a folder*, an exclusion's `close` and its field, *Save account* and the footer's actions are not drawn at all.
 
 The message view is **three** options rather than two, drawn *AI simplified*, *Simplified*,
 *Original* — the last reading **Original** and not *HTML*. `msgView` carries `"ai"`, `"simple"` and
@@ -1570,7 +1577,7 @@ clicking a preview.
   one over 1 MB; no control in the prototype can produce one.
 - **Every answer a settings write can get but the saved one** (`settingsWrites`). The prototype saves
   every write unless the `settingsWrites` property says `refused`, `notStored`, `unanswered` or `moved`,
-  so no preview shows a refusal under a setting, a folder or a footer — § *The settings panel* lists
+  so no preview shows a refusal under a setting, an account, a folder or a footer — § *The settings panel* lists
   what each answer says.
 - **Settings this sign-in may not change** (`settingsAccess`, `connection`). The name held by the
   administrator is `settingsAccess` `nameManaged`, a sign-in that may only read is `readOnly`, and the

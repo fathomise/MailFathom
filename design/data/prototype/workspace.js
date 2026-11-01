@@ -139,6 +139,13 @@ MailFathomDesign.data.defaultReplyTo = "k.kowalska@nordwind.example";
 // search by meaning, which needs `ai`, and `create` lets MailFathom create a folder the path names and the server lacks.
 MailFathomDesign.data.mailAccounts = [
   { id: "a1", name: "Karolina Kowalska", mail: "k.kowalska@nordwind.example", dot: "var(--accent)", footer: "acc1", footerByOrganization: true,
+    settings: { language: "English", mode: "Push",
+      remotelyDeleted: "EraseLocalCopy", authoredDelete: "EraseLocalCopy", authoredDeleteServer: "Expunge", authoredFolderDelete: "DeleteOnServer",
+      trustedAuthServer: "mx.nordwind.example", trustOwnDomains: true, strict: false,
+      contacts: { on: true, minMessages: 2, perRun: 50, exclusions: [{ domain: "lists.nordwind.example", subdomains: true }, { pattern: "noreply@*" }] },
+      spam: { on: true, folders: ["Inbox"], moveToJunk: true, markRead: false, keywords: true, junkFolder: null, model: { on: true, subcategories: false, threshold: 0.9 } },
+      sensitive: { secrets: null, pii: true, screenOutgoing: ["Secrets"] },
+      sending: { on: true, fromAddress: null, fromName: "Karolina Kowalska", fileSentCopy: true, withdrawDuplicate: true, smime: "smime-kowalska", pgp: null } },
     folders: [
       { alias: "Inbox", role: "inbox", path: [], sync: true, ai: true, embed: true, create: false },
       { alias: "Sent", role: "sent", path: [], sync: true, ai: true, embed: true, create: false },
@@ -151,6 +158,13 @@ MailFathomDesign.data.mailAccounts = [
       { alias: "Archive 2026", role: "", path: ["Archive", "2026"], sync: false, ai: true, embed: false, create: true },
     ] },
   { id: "a2", name: "Karolina - private", mail: "kowalska.k@mail.example", dot: "#4d9aa8", footer: "acc2",
+    settings: { language: "Polish", mode: "Polling",
+      remotelyDeleted: "EraseLocalCopy", authoredDelete: "EraseLocalCopy", authoredDeleteServer: "Expunge", authoredFolderDelete: "DeleteOnServer",
+      trustedAuthServer: null, trustOwnDomains: false, strict: false,
+      contacts: { on: false, minMessages: 2, perRun: 50, exclusions: [] },
+      spam: { on: false, folders: null, moveToJunk: false, markRead: false, keywords: false, junkFolder: null, model: { on: false, subcategories: false, threshold: 0.9 } },
+      sensitive: { secrets: null, pii: null, screenOutgoing: null },
+      sending: { on: true, fromAddress: null, fromName: null, fileSentCopy: true, withdrawDuplicate: true, smime: null, pgp: "pgp-private" } },
     folders: [
       { alias: "Inbox", role: "inbox", path: [], sync: true, ai: true, embed: true, create: false },
       { alias: "Sent", role: "sent", path: [], sync: true, ai: true, embed: false, create: false },
@@ -158,6 +172,13 @@ MailFathomDesign.data.mailAccounts = [
       { alias: "Trash", role: "trash", path: [], sync: true, ai: false, embed: false, create: false },
     ] },
   { id: "a3", name: "Nordwind board", shared: true, mail: "board@nordwind.example", dot: "#b0873a",
+    settings: { language: "English", mode: "Polling",
+      remotelyDeleted: "EraseLocalCopy", authoredDelete: "EraseLocalCopy", authoredDeleteServer: "Expunge", authoredFolderDelete: "DeleteOnServer",
+      trustedAuthServer: "mx.nordwind.example", trustOwnDomains: true, strict: true,
+      contacts: { on: false, minMessages: 2, perRun: 50, exclusions: [] },
+      spam: { on: true, folders: ["Inbox"], moveToJunk: true, markRead: true, keywords: false, junkFolder: null, model: { on: false, subcategories: false, threshold: 0.9 } },
+      sensitive: { secrets: true, pii: true, screenOutgoing: ["Secrets", "Pii"] },
+      sending: { on: false, fromAddress: null, fromName: null, fileSentCopy: true, withdrawDuplicate: true, smime: null, pgp: null } },
     folders: [
       { alias: "Inbox", role: "inbox", path: [], sync: true, ai: true, embed: true, create: false },
     ] },

@@ -3712,7 +3712,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--faint);margin-top:2px">chevron_right</span>
               </div>
             </sc-for>
-            <div style="{{ sHint }}">Your administrator sets up each account, with its address and its name. Open one to choose which of its folders MailFathom reads, and the footer under what you send from it.</div>
+            <div style="{{ sHint }}">Your administrator sets up each account, with its address, its mail server and how MailFathom signs in to it. Open one to decide everything else about it.</div>
           </sc-if>
           <sc-if value="{{ acctEditShown }}" hint-placeholder-val="{{ false }}">
             <div style="display:flex;align-items:center;gap:9px">
@@ -3727,12 +3727,107 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="{{ sCap }}">Address</div>
                 <div style="display:flex;align-items:center;gap:6px;font-size:14px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ acctMail }}</span><sc-if value="{{ acctShared }}" hint-placeholder-val="{{ false }}"><span style="{{ sharedMarkStyle }}">Shared</span></sc-if></div>
               </div>
-              <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
-                <div style="{{ sCap }}">Name</div>
-                <div style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ acctName }}</div>
-              </div>
-              <div style="font-size:12px;color:var(--faint)">Your administrator sets both, and they change only there.</div>
+              <div style="font-size:12px;color:var(--faint);line-height:1.5">The address is what identifies the account, and your administrator sets it, with the mail server and how MailFathom signs in to it. Everything below is yours to change.</div>
             </div>
+            <sc-for list="{{ acctGroups }}" as="g" hint-placeholder-count="6">
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div style="{{ sDivider }}"></div>
+                <div style="{{ sCap }}">{{ g.title }}</div>
+                <sc-if value="{{ g.hasHint }}" hint-placeholder-val="{{ false }}"><div style="{{ sHint }};margin-top:-6px">{{ g.hint }}</div></sc-if>
+                <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="3">
+                  <sc-if value="{{ it.isSwitch }}" hint-placeholder-val="{{ true }}">
+                    <div onClick="{{ it.toggle }}" title="{{ it.tip }}" aria-disabled="{{ it.refused }}" style="{{ it.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+                      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                        <div style="font-size:14px">{{ it.label }}</div>
+                        <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ it.hint }}</div></sc-if>
+                      </div>
+                      <span style="{{ it.switchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isText }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <input value="{{ it.value }}" onInput="{{ it.onInput }}" placeholder="{{ it.placeholder }}" readonly="{{ acctLocked }}" title="{{ lockedFolderTip }}" style="{{ it.style }}" style-focus="border-color:var(--accent)" />
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isNumber }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <input type="number" value="{{ it.value }}" min="{{ it.min }}" max="{{ it.max }}" step="{{ it.step }}" onInput="{{ it.onInput }}" readonly="{{ acctLocked }}" title="{{ lockedFolderTip }}" style="{{ it.style }}" style-focus="border-color:var(--accent)" />
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isSelect }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <select value="{{ it.value }}" onChange="{{ it.onChange }}" disabled="{{ acctLocked }}" title="{{ lockedFolderTip }}" style="{{ it.style }}" style-focus="border-color:var(--accent)">
+                        <sc-for list="{{ it.options }}" as="op" hint-placeholder-count="2">
+                          <option value="{{ op.v }}">{{ op.label }}</option>
+                        </sc-for>
+                      </select>
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isSeg }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <div style="{{ it.track }}">
+                        <sc-for list="{{ it.segs }}" as="sg" hint-placeholder-count="2">
+                          <div onClick="{{ sg.pick }}" title="{{ it.tip }}" aria-disabled="{{ acctLocked }}" style="{{ sg.style }}" style-hover="cursor:pointer">{{ sg.label }}</div>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isChips }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <div style="display:flex;flex-wrap:wrap;gap:6px">
+                        <sc-for list="{{ it.chips }}" as="cp" hint-placeholder-count="3">
+                          <div onClick="{{ cp.pick }}" title="{{ it.tip }}" aria-disabled="{{ acctLocked }}" style="{{ cp.style }}" style-hover="cursor:pointer">{{ cp.label }}</div>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isExcl }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <div style="{{ sHint }}">{{ it.hint }}</div>
+                      <sc-if value="{{ it.none }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--faint)">Nobody is left out.</div></sc-if>
+                      <sc-for list="{{ it.rows }}" as="ex" hint-placeholder-count="2">
+                        <div style="{{ sImageChip }}">
+                          <span style="flex:1;min-width:0;font-family:'Geist Mono',ui-monospace,monospace;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ex.text }}</span>
+                          <span style="font-size:12px;color:var(--faint)">{{ ex.kind }}</span>
+                          <sc-if value="{{ ex.isDomain }}" hint-placeholder-val="{{ true }}"><div onClick="{{ ex.toggleSub }}" title="{{ lockedFolderTip }}" aria-disabled="{{ acctLocked }}" style="{{ ex.subStyle }}" style-hover="cursor:pointer">{{ ex.subLabel }}</div></sc-if>
+                          <sc-if value="{{ acctDeclSaveShown }}" hint-placeholder-val="{{ true }}"><div onClick="{{ ex.remove }}" title="Remove from the list" style="{{ iconBtn }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">close</span></div></sc-if>
+                        </div>
+                      </sc-for>
+                      <sc-if value="{{ it.addShown }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:flex;gap:8px;max-width:440px">
+                          <input value="{{ it.draft }}" onInput="{{ it.onDraft }}" placeholder="noreply@* or lists.example" style="{{ sField }};flex:1;min-width:0" style-focus="border-color:var(--accent)" />
+                          <div onClick="{{ it.add }}" style="{{ it.addStyle }}" style-hover="cursor:pointer">{{ it.addLabel }}</div>
+                        </div>
+                        <sc-if value="{{ it.problem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ it.problem }}</div></sc-if>
+                      </sc-if>
+                    </div>
+                  </sc-if>
+                </sc-for>
+              </div>
+            </sc-for>
+            <sc-if value="{{ acctDeclProblem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ acctDeclProblem }}</div></sc-if>
+            <sc-if value="{{ acctDeclOutcome }}" hint-placeholder-val="{{ false }}">
+              <sc-if value="{{ acctDeclOk }}" hint-placeholder-val="{{ false }}"><div style="{{ sOk }}">{{ acctDeclOutcome }}</div></sc-if>
+              <sc-if value="{{ acctDeclBad }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ acctDeclOutcome }}</div></sc-if>
+            </sc-if>
+            <sc-if value="{{ acctDeclSaveShown }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                <div onClick="{{ acctDeclSave }}" title="{{ acctDeclSaveTip }}" aria-disabled="{{ acctDeclSaveOff }}" style="{{ acctDeclSaveStyle }}" style-hover="cursor:pointer">Save account</div>
+                <sc-if value="{{ acctDeclDiscardShown }}" hint-placeholder-val="{{ false }}"><div onClick="{{ acctDeclDiscard }}" style="{{ sQuiet }}" style-hover="cursor:pointer;background:var(--hover)">Discard changes</div></sc-if>
+              </div>
+              <div style="{{ sHint }}">Folders and the footer are saved on their own, below.</div>
+            </sc-if>
             <div style="{{ sDivider }}"></div>
             <div style="display:flex;align-items:baseline;gap:8px;max-width:620px">
               <div style="{{ sCap }};flex:1;min-width:0">Folders</div>

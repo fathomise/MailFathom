@@ -34,6 +34,10 @@ MailFathomDesign.data.settings = {
     insideText: "Away until Monday 24 November. Piotr Nowak covers procurement while I am out - write to him for anything that cannot wait.",
   },
   // Where this client's telemetry goes when the server forwards it.
+  signingMaterial: [
+    { id: "smime-kowalska", kind: "smime", label: "S/MIME certificate - Karolina Kowalska, valid until March 2027" },
+    { id: "pgp-private", kind: "pgp", label: "OpenPGP key - kowalska.k@mail.example, 0x5E1A 9C42" },
+  ],
   telemetryAddress: "telemetry.nordwind.example",
 };
 

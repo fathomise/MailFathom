@@ -100,7 +100,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
   const SECTIONS = [
     { v: "profil", label: "Profile", icon: "person", group: "You", hint: "Your name and picture, your language and time zone, and how colleagues reach you.", words: "name photo picture language time zone phone number address" },
     { v: "away", label: "Availability", icon: "event_available", group: "You", hint: "When you work, and what MailFathom answers while you are away.", words: "working hours automatic reply out of office away vacation" },
-    { v: "accounts", label: "Accounts", icon: "alternate_email", group: "Mail", hint: "The mail accounts your administrator gave you: which folders MailFathom reads, and the footer under what you send.", words: "account folder synchronize footer signature embeddings" },
+    { v: "accounts", label: "Accounts", icon: "alternate_email", group: "Mail", hint: "The mail accounts your administrator gave you, and everything about each that is yours to decide: its name and language, deleting, spam, contacts, scanning, sending, its folders and its footer.", words: "account name language push polling delete deletion tombstone expunge spam junk contacts collect exclusions scan secrets personal data screen outgoing sender trust strict domains send from signing smime openpgp folder synchronize footer signature embeddings" },
     { v: "reading", label: "Reading", icon: "chrome_reader_mode", group: "Mail", hint: "How a message opens, and what opening it does.", words: "message view simplified original expand thread mark read ai filters" },
     { v: "ai", label: "AI", icon: "auto_awesome", group: "Assistant", hint: "The language the assistant writes in, and when it follows the message instead.", words: "language reply match" },
     { v: "notif", label: "Notifications", icon: "notifications", group: "Assistant", hint: "What reaches you, on which device, and for how long it stays.", words: "notification device seconds remove" },
@@ -111,7 +111,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
   const q = (st.settingsQuery || "").trim().toLowerCase();
   const shown = SECTIONS.filter(x => !q || (x.label + " " + x.hint + " " + x.words).toLowerCase().includes(q));
   const curSec = SECTIONS.find(x => x.v === cur);
-  const pickSection = (v) => set({ settingsTab: v, acctDraft: null, folderEdit: null, footerEdit: null });
+  const pickSection = (v) => set({ settingsTab: v, acctDraft: null, folderEdit: null, footerEdit: null, acctForm: null, acctOut: null });
   const navItem = (x) => ({
     label: x.label, icon: x.icon,
     pick: () => pickSection(x.v),
@@ -241,6 +241,155 @@ MailFathomDesign.settingsPanel = (self, env) => {
       ? "align-self:flex-start;display:flex;align-items:center;gap:6px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted);border:1px dashed var(--border2);border-radius:6px;padding:6px 9px"
       : "font-size:" + (l.small ? 12 : 13) + "px;line-height:1.5;color:var(--" + (l.small ? "faint" : "text2") + ");" + (l.strong ? "font-weight:600;color:var(--text);" : ""),
   }));
+
+  /* The account's own declaration — everything about it the person may change but its folders and footer, which are
+     written one at a time beside it. One draft, one Save, answered against the version that was read. */
+  const SIGNING = SETTINGS.signingMaterial;
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const savedDecl = draft ? Object.assign({ name: draft.name }, clone(draft.settings)) : null;
+  const decl = draft && st.acctForm && st.acctForm.id === draft.id ? st.acctForm.v : savedDecl;
+  const declDirty = !!draft && JSON.stringify(decl) !== JSON.stringify(savedDecl);
+  const getAt = (path) => path.split(".").reduce((o, k) => (o == null ? o : o[k]), decl);
+  const putAt = (path, value) => {
+    if (folderLocked || !draft) return;
+    const v = clone(decl);
+    const keys = path.split(".");
+    keys.slice(0, -1).reduce((o, k) => o[k], v)[keys[keys.length - 1]] = value;
+    set({ acctForm: { id: draft.id, v }, acctOut: null });
+  };
+  const isInt = (n) => typeof n === "number" && Number.isInteger(n);
+  const declProblem = !decl ? "" :
+    !decl.name.trim() ? "Give the account a name." :
+    decl.name.trim().length > 128 ? "A name is 128 characters at most." :
+    decl.trustedAuthServer && (/\s/.test(decl.trustedAuthServer) || decl.trustedAuthServer.length > 253) ? "The server whose checks this account believes is one host name, with no spaces." :
+    !isInt(decl.contacts.minMessages) || decl.contacts.minMessages < 1 ? "Somebody has to have written at least one message to be recorded." :
+    !isInt(decl.contacts.perRun) || decl.contacts.perRun < 1 ? "A run records at least one contact." :
+    decl.spam.folders && decl.spam.folders.length === 0 ? "Pick at least one folder to classify, or turn classification off." :
+    typeof decl.spam.model.threshold !== "number" || decl.spam.model.threshold <= 0 || decl.spam.model.threshold > 1 ? "The model's threshold is a probability above 0 and at most 1." :
+    decl.sending.fromAddress && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(decl.sending.fromAddress) ? "The sending address is not an address." :
+    "";
+  const ACCT_OUT = {
+    saved: "Saved. The account works this way from its next run.",
+    refused: "The server did not take that change: this deployment screens outgoing mail for personal data, so this account may not stop screening for it.",
+    notStored: "That change was not saved to the server, so the account works as it did.",
+    unanswered: "The server did not answer, so it is not known whether that change was saved.",
+    moved: "This account was changed somewhere else since this screen read it, so nothing was saved. It is shown as it stands now - make the change again.",
+  };
+  const saveDecl = () => {
+    if (!draft || folderLocked || declProblem || !declDirty) return;
+    const outcome = writes;
+    self.setState(s => {
+      const v = clone(decl);
+      v.name = v.name.trim();
+      const name = v.name;
+      delete v.name;
+      return {
+        setAccounts: outcome === "saved" ? (s.setAccounts || MAIL_ACCOUNTS).map(a => a.id === draft.id ? Object.assign({}, a, { name, settings: v }) : a) : (s.setAccounts || MAIL_ACCOUNTS),
+        acctForm: outcome === "saved" || outcome === "moved" ? null : s.acctForm,
+        acctOut: outcome,
+      };
+    });
+  };
+  const lockDim = folderLocked ? ";opacity:0.55" : "";
+  const lockTip = folderLocked ? LOCKED_TIP : undefined;
+  const item = {
+    text: (label, hint, path, o = {}) => ({ isText: true, label, hint, value: getAt(path) == null ? "" : getAt(path), placeholder: o.placeholder || "",
+      style: (folderLocked ? fieldRo : field) + (o.mono ? "font-family:'Geist Mono',ui-monospace,monospace;font-size:13px;" : ""),
+      onInput: (e) => putAt(path, o.empty !== undefined && !e.target.value.trim() ? o.empty : e.target.value) }),
+    number: (label, hint, path, o = {}) => ({ isNumber: true, label, hint, value: getAt(path), min: o.min, max: o.max, step: o.step || 1,
+      style: (folderLocked ? fieldRo : field) + "max-width:140px;",
+      onInput: (e) => putAt(path, e.target.value === "" ? null : Number(e.target.value)) }),
+    seg: (label, hint, path, options) => ({ isSeg: true, label, hint, track: segTrack + lockDim, tip: lockTip,
+      segs: options.map(([v, l]) => ({ label: l, style: seg(getAt(path) === v), pick: () => putAt(path, v) })) }),
+    select: (label, hint, path, options) => ({ isSelect: true, label, hint, value: getAt(path) == null ? "" : getAt(path),
+      options: options.map(([v, l]) => ({ v: v == null ? "" : v, label: l })), style: folderLocked ? fieldRo : field,
+      onChange: (e) => putAt(path, e.target.value === "" ? null : e.target.value) }),
+    sw: (label, hint, path, o = {}) => {
+      const off = !!o.off;
+      const on = !off && !!getAt(path);
+      return { isSwitch: true, label, hint, tip: off ? o.tip : lockTip, refused: off || folderLocked,
+        rowStyle: row(off || folderLocked), switchStyle: sw(on, off || folderLocked),
+        toggle: () => off ? null : putAt(path, !getAt(path)) };
+    },
+    chips: (label, hint, chips) => ({ isChips: true, label, hint, tip: lockTip,
+      chips: chips.map(c => ({ label: c.label, style: chip(c.on, folderLocked), pick: () => folderLocked ? null : c.pick() })) }),
+  };
+  const folderNames = draft ? draft.folders.map(f => f.alias) : [];
+  const inboxName = draft ? (draft.folders.find(f => f.role === "inbox") || { alias: "Inbox" }).alias : "Inbox";
+  const scanned = decl ? decl.spam.folders || [inboxName] : [];
+  const screened = decl ? decl.sensitive.screenOutgoing || [] : [];
+  const toggleIn = (list, v) => list.indexOf(v) >= 0 ? list.filter(x => x !== v) : list.concat([v]);
+  const material = (kind) => [[null, "None - not signed with " + (kind === "smime" ? "S/MIME" : "OpenPGP")]].concat(SIGNING.filter(m => m.kind === kind).map(m => [m.id, m.label]));
+  const SCAN = [[null, "As the deployment"], [true, "On"], [false, "Off"]];
+  const exclDraft = st.exclDraft || "";
+  const exclKind = /[@*?]/.test(exclDraft) ? "pattern" : "domain";
+  const exclProblem = !exclDraft.trim() ? "" : /\s/.test(exclDraft.trim()) ? "An address, a pattern or a domain has no spaces." : "";
+  const acctGroups = !decl ? [] : [
+    { title: "The account", hint: "", items: [
+      item.text("Name", "What this account is called in your folder list and wherever a mailbox is named. Another of your accounts may not share it.", "name"),
+      item.seg("Language", "What MailFathom writes about this mailbox's mail on its own - readings, summaries, classifications - is in this language, for everyone the account is assigned to.", "language", [["English", "English"], ["Polish", "Polski"]]),
+      item.seg("New mail", decl.mode === "Push" ? "The mail server tells MailFathom the moment something changes, so mail appears at once. It keeps one connection open for the account." : "MailFathom asks the mail server on the deployment's schedule, every few minutes.", "mode", [["Polling", "On a schedule"], ["Push", "As it arrives"]]),
+    ] },
+    { title: "Deleting", hint: "What deleting does here and on the mail server. A change governs what is deleted from then on.", items: [
+      item.select("When the mail server no longer holds a message", "Somebody deleted it in another mail client, or the server's own retention removed it.", "remotelyDeleted", [["EraseLocalCopy", "Erase MailFathom's copy too"], ["RetainTombstone", "Keep a hidden record that it existed"]]),
+      item.select("When you delete a message here, MailFathom's copy", "Deleting a message always removes it from the mail server; this is what stays behind here.", "authoredDelete", [["EraseLocalCopy", "Is erased"], ["RetainTombstone", "Becomes a hidden record that it existed"], ["RetainLocalCopy", "Stays readable and searchable"]]),
+      item.select("On the mail server, a message you delete is", "Flagged only, another mail client that offers an undelete can still bring it back until the server removes it.", "authoredDeleteServer", [["Expunge", "Removed at once"], ["FlagDeleted", "Only flagged as deleted"]]),
+      item.select("Deleting a folder here", "Removed from MailFathom only, the folder and its mail stay on the mail server and nothing there is touched.", "authoredFolderDelete", [["DeleteOnServer", "Deletes it on the mail server too, with its mail"], ["MarkDeletedLocally", "Removes it from MailFathom only"]]),
+    ] },
+    { title: "Recognizing senders", hint: "How the mark beside a sender is decided on this account.", items: [
+      item.text("Server whose checks this account believes", "The one server whose SPF, DKIM and DMARC results count. Left empty, MailFathom takes the one it knows for this account's mail server, or believes none.", "trustedAuthServer", { mono: true, empty: null, placeholder: "Taken from what MailFathom knows" }),
+      item.sw("Recognize everybody at your own domains", "Anybody writing from a domain one of your accounts uses is recognized, not only your own addresses. Right for a company domain, wrong for a large provider.", "trustOwnDomains"),
+      item.sw("Mark only senders something established", "Off, a contact's address is marked known even when nothing proves the message came from them. On, only what was proven is marked.", "strict"),
+    ] },
+    { title: "Contacts", hint: "", items: [
+      item.sw("Collect contacts from this account's mail", "Records the people you correspond with, so they are recognized and offered when you write. It is a record about other people, so it is off until you turn it on.", "contacts.on"),
+      Object.assign(item.number("Messages before somebody is recorded", "How many messages an address has to have written first.", "contacts.minMessages", { min: 1 }), { dim: !decl.contacts.on }),
+      Object.assign(item.number("Contacts recorded per run, at most", "", "contacts.perRun", { min: 1 }), { dim: !decl.contacts.on }),
+      { isExcl: true, dim: !decl.contacts.on, label: "Never recorded", hint: "Addresses, patterns such as noreply@*, and domains this account collects nobody from.",
+        rows: decl.contacts.exclusions.map((x, i) => ({
+          text: x.domain || x.pattern, kind: x.domain ? "Domain" : "Pattern",
+          isDomain: !!x.domain, subLabel: "With subdomains", subStyle: chip(!!x.subdomains, folderLocked),
+          toggleSub: () => putAt("contacts.exclusions", decl.contacts.exclusions.map((y, j) => j === i ? Object.assign({}, y, { subdomains: !y.subdomains }) : y)),
+          remove: () => putAt("contacts.exclusions", decl.contacts.exclusions.filter((_, j) => j !== i)),
+        })),
+        none: decl.contacts.exclusions.length === 0,
+        draft: exclDraft, onDraft: (e) => set({ exclDraft: e.target.value }), problem: exclProblem,
+        addShown: !folderLocked,
+        addLabel: exclDraft.trim() ? "Add " + exclKind : "Add",
+        addStyle: quiet + (!exclDraft.trim() || exclProblem ? "opacity:0.55;" : ""),
+        add: () => {
+          if (!exclDraft.trim() || exclProblem) return;
+          const v = exclDraft.trim();
+          set({ exclDraft: "" });
+          putAt("contacts.exclusions", decl.contacts.exclusions.concat([exclKind === "pattern" ? { pattern: v } : { domain: v, subdomains: false }]));
+        } },
+    ] },
+    { title: "Spam", hint: "", items: [
+      item.sw("Classify this account's mail as spam", "Off, nothing is called spam here except what the mail server already filed.", "spam.on"),
+      Object.assign(item.chips("Folders it reads", "Mail arriving in these folders is classified.", folderNames.map(n => ({ label: n, on: scanned.indexOf(n) >= 0, pick: () => putAt("spam.folders", toggleIn(scanned, n)) }))), { dim: !decl.spam.on }),
+      item.sw("Move spam to the junk folder", "On the mail server too.", "spam.moveToJunk"),
+      Object.assign(item.select("Junk folder", "", "spam.junkFolder", [[null, "The account's Spam folder"]].concat(folderNames.map(n => [n, n]))), { dim: !decl.spam.on || !decl.spam.moveToJunk }),
+      item.sw("Mark spam read", "", "spam.markRead"),
+      item.sw("Tag spam for other mail clients", "Writes $Junk, and $Phishing beside it, on the mail server, so another client sees the verdict.", "spam.keywords"),
+      item.sw("Ask a model about mail the rules did not decide", "The mail is put to a model before a verdict is reached. Its text leaves for the model the deployment uses.", "spam.model.on"),
+      item.sw("Let the model name what kind of spam it is", "Also for mail the rules already called spam.", "spam.model.subcategories", { off: !decl.spam.model.on, tip: "Turn on the model first." }),
+      Object.assign(item.number("Model's threshold", "The spam probability at or above which the model's answer is a verdict, from 0 to 1.", "spam.model.threshold", { min: 0.05, max: 1, step: 0.05 }), { dim: !decl.spam.model.on }),
+    ] },
+    { title: "Sensitive content", hint: "What this account's mail is scanned for before a model reads it. A scan never removes mail; it replaces what it finds with a placeholder.", items: [
+      item.seg("Credentials, tokens and keys", "", "sensitive.secrets", SCAN),
+      item.seg("Personal data", "", "sensitive.pii", SCAN),
+      item.chips("Stop outgoing mail that carries", "A message carrying these is held instead of leaving this account. The deployment may stop more than you pick here.", [["Secrets", "Credentials"], ["Pii", "Personal data"]].map(([v, l]) => ({ label: l, on: screened.indexOf(v) >= 0, pick: () => putAt("sensitive.screenOutgoing", toggleIn(screened, v)) }))),
+    ] },
+    { title: "Sending", hint: "", items: [
+      item.sw("Send from this account", draft.shared ? "A shared mailbox sends only where your administrator allows it." : "Off, this account reads mail and sends none.", "sending.on"),
+      item.text("Send as", "The address mail is written from. Left empty, it is the account's own address.", "sending.fromAddress", { empty: null, placeholder: draft.mail }),
+      item.text("Name beside it", "Left empty, only the address is written.", "sending.fromName", { empty: null, placeholder: "No name" }),
+      item.sw("File a copy in Sent", "Puts a copy of every message you send into this account's Sent folder.", "sending.fileSentCopy"),
+      item.sw("Take it back when the provider files one too", "Some providers file their own copy; this removes the second one.", "sending.withdrawDuplicate", { off: !decl.sending.fileSentCopy, tip: "Turn on filing a copy first." }),
+      item.select("Sign with S/MIME", "Only material your administrator provisioned for you is offered.", "sending.smime", material("smime")),
+      item.select("Sign with OpenPGP", "", "sending.pgp", material("pgp")),
+    ] },
+  ];
 
   /* ---------- Preferences ---------- */
   const telemetry = props.telemetry || "forwarded";
@@ -460,20 +609,32 @@ MailFathomDesign.settingsPanel = (self, env) => {
       summary: a.folders.length + (a.folders.length === 1 ? " folder" : " folders") + "  ·  " +
         (a.footerByOrganization ? "Footer set by your organization" : ownFooters[a.id] ? "Your own footer" : "No footer"),
       dotStyle: "flex:0 0 8px;width:8px;height:8px;border-radius:50%;margin-top:6px;background:" + a.dot,
-      edit: () => set({ acctDraft: a.id, folderEdit: null, folderOut: null, footerEdit: null, footerOut: null }),
+      edit: () => set({ acctDraft: a.id, folderEdit: null, folderOut: null, footerEdit: null, footerOut: null, acctForm: null, acctOut: null, exclDraft: "" }),
     })),
 
     /* Accounts — one account */
-    acctBack: () => set({ acctDraft: null, folderEdit: null, footerEdit: null }),
+    acctBack: () => set({ acctDraft: null, folderEdit: null, footerEdit: null, acctForm: null, acctOut: null }),
     acctTitle: draft ? draft.name : "",
     acctMail: draft ? draft.mail : "",
-    acctName: draft ? draft.name : "",
     acctShared: draft ? !!draft.shared : false,
     acctLockText: offline
       ? "There is no connection to the MailFathom server, so this account is shown as it stands rather than offered for you to change until it is back."
       : access === "readOnly"
-        ? "This sign-in may read how this account is set up and may not change it, so its folders and its footer are shown here rather than offered for you to change."
+        ? "This sign-in may read how this account is set up and may not change it, so it is shown here rather than offered for you to change."
         : "",
+    acctLocked: folderLocked,
+    acctGroups: acctGroups.map((g, gi) => Object.assign({}, g, { hasHint: !!g.hint, first: gi === 0, items: g.items.map(x => Object.assign({ isText: false, isNumber: false, isSeg: false, isSelect: false, isSwitch: false, isChips: false, isExcl: false, hasHint: !!x.hint }, x, { wrapStyle: "display:flex;flex-direction:column;gap:6px;max-width:620px;" + (x.dim ? "opacity:0.55;" : "") })) })),
+    acctDeclOutcome: st.acctOut && ACCT_OUT[st.acctOut] ? ACCT_OUT[st.acctOut] : "",
+    acctDeclOk: st.acctOut === "saved",
+    acctDeclBad: !!st.acctOut && st.acctOut !== "saved",
+    acctDeclProblem: declProblem,
+    acctDeclSaveShown: !folderLocked,
+    acctDeclSaveStyle: primary(declDirty && !declProblem),
+    acctDeclSaveOff: !declDirty || !!declProblem,
+    acctDeclSaveTip: declProblem || (!declDirty ? "Nothing has changed yet." : undefined),
+    acctDeclSave: saveDecl,
+    acctDeclDiscardShown: declDirty && !folderLocked,
+    acctDeclDiscard: () => set({ acctForm: null, acctOut: null, exclDraft: "" }),
     folderCount: draft ? (draft.folders.length === 1 ? "1 folder" : draft.folders.length + " folders") : "",
     fdRows: feRows.map(({ f, i }) => {
       const isNew = f == null;

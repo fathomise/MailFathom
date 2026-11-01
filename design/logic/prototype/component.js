@@ -7047,19 +7047,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         createFolder: this.saveFolder,
         delFolderOpen: !!st.delFolder,
         delFolderName: st.delFolder ? st.delFolder.path.split("/").pop() : "",
-        /* Nested folders go too and mail stored in them goes with them. What deleting does on the mail server is the
-           administrator's account setting, which the client cannot read, so the sentence does not promise either way. */
+        /* Nested folders go too, and what becomes of them and their mail is the account's own folder-delete setting
+           (Settings > Accounts > Deleting): on the mail server too, or in MailFathom alone. */
         delFolderText: (() => {
           const df = st.delFolder;
           if (!df) return "";
           const nested = ((df.extraFolders || {})[df.key] || []).filter(p => p.indexOf(df.path + "/") === 0);
           const names = [df.path].concat(nested).map(p => p.split("/").pop());
           const held = Object.keys(df.moved || {}).filter(id => names.indexOf((df.moved || {})[id]) >= 0).length;
+          const acc = (st.setAccounts || MailFathomDesign.data.mailAccounts).find(a => a.id === (df.key === "acc2" ? "a2" : "a1"));
+          const local = !!acc && acc.settings.authoredFolderDelete === "MarkDeletedLocally";
           const what = nested.length
             ? "The folder and the " + (nested.length === 1 ? "folder nested" : nested.length + " folders nested") + " inside it"
             : "The folder";
+          if (local) return what + " will leave " + df.label + " here and stay on your mail server with " + (held ? "the mail in it" : "everything in it") + ". MailFathom stops reading " + (nested.length ? "them" : "it") + ", and nothing on the server is touched.";
           return what + " will be deleted in " + df.label + " and on your mail server. " + (held
-            ? (held === 1 ? "The conversation stored in it goes" : "All " + held + " conversations stored in it go") + " with it. Whether " + (held === 1 ? "it" : "they") + " can still be restored depends on how your administrator set up this account."
+            ? (held === 1 ? "The conversation" : "All " + held + " conversations") + " stored in it will be deleted on both sides - there will be nothing left to restore."
             : "It holds no mail, and deleting it cannot be undone.");
         })(),
         closeDeleteFolder: this.closeDeleteFolder,
@@ -7888,7 +7891,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         }),
         settingsOpen: !!st.settings,
         openSettings: () => this.setState({ settings: true, userMenu: false }),
-        closeSettings: () => this.setState({ settings: false, acctDraft: null, folderEdit: null, footerEdit: null }),
+        closeSettings: () => this.setState({ settings: false, acctDraft: null, folderEdit: null, footerEdit: null, acctForm: null, acctOut: null }),
         langOptions: [["en", "English"], ["pl", "Polski"]].map(([v, label]) => ({
           label,
           pick: () => this.setState({ lang: v }),
