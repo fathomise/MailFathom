@@ -9,11 +9,11 @@ import { useOpeningReport } from './useOpeningReport';
 
 const session = { baseAddress: 'https://mail.example.invalid', authorization: 'Bearer mfs_abcdef.ghijkl' };
 
-function recording(asked: ClientRequest[]): MailFathomTransport {
+function recording(asked: ClientRequest[], status = 204): MailFathomTransport {
     return (request) => {
         asked.push(request);
 
-        return Promise.resolve({ status: 204, body: '', headers: {} });
+        return Promise.resolve({ status, body: '', headers: {} });
     };
 }
 
@@ -21,8 +21,13 @@ function returnToView(): void {
     document.dispatchEvent(new Event('visibilitychange'));
 }
 
+function seen(visibility: DocumentVisibilityState): void {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: visibility });
+}
+
 afterEach(() => {
     vi.useRealTimers();
+    Reflect.deleteProperty(document, 'visibilityState');
 });
 
 describe('useOpeningReport', () => {
@@ -56,6 +61,41 @@ describe('useOpeningReport', () => {
 
         await waitFor(() => {
             expect(asked).toHaveLength(2);
+        });
+    });
+
+    it('says it again on the next return to view when the deployment never heard the first', async () => {
+        const asked: ClientRequest[] = [];
+
+        renderHook(() => {
+            useOpeningReport(session, recording(asked, 503));
+        });
+        await waitFor(() => {
+            expect(asked).toHaveLength(1);
+        });
+
+        returnToView();
+
+        await waitFor(() => {
+            expect(asked).toHaveLength(2);
+        });
+    });
+
+    it('reports nothing while the client is out of view, and reports once it comes back', async () => {
+        const asked: ClientRequest[] = [];
+        seen('hidden');
+
+        renderHook(() => {
+            useOpeningReport(session, recording(asked));
+        });
+
+        expect(asked).toEqual([]);
+
+        seen('visible');
+        returnToView();
+
+        await waitFor(() => {
+            expect(asked).toHaveLength(1);
         });
     });
 

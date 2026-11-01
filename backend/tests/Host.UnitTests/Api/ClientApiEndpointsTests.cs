@@ -711,6 +711,28 @@ public sealed class ClientApiEndpointsTests
             write.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
     }
 
+    /// <summary>The exchange carries a bound sized for the one name a sign-in states, since everything else it reads is a header.</summary>
+    [Fact]
+    public void MapClientApi_TheSessionExchange_CarriesItsOwnRequestBodyBound()
+    {
+        // Arrange
+        var endpoints = BuildRouteBuilder();
+
+        // Act
+        endpoints.MapClientApi();
+
+        // Assert
+        var exchange = endpoints.Materialize()
+            .OfType<RouteEndpoint>()
+            .Single(endpoint =>
+                $"/{endpoint.RoutePattern.RawText?.TrimStart('/')}"
+                    == $"{ClientEndpointOptions.RoutePrefix}{ClientSessionTokenEndpoints.ExchangeRoute}");
+
+        Assert.Equal(
+            ClientSessionTokenEndpoints.MaxExchangeRequestBytes,
+            exchange.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
+    }
+
     /// <summary>
     /// The preferences write carries a bound of its own rather than the record's. The document is three scalars, so a
     /// body sized for a page of mail-account declarations would be a bound nobody decided on.

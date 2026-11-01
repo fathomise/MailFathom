@@ -135,6 +135,18 @@ describe('reportOpening', () => {
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unauthenticated', status: 401 } });
     });
+
+    it('reports a credential whose grant does not keep the profile as unauthorized', async () => {
+        const result = await reportOpening(session, answering({ status: 403 }));
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });
+    });
+
+    it('reports a deployment that never heard as one to tell again', async () => {
+        const result = await reportOpening(session, () => Promise.reject(new TypeError('Failed to fetch')));
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: null } });
+    });
 });
 
 describe('parseMintedSession', () => {

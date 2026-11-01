@@ -4,6 +4,7 @@
 
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Json;
 using MailFathom.Application.Access;
 using MailFathom.Application.Access.Credentials;
 using MailFathom.Application.Access.Sessions;
@@ -488,6 +489,39 @@ public sealed class ClientSessionTokenEndpointsTests
         // Assert
         Assert.IsType<NoContent>(result);
         Assert.Null(Assert.Single(store.Clients).LastOpenedOn);
+    }
+
+    /// <summary>A report carrying no session token, or one that is no token at all, is answered alike and records nothing.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("Basic dXNlcjpwYXNzd29yZA==")]
+    [InlineData("Bearer not-a-session")]
+    public async Task RecordOpening_ARequestCarryingNoSessionToken_AnswersWithNoBodyAndRecordsNothing(string headerValue)
+    {
+        // Arrange
+        var sessions = Sessions(out var store, out var clock);
+        await sessions.MintAsync(Admitted(), ClientKind.Android, TestContext.Current.CancellationToken);
+        clock.Advance(TimeSpan.FromDays(2));
+
+        // Act
+        var result = await ClientSessionTokenEndpoints.RecordOpening(
+            RequestCarrying(headerValue),
+            sessions,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NoContent>(result);
+        Assert.Equal(DateOnly.FromDateTime(Instant.UtcDateTime), Assert.Single(store.Clients).LastOpenedOn);
+    }
+
+    /// <summary>The strict binding, which refuses a sign-in stating something the exchange never published rather than ignoring it.</summary>
+    [Fact]
+    public void Deserialize_AnExchangeBodyCarryingAKeyNothingBinds_IsRefused()
+    {
+        // Assert
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ClientSessionExchangeRequest>(
+            """{"client":"android","device":"Pixel"}""",
+            JsonSerializerOptions.Web));
     }
 
     /// <summary>A token whose secret is wrong records no opening, because the identifier alone is the half of a token that is not a secret.</summary>
