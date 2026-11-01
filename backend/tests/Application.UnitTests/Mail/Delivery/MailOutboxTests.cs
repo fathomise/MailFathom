@@ -7,6 +7,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail.Delivery;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
@@ -98,6 +99,58 @@ public sealed class MailOutboxTests
             EmailContentKind.OutgoingMessage,
             Arg.Is<ReadOnlyMemory<byte>>(placed => placed.ToArray().SequenceEqual(signedMime)),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The footer is part of what the organization signs, so a footed message verifies like any other.</summary>
+    [Fact]
+    public async Task EnqueueAsync_AnAuthorWithAFooter_SignsAndStoresTheMessageCarryingIt()
+    {
+        // Arrange
+        var footerStore = new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, Account);
+        await footerStore.SaveOwnAsync(SyntheticUser.Deployment, Account, new MailFooterContent("Anna", []), CancellationToken.None);
+        var signer = OrganizationMailSigners.Adding("MailFathom-Organization-Signature: v=1\r\n");
+        var contentStore = ContentStores.Substituted();
+        var outbox = CreateOutbox(
+            new InMemoryOutgoingEmailStore(),
+            contentStore,
+            footers: MailFootings.Over(footerStore),
+            signer: signer);
+        byte[] footedMime = [.. RawMime.ToArray(), .. Encoding.ASCII.GetBytes("\r\n[footer:Anna]")];
+
+        // Act
+        await outbox.EnqueueAsync(CreateRequest("mfctl-4f2a"), RawMime, CancellationToken.None);
+
+        // Assert
+        var (_, handedOver) = Assert.Single(signer.Requests);
+        Assert.Equal(footedMime, handedOver);
+        await contentStore.Received(1).PlaceContentAsync(
+            EmailContentKind.OutgoingMessage,
+            Arg.Is<ReadOnlyMemory<byte>>(placed => placed.ToArray().TakeLast(footedMime.Length).SequenceEqual(footedMime)),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Screening reads the message as it leaves, footer included, so screened material in a footer refuses the send.</summary>
+    [Fact]
+    public async Task EnqueueAsync_AFooterCarryingScreenedMaterial_RefusesTheSend()
+    {
+        // Arrange
+        var footerStore = new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, Account);
+        await footerStore.SaveOwnAsync(SyntheticUser.Deployment, Account, new MailFooterContent(ScreenedMarker, []), CancellationToken.None);
+        var store = new InMemoryOutgoingEmailStore();
+        using var egress = ScanningSensitiveContentEgress.Finding(ScreenedMarker, new FakeTimeProvider(Authored));
+        var outbox = CreateOutbox(
+            store,
+            ContentStores.Substituted(),
+            footers: MailFootings.Over(footerStore),
+            screening: OutgoingMailScreenings.Through(egress.Screen));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<OutgoingMailRefusedException>(
+            () => outbox.EnqueueAsync(CreateRequest("mfctl-4f2a"), RawMime, CancellationToken.None));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.OutgoingMailContentRefused, refusal.ErrorCode);
+        Assert.Empty(store.OpenRequests);
     }
 
     /// <summary>A send the deployment refuses is never signed, because a refusal leaves nothing behind and spends nothing on a key.</summary>
@@ -211,6 +264,7 @@ public sealed class MailOutboxTests
             Substitute.For<IOutboxOperationStore>(),
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
             OutgoingMailGovernors.Permitting(),
+            MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
             OrganizationMailSigners.SigningNothing(),
             TimeProvider.System,
@@ -1011,7 +1065,8 @@ public sealed class MailOutboxTests
         TimeProvider? timeProvider = null,
         ClientSignals? clientSignals = null,
         int conflictingAttempts = 0,
-        IOrganizationMailSigner? signer = null)
+        IOrganizationMailSigner? signer = null,
+        MailFootersInForce? footers = null)
     {
         var conflictsLeft = conflictingAttempts;
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
@@ -1034,6 +1089,7 @@ public sealed class MailOutboxTests
             outboxOperations ?? Substitute.For<IOutboxOperationStore>(),
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
             governor ?? OutgoingMailGovernors.Permitting(),
+            footers ?? MailFootings.SendingNone(),
             screening ?? OutgoingMailScreenings.Inactive(),
             signer ?? OrganizationMailSigners.SigningNothing(),
             timeProvider ?? TimeProvider.System,

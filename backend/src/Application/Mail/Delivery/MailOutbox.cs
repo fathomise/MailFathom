@@ -7,6 +7,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
@@ -79,6 +80,7 @@ namespace MailFathom.Application.Mail.Delivery;
 /// <param name="outboxOperations">Writes the withdrawal of a message that has not begun to leave, which is one transition however it was asked for.</param>
 /// <param name="authorization">Answers whether whoever reached this is admitted to ask for the send the request states it is.</param>
 /// <param name="governor">Answers whether this deployment may send this message at all, whoever is asking.</param>
+/// <param name="footers">Appends the footer in force for whoever asked, sent from the request's account.</param>
 /// <param name="screening">Answers whether what the message says is something this deployment lets leave.</param>
 /// <param name="signer">Signs the message for the organization the sending account belongs to, before it is stored.</param>
 /// <param name="timeProvider">Says whether a recorded send is due now or is being held for later.</param>
@@ -92,6 +94,7 @@ public sealed class MailOutbox(
     IOutboxOperationStore outboxOperations,
     AccessAuthorization authorization,
     OutgoingMailGovernor governor,
+    MailFootersInForce footers,
     OutgoingMailScreening screening,
     IOrganizationMailSigner signer,
     TimeProvider timeProvider,
@@ -102,7 +105,7 @@ public sealed class MailOutbox(
 
     /// <summary>Writes down a message to be sent, or answers with the record an identical request already left.</summary>
     /// <param name="request">The send that was asked for.</param>
-    /// <param name="rawMime">The composed RFC 822 bytes to transmit, stored once — signed for the account's organization where it belongs to one — and read back for every attempt.</param>
+    /// <param name="rawMime">The composed RFC 822 bytes to transmit, stored once — carrying the sender's footer, and signed for the account's organization where it belongs to one — and read back for every attempt.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The durable record for this request, and whether this call is what wrote it down.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request" /> is <see langword="null" />.</exception>
@@ -138,6 +141,12 @@ public sealed class MailOutbox(
         // an idempotency key a way to carry a permission forward.
         await governor.RequirePermittedAsync(request, cancellationToken);
 
+        // Before the screening and the signature, because both are about the message that leaves and the footer is part
+        // of it: a signature over the bytes without it would not verify, and a screen that never read it would let a
+        // footer carry what the message itself may not. Here rather than where a message is composed, because a draft
+        // and a recurring declaration reach this as stored MIME that must never carry one.
+        var footedMime = await footers.AppendAsync(request, rawMime, cancellationToken);
+
         // After the governor and before the write, which is the order of cost and the order of authority. A deployment
         // that may not send at all, or may not write to these people, is answered without a scan; only a send that has
         // cleared every bound the operator set is worth spending an analyzer round trip on. And like the governor, this
@@ -145,7 +154,7 @@ public sealed class MailOutbox(
         // screen was switched on, or after its category list widened, is a request this deployment may no longer act
         // on, and answering it from the record written under the older posture would make an idempotency key a way to
         // carry a message past a policy.
-        if (await screening.FindRefusalAsync(request.Account, rawMime, cancellationToken) is { } screened)
+        if (await screening.FindRefusalAsync(request.Account, footedMime, cancellationToken) is { } screened)
         {
             throw OutgoingMailRefusedException.ContentRefused(screened);
         }
@@ -153,7 +162,7 @@ public sealed class MailOutbox(
         // Here and nowhere later, because the bytes stored below are what every attempt sends and every filing appends.
         // A request that already has a record discards this signature with the rest of the bytes, which is the cost of
         // not reading the record before signing.
-        var signedMime = await signer.SignAsync(request.Account, rawMime, cancellationToken);
+        var signedMime = await signer.SignAsync(request.Account, footedMime, cancellationToken);
 
         // Before the unit of work rather than inside it. Under the object backend this reaches the endpoint, and no
         // database transaction may be held open across that — the record below opens one the moment it is written.

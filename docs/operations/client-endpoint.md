@@ -1,6 +1,6 @@
 # The client endpoint
 
-<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadListEndpoint.cs, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientPersonPhotoEndpoint.cs, backend/src/Host/Api/PersonPhotoResponse.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
+<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientMailFooterEndpoints.cs, backend/src/Host/Api/MailFooterContracts.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadListEndpoint.cs, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientPersonPhotoEndpoint.cs, backend/src/Host/Api/PersonPhotoResponse.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
 
 Where the MailFathom client reaches the service, what a deployment has to enable before it answers, and what a person's
 mail client presents to get in.
@@ -162,6 +162,10 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `POST /api/client/preferences` | `mailfathom.profile.write` |
 | `GET /api/client/automatic-reply` | `mailfathom.profile.read` |
 | `POST /api/client/automatic-reply` | `mailfathom.profile.write`; the reply is refused without `mailfathom.mail.send` too |
+| `GET /api/client/mail-footers` | `mailfathom.profile.read` |
+| `GET /api/client/accounts/{accountId}/footer` | `mailfathom.profile.read` |
+| `PUT /api/client/accounts/{accountId}/footer` | `mailfathom.profile.write` |
+| `DELETE /api/client/accounts/{accountId}/footer` | `mailfathom.profile.write` |
 | `GET /api/client/portrait` | `mailfathom.profile.read` |
 | `POST /api/client/portrait` | `mailfathom.profile.write` |
 | `DELETE /api/client/portrait` | `mailfathom.profile.write` |
@@ -3281,6 +3285,70 @@ The body is bounded at 128 KiB, and one past it is answered `413`.
 `mailfathom.profile.read`; writing is `mailfathom.profile.write` together with `mailfathom.mail.send`, because what a
 write arranges is mail sent as the person's accounts for weeks without anybody present, and a credential that may not
 send may not arrange to send later either.
+
+### The footer routes
+
+These four hold the signed-in person's [mail footers](../features/mail-footers.md): the footer they write for each of
+their accounts, and the footer a message they send now would carry.
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/client/mail-footers` | Hands over, for each of their accounts that sends with a footer, the footer in force and whose it is |
+| `GET /api/client/accounts/{accountId}/footer` | Hands over the footer they wrote for one account, as they would edit it |
+| `PUT /api/client/accounts/{accountId}/footer` | Replaces it with the one the body states, and answers with it as saved |
+| `DELETE /api/client/accounts/{accountId}/footer` | Removes it, so messages from the account go out without one; answers `204` |
+
+```json
+{
+  "html": "<p><strong>Anna Kowalska</strong><br>Nordwind</p><img src=\"cid:logo.png\" alt=\"Nordwind\">",
+  "images": [
+    { "name": "logo.png", "mediaType": "image/png", "content": "iVBORw0KGgoAAAANSUhEUgAA..." }
+  ]
+}
+```
+
+**The write is the whole footer, and the markup comes back sanitized.** The body is the markup and every image it
+shows, each image's octets in base64; a write replaces whatever was saved before. The markup is read through the same
+allow-list incoming mail is read through, so the answer is what will actually be sent rather than what was written. Its
+plain-text form is derived from it, never written separately.
+
+**An image is uploaded with the footer, never linked.** The markup refers to an image as `cid:` and the name it was
+uploaded under. A reference to anything else — `https:`, `http:`, `data:`, any other scheme, a relative path, or a
+`srcset` — is refused `400` saying the image must be uploaded, and so is a `cid:` naming no uploaded image. A footer
+carries at most five images, each a PNG, a JPEG, or a GIF of at most 256 KiB whose octets open with the signature of
+the type it states, named with one to sixty-four letters,
+digits, dots, hyphens, and underscores, opening with a letter or a digit; the markup is at most 16384 characters. Each
+of those is refused `400` with a sentence naming the bound or the image. The body is bounded at 2 MiB, and one past it
+is answered `413`.
+
+**An account its organization sets the footer for refuses the person's own.** While the organization holding the
+account has a [footer template](admin-endpoint.md#the-organization-footer-template-routes), the write is answered
+`409` saying the organization sets it, and the read answers `"setByOrganization": true`:
+
+```json
+{ "footer": null, "setByOrganization": true }
+```
+
+**An account that is not theirs is answered `404`** on all three per-account routes. On a shared mailbox each person
+assigned it writes their own footer, and none of them reads or writes anybody else's.
+
+**The footer in force is served as a document, not as markup.** Each entry names the account, `own` or `organization`,
+and the footer as [the closed document tree](#the-message-body-route) a message body is served as, its images inlined
+the way a message's own inline images are, so a client fetches nothing more to draw it. An organization's template
+arrives already filled for the person. An account sending without a footer has no entry.
+
+```json
+{
+  "footers": [
+    { "account": "work", "source": "own", "document": { "...": "..." } },
+    { "account": "nordwind", "source": "organization", "document": { "...": "..." } }
+  ]
+}
+```
+
+**None of these routes names a user**: the footer read and written is the credential's own, under
+`mailfathom.profile.read` and `mailfathom.profile.write`. A footer is about the person writing rather than about the
+mail, which is why it sits with the profile rather than with sending.
 
 ### The portrait routes
 

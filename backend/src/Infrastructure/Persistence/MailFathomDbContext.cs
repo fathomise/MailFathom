@@ -24,6 +24,7 @@ using MailFathom.Infrastructure.Persistence.Enrichment.Configurations;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Exports.Configurations;
 using MailFathom.Infrastructure.Persistence.Folders.Configurations;
+using MailFathom.Infrastructure.Persistence.Footers.Configurations;
 using MailFathom.Infrastructure.Persistence.Grants.Configurations;
 using MailFathom.Infrastructure.Persistence.Jobs.Configurations;
 using MailFathom.Infrastructure.Persistence.Mutations.Configurations;
@@ -117,6 +118,10 @@ internal sealed class MailFathomDbContext : DbContext
     internal DbSet<ClientPreferencesEntity> ClientPreferences => this.Set<ClientPreferencesEntity>();
 
     internal DbSet<AutomaticReplyEntity> AutomaticReplies => this.Set<AutomaticReplyEntity>();
+
+    internal DbSet<MailAccountFooterEntity> MailAccountFooters => this.Set<MailAccountFooterEntity>();
+
+    internal DbSet<OrganizationFooterTemplateEntity> OrganizationFooterTemplates => this.Set<OrganizationFooterTemplateEntity>();
 
     internal DbSet<StoredFileEntity> StoredFiles => this.Set<StoredFileEntity>();
 
@@ -327,6 +332,8 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ClientPreferencesConfiguration());
         modelBuilder.ApplyConfiguration(new AutomaticReplyConfiguration());
         modelBuilder.ApplyConfiguration(new AutomaticReplyAnswerConfiguration());
+        modelBuilder.ApplyConfiguration(new MailAccountFooterConfiguration());
+        modelBuilder.ApplyConfiguration(new OrganizationFooterTemplateConfiguration());
         modelBuilder.ApplyConfiguration(new StoredFileConfiguration());
         modelBuilder.ApplyConfiguration(new SpentClientAssertionConfiguration());
         modelBuilder.ApplyConfiguration(new ClientSignalTicketConfiguration());

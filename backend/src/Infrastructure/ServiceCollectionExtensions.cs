@@ -81,6 +81,7 @@ using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
@@ -178,6 +179,7 @@ using MailFathom.Infrastructure.Persistence.Embeddings;
 using MailFathom.Infrastructure.Persistence.Enrichment;
 using MailFathom.Infrastructure.Persistence.Exports;
 using MailFathom.Infrastructure.Persistence.Folders;
+using MailFathom.Infrastructure.Persistence.Footers;
 using MailFathom.Infrastructure.Persistence.Grants;
 using MailFathom.Infrastructure.Persistence.Jobs;
 using MailFathom.Infrastructure.Persistence.Mutations;
@@ -537,6 +539,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<OwnAutomaticReply>();
         services.AddSingleton<IArrivedMailEnvelopeReader, MimeKitArrivedMailEnvelopeReader>();
         services.AddScoped<AutomaticReplyResponder>();
+        // The footer a user's message carries: their own per account, an organization's template over it, and what puts
+        // either into a message as the outbox writes it down.
+        services.AddScoped<IMailFooterStore, MailFooterStore>();
+        services.AddSingleton<IMailFooterMarkup, MailFooterMarkup>();
+        services.AddSingleton<IMailFooterComposer, MimeKitMailFooterComposer>();
+        services.AddScoped<MailFootersInForce>();
+        services.AddScoped<OwnMailFooters>();
+        services.AddScoped<OrganizationMailFooterTemplates>();
         // The reading of what a message's attachments say, and the pass that performs it. A stage behind the cut rather
         // than part of it, because it is the only one that parses octets a stranger composed and the only one that may
         // reach a provider — so a message reaches retrieval on its own words first and gains its attachments' words

@@ -16,6 +16,7 @@ using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Mail.Delivery.Composition;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
@@ -351,7 +352,7 @@ public sealed class StoredEmailResponseAuthoringTests
         // Assert
         var html = response.Email!.HtmlBody;
         Assert.NotNull(html);
-        Assert.StartsWith("<p>Thank you.</p>", html, StringComparison.Ordinal);
+        Assert.StartsWith($"<p>Thank you.</p>{IMailFooterComposer.HtmlQuotationMarker}<p>", html, StringComparison.Ordinal);
         Assert.Contains("<blockquote><p>The report is attached.</p></blockquote>", html, StringComparison.Ordinal);
     }
 

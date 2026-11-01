@@ -171,6 +171,7 @@ public sealed class UserMailDraftsTests
             Substitute.For<IOutboxOperationStore>(),
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
             OutgoingMailGovernors.Permitting(),
+            MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
             OrganizationMailSigners.SigningNothing(),
             new FakeTimeProvider(Moment),

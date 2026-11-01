@@ -293,6 +293,12 @@ internal static class CliRootCommand
                 RotateOrganizationSigningKeyCommand.Create(context),
                 RevokeOrganizationSigningKeyCommand.Create(context),
             },
+            new Command("footer-template", "Set, show, and clear the footer every member's message from an organization's accounts carries.")
+            {
+                SetOrganizationFooterTemplateCommand.Create(context),
+                ShowOrganizationFooterTemplateCommand.Create(context),
+                ClearOrganizationFooterTemplateCommand.Create(context),
+            },
         };
 
         // What the deployment and each organization state once for the users and the mail accounts beneath them. A

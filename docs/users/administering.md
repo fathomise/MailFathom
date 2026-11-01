@@ -921,6 +921,13 @@ Each organization is also given a signing key without anybody asking, provided t
 ring; `mfctl organization signing-key list`, `rotate`, and `revoke` read and replace it, and
 [organization signing keys](../operations/organization-signing-keys.md) says when you would.
 
+**An organization can give every member the same footer.** `mfctl organization footer-template set --organization <id>
+--html-file footer.html --image logo.png=./logo.png` sets the block every member's message from the organization's
+accounts ends with, filled per member from `{{displayName}}`, `{{jobTitle}}`, and `{{phoneNumber}}`; `show` prints it and
+`clear` gives each member their own footer back. [Mail footers](../features/mail-footers.md) says where it goes in a
+message, and [the template routes](../operations/admin-endpoint.md#the-organization-footer-template-routes) what it
+refuses.
+
 **A company can have an administrator of its own.** A role assigned at an organization's scope administers that
 organization's people — recording them with `mfctl user add --organization <id>`, editing their records, and provisioning
 their credentials — and nobody else: a person outside it reads to that administrator as somebody this deployment does not

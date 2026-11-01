@@ -321,6 +321,11 @@ did.
 produced by stripping tags out of markup arrives as damage in every client that shows it, so what is sent is what you
 wrote.
 
+**Do not write the person's footer into the body.** Their [footer](../features/mail-footers.md) — the one they wrote for
+the account, or their organization's — is added when the message is sent, under your words and above any quotation, by
+this tool, the reply and forward tools, and `send_draft` alike. A body that already ends with it goes out with it twice.
+A draft never holds it, so `save_draft` and `update_draft` are written without it as well.
+
 What this tool will not do, and says so in its own description rather than leaving you to discover it: it attaches
 nothing, it replies to and forwards nothing — `reply_to_email` and `forward_email` are those two acts — it schedules
 nothing, and it is not a mailing list — a message reaches at

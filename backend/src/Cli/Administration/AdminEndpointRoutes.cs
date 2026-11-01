@@ -355,6 +355,12 @@ internal static class AdminEndpointRoutes
     internal static string OrganizationShortNamePath(Guid organizationId) =>
         $"{OrganizationPath(organizationId)}/short-name";
 
+    /// <summary>Where one organization's footer template is read, set, and cleared.</summary>
+    /// <param name="organizationId">The organization the path names.</param>
+    /// <returns>The path.</returns>
+    internal static string OrganizationFooterTemplatePath(Guid organizationId) =>
+        $"{OrganizationPath(organizationId)}/footer-template";
+
     /// <summary>Where one organization's contact book is listed and a person is recorded in it, and beneath which each of its contacts is reached.</summary>
     /// <param name="organizationId">The organization the path names.</param>
     /// <returns>The path.</returns>

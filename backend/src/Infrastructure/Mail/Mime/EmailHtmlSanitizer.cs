@@ -58,14 +58,36 @@ internal sealed class EmailHtmlSanitizer
     /// <c>title</c> are what a stripped image still says, which is worth more to a reader than the image was; the table
     /// spans keep a table's shape readable; <c>dir</c> and <c>lang</c> are what a right-to-left message needs to render
     /// as it was written. Absent by design are <c>style</c>, <c>class</c>, <c>id</c>, every event handler, and every
-    /// attribute that carries a URI.
+    /// attribute that carries a URI. The one exception is the footer's policy, <see cref="KeepingContentReferences" />,
+    /// which adds <c>src</c> with the <c>cid</c> scheme alone; incoming mail keeps no URI attribute.
     /// </remarks>
     private static readonly string[] AllowedAttributes =
     [
         "alt", "colspan", "dir", "lang", "rowspan", "title",
     ];
 
-    private readonly HtmlSanitizer sanitizer = CreatePolicy();
+    private readonly HtmlSanitizer sanitizer;
+
+    /// <summary>Initializes the sanitizer incoming mail is read through, which keeps no reference of any kind.</summary>
+    public EmailHtmlSanitizer()
+        : this(CreatePolicy(keepsContentReferences: false))
+    {
+    }
+
+    private EmailHtmlSanitizer(HtmlSanitizer sanitizer)
+    {
+        this.sanitizer = sanitizer;
+    }
+
+    /// <summary>Creates the sanitizer a footer is written through: the same allow-list, keeping an image's <c>cid:</c> reference.</summary>
+    /// <returns>The sanitizer.</returns>
+    /// <remarks>
+    /// A footer's images are uploaded with it and embedded in every message carrying it, so the one reference it needs
+    /// points at a part of the same message — the one this policy otherwise clears. Only <c>src</c> is added, and only
+    /// with the <c>cid</c> scheme, so no address and no <c>data:</c> URI survives; which name each reference carries
+    /// is the footer's own reading to check.
+    /// </remarks>
+    public static EmailHtmlSanitizer KeepingContentReferences() => new(CreatePolicy(keepsContentReferences: true));
 
     /// <summary>Sanitizes one HTML body.</summary>
     /// <param name="html">The body markup as the message wrote it.</param>
@@ -73,8 +95,9 @@ internal sealed class EmailHtmlSanitizer
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="html" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// No base URI is supplied, so a relative reference is never resolved into an absolute one. Nothing depends on that
-    /// today, because no URI attribute survives the policy at all; it is stated so a later change to the attribute
-    /// allow-list cannot quietly turn this into a step that completes a reference for a client to follow.
+    /// today: incoming mail keeps no URI attribute at all, and the footer's policy keeps only a <c>cid:</c> reference,
+    /// which is not relative. It is stated so a later change to the attribute allow-list cannot quietly turn this into a
+    /// step that completes a reference for a client to follow.
     /// </remarks>
     public string Sanitize(string html)
     {
@@ -83,7 +106,7 @@ internal sealed class EmailHtmlSanitizer
         return this.sanitizer.Sanitize(html);
     }
 
-    private static HtmlSanitizer CreatePolicy()
+    private static HtmlSanitizer CreatePolicy(bool keepsContentReferences)
     {
         var policy = new HtmlSanitizer();
 
@@ -97,6 +120,12 @@ internal sealed class EmailHtmlSanitizer
         policy.AllowedAtRules.Clear();
         policy.AllowedSchemes.Clear();
         policy.AllowDataAttributes = false;
+
+        if (keepsContentReferences)
+        {
+            policy.AllowedAttributes.Add("src");
+            policy.AllowedSchemes.Add("cid");
+        }
 
         return policy;
     }

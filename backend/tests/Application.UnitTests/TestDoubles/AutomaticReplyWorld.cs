@@ -213,6 +213,7 @@ internal sealed class AutomaticReplyWorld
             Substitute.For<IOutboxOperationStore>(),
             AccessAuthorizations.ForPrincipal(AuthorizedPrincipal.Process),
             OutgoingMailGovernors.Governing(sendRefusal),
+            MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
             OrganizationMailSigners.SigningNothing(),
             this.Clock,

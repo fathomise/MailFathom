@@ -669,6 +669,7 @@ public sealed class MailDraftPromotionTests
             Substitute.For<IOutboxOperationStore>(),
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
             governor ?? OutgoingMailGovernors.Permitting(),
+            MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
             signer ?? OrganizationMailSigners.SigningNothing(),
             now,

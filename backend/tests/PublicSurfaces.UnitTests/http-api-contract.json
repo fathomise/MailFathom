@@ -2989,6 +2989,46 @@
         ],
         "type": "object"
       },
+      "ClientMailFooterInForceResponse": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "document": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailDocument"
+              }
+            ]
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "source",
+          "document"
+        ],
+        "type": "object"
+      },
+      "ClientMailFootersResponse": {
+        "properties": {
+          "footers": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailFooterInForceResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "footers"
+        ],
+        "type": "object"
+      },
       "ClientMailListedSenderResponse": {
         "properties": {
           "authorAuthentication": {
@@ -5658,6 +5698,28 @@
         "required": [
           "address",
           "role"
+        ],
+        "type": "object"
+      },
+      "ClientOwnMailFooterResponse": {
+        "properties": {
+          "footer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailFooterResponse"
+              }
+            ]
+          },
+          "setByOrganization": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "footer",
+          "setByOrganization"
         ],
         "type": "object"
       },
@@ -9749,6 +9811,90 @@
         ],
         "type": "object"
       },
+      "MailFooterImageRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "format": "byte",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "mediaType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "MailFooterImageResponse": {
+        "properties": {
+          "content": {
+            "format": "byte",
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "mediaType",
+          "content"
+        ],
+        "type": "object"
+      },
+      "MailFooterRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "html": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/MailFooterImageRequest"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "MailFooterResponse": {
+        "properties": {
+          "html": {
+            "type": "string"
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/MailFooterImageResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "html",
+          "images"
+        ],
+        "type": "object"
+      },
       "MailInlineImage": {
         "properties": {
           "alternativeText": {
@@ -10859,6 +11005,24 @@
         },
         "required": [
           "displayName"
+        ],
+        "type": "object"
+      },
+      "OrganizationFooterTemplateResponse": {
+        "properties": {
+          "template": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailFooterResponse"
+              }
+            ]
+          }
+        },
+        "required": [
+          "template"
         ],
         "type": "object"
       },
@@ -17245,6 +17409,120 @@
         ]
       }
     },
+    "/api/admin/organizations/{organizationId}/footer-template": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationFooterTemplateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MailFooterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailFooterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
     "/api/admin/organizations/{organizationId}/policy": {
       "get": {
         "parameters": [
@@ -19369,6 +19647,137 @@
               }
             },
             "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/accounts/{accountId}/footer": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOwnMailFooterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MailFooterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailFooterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
           }
         },
         "security": [
@@ -21990,6 +22399,30 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientMailFoldersResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/mail-footers": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientMailFootersResponse"
                 }
               }
             },

@@ -706,6 +706,7 @@ public sealed class AuthoredResponseSubmissionTests
             Substitute.For<IOutboxOperationStore>(),
             granted,
             OutgoingMailGovernors.Permitting(),
+            MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
             OrganizationMailSigners.SigningNothing(),
             new FakeTimeProvider(Recorded),

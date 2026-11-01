@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Mail.Delivery.Authoring;
@@ -51,12 +52,12 @@ internal static class AnsweredEmailQuotation
 
     /// <summary>What the elements this system writes around a quotation cost in the markup alternative.</summary>
     /// <remarks>
-    /// The paragraph holding the attribution, the block holding the quotation, and the preformatted element a message
-    /// without markup of its own is quoted in come to forty-three characters; the rest is slack, because this is one of
-    /// the two halves <see cref="QuotationOverheadReserve" /> was sized to cover and being a few characters generous
-    /// costs nothing a reader can see.
+    /// The marker, the paragraph holding the attribution, the block holding the quotation, and the preformatted element
+    /// a message without markup of its own is quoted in come to seventy characters; the rest is slack, because this is
+    /// one of the two halves <see cref="QuotationOverheadReserve" /> was sized to cover and being a few characters
+    /// generous costs nothing a reader can see.
     /// </remarks>
-    private const int QuotationMarkupCharacters = 64;
+    private const int QuotationMarkupCharacters = 96;
 
     /// <summary>The blank line between what an author wrote and the message they were answering.</summary>
     private const string BodySeparator = "\n\n";
@@ -180,7 +181,7 @@ internal static class AnsweredEmailQuotation
     private static string Quoting(string authored, string encodedAttribution, string quotation) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"{authored}<p>{encodedAttribution}</p><blockquote>{quotation}</blockquote>");
+            $"{authored}{IMailFooterComposer.HtmlQuotationMarker}<p>{encodedAttribution}</p><blockquote>{quotation}</blockquote>");
 
     /// <summary>Cuts text to the longest prefix whose markup encoding fits an allowance.</summary>
     /// <remarks>

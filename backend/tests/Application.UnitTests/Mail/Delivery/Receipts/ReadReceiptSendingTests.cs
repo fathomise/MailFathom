@@ -365,6 +365,7 @@ public sealed class ReadReceiptSendingTests
             Substitute.For<IOutboxOperationStore>(),
             granted,
             OutgoingMailGovernors.Permitting(),
+            MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
             signer,
             new FakeTimeProvider(Now),

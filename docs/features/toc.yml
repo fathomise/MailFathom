@@ -22,6 +22,9 @@
 - name: Automatic reply
   href: automatic-reply.md
   description: What answers arriving mail while a person is away — which accounts and senders are answered, what never is so that no loop starts, and what the reply carries.
+- name: Mail footers
+  href: mail-footers.md
+  description: What ends every message a person sends — whose footer it is, where it goes between their words and a quotation, how its images travel, and why a draft never carries it.
 - name: Mailbox queries
   href: mailbox-queries.md
   description: What a listing filters on, how a page is bounded and continued, and how it reports the freshness of the local copy it answers from.

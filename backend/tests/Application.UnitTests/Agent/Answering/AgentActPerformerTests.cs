@@ -299,6 +299,7 @@ public sealed class AgentActPerformerTests
             Substitute.For<IOutboxOperationStore>(),
             authorization,
             OutgoingMailGovernors.Permitting(),
+            MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
             OrganizationMailSigners.SigningNothing(),
             this.clock,
