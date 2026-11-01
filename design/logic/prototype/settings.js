@@ -333,10 +333,10 @@ MailFathomDesign.settingsPanel = (self, env) => {
     { title: "Deleting", hint: "", items: [
       { isSwitch: true, label: "Delete mail permanently - here and on the mail server",
         hint: decl.authoredDeleteServer === "Expunge"
-          ? "A message you delete is removed from the mail server at once. MailFathom's own copy is always erased."
-          : "A message you delete is only flagged as deleted on the mail server, so another mail client that offers an undelete can still bring it back until the server removes it. MailFathom's own copy is always erased.",
+          ? "A message you delete leaves MailFathom and is removed from the mail server too."
+          : "A message you delete leaves MailFathom only. It stays on the mail server untouched - neither flagged nor removed - and MailFathom never brings it back.",
         tip: lockTip, refused: folderLocked, rowStyle: row(folderLocked), switchStyle: sw(decl.authoredDeleteServer === "Expunge", folderLocked),
-        toggle: () => putAt("authoredDeleteServer", decl.authoredDeleteServer === "Expunge" ? "FlagDeleted" : "Expunge") },
+        toggle: () => putAt("authoredDeleteServer", decl.authoredDeleteServer === "Expunge" ? "LeaveOnServer" : "Expunge") },
     ] },
     { title: "Recognizing senders", hint: "How the mark beside a sender is decided on this account.", items: [
       item.text("Server whose checks this account believes", "The one server whose SPF, DKIM and DMARC results count. Left empty, MailFathom takes the one it knows for this account's mail server, or believes none.", "trustedAuthServer", { mono: true, empty: null, placeholder: "Taken from what MailFathom knows" }),
