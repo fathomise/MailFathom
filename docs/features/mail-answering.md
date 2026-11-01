@@ -72,7 +72,10 @@ That is what makes "this week", "since Tuesday", and "last quarter" reach `recei
 *their* days rather than as the days of whichever zone the service process happens to run in. `TimeZone` in
 [the user record](../operations/configuration-sources.md#the-zone-this-persons-days-are-read-in--timezone) is where it is
 set, and the same line is composed for every operation that resolves a relative period — the search-phrase agent, the
-calendar-event extractor, and the Discover planner — so no two of them can drift into two wordings of one fact.
+calendar-event extractor, and the Discover planner — so no two of them can drift into two wordings of one fact. The
+Agent's turn states the same line and names the zone itself beside it, with the offset it stands at that moment,
+because the Agent writes an instant back rather than a bound: a message the person asked to leave "tomorrow at 8" is
+proposed with an instant carrying an offset, and the zone line is what tells the model which offset 8 o'clock is.
 
 **What the model writes back is read against that same anchor**, which is the half without which stating one buys
 nothing. The anchor names a wall clock and no offset, so a bound written the same way — `2026-09-07T00:00` — is placed

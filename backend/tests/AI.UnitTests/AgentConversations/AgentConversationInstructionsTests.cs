@@ -35,13 +35,29 @@ public sealed class AgentConversationInstructionsTests
         var askedAt = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero);
 
         // Act
-        var naming = AgentConversationComposition.ComposeTurn(askedAt, [MailAccountId.Create("primary")], AgentMessageScope.Mailbox(), [], "What is due?");
-        var silent = AgentConversationComposition.ComposeTurn(askedAt, [], AgentMessageScope.Mailbox(), [], "What is due?");
+        var naming = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [MailAccountId.Create("primary")], AgentMessageScope.Mailbox(), [], "What is due?");
+        var silent = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], AgentMessageScope.Mailbox(), [], "What is due?");
 
         // Assert
         Assert.Contains("The person's accounts: primary.", naming, StringComparison.Ordinal);
         Assert.DoesNotContain("accounts", silent, StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith($"<{AgentTurnDocument.AskElementName}>What is due?</{AgentTurnDocument.AskElementName}>", silent, StringComparison.Ordinal);
+    }
+
+    /// <summary>A turn names the person's zone and its offset, and states now on their clock, so a time they name is read where they are.</summary>
+    [Fact]
+    public void ComposeTurn_APersonInAZoneOfTheirOwn_NamesTheZoneAndStatesNowOnTheirClock()
+    {
+        // Arrange
+        var askedAt = new DateTimeOffset(2026, 9, 14, 22, 30, 0, TimeSpan.Zero);
+        Assert.True(UserTimeZone.TryRead("Europe/Warsaw", out var warsaw));
+
+        // Act
+        var turn = AgentConversationComposition.ComposeTurn(askedAt, warsaw, [], AgentMessageScope.Mailbox(), [], "Send it tomorrow at 8.");
+
+        // Assert
+        Assert.Contains("The person's time zone: Europe/Warsaw, at UTC+02:00 now.", turn, StringComparison.Ordinal);
+        Assert.Contains("2026-09-15T00:30 (Tuesday)", turn, StringComparison.Ordinal);
     }
 
     /// <summary>A question about a merged arrival names its messages by identifier, for the model to read through its tools.</summary>
@@ -55,8 +71,8 @@ public sealed class AgentConversationInstructionsTests
         var second = StoredEmailId.Create(Guid.CreateVersion7());
 
         // Act
-        var naming = AgentConversationComposition.ComposeTurn(askedAt, [], scope, [first, second], "Summarize these.");
-        var holdingNone = AgentConversationComposition.ComposeTurn(askedAt, [], scope, [], "Summarize these.");
+        var naming = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], scope, [first, second], "Summarize these.");
+        var holdingNone = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], scope, [], "Summarize these.");
 
         // Assert
         Assert.Contains($"by id: {first}, {second}.", naming, StringComparison.Ordinal);

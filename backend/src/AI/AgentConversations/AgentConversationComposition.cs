@@ -43,8 +43,9 @@ internal static class AgentConversationComposition
             instructionEnvelope,
             loggerFactory);
 
-    /// <summary>Composes the question's turn: the instant it was asked at, the person's accounts where the model is told of them, what they are looking at, and the question.</summary>
+    /// <summary>Composes the question's turn: the instant it was asked at and the zone it is read in, the person's accounts where the model is told of them, what they are looking at, and the question.</summary>
     /// <param name="askedAt">When the question was asked, which is what a relative date in it is read against.</param>
+    /// <param name="zone">The zone the person's own days are read in, which the anchor is stated in and a time they name is meant in.</param>
     /// <param name="accounts">The accounts the model is told of, by the deployment's own names for them, or none where no tool it is offered takes one.</param>
     /// <param name="scope">What the question was asked about, where it named something.</param>
     /// <param name="namedEmails">The messages a scope naming a merged arrival notification stands for, and none for any other scope.</param>
@@ -56,10 +57,13 @@ internal static class AgentConversationComposition
     /// The accounts are the deployment's own names for them rather than addresses, and the messages are named by
     /// identifier alone, for the model to read through its tools under the person's own grant. The question is written
     /// in the person's ask element, which is the one place the composed instruction says the person's wishes are read
-    /// from.
+    /// from. The zone is named beside the anchor with the offset it stands at, because a time the model proposes is an
+    /// instant with an offset: <em>tomorrow at 8</em> is eight on the person's clock, and the offset is what the model
+    /// writes it with.
     /// </remarks>
     internal static string ComposeTurn(
         DateTimeOffset askedAt,
+        UserTimeZone zone,
         IEnumerable<MailAccountId> accounts,
         AgentMessageScope? scope,
         IReadOnlyList<StoredEmailId> namedEmails,
@@ -78,9 +82,15 @@ internal static class AgentConversationComposition
         var named = string.Join(", ", accounts.Select(static account => account.Value));
         var holding = named.Length == 0 ? string.Empty : $"The person's accounts: {named}.\n";
 
+        var local = zone.Reading(askedAt);
+        var offset = local.Offset;
+        var zoned = string.Create(
+            CultureInfo.InvariantCulture,
+            $"The person's time zone: {zone.Id}, at UTC{(offset < TimeSpan.Zero ? '-' : '+')}{offset:hh\\:mm} now. A time they name is meant there.\n");
+
         using var document = new AgentTurnDocument();
 
-        document.WriteStatement($"{AgentTimeAnchor.Stated(askedAt)}\n{holding}{looking}\n");
+        document.WriteStatement($"{AgentTimeAnchor.Stated(local)}\n{zoned}{holding}{looking}\n");
         document.WriteAsk(question);
 
         return document.Complete();

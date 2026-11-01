@@ -313,6 +313,9 @@ export interface ComposedDraft {
     readonly body: string;
 
     readonly disposition: DraftDisposition;
+
+    /** When it would leave once sent, as the instant the service wrote, or `null` where it leaves as soon as it is. */
+    readonly dueAt: string | null;
 }
 
 /** The closed set of next steps a plan may suggest, so that nothing is proposed no client wrote a control for. */
@@ -618,10 +621,17 @@ export function parseComposedDraft(value: unknown): ComposedDraft | null {
     const subject = parseText(record['subject']);
     const body = parseText(record['body']);
     const disposition = oneOf(record['disposition'], dispositions);
+    const dueAt = parseStatedInstant(record['dueAt']);
 
-    return recipients === null || recipients.length === 0 || subject === null || body === null || disposition === null
+    return recipients === null ||
+        recipients.length === 0 ||
+        subject === null ||
+        body === null ||
+        disposition === null ||
+        dueAt === null ||
+        (dueAt.at !== null && !isOffsetInstant(dueAt.at))
         ? null
-        : { recipients, subject, body, disposition };
+        : { recipients, subject, body, disposition, dueAt: dueAt.at };
 }
 
 /**
@@ -707,6 +717,17 @@ export function parseTaskProposal(value: unknown): TaskProposal | null {
 /** A day as the service spells a `DateOnly`, which is a date with nothing after it. */
 function isCalendarDay(value: unknown): value is string {
     return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(value) && !Number.isNaN(Date.parse(value));
+}
+
+/**
+ * An instant as the service spells a `DateTimeOffset`, which always carries its offset. Checked by its shape first
+ * because the runtime's own date parsing reads far more than that as a date.
+ */
+function isOffsetInstant(value: string): boolean {
+    return (
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/u.test(value) &&
+        !Number.isNaN(Date.parse(value))
+    );
 }
 
 function parseTimelineEntry(value: unknown): TimelineEntry | null {

@@ -41,6 +41,7 @@ public sealed class AgentActPerformer : IAgentActPerformer
     private readonly UserMailDrafts drafts;
     private readonly OwnCalendar calendar;
     private readonly OwnTasks tasks;
+    private readonly TimeProvider time;
 
     /// <summary>Initializes the performer over the use cases every act is carried out through.</summary>
     /// <param name="messageDrafting">Saves a new message as a draft.</param>
@@ -48,25 +49,29 @@ public sealed class AgentActPerformer : IAgentActPerformer
     /// <param name="drafts">Sends a saved draft.</param>
     /// <param name="calendar">Puts an event on the person's own calendar.</param>
     /// <param name="tasks">Writes a task onto the person's own list.</param>
+    /// <param name="time">Says whether the time a message was proposed to leave at has passed.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public AgentActPerformer(
         AuthoredMailDrafting messageDrafting,
         AuthoredResponseDrafting responseDrafting,
         UserMailDrafts drafts,
         OwnCalendar calendar,
-        OwnTasks tasks)
+        OwnTasks tasks,
+        TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(messageDrafting);
         ArgumentNullException.ThrowIfNull(responseDrafting);
         ArgumentNullException.ThrowIfNull(drafts);
         ArgumentNullException.ThrowIfNull(calendar);
         ArgumentNullException.ThrowIfNull(tasks);
+        ArgumentNullException.ThrowIfNull(time);
 
         this.messageDrafting = messageDrafting;
         this.responseDrafting = responseDrafting;
         this.drafts = drafts;
         this.calendar = calendar;
         this.tasks = tasks;
+        this.time = time;
     }
 
     /// <summary>Gets the grants a person has to hold for an act to be carried out on their acceptance.</summary>
@@ -127,11 +132,29 @@ public sealed class AgentActPerformer : IAgentActPerformer
     public static string KeyOf(AgentConversationId conversation, long proposedAt) =>
         string.Create(CultureInfo.InvariantCulture, $"agent@{conversation.Value:D}#{proposedAt}");
 
+    /// <summary>Saves the proposed message as a draft and sends it, held until the time the person asked for where they asked for one.</summary>
+    /// <remarks>
+    /// A time that has passed since the proposal was written is refused before the draft is saved, because the send would
+    /// refuse it anyway and a draft saved for a send that never happens is one more copy in the person's drafts on every
+    /// attempt. The send's own refusal still stands behind this, for a time that passes between the two.
+    /// </remarks>
     private async Task<bool> SendAsync(AgentProposedAct act, string proposal, CancellationToken cancellationToken)
     {
+        var dueAt = act switch
+        {
+            AgentMessageSending { DueAt: { } due } => due.ToDueTime(),
+            AgentResponseSending { DueAt: { } due } => due.ToDueTime(),
+            _ => null,
+        };
+
+        if (dueAt is { } held && held.Instant <= this.time.GetUtcNow())
+        {
+            return false;
+        }
+
         var draft = await this.SaveAsync(act, OutgoingEmailRequester.Command(proposal), cancellationToken);
 
-        await this.drafts.SendAsync(draft, dueAt: null, cancellationToken);
+        await this.drafts.SendAsync(draft, dueAt, cancellationToken);
 
         return true;
     }

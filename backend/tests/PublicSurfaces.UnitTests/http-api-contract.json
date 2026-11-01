@@ -11371,6 +11371,13 @@
           "disposition": {
             "$ref": "#/components/schemas/DraftDisposition"
           },
+          "dueAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "evidence": {
             "$ref": "#/components/schemas/PresentationEvidence"
           },

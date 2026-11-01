@@ -85,7 +85,7 @@ beside the data below.
 | `people` | the question is about people or organizations | per entry: a name, an address where there is one, where they stand, when they were last in contact, and sources |
 | `threadState` | where a conversation stands is wanted | participants, plus what was agreed, what is open, and what somebody undertook |
 | `attachmentGallery` | files are being looked for | per entry: the citation, the name, the declared media type, the size, and whether it can be opened |
-| `draft` | the result is text to be sent | recipients, subject, body, and what has become of it locally |
+| `draft` | the result is text to be sent | recipients, subject, body, what has become of it locally, and the instant it is to leave where the person asked for a later send |
 | `eventProposal` | a date is to be put on the person's calendar | a title, when it begins, when it ends where it states an end, and whether it is a whole day |
 | `taskProposal` | something is to be owed | a title, and the day it is due where it states one |
 | `suggestedAction` | there is a sensible next step | which step, why, what it would change, and whether it must be confirmed |
@@ -120,7 +120,9 @@ a different thing from a cell somebody left blank.
 
 **A draft is a proposal and never an act.** Its local status can say that it was composed, saved into the user's
 drafts, or queued in the outbox, and the set deliberately holds no member meaning sent: sending is something a person
-does afterwards, through the surface that governs sending.
+does afterwards, through the surface that governs sending. A draft the person asked to leave later states that instant
+as `dueAt`, with its offset, and carries no zone: a reader is shown it on their own clock and named the zone they read
+it in, which is the rule every instant in a plan follows.
 
 **An event or a task proposal is a type of its own only because its object has to be seen and corrected before it
 is approved** — an hour read out of a message, a day something is owed by. Anything whose whole content fits in one

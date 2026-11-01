@@ -164,6 +164,13 @@ export function wordSendTime(
     };
 }
 
+/** The clock reading an instant has in a zone, which is how a time somebody else named is said back in it. */
+export function sendTimeAt(at: number, zone: string | null): SendTime {
+    const wall = new Date(at + (zoneOffsetAt(zone, at) ?? 0) * aMinute).toISOString();
+
+    return { date: wall.slice(0, 10), time: wall.slice(11, 16) };
+}
+
 /** The zone a time is named in, as the deployment is told it: the record's, or this runtime's where it states none. */
 export function namedZone(zone: string | null): string {
     return zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;

@@ -32,6 +32,7 @@ public sealed record DraftBlock : PresentationBlock
     /// <param name="subject">Its subject.</param>
     /// <param name="body">Its body, as plain text.</param>
     /// <param name="disposition">What has become of it locally.</param>
+    /// <param name="dueAt">When it would leave, where somebody asked for a later send, or <see langword="null" /> for as soon as it is sent.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="evidence" /> or <paramref name="recipients" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when no recipient is named, there are more than <see cref="MaxRecipients" /> of them, a recipient is named twice, or a text is the unspecified default.</exception>
     public DraftBlock(
@@ -39,7 +40,8 @@ public sealed record DraftBlock : PresentationBlock
         IReadOnlyList<EmailAddress> recipients,
         PresentationText subject,
         PresentationText body,
-        DraftDisposition disposition)
+        DraftDisposition disposition,
+        DateTimeOffset? dueAt = null)
         : base(PresentationBlockType.Draft, evidence)
     {
         var addressed = PresentationRequirement.RequiredItems(recipients, MaxRecipients, nameof(recipients));
@@ -56,6 +58,7 @@ public sealed record DraftBlock : PresentationBlock
         this.Subject = subject;
         this.Body = body;
         this.Disposition = disposition;
+        this.DueAt = dueAt;
     }
 
     /// <summary>Gets who the draft is addressed to.</summary>
@@ -69,4 +72,8 @@ public sealed record DraftBlock : PresentationBlock
 
     /// <summary>Gets what has become of the draft locally.</summary>
     public DraftDisposition Disposition { get; }
+
+    /// <summary>Gets when the draft would leave once sent, or <see langword="null" /> where it leaves as soon as it is.</summary>
+    /// <remarks>An instant rather than a time in a zone, as every other instant a plan carries is: the reader's own zone is what a client words it in.</remarks>
+    public DateTimeOffset? DueAt { get; }
 }

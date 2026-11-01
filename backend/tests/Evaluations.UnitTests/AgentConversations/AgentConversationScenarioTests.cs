@@ -70,6 +70,30 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.ProposesOnlyWhatWasAskedMetricName).Value);
     }
 
+    /// <summary>A message asked to leave later is judged by the instant it leaves on the person's clock, and one never asked to wait by leaving at once.</summary>
+    [Theory]
+    [InlineData("Agent.Propose.MessageLeavingWhenAsked", "2026-09-15T08:00:00+02:00", true)]
+    [InlineData("Agent.Propose.MessageLeavingWhenAsked", "2026-09-15T08:00:00+00:00", false)]
+    [InlineData("Agent.Propose.MessageLeavingWhenAsked", null, false)]
+    [InlineData("Agent.Propose.MessageNamingATimeLeavesOnAcceptance", null, true)]
+    [InlineData("Agent.Propose.MessageNamingATimeLeavesOnAcceptance", "2026-09-15T08:00:00+02:00", false)]
+    public async Task RunAsync_AMessageWithOrWithoutASendTime_PassesTheProposalCheckOnlyWhereTheTimeIsTheAskedOne(
+        string scenario,
+        string? sendAt,
+        bool passes)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient(
+            [Propose("courier.desk@example.test", sendAt: sendAt)],
+            "I proposed a message to courier.desk@example.test; nothing was sent until you accept it.");
+
+        // Act
+        var verdict = await this.RunAsync(Named(scenario), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ProposesOnlyWhatWasAskedMetricName).Value);
+    }
+
     /// <summary>An event is judged by the instant it begins, which is the part a person would otherwise have to correct.</summary>
     [Theory]
     [InlineData("2026-09-16T16:00:00+02:00", true)]
@@ -663,6 +687,7 @@ public sealed class AgentConversationScenarioTests : IDisposable
             ["act"] = act,
             ["body"] = body,
             ["recipients"] = recipient is null ? null : new[] { recipient },
+            ["sendAt"] = null,
         });
 
     private static (string Tool, IDictionary<string, object?> Arguments) ProposeTask(string? dueOn) =>
@@ -681,13 +706,15 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
     private static (string Tool, IDictionary<string, object?> Arguments) Propose(
         string recipient,
-        string body = "You may collect the archive boxes between 14:00 and 16:00.") =>
+        string body = "You may collect the archive boxes between 14:00 and 16:00.",
+        string? sendAt = null) =>
         ("propose_message", new Dictionary<string, object?>
         {
             ["account"] = CorpusKnowledgeSearch.Scope.AccountIds[0].Value,
             ["recipients"] = new[] { recipient },
             ["subject"] = "Archive boxes",
             ["body"] = body,
+            ["sendAt"] = sendAt,
         });
 
     private static IEnumerable<BooleanMetric> StructuralChecks(EvaluationResult verdict) =>

@@ -4,7 +4,11 @@
 
 import { useId, useState } from 'react';
 import type { AnswerBlock } from '@mailfathom/client-backend';
+import { namedZone, sendTimeAt } from '../../composer/sendLater';
+import { useSendTimeWording } from '../../composer/useSendTimeWording';
+import { Icon } from '../../controls/Icon';
 import { useLocalization } from '../../localization/useLocalization';
+import { useReadingZone } from '../../localization/useReadingZone';
 import { UnrecognisedAnswerBlock } from '../AnswerBlockCard';
 import { ProposalCard, type ProposalControl } from '../ProposalCard';
 import { useProposalAnswering } from '../proposalAnswering';
@@ -32,6 +36,9 @@ import { draftDispositions } from './blockWording';
 // So an edit that changed the text holds *Send* rather than sending the text the reader moved away from, and says why
 // beside the field: sending what somebody typed needs the route to carry it, which it does not yet.
 //
+// **A draft the person asked to leave later says when, as the composer does once a time is chosen.** The time is the
+// proposal's, so nothing here clears or moves it: asking the Agent again is how it changes, and *Edit here* keeps it.
+//
 // Everything quoted out of the draft carries an empty `lang`, because the contract states no language for it and the
 // conversation around it is in the reader's own: the agent writes a reply in the language of the thread it answers.
 
@@ -51,6 +58,9 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     const { locale, translate } = useLocalization();
     const answering = useProposalAnswering();
     const written = useId();
+    const zone = useReadingZone();
+    const [shownAt] = useState(() => Date.now());
+    const wordSendTime = useSendTimeWording(shownAt, zone);
 
     // The edit is this block's own state and nothing outside it reads one, which is why it is held here rather than
     // lifted: it is what somebody is typing, not a copy of anything the deployment holds.
@@ -69,6 +79,8 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     const body = typed ?? draft.body;
     const to = addressedTo(draft.recipients, locale);
     const changed = typed !== null && typed !== draft.body;
+    const leaves = draft.dueAt === null ? null : wordSendTime(sendTimeAt(Date.parse(draft.dueAt), zone));
+    const sendSaid = leaves === null ? translate('draft.send') : translate('draft.sendAt', { when: leaves.short });
 
     const controls: readonly ProposalControl[] =
         answering === null
@@ -76,8 +88,11 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
             : editing
               ? [
                     {
-                        said: translate('draft.send'),
-                        name: translate('draft.sendEditedName', { to }),
+                        said: sendSaid,
+                        name:
+                            leaves === null
+                                ? translate('draft.sendEditedName', { to })
+                                : translate('draft.sendEditedAtName', { to, when: leaves.long }),
                         primary: true,
                         held: changed,
                         run: () => {
@@ -94,8 +109,11 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                 ]
               : [
                     {
-                        said: translate('draft.send'),
-                        name: translate('draft.sendName', { to }),
+                        said: sendSaid,
+                        name:
+                            leaves === null
+                                ? translate('draft.sendName', { to })
+                                : translate('draft.sendAtName', { to, when: leaves.long }),
                         primary: true,
                         held: changed,
                         run: () => {
@@ -130,6 +148,14 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
             label={translate('draft.label')}
             quotesMail
             title={draft.subject}
+            outcome={
+                leaves === null
+                    ? undefined
+                    : {
+                          done: translate('draft.scheduled', { when: leaves.long }),
+                          failed: translate('draft.notScheduled'),
+                      }
+            }
         >
             <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-rail px-2.25 py-0.5 text-xs text-muted">
@@ -199,6 +225,19 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                     </p>
                 )}
             </div>
+
+            {/* Gone once sent, where the result line names the time instead. */}
+            {leaves === null || answering?.phase === 'accepted' ? null : (
+                <p className="flex items-start gap-2 rounded-md border border-accent-line bg-accent-soft px-2.75 py-2 text-base text-text text-pretty pointer-coarse:px-3 pointer-coarse:py-2.5">
+                    <Icon className="size-icon-sm shrink-0 text-accent-deep" name="schedule_send" />
+                    <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span>{translate('draft.leavesAt', { when: leaves.long })}</span>
+                        <span className="text-xs text-muted">
+                            {translate('draft.leavesInZone', { zone: namedZone(zone) })}
+                        </span>
+                    </span>
+                </p>
+            )}
 
             {answering === null ? (
                 <button

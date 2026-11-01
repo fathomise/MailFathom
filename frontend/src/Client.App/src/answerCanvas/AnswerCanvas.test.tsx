@@ -89,6 +89,7 @@ const registered: readonly { readonly block: AnswerBlock; readonly draws: string
                 subject: 'Re: proposed terms for 2027',
                 body: 'We accept shortening the response time.',
                 disposition: 'Composed',
+                dueAt: null,
             },
         },
         draws: 'We accept shortening the response time.',

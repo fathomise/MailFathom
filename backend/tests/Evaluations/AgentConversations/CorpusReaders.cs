@@ -86,8 +86,9 @@ internal static class CorpusReaders
     /// <summary>Composes the readers a deployment would hand one person's run, under the grant they hold.</summary>
     /// <param name="authorization">The grant the run acts under.</param>
     /// <param name="search">The search the run's lookups reach.</param>
+    /// <param name="clock">The person's clock, standing at the instant the question is asked, in their zone.</param>
     /// <returns>The readers.</returns>
-    public static AgentConversationReaders For(AccessAuthorization authorization, IEmailKnowledgeSearch search)
+    public static AgentConversationReaders For(AccessAuthorization authorization, IEmailKnowledgeSearch search, UserClock clock)
     {
         var scope = ScopeFor(authorization);
         var summaries = new CorpusSummaries();
@@ -119,7 +120,8 @@ internal static class CorpusReaders
                 new NamedRecipientResolver(new NoContacts(), ContactBookOwnerships.For(authorization, CorpusKnowledgeSearch.Account)),
                 DeploymentBounds,
                 authorization),
-            authorization);
+            authorization,
+            clock);
     }
 
     /// <summary>Composes the content reader a deployment would hand one person, under the grant they hold.</summary>

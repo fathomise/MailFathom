@@ -17,6 +17,11 @@ public sealed class PresentationPlanSerializationTests
 {
     private static JsonSerializerOptions Contract => PresentationPlanJsonContext.Default.Options;
 
+    private static JsonObject DraftNodeOf(JsonObject plan) =>
+        plan["blocks"]!.AsArray()
+            .Select(static node => node!.AsObject())
+            .Single(static node => node["type"]!.GetValue<string>() == PresentationBlockType.DraftIdentity);
+
     /// <summary>Everything in the catalogue survives the trip, which is what a client on the other end depends on.</summary>
     [Fact]
     public void RoundTrip_APlanHoldingOneBlockOfEveryType_ReadsBackAsTheSameTypes()
@@ -231,6 +236,41 @@ public sealed class PresentationPlanSerializationTests
         Assert.Equal(PresentationBlockType.Answer.Version, block.Version);
         Assert.Equal("See [seal](https://stranger.example.test/s.png) and &lt;img src=\"https://stranger.example.test/p.png\">.", block.Text.Value);
         Assert.Empty(block.Links);
+    }
+
+    /// <summary>A draft the person asked to leave later reads back with the instant it leaves at.</summary>
+    [Fact]
+    public void Deserialization_ADraftLeavingLater_ReadsTheInstantItLeavesAt()
+    {
+        // Arrange
+        var written = JsonNode.Parse(JsonSerializer.Serialize(PresentationPlanExample.Compose(), Contract))!.AsObject();
+        DraftNodeOf(written)["dueAt"] = "2026-08-28T08:00:00+02:00";
+
+        // Act
+        var read = JsonSerializer.Deserialize<PresentationPlan>(written.ToJsonString(), Contract);
+
+        // Assert
+        Assert.Equal(
+            new DateTimeOffset(2026, 8, 28, 6, 0, 0, TimeSpan.Zero),
+            Assert.Single(read!.Blocks.OfType<DraftBlock>()).DueAt);
+    }
+
+    /// <summary>A conversation stored before a draft could leave later is still read, as a draft that leaves once accepted.</summary>
+    [Fact]
+    public void Deserialization_ADraftStoredAtTheRevisionBeforeASendTime_IsReadAsOneLeavingOnAcceptance()
+    {
+        // Arrange
+        var written = JsonNode.Parse(JsonSerializer.Serialize(PresentationPlanExample.Compose(), Contract))!.AsObject();
+        var draft = DraftNodeOf(written);
+        draft["version"] = 1;
+        draft.Remove("dueAt");
+
+        // Act
+        var read = JsonSerializer.Deserialize<PresentationPlan>(written.ToJsonString(), Contract);
+
+        // Assert
+        var block = Assert.Single(read!.Blocks.OfType<DraftBlock>());
+        Assert.Equal((PresentationBlockType.Draft.Version, (DateTimeOffset?)null), (block.Version, block.DueAt));
     }
 
     /// <summary>A revision before the earliest a block type still reads is refused, whichever block type claims it.</summary>
