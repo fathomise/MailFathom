@@ -7891,7 +7891,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         }),
         settingsOpen: !!st.settings,
         openSettings: () => this.setState({ settings: true, userMenu: false }),
-        closeSettings: () => this.setState({ settings: false, acctDraft: null, folderEdit: null, footerEdit: null, acctForm: null, acctOut: null }),
+        closeSettings: () => {
+          const close = () => this.setState({ settings: false, acctDraft: null, folderEdit: null, footerEdit: null, acctForm: null, acctOut: null, certDraft: null, leaveAsk: false });
+          return this._settingsGuard ? this._settingsGuard(close) : close();
+        },
         langOptions: [["en", "English"], ["pl", "Polski"]].map(([v, label]) => ({
           label,
           pick: () => this.setState({ lang: v }),

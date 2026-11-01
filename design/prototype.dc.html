@@ -2656,6 +2656,23 @@ Project repository: https://github.com/fathomise/MailFathom
     </div>
   </sc-if>
 
+  <sc-if value="{{ leaveAskOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="scrim" onClick="{{ leaveStay }}" style="{{ ovAsk99 }}">
+      <div data-motion="pop" role="alertdialog" aria-label="Unsaved changes" onClick="{{ stopProp }}" style="{{ dlgAsk }}">
+        <div style="display:flex;align-items:flex-start;gap:11px">
+          <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--warn);padding-top:1px">edit_note</span>
+          <div style="flex:1;min-width:0;font-size:16px;font-weight:600;text-wrap:pretty">Leave without saving?</div>
+        </div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.5;text-wrap:pretty">{{ leaveAskText }}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end;margin-top:2px">
+          <div onClick="{{ leaveStay }}" style="{{ leaveBtnQuiet }}" style-hover="{{ sRowHover }}">Stay</div>
+          <div onClick="{{ leaveDiscard }}" style="{{ leaveBtnDanger }}" style-hover="{{ sRowHover }}">Leave without saving</div>
+          <div onClick="{{ leaveSave }}" title="{{ leaveSaveTip }}" aria-disabled="{{ leaveCantSave }}" style="{{ leaveSaveStyle }}" style-hover="cursor:pointer">Save and leave</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ remModalOpen }}" hint-placeholder-val="{{ false }}">
     <div data-motion="scrim" data-phase="{{ mo.remFor }}" onClick="{{ closeRemModal }}" style="{{ ovZ97 }}">
       <div data-motion="{{ moDialog }}" data-phase="{{ mo.remFor }}" onClick="{{ stopProp }}" style="{{ dlgForm }}">
@@ -3522,9 +3539,9 @@ Project repository: https://github.com/fathomise/MailFathom
                 </sc-if>
                 <sc-if value="{{ photoControlsShown }}" hint-placeholder-val="{{ true }}">
                   <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                    <div onClick="{{ pickPhoto }}" style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;box-sizing:border-box;{{ settingsSmallBtnPad }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">add_a_photo</span>Picture</div>
+                    <div onClick="{{ pickPhoto }}" style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;box-sizing:border-box;{{ settingsSmallBtnPad }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">add_a_photo</span>Picture</div>
                     <sc-if value="{{ meHasPhoto }}" hint-placeholder-val="{{ false }}">
-                      <div onClick="{{ removePhoto }}" title="Remove picture" style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--muted);border-radius:8px;box-sizing:border-box;{{ settingsSmallBtnPad }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">delete</span>Remove</div>
+                      <div onClick="{{ removePhoto }}" title="Remove picture" style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--muted);border-radius:8px;box-sizing:border-box;{{ settingsSmallBtnPad }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">delete</span>Remove</div>
                     </sc-if>
                     <span style="font-size:12px;color:var(--faint)">JPG/PNG, up to 1 MB</span>
                   </div>
@@ -3574,14 +3591,14 @@ Project repository: https://github.com/fathomise/MailFathom
                   </select>
                   <input type="tel" value="{{ ph.number }}" onChange="{{ ph.onNumber }}" onBlur="{{ ph.commit }}" readOnly="{{ profileLocked }}" placeholder="+48 600 000 000" style="{{ ph.numberStyle }}" style-focus="border-color:var(--accent)" />
                   <sc-if value="{{ ph.removeShown }}" hint-placeholder-val="{{ true }}">
-                    <div onClick="{{ ph.remove }}" title="Remove this number" style="{{ iconBtn }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">close</span></div>
+                    <div onClick="{{ ph.remove }}" title="Remove this number" style="{{ iconBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">close</span></div>
                   </sc-if>
                 </div>
                 <sc-if value="{{ ph.preferred }}" hint-placeholder-val="{{ true }}">
                   <div style="display:flex;align-items:center;gap:8px;min-height:24px"><span style="{{ preferredMark }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:13px;line-height:1">call</span>First</span><span style="font-size:12px;color:var(--faint)">The number colleagues call</span></div>
                 </sc-if>
                 <sc-if value="{{ ph.notPreferred }}" hint-placeholder-val="{{ false }}">
-                  <div onClick="{{ ph.makePreferred }}" style="{{ smallBtn }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">vertical_align_top</span>Move to first</div>
+                  <div onClick="{{ ph.makePreferred }}" style="{{ smallBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">vertical_align_top</span>Move to first</div>
                 </sc-if>
                 <sc-if value="{{ ph.problem }}" hint-placeholder-val="{{ false }}">
                   <div style="{{ sProblem }}">{{ ph.problem }}</div>
@@ -3589,27 +3606,10 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </sc-for>
             <sc-if value="{{ addPhoneShown }}" hint-placeholder-val="{{ true }}">
-              <div onClick="{{ addPhone }}" title="{{ addPhoneTip }}" aria-disabled="{{ addPhoneFull }}" style="{{ addPhoneStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">add</span>Add a number</div>
+              <div onClick="{{ addPhone }}" title="{{ addPhoneTip }}" aria-disabled="{{ addPhoneFull }}" style="{{ addPhoneStyle }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">add</span>Add a number</div>
             </sc-if>
             <sc-if value="{{ phonesProblem }}" hint-placeholder-val="{{ false }}">
               <div style="{{ sProblem }}">{{ phonesProblem }}</div>
-            </sc-if>
-            <div style="{{ sDivider }}"></div>
-            <div style="{{ sCap }}">Preferred address</div>
-            <div style="{{ sHint }}">The address your card leads with, and the one colleagues write to when they pick you. It is one of the addresses of your accounts.</div>
-            <div style="display:flex;flex-direction:column;gap:2px">
-              <sc-for list="{{ addrOptions }}" as="ad" hint-placeholder-count="3">
-                <div onClick="{{ ad.pick }}" title="{{ profileTip }}" aria-disabled="{{ profileLocked }}" style="{{ ad.style }}" style-hover="cursor:pointer;background:var(--hover)">
-                  <span style="{{ ad.dotStyle }}"></span>
-                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
-                    <div style="display:flex;align-items:center;gap:6px;font-size:14px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ad.mail }}</span><sc-if value="{{ ad.shared }}" hint-placeholder-val="{{ false }}"><span style="{{ ad.sharedStyle }}">Shared</span></sc-if></div>
-                    <div style="font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ad.name }}</div>
-                  </div>
-                </div>
-              </sc-for>
-            </div>
-            <sc-if value="{{ addrProblem }}" hint-placeholder-val="{{ false }}">
-              <div style="{{ sProblem }}">{{ addrProblem }}</div>
             </sc-if>
           </sc-if>
           <sc-if value="{{ tabAway }}" hint-placeholder-val="{{ false }}">
@@ -3638,14 +3638,16 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
             <div style="{{ sDivider }}"></div>
             <div style="{{ sCap }}">Automatic reply</div>
-            <div onClick="{{ toggleAr }}" title="{{ profileTip }}" aria-disabled="{{ profileLocked }}" style="{{ arRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+            <div onClick="{{ toggleAr }}" title="{{ profileTip }}" aria-disabled="{{ profileLocked }}" style="{{ arRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Answer mail automatically</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Each sender is answered once, from the account they wrote to, for as long as the period below lasts.</div>
               </div>
               <span style="{{ arSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
             </div>
-            <div style="{{ arStatusStyle }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">{{ arStatusIcon }}</span><span>{{ arStatus }}</span></div>
+            <sc-if value="{{ arStatusShown }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ arStatusStyle }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">{{ arStatusIcon }}</span><span>{{ arStatus }}</span></div>
+            </sc-if>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <div style="display:flex;flex-direction:column;gap:4px">
                 <div style="{{ sCap }}">From</div>
@@ -3659,7 +3661,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="{{ sCapGap }}">On these accounts</div>
             <div style="display:flex;flex-direction:column;gap:2px">
               <sc-for list="{{ arAccounts }}" as="ra" hint-placeholder-count="3">
-                <div onClick="{{ ra.pick }}" title="{{ ra.tip }}" aria-disabled="{{ ra.refused }}" style="{{ ra.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+                <div onClick="{{ ra.pick }}" title="{{ ra.tip }}" aria-disabled="{{ ra.refused }}" style="{{ ra.rowStyle }}" style-hover="{{ sRowHover }}">
                   <span style="{{ ra.boxStyle }}">check</span>
                   <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
                     <div style="display:flex;align-items:center;gap:6px;font-size:14px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ra.mail }}</span><sc-if value="{{ ra.shared }}" hint-placeholder-val="{{ false }}"><span style="{{ ra.sharedStyle }}">Shared</span></sc-if></div>
@@ -3697,6 +3699,23 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
           </sc-if>
           <sc-if value="{{ acctListShown }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ sCap }}">Preferred address</div>
+            <div style="{{ sHint }}">The address your card leads with, and the one colleagues write to when they pick you. It is one of the addresses of your accounts.</div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <sc-for list="{{ addrOptions }}" as="ad" hint-placeholder-count="3">
+                <div onClick="{{ ad.pick }}" title="{{ profileTip }}" aria-disabled="{{ profileLocked }}" style="{{ ad.style }}" style-hover="{{ sRowHover }}">
+                  <span style="{{ ad.dotStyle }}"></span>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:14px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ad.mail }}</span><sc-if value="{{ ad.shared }}" hint-placeholder-val="{{ false }}"><span style="{{ ad.sharedStyle }}">Shared</span></sc-if></div>
+                    <div style="font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ad.name }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ addrProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ addrProblem }}</div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
             <div style="display:flex;align-items:baseline;gap:8px;max-width:620px">
               <div style="{{ sCap }};flex:1;min-width:0">Mail accounts</div>
               <div style="font-size:12px;color:var(--faint)">{{ acctCount }}</div>
@@ -3716,7 +3735,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           <sc-if value="{{ acctEditShown }}" hint-placeholder-val="{{ false }}">
             <div style="display:flex;align-items:center;gap:9px">
-              <div onClick="{{ acctBack }}" title="Back to the accounts" style="{{ iconBtn }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1">arrow_back</span></div>
+              <div onClick="{{ acctBack }}" title="Back to the accounts" style="{{ iconBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1">arrow_back</span></div>
               <div style="flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ acctTitle }}</div>
             </div>
             <sc-if value="{{ acctLockText }}" hint-placeholder-val="{{ false }}">
@@ -3736,7 +3755,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <sc-if value="{{ g.hasHint }}" hint-placeholder-val="{{ false }}"><div style="{{ sHint }};margin-top:-6px">{{ g.hint }}</div></sc-if>
                 <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="3">
                   <sc-if value="{{ it.isSwitch }}" hint-placeholder-val="{{ true }}">
-                    <div onClick="{{ it.toggle }}" title="{{ it.tip }}" aria-disabled="{{ it.refused }}" style="{{ it.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+                    <div onClick="{{ it.toggle }}" title="{{ it.tip }}" aria-disabled="{{ it.refused }}" style="{{ it.rowStyle }}" style-hover="{{ sRowHover }}">
                       <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                         <div style="font-size:14px">{{ it.label }}</div>
                         <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ it.hint }}</div></sc-if>
@@ -3747,7 +3766,8 @@ Project repository: https://github.com/fathomise/MailFathom
                   <sc-if value="{{ it.isText }}" hint-placeholder-val="{{ false }}">
                     <div style="{{ it.wrapStyle }}">
                       <div style="font-size:14px">{{ it.label }}</div>
-                      <input value="{{ it.value }}" onInput="{{ it.onInput }}" placeholder="{{ it.placeholder }}" readonly="{{ acctLocked }}" title="{{ lockedFolderTip }}" style="{{ it.style }}" style-focus="border-color:var(--accent)" />
+                      <input value="{{ it.value }}" onInput="{{ it.onInput }}" placeholder="{{ it.placeholder }}" maxLength="{{ it.max }}" aria-invalid="{{ it.problem }}" readonly="{{ acctLocked }}" title="{{ lockedFolderTip }}" style="{{ it.style }}" style-focus="border-color:var(--accent)" />
+                      <sc-if value="{{ it.problem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ it.problem }}</div></sc-if>
                       <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
                     </div>
                   </sc-if>
@@ -3755,6 +3775,7 @@ Project repository: https://github.com/fathomise/MailFathom
                     <div style="{{ it.wrapStyle }}">
                       <div style="font-size:14px">{{ it.label }}</div>
                       <input type="number" value="{{ it.value }}" min="{{ it.min }}" max="{{ it.max }}" step="{{ it.step }}" onInput="{{ it.onInput }}" readonly="{{ acctLocked }}" title="{{ lockedFolderTip }}" style="{{ it.style }}" style-focus="border-color:var(--accent)" />
+                      <sc-if value="{{ it.problem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ it.problem }}</div></sc-if>
                       <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
                     </div>
                   </sc-if>
@@ -3766,6 +3787,7 @@ Project repository: https://github.com/fathomise/MailFathom
                           <option value="{{ op.v }}">{{ op.label }}</option>
                         </sc-for>
                       </select>
+                      <sc-if value="{{ it.problem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ it.problem }}</div></sc-if>
                       <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
                     </div>
                   </sc-if>
@@ -3791,6 +3813,9 @@ Project repository: https://github.com/fathomise/MailFathom
                       <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
                     </div>
                   </sc-if>
+                  <sc-if value="{{ it.isLink }}" hint-placeholder-val="{{ false }}">
+                    <div onClick="{{ it.go }}" style="{{ sLink }}" style-hover="cursor:pointer;text-decoration:underline"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">key</span>{{ it.label }}</div>
+                  </sc-if>
                   <sc-if value="{{ it.isExcl }}" hint-placeholder-val="{{ false }}">
                     <div style="{{ it.wrapStyle }}">
                       <div style="font-size:14px">{{ it.label }}</div>
@@ -3801,7 +3826,7 @@ Project repository: https://github.com/fathomise/MailFathom
                           <span style="flex:1;min-width:0;font-family:'Geist Mono',ui-monospace,monospace;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ex.text }}</span>
                           <span style="font-size:12px;color:var(--faint)">{{ ex.kind }}</span>
                           <sc-if value="{{ ex.isDomain }}" hint-placeholder-val="{{ true }}"><div onClick="{{ ex.toggleSub }}" title="{{ lockedFolderTip }}" aria-disabled="{{ acctLocked }}" style="{{ ex.subStyle }}" style-hover="cursor:pointer">{{ ex.subLabel }}</div></sc-if>
-                          <sc-if value="{{ acctDeclSaveShown }}" hint-placeholder-val="{{ true }}"><div onClick="{{ ex.remove }}" title="Remove from the list" style="{{ iconBtn }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">close</span></div></sc-if>
+                          <sc-if value="{{ acctDeclSaveShown }}" hint-placeholder-val="{{ true }}"><div onClick="{{ ex.remove }}" title="Remove from the list" style="{{ iconBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">close</span></div></sc-if>
                         </div>
                       </sc-for>
                       <sc-if value="{{ it.addShown }}" hint-placeholder-val="{{ true }}">
@@ -3824,7 +3849,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <sc-if value="{{ acctDeclSaveShown }}" hint-placeholder-val="{{ true }}">
               <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
                 <div onClick="{{ acctDeclSave }}" title="{{ acctDeclSaveTip }}" aria-disabled="{{ acctDeclSaveOff }}" style="{{ acctDeclSaveStyle }}" style-hover="cursor:pointer">Save account</div>
-                <sc-if value="{{ acctDeclDiscardShown }}" hint-placeholder-val="{{ false }}"><div onClick="{{ acctDeclDiscard }}" style="{{ sQuiet }}" style-hover="cursor:pointer;background:var(--hover)">Discard changes</div></sc-if>
+                <sc-if value="{{ acctDeclDiscardShown }}" hint-placeholder-val="{{ false }}"><div onClick="{{ acctDeclDiscard }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}">Discard changes</div></sc-if>
               </div>
               <div style="{{ sHint }}">Folders and the footer are saved on their own, below.</div>
             </sc-if>
@@ -3837,7 +3862,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="{{ sFolderList }}">
               <sc-for list="{{ fdRows }}" as="fd" hint-placeholder-count="6">
                 <div style="{{ fd.wrapStyle }}">
-                  <div onClick="{{ fd.open }}" title="{{ lockedFolderTip }}" style="{{ fd.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+                  <div onClick="{{ fd.open }}" title="{{ lockedFolderTip }}" style="{{ fd.rowStyle }}" style-hover="{{ sRowHover }}">
                     <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--muted)">{{ fd.icon }}</span>
                     <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
                       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0">
@@ -3877,7 +3902,7 @@ Project repository: https://github.com/fathomise/MailFathom
                         <div style="{{ sHint }}">Where the folder sits on the mail server, outermost level first, the levels split by /.</div>
                       </sc-if>
                       <sc-for list="{{ feSwitches }}" as="fs" hint-placeholder-count="4">
-                        <div onClick="{{ fs.toggle }}" title="{{ fs.tip }}" aria-disabled="{{ fs.refused }}" style="{{ fs.style }}" style-hover="cursor:pointer;background:var(--hover)">
+                        <div onClick="{{ fs.toggle }}" title="{{ fs.tip }}" aria-disabled="{{ fs.refused }}" style="{{ fs.style }}" style-hover="{{ sRowHover }}">
                           <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                             <div style="font-size:14px">{{ fs.label }}</div>
                             <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ fs.hint }}</div>
@@ -3890,9 +3915,9 @@ Project repository: https://github.com/fathomise/MailFathom
                       </sc-if>
                       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:4px">
                         <div onClick="{{ feSave }}" title="{{ feSaveTip }}" aria-disabled="{{ feSaveOff }}" style="{{ feSaveStyle }}" style-hover="cursor:pointer;filter:brightness(1.06)">Save folder</div>
-                        <div onClick="{{ feCancel }}" style="{{ sQuiet }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
+                        <div onClick="{{ feCancel }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}">Cancel</div>
                         <sc-if value="{{ feRemoveShown }}" hint-placeholder-val="{{ false }}">
-                          <div onClick="{{ feRemove }}" style="{{ smallBtn }}color:var(--err-text);margin-left:auto" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">folder_off</span>Stop reading it</div>
+                          <div onClick="{{ feRemove }}" style="{{ smallBtn }}color:var(--err-text);margin-left:auto" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">folder_off</span>Stop reading it</div>
                         </sc-if>
                       </div>
                     </div>
@@ -3907,7 +3932,7 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="{{ sProblem }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">error</span><span>{{ folderOut }}</span></div>
             </sc-if>
             <sc-if value="{{ addFolderShown }}" hint-placeholder-val="{{ true }}">
-              <div onClick="{{ addFolder }}" style="{{ sQuiet }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">create_new_folder</span>Add a folder</div>
+              <div onClick="{{ addFolder }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">create_new_folder</span>Add a folder</div>
             </sc-if>
             <div style="{{ sDivider }}"></div>
             <div style="{{ sCap }}">Footer</div>
@@ -3916,34 +3941,22 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">corporate_fare</span><span>Your organization sets the footer on this account, so a footer of your own cannot be written here. It fills in your name, your job title and your number. This is what goes out:</span></div>
             </sc-if>
             <sc-if value="{{ ftEditing }}" hint-placeholder-val="{{ false }}">
-              <div style="{{ sCap }}">Markup</div>
-              <textarea value="{{ ftMarkup }}" onChange="{{ onFtMarkup }}" rows="6" spellCheck="{{ false }}" style="{{ sCode }}" style-focus="border-color:var(--accent)"></textarea>
-              <div style="{{ sHint }}">Refer to an uploaded image as <span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--text2)">cid:</span> and its name. An image linked from the web is refused, because loading it would tell its server who read your mail.</div>
-              <div style="{{ sCapGap }}">Images</div>
-              <sc-for list="{{ ftImages }}" as="im" hint-placeholder-count="1">
-                <div style="{{ sImageChip }}">
-                  <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">image</span>
-                  <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:13px;color:var(--text)">{{ im.cid }}</span>
-                  <span style="flex:1;min-width:0;font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ im.file }}</span>
-                  <div onClick="{{ im.remove }}" title="Remove this image" style="{{ iconBtn }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">close</span></div>
+              <div style="{{ sFooterEditorWrap }}">
+                <div style="{{ sFooterBar }}">
+                  <sc-for list="{{ ftFmtButtons }}" as="fb" hint-placeholder-count="8">
+                    <div onMouseDown="{{ fb.run }}" title="{{ fb.title }}" style="{{ fb.style }}" style-hover="{{ sIconHover }}">{{ fb.label }}</div>
+                  </sc-for>
+                  <div onMouseDown="{{ ftInsertImage }}" title="{{ ftImageTip }}" aria-disabled="{{ ftImageOff }}" style="{{ ftImageBtnStyle }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">add_photo_alternate</span></div>
                 </div>
-              </sc-for>
-              <sc-if value="{{ ftNoImages }}" hint-placeholder-val="{{ false }}">
-                <div style="font-size:13px;color:var(--muted)">No image uploaded.</div>
-              </sc-if>
-              <div onClick="{{ ftUpload }}" style="{{ sQuiet }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">upload</span>Upload an image</div>
-              <div style="{{ sCapGap }}">Preview</div>
-              <div style="{{ sPreview }}">
-                <sc-for list="{{ ftPreview }}" as="fp" hint-placeholder-count="2">
-                  <div style="{{ fp.style }}"><sc-if value="{{ fp.image }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">image</span></sc-if>{{ fp.text }}</div>
-                </sc-for>
+                <div contentEditable="true" suppressContentEditableWarning="{{ true }}" ref="{{ ftEditorRef }}" onInput="{{ onFtInput }}" aria-label="Footer" style="{{ sFooterEditor }}"></div>
               </div>
+              <div style="{{ sHint }}">The same editor you write mail in. An image is uploaded and travels inside the message - one linked from the web is refused, because loading it would tell its server who read your mail.</div>
               <sc-if value="{{ ftProblem }}" hint-placeholder-val="{{ false }}">
                 <div style="{{ sProblem }}">{{ ftProblem }}</div>
               </sc-if>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <div onClick="{{ ftSave }}" title="{{ ftSaveTip }}" aria-disabled="{{ ftSaveOff }}" style="{{ ftSaveStyle }}" style-hover="cursor:pointer;filter:brightness(1.06)">Save footer</div>
-                <div onClick="{{ ftCancel }}" style="{{ sQuiet }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
+                <div onClick="{{ ftCancel }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}">Cancel</div>
               </div>
             </sc-if>
             <sc-if value="{{ ftShowsPreview }}" hint-placeholder-val="{{ false }}">
@@ -3955,21 +3968,73 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
             <sc-if value="{{ ftOwnActions }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <div onClick="{{ ftEdit }}" style="{{ sQuiet }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">edit</span>Edit footer</div>
-                <div onClick="{{ ftRemove }}" style="{{ smallBtn }}color:var(--err-text)" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">delete</span>Remove footer</div>
+                <div onClick="{{ ftEdit }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">edit</span>Edit footer</div>
+                <div onClick="{{ ftRemove }}" style="{{ smallBtn }}color:var(--err-text)" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">delete</span>Remove footer</div>
               </div>
             </sc-if>
             <sc-if value="{{ ftNone }}" hint-placeholder-val="{{ false }}">
               <div style="font-size:14px;color:var(--muted)">Messages from this account go out without a footer.</div>
             </sc-if>
             <sc-if value="{{ ftNoneActions }}" hint-placeholder-val="{{ false }}">
-              <div onClick="{{ ftWrite }}" style="{{ sQuiet }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">edit_note</span>Write a footer</div>
+              <div onClick="{{ ftWrite }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">edit_note</span>Write a footer</div>
             </sc-if>
             <sc-if value="{{ ftOutcomeOk }}" hint-placeholder-val="{{ false }}">
               <div style="{{ sOk }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">check_circle</span><span>{{ ftOutcome }}</span></div>
             </sc-if>
             <sc-if value="{{ ftOutcomeBad }}" hint-placeholder-val="{{ false }}">
               <div style="{{ sProblem }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">error</span><span>{{ ftOutcome }}</span></div>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{ tabCerts }}" hint-placeholder-val="{{ false }}">
+            <sc-if value="{{ certLockText }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">lock</span><span>{{ certLockText }}</span></div>
+            </sc-if>
+            <div style="{{ sCap }}">Your certificates and keys</div>
+            <div style="{{ sHint }}">Added once, and chosen for each account under Accounts › Sending - the same one for signing and encrypting, or two different ones. MailFathom holds them on its server and opens encrypted mail to you with them, so a message it opens is searched, indexed and read by the AI like any other mail.</div>
+            <sc-if value="{{ certNone }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--faint)">No certificate or key yet.</div></sc-if>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ certRows }}" as="ce" hint-placeholder-count="3">
+                <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 11px;max-width:620px;box-sizing:border-box;border:1px solid var(--line);border-radius:12px;background:var(--sub)">
+                  <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1.2;color:var(--muted)">{{ ce.icon }}</span>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                    <div style="display:flex;align-items:baseline;gap:8px;min-width:0"><span style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ce.name }}</span><span style="font-size:12px;color:var(--faint);white-space:nowrap">{{ ce.kind }}</span></div>
+                    <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ce.detail }}</div>
+                    <div style="font-size:12px;color:var(--faint)">{{ ce.usage }}</div>
+                  </div>
+                  <sc-if value="{{ ce.removeShown }}" hint-placeholder-val="{{ true }}">
+                    <div onClick="{{ ce.remove }}" title="Remove" style="{{ iconBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">delete</span></div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ certAddShown }}" hint-placeholder-val="{{ true }}">
+              <div onClick="{{ certAdd }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">add</span>Add a certificate or key</div>
+            </sc-if>
+            <sc-if value="{{ certAdding }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sCard }}">
+                <div style="font-size:14px;font-weight:600">Add a certificate or key</div>
+                <div style="{{ sHint }}">An S/MIME certificate with its private key, as a .p12 or .pfx file, or an OpenPGP secret key, as an .asc file.</div>
+                <sc-if value="{{ certHasFile }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ sImageChip }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">draft</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ certFile }}</span><span style="font-size:12px;color:var(--faint)">{{ certFileKind }}</span></div>
+                </sc-if>
+                <div onClick="{{ certPickFile }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">upload_file</span>Choose a file</div>
+                <sc-if value="{{ certHasFile }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <div style="font-size:14px">Password</div>
+                    <input type="password" value="{{ certPass }}" onInput="{{ onCertPass }}" maxLength="1024" autocomplete="off" style="{{ sField }}" style-focus="border-color:var(--accent)" />
+                    <div style="{{ sHint }}">{{ certPassHint }}</div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ certProblem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ certProblem }}</div></sc-if>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  <div onClick="{{ certSave }}" title="{{ certSaveTip }}" aria-disabled="{{ certSaveOff }}" style="{{ certSaveStyle }}" style-hover="cursor:pointer">Add it</div>
+                  <div onClick="{{ certCancel }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}">Cancel</div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ certOutcome }}" hint-placeholder-val="{{ false }}">
+              <sc-if value="{{ certOutOk }}" hint-placeholder-val="{{ false }}"><div style="{{ sOk }}">{{ certOutcome }}</div></sc-if>
+              <sc-if value="{{ certOutBad }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ certOutcome }}</div></sc-if>
             </sc-if>
           </sc-if>
           <sc-if value="{{ tabReading }}" hint-placeholder-val="{{ false }}">
@@ -3987,27 +4052,43 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="{{ sNoteWarn }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">gpp_maybe</span><span>Security risk: message HTML can contain hidden tracking pixels, impersonating layouts and phishing links. We render it in isolation, but the preview alone can tell the sender the message was opened.</span></div>
             </sc-if>
             <div style="{{ sDivider }}"></div>
-            <div onClick="{{ toggleAutoExpand }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+            <div onClick="{{ toggleAutoExpand }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Expand the whole thread automatically</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Without this, a thread opens on the selected message and the rest sit behind a button.</div>
               </div>
               <span style="{{ autoExpandSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
             </div>
-            <div onClick="{{ toggleMarkRead }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+            <div onClick="{{ toggleMarkRead }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Mark a message read when it opens</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">On your mail server too, in every account you read. Off, a message stays unread until you mark it.</div>
               </div>
               <span style="{{ markReadSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
             </div>
-            <div onClick="{{ toggleAiFiltersShown }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+            <div onClick="{{ toggleAiFiltersShown }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Show the AI filters in the folder tree</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Three standing views of the mailbox, over what MailFathom already read. Turning them off takes the section out of the tree and changes nothing about the mail.</div>
               </div>
               <span style="{{ aiFiltersShownSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
             </div>
+            <div style="{{ sCapGap }}">The mail list shows</div>
+            <div style="{{ prefSegTrack }}">
+              <sc-for list="{{ listSegs }}" as="ls" hint-placeholder-count="2">
+                <div onClick="{{ ls.pick }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ ls.style }}" style-hover="cursor:pointer">{{ ls.label }}</div>
+              </sc-for>
+            </div>
+            <div onClick="{{ toggleAutoImages }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                <div style="font-size:14px">Load images automatically</div>
+                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">With this off, a message shows a card to load its images once you decide the sender is trustworthy. Mail marked as spam never loads them.</div>
+              </div>
+              <span style="{{ autoImagesSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+            </div>
+            <sc-if value="{{ autoImages }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteWarn }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">gpp_maybe</span><span>Security risk: an image is fetched from the sender's server, so opening the message tells them it was read, when, and roughly where from - this is how tracking pixels work.</span></div>
+            </sc-if>
             <sc-if value="{{ readingProblem }}" hint-placeholder-val="{{ false }}">
               <div style="{{ sProblem }}">{{ readingProblem }}</div>
             </sc-if>
@@ -4023,7 +4104,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="font-size:14px;font-weight:600">{{ aiLangName }}</div>
                 <div style="font-size:12px;color:var(--faint)">Your language, set in Profile</div>
               </div>
-              <div onClick="{{ goProfile }}" style="{{ sQuiet }}align-self:center" style-hover="cursor:pointer;background:var(--hover)">Change</div>
+              <div onClick="{{ goProfile }}" style="{{ sQuiet }}align-self:center" style-hover="{{ sRowHover }}">Change</div>
             </div>
             <div style="{{ sHint }}">Summaries, thread digests and suggested replies are written in your language. What MailFathom reads out of a mailbox on its own - the reading of each message, the facts and deadlines it finds - follows the language set for that mailbox instead, so everybody who reads the mailbox reads one language.</div>
             <div style="display:flex;align-items:flex-start;gap:8px;max-width:620px;font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">
@@ -4031,7 +4112,7 @@ Project repository: https://github.com/fathomise/MailFathom
               <span>A change applies only to content written from now on. Summaries, notes and drafts that already exist keep the language they were created in.</span>
             </div>
             <div style="{{ sDivider }}"></div>
-            <div onClick="{{ toggleAiMatch }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+            <div onClick="{{ toggleAiMatch }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Match the language of the message</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Draft replies follow the language the sender wrote in; everything else keeps your language.</div>
@@ -4041,13 +4122,28 @@ Project repository: https://github.com/fathomise/MailFathom
             <sc-if value="{{ aiProblem }}" hint-placeholder-val="{{ false }}">
               <div style="{{ sProblem }}">{{ aiProblem }}</div>
             </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">AI settings in other sections</div>
+            <div style="{{ sHint }}">Each is changed where it belongs. This list says how it stands and takes you there.</div>
+            <div style="{{ sFolderList }}">
+              <sc-for list="{{ aiRefs }}" as="ar" hint-placeholder-count="6">
+                <div onClick="{{ ar.go }}" style="{{ ar.rowStyle }}" style-hover="{{ sRowHover }}">
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                    <div style="font-size:14px">{{ ar.label }}</div>
+                    <div style="font-size:12px;color:var(--muted)">{{ ar.state }}</div>
+                    <div style="font-size:12px;color:var(--faint)">{{ ar.where }}</div>
+                  </div>
+                  <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--muted)">chevron_right</span>
+                </div>
+              </sc-for>
+            </div>
           </sc-if>
           <sc-if value="{{ tabNotif }}" hint-placeholder-val="{{ false }}">
             <sc-if value="{{ prefsLockText }}" hint-placeholder-val="{{ false }}">
               <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">lock</span><span>{{ prefsLockText }}</span></div>
             </sc-if>
             <div style="{{ sCap }}">Notification centre</div>
-            <div onClick="{{ toggleNotifAutoClear }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+            <div onClick="{{ toggleNotifAutoClear }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Remove notifications once they are read</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">A notification you have opened or marked as read disappears from the list on its own, so only what still needs you stays there.</div>
@@ -4066,7 +4162,7 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </sc-if>
             <div style="{{ sCapGap }}">This device</div>
-            <div onClick="{{ toggleNotifDevice }}" title="{{ notifDeviceTip }}" aria-disabled="{{ notifBlocked }}" style="{{ notifDeviceRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+            <div onClick="{{ toggleNotifDevice }}" title="{{ notifDeviceTip }}" aria-disabled="{{ notifBlocked }}" style="{{ notifDeviceRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Notify me on this device</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">When the window is not in front of you, this device tells you how many things arrived and of what kind - never from whom, never what it is about.</div>
@@ -4113,7 +4209,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="{{ sHint }}">{{ themeHint }}</div>
             <div style="{{ sDivider }}"></div>
             <div style="{{ sCap }}">Mail</div>
-            <div onClick="{{ toggleOpenInTabs }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+            <div onClick="{{ toggleOpenInTabs }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Open mail in tabs</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Every open message, attachment and new message gets a tab of its own above the reading pane. Off, mail opens beside the list and a new message takes its place.</div>
@@ -4123,26 +4219,10 @@ Project repository: https://github.com/fathomise/MailFathom
             <sc-if value="{{ tabsWidthNote }}" hint-placeholder-val="{{ false }}">
               <div style="{{ sHint }}">{{ tabsWidthNote }}</div>
             </sc-if>
-            <div style="{{ sCapGap }}">The mail list shows</div>
-            <div style="{{ prefSegTrack }}">
-              <sc-for list="{{ listSegs }}" as="ls" hint-placeholder-count="2">
-                <div onClick="{{ ls.pick }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ ls.style }}" style-hover="cursor:pointer">{{ ls.label }}</div>
-              </sc-for>
-            </div>
-            <div onClick="{{ toggleAutoImages }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-                <div style="font-size:14px">Load images automatically</div>
-                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">With this off, a message shows a card to load its images once you decide the sender is trustworthy. Mail marked as spam never loads them.</div>
-              </div>
-              <span style="{{ autoImagesSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
-            </div>
-            <sc-if value="{{ autoImages }}" hint-placeholder-val="{{ false }}">
-              <div style="{{ sNoteWarn }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">gpp_maybe</span><span>Security risk: an image is fetched from the sender's server, so opening the message tells them it was read, when, and roughly where from - this is how tracking pixels work.</span></div>
-            </sc-if>
             <div style="{{ sDivider }}"></div>
             <div style="{{ sCap }}">Privacy</div>
             <sc-if value="{{ telemetrySwitchShown }}" hint-placeholder-val="{{ true }}">
-              <div onClick="{{ toggleTelemetry }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+              <div onClick="{{ toggleTelemetry }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
                 <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                   <div style="font-size:14px">Don't send telemetry data</div>
                   <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Error diagnostics and usage statistics stay on this device.</div>
@@ -4165,7 +4245,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="{{ sDivider }}"></div>
             <div style="{{ sCap }}">Layout on this device</div>
             <div style="{{ sHint }}">Column widths and panel sizes are remembered on this device only - they never go to the server, so every computer and phone keeps its own arrangement.</div>
-            <div onClick="{{ resetLayout }}" style="{{ resetLayoutStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+            <div onClick="{{ resetLayout }}" style="{{ resetLayoutStyle }}" style-hover="{{ sRowHover }}">
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">restart_alt</span>Reset layout
             </div>
             <sc-if value="{{ resetLayoutDone }}" hint-placeholder-val="{{ false }}">
