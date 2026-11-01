@@ -5,6 +5,9 @@
 import { calendarDayIn, dayFrom, zoneOffsetAt } from '../localization/instants';
 import type { Locale } from '../localization/locale';
 
+const aMinute = 60_000;
+const aDay = 86_400_000;
+
 // When a message is to leave, as the person named it: a date and a time on the clock of the zone their profile sets,
 // rather than an instant. The design draws every time that way — the ready times are *08:00 tomorrow*, the picker is a
 // date field and a time field — so a wall-clock reading is what the composer holds, and the instant it names is
@@ -75,21 +78,44 @@ export function readyTimeOf(chosen: SendTime, now: number, zone: string | null):
  * The instant a time on the zone's clock names, or `null` where it is not a date and a time, or the zone is one this
  * runtime does not know.
  *
- * The offset is read twice, at the clock reading taken as UTC and again at the instant that first reading gives,
- * because the two differ exactly where a daylight-saving change falls between them. A reading the clock skips over
- * lands after the gap, and one it shows twice lands on the second of the two.
+ * It answers the two cases a clock creates as the deployment's `ZonedInstant.Resolve` does, so the time a person picked
+ * is the one the service would have resolved: a reading the clock shows twice is taken at the earlier of the two, and
+ * one it skips over at the instant the gap ends. The offsets a day either side are the two the reading can stand
+ * under, since no zone changes its clock twice within one.
  */
 export function instantOf(chosen: SendTime, zone: string | null): number | null {
     const wall = Date.parse(`${chosen.date}T${chosen.time}:00Z`);
+    const before = Number.isNaN(wall) ? null : zoneOffsetAt(zone, wall - aDay);
+    const after = Number.isNaN(wall) ? null : zoneOffsetAt(zone, wall + aDay);
 
-    if (Number.isNaN(wall)) {
+    if (before === null || after === null) {
         return null;
     }
 
-    const first = zoneOffsetAt(zone, wall);
-    const second = first === null ? null : zoneOffsetAt(zone, wall - first * 60_000);
+    const readings = [wall - before * aMinute, wall - after * aMinute].filter(
+        (at) => zoneOffsetAt(zone, at) === (wall - at) / aMinute,
+    );
 
-    return second === null ? null : wall - second * 60_000;
+    if (readings.length > 0) {
+        return Math.min(...readings);
+    }
+
+    // Skipped over: the clock stood under `before` until the change and under `after` from it, so the change is the
+    // first minute between the two readings that already stands under `after`.
+    let standsBefore = wall - after * aMinute;
+    let standsAfter = wall - before * aMinute;
+
+    while (standsAfter - standsBefore > aMinute) {
+        const middle = standsBefore + Math.floor((standsAfter - standsBefore) / 2 / aMinute) * aMinute;
+
+        if (zoneOffsetAt(zone, middle) === after) {
+            standsAfter = middle;
+        } else {
+            standsBefore = middle;
+        }
+    }
+
+    return standsAfter;
 }
 
 /** Whether a time is at or before now, which the deployment refuses and the picker says before it is asked. */
@@ -121,11 +147,11 @@ export function wordSendTime(
     sentence: SendTimeSentence,
 ): SendTimeWording {
     const day = new Date(`${chosen.date}T00:00:00Z`);
-    const daysAway = Math.round((day.getTime() - Date.parse(`${calendarDayIn(now, zone)}T00:00:00Z`)) / 86_400_000);
+    const daysAway = Math.round((day.getTime() - Date.parse(`${calendarDayIn(now, zone)}T00:00:00Z`)) / aDay);
     const pieces: SendTimePieces = {
         weekday: new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(day),
         day: new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(day),
-        time: new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(
+        time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone: 'UTC' }).format(
             Date.parse(`${chosen.date}T${chosen.time}:00Z`),
         ),
     };

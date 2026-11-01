@@ -275,61 +275,63 @@ export function ContextMenu({
                     <div role="menu" aria-labelledby={names} className="flex flex-col gap-0.5">
                         {items.map((item) => (
                             <Fragment key={item.label}>
-                            {item.opensGroup === undefined ? null : (
-                                <div
-                                    role="separator"
-                                    aria-label={item.opensGroup}
-                                    className="mx-1.5 mt-1 border-t border-line px-1.5 pt-2 pb-1 text-xs font-semibold text-muted"
+                                {item.opensGroup === undefined ? null : (
+                                    <div
+                                        role="separator"
+                                        aria-label={item.opensGroup}
+                                        className="mx-1.5 mt-1 border-t border-line px-1.5 pt-2 pb-1 text-xs font-semibold text-muted"
+                                    >
+                                        {item.opensGroup}
+                                    </div>
+                                )}
+                                <button
+                                    type="button"
+                                    role={roleOf(item)}
+                                    aria-checked={item.checked}
+                                    // Focus is moved by the arrow keys rather than by Tab, which is what a menu is: one
+                                    // stop on the way in, and the items reached from there.
+                                    tabIndex={-1}
+                                    aria-disabled={refusedItem(item) ? true : undefined}
+                                    className={`${menuItem} ${item.destroys ? 'text-error-text' : ''} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
+                                    onClick={() => {
+                                        if (refusedItem(item)) {
+                                            return;
+                                        }
+
+                                        if (item.checked === undefined || item.takesOne === true) {
+                                            onClose();
+                                        }
+
+                                        item.choose();
+                                    }}
                                 >
-                                    {item.opensGroup}
-                                </div>
-                            )}
-                            <button
-                                type="button"
-                                role={roleOf(item)}
-                                aria-checked={item.checked}
-                                // Focus is moved by the arrow keys rather than by Tab, which is what a menu is: one
-                                // stop on the way in, and the items reached from there.
-                                tabIndex={-1}
-                                aria-disabled={refusedItem(item) ? true : undefined}
-                                className={`${menuItem} ${item.destroys ? 'text-error-text' : ''} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
-                                onClick={() => {
-                                    if (refusedItem(item)) {
-                                        return;
-                                    }
-
-                                    if (item.checked === undefined || item.takesOne === true) {
-                                        onClose();
-                                    }
-
-                                    item.choose();
-                                }}
-                            >
-                                {/* The symbol keeps its own column so every label starts in the same place, which is
+                                    {/* The symbol keeps its own column so every label starts in the same place, which is
                                     what the design draws and what makes the list readable as a column. */}
-                                <span className="flex w-6 shrink-0 justify-center">
-                                    <Icon name={item.icon} className="size-icon-lg" />
-                                </span>
+                                    <span className="flex w-6 shrink-0 justify-center">
+                                        <Icon name={item.icon} className="size-icon-lg" />
+                                    </span>
 
-                                {refusedItem(item) ? (
-                                    <span className="py-1.5">{item.refused}</span>
-                                ) : (
-                                    <span className="truncate">{item.label}</span>
-                                )}
+                                    {refusedItem(item) ? (
+                                        <span className="py-1.5">{item.refused}</span>
+                                    ) : (
+                                        <span className="truncate">{item.label}</span>
+                                    )}
 
-                                {item.hint === undefined || item.hint === '' ? null : (
-                                    <span className="ms-auto shrink-0 text-sm text-muted tabular-nums">{item.hint}</span>
-                                )}
+                                    {item.hint === undefined || item.hint === '' ? null : (
+                                        <span className="ms-auto shrink-0 text-sm text-muted tabular-nums">
+                                            {item.hint}
+                                        </span>
+                                    )}
 
-                                {/* One of a set keeps the check's room whether or not it is the one taken, so the dates
+                                    {/* One of a set keeps the check's room whether or not it is the one taken, so the dates
                                     beside every item stand in one column. */}
-                                {item.checked === true || item.takesOne === true ? (
-                                    <Icon
-                                        name="check"
-                                        className={`size-icon-lg shrink-0 text-accent-deep ${item.hint === undefined || item.hint === '' ? 'ms-auto' : ''} ${item.checked === true ? '' : 'invisible'}`}
-                                    />
-                                ) : null}
-                            </button>
+                                    {item.checked === true || item.takesOne === true ? (
+                                        <Icon
+                                            name="check"
+                                            className={`size-icon-lg shrink-0 text-accent-deep ${item.hint === undefined || item.hint === '' ? 'ms-auto' : ''} ${item.checked === true ? '' : 'invisible'}`}
+                                        />
+                                    ) : null}
+                                </button>
                             </Fragment>
                         ))}
                     </div>
@@ -358,7 +360,9 @@ function walkable(panel: HTMLElement | null): readonly HTMLElement[] {
     return panel === null
         ? []
         : Array.from(
-              panel.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'),
+              panel.querySelectorAll<HTMLElement>(
+                  '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]',
+              ),
           );
 }
 

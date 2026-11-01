@@ -61,9 +61,15 @@ describe('instantOf', () => {
         );
     });
 
-    it('lands a time the clock skips over after the gap', () => {
+    it('takes a time the clock skips over at the instant the gap ends, as the deployment resolves it', () => {
         expect(new Date(instantOf({ date: '2026-03-29', time: '02:30' }, 'Europe/Warsaw') ?? 0).toISOString()).toBe(
-            '2026-03-29T01:30:00.000Z',
+            '2026-03-29T01:00:00.000Z',
+        );
+    });
+
+    it('takes a time the clock shows twice at the earlier of the two, as the deployment resolves it', () => {
+        expect(new Date(instantOf({ date: '2026-10-25', time: '02:30' }, 'Europe/Warsaw') ?? 0).toISOString()).toBe(
+            '2026-10-25T00:30:00.000Z',
         );
     });
 
@@ -100,7 +106,9 @@ describe('instantStillAhead', () => {
 
 describe('wordSendTime', () => {
     it('says a time this week by its weekday on Send, and one a week or more out by its date', () => {
-        expect(wordSendTime({ date: '2026-08-28', time: '08:00' }, thursdayMorning, 'Europe/Warsaw', 'pl', said)).toStrictEqual({
+        expect(
+            wordSendTime({ date: '2026-08-28', time: '08:00' }, thursdayMorning, 'Europe/Warsaw', 'pl', said),
+        ).toStrictEqual({
             short: 'short:pt.|28.08|08:00',
             date: 'date:pt.|28.08|08:00',
             long: 'long:pt.|28.08|08:00',
@@ -113,7 +121,7 @@ describe('wordSendTime', () => {
     it('says a time later today as today', () => {
         expect(
             wordSendTime({ date: '2026-08-27', time: '17:00' }, thursdayMorning, 'Europe/Warsaw', 'en', said).short,
-        ).toBe('short:today|05:00 PM');
+        ).toBe('short:today|5:00 PM');
     });
 });
 

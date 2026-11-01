@@ -230,6 +230,45 @@ describe('ContextMenu', () => {
         expect(document.activeElement).toBe(screen.getByRole('menuitemcheckbox', { name: 'Request read receipt' }));
     });
 
+    it('names a group under its heading, and takes one of its choices and goes', () => {
+        const closed = vi.fn();
+        const taken = vi.fn();
+
+        menuOver(closed, [
+            { icon: 'check_box', label: 'Request read receipt', checked: false, choose: vi.fn() },
+            {
+                icon: 'wb_twilight',
+                label: 'Tomorrow morning',
+                hint: 'Fri 08:00',
+                checked: true,
+                takesOne: true,
+                opensGroup: 'Send later',
+                choose: taken,
+            },
+            { icon: 'light_mode', label: 'Tomorrow afternoon', checked: false, takesOne: true, choose: vi.fn() },
+        ]);
+
+        const morning = screen.getByRole('menuitemradio', { name: /^Tomorrow morning/u });
+
+        expect(screen.getByRole('separator', { name: 'Send later' })).toBeTruthy();
+        expect(morning.textContent).toContain('Fri 08:00');
+        expect(morning.getAttribute('aria-checked')).toBe('true');
+        expect(screen.getByRole('menuitemradio', { name: 'Tomorrow afternoon' }).getAttribute('aria-checked')).toBe(
+            'false',
+        );
+
+        fireEvent.keyDown(screen.getByRole('menuitemcheckbox', { name: 'Request read receipt' }), {
+            key: 'ArrowDown',
+        });
+
+        expect(document.activeElement).toBe(morning);
+
+        fireEvent.click(morning);
+
+        expect(taken).toHaveBeenCalledOnce();
+        expect(closed).toHaveBeenCalledOnce();
+    });
+
     // It stands over whatever it was opened on, so the back gesture closes it before it navigates and a change of
     // destination leaves none of it behind. It is on the screen for exactly as long as it is drawn, which is why the
     // registration is unconditional rather than following a state of its own.

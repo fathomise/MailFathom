@@ -184,11 +184,13 @@ export function useSendingOptions({
             leaves === null ? null : (
                 <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t border-accent-line bg-accent-soft py-1.5 ps-3.75 pe-2.25 text-base/normal text-pretty text-text-soft pointer-coarse:min-h-13 pointer-coarse:py-1">
                     <Icon name="schedule_send" className="size-icon-md shrink-0 text-accent-deep" />
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-0 flex-1 basis-55">
                         {translate('compose.leavesAt', { when: leaves.long })}{' '}
-                        <span className="text-muted">{translate('compose.leavesInZone', { zone: namedZone(zone) })}</span>
+                        <span className="text-muted">
+                            {translate('compose.leavesInZone', { zone: namedZone(zone) })}
+                        </span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-1.5">
+                    <span className="ms-auto flex shrink-0 items-center gap-1.5">
                         <button
                             type="button"
                             className="flex h-7 items-center rounded-md px-2 text-base font-semibold text-accent-deep transition hover:bg-hover pointer-coarse:h-11"

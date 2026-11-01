@@ -1204,7 +1204,10 @@ export function Composer({
                             setPicking((standing) => (standing === null ? null : { ...standing, asking }));
                         }}
                         onSchedule={(chosen) => {
-                            setSendAt({ ...chosen, readyTime: readyTimeOf(chosen, picking?.openedAt ?? shownAt, zone) });
+                            setSendAt({
+                                ...chosen,
+                                readyTime: readyTimeOf(chosen, picking?.openedAt ?? shownAt, zone),
+                            });
                         }}
                     />
                 </>
