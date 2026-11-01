@@ -166,7 +166,7 @@ public sealed class AgentActPerformerTests
         var act = (AgentMessageSending)AgentConversationExample.Act() with { DueAt = new AgentSendTime(Start, "Europe/Warsaw") };
 
         // Act
-        var carriedOut = await this.SendingPerformer(outgoingEmails).PerformAsync(act, "agent@proposal#4", TestContext.Current.CancellationToken);
+        var carriedOut = await this.SendingPerformer(outgoingEmails, out _).PerformAsync(act, "agent@proposal#4", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(carriedOut);
@@ -181,7 +181,7 @@ public sealed class AgentActPerformerTests
         var outgoingEmails = new InMemoryOutgoingEmailStore();
 
         // Act
-        var carriedOut = await this.SendingPerformer(outgoingEmails).PerformAsync(AgentConversationExample.Act(), "agent@proposal#4", TestContext.Current.CancellationToken);
+        var carriedOut = await this.SendingPerformer(outgoingEmails, out _).PerformAsync(AgentConversationExample.Act(), "agent@proposal#4", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(carriedOut);
@@ -197,12 +197,66 @@ public sealed class AgentActPerformerTests
         var act = (AgentMessageSending)AgentConversationExample.Act() with { DueAt = new AgentSendTime(this.clock.GetUtcNow(), "Europe/Warsaw") };
 
         // Act
-        var carriedOut = await this.SendingPerformer(outgoingEmails).PerformAsync(act, "agent@proposal#4", TestContext.Current.CancellationToken);
+        var carriedOut = await this.SendingPerformer(outgoingEmails, out var harness).PerformAsync(act, "agent@proposal#4", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.False(carriedOut);
         Assert.Empty(outgoingEmails.OpenRequests);
+        Assert.Empty(harness.Drafts.Drafts);
     }
+
+    /// <summary>An answer to a message whose time has passed ends the same way, before anything is read to author it.</summary>
+    [Fact]
+    public async Task PerformAsync_AnAnswerWhoseTimeHasPassed_ReportsItNotCarriedOut()
+    {
+        // Arrange
+        var act = new AgentResponseSending(
+            StoredEmailId.Create(new Guid("44444444-4444-4444-4444-444444444444")),
+            AuthoredResponseAct.Reply,
+            [],
+            PresentationText.Create("Thank you, we accept."),
+            new AgentSendTime(this.clock.GetUtcNow().AddMinutes(-1), "Europe/Warsaw"));
+
+        // Act
+        var carriedOut = await this.Performer().PerformAsync(act, "agent@proposal#4", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(carriedOut);
+    }
+
+    /// <summary>Both sending acts hand on the time they were proposed with, in the zone it was asked in, and every other act hands on none.</summary>
+    [Theory]
+    [MemberData(nameof(ActsAndTheirDueTimes))]
+    public void DueTimeOf_AnAct_IsTheTimeItWasProposedToLeaveAt(AgentProposedAct act, ZonedInstant? expected)
+    {
+        // Act
+        var due = AgentActPerformer.DueTimeOf(act);
+
+        // Assert
+        Assert.Equal(expected, due);
+    }
+
+    public static TheoryData<AgentProposedAct, ZonedInstant?> ActsAndTheirDueTimes() => new()
+    {
+        {
+            (AgentMessageSending)AgentConversationExample.Act() with { DueAt = new AgentSendTime(Start, "Europe/Warsaw") },
+            ZonedInstant.Restore(Start, "Europe/Warsaw")
+        },
+        { AgentConversationExample.Act(), null },
+        {
+            new AgentResponseSending(
+                StoredEmailId.Create(new Guid("44444444-4444-4444-4444-444444444444")),
+                AuthoredResponseAct.Forward,
+                [],
+                PresentationText.Create("For your records."),
+                new AgentSendTime(Start, "America/New_York")),
+            ZonedInstant.Restore(Start, "America/New_York")
+        },
+        {
+            new AgentTaskRecording(PresentationText.Create("Send the revised schedule"), new DateOnly(2026, 9, 24), SourceMessage: null),
+            null
+        },
+    };
 
     private AgentActPerformer Performer(AuthoredMailDrafting? drafting = null, UserMailDrafts? drafts = null)
     {
@@ -218,12 +272,12 @@ public sealed class AgentActPerformerTests
     }
 
     /// <summary>Builds a performer whose mail side is the real drafting, book, and outbox, so a send is read where it was queued.</summary>
-    private AgentActPerformer SendingPerformer(InMemoryOutgoingEmailStore outgoingEmails)
+    private AgentActPerformer SendingPerformer(InMemoryOutgoingEmailStore outgoingEmails, out MailDraftHarness harness)
     {
         var authorization = AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend);
         var account = MailAccountId.Create(SentAccount);
         var catalogs = AssignedMailAccountCatalogs.For(authorization, SyntheticServedAccount.Of(account));
-        var harness = new MailDraftHarness(
+        harness = new MailDraftHarness(
             this.clock,
             outgoingEmails,
             MailOutboxSettings.Create(

@@ -377,6 +377,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
     [InlineData("2026-09-23T08:00:00", "Give the send time as an ISO 8601 instant")]
     [InlineData("tomorrow at eight", "Give the send time as an ISO 8601 instant")]
     [InlineData("2026-09-22T14:00:00+02:00", "That time has already passed: it is 2026-09-22T14:00+02:00 now.")]
+    [InlineData("2026-11-02T08:00:00+02:00", "The offset +02:00 is not Europe/Warsaw's at that time, which is UTC+01:00.")]
     public async Task ProposeMessage_ASendTimeNoSendCouldBeHeldUntil_IsRefusedAndProposesNothing(string sendAt, string refusal)
     {
         // Arrange
@@ -389,6 +390,30 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.StartsWith(refusal, answer?.ToString(), StringComparison.Ordinal);
         Assert.Empty(this.written.OfType<AgentActionProposed>());
         Assert.False(this.tools.HasProposed);
+    }
+
+    /// <summary>An answer to a message is held to the same send time as a new one, refused before the answer is authored.</summary>
+    [Fact]
+    public async Task ProposeReply_ASendTimeAlreadyGone_IsRefusedAndProposesNothing()
+    {
+        // Arrange
+        var tool = this.ToolNamed("propose_reply", MailFathomPermission.MailRead, MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend);
+
+        // Act
+        var answer = await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?>
+            {
+                ["messageId"] = "0199c0de-0000-7000-8000-000000000042",
+                ["act"] = "reply",
+                ["body"] = "Thank you, we accept.",
+                ["recipients"] = null,
+                ["sendAt"] = "2026-09-22T13:00:00+02:00",
+            }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.StartsWith("That time has already passed", answer?.ToString(), StringComparison.Ordinal);
+        Assert.Empty(this.written.OfType<AgentActionProposed>());
     }
 
     /// <summary>An account the person does not read is refused back to the model and nothing is proposed.</summary>

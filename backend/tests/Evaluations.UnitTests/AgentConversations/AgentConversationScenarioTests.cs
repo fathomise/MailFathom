@@ -94,6 +94,25 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ProposesOnlyWhatWasAskedMetricName).Value);
     }
 
+    /// <summary>An answer asked to leave later is judged by the instant it leaves on the person's clock, as a new message is.</summary>
+    [Theory]
+    [InlineData("2026-09-16T09:00:00+02:00", true)]
+    [InlineData("2026-09-16T09:00:00+00:00", false)]
+    [InlineData(null, false)]
+    public async Task RunAsync_AReplyAskedToLeaveLater_PassesTheProposalCheckOnlyAtTheAskedTime(string? sendAt, bool passes)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient(
+            [ProposeReply(PersonalAgenda.ArchiveBoxes[2], "reply", recipient: null, sendAt: sendAt)],
+            "I proposed the reply; nothing is sent until you accept it.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Propose.ReplyLeavingWhenAsked"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ProposesOnlyWhatWasAskedMetricName).Value);
+    }
+
     /// <summary>An event is judged by the instant it begins, which is the part a person would otherwise have to correct.</summary>
     [Theory]
     [InlineData("2026-09-16T16:00:00+02:00", true)]
@@ -680,14 +699,15 @@ public sealed class AgentConversationScenarioTests : IDisposable
         CorpusMessage answered,
         string act,
         string? recipient,
-        string body = "Thank you; someone will sign the collection form.") =>
+        string body = "Thank you; someone will sign the collection form.",
+        string? sendAt = null) =>
         ("propose_reply", new Dictionary<string, object?>
         {
             ["messageId"] = answered.Id.ToString(),
             ["act"] = act,
             ["body"] = body,
             ["recipients"] = recipient is null ? null : new[] { recipient },
-            ["sendAt"] = null,
+            ["sendAt"] = sendAt,
         });
 
     private static (string Tool, IDictionary<string, object?> Arguments) ProposeTask(string? dueOn) =>

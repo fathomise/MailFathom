@@ -16,6 +16,7 @@ using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Scheduling;
 using MailFathom.Domain.Tasks;
 
 namespace MailFathom.Application.Agent.Answering;
@@ -132,6 +133,16 @@ public sealed class AgentActPerformer : IAgentActPerformer
     public static string KeyOf(AgentConversationId conversation, long proposedAt) =>
         string.Create(CultureInfo.InvariantCulture, $"agent@{conversation.Value:D}#{proposedAt}");
 
+    /// <summary>Reads the time a proposed message is held until, whichever of the two sending acts proposed it.</summary>
+    /// <param name="act">The act.</param>
+    /// <returns>The due time in the zone it was asked in, or <see langword="null" /> where the message leaves once accepted or the act sends nothing.</returns>
+    internal static ZonedInstant? DueTimeOf(AgentProposedAct act) => act switch
+    {
+        AgentMessageSending { DueAt: { } due } => due.ToDueTime(),
+        AgentResponseSending { DueAt: { } due } => due.ToDueTime(),
+        _ => null,
+    };
+
     /// <summary>Saves the proposed message as a draft and sends it, held until the time the person asked for where they asked for one.</summary>
     /// <remarks>
     /// A time that has passed since the proposal was written is refused before the draft is saved, because the send would
@@ -140,12 +151,7 @@ public sealed class AgentActPerformer : IAgentActPerformer
     /// </remarks>
     private async Task<bool> SendAsync(AgentProposedAct act, string proposal, CancellationToken cancellationToken)
     {
-        var dueAt = act switch
-        {
-            AgentMessageSending { DueAt: { } due } => due.ToDueTime(),
-            AgentResponseSending { DueAt: { } due } => due.ToDueTime(),
-            _ => null,
-        };
+        var dueAt = DueTimeOf(act);
 
         if (dueAt is { } held && held.Instant <= this.time.GetUtcNow())
         {

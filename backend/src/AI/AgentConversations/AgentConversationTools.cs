@@ -384,8 +384,10 @@ internal sealed class AgentConversationTools
     /// <returns>A refusal the model can correct, or <see langword="null" /> where the time stands.</returns>
     /// <remarks>
     /// A time already gone is refused here rather than at the acceptance, because the send would refuse it there anyway,
-    /// and a model told now can still ask for a later one. The zone recorded is the person's profile zone, which the turn
-    /// named, so the outbox words the time the way they asked for it.
+    /// and a model told now can still ask for a later one. So is an offset the person's zone does not stand at on that
+    /// day: the turn states the offset of the moment it was asked, and a time named across a daylight-saving change
+    /// written with it would leave an hour away from the one the person named. The zone recorded is the person's profile
+    /// zone, which the turn named, so the outbox words the time the way they asked for it.
     /// </remarks>
     private string? RefuseSendTime(string? sendAt, out AgentSendTime? due)
     {
@@ -410,7 +412,17 @@ internal sealed class AgentConversationTools
                 $"That time has already passed: it is {now:yyyy-MM-dd'T'HH:mmzzz} now. Give a later time, or leave it empty to send once the person accepts.");
         }
 
-        due = new AgentSendTime(leaves, this.readers.Clock.Zone().Id);
+        var zone = this.readers.Clock.Zone();
+        var there = zone.Reading(leaves);
+
+        if (there.Offset != leaves.Offset)
+        {
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"The offset {leaves:zzz} is not {zone.Id}'s at that time, which is UTC{there:zzz}. Give the time the person named with that offset.");
+        }
+
+        due = new AgentSendTime(leaves, zone.Id);
 
         return null;
     }

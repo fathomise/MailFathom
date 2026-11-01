@@ -181,6 +181,27 @@ public sealed class AgentConversationEntrySerializationTests
         Assert.Equal((due, (AgentSendTime?)null), (read.DueAt, earlier.DueAt));
     }
 
+    /// <summary>An answer to a message asked to leave later keeps its time and zone the same way a new message does.</summary>
+    [Fact]
+    public void Serialize_AnAnswerAskedToLeaveLater_ReadsBackItsTimeAndZone()
+    {
+        // Arrange
+        var due = new AgentSendTime(PresentationPlanExample.ObservedAt.AddDays(1), "Europe/Warsaw");
+        var act = new AgentResponseSending(
+            StoredEmailId.Create(Guid.NewGuid()),
+            AuthoredResponseAct.Reply,
+            [],
+            PresentationText.Create("Thank you, we accept."),
+            due);
+
+        // Act
+        var read = Assert.IsType<AgentActionProposed>(
+            RoundTrip(new AgentActionProposed(AgentMessageId.New(), AgentConversationExample.Actionable(), act))).Act;
+
+        // Assert
+        Assert.Equal(due, Assert.IsType<AgentResponseSending>(read).DueAt);
+    }
+
     [Fact]
     public void Serialize_AQuestionAskedAboutAThread_ReadsItsScopeBack()
     {

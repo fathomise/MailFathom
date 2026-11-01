@@ -503,7 +503,7 @@ internal sealed record AgentConversationScenario(
             "Write to courier.desk@example.test from my account to confirm they may collect the archive boxes between 14:00 and 16:00, and send it tomorrow at 8 in the morning.",
             UserLanguage.English,
             [],
-            ["courier", "archive", "box", "collect", "pick", "14:00", "16:00", "tomorrow", "schedul", "send"])
+            ["courier", "archive", "box", "collect", "pick", "14:00", "16:00", "tomorrow", "schedule", "send"])
         {
             Zone = "Europe/Warsaw",
             Proposes = ["message to courier.desk@example.test leaving 2026-09-15 06:00Z in Europe/Warsaw"],
@@ -513,7 +513,7 @@ internal sealed record AgentConversationScenario(
             "Reply to Ingrid Solheim's latest message about the archive boxes and confirm someone will sign the collection form. Have it go out on Wednesday at 9:00.",
             UserLanguage.English,
             [],
-            [.. ArchiveBoxSubject, "Wednesday", "schedul", "send"])
+            [.. ArchiveBoxSubject, "Wednesday", "schedule", "send"])
         {
             Zone = "Europe/Warsaw",
             Proposes = [$"reply to {PersonalAgenda.ArchiveBoxes[2].Id} leaving 2026-09-16 07:00Z in Europe/Warsaw"],
