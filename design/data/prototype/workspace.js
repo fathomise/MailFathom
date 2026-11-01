@@ -132,9 +132,33 @@ MailFathomDesign.data.mailboxes = [
 ];
 MailFathomDesign.data.defaultReplyTo = "k.kowalska@nordwind.example";
 
-// The accounts Settings lists, with what their connection forms hold.
+// The accounts Settings lists: the address and the name the administrator set, the key of the footer each sends with
+// in `footers` above, whether its organization sets that footer (`footerByOrganization`), and the folders MailFathom
+// reads from it. A folder is found by its `role` or by its `path` on the mail server, outermost level first, and
+// carries the four switches the person may change: `sync` mirrors it, `ai` lets AI reach it, `embed` indexes it for
+// search by meaning, which needs `ai`, and `create` lets MailFathom create a folder the path names and the server lacks.
 MailFathomDesign.data.mailAccounts = [
-  { id: "a1", name: "Karolina Kowalska", mail: "k.kowalska@nordwind.pl", login: "k.kowalska@nordwind.pl", pass: "hunter-nordwind-24", dot: "var(--accent)", imapHost: "imap.nordwind.pl", imapPort: "993", imapEnc: "ssl", smtpHost: "smtp.nordwind.pl", smtpPort: "587", smtpEnc: "starttls", earliest: "", folders: { inbox: "INBOX", sent: "INBOX.Sent", drafts: "INBOX.Drafts", archive: "INBOX.Archive", junk: "INBOX.Spam", trash: "INBOX.Trash" } },
-  { id: "a2", name: "Karolina - private", mail: "kowalska.k@mail.example", login: "kowalska.k", pass: "mailexample2026", dot: "#4d9aa8", imapHost: "imap.mail.example", imapPort: "993", imapEnc: "ssl", smtpHost: "smtp.mail.example", smtpPort: "465", smtpEnc: "ssl" },
-  { id: "a3", name: "Nordwind board", shared: true, mail: "board@nordwind.example", login: "board", pass: "board-shared-key", dot: "#b0873a", imapHost: "imap.nordwind.example", imapPort: "143", imapEnc: "starttls", smtpHost: "smtp.nordwind.example", smtpPort: "587", smtpEnc: "starttls" },
+  { id: "a1", name: "Karolina Kowalska", mail: "k.kowalska@nordwind.example", dot: "var(--accent)", footer: "acc1", footerByOrganization: true,
+    folders: [
+      { alias: "Inbox", role: "inbox", path: [], sync: true, ai: true, embed: true, create: false },
+      { alias: "Sent", role: "sent", path: [], sync: true, ai: true, embed: true, create: false },
+      { alias: "Drafts", role: "drafts", path: [], sync: true, ai: false, embed: false, create: false },
+      { alias: "Archive", role: "archive", path: [], sync: true, ai: true, embed: true, create: false },
+      { alias: "Spam", role: "junk", path: [], sync: true, ai: false, embed: false, create: false },
+      { alias: "Trash", role: "trash", path: [], sync: true, ai: false, embed: false, create: false },
+      { alias: "Projects", role: "", path: ["INBOX", "Projects"], sync: true, ai: true, embed: true, create: false },
+      { alias: "Contracts", role: "", path: ["INBOX", "Contracts"], sync: true, ai: false, embed: false, create: false },
+      { alias: "Archive 2026", role: "", path: ["Archive", "2026"], sync: false, ai: true, embed: false, create: true },
+    ] },
+  { id: "a2", name: "Karolina - private", mail: "kowalska.k@mail.example", dot: "#4d9aa8", footer: "acc2",
+    folders: [
+      { alias: "Inbox", role: "inbox", path: [], sync: true, ai: true, embed: true, create: false },
+      { alias: "Sent", role: "sent", path: [], sync: true, ai: true, embed: false, create: false },
+      { alias: "Spam", role: "junk", path: [], sync: true, ai: false, embed: false, create: false },
+      { alias: "Trash", role: "trash", path: [], sync: true, ai: false, embed: false, create: false },
+    ] },
+  { id: "a3", name: "Nordwind board", shared: true, mail: "board@nordwind.example", dot: "#b0873a",
+    folders: [
+      { alias: "Inbox", role: "inbox", path: [], sync: true, ai: true, embed: true, create: false },
+    ] },
 ];

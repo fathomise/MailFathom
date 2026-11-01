@@ -953,7 +953,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if ((e && (e.ctrlKey || e.metaKey || e.shiftKey)) || sel.length) { this.toggleSelect(id); return; }
       const unread = Object.assign({}, this.state.unread || DEFAULT_UNREAD);
       const wasUnread = !!unread[id];
-      delete unread[id];
+      if (this.state.markReadOnOpen !== false) delete unread[id];
       /* Some threads have an unread message from the middle of the history —
          we open exactly that one, not the newest. Listed by thread, opening one reads the whole of it at once: what
          arrived since it was last read is marked new for as long as it stays open, and never again. */
@@ -4234,7 +4234,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const isNew = firstNew != null && i >= firstNew && !m.mine;
         const remoteRefs = m.remoteRefs != null ? m.remoteRefs
           : m.mine || thread.report ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
-        const remoteOn = !!(st.remoteLoaded || {})[k];
+        /* Loading images automatically reaches every message the card would stand on, and never a message marked spam. */
+        const remoteOn = !!st.autoImages || !!(st.remoteLoaded || {})[k];
         const folding = st.histFolding === thread.id;
         /* The original is what went out, footer and quoted conversation included, so nothing in it is folded. */
         const original = Object.assign({}, m, { paras: m.paras
@@ -4279,6 +4280,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           unfoldPhase: folding && !shownFolded(i) ? "out" : "in",
           remoteBlocked: remoteRefs > 0 && !remoteOn && !threadSpam.spam,
           remoteLoaded: remoteRefs > 0 && remoteOn && !threadSpam.spam,
+          remoteLoadedText: st.autoImages ? "Images from the sender load automatically - Settings, Application." : "Images from the sender are loaded for this message.",
           remoteCountLabel: "Removed references: " + remoteRefs,
           loadRemote: () => this.setState(s2 => ({ remoteLoaded: Object.assign({}, s2.remoteLoaded, { [k]: true }) })),
           remoteBoxStyle: "display:flex;flex-direction:column;gap:9px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:" + (touch ? "14px 15px" : "13px 16px"),
@@ -4880,7 +4882,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         onPhotoFile: (e) => {
           const f = e.target.files && e.target.files[0];
           if (!f) return;
-          if (f.size > 1048576) { this.setState({ photoError: "Plik ma " + (f.size / 1048576).toFixed(1) + " MB - limit to 1 MB." }); return; }
+          if (!/^image\/(jpeg|png)$/.test(f.type)) { this.setState({ photoError: "That file is neither a JPEG nor a PNG, so it was not sent." }); return; }
+          if (f.size > 1048576) { this.setState({ photoError: "That picture is larger than 1 MB, so it was not sent." }); return; }
           const r = new FileReader();
           r.onload = () => this.setState({ myPhoto: String(r.result), photoError: "" });
           r.readAsDataURL(f);
@@ -7839,14 +7842,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Past 1440 px Settings stands as a 1440 px surface centred on the window rather than stretching to its edge. */
         settingsCardStyle: "flex:1;min-width:0;max-width:1440px;margin:0 auto;display:flex;flex-direction:column;background:var(--panel)" + (w > 1440 ? ";box-shadow:-1px 0 0 var(--line),1px 0 0 var(--line)" : ""),
         notifDevice: !!st.notifDevice,
-        notifDeviceSwitchStyle: "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (st.notifDevice ? "--accent" : "--border2") + ");justify-content:" + (st.notifDevice ? "flex-end" : "flex-start"),
-        toggleNotifDevice: () => this.setState(s => ({ notifDevice: !s.notifDevice })),
         notifDuration: st.notifDuration == null ? 5 : st.notifDuration,
         notifDurationLabel: (st.notifDuration == null ? 5 : st.notifDuration) + " s",
-        onNotifDuration: (e) => {
-          const n = parseInt(e.target.value, 10);
-          this.setState({ notifDuration: isNaN(n) ? 5 : Math.max(1, Math.min(30, n)) });
-        },
         settingsMainStyle: "flex:1;min-height:0;display:flex;" + (singlePane ? "flex-direction:column;" : ""),
         settingsNavShown: !singlePane,
         settingsStripShown: singlePane,
@@ -7859,54 +7856,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         settingsTitleStyle: singlePane ? "font-size:18px;font-weight:600" : "font-size:16px;font-weight:600",
         settingsQuery: st.settingsQuery || "",
         onSettingsQuery: (e) => this.setState({ settingsQuery: e.target.value }),
-        tabProfil: (st.settingsTab || "profil") === "profil",
-        tabApp: st.settingsTab === "app",
-        ...(() => {
-          const sections = [
-            { v: "profil", label: "Profile", icon: "person", group: "You", hint: "Your name and photo, as the people you write to see them." },
-            { v: "accounts", label: "Accounts", icon: "alternate_email", group: "Mail", hint: "The mail accounts your administrator set up, and how each one syncs, deletes and sends." },
-            { v: "ai", label: "AI", icon: "auto_awesome", group: "Assistant", hint: "The language the assistant writes in, and what it may read." },
-            { v: "notif", label: "Notifications", icon: "notifications", group: "Assistant", hint: "What reaches you, on which device, and for how long it stays." },
-            { v: "app", label: "Application", icon: "tune", group: "This device", hint: "How messages are shown, and the layout this device remembers." },
-          ];
-          const cur = st.settingsTab || "profil";
-          const q = (st.settingsQuery || "").trim().toLowerCase();
-          const shown = sections.filter(x => !q || (x.label + " " + x.hint).toLowerCase().includes(q));
-          const curSec = sections.find(x => x.v === cur) || sections[0];
-          const item = (x) => ({
-            label: x.label, icon: x.icon,
-            pick: () => this.setState({ settingsTab: x.v }),
-            navStyle: "display:flex;align-items:center;gap:11px;border-radius:8px;box-sizing:border-box;" + (touch ? "min-height:44px;padding:0 12px;" : "padding:8px 12px;") + "font-size:14px;" +
-              (cur === x.v ? "background:var(--accent-soft);color:var(--accent-d);font-weight:600;" : "color:var(--text2);"),
-            iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:19px;line-height:1;width:20px;text-align:center;" + (cur === x.v ? "" : "color:var(--muted);"),
-          });
-          return {
-            settingsSectionTitle: curSec.label,
-            settingsSectionHint: curSec.hint,
-            settingsNavEmpty: shown.length === 0,
-            settingsNavGroups: ["You", "Mail", "Assistant", "This device"]
-              .map(g => ({ label: g, items: shown.filter(x => x.group === g).map(item) }))
-              .filter(g => g.items.length),
-          };
-        })(),
-        settingsSwipe: touch && singlePane
-          ? this.tabSwipe(["profil", "accounts", "ai", "notif", "app"], st.settingsTab || "profil", v => this.setState({ settingsTab: v }))
-          : {},
-        settingsTabs: [["profil", "Profile"], ["accounts", "Accounts"], ["ai", "AI"], ["notif", "Notifications"], ["app", "Application"]].map(([v, label]) => ({
-          label,
-          pick: () => this.setState({ settingsTab: v }),
-          style: "flex:0 0 auto;white-space:nowrap;border-bottom:2px solid " +
-            ((st.settingsTab || "profil") === v
-              ? "var(--accent);color:var(--text);font-weight:600"
-              : "transparent;color:var(--muted)") +
-            (touch ? ";padding:14px 4px 12px;font-size:16px" : ";padding:10px 1px 8px;font-size:14px"),
-        })),
         autoImages: !!st.autoImages,
-        autoImagesSwitchStyle: "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (st.autoImages ? "--accent" : "--border2") + ");justify-content:" + (st.autoImages ? "flex-end" : "flex-start"),
-        toggleAutoImages: () => this.setState(s => ({ autoImages: !s.autoImages })),
         autoExpand: !!st.autoExpand,
-        autoExpandSwitchStyle: "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (st.autoExpand ? "--accent" : "--border2") + ");justify-content:" + (st.autoExpand ? "flex-end" : "flex-start"),
-        toggleAutoExpand: () => this.setState(s2 => ({ autoExpand: !s2.autoExpand, histOpen: {} })),
         htmlModeWarn: st.msgView === "html",
         htmlAskOpen: !!st.htmlAsk,
         cancelHtmlAsk: () => this.setState({ htmlAsk: null }),
@@ -7918,9 +7869,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           else this.setState({ htmlDoc: ask.doc, htmlSrcMode: false, htmlLoading: true });
           this.loadHtml();
         },
-        setViewAi: () => this.setState({ msgView: "ai" }),
-        setViewSimple: () => this.setState({ msgView: "simple" }),
-        setViewHtml: () => this.setState({ msgView: "html", htmlDoc: null }),
         viewAiStyle: segStyle(st.msgView === "ai"),
         viewSimpleStyle: segStyle(st.msgView !== "ai" && st.msgView !== "html"),
         viewHtmlStyle: segStyle(st.msgView === "html"),
@@ -7930,46 +7878,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             ? "The same deterministic cleanup as Simplified, with AI deciding only what to keep and what to drop - it never rewrites a word, so the text stays exactly as the sender wrote it; only the presentation changes. Usually cleaner than plain Simplified, especially on newsletters and long reply chains."
             : "Messages are shown as cleaned-up text; the original is one control away on the message head.",
         telemetryOptOut: !!st.telemetryOptOut,
-        telemetrySwitchStyle: "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (st.telemetryOptOut ? "--accent" : "--border2") + ");justify-content:" + (st.telemetryOptOut ? "flex-end" : "flex-start"),
-        toggleTelemetry: () => this.setState(s => ({ telemetryOptOut: !s.telemetryOptOut })),
         ...(() => {
-          const ENC = [["auto", "Auto"], ["none", "None"], ["starttls", "STARTTLS"], ["ssl", "SSL/TLS"]];
-          const DEF = structuredClone(MAIL_ACCOUNTS);
-          const accounts = st.accounts || DEF;
-          const d = st.acctDraft || null;
-          const upd = (k, v) => this.setState(s => ({ acctDraft: Object.assign({}, s.acctDraft, { [k]: v }), acctTest: null }));
-          const test = st.acctTest || null;
-          const missing = !d ? [] : [
-            [(d.imapHost || "").trim(), "IMAP host"],
-            [(d.imapPort || "").trim(), "IMAP port"],
-            [(d.smtpHost || "").trim(), "SMTP host"],
-            [(d.smtpPort || "").trim(), "SMTP port"],
-            [((d.login || "").trim() || (d.mail || "").trim()), "login or e-mail address"],
-            [(d.pass || "").trim(), "password"],
-          ].filter(p => !p[0]).map(p => p[1]);
-          const ev = k => e => upd(k, e.target.value);
-          const canSave = !!d && !!(d.name || "").trim() && !!(d.mail || "").trim();
-          const hardDel = d ? d.hardDelete !== false : true;
-          const purgeGone = d ? d.purgeGone !== false : true;
-          const saveSent = d ? d.saveSent !== false : true;
-          const secretScan = d ? d.secretScan !== false : true;
-          const sw = on => "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (on ? "--accent" : "--border2") + ");justify-content:" + (on ? "flex-end" : "flex-start");
-          const FOLD = [["inbox", "Inbox", "inbox", "INBOX"], ["sent", "Sent", "send", "Sent"], ["drafts", "Drafts", "draft", "Drafts"], ["archive", "Archive", "archive", "Archive"], ["junk", "Spam", "report", "Junk"], ["trash", "Trash", "delete", "Trash"]];
-          const DEFFOLD = { inbox: "INBOX", sent: "Sent", drafts: "Drafts", archive: "Archive", junk: "Junk", trash: "Trash" };
-          const folders = (d && d.folders) || DEFFOLD;
-          const updFolder = (k, v) => this.setState(s => ({
-            acctDraft: Object.assign({}, s.acctDraft, { folders: Object.assign({}, (s.acctDraft || {}).folders || DEFFOLD, { [k]: v }) }),
-          }));
-          const btn = (kind) => "display:flex;align-items:center;justify-content:center;align-self:flex-start;gap:6px;padding:9px 16px;border-radius:8px;font-size:14px;font-weight:600;white-space:nowrap;" + kind;
-          const onAiLang = v => this.setState({ aiLang: v });
-          const aiLang = st.aiLang || "en";
+          const accounts = MAIL_ACCOUNTS;
+          const btn = (kind) => "display:flex;align-items:center;justify-content:center;align-self:flex-start;gap:6px;border-radius:8px;font-size:14px;font-weight:600;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:44px;padding:0 16px;" : "padding:9px 16px;") + kind;
           return {
             userMailboxes: accounts.map(a => ({
               mail: a.mail, dot: a.dot, current: false, pick: null, shared: !!a.shared, sharedStyle: SHARED_MARK,
               style: "display:flex;align-items:center;gap:8px;padding:3px 0;color:var(--muted)",
             })),
-            tabAi: st.settingsTab === "ai",
-            tabNotif: st.settingsTab === "notif",
             resetLayoutStyle: btn("background:var(--sub);border:1px solid var(--border2);color:var(--text2);"),
             resetLayoutDone: !!st.layoutReset,
             resetLayout: () => {
@@ -7980,129 +7896,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               setTimeout(() => this.setState({ layoutReset: false }), 3200);
             },
             notifAutoClear: !!st.notifAutoClear,
-            notifAutoClearSwitchStyle: sw(!!st.notifAutoClear),
-            toggleNotifAutoClear: () => this.setState(s => ({ notifAutoClear: !s.notifAutoClear })),
             notifAutoClearAfter: st.notifAutoClearAfter || "24h",
             onNotifAutoClearAfter: e => this.setState({ notifAutoClearAfter: e.target.value }),
             notifAfterOptions: [["now", "Right away"], ["1h", "After 1 hour"], ["24h", "After 24 hours"], ["7d", "After 7 days"]].map(([v, label]) => ({ v, label })),
-            aiLangOptions: [["en", "English"], ["pl", "Polski"]].map(([v, label]) => ({
-              label,
-              pick: () => onAiLang(v),
-              style: "padding:7px 13px;border-radius:8px;font-size:14px;" + (aiLang === v
-                ? "background:var(--accent);color:var(--onaccent);font-weight:600;"
-                : "color:var(--text2);border:1px solid var(--line);background:var(--sub);"),
-            })),
             aiMatchReply: !!st.aiMatchReply,
-            aiMatchSwitchStyle: "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (st.aiMatchReply ? "--accent" : "--border2") + ");justify-content:" + (st.aiMatchReply ? "flex-end" : "flex-start"),
-            toggleAiMatch: () => this.setState(s => ({ aiMatchReply: !s.aiMatchReply })),
-            tabAccounts: st.settingsTab === "accounts",
-            acctListShown: st.settingsTab === "accounts" && !d,
-            acctEditShown: st.settingsTab === "accounts" && !!d,
-            acctCount: accounts.length === 1 ? "1 account" : accounts.length + " accounts",
-            acctItems: accounts.map(a => ({
-              name: a.name,
-              mail: a.mail,
-              servers: "IMAP " + a.imapHost + ":" + a.imapPort + "  ·  SMTP " + a.smtpHost + ":" + a.smtpPort,
-              dotStyle: "flex:0 0 8px;width:8px;height:8px;border-radius:50%;margin-top:6px;background:" + a.dot,
-              edit: () => this.setState({ acctDraft: Object.assign({}, a), acctPassShown: false }),
-            })),
-            acctBack: () => this.setState({ acctDraft: null }),
-            acctTitle: d ? "Edit account" : "",
-            acctIsExisting: !!d && !!d.id,
-            acctName: d ? d.name : "",
-            acctMail: d ? d.mail : "",
-            acctLogin: d ? d.login : "",
-            acctPass: d ? d.pass : "",
-            acctImapHost: d ? d.imapHost : "",
-            acctImapPort: d ? d.imapPort : "",
-            acctImapEnc: d ? (d.imapEnc || "auto") : "auto",
-            acctSmtpHost: d ? d.smtpHost : "",
-            acctSmtpPort: d ? d.smtpPort : "",
-            acctSmtpEnc: d ? (d.smtpEnc || "auto") : "auto",
-            acctSecretScan: secretScan,
-            acctSecretScanSwitchStyle: sw(secretScan),
-            acctSecretScanWarn: secretScan,
-            toggleAcctSecretScan: () => upd("secretScan", !secretScan),
-            onAcctName: ev("name"),
-            onAcctLogin: ev("login"),
-            onAcctPass: ev("pass"),
-            onAcctImapHost: ev("imapHost"),
-            onAcctImapPort: ev("imapPort"),
-            onAcctImapEnc: ev("imapEnc"),
-            onAcctSmtpHost: ev("smtpHost"),
-            onAcctSmtpPort: ev("smtpPort"),
-            onAcctSmtpEnc: ev("smtpEnc"),
-            encOptions: ENC.map(([v, label]) => ({ v, label })),
-            acctTestStyle: btn("background:var(--sub);border:1px solid var(--border2);color:var(--text2);"),
-            acctTestRun: () => this.setState({
-              acctTest: missing.length
-                ? { ok: false, title: "Cannot test the connection", text: "Fill in first: " + missing.join(", ") + "." }
-                : { ok: true, title: "Connection works", text: "Signed in to " + (d.imapHost || "") + " and sent a test handshake to " + (d.smtpHost || "") + "." },
-            }),
-            acctTestShown: !!test,
-            acctTestOk: !!test && test.ok,
-            acctTestBad: !!test && !test.ok,
-            acctTestTitle: test ? test.title : "",
-            acctTestText: test ? test.text : "",
-            acctEarliest: d ? (d.earliest || "") : "",
-            onAcctEarliest: ev("earliest"),
-            acctEarliestHint: d && d.earliest
-              ? "Mail that arrived before this date stays on the mail server and is never downloaded - it will not show up in the list or in search."
-              : "No limit: everything the mail server still holds gets downloaded.",
-            acctEarliestClearShown: !!(d && d.earliest),
-            acctEarliestClear: () => upd("earliest", ""),
-            acctFolders: FOLD.map(([k, label, icon, ph]) => ({
-              label, icon, ph,
-              value: folders[k] || "",
-              set: e => updFolder(k, e.target.value),
-            })),
-            acctHardDelete: hardDel,
-            acctHardDeleteSwitchStyle: sw(hardDel),
-            toggleAcctHardDelete: () => upd("hardDelete", !hardDel),
-            acctHardDeleteHint: hardDel
-              ? "Deleting removes the message from both the MailFathom server and the mail server it came from (IMAP). It is gone from every device and there is nothing left to restore."
-              : "The message stays on both servers, only marked as deleted, and you can bring it back at any time.",
-            acctPurgeGone: purgeGone,
-            acctPurgeGoneSwitchStyle: sw(purgeGone),
-            toggleAcctPurgeGone: () => upd("purgeGone", !purgeGone),
-            acctPurgeGoneHint: purgeGone
-              ? "A message removed in the IMAP source disappears from MailFathom on the next sync."
-              : "A message removed in the IMAP source is only flagged as deleted in MailFathom and stays searchable.",
-            acctSaveSent: saveSent,
-            acctSaveSentSwitchStyle: sw(saveSent),
-            toggleAcctSaveSent: () => upd("saveSent", !saveSent),
-            acctPassType: st.acctPassShown ? "text" : "password",
-            acctPassIcon: st.acctPassShown ? "visibility_off" : "visibility",
-            toggleAcctPass: () => this.setState(s => ({ acctPassShown: !s.acctPassShown })),
-            acctLoginHint: d && !(d.login || "").trim() ? "Empty = the e-mail address is used as the login." : "",
-            acctSaveStyle: btn(canSave
-              ? "background:var(--accent);color:var(--onaccent);"
-              : "background:var(--border2);color:var(--panel);opacity:0.6;pointer-events:none;"),
-            acctSave: () => {
-              if (!canSave) return;
-              this.setState(s => {
-                const list = (s.accounts || DEF).slice();
-                const dr = s.acctDraft;
-                if (!dr) return { acctDraft: null };
-                if (dr.id) {
-                  const i = list.findIndex(a => a.id === dr.id);
-                  if (i >= 0) list[i] = dr; else list.push(dr);
-                } else list.push(Object.assign({}, dr, { id: "a" + Date.now() }));
-                return { accounts: list, acctDraft: null };
-              });
-            },
-            acctCancelStyle: btn("background:var(--sub);border:1px solid var(--border2);color:var(--text2);"),
           };
         })(),
+        ...MailFathomDesign.settingsPanel(this, {
+          st, touch, singlePane, offline: this.connNow().status === "offline", segStyle, sharedMark: SHARED_MARK, inOrg, myName, wide: w >= 1180,
+        }),
         settingsOpen: !!st.settings,
         openSettings: () => this.setState({ settings: true, userMenu: false }),
-        closeSettings: () => this.setState({ settings: false, acctDraft: null, acctDel: null }),
+        closeSettings: () => this.setState({ settings: false, acctDraft: null, folderEdit: null, footerEdit: null }),
         langOptions: [["en", "English"], ["pl", "Polski"]].map(([v, label]) => ({
           label,
           pick: () => this.setState({ lang: v }),
-          style: "padding:7px 13px;border-radius:8px;font-size:13px;" + ((st.lang || "en") === v
-            ? "background:var(--accent);color:var(--onaccent);font-weight:600;"
-            : "color:var(--text2);border:1px solid var(--line);background:var(--sub);"),
+          style: segStyle((st.lang || "en") === v) + (touch ? ";min-height:36px;display:flex;align-items:center;justify-content:center;box-sizing:border-box" : ""),
         })),
         themeOptions: [["light", "Light"], ["dark", "Dark"]].map(([v, label]) => ({
           label,

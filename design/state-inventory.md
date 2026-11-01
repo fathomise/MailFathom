@@ -510,8 +510,8 @@ the passage it rests on.*, shortened to *Quoted from this message alone* on the 
 | Arrived from a citation | `showCitationTag` / `cameFromResult` | reached from a Discover citation, and only for the `contoso` thread |
 | Answer drawn in mail | `mailAnswer` | `st.mailAnswer` and the `contoso` thread — reached by the thread sheet's *Summarise where this stands* and *What the other side expects from me*; a drafted reply never lands here, it opens in the composer |
 | Thread actions sheet | `threadSheetOpen` | the sheet control, phone-shaped |
-| Remote content removed | `m.remoteBlocked` | a message that is not the user's own and carries remote references, until they are loaded — never one marked spam, whose remote content stays blocked with no card (§ *Spam*, *Read-only spam*). A card at the top of the body says *This message asked to fetch content from another server. That was removed, so opening it told the sender nothing.*, then *Removed references: N*, then *Loading them tells the sender that this message was opened. This choice applies to this message only and is not remembered anywhere.*, over one accent button, *Load images from the sender*, 44 px tall on touch. The count comes from `m.remoteRefs` where a message sets one, and none does; otherwise a hash of sender and time gives about a third of the messages none and the rest between 3 and 18. *Images loaded automatically* in the settings does not reach it |
-| Remote content loaded | `m.remoteLoaded` | pressing that button — the card gives way to one muted line with an `image` glyph, *Images from the sender are loaded for this message.* The choice is kept per message in `st.remoteLoaded` for the session and nowhere else |
+| Remote content removed | `m.remoteBlocked` | a message that is not the user's own and carries remote references, until they are loaded — never one marked spam, whose remote content stays blocked with no card (§ *Spam*, *Read-only spam*). A card at the top of the body says *This message asked to fetch content from another server. That was removed, so opening it told the sender nothing.*, then *Removed references: N*, then *Loading them tells the sender that this message was opened. This choice applies to this message only and is not remembered anywhere.*, over one accent button, *Load images from the sender*, 44 px tall on touch. The count comes from `m.remoteRefs` where a message sets one, and none does; otherwise a hash of sender and time gives about a third of the messages none and the rest between 3 and 18. While *Load images automatically* is on in Settings, *Application*, the card is not drawn at all: the message opens with its images, and a message marked spam still keeps them blocked with no card |
+| Remote content loaded | `m.remoteLoaded` / `m.remoteLoadedText` | pressing that button — the card gives way to one muted line with an `image` glyph, *Images from the sender are loaded for this message.* The choice is kept per message in `st.remoteLoaded` for the session and nowhere else. With *Load images automatically* on, every such message opens on this line instead of the card, reading *Images from the sender load automatically - Settings, Application.* |
 | A change the mailbox did not take | `m.changeShown` | a move, archive, delete, flag or read mark MailFathom stopped trying (`CHANGE_NOTICES` in `data/prototype/workspace.js`, fate `exhausted`), on the message it was asked for — the thread's newest — at the top of its body, above the remote-content card: the Outbox refused box's shape, `--err` with `sync_problem`, *Not moved - your mailbox did not take this change* over *The mail server would not take it, so this message is shown where the server holds it.*, then *Ask again* (accent) and *Let it go* (quiet), 44 px tall under a finger. A move reads *Move again…* instead and asks for the folder once more, because the change record names the act and not where it was going. The title names the act: *Not moved*, *Not archived*, *Not deleted*, *Not marked read*, *Not marked unread*, *Not flagged*, *Not unflagged*, *Not copied*, *Tags not changed* (`CHANGE_ACT`). *Not archived* is a change this tab followed. One known only from its notification is named by the eight acts the server records, where archiving is a move and reads *Not moved*. Nothing local changed on a mirrored account, so the message simply stands where the server holds it. Reached by opening the change notification, which leads to `travel1` |
 | A change whose outcome is unknown | `m.changeShown` (fate `unknown`) | the same box in `--warn` with `help`: *Flagging may not have happened* — *Moving*, *Archiving*, *Deleting*, *Marking read*, *Marking unread*, *Flagging*, *Unflagging* — over *The mail server never answered, so nobody knows whether it took the change. The message is shown as the server last reported it.*, with the same two buttons. Reached by opening the `devops1` thread, *Nightly report - build #2418* |
 | The change decided | `changeDecided` / `decideChange` | *Ask again* or *Let it go*, on the message or on its notification row: the notice goes, the durable row is marked read and loses its pills, so one failure is never shown as two. *Ask again* raises a neutral toast titled *Asked again*, *MailFathom is telling your mailbox again.*; *Let it go* does nothing else |
@@ -1104,12 +1104,12 @@ to a folder and marking as read stay a one-line `Suggested action`.
 | Duration | `statusDurationValue` / `statusOnDuration` / `durDone` | a *Duration* row (`timer`) under the six states and a rule, **whatever the current state**, showing the while — *Until changed*, or the state and its reset such as *Busy · 1 hour*. As Teams has it, it opens a page in place of the first one, headed `arrow_back` and *Duration*: *Status*, a combobox showing the chosen state's dot and word (`durPresenceOpen`), which opens in place under itself a list of the six states, each with its dot as on the first page and the chosen one on `--accent-soft` with `check` — not a native select, which cannot draw the dots — opened on the current state; *Reset status after*, a select of *30 minutes*, *1 hour*, *2 hours*, *Today* and *This week*, opened on *Today*; and **Done** (`--accent`), which takes both together and closes the menu. `arrow_back` returns without taking either. **A state picked from the first page always ends the while**, back to *Until changed* |
 | Status message | `statusOnMessage` / `statusDraft` / `onStatusKey` | the *Message* row (`chat_bubble`, *Set a status message* in `--faint` where there is none): a two-line field of at most 280 characters, *Saved on Enter or when you go back* beside its count (*22 / 280*, `--warn-text` from 260), *Clears* as four equal segments — *Never*, *1 hour*, *Today*, *This week*, taking at once — and *Clear status message* (`backspace`, `--warn-text`) while there is one. Enter, `arrow_back`, or closing the menu keeps what was typed |
 | Working from | `statusOnWork` / `statusWorkRows` / `statusWorkValueStyle` | the *Working from* row (`apartment`), showing the choice, or *Not stated* in `--faint` until the member says: a page that is a dialog rather than a menu, like *Duration* and *Message*, holding four radios in a group named *Working from* — *Office today*, *Office until changed*, *Remote today*, *Remote until changed* — each taking at once and returning, none of them checked while nothing is stated |
-| Settings | `settingsOpen` | the settings control; closing it also drops the account draft. It clears `acctDel` too, which nothing sets any more — removing an account left the design and that one line stayed behind |
-| Settings: its five sections | `tabProfil` / `tabAccounts` / `tabAi` / `tabNotif` / `tabApp` | *Profile*, *Accounts*, *AI*, *Notifications*, *Application*, `tabProfil` being the default. On two panes a section navigation (`settingsNavShown`) groups them under *You*, *Mail*, *Assistant* and *This device* (`settingsNavGroups`), each row an icon and a label; on one pane they are a tab strip that scrolls sideways (`settingsStripShown`) |
-| Settings: finding a section | `settingsQuery` / `settingsNavEmpty` | *Find a setting* at the top of the section navigation narrows it by a section's name and description; nothing left reads *No section matches.* |
+| Settings | `settingsOpen` | the settings control; closing it also drops the open account, the folder being edited and the footer being edited |
+| Settings: its seven sections | `tabProfil` / `tabAway` / `tabAccounts` / `tabReading` / `tabAi` / `tabNotif` / `tabApp` | *Profile*, *Availability*, *Accounts*, *Reading*, *AI*, *Notifications*, *Application*, `tabProfil` being the default. On two panes a section navigation (`settingsNavShown`) groups them under *You* (*Profile*, *Availability*), *Mail* (*Accounts*, *Reading*), *Assistant* (*AI*, *Notifications*) and *General* (*Application*) (`settingsNavGroups`), each row an icon and a label; on one pane they are a tab strip that scrolls sideways (`settingsStripShown`). Changing section closes an open account, folder or footer |
+| Settings: finding a section | `settingsQuery` / `settingsNavEmpty` | *Find a setting* at the top of the section navigation narrows it by a section's name, its description and the names of the settings in it — *phone* finds *Profile*, *footer* finds *Accounts*, *theme* finds *Application*; nothing left reads *No section matches.* |
 | Settings: the section head | `settingsSectionTitle` / `settingsSectionHint` | two panes only — the section's name at 22 px over one sentence saying what it holds |
 | Own photo | `meHasPhoto` | a photo was uploaded |
-| **Photo rejected** | `photoError` | a file over 1 MB — a real file has to be chosen, so **no click reaches this** |
+| **Picture rejected** | `photoError` | a file that is neither a JPEG nor a PNG (*That file is neither a JPEG nor a PNG, so it was not sent.*) or one over 1 MB (*That picture is larger than 1 MB, so it was not sent.*) — a real file has to be chosen, so **no click reaches this** |
 | Telemetry off | `telemetryOptOut` | the telemetry switch |
 | Notification centre | `notifCenterOpen` | the bell, or the phone's upward gesture; on the phone it covers the whole screen, the bottom bar included (§ *The notification gesture*); on the upright fold and tablet it slides in from the start edge and stops above the bottom bar |
 | Unread notifications | `notifHasUnread` | the unread count; it gates three regions including the rail badge. The panel's own badge is one composed string, `notifNewLabel`, reading *1 new* or *N new* |
@@ -1161,49 +1161,141 @@ are words, never anchors (§ *Spam*, *A link in spam*), so nothing in it can be 
 
 ### The settings panel
 
-Added on 2026-09-11, where the panel had held two tabs and a fixed card.
-
 **Settings take the whole window at every composition**, the desktop included, because the list of
-sections is meant to grow well past five and a dialog leaves no room for a navigation that grows with
-it. There is no card, no grip, no drag and no stored size: the panel is a full-window surface on
-`--bg` that arrives with `pop` on two panes and `sheet` on one. Its head is a 22 px `settings` glyph,
-*Settings* and the close control. On two panes a 264 px section navigation (220 below 1020) runs down
-the left on `--sub`, with *Find a setting* at its top and the version and build at its foot, and the
-section itself scrolls on the right in a column at most 760 px wide. On one pane the sections are a
-tab strip under the head and the version sits in a footer.
+sections grows past what a dialog has room to navigate. There is no card, no grip, no drag and no
+stored size: the panel is a full-window surface on `--bg` that arrives with `pop` on two panes and
+`sheet` on one. Its head is a 22 px `settings` glyph, *Settings* and the close control. On two panes a
+264 px section navigation (220 below 1020) runs down the left on `--sub`, with *Find a setting* at its
+top and the version and build at its foot, and the section itself scrolls on the right in a column at
+most 760 px wide. On one pane the sections are a tab strip under the head and the version sits in a
+footer.
+
+**The panel draws every setting a person may change, and nothing the client cannot write.** The
+sections, their settings, and every write's answer are `logic/prototype/settings.js`; the person's
+sample settings are `data/prototype/settings.js`, and each account's folders and footer are
+`mailAccounts`, `footers` and `ownFooters` beside them. Every control in a section stands at 44 under
+a finger — a field, a select, a button, a switch row, a navigation row — and a segment in its track
+and a day chip stand at 36 with the rest of the 44 around them. One choice among several is a
+segmented track: the person's language, *Message view*, the interface language, the theme, the list
+mode, and how a folder is found.
+
+#### Profile — `tabProfil`
 
 | State | Flag | Reveal |
 |---|---|---|
-| The account list | `acctListShown` | the *Accounts* tab with no draft open — one row per account carrying a colour dot, the display name, the address, `IMAP host:port · SMTP host:port` and `chevron_right`, under a `Mail accounts` caption beside `acctCount`, and under the rows the sentence that settles what this tab is: *Accounts are set up by your administrator - here you can open one and change its settings.* |
-| The account editor | `acctEditShown` | a row. `acctTitle` reads *Edit account* and nothing else, there being no second way in |
-| The address is fixed | the `E-mail address` input | it is `readOnly` with `tabIndex` `-1`, drawn on `--bg` rather than `--sub`, under *The address identifies the account and cannot be changed here.* |
-| Save refused | `acctSaveStyle` | the display name or the address is empty — the button is drawn flat and refuses the pointer |
-| The password shown | `acctPassType` / `acctPassIcon` | the `visibility` control beside the field |
-| Login left empty | `acctLoginHint` | nothing typed in *Login* — *Empty = the e-mail address is used as the login.* |
-| Connection test refused | `acctTestBad` | *Test connection* while a host, a port, a login or a password is missing — it names every field still empty |
-| Connection test passed | `acctTestOk` | *Test connection* with all six filled — it names the two hosts |
-| An earliest date set | `acctEarliestClearShown` / `acctEarliestHint` | the date field — the hint states that older mail stays on the mail server, and reverts to *No limit* when cleared |
-| The folder mapping | `acctFolders` | six rows pairing Inbox, Sent, Drafts, Archive, Spam and Trash with `INBOX`, `Sent`, `Drafts`, `Archive`, `Junk` and `Trash` |
-| The three switches over what it deletes and sends | `acctHardDelete` / `acctPurgeGone` / `acctSaveSent` | each is on by default and each carries a hint that changes with its position — hard delete states that a message goes from both servers with nothing left to restore |
-| The secret check | `acctSecretScan` / `acctSecretScanWarn` | the account editor's own switch, under `Before sending to the model - this account only`, on by default; while it is on, a warning states the check is best-effort and can both miss a secret and hide ordinary text |
-| The AI language | `aiLangOptions` / `aiMatchReply` | *AI* — English or Polski, **English first and English selected** (`st.aiLang` falls back to `"en"`), separate from the interface language, with a note that a change applies only to content written from now on, and *Match the language of the message* beneath it. `langOptions`, the interface language in the account menu, is drawn and defaulted the same way |
-| Notifications cleared on read | `notifAutoClear` | the *Notifications* tab's switch; while it is on, a `Remove` select offers Right away, After 1 hour, After 24 hours and After 7 days |
-| Notified on this device | `notifDevice` | the *Notifications* tab's `This device` group, off by default — *When the window is not in front of you, this device tells you how many things arrived and of what kind - never from whom, never what it is about.* |
-| How long one stays up | `notifDuration` / `notifDurationLabel` | the range beneath it, 1 to 30 whole seconds and 5 by default, drawn as `<n> s` in the accent; its copy ties the value to the undo window, which *waits exactly as long as its notification is up* |
-| The message view | `viewAiStyle` / `viewSimpleStyle` / `viewHtmlStyle` | *Application* — a `Message view` strip of three, *AI simplified*, *Simplified* and *Original* in that order, each drawn by one `segStyle` helper that is the only place the segment's own styling lives |
-| Images loaded automatically | `autoImages` | *Application* — while it is on, a warning states the image is fetched from the sender's server and is how tracking pixels work |
+| The name | `meName` / `onMeName` / `saveMeName` | the field beside the picture; a change is written when the field is left |
+| A name refused | `nameProblem` | a name left blank or past 128 characters, at once and without a write — *That name was not accepted. It cannot be blank or longer than 128 characters.* — and the same sentence when the server refuses one (`settingsWrites` `refused`) |
+| The name held by the administrator | `nameLocked` / `nameManagedNote` | `settingsAccess` `nameManaged` — the field is read-only on `--bg` under *Your name is managed by your administrator, so it is shown here rather than offered for you to change.* The rest of the section stays writable |
+| The picture | `pickPhoto` / `meHasPhoto` / `removePhoto` | *Picture*, then *Remove* while there is one, which asks first; *JPG/PNG, up to 1 MB* beside them |
+| The language | `personLangOptions` | *Language* — English or Polski as one segmented track. **It is the person's own language**: what MailFathom writes to them in. The screens' language is the interface language under *Application*, a separate setting kept on the device |
+| The time zone | `tzValue` / `tzOptions` | a select of zones by place and name, under which every date is written and from which *this week* is reckoned |
+| The phone numbers | `phoneRows` / `phonesEmpty` | one row per number — a label select (*Mobile*, *Work*, *Home*, *Other*), the number, and `close` to remove it. The first carries *First* (`call`, `--accent-soft`) and *The number colleagues call*; every other carries *Move to first*. *No number yet - your card shows none.* where there is none |
+| A number refused | `ph.problem` | a number with no digit, with a character other than digits, `+`, spaces, dashes, brackets and dots, or past 32 characters — said under that row at once, and the number is not written until it is put right |
+| Sixteen numbers | `addPhoneFull` | *Add a number* is `aria-disabled` and its tap says *A card holds 16 numbers at most - remove one first.* |
+| The preferred address | `addrOptions` | a radio per address of the accounts assigned to the person, the account's name under it and *Shared* on a shared mailbox |
+
+#### Availability — `tabAway`
+
+| State | Flag | Reveal |
+|---|---|---|
+| The working days | `whDays` | seven day chips, Monday first, each toggling on a tap |
+| The working hours | `whStart` / `whEnd` / `whTimesShown` | two time fields, *to* between them — one range for every day worked |
+| No working days | `whNone` | every chip off — *No working days - your card says nothing about when you work.* and the time fields go |
+| Hours refused | `whProblem` | an end at or before the start — *The end has to come after the start - one range for every day, and none across midnight.* — and nothing is written while it holds |
+| The hours read in the zone | `whHint` | always — the hours are read in the person's own time zone, named, and decide nothing but what a colleague reads on the card |
+| The automatic reply switched | `arOn` / `toggleAr` | *Answer mail automatically* |
+| Where the reply stands | `arStatus` / `arStatusIcon` | the saved reply, not the draft: *Off - nobody is answered.*, *Starts … , and answers until …*, *Answering now, until …* in `--ok-text`, or *The period ended …, so nobody is answered.* |
+| The period | `arStarts` / `arEnds` | *From* and *Until*, a date and a time each |
+| The accounts it answers on | `arAccounts` | a checkbox row per account; a shared mailbox is drawn dimmed and `aria-disabled`, and its tap says *A shared mailbox is never one person's to answer for.* |
+| The two texts | `arOutside` / `arInside` / `arInsideShown` | *To people outside your organization* and *To colleagues in your organization*, each with its count out of 8000. The second may stay empty — *Left empty, colleagues get the text above.* |
+| Outside an organization | `arNoOrgNote` / `arOutsideCaption` | `inOrganization` off — one text, captioned *The reply*, and *You are in no organization, so one text answers everybody.* |
+| A reply that cannot be saved | `arSaveOff` / `arProblem` | no outside text, a text past 8000 characters, no account, or a period that ends before it starts — *Save automatic reply* is `aria-disabled` and one sentence names everything still missing |
+| A reply saved | `arSaved` | *Save automatic reply* — *Saved. Every sender is answered once under this reply, even one an earlier reply already answered.*, because every save starts the reply over |
+
+#### Accounts — `tabAccounts`
+
+| State | Flag | Reveal |
+|---|---|---|
+| The account list | `acctListShown` | the section with no account open — one row per account carrying a colour dot, the display name and *Shared* where it is one, the address, and what it holds (*9 folders · Footer set by your organization*, *4 folders · Your own footer*, *1 folder · No footer*), under a `Mail accounts` caption beside `acctCount`, and under the rows *Your administrator sets up each account, with its address and its name. Open one to choose which of its folders MailFathom reads, and the footer under what you send from it.* |
+| One account | `acctEditShown` / `acctTitle` | a row — `arrow_back` and the account's name |
+| The address and the name | `acctMail` / `acctName` | a card on `--sub` stating both as facts, not fields, under *Your administrator sets both, and they change only there.* |
+| The folders | `fdRows` | one row per folder in a bordered list: the role's glyph or `folder`, the name, and where it is found — *Found by its role - the server's Spam folder*, or its path on the mail server in monospace, levels split by ` / `. A chip on the row names every switch off its default: *Not synchronized*, *Hidden from AI*, *Not indexed*, *Created if missing* |
+| A folder open | `fd.editing` | a press on its row — the row takes `--accent-soft` and opens beneath it: *Name*; *How MailFathom finds it*, *By its role* or *By its path*, with a role select (*Inbox*, *Sent*, *Drafts*, *Archive*, *Spam*, *Trash*) or a monospace path field; and four switch rows — *Synchronize*, *Visible to AI*, *Index for search by meaning*, *Create it if it is missing*. One folder is open at a time |
+| A switch that cannot act | `fs.refused` | *Index for search by meaning* while *Visible to AI* is off (*Turn on Visible to AI first - an index is a model's reading of the folder.*), and *Create it if it is missing* on a folder found by its role (*A folder found by its role is one the mail server already has.*) — drawn dimmed, `aria-disabled`, saying why on a tap |
+| A folder that cannot be saved | `feProblem` / `feSaveOff` | no name, a name the account already has, no path, or a role another folder of the account already plays (*A role belongs to one folder of an account, and Spam is already Spam's.*) — *Save folder* is `aria-disabled` and the reason stands above it |
+| A new folder | `addFolder` | *Add a folder*, under the list while no folder is open — a row *New folder* opens at the foot of the list, found by its path, with three switches on and *Create it if it is missing* off |
+| A folder no longer read | `feRemove` | *Stop reading it* in an open folder, which asks first: *Stop reading Projects?* — the account stops reading it on its next run, and nothing on the mail server is touched |
+| A folder change answered | `folderOut` / `folderOutOk` / `folderOutBad` | *Save folder* or a confirmed removal — saved: *Saved. The account takes the change on its next run.*; and one sentence per refusal below |
+| The organization's footer | `ftOrg` / `ftLines` | an account whose organization sets the footer — a `corporate_fare` note that a footer of the person's own cannot be written there and that it fills in their name, job title and number, over the footer as it goes out, in a dashed frame |
+| The person's own footer | `ftOwn` / `ftOwnActions` | the footer as it goes out, an uploaded image drawn as an `image` chip naming it, over *Edit footer* and *Remove footer*, which asks first |
+| No footer | `ftNone` / `ftNoneActions` | *Messages from this account go out without a footer.* and *Write a footer* |
+| The footer being written | `ftEditing` | *Edit footer* or *Write a footer* — *Markup* in a monospace field; under it how an image is referred to (`cid:` and its name) and why a linked one is refused; *Images*, one row per uploaded image (`cid:wave`, its file and size, `close`), or *No image uploaded.*; *Upload an image*; and *Preview*, the footer as the markup reads now |
+| A linked image | `ftProblem` / `ftSaveOff` | markup with an image whose source is a web address — *An image is linked rather than uploaded: …* names it, and *Save footer* is `aria-disabled` |
+| A footer answered | `ftOutcome` / `ftOutcomeOk` / `ftOutcomeBad` | *Save footer* or a confirmed removal — saved: *Saved. The next message you send from this account carries it.*; and one sentence per refusal below |
+
+**An account is neither added nor removed here, and nothing about reaching its mail server is.** Its
+login, password, servers, ports, encryption, how far back it fetches, what deleting does, whether sent
+mail is filed, the secret check and *Test connection* are the administrator's, and the client has no
+way to write any of them, so none is drawn. A client screen offering one is offering something the
+design does not have.
+
+#### Reading — `tabReading`, AI — `tabAi`, Notifications — `tabNotif`, Application — `tabApp`
+
+| State | Flag | Reveal |
+|---|---|---|
+| The message view | `viewAiStyle` / `viewSimpleStyle` / `viewHtmlStyle` | *Reading* — a `Message view` track of three, *AI simplified*, *Simplified* and *Original* in that order, each drawn by one `segStyle` helper that is the only place the segment's own styling lives |
+| The whole thread expanded | `autoExpand` | *Reading* — *Expand the whole thread automatically* |
+| Read when opened | `markReadOnOpen` | *Reading* — *Mark a message read when it opens*, on by default; off, opening a message in the list leaves it unread |
+| The AI filters shown | `aiFiltersShown` | *Reading* — *Show the AI filters in the folder tree*, on by default; off, the folder tree draws no *AI filters* section at all |
+| The AI's language | `aiLangName` / `goProfile` | *AI* — a card naming the person's language, *Your language, set in Profile*, and *Change*, which opens *Profile*. **There is no second language here**: the AI writes in the person's language, and its copy says that what MailFathom reads out of a mailbox on its own follows the language set for that mailbox |
+| Matching the message | `aiMatchReply` | *AI* — *Match the language of the message*: draft replies follow the sender's language, everything else keeps the person's |
+| Notifications cleared on read | `notifAutoClear` | *Notifications* — the switch; while it is on, a `Remove` select offers Right away, After 1 hour, After 24 hours and After 7 days |
+| Notified on this device | `notifDevice` | *Notifications* — the `This device` group, off by default — *When the window is not in front of you, this device tells you how many things arrived and of what kind - never from whom, never what it is about.* |
+| Notifications blocked by the browser | `notifBlocked` | `notificationPermission` `blocked` — the switch is drawn off, dimmed and `aria-disabled` (*This browser blocks notifications from here.*), over a warning: *This browser has been told to block notifications from here. Allow them in its own site settings, and this switch will work again.* |
+| How long one stays up | `notifDuration` / `notifDurationLabel` | *Notifications* — the range, 1 to 30 whole seconds and 5 by default, drawn as `<n> s` in the accent; its copy ties the value to the undo window, which *waits exactly as long as its notification is up* |
+| The interface language | `langOptions` | *Application* — English or Polski as a track, **English first and English selected**; kept on the device, so the sign-in screen is in it too |
+| The theme | `themeSegs` / `themeHint` | *Application* — *System*, *Light*, *Dark*; *System* follows the device. The user menu's own *Theme* row sets the same value |
+| Mail in tabs | `openInTabs` / `tabsWidthNote` | *Application* — *Open mail in tabs*, the same value as the user menu's *Tab mode*; below 1180 px a note says tabs need that width and mail opens beside the list either way |
+| The list mode | `listSegs` | *Application* — *The mail list shows*: *One message per row* or *One conversation per row*, the same value as the list's own switch |
+| Images loaded automatically | `autoImages` | *Application* — while it is on, a warning states the image is fetched from the sender's server and is how tracking pixels work, and every message opens with its images rather than the *Remote content removed* card, a message marked spam excepted |
+| Telemetry forwarded | `telemetryForwarded` / `telemetryDestText` | `telemetry` `forwarded` — *Don't send telemetry data*, and under it where telemetry goes and what it never carries |
+| Telemetry not forwarded | `telemetryNotForwarded` | `telemetry` `notForwarded` — no switch, and a `cloud_off` note: *This server takes no telemetry from this client, so it sends none and there is nothing to turn off.* |
+| Telemetry not answered yet | `telemetryUnanswered` | `telemetry` `unanswered` — the switch, and a pulsing `hourglass_empty` note: *Waiting for this server to say whether it forwards telemetry. Until it answers, your own decision is what holds.* |
+| Telemetry withheld | `telemetryOptOut` | the switch on — a warning that support gets harder without it |
 | Layout reset | `resetLayout` / `resetLayoutDone` | *Reset layout* under `Layout on this device`; the confirmation *Layout restored to the defaults.* stands for 3 200 ms and then goes |
 
-**An account is neither added nor removed here any more.** The dashed *Add account* row, `acctAdd`,
-*Remove this account* and the two-step removal dialog that made the name be typed out are all gone
-from the source, so the *Accounts* tab opens an existing account and changes its settings and does
-nothing else. A client screen offering either act is offering something the design does not have.
+#### What a write answers, and what this sign-in may change
 
-**The secret check is per account, and the AI tab says so rather than holding it.** The switch and
-its warning moved into the account editor, and where the global switch stood the *AI* tab now draws a
-`shield` note reading that the check *is set separately for each mail account - open
-Accounts and pick the account*. Which is why the editor's own group is captioned
-`Before sending to the model - this account only` and its copy says *from this account*.
+Every setting the server holds is written when it changes — a field when it is left — except the
+automatic reply, a folder and a footer, which each have a save of their own. A write answers as the
+`settingsWrites` property says, and **a refused write leaves the value as it was and says so where the
+setting stands**:
+
+| Answer | `settingsWrites` | What is said |
+|---|---|---|
+| Saved | `saved` | nothing for a setting written as it changes; a sentence in `--ok-text` for the automatic reply, a folder and a footer |
+| Refused | `refused` | the setting's own *was not accepted* sentence — *That time zone was not accepted, so your dates are still written in the old one.* and the like for the name, the language, the numbers, the address and the hours; *That was not changed. A notification stands for a whole number of seconds, between 1 and 30.* for the duration; for a folder the service's reason (*the mail server names no folder at that path, and this folder may not create one*); for a footer *Your organization now sets the footer on this account, so yours was not saved.*; for the reply the account it named (*Nordwind board is a shared mailbox …*) |
+| Not stored | `notStored` | the setting's *was not saved to the server* sentence — *That name was not saved to the server, so it still holds you under the old one.*, *That picture was not saved to the server, so you are still drawn as you were.*, and one for every other setting |
+| Not answered | `unanswered` | *The server did not answer, so it is not known whether that … was saved.*, naming the setting |
+| Moved | `moved` | a folder only: *These folders were changed somewhere else since this screen read them, so nothing was saved. They are shown as they stand now - make the change again.* Any other setting answers it as *not stored* |
+
+A setting that follows the person between machines — *Reading*, *AI*, the theme, tabs, the list mode,
+images, telemetry and the notification-centre settings — says its answer once, under the section it
+was changed in (`readingProblem`, `aiProblem`, `notifProblem`, `appProblem`).
+
+**What waits on the server is shown, not offered, when it cannot be written**, and each such section
+opens on a `lock` note saying why. The interface language, notifications on this device and *Reset
+layout* stay writable in every case, being the device's own.
+
+| Case | Reached by | Profile and Availability | Accounts | Reading, AI, Notifications, Application |
+|---|---|---|---|---|
+| No connection | `connection` `offline` | *There is no connection to the MailFathom server, so your name, your picture, your language, your time zone, your numbers and your address are shown here rather than offered for you to change until it is back.* | *… so this account is shown as it stands rather than offered for you to change until it is back.* | *There is no connection to the MailFathom server, so the settings that follow you between machines are shown here as they stand until it is back. The interface language and what this device does are still yours to set.* |
+| This sign-in may only read | `settingsAccess` `readOnly` | *This sign-in may read what the server holds about you and may not change it, so …* | *This sign-in may read how this account is set up and may not change it, so its folders and its footer are shown here …* | *This sign-in may not change the settings that follow you between machines, so they are shown here as they stand. …* |
+
+In both cases the controls are drawn dimmed or read-only, each `aria-disabled` control saying on a tap
+*Not connected to the server - this waits until it is back.* or *This sign-in may not change it.*; the
+picture's controls, the phone rows' removal and *Move to first*, *Add a number*, *Save automatic reply*, a folder's
+chevron, *Add a folder* and the footer's actions are not drawn at all.
 
 The message view is **three** options rather than two, drawn *AI simplified*, *Simplified*,
 *Original* — the last reading **Original** and not *HTML*. `msgView` carries `"ai"`, `"simple"` and
@@ -1472,8 +1564,22 @@ clicking a preview.
   context and draws nothing in the application at all, so the only evidence of the path is that no question
   appeared; the meeting link of *Rollout status with Piotr* and the materials folder in *Trade show materials
   24.09* take it.
-- **A rejected profile photo** (`photoError`). Set only by choosing a file over 1 MB; no control in
-  the prototype can produce one.
+- **A rejected picture** (`photoError`). Set only by choosing a file that is neither a JPEG nor a PNG, or
+  one over 1 MB; no control in the prototype can produce one.
+- **Every answer a settings write can get but the saved one** (`settingsWrites`). The prototype saves
+  every write unless the `settingsWrites` property says `refused`, `notStored`, `unanswered` or `moved`,
+  so no preview shows a refusal under a setting, a folder or a footer — § *The settings panel* lists
+  what each answer says.
+- **Settings this sign-in may not change** (`settingsAccess`, `connection`). The name held by the
+  administrator is `settingsAccess` `nameManaged`, a sign-in that may only read is `readOnly`, and the
+  sections shown rather than offered for want of a connection need the `connection` property pinned to
+  `offline`.
+- **Telemetry the server forwards nowhere, or has not answered about** (`telemetry`), and **notifications
+  the browser blocks** (`notificationPermission`). Each is a property alone; the defaults draw telemetry
+  forwarded and notifications not yet asked.
+- **The automatic reply answering now, and one whose period ended.** The sample reply is off and its
+  period lies ahead, so *Answering now, until …* and *The period ended …* are reached only by saving a
+  period that contains or ends before the prototype's today, 27 August 2026, with the switch on.
 - **Every tab state** (`tabsBarShown`, `noTabsOpen`, `convBarShown`, `closeAllAsk`). Two conditions at
   once: the user menu's *Tab mode* switch turned on and a width of at least 1180 px. The initial state
   is `classic`, so a preview opened at any width shows none of it.
