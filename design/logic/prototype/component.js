@@ -1703,13 +1703,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     inSpamFolder = () => !this.state.convMail && /·Spam$/.test(this.state.folderKey || "acc1·Inbox");
     /* Whether *Spam* and *Not spam* also move a message is its account's own setting, off unless the account says so. */
     accountOf = (id) => (THREADS.find(x => x.id === id) || {}).acc || "acc1";
-    /* The account a composition sends from: a reply's conversation's, a draft's own, the Agent's draft's own
-       (`composeAcc`), or else the account whose folder is open — the work account where none is, unified folders included. Its footer is drawn under the text and carries
+    /* The account a composition sends from: a reply's conversation's, a draft's own, or else the account whose folder is
+       open — the work account where none is, unified folders included. Its footer is drawn under the text and carries
        the closing, so an AI draft on it ends at its own words and signs off only where the account has none. */
     composeAccKey = (s = this.state) => {
       if (s.replyMode && s.replyThreadId) return this.accountOf(s.replyThreadId);
       if (!s.replyMode && s.composeDraft && s.composeDraft.acc) return s.composeDraft.acc;
-      if (!s.replyMode && s.composeAcc) return s.composeAcc;
       const key = (s.folderKey || "acc1·Inbox").split("·")[0];
       return ACCOUNTS.some(a => a.key === key) ? key : "acc1";
     };
@@ -3515,9 +3514,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     agentAction = (a) => {
       if (a.kind === "draft") {
         this.pendingDraft = AGENT_DRAFT_HTML;
-        const patch = { screen: "mail", compose: true, composeMin: false, replyMode: null, composeDraft: null, composeAcc: a.acc || "acc1" };
-        if (this.tabsMode()) this.openTab("compose", patch);
-        else this.setState(patch);
+        if (this.tabsMode()) this.openTab("compose", { screen: "mail", compose: true, composeMin: false });
+        else this.setState({ screen: "mail", compose: true, composeMin: false });
       } else if (a.kind === "cal") {
         this.setState(s2 => ({
           screen: "cal",
@@ -4144,7 +4142,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false, composeAcc: null };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -7518,8 +7516,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeExpanded: (!!st.compose && !st.composeMin) || composeInPane,
         composeChromeShown: !composeTabActive,
         openCompose: () => (tabsMode
-          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null, composeAcc: null })
-          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null, composeAcc: null })),
+          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
+          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
         composeSubjValue: curSubj,
         onComposeSubj: (e) => this.setState({ composeSubjEdit: e.target.value }),
         closeCompose: () => (bodyTxt() || curSubj.trim() ? this.setState({ closeAsk: true }) : finishCompose()),
