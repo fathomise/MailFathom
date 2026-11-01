@@ -75,7 +75,8 @@ the act [ADR 0026](https://github.com/fathomise/MailFathom/blob/main/docs/decisi
 decides, which the client states on the flag change it submits. Nothing else records it: a rule, the spam verdict, an
 MCP caller, *mark as read*, and another mail client each set `\Seen` without reporting a reading. A person who turned
 [`markReadOnOpen`](../operations/client-endpoint.md#the-preferences-routes) off writes nothing when they open a message,
-and so reports nothing either. MailFathom keeps no read state of its own beside the server flag, and this adds none:
+and so MailFathom reports no reading for them either; a read receipt the sender asked for still travels, as the next
+paragraph says, and another client answering it can still tell them. MailFathom keeps no read state of its own beside the server flag, and this adds none:
 what is recorded is the sender's outcome, not the reader's state. A message opened again keeps the first reading.
 
 **The composer's requests stay available, and the organization's outcome takes precedence.** A colleague may also read

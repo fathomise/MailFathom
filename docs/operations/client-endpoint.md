@@ -3044,8 +3044,10 @@ the sign-in screen — and what this answers replaces that device value once a s
 value rather than one per mailbox because read state is what must not differ between the machines somebody reads on, and
 a client whose user has turned it off shows what their mail server last reported and remembers no reading of its own.
 It governs opening a message and nothing else: marking a message read or unread deliberately, through the flag
-mutations above, is unaffected by it. Off, it also means a colleague who sent the message is never told it was read, because an
-opening is what [reports a reading between two accounts of one organization](../features/delivery-and-read-receipts.md#between-two-accounts-of-one-organization).
+mutations above, is unaffected by it. Off, it also means opening a message in this client records no reading for a
+colleague who sent it, because an opening is what [reports a reading between two accounts of one organization](../features/delivery-and-read-receipts.md#between-two-accounts-of-one-organization).
+That is MailFathom's own report and nothing more: a read receipt the sender asked for is still carried onto the wire, so
+a reading done in another mail client that answers it can still tell them.
 [ADR 0026](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0026-marking-a-message-read-when-a-person-opens-it-in-the-client.md)
 holds the reasoning, including why an operator's lever here is
 [`mailfathom.mail.flags.write`](permissions.md#the-published-set) rather than a key of their own.
