@@ -90,7 +90,8 @@ function compositionIn(value: unknown): Composition | null {
     const cc = addressesIn(record['cc']);
     const bcc = addressesIn(record['bcc']);
 
-    // Absent reads as off, as it does on the wire; anything but a yes or a no is a shape this client did not write.
+    // An absent request reads as off, so a tab reloaded onto this client from one that kept neither still gets its words
+    // back. A null, or anything else but a yes or a no, is a shape this client did not write.
     const requestsDeliveryNotification =
         record['requestsDeliveryNotification'] === undefined ? false : record['requestsDeliveryNotification'];
     const requestsReadReceipt = record['requestsReadReceipt'] === undefined ? false : record['requestsReadReceipt'];
