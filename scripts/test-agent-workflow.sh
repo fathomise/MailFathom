@@ -7095,7 +7095,7 @@ closing_issues_report_each_issue_once() {
 # The fake `gh` keeps the issues in a file and derives each one's `sub_issues_summary` from its
 # children's states on every listing, which is what lets a close in one pass make the parent above it
 # complete in the next. It applies the script's own `--jq` filter with the real `jq`, as the client
-# does, and records every write in the order it was asked for.
+# does, and records every write, with the fields it was sent, in the order it was asked for.
 close_parents_bin_directory="$test_directory/close-parents-bin"
 mkdir -p "$close_parents_bin_directory"
 
@@ -7109,11 +7109,13 @@ endpoint=''
 filter=''
 method='GET'
 expecting=''
+fields=''
 
 for argument in "$@"; do
   case "$expecting" in
     filter) filter="$argument" ;;
     method) method="$argument" ;;
+    field) fields+=" $argument" ;;
   esac
   if [[ -n "$expecting" ]]; then
     expecting=''
@@ -7151,14 +7153,14 @@ case "$method $endpoint" in
     response="$(cat "$FAKE_PARENTS_STATE/timeline-$number.json" 2> /dev/null || printf '[]')"
     ;;
   "PATCH repos/"*)
-    printf 'close %s\n' "$number" >> "$FAKE_PARENTS_STATE/writes.log"
+    printf 'close %s%s\n' "$number" "$fields" >> "$FAKE_PARENTS_STATE/writes.log"
     jq --argjson n "$number" 'map(if .number == $n then .state = "closed" else . end)' "$issues_file" \
       > "$issues_file.next"
     mv "$issues_file.next" "$issues_file"
     response='{}'
     ;;
   "POST repos/"*"/comments")
-    printf 'comment %s\n' "$number" >> "$FAKE_PARENTS_STATE/writes.log"
+    printf 'comment %s%s\n' "$number" "$fields" >> "$FAKE_PARENTS_STATE/writes.log"
     if [[ "${FAKE_PARENTS_COMMENT_FAILS:-false}" == 'true' ]]; then
       printf 'gh: Forbidden (HTTP 403)\n' >&2
       exit 1
@@ -7203,6 +7205,12 @@ write_close_parents_timeline() {
     "$created_at" > "$close_parents_state/timeline-$number.json"
 }
 
+# The writes without their fields, for the contracts about which issues were written and in what order.
+close_parents_write_order() {
+  cut -d ' ' -f 1,2 "$close_parents_state/writes.log" > "$close_parents_state/write-order.log"
+  printf '%s\n' "$close_parents_state/write-order.log"
+}
+
 run_close_parents() {
   local output_file="$1"
   shift
@@ -7217,8 +7225,8 @@ run_close_parents() {
 
 # The listing is the whole of what decides a parent is complete, so the two things it must leave out
 # are pinned beside the one it must take: an issue with no sub-issues at all, and a pull request,
-# which the issues endpoint lists too. The close comes before the comment, so a comment that fails
-# leaves a closed parent rather than a line repeated on every run.
+# which the issues endpoint lists too. The close is as completed and comes before the comment, so a
+# comment that fails leaves a closed parent rather than a line repeated on every run.
 a_completed_parent_closes_before_its_comment() {
   local output_file="$test_directory/close-parents-completed"
 
@@ -7231,7 +7239,9 @@ a_completed_parent_closes_before_its_comment() {
 
   run_close_parents "$output_file"
 
-  assert_file_content $'close 1\ncomment 1' "$close_parents_state/writes.log"
+  assert_file_content \
+    $'close 1 state=closed state_reason=completed\ncomment 1 body=All sub-issues are closed, so this parent is closed with them.' \
+    "$close_parents_state/writes.log"
   assert_contains 'Closed #1: all 2 sub-issues are closed: [P] Done' "$output_file"
 }
 
@@ -7273,7 +7283,7 @@ a_parent_whose_settled_links_span_two_pages_closes() {
 
   run_close_parents "$output_file"
 
-  assert_file_content $'close 1\ncomment 1' "$close_parents_state/writes.log"
+  assert_file_content $'close 1\ncomment 1' "$(close_parents_write_order)"
 }
 
 a_dry_run_names_a_completed_parent_and_closes_nothing() {
@@ -7302,7 +7312,7 @@ a_closed_sub_parent_lets_its_parent_close_in_the_next_pass() {
 
   FAKE_PARENTS_COMMENT_FAILS=true run_close_parents "$output_file"
 
-  assert_file_content $'close 2\ncomment 2\nclose 1\ncomment 1' "$close_parents_state/writes.log"
+  assert_file_content $'close 2\ncomment 2\nclose 1\ncomment 1' "$(close_parents_write_order)"
   assert_contains 'Note: #2 was closed but the comment saying why did not post.' "$output_file"
   assert_contains 'Closed #1:' "$output_file"
 }
